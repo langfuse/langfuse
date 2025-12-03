@@ -32,6 +32,10 @@ import { startCase } from "lodash";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import {
+  toAbsoluteTimeRange,
+  type DashboardDateRangeOptions,
+} from "@/src/utils/date-range-utils";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
@@ -249,9 +253,47 @@ export function WidgetForm({
     initialValues.chartConfig?.bins ?? 10,
   );
 
+  // Default sort configuration for pivot tables
+  const [defaultSortColumn, setDefaultSortColumn] = useState<string>(
+    initialValues.chartConfig?.defaultSort?.column ?? "none",
+  );
+  const [defaultSortOrder, setDefaultSortOrder] = useState<"ASC" | "DESC">(
+    initialValues.chartConfig?.defaultSort?.order ?? "DESC",
+  );
+
   // Filter state
-  const { selectedOption, dateRange, setDateRangeAndOption } =
-    useDashboardDateRange({ defaultRelativeAggregation: "7 days" });
+  const { timeRange, setTimeRange } = useDashboardDateRange({
+    defaultRelativeAggregation: "last7Days",
+  });
+
+  // Convert timeRange to absolute date range for compatibility
+  const dateRange = useMemo(() => {
+    return toAbsoluteTimeRange(timeRange) ?? undefined;
+  }, [timeRange]);
+
+  // Convert timeRange to legacy format for DatePickerWithRange compatibility
+  const selectedOption = useMemo(() => {
+    if ("range" in timeRange) {
+      return timeRange.range;
+    }
+    return "custom" as const;
+  }, [timeRange]);
+
+  const setDateRangeAndOption = (
+    option: DashboardDateRangeOptions,
+    range?: { from: Date; to: Date },
+  ) => {
+    if (option === "custom") {
+      if (range) {
+        setTimeRange({
+          from: range.from,
+          to: range.to,
+        });
+      }
+    } else {
+      setTimeRange({ range: option });
+    }
+  };
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     initialValues.filters?.map((filter) => {
       if (filter.column === "name") {
@@ -268,6 +310,17 @@ export function WidgetForm({
       }
       return filter;
     }) ?? [],
+  );
+
+  // Static sort state for pivot table preview (non-interactive)
+  const previewSortState = useMemo(
+    () =>
+      selectedChartType === "PIVOT_TABLE" &&
+      defaultSortColumn &&
+      defaultSortColumn !== "none"
+        ? { column: defaultSortColumn, order: defaultSortOrder }
+        : null,
+    [selectedChartType, defaultSortColumn, defaultSortOrder],
   );
 
   // Helper function to update pivot table dimensions
@@ -372,7 +425,10 @@ export function WidgetForm({
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId },
+      {
+        projectId,
+        fromTimestamp: dateRange?.from,
+      },
       {
         trpc: {
           context: {
@@ -733,7 +789,17 @@ export function WidgetForm({
         : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
-      orderBy: null,
+      orderBy:
+        selectedChartType === "PIVOT_TABLE" && previewSortState
+          ? [
+              {
+                field: previewSortState.column,
+                direction: previewSortState.order.toLowerCase() as
+                  | "asc"
+                  | "desc",
+              },
+            ]
+          : null,
       chartConfig:
         selectedChartType === "HISTOGRAM"
           ? { type: selectedChartType, bins: histogramBins }
@@ -742,6 +808,13 @@ export function WidgetForm({
                 type: selectedChartType,
                 dimensions: pivotDimensions,
                 row_limit: rowLimit,
+                defaultSort:
+                  defaultSortColumn && defaultSortColumn !== "none"
+                    ? {
+                        column: defaultSortColumn,
+                        order: defaultSortOrder,
+                      }
+                    : undefined,
               }
             : { type: selectedChartType },
     };
@@ -757,6 +830,9 @@ export function WidgetForm({
     histogramBins,
     pivotDimensions,
     rowLimit,
+    defaultSortColumn,
+    defaultSortOrder,
+    previewSortState,
   ]);
 
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -875,6 +951,13 @@ export function WidgetForm({
             ? {
                 type: selectedChartType as DashboardWidgetChartType,
                 row_limit: rowLimit,
+                defaultSort:
+                  defaultSortColumn && defaultSortColumn !== "none"
+                    ? {
+                        column: defaultSortColumn,
+                        order: defaultSortOrder,
+                      }
+                    : undefined,
               }
             : {
                 type: selectedChartType as DashboardWidgetChartType,
@@ -1281,6 +1364,11 @@ export function WidgetForm({
                     columns={filterColumns}
                     filterState={userFilterState}
                     onChange={setUserFilterState}
+                    columnsWithCustomSelect={[
+                      "environment",
+                      "traceName",
+                      "tags",
+                    ]}
                   />
                 </div>
               </div>
@@ -1400,6 +1488,70 @@ export function WidgetForm({
                   )}
                 </div>
               )}
+
+              {/* Pivot Table Default Sort Configuration */}
+              {selectedChartType === "PIVOT_TABLE" && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">
+                      Default Sort Configuration
+                    </h4>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Configure the default sort order for the pivot table. This
+                      will be applied when the widget is first loaded.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="default-sort-column">Sort Column</Label>
+                      <Select
+                        value={defaultSortColumn}
+                        onValueChange={setDefaultSortColumn}
+                      >
+                        <SelectTrigger id="default-sort-column">
+                          <SelectValue placeholder="Select a column to sort by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No default sort</SelectItem>
+                          {/* Show available metrics as sort options */}
+                          {selectedMetrics
+                            .filter(
+                              (metric) =>
+                                metric.measure && metric.measure !== "",
+                            )
+                            .map((metric) => (
+                              <SelectItem key={metric.id} value={metric.id}>
+                                {formatMetricName(metric.id)}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="default-sort-order">Sort Order</Label>
+                      <Select
+                        value={defaultSortOrder}
+                        onValueChange={(value: "ASC" | "DESC") =>
+                          setDefaultSortOrder(value)
+                        }
+                        disabled={
+                          !defaultSortColumn || defaultSortColumn === "none"
+                        }
+                      >
+                        <SelectTrigger id="default-sort-order">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ASC">Ascending (A-Z)</SelectItem>
+                          <SelectItem value="DESC">Descending (Z-A)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Visualization Section */}
@@ -1483,8 +1635,16 @@ export function WidgetForm({
                 <Label htmlFor="date-select">Date Range</Label>
                 <DatePickerWithRange
                   dateRange={dateRange}
-                  setDateRangeAndOption={setDateRangeAndOption}
-                  selectedOption={selectedOption}
+                  setDateRangeAndOption={(option, range) => {
+                    if (option === "custom") {
+                      setDateRangeAndOption("custom", range);
+                    } else {
+                      setDateRangeAndOption(option, range);
+                    }
+                  }}
+                  selectedOption={
+                    (selectedOption ?? "custom") as DashboardDateRangeOptions
+                  }
                   className="w-full"
                 />
               </div>
@@ -1545,7 +1705,6 @@ export function WidgetForm({
           </CardFooter>
         </Card>
       </div>
-
       {/* Right column - Chart */}
       <div className="w-2/3">
         <Card className={"aspect-video"}>
@@ -1569,6 +1728,13 @@ export function WidgetForm({
                       dimensions: pivotDimensions,
                       row_limit: rowLimit,
                       metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
+                      defaultSort:
+                        defaultSortColumn && defaultSortColumn !== "none"
+                          ? {
+                              column: defaultSortColumn,
+                              order: defaultSortOrder,
+                            }
+                          : undefined,
                     }
                   : selectedChartType === "HISTOGRAM"
                     ? {
@@ -1580,6 +1746,12 @@ export function WidgetForm({
                         row_limit: rowLimit,
                       }
               }
+              sortState={
+                selectedChartType === "PIVOT_TABLE"
+                  ? previewSortState
+                  : undefined
+              }
+              onSortChange={undefined}
             />
           ) : (
             <CardContent>

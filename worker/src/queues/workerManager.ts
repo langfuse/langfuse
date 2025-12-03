@@ -7,6 +7,8 @@ import {
   logger,
   QueueName,
   IngestionQueue,
+  TraceUpsertQueue,
+  OtelIngestionQueue,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -35,7 +37,18 @@ export class WorkerManager {
       const result = await processor(job);
       const queue = queueName.startsWith(QueueName.IngestionQueue)
         ? IngestionQueue.getInstance({ shardName: queueName })
-        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>);
+        : queueName.startsWith(QueueName.TraceUpsert)
+          ? TraceUpsertQueue.getInstance({ shardName: queueName })
+          : queueName.startsWith(QueueName.OtelIngestionQueue)
+            ? OtelIngestionQueue.getInstance({ shardName: queueName })
+            : getQueue(
+                queueName as Exclude<
+                  QueueName,
+                  | QueueName.IngestionQueue
+                  | QueueName.TraceUpsert
+                  | QueueName.OtelIngestionQueue
+                >,
+              );
       Promise.allSettled([
         // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
         // or "prioritized" or "waiting-children") that count provides
@@ -74,6 +87,10 @@ export class WorkerManager {
       Object.values(WorkerManager.workers).map((worker) => worker.close()),
     );
     logger.info("All workers have been closed.");
+  }
+
+  public static getWorker(queueName: QueueName): Worker | undefined {
+    return WorkerManager.workers[queueName];
   }
 
   public static register(

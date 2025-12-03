@@ -81,7 +81,7 @@ export function DeactivateEvalConfig({
             variant={
               evalConfig?.status === "ACTIVE" ? "destructive" : "default"
             }
-            loading={mutEvaluator.isLoading}
+            loading={mutEvaluator.isPending}
             onClick={onClick}
           >
             {evalConfig?.status === "ACTIVE" ? "Deactivate" : "Activate"}

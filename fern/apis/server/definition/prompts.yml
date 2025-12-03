@@ -14,7 +14,9 @@ service:
       path-parameters:
         promptName:
           type: string
-          docs: The name of the prompt
+          docs: |
+            The name of the prompt. If the prompt is in a folder (e.g., "folder/subfolder/prompt-name"), 
+            the folder path must be URL encoded.
       request:
         name: GetPromptRequest
         query-parameters:
@@ -86,6 +88,9 @@ types:
   PromptMeta:
     properties:
       name: string
+      type:
+        type: PromptType
+        docs: Indicates whether the prompt is a text or chat prompt.
       versions: list<integer>
       labels: list<string>
       tags: list<string>
@@ -133,6 +138,11 @@ types:
     union:
       chat: ChatPrompt
       text: TextPrompt
+
+  PromptType:
+    enum:
+      - chat
+      - text
 
   BasePrompt:
     properties:

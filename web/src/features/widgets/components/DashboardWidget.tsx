@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
   type views,
@@ -7,7 +7,7 @@ import {
 } from "@/src/features/query";
 import { type z } from "zod/v4";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
@@ -69,6 +69,28 @@ export function DashboardWidget({
     : new Date(new Date().getTime() - 1000);
   const toTimestamp = dateRange ? dateRange.to : new Date();
 
+  // Initialize sort state for pivot tables
+  const defaultSort =
+    widget.data?.chartConfig.type === "PIVOT_TABLE"
+      ? widget.data?.chartConfig.defaultSort
+      : undefined;
+
+  const [sortState, setSortState] = useState<OrderByState | null>(() => {
+    return defaultSort || null;
+  });
+
+  // Apply defaultSort when it becomes available (after widget data loads)
+  // but only if user hasn't interacted yet
+  useEffect(() => {
+    if (defaultSort && sortState === null) {
+      setSortState(defaultSort);
+    }
+  }, [defaultSort, sortState]);
+
+  const updateSort = useCallback((newSort: OrderByState | null) => {
+    setSortState(newSort);
+  }, []);
+
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
@@ -94,7 +116,15 @@ export function DashboardWidget({
           : null,
         fromTimestamp: fromTimestamp.toISOString(),
         toTimestamp: toTimestamp.toISOString(),
-        orderBy: null,
+        orderBy:
+          widget.data?.chartConfig.type === "PIVOT_TABLE" && sortState
+            ? [
+                {
+                  field: sortState.column,
+                  direction: sortState.order.toLowerCase() as "asc" | "desc",
+                },
+              ]
+            : null,
         chartConfig: widget.data?.chartConfig,
       },
     },
@@ -104,7 +134,7 @@ export function DashboardWidget({
           skipBatch: true,
         },
       },
-      enabled: !widget.isLoading && Boolean(widget.data),
+      enabled: !widget.isPending && Boolean(widget.data),
     },
   );
 
@@ -193,7 +223,7 @@ export function DashboardWidget({
     }
   };
 
-  if (widget.isLoading) {
+  if (widget.isPending) {
     return (
       <div
         className={`flex items-center justify-center rounded-lg border bg-background p-4`}
@@ -258,7 +288,7 @@ export function DashboardWidget({
             </>
           )}
           {/* Download button or loading indicator - always available */}
-          {queryResult.isLoading ? (
+          {queryResult.isPending ? (
             <div
               className="text-muted-foreground"
               aria-label="Loading chart data"
@@ -301,6 +331,13 @@ export function DashboardWidget({
               ),
             }),
           }}
+          sortState={
+            widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
+          }
+          onSortChange={
+            widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
+          }
+          isLoading={queryResult.isPending}
         />
       </div>
     </div>

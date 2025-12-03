@@ -4,13 +4,8 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import {
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  ZodModelConfig,
-} from "@langfuse/shared";
+import { ZodModelConfig } from "@langfuse/shared";
 import { DefaultEvalModelService } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -41,16 +36,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      try {
-        return DefaultEvalModelService.upsertDefaultModel(input);
-      } catch (error) {
-        if (error instanceof InvalidRequestError) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
-        } else if (error instanceof LangfuseNotFoundError) {
-          throw new TRPCError({ code: "NOT_FOUND", message: error.message });
-        }
-        throw error;
-      }
+      return DefaultEvalModelService.upsertDefaultModel(input);
     }),
   deleteDefaultModel: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))

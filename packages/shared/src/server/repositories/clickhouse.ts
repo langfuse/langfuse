@@ -2,6 +2,7 @@ import { env } from "../../env";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
+  PreferredClickhouseService,
 } from "../clickhouse/client";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
@@ -14,6 +15,70 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { ClickHouseSettings } from "@clickhouse/client";
+
+/**
+ * Custom error class for ClickHouse resource-related errors
+ */
+// Error type configuration map
+const ERROR_TYPE_CONFIG: Record<
+  "MEMORY_LIMIT" | "OVERCOMMIT" | "TIMEOUT",
+  {
+    discriminators: string[];
+  }
+> = {
+  MEMORY_LIMIT: {
+    discriminators: ["memory limit exceeded"],
+  },
+  OVERCOMMIT: {
+    discriminators: ["OvercommitTracker"],
+  },
+  TIMEOUT: {
+    discriminators: ["Timeout", "timeout", "timed out"],
+  },
+};
+
+type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
+
+export class ClickHouseResourceError extends Error {
+  static ERROR_ADVICE_MESSAGE = [
+    "We got notified about this issue and are looking into it.",
+    "We are continuously improving our API performance.",
+  ].join(" ");
+
+  public readonly errorType: ErrorType;
+
+  constructor(errType: ErrorType, originalError: Error) {
+    super(originalError.message, { cause: originalError });
+    this.name = "ClickHouseResourceError";
+    this.errorType = errType;
+    // Preserve the original stack trace if available
+    if (originalError.stack) {
+      this.stack = originalError.stack;
+    }
+  }
+
+  static wrapIfResourceError(originalError: Error): Error {
+    const errorMessage = originalError.message || "";
+
+    for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
+      [
+        keyof typeof ERROR_TYPE_CONFIG,
+        (typeof ERROR_TYPE_CONFIG)[keyof typeof ERROR_TYPE_CONFIG],
+      ]
+    >) {
+      const hasDiscriminator = config.discriminators.some((discriminator) =>
+        errorMessage.includes(discriminator),
+      );
+
+      if (hasDiscriminator) {
+        return new ClickHouseResourceError(type, originalError);
+      }
+    }
+
+    return originalError;
+  }
+}
 
 let s3StorageServiceClient: StorageService;
 
@@ -36,7 +101,7 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
-  table: "scores" | "traces" | "observations";
+  table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>; // eslint-disable-line no-unused-vars
   tags?: Record<string, string>;
@@ -62,28 +127,30 @@ export async function upsertClickhouse<
           const eventId = randomUUID();
           const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
 
-          // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
-          // and are not worried that much about latency.
-          await clickhouseClient().insert({
-            table: "blob_storage_file_log",
-            values: [
-              {
-                id: randomUUID(),
-                project_id: record.project_id,
-                entity_type: getClickhouseEntityType(eventType),
-                entity_id: record.id,
-                event_id: eventId,
-                bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-                bucket_path: bucketPath,
-                event_ts: convertDateToClickhouseDateTime(new Date()),
-                is_deleted: 0,
+          if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
+            // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
+            // and are not worried that much about latency.
+            await clickhouseClient().insert({
+              table: "blob_storage_file_log",
+              values: [
+                {
+                  id: randomUUID(),
+                  project_id: record.project_id,
+                  entity_type: getClickhouseEntityType(eventType),
+                  entity_id: record.id,
+                  event_id: eventId,
+                  bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+                  bucket_path: bucketPath,
+                  event_ts: convertDateToClickhouseDateTime(new Date()),
+                  is_deleted: 0,
+                },
+              ],
+              format: "JSONEachRow",
+              clickhouse_settings: {
+                log_comment: JSON.stringify(opts.tags ?? {}),
               },
-            ],
-            format: "JSONEachRow",
-            clickhouse_settings: {
-              log_comment: JSON.stringify(opts.tags ?? {}),
-            },
-          });
+            });
+          }
 
           return getS3StorageServiceClient(
             env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
@@ -142,6 +209,8 @@ export async function* queryClickhouseStream<T>(opts: {
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
+  preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseSettings?: ClickHouseSettings;
 }): AsyncGenerator<T> {
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
@@ -149,23 +218,27 @@ export async function* queryClickhouseStream<T>(opts: {
   });
 
   try {
-    const res = await context.with(
-      trace.setSpan(context.active(), span),
-      async () => {
+    const res = await context
+      .with(trace.setSpan(context.active(), span), async () => {
         // https://opentelemetry.io/docs/specs/semconv/database/database-spans/
         span.setAttribute("ch.query.text", opts.query);
         span.setAttribute("db.system", "clickhouse");
         span.setAttribute("db.query.text", opts.query);
         span.setAttribute("db.operation.name", "SELECT");
 
-        const res = await clickhouseClient(opts.clickhouseConfigs).query({
+        const res = await clickhouseClient(
+          opts.clickhouseConfigs,
+          opts.preferredClickhouseService,
+        ).query({
           query: opts.query,
           format: "JSONEachRow",
           query_params: opts.params,
           clickhouse_settings: {
+            ...opts.clickhouseSettings,
             log_comment: JSON.stringify(opts.tags ?? {}),
           },
         });
+
         // same logic as for prisma. we want to see queries in development
         if (env.NODE_ENV === "development") {
           logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
@@ -191,17 +264,56 @@ export async function* queryClickhouseStream<T>(opts: {
           }
         }
         return res;
-      },
-    );
+      })
+      .catch((error) => {
+        // Transform resource errors to provide actionable advice
+        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+      });
 
     for await (const rows of res.stream<T>()) {
       for (const row of rows) {
-        yield row.json();
+        yield handleExceptionRow(row.json());
       }
     }
+  } catch (error) {
+    // Also catch errors during streaming
+    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
   } finally {
     span.end();
   }
+}
+
+/**
+ * ClickHouse has a quirk when it comes to handling exceptions mid response.
+ * It will simply output a row with "exception" key inside, which is indistinguishable from
+ * a query like `SELECT "my lovely string" AS exception;` may return.
+ *
+ * E.g.:
+ * ```
+ * {"exception":"Code: 395. DB::Exception: memory limit exceeded: would use l0.23 GiB"}
+ * ```
+ *
+ * This function makes the best effort to convert such rows into errors and throws them.
+ *
+ * See:
+ * - https://github.com/ClickHouse/clickhouse-js/issues/332
+ * - https://github.com/ClickHouse/ClickHouse/issues/75175
+ *
+ * Ideally this should get fixed in the future versions of ClickHouse.
+ */
+function handleExceptionRow<T>(parsedRow: T): T {
+  if (
+    typeof parsedRow === "object" &&
+    parsedRow !== null &&
+    Object.keys(parsedRow).length === 1 &&
+    "exception" in parsedRow
+  ) {
+    const potentialException = (parsedRow as { exception: string }).exception;
+    if (potentialException.match(/^Code: (\d+)/)) {
+      throw new Error(potentialException);
+    }
+  }
+  return parsedRow;
 }
 
 /**
@@ -221,6 +333,8 @@ export async function queryClickhouse<T>(opts: {
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
+  preferredClickhouseService?: PreferredClickhouseService;
+  clickhouseSettings?: ClickHouseSettings;
 }): Promise<T[]> {
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
@@ -234,19 +348,24 @@ export async function queryClickhouse<T>(opts: {
       // Retry logic for socket hang up and other network errors
       return await backOff(
         async () => {
-          const res = await clickhouseClient(opts.clickhouseConfigs).query({
+          // same logic as for prisma. we want to see queries in development
+          if (env.NODE_ENV === "development") {
+            logger.info(`clickhouse:query ${opts.query}`);
+          }
+          const res = await clickhouseClient(
+            opts.clickhouseConfigs,
+            opts.preferredClickhouseService,
+          ).query({
             query: opts.query,
             format: "JSONEachRow",
             query_params: opts.params,
             clickhouse_settings: {
+              asterisk_include_alias_columns: 1,
+              asterisk_include_materialized_columns: 1,
+              ...opts.clickhouseSettings,
               log_comment: JSON.stringify(opts.tags ?? {}),
             },
           });
-
-          // same logic as for prisma. we want to see queries in development
-          if (env.NODE_ENV === "development") {
-            logger.info(`clickhouse:query ${res.query_id} ${opts.query}`);
-          }
 
           span.setAttribute("ch.queryId", res.query_id);
 
@@ -268,7 +387,7 @@ export async function queryClickhouse<T>(opts: {
             }
           }
 
-          return await res.json<T>();
+          return (await res.json<T>()).map(handleExceptionRow);
         },
         {
           numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,
@@ -302,7 +421,10 @@ export async function queryClickhouse<T>(opts: {
           timeMultiple: 1,
           maxDelay: 100,
         },
-      );
+      ).catch((error) => {
+        // Transform resource errors to provide actionable advice
+        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+      });
     },
   );
 }
@@ -312,6 +434,7 @@ export async function commandClickhouse(opts: {
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
+  clickhouseSettings?: ClickHouseSettings;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -326,6 +449,7 @@ export async function commandClickhouse(opts: {
         query: opts.query,
         query_params: opts.params,
         clickhouse_settings: {
+          ...opts.clickhouseSettings,
           log_comment: JSON.stringify(opts.tags ?? {}),
         },
       });

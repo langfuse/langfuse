@@ -1,3 +1,20 @@
+export const generateDatasetRunItemId = (
+  datasetName: string,
+  itemIndex: number,
+  projectId: string,
+  runNumber: number,
+) => {
+  return `dataset-run-item-${datasetName}-${itemIndex}-${projectId.slice(-8)}-${runNumber}`;
+};
+
+export const generateDatasetItemId = (
+  datasetName: string,
+  itemIndex: number,
+  projectId: string,
+) => {
+  return `dataset-item-${datasetName}-${itemIndex}-${projectId.slice(-8)}-0`;
+};
+
 export const generateDatasetRunTraceId = (
   datasetName: string,
   itemIndex: number,

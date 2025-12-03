@@ -7,6 +7,7 @@ type TemplateSelectionHookProps = {
   initialActiveTemplateIds?: string[];
   initialInactiveTemplateIds?: string[];
   onSelectEvaluator?: (templateId: string) => void;
+  onEvaluatorToggled?: () => void;
 };
 
 /**
@@ -19,6 +20,7 @@ export function useExperimentEvaluatorSelection({
   initialActiveTemplateIds = [],
   initialInactiveTemplateIds = [],
   onSelectEvaluator,
+  onEvaluatorToggled,
 }: TemplateSelectionHookProps) {
   // Track confirmed selections
   const [activeTemplates, setActiveTemplates] = useState<string[]>(
@@ -52,6 +54,9 @@ export function useExperimentEvaluatorSelection({
             prev.filter((id) => id !== variables.evalTemplateId),
           );
         }
+
+        // Notify parent to refetch evaluators
+        onEvaluatorToggled?.();
       },
     });
 
@@ -111,6 +116,6 @@ export function useExperimentEvaluatorSelection({
     isTemplateInactive,
 
     // Loading
-    isLoading: updateStatus.isLoading,
+    isLoading: updateStatus.isPending,
   };
 }

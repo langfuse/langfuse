@@ -15,7 +15,7 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   ModelSelectorPopover,
   useModelSelection,
@@ -70,9 +70,9 @@ export const ModelUsageChart = ({
       ...mapLegacyUiTableFilterToView("observations", userAndEnvFilterState),
       {
         column: "type",
-        operator: "=",
-        value: "GENERATION",
-        type: "string",
+        operator: "any of",
+        value: getGenerationLikeTypes(),
+        type: "stringOptions",
       },
       {
         column: "providedModelName",
@@ -82,7 +82,8 @@ export const ModelUsageChart = ({
       },
     ],
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -115,7 +116,12 @@ export const ModelUsageChart = ({
       ],
       filter: [
         ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: getGenerationLikeTypes(),
+        },
         {
           type: "stringOptions",
           column: "model",
@@ -127,7 +133,8 @@ export const ModelUsageChart = ({
         {
           type: "datetime",
           column: "startTime",
-          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
+          temporalUnit:
+            dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
         },
         {
           type: "string",
@@ -160,7 +167,12 @@ export const ModelUsageChart = ({
       ],
       filter: [
         ...globalFilterState,
-        { type: "string", column: "type", operator: "=", value: "GENERATION" },
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: getGenerationLikeTypes(),
+        },
         {
           type: "stringOptions",
           column: "model",
@@ -172,7 +184,8 @@ export const ModelUsageChart = ({
         {
           type: "datetime",
           column: "startTime",
-          temporalUnit: dashboardDateRangeAggregationSettings[agg].date_trunc,
+          temporalUnit:
+            dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
         },
         {
           type: "string",
@@ -288,7 +301,7 @@ export const ModelUsageChart = ({
       formatter: oneValueUsdFormatter,
     },
     {
-      tabTitle: "Units by model",
+      tabTitle: "Usage by model",
       data: unitsByModel,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
@@ -296,7 +309,7 @@ export const ModelUsageChart = ({
       metricDescription: `Units`,
     },
     {
-      tabTitle: "Units by type",
+      tabTitle: "Usage by type",
       data: unitsByType,
       totalMetric: totalTokens
         ? compactNumberFormatter(totalTokens)
@@ -310,7 +323,7 @@ export const ModelUsageChart = ({
       className={className}
       title="Model Usage"
       isLoading={
-        isLoading || (queryResult.isLoading && selectedModels.length > 0)
+        isLoading || (queryResult.isPending && selectedModels.length > 0)
       }
       headerRight={
         <div className="flex items-center justify-end">
@@ -338,12 +351,13 @@ export const ModelUsageChart = ({
                 />
                 {isEmptyTimeSeries({ data: item.data }) ||
                 isLoading ||
-                queryResult.isLoading ? (
+                queryResult.isPending ? (
                   <NoDataOrLoading
-                    isLoading={isLoading || queryResult.isLoading}
+                    isLoading={isLoading || queryResult.isPending}
                   />
                 ) : (
                   <BaseTimeSeriesChart
+                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
                     data={item.data}
                     showLegend={true}

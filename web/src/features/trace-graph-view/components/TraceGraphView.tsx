@@ -1,57 +1,178 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
 import { TraceGraphCanvas } from "./TraceGraphCanvas";
+import { type AgentGraphDataResponse } from "../types";
+import { buildStepData } from "../buildStepData";
 import {
-  type GraphCanvasData,
-  LANGGRAPH_END_NODE_NAME,
-  type AgentGraphDataResponse,
+  buildGraphFromStepData,
+  transformLanggraphToGeneralized,
+} from "../buildGraphCanvasData";
+import {
+  LANGFUSE_START_NODE_NAME,
+  LANGFUSE_END_NODE_NAME,
   LANGGRAPH_START_NODE_NAME,
+  LANGGRAPH_END_NODE_NAME,
 } from "../types";
+
+const MAX_NODE_NUMBER_FOR_PHYSICS = 500;
 
 type TraceGraphViewProps = {
   agentGraphData: AgentGraphDataResponse[];
 };
 
-export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
-  const { agentGraphData } = props;
-
+export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
+  agentGraphData,
+}) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
-  const { graph, nodeToParentObservationMap } = useMemo(
-    () => parseGraph({ agentGraphData }),
-    [agentGraphData],
-  );
-
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
   );
+  const [currentObservationIndices, setCurrentObservationIndices] = useState<{
+    [nodeName: string]: number;
+  }>({});
+  const [previousSelectedNode, setPreviousSelectedNode] = useState<
+    string | null
+  >(null);
+  const isClickNavigationRef = useRef(false);
+
+  const normalizedData = useMemo(() => {
+    const hasStepData = agentGraphData.some(
+      (o) => o.step != null && o.step !== 0 && o.node != null,
+    );
+    if (!hasStepData) {
+      // has no steps → add timing-based steps
+      return buildStepData(agentGraphData);
+    } else {
+      const isLangGraph = agentGraphData.some(
+        (o) => o.node && o.node.trim().length > 0,
+      );
+      if (isLangGraph) {
+        // TODO: make detection more robust based on metadata
+        return transformLanggraphToGeneralized(agentGraphData);
+      } else {
+        return agentGraphData; // Already normalized
+      }
+    }
+  }, [agentGraphData]);
+
+  const { graph, nodeToObservationsMap } = useMemo(() => {
+    return buildGraphFromStepData(normalizedData);
+  }, [normalizedData]);
+
+  const shouldDisablePhysics =
+    agentGraphData.length >= MAX_NODE_NUMBER_FOR_PHYSICS;
+
+  // Reset indices when graph data changes (new trace loaded)
+  useEffect(() => {
+    setCurrentObservationIndices({});
+  }, [normalizedData]);
 
   useEffect(() => {
-    const nodeName = agentGraphData.find(
-      (o) => o.id === currentObservationId,
-    )?.node;
+    // if this observation ID change came from a click -> skip
+    if (isClickNavigationRef.current) {
+      isClickNavigationRef.current = false;
+      return;
+    }
 
-    // Only set selectedNodeName if the node actually exists in the graph
-    if (nodeName && graph.nodes.includes(nodeName)) {
-      setSelectedNodeName(nodeName);
+    // Find which node and index corresponds to currentObservationId
+    let foundNodeName = null;
+    let foundIndex = 0;
+
+    for (const [nodeName, observations] of Object.entries(
+      nodeToObservationsMap,
+    )) {
+      const index = observations.findIndex(
+        (obsId) => obsId === currentObservationId,
+      );
+      if (index !== -1) {
+        foundNodeName = nodeName;
+        foundIndex = index;
+        break;
+      }
+    }
+
+    if (
+      foundNodeName &&
+      graph.nodes.some((node) => node.id === foundNodeName)
+    ) {
+      setSelectedNodeName(foundNodeName);
+      setCurrentObservationIndices((prev) => ({
+        ...prev,
+        [foundNodeName]: foundIndex,
+      }));
+      setPreviousSelectedNode(foundNodeName);
     } else {
       setSelectedNodeName(null);
+      setPreviousSelectedNode(null);
     }
-  }, [currentObservationId, agentGraphData, graph.nodes]);
+  }, [
+    currentObservationId,
+    agentGraphData,
+    graph.nodes,
+    nodeToObservationsMap,
+  ]);
 
   const onCanvasNodeNameChange = useCallback(
     (nodeName: string | null) => {
-      setSelectedNodeName(nodeName);
-
       if (nodeName) {
-        const nodeParentObservationId = nodeToParentObservationMap[nodeName];
+        // Don't cycle through system nodes (start/end nodes)
+        const isSystemNode =
+          nodeName === LANGFUSE_START_NODE_NAME ||
+          nodeName === LANGFUSE_END_NODE_NAME ||
+          nodeName === LANGGRAPH_START_NODE_NAME ||
+          nodeName === LANGGRAPH_END_NODE_NAME;
 
-        if (nodeParentObservationId)
-          setCurrentObservationId(nodeParentObservationId);
+        if (isSystemNode) {
+          // For system nodes, don't set observation ID (they're synthetic)
+          setPreviousSelectedNode(nodeName);
+          setSelectedNodeName(nodeName);
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(null);
+          return;
+        }
+
+        const observations = nodeToObservationsMap[nodeName] || [];
+
+        if (observations.length > 0) {
+          let targetIndex = 0;
+
+          // If clicking the same node as before, cycle to next observation
+          if (previousSelectedNode === nodeName && observations.length > 1) {
+            const currentIndex = currentObservationIndices[nodeName] || 0;
+            targetIndex = (currentIndex + 1) % observations.length;
+          }
+
+          setCurrentObservationIndices((prev) => ({
+            ...prev,
+            [nodeName]: targetIndex,
+          }));
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(observations[targetIndex]);
+        } else {
+          isClickNavigationRef.current = true;
+          setCurrentObservationId(null);
+        }
+        setPreviousSelectedNode(nodeName);
+      } else {
+        setPreviousSelectedNode(null);
       }
+
+      setSelectedNodeName(nodeName);
     },
-    [nodeToParentObservationMap, setCurrentObservationId],
+    [
+      nodeToObservationsMap,
+      currentObservationIndices,
+      previousSelectedNode,
+      setCurrentObservationId,
+    ],
   );
 
   return (
@@ -60,74 +181,10 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = (props) => {
         graph={graph}
         selectedNodeName={selectedNodeName}
         onCanvasNodeNameChange={onCanvasNodeNameChange}
+        disablePhysics={shouldDisablePhysics}
+        nodeToObservationsMap={nodeToObservationsMap}
+        currentObservationIndices={currentObservationIndices}
       />
     </div>
   );
 };
-
-function parseGraph(params: { agentGraphData: AgentGraphDataResponse[] }): {
-  graph: GraphCanvasData;
-  nodeToParentObservationMap: Record<string, string>;
-} {
-  const { agentGraphData } = params;
-
-  const stepToNodeMap = new Map<number, string>();
-  const nodeToParentObservationMap = new Map<string, string>();
-
-  agentGraphData.forEach((o) => {
-    const { node, step } = o;
-
-    stepToNodeMap.set(step, node);
-
-    if (o.parentObservationId) {
-      const parent = agentGraphData.find(
-        (obs) => obs.id === o.parentObservationId,
-      );
-
-      // initialize the end node to point to the top-most langgraph span
-      if (!parent) {
-        nodeToParentObservationMap.set(
-          LANGGRAPH_END_NODE_NAME,
-          o.parentObservationId,
-        );
-
-        // Also initialize the start node if it hasn't been seen yet
-        // Langgraph >= v4 is no longer adding a span for the start node
-        if (!nodeToParentObservationMap.has(LANGGRAPH_START_NODE_NAME)) {
-          stepToNodeMap.set(0, LANGGRAPH_START_NODE_NAME);
-          nodeToParentObservationMap.set(
-            LANGGRAPH_START_NODE_NAME,
-            o.parentObservationId,
-          );
-        }
-      }
-
-      // Only register id if it is top-most to allow navigation on node click in graph
-      if (o.node !== parent?.node) {
-        nodeToParentObservationMap.set(node, o.id);
-      }
-    } else {
-      nodeToParentObservationMap.set(node, o.id);
-    }
-  });
-
-  const nodes = [
-    ...new Set([...stepToNodeMap.values(), LANGGRAPH_END_NODE_NAME]),
-  ];
-  const edges = [...stepToNodeMap.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([_, node], idx, arr) => ({
-      from: node,
-      to: idx === arr.length - 1 ? LANGGRAPH_END_NODE_NAME : arr[idx + 1][1],
-    }));
-
-  return {
-    graph: {
-      nodes,
-      edges,
-    },
-    nodeToParentObservationMap: Object.fromEntries(
-      nodeToParentObservationMap.entries(),
-    ),
-  };
-}

@@ -20,14 +20,16 @@ export function useExperimentNameValidation({
   );
 
   const allExperimentNames = useMemo(() => {
-    return runNamesByDatasetId.data?.map((experiment) => ({
-      value: experiment.name,
-    }));
+    return (
+      runNamesByDatasetId.data?.map((experiment) => ({
+        value: experiment.name,
+      })) ?? []
+    );
   }, [runNamesByDatasetId.data]);
 
   useUniqueNameValidation({
     currentName: form.watch("name"),
-    allNames: allExperimentNames ?? [],
+    allNames: allExperimentNames,
     form,
     errorMessage: "Experiment name already exists for this dataset.",
   });

@@ -83,7 +83,10 @@ Depending on the file location (sync, async)
 `web` related tests must go into the `web/src/__tests__/` folder.
 ```sh
 pnpm test-sync --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
-pnpm test-async --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+# For tests in the async folder:
+pnpm test -- --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+# For client tests:
+pnpm test-client --testPathPattern="buildStepData" --testNamePattern="buildStepData"
 ```
 
 ### Testing in the Worker Package
@@ -94,6 +97,7 @@ pnpm run test --filter=worker -- $TEST_FILE_NAME -t "$TEST_NAME"
 
 ### Utilities
 ```bash
+pnpm run format            # Format code across entire project
 pnpm run nuke              # Remove all node_modules, build files, wipe database, docker containers. **USE WITH CAUTION**
 ```
 
@@ -164,7 +168,7 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 
 ## Environment Setup
 
-- **Node.js**: Version 20 (specified in `.nvmrc`)
+- **Node.js**: Version 24 (specified in `.nvmrc`)
 - **Package Manager**: pnpm v9.5.0
 - **Database Dependencies**: Docker for local PostgreSQL, ClickHouse, Redis, MinIO
 - **Environment**: Copy `.env.dev.example` to `.env`
@@ -188,3 +192,9 @@ To get a project, use the `get_project` capability with the full project name as
 
 ## TypeScript Best Practices
 - In TypeScript, if possible, don't use the `any` type
+
+## General Coding Guidelines
+- For easier code reviews, prefer not to move functions etc around within a file unless necessary or instructed to do so
+
+## Development Tips
+- Before trying to build the package, try running the linter once first

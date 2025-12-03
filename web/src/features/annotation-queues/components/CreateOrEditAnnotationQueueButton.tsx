@@ -26,12 +26,11 @@ import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
 import {
-  type CreateQueue,
-  CreateQueueData,
-  type ValidatedScoreConfig,
+  type CreateQueueWithAssignments,
+  CreateQueueWithAssignmentsData,
+  type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -39,6 +38,15 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 
 export const CreateOrEditAnnotationQueueButton = ({
   projectId,
@@ -52,9 +60,14 @@ export const CreateOrEditAnnotationQueueButton = ({
   size?: ButtonProps["size"];
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const hasQueueAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "annotationQueues:CUD",
+  });
+  const hasQueueAssignmentsReadAccess = useHasProjectAccess({
+    projectId: projectId,
+    scope: "annotationQueueAssignments:read",
   });
   const queueLimit = useEntitlementLimit("annotation-queue-count");
   const router = useRouter();
@@ -62,11 +75,11 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const queueQuery = api.annotationQueues.byId.useQuery(
     { projectId, queueId: queueId as string },
-    { enabled: !!queueId && hasAccess },
+    { enabled: !!queueId && hasQueueAccess },
   );
 
   const form = useForm({
-    resolver: zodResolver(CreateQueueData),
+    resolver: zodResolver(CreateQueueWithAssignmentsData),
   });
 
   useEffect(() => {
@@ -75,13 +88,15 @@ export const CreateOrEditAnnotationQueueButton = ({
         name: queueQuery.data.name,
         description: queueQuery.data.description || undefined,
         scoreConfigIds: queueQuery.data.scoreConfigs.map(
-          (config: ValidatedScoreConfig) => config.id,
+          (config: ScoreConfigDomain) => config.id,
         ),
+        newAssignmentUserIds: [],
       });
     } else {
       form.reset({
         name: "",
         scoreConfigIds: [],
+        newAssignmentUserIds: [],
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,24 +104,14 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const utils = api.useUtils();
 
-  const createQueueMutation = api.annotationQueues.create.useMutation({
-    onSuccess: async () => {
-      await Promise.all([utils.annotationQueues.invalidate()]);
-      form.reset();
-      setIsOpen(false);
-    },
-  });
-  const editQueueMutation = api.annotationQueues.update.useMutation({
-    onSuccess: async () => {
-      await Promise.all([utils.annotationQueues.invalidate()]);
-      form.reset();
-      setIsOpen(false);
-    },
-  });
+  const createQueueMutation = api.annotationQueues.create.useMutation();
+  const editQueueMutation = api.annotationQueues.update.useMutation();
+  const createQueueAssignmentsMutation =
+    api.annotationQueueAssignments.createMany.useMutation();
 
   const queueCountData = api.annotationQueues.count.useQuery(
     { projectId },
-    { enabled: hasAccess },
+    { enabled: hasQueueAccess },
   );
 
   const configsData = api.scoreConfigs.all.useQuery(
@@ -114,13 +119,13 @@ export const CreateOrEditAnnotationQueueButton = ({
       projectId,
     },
     {
-      enabled: hasAccess && isOpen,
+      enabled: hasQueueAccess && isOpen,
     },
   );
 
   const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: hasAccess && !queueId },
+    { enabled: hasQueueAccess && !queueId },
   );
 
   const allQueueNames = useMemo(() => {
@@ -138,18 +143,54 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const configs = configsData.data?.configs ?? [];
 
-  const onSubmit = (data: CreateQueue) => {
-    if (queueId) {
-      editQueueMutation.mutateAsync({
-        ...data,
-        projectId,
-        queueId,
-      });
-    } else {
-      createQueueMutation.mutateAsync({
-        ...data,
-        projectId,
-      });
+  const onSubmit = async (data: CreateQueueWithAssignments) => {
+    try {
+      // Step 1: Create or update the queue
+      let queueResponse;
+      if (queueId) {
+        // Update existing queue
+        queueResponse = await editQueueMutation.mutateAsync({
+          name: data.name,
+          description: data.description,
+          scoreConfigIds: data.scoreConfigIds,
+          projectId,
+          queueId,
+        });
+      } else {
+        // Create new queue
+        queueResponse = await createQueueMutation.mutateAsync({
+          name: data.name,
+          description: data.description,
+          scoreConfigIds: data.scoreConfigIds,
+          projectId,
+        });
+      }
+
+      // Step 2: Handle assignment if provided
+      if (data.newAssignmentUserIds && data.newAssignmentUserIds.length > 0) {
+        const targetQueueId = queueId || queueResponse.id;
+
+        await createQueueAssignmentsMutation.mutateAsync({
+          projectId,
+          queueId: targetQueueId,
+          userIds: data.newAssignmentUserIds,
+        });
+      }
+
+      // Step 3: Success handling
+      await Promise.all([
+        utils.annotationQueues.invalidate(),
+        utils.annotationQueueAssignments.invalidate(),
+      ]);
+      form.reset();
+      setIsOpen(false);
+
+      // capture posthog event
+    } catch (_error) {
+      showErrorToast(
+        "Operation failed",
+        "Failed to create or update queue or assign users. Please try again.",
+      );
     }
   };
 
@@ -183,7 +224,7 @@ export const CreateOrEditAnnotationQueueButton = ({
               <PlusIcon className="h-4 w-4" aria-hidden="true" />
             )
           }
-          hasAccess={hasAccess}
+          hasAccess={hasQueueAccess}
           limitValue={queueCountData.data}
           limit={queueLimit}
           size={size}
@@ -258,6 +299,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                         <MultiSelectKeyValues
                           placeholder="Value"
                           align="end"
+                          variant="outline"
                           className="grid grid-cols-[auto,1fr,auto,auto] gap-2"
                           onValueChange={handleOnValueChange}
                           options={configs
@@ -299,14 +341,80 @@ export const CreateOrEditAnnotationQueueButton = ({
                     </FormItem>
                   )}
                 />
+
+                {/* Advanced Section */}
+                <FormField
+                  control={form.control}
+                  name="newAssignmentUserIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Advanced Settings</FormLabel>
+                      <div className="mt-1 rounded-md border">
+                        <Collapsible
+                          open={isAdvancedOpen && hasQueueAssignmentsReadAccess}
+                          onOpenChange={(open) => {
+                            if (!hasQueueAssignmentsReadAccess) {
+                              setIsAdvancedOpen(false);
+                            } else {
+                              setIsAdvancedOpen(open);
+                            }
+                          }}
+                        >
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="group flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-transparent"
+                            >
+                              <div className="flex items-center gap-2">
+                                {isAdvancedOpen ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <span className="text-sm font-medium">
+                                  User Assignment
+                                </span>
+                              </div>
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="border-t border-border/20 px-3 pb-3 pt-1">
+                            {hasQueueAssignmentsReadAccess && (
+                              <>
+                                <FormControl>
+                                  <UserAssignmentSection
+                                    projectId={projectId}
+                                    queueId={queueId}
+                                    selectedUserIds={field.value}
+                                    onChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </>
+                            )}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
+                    </FormItem>
+                  )}
+                />
               </DialogBody>
               <DialogFooter>
                 <Button
                   type="submit"
                   className="text-xs"
-                  disabled={!!form.formState.errors.name}
+                  disabled={
+                    !!form.formState.errors.name ||
+                    createQueueMutation.isPending ||
+                    editQueueMutation.isPending ||
+                    createQueueAssignmentsMutation.isPending
+                  }
                 >
-                  {queueId ? "Save" : "Create"} queue
+                  {createQueueMutation.isPending ||
+                  editQueueMutation.isPending ||
+                  createQueueAssignmentsMutation.isPending
+                    ? "Processing..."
+                    : `${queueId ? "Save" : "Create"} queue`}
                 </Button>
               </DialogFooter>
             </form>

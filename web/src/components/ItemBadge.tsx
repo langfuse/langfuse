@@ -14,6 +14,11 @@ import {
   TestTubeDiagonal,
   Clock,
   Bot,
+  Wrench,
+  Link,
+  Search,
+  Layers3,
+  ShieldCheck,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
 import { type ObservationType } from "@langfuse/shared";
@@ -38,6 +43,12 @@ const iconMap = {
   GENERATION: Fan,
   EVENT: CircleDot,
   SPAN: MoveHorizontal,
+  AGENT: Bot,
+  TOOL: Wrench,
+  CHAIN: Link,
+  RETRIEVER: Search,
+  EMBEDDING: Layers3,
+  GUARDRAIL: ShieldCheck,
   SESSION: Clock,
   USER: User,
   QUEUE_ITEM: ClipboardPen,
@@ -57,6 +68,12 @@ const iconVariants = cva(cn("h-4 w-4"), {
       GENERATION: "text-muted-magenta",
       EVENT: "text-muted-green",
       SPAN: "text-muted-blue",
+      AGENT: "text-purple-600",
+      TOOL: "text-orange-600",
+      CHAIN: "text-pink-600",
+      RETRIEVER: "text-teal-600",
+      EMBEDDING: "text-amber-600",
+      GUARDRAIL: "text-red-600",
       SESSION: "text-primary-accent",
       USER: "text-primary-accent",
       QUEUE_ITEM: "text-primary-accent",
@@ -65,7 +82,7 @@ const iconVariants = cva(cn("h-4 w-4"), {
       DATASET_ITEM: "text-primary-accent",
       ANNOTATION_QUEUE: "text-primary-accent",
       PROMPT: "text-primary-accent",
-      EVALUATOR: "text-primary-accent",
+      EVALUATOR: "text-primary-accent", // usually text-indigo-600
       RUNNING_EVALUATOR: "text-primary-accent",
     },
   },
@@ -99,12 +116,16 @@ export function ItemBadge({
       variant="outline"
       title={label}
       className={cn(
-        "flex max-w-fit items-center gap-1 border-2 bg-background px-1",
+        "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap border-2 bg-background px-1",
         isSmall && "h-4",
       )}
     >
       <Icon className={iconClass} />
-      {showLabel && <span>{label.replace(/_/g, " ")}</span>}
+      {showLabel && (
+        <span className="truncate" title={label.replace(/_/g, " ")}>
+          {label.replace(/_/g, " ")}
+        </span>
+      )}
     </Badge>
   );
 }

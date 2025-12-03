@@ -1,4 +1,4 @@
-import { PlusCircleIcon } from "lucide-react";
+import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -9,10 +9,15 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
   ChatMessageRole,
   ChatMessageType,
   type ChatMessageWithId,
-  SYSTEM_ROLES,
 } from "@langfuse/shared";
 
 import { ChatMessageComponent } from "./ChatMessageComponent";
@@ -67,14 +72,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
         if (newIndex < 0 || oldIndex < 0) {
           return;
         }
-        // prevent reordering system messages, placeholders can be reordered
-        const targetMessage = messages[newIndex];
-        if (
-          targetMessage.type !== ChatMessageType.Placeholder &&
-          SYSTEM_ROLES.includes(targetMessage.role)
-        ) {
-          return;
-        }
+        // allow any message to be reordered
         const newMessages = arrayMove(messages, oldIndex, newIndex);
         props.setMessages(newMessages);
       }
@@ -90,7 +88,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
     >
       <div className="flex h-full flex-col">
         <div className="flex-1 overflow-auto scroll-smooth" ref={scrollAreaRef}>
-          <div className="mb-4 flex-1 space-y-2">
+          <div className="flex-1 space-y-2">
             <SortableContext
               items={props.messages.map((message) => message.id)}
               strategy={verticalListSortingStrategy}
@@ -110,10 +108,10 @@ export const ChatMessages: React.FC<ChatMessagesProps> = (props) => {
                 );
               })}
             </SortableContext>
+            <div className="mb-4 py-3">
+              <AddMessageButton {...props} />
+            </div>
           </div>
-        </div>
-        <div className="py-3">
-          <AddMessageButton {...props} />
         </div>
       </div>
     </DndContext>
@@ -155,6 +153,49 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
     }
   };
 
+  const addMessageWithRole = (role: ChatMessageRole) => {
+    switch (role) {
+      case ChatMessageRole.User:
+        addMessage({
+          role: ChatMessageRole.User,
+          content: "",
+          type: ChatMessageType.User,
+        });
+        break;
+      case ChatMessageRole.Assistant:
+        addMessage({
+          role: ChatMessageRole.Assistant,
+          content: "",
+          type: ChatMessageType.AssistantText,
+        });
+        break;
+      case ChatMessageRole.System:
+        addMessage({
+          role: ChatMessageRole.System,
+          content: "",
+          type: ChatMessageType.System,
+        });
+        break;
+      case ChatMessageRole.Developer:
+        addMessage({
+          role: ChatMessageRole.Developer,
+          content: "",
+          type: ChatMessageType.Developer,
+        });
+        break;
+      case ChatMessageRole.Tool:
+        addMessage({
+          role: ChatMessageRole.Tool,
+          content: "",
+          type: ChatMessageType.ToolResult,
+          toolCallId: "",
+        });
+        break;
+      default:
+        addRegularMessage();
+    }
+  };
+
   const addPlaceholderMessage = () => {
     addMessage({
       type: ChatMessageType.Placeholder,
@@ -164,15 +205,55 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
 
   return (
     <div className="flex gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        className="flex-1"
-        onClick={addRegularMessage}
-      >
-        <PlusCircleIcon size={14} className="mr-2" />
-        <p>Add message</p>
-      </Button>
+      <div className="flex flex-1 gap-0">
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1 rounded-r-none border-r-0"
+          onClick={addRegularMessage}
+        >
+          <PlusCircleIcon size={14} className="mr-2" />
+          <p>Message</p>
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-l-none border-l px-2"
+            >
+              <ChevronDownIcon size={14} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.User)}
+            >
+              User Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Assistant)}
+            >
+              Assistant Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.System)}
+            >
+              System Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Developer)}
+            >
+              Developer Message
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => addMessageWithRole(ChatMessageRole.Tool)}
+            >
+              Tool Message
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -183,7 +264,7 @@ const AddMessageButton: React.FC<AddMessageButtonProps> = ({
               onClick={addPlaceholderMessage}
             >
               <PlusCircleIcon size={14} className="mr-2" />
-              <p>Add message placeholder</p>
+              <p>Placeholder</p>
             </Button>
           </TooltipTrigger>
           <TooltipContent>

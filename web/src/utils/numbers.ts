@@ -40,6 +40,7 @@ export const numberFormatter = (
 ) => {
   return Intl.NumberFormat("en-US", {
     notation: "standard",
+    useGrouping: true,
     minimumFractionDigits: fractionDigits ?? 2,
     maximumFractionDigits: fractionDigits ?? 2,
   }).format(number ?? 0);
@@ -71,6 +72,19 @@ export const usdFormatter = (
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/NumberFormat/NumberFormat#maximumfractiondigits
     maximumFractionDigits,
   }).format(numberToFormat ?? 0);
+};
+
+export const formatTokenCounts = (
+  inputUsage?: number | null,
+  outputUsage?: number | null,
+  totalUsage?: number | null,
+  showLabels = false,
+): string => {
+  if (!inputUsage && !outputUsage && !totalUsage) return "";
+
+  return showLabels
+    ? `${numberFormatter(inputUsage ?? 0, 0)} prompt → ${numberFormatter(outputUsage ?? 0, 0)} completion (∑ ${numberFormatter(totalUsage ?? 0, 0)})`
+    : `${numberFormatter(inputUsage ?? 0, 0)} → ${numberFormatter(outputUsage ?? 0, 0)} (∑ ${numberFormatter(totalUsage ?? 0, 0)})`;
 };
 
 export function randomIntFromInterval(min: number, max: number) {

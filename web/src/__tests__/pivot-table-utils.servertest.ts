@@ -30,6 +30,7 @@ import {
   type PivotTableConfig,
   type DatabaseRow,
   type PivotTableRow,
+  getNextSortState,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 
 describe("pivot-table-utils", () => {
@@ -1011,6 +1012,115 @@ describe("pivot-table-utils", () => {
           // Should be (0.1 + 0.2 + 0.3) / 3 = 0.2, properly rounded
           expect(totalRow.values.avg_value).toBeCloseTo(0.2, 10);
         }
+      });
+    });
+  });
+  describe("getNextSortState", () => {
+    const defaultSort = { column: "avg_cost", order: "DESC" as const };
+
+    describe("no current sort", () => {
+      test("returns DESC when no current sort", () => {
+        const next = getNextSortState(null, null, "count");
+        expect(next).toEqual({ column: "count", order: "DESC" });
+      });
+
+      test("returns DESC when no current sort with default sort defined", () => {
+        const next = getNextSortState(defaultSort, null, "count");
+        expect(next).toEqual({ column: "count", order: "DESC" });
+      });
+    });
+
+    describe("different column", () => {
+      test("returns DESC when different column", () => {
+        const next = getNextSortState(
+          null,
+          { column: "metric", order: "ASC" },
+          "count",
+        );
+        expect(next).toEqual({ column: "count", order: "DESC" });
+      });
+
+      test("returns DESC when different column with default sort", () => {
+        const next = getNextSortState(
+          defaultSort,
+          { column: "metric", order: "ASC" },
+          "count",
+        );
+        expect(next).toEqual({ column: "count", order: "DESC" });
+      });
+    });
+
+    describe("non-default column cycling", () => {
+      test("non-default column: DESC -> ASC", () => {
+        const next = getNextSortState(
+          defaultSort,
+          { column: "count", order: "DESC" },
+          "count",
+        );
+        expect(next).toEqual({ column: "count", order: "ASC" });
+      });
+
+      test("non-default column: ASC -> default sort", () => {
+        const next = getNextSortState(
+          defaultSort,
+          { column: "count", order: "ASC" },
+          "count",
+        );
+        expect(next).toEqual(defaultSort);
+      });
+
+      test("non-default column: ASC -> null when no default sort", () => {
+        const next = getNextSortState(
+          null,
+          { column: "count", order: "ASC" },
+          "count",
+        );
+        expect(next).toBeNull();
+      });
+    });
+
+    describe("default column cycling", () => {
+      test("default column: DESC -> ASC", () => {
+        const next = getNextSortState(
+          defaultSort,
+          { column: "avg_cost", order: "DESC" },
+          "avg_cost",
+        );
+        expect(next).toEqual({ column: "avg_cost", order: "ASC" });
+      });
+
+      test("default column: ASC -> DESC (infinite cycle)", () => {
+        const next = getNextSortState(
+          defaultSort,
+          { column: "avg_cost", order: "ASC" },
+          "avg_cost",
+        );
+        expect(next).toEqual({ column: "avg_cost", order: "DESC" });
+      });
+    });
+
+    describe("edge cases", () => {
+      test("handles undefined default sort", () => {
+        const next = getNextSortState(
+          undefined as any,
+          { column: "count", order: "ASC" },
+          "count",
+        );
+        expect(next).toBeNull();
+      });
+
+      test("handles null default sort", () => {
+        const next = getNextSortState(
+          null,
+          { column: "count", order: "ASC" },
+          "count",
+        );
+        expect(next).toBeNull();
+      });
+
+      test("handles null current sort with defined default", () => {
+        const next = getNextSortState(defaultSort, null, "count");
+        expect(next).toEqual({ column: "count", order: "DESC" });
       });
     });
   });

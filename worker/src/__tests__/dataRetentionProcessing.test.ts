@@ -41,12 +41,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${baseId}.json`;
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     await clickhouseClient().insert({
@@ -90,12 +89,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${baseId}.json`;
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     await clickhouseClient().insert({
@@ -138,12 +136,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     const mediaId = randomUUID();
@@ -196,12 +193,11 @@ describe("DataRetentionProcessingJob", () => {
     const fileName = `${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     const mediaId = randomUUID();

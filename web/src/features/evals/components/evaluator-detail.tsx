@@ -42,12 +42,12 @@ export const EvaluatorDetail = () => {
       name: evaluator.data?.evalTemplate?.name ?? "",
     },
     {
-      enabled: !evaluator.isLoading && !evaluator.isError,
+      enabled: !evaluator.isPending && !evaluator.isError,
     },
   );
 
   if (
-    evaluator.isLoading ||
+    evaluator.isPending ||
     !evaluator.data ||
     allTemplates.isLoading ||
     !allTemplates.data
@@ -111,13 +111,11 @@ export const EvaluatorDetail = () => {
       }}
     >
       {existingEvaluator && (
-        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden contain-layout">
-          <div className="flex h-full flex-col overflow-hidden">
-            <EvalLogTable
-              projectId={projectId}
-              jobConfigurationId={existingEvaluator.id}
-            />
-          </div>
+        <div className="flex h-full flex-col overflow-hidden">
+          <EvalLogTable
+            projectId={projectId}
+            jobConfigurationId={existingEvaluator.id}
+          />
         </div>
       )}
     </Page>

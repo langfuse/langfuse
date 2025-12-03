@@ -10,17 +10,12 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Rows3 } from "lucide-react";
-import {
-  MdDensityLarge,
-  MdDensityMedium,
-  MdDensitySmall,
-} from "react-icons/md";
+import { Rows3, Rows2, Rows4 } from "lucide-react";
 
 const heightOptions = [
-  { id: "s", label: "Small", icon: <MdDensitySmall /> },
-  { id: "m", label: "Medium", icon: <MdDensityMedium /> },
-  { id: "l", label: "Large", icon: <MdDensityLarge /> },
+  { id: "s", label: "Small", icon: <Rows4 /> },
+  { id: "m", label: "Medium", icon: <Rows3 /> },
+  { id: "l", label: "Large", icon: <Rows2 /> },
 ] as const;
 
 const defaultHeights: Record<RowHeight, string> = {

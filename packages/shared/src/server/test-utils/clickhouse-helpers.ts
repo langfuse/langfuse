@@ -3,20 +3,11 @@ import {
   TraceRecordInsertType,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
-  convertTraceToTraceMt,
+  DatasetRunItemRecordInsertType,
+  EventRecordInsertType,
 } from "../repositories/definitions";
-import { env } from "../../env";
 
 export const createTracesCh = async (trace: TraceRecordInsertType[]) => {
-  if (
-    env.LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES === "true"
-  ) {
-    await clickhouseClient().insert({
-      table: "traces_mt",
-      format: "JSONEachRow",
-      values: trace.map(convertTraceToTraceMt),
-    });
-  }
   return await clickhouseClient().insert({
     table: "traces",
     format: "JSONEachRow",
@@ -34,10 +25,28 @@ export const createObservationsCh = async (
   });
 };
 
+export const createEventsCh = async (events: EventRecordInsertType[]) => {
+  return await clickhouseClient().insert({
+    table: "events",
+    format: "JSONEachRow",
+    values: events,
+  });
+};
+
 export const createScoresCh = async (scores: ScoreRecordInsertType[]) => {
   return await clickhouseClient().insert({
     table: "scores",
     format: "JSONEachRow",
     values: scores,
+  });
+};
+
+export const createDatasetRunItemsCh = async (
+  datasetRunItems: DatasetRunItemRecordInsertType[],
+) => {
+  return await clickhouseClient().insert({
+    table: "dataset_run_items_rmt",
+    format: "JSONEachRow",
+    values: datasetRunItems,
   });
 };

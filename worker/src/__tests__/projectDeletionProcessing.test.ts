@@ -204,12 +204,11 @@ describe("ProjectDeletionProcessingJob", () => {
     const fileName = `${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await storageService.uploadFile({
       fileName,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     const mediaId = randomUUID();

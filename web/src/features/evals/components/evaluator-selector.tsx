@@ -1,5 +1,10 @@
 import { type EvalTemplate } from "@langfuse/shared";
-import { AlertCircle, CheckIcon, ExternalLink } from "lucide-react";
+import {
+  AlertCircle,
+  CheckIcon,
+  ExternalLink,
+  ExternalLinkIcon,
+} from "lucide-react";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -57,6 +62,12 @@ export function EvaluatorSelector({
       custom: {} as Record<string, EvalTemplate[]>,
     },
   );
+
+  // Ensure per-name arrays are sorted by createdAt ascending so last is latest
+  const sortByCreatedAt = (arr: EvalTemplate[]) =>
+    arr.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  Object.values(groupedTemplates.custom).forEach(sortByCreatedAt);
+  Object.values(groupedTemplates.langfuse).forEach(sortByCreatedAt);
 
   // Filter templates based on search
   const filteredTemplates = {
@@ -132,8 +143,17 @@ export function EvaluatorSelector({
                         <TooltipTrigger asChild>
                           <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
-                        <TooltipContent>
-                          Requires project-level evaluation model
+                        <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-sm">
+                          <p>Requires project-level evaluation model</p>
+                          <Link
+                            href={`/project/${projectId}/evals/default-model`}
+                            className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLinkIcon className="h-3 w-3" />
+                            Configure default model
+                          </Link>
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -204,8 +224,17 @@ export function EvaluatorSelector({
                         <TooltipTrigger asChild>
                           <AlertCircle className="ml-1 h-4 w-4 text-yellow-500" />
                         </TooltipTrigger>
-                        <TooltipContent>
-                          Requires project-level evaluation model
+                        <TooltipContent className="max-h-[50dvh] overflow-y-auto whitespace-normal break-normal text-sm">
+                          <p>Requires project-level evaluation model</p>
+                          <Link
+                            href={`/project/${projectId}/evals/default-model`}
+                            className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLinkIcon className="h-3 w-3" />
+                            Configure default model
+                          </Link>
                         </TooltipContent>
                       </Tooltip>
                     )}

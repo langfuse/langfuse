@@ -65,7 +65,115 @@ service:
             docs: Optional filter for traces where the environment is one of the provided values.
           fields:
             type: optional<string>
-            docs: "Comma-separated list of fields to include in the response. Available field groups are 'core' (always included), 'io' (input, output, metadata), 'scores', 'observations', 'metrics'. If not provided, all fields are included. Example: 'core,scores,metrics'"
+            docs: "Comma-separated list of fields to include in the response. Available field groups: 'core' (always included), 'io' (input, output, metadata), 'scores', 'observations', 'metrics'. If not specified, all fields are returned. Example: 'core,scores,metrics'. Note: Excluded 'observations' or 'scores' fields return empty arrays; excluded 'metrics' returns -1 for 'totalCost' and 'latency'."
+          filter:
+            type: optional<string>
+            docs: |
+              JSON string containing an array of filter conditions. When provided, this takes precedence over query parameter filters (userId, name, sessionId, tags, version, release, environment, fromTimestamp, toTimestamp).
+
+              ## Filter Structure
+              Each filter condition has the following structure:
+              ```json
+              [
+                {
+                  "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                  "column": string,         // Required. Column to filter on (see available columns below)
+                  "operator": string,       // Required. Operator based on type:
+                                            // - datetime: ">", "<", ">=", "<="
+                                            // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                            // - stringOptions: "any of", "none of"
+                                            // - categoryOptions: "any of", "none of"
+                                            // - arrayOptions: "any of", "none of", "all of"
+                                            // - number: "=", ">", "<", ">=", "<="
+                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                            // - numberObject: "=", ">", "<", ">=", "<="
+                                            // - boolean: "=", "<>"
+                                            // - null: "is null", "is not null"
+                  "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
+                  "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+                }
+              ]
+              ```
+
+              ## Available Columns
+
+              ### Core Trace Fields
+              - `id` (string) - Trace ID
+              - `name` (string) - Trace name
+              - `timestamp` (datetime) - Trace timestamp
+              - `userId` (string) - User ID
+              - `sessionId` (string) - Session ID
+              - `environment` (string) - Environment tag
+              - `version` (string) - Version tag
+              - `release` (string) - Release tag
+              - `tags` (arrayOptions) - Array of tags
+              - `bookmarked` (boolean) - Bookmark status
+
+              ### Structured Data
+              - `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Use `key` parameter to filter on specific metadata keys.
+
+              ### Aggregated Metrics (from observations)
+              These metrics are aggregated from all observations within the trace:
+              - `latency` (number) - Latency in seconds (time from first observation start to last observation end)
+              - `inputTokens` (number) - Total input tokens across all observations
+              - `outputTokens` (number) - Total output tokens across all observations
+              - `totalTokens` (number) - Total tokens (alias: `tokens`)
+              - `inputCost` (number) - Total input cost in USD
+              - `outputCost` (number) - Total output cost in USD
+              - `totalCost` (number) - Total cost in USD
+
+              ### Observation Level Aggregations
+              These fields aggregate observation levels within the trace:
+              - `level` (string) - Highest severity level (ERROR > WARNING > DEFAULT > DEBUG)
+              - `warningCount` (number) - Count of WARNING level observations
+              - `errorCount` (number) - Count of ERROR level observations
+              - `defaultCount` (number) - Count of DEFAULT level observations
+              - `debugCount` (number) - Count of DEBUG level observations
+
+              ### Scores (requires join with scores table)
+              - `scores_avg` (number) - Average of numeric scores (alias: `scores`)
+              - `score_categories` (categoryOptions) - Categorical score values
+
+              ## Filter Examples
+              ```json
+              [
+                {
+                  "type": "datetime",
+                  "column": "timestamp",
+                  "operator": ">=",
+                  "value": "2024-01-01T00:00:00Z"
+                },
+                {
+                  "type": "string",
+                  "column": "userId",
+                  "operator": "=",
+                  "value": "user-123"
+                },
+                {
+                  "type": "number",
+                  "column": "totalCost",
+                  "operator": ">=",
+                  "value": 0.01
+                },
+                {
+                  "type": "arrayOptions",
+                  "column": "tags",
+                  "operator": "all of",
+                  "value": ["production", "critical"]
+                },
+                {
+                  "type": "stringObject",
+                  "column": "metadata",
+                  "key": "customer_tier",
+                  "operator": "=",
+                  "value": "enterprise"
+                }
+              ]
+              ```
+
+              ## Performance Notes
+              - Filtering on `userId`, `sessionId`, or `metadata` may enable skip indexes for better query performance
+              - Score filters require a join with the scores table and may impact query performance
       response: Traces
     deleteMultiple:
       docs: Delete multiple traces

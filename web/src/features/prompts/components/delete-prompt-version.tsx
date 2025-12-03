@@ -26,11 +26,14 @@ export function DeletePromptVersion({
   const utils = api.useUtils();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const hasAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
 
   const mutDeletePromptVersion = api.prompts.deleteVersion.useMutation({
     onSuccess: () => {
       void utils.prompts.invalidate();
+      setError(null);
+      setIsOpen(false);
       if (countVersions > 1) {
         void router.replace(
           {
@@ -43,6 +46,9 @@ export function DeletePromptVersion({
       } else {
         void router.push(`/project/${projectId}/prompts`);
       }
+    },
+    onError: (error) => {
+      setError(error.message);
     },
   });
 
@@ -79,24 +85,29 @@ export function DeletePromptVersion({
           </code>
           of this prompt will return an error.
         </p>
+        {error && (
+          <div className="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <p className="font-medium">Error:</p>
+            <p className="whitespace-pre-wrap">{error}</p>
+          </div>
+        )}
         <div className="flex justify-end space-x-4">
           <Button
             type="button"
             variant="destructive"
-            loading={mutDeletePromptVersion.isLoading}
+            loading={mutDeletePromptVersion.isPending}
             onClick={() => {
               if (!projectId) {
                 console.error("Project ID is missing");
-
                 return;
               }
               capture("prompt_detail:version_delete_submit");
+              setError(null);
 
-              void mutDeletePromptVersion.mutateAsync({
+              void mutDeletePromptVersion.mutate({
                 promptVersionId,
                 projectId,
               });
-              setIsOpen(false);
             }}
           >
             Delete Prompt Version

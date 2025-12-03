@@ -1,7 +1,7 @@
 import z from "zod/v4";
 import { Plan, plans } from "../../features/entitlements/plans";
 import { CloudConfigRateLimit } from "../../interfaces/rate-limits";
-import { ApiKeyScope } from "../../";
+import { ApiKeyScope, MakeOptional } from "../../";
 
 const ApiKeyBaseSchema = z.object({
   id: z.string(),
@@ -16,6 +16,7 @@ const ApiKeyBaseSchema = z.object({
   orgId: z.string(),
   plan: z.enum(plans as unknown as [string, ...string[]]),
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
+  isIngestionSuspended: z.boolean().nullish(),
 });
 
 export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
@@ -48,12 +49,26 @@ export type AuthHeaderValidVerificationResult = {
   scope: ApiAccessScope;
 };
 
-export type ApiAccessScope = {
+export type AuthHeaderValidVerificationResultIngestion = {
+  validKey: true;
+  scope: ApiAccessScopeIngestion;
+};
+
+type BaseApiAccessScope = {
   projectId: string | null;
   accessLevel: "organization" | "project" | "scores";
+};
+
+type ApiAccessScopeMetadata = {
   orgId: string;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   apiKeyId: string;
   publicKey: string;
+  isIngestionSuspended: boolean | null | undefined;
 };
+
+export type ApiAccessScopeIngestion = BaseApiAccessScope &
+  MakeOptional<ApiAccessScopeMetadata>;
+
+export type ApiAccessScope = BaseApiAccessScope & ApiAccessScopeMetadata;

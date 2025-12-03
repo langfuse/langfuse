@@ -1,7 +1,8 @@
 import z from "zod/v4";
 import { prisma } from "../../../db";
-import { LangfuseNotFoundError, QUEUE_ERROR_MESSAGES } from "../../../errors";
+import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
+import { testModelCall } from "../../llm/testModelCall";
 
 type ValidConfig = {
   provider: string;
@@ -44,6 +45,23 @@ export class DefaultEvalModelService {
     if (!llmApiKey) {
       throw new LangfuseNotFoundError(
         `API key for provider ${provider} in project ${projectId} not found`,
+      );
+    }
+
+    try {
+      if (LLMApiKeySchema.safeParse(llmApiKey).success) {
+        // Make a test structured output call to validate the LLM key
+        await testModelCall({
+          provider,
+          model,
+          apiKey: llmApiKey as z.infer<typeof LLMApiKeySchema>,
+          modelConfig: modelParams,
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      throw new ForbiddenError(
+        `Model configuration not valid for evaluation. ${message}`,
       );
     }
 
@@ -156,7 +174,7 @@ export class DefaultEvalModelService {
     if (!selectedModel) {
       return {
         valid: false,
-        error: `${QUEUE_ERROR_MESSAGES.NO_DEFAULT_MODEL_ERROR} ${projectId}.`,
+        error: `No default model or custom model configured for project ${projectId}`,
       };
     }
 
@@ -173,7 +191,7 @@ export class DefaultEvalModelService {
     if (!parsedKey.success) {
       return {
         valid: false,
-        error: `${QUEUE_ERROR_MESSAGES.API_KEY_ERROR} "${selectedModel.provider}" not found in project ${projectId}.`,
+        error: `API key for provider "${selectedModel.provider}" not found in project ${projectId}`,
       };
     }
 

@@ -79,6 +79,52 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    post:
+      description: Create an annotation queue
+      operationId: annotationQueues_createQueue
+      tags:
+        - AnnotationQueues
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueue'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationQueueRequest'
   /api/public/annotation-queues/{queueId}:
     get:
       description: Get an annotation queue by ID
@@ -382,6 +428,251 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeleteAnnotationQueueItemResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/annotation-queues/{queueId}/assignments:
+    post:
+      description: Create an assignment for a user to an annotation queue
+      operationId: annotationQueues_createQueueAssignment
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateAnnotationQueueAssignmentResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationQueueAssignmentRequest'
+    delete:
+      description: Delete an assignment for a user to an annotation queue
+      operationId: annotationQueues_deleteQueueAssignment
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAnnotationQueueAssignmentResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnotationQueueAssignmentRequest'
+  /api/public/integrations/blob-storage:
+    get:
+      description: >-
+        Get all blob storage integrations for the organization (requires
+        organization-scoped API key)
+      operationId: blobStorageIntegrations_getBlobStorageIntegrations
+      tags:
+        - BlobStorageIntegrations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update a blob storage integration for a specific project
+        (requires organization-scoped API key). The configuration is validated
+        by performing a test upload to the bucket.
+      operationId: blobStorageIntegrations_upsertBlobStorageIntegration
+      tags:
+        - BlobStorageIntegrations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBlobStorageIntegrationRequest'
+  /api/public/integrations/blob-storage/{id}:
+    delete:
+      description: >-
+        Delete a blob storage integration by ID (requires organization-scoped
+        API key)
+      operationId: blobStorageIntegrations_deleteBlobStorageIntegration
+      tags:
+        - BlobStorageIntegrations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStorageIntegrationDeletionResponse'
         '400':
           description: ''
           content:
@@ -1261,11 +1552,11 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
-        Batched ingestion for Langfuse Tracing.
+        **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
-        If you want to use tracing via the API, such as to build your own
-        Langfuse client implementation, this is the only API route you need to
-        implement.
+
+        -> Please use the OpenTelemetry endpoint (`/api/public/otel/v1/traces`).
+        Learn more: https://langfuse.com/integrations/native/opentelemetry
 
 
         Within each batch, there can be multiple events.
@@ -1289,7 +1580,7 @@ paths:
         Notes:
 
         - Introduction to data model:
-        https://langfuse.com/docs/tracing-data-model
+        https://langfuse.com/docs/observability/data-model
 
         - Batch sizes are limited to 3.5 MB in total. You need to adjust the
         number of events per batch accordingly.
@@ -1421,6 +1712,109 @@ paths:
                         name: My Score
                         value: 0.9
                         environment: default
+  /api/public/llm-connections:
+    get:
+      description: Get all LLM connections in a project
+      operationId: llmConnections_list
+      tags:
+        - LlmConnections
+      parameters:
+        - name: page
+          in: query
+          description: page number, starts at 1
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: limit of items per page
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedLlmConnections'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    put:
+      description: >-
+        Create or update an LLM connection. The connection is upserted on
+        provider.
+      operationId: llmConnections_upsert
+      tags:
+        - LlmConnections
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmConnection'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertLlmConnectionRequest'
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
@@ -1565,7 +1959,12 @@ paths:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
   /api/public/metrics:
     get:
-      description: Get metrics from the Langfuse project using a query object
+      description: >-
+        Get metrics from the Langfuse project using a query object.
+
+
+        For more details, see the [Metrics API
+        documentation](https://langfuse.com/docs/metrics/features/metrics-api).
       operationId: metrics_metrics
       tags:
         - Metrics
@@ -1942,6 +2341,15 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: level
+          in: query
+          description: >-
+            Optional filter for observations with a specific level (e.g.
+            "DEBUG", "DEFAULT", "WARNING", "ERROR").
+          required: false
+          schema:
+            $ref: '#/components/schemas/ObservationLevel'
+            nullable: true
         - name: parentObservationId
           in: query
           required: false
@@ -1986,6 +2394,155 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON string containing an array of filter conditions. When provided,
+            this takes precedence over query parameter filters (userId, name,
+            type, level, environment, fromStartTime, ...).
+
+
+            ## Filter Structure
+
+            Each filter condition has the following structure:
+
+            ```json
+
+            [
+              {
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "column": string,         // Required. Column to filter on (see available columns below)
+                "operator": string,       // Required. Operator based on type:
+                                          // - datetime: ">", "<", ">=", "<="
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringOptions: "any of", "none of"
+                                          // - categoryOptions: "any of", "none of"
+                                          // - arrayOptions: "any of", "none of", "all of"
+                                          // - number: "=", ">", "<", ">=", "<="
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - numberObject: "=", ">", "<", ">=", "<="
+                                          // - boolean: "=", "<>"
+                                          // - null: "is null", "is not null"
+                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
+                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+              }
+            ]
+
+            ```
+
+
+            ## Available Columns
+
+
+            ### Core Observation Fields
+
+            - `id` (string) - Observation ID
+
+            - `type` (string) - Observation type (SPAN, GENERATION, EVENT)
+
+            - `name` (string) - Observation name
+
+            - `traceId` (string) - Associated trace ID
+
+            - `startTime` (datetime) - Observation start time
+
+            - `endTime` (datetime) - Observation end time
+
+            - `environment` (string) - Environment tag
+
+            - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
+
+            - `statusMessage` (string) - Status message
+
+            - `version` (string) - Version tag
+
+
+            ### Performance Metrics
+
+            - `latency` (number) - Latency in seconds (calculated: end_time -
+            start_time)
+
+            - `timeToFirstToken` (number) - Time to first token in seconds
+
+            - `tokensPerSecond` (number) - Output tokens per second
+
+
+            ### Token Usage
+
+            - `inputTokens` (number) - Number of input tokens
+
+            - `outputTokens` (number) - Number of output tokens
+
+            - `totalTokens` (number) - Total tokens (alias: `tokens`)
+
+
+            ### Cost Metrics
+
+            - `inputCost` (number) - Input cost in USD
+
+            - `outputCost` (number) - Output cost in USD
+
+            - `totalCost` (number) - Total cost in USD
+
+
+            ### Model Information
+
+            - `model` (string) - Provided model name
+
+            - `promptName` (string) - Associated prompt name
+
+            - `promptVersion` (number) - Associated prompt version
+
+
+            ### Structured Data
+
+            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
+            key-value pairs. Use `key` parameter to filter on specific metadata
+            keys.
+
+
+            ### Associated Trace Fields (requires join with traces table)
+
+            - `userId` (string) - User ID from associated trace
+
+            - `traceName` (string) - Name from associated trace
+
+            - `traceEnvironment` (string) - Environment from associated trace
+
+            - `traceTags` (arrayOptions) - Tags from associated trace
+
+
+            ## Filter Examples
+
+            ```json
+
+            [
+              {
+                "type": "string",
+                "column": "type",
+                "operator": "=",
+                "value": "GENERATION"
+              },
+              {
+                "type": "number",
+                "column": "latency",
+                "operator": ">=",
+                "value": 2.5
+              },
+              {
+                "type": "stringObject",
+                "column": "metadata",
+                "key": "environment",
+                "operator": "=",
+                "value": "production"
+              }
+            ]
+
+            ```
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -2020,6 +2577,125 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/otel/v1/traces:
+    post:
+      description: >-
+        **OpenTelemetry Traces Ingestion Endpoint**
+
+
+        This endpoint implements the OTLP/HTTP specification for trace
+        ingestion, providing native OpenTelemetry integration for Langfuse
+        Observability.
+
+
+        **Supported Formats:**
+
+        - Binary Protobuf: `Content-Type: application/x-protobuf`
+
+        - JSON Protobuf: `Content-Type: application/json`
+
+        - Supports gzip compression via `Content-Encoding: gzip` header
+
+
+        **Specification Compliance:**
+
+        - Conforms to [OTLP/HTTP Trace
+        Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)
+
+        - Implements `ExportTraceServiceRequest` message format
+
+
+        **Documentation:**
+
+        - Integration guide:
+        https://langfuse.com/integrations/native/opentelemetry
+
+        - Data model: https://langfuse.com/docs/observability/data-model
+      operationId: opentelemetry_exportTraces
+      tags:
+        - Opentelemetry
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtelTraceResponse'
+              examples:
+                BasicTraceExport:
+                  value: {}
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resourceSpans:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OtelResourceSpan'
+                  description: >-
+                    Array of resource spans containing trace data as defined in
+                    the OTLP specification
+              required:
+                - resourceSpans
+            examples:
+              BasicTraceExport:
+                value:
+                  resourceSpans:
+                    - resource:
+                        attributes:
+                          - key: service.name
+                            value:
+                              stringValue: my-service
+                          - key: service.version
+                            value:
+                              stringValue: 1.0.0
+                      scopeSpans:
+                        - scope:
+                            name: langfuse-sdk
+                            version: 2.60.3
+                          spans:
+                            - traceId: 0123456789abcdef0123456789abcdef
+                              spanId: 0123456789abcdef
+                              name: my-operation
+                              kind: 1
+                              startTimeUnixNano: '1747872000000000000'
+                              endTimeUnixNano: '1747872001000000000'
+                              attributes:
+                                - key: langfuse.observation.type
+                                  value:
+                                    stringValue: generation
+                              status: {}
   /api/public/organizations/memberships:
     get:
       description: >-
@@ -2111,6 +2787,54 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MembershipRequest'
+    delete:
+      description: >-
+        Delete a membership from the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: organizations_deleteOrganizationMembership
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteMembershipRequest'
   /api/public/projects/{projectId}/memberships:
     get:
       description: >-
@@ -2213,6 +2937,60 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/MembershipRequest'
+    delete:
+      description: >-
+        Delete a membership from a specific project (requires
+        organization-scoped API key). The user must be a member of the
+        organization.
+      operationId: organizations_deleteProjectMembership
+      tags:
+        - Organizations
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipDeletionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteMembershipRequest'
   /api/public/organizations/projects:
     get:
       description: >-
@@ -2229,6 +3007,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrganizationProjectsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+  /api/public/organizations/apiKeys:
+    get:
+      description: >-
+        Get all API keys for the organization associated with the API key
+        (requires organization-scoped API key)
+      operationId: organizations_getOrganizationApiKeys
+      tags:
+        - Organizations
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationApiKeysResponse'
         '400':
           description: ''
           content:
@@ -2580,6 +3401,18 @@ paths:
                   type: string
                   nullable: true
                   description: Optional note for the API key
+                publicKey:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional predefined public key. Must start with 'pk-lf-'. If
+                    provided, secretKey must also be provided.
+                secretKey:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Optional predefined secret key. Must start with 'sk-lf-'. If
+                    provided, publicKey must also be provided.
   /api/public/projects/{projectId}/apiKeys/{apiKeyId}:
     delete:
       description: Delete an API key for a project (requires organization-scoped API key)
@@ -2640,7 +3473,11 @@ paths:
       parameters:
         - name: name
           in: path
-          description: The name of the prompt
+          description: >-
+            The name of the prompt. If the prompt is in a folder (e.g.,
+            "folder/subfolder/prompt-name"), 
+
+            the folder path must be URL encoded.
           required: true
           schema:
             type: string
@@ -2710,7 +3547,11 @@ paths:
       parameters:
         - name: promptName
           in: path
-          description: The name of the prompt
+          description: >-
+            The name of the prompt. If the prompt is in a folder (e.g.,
+            "folder/subfolder/prompt-name"), 
+
+            the folder path must be URL encoded.
           required: true
           schema:
             type: string
@@ -3460,6 +4301,58 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    patch:
+      description: Update a score config
+      operationId: scoreConfigs_update
+      tags:
+        - ScoreConfigs
+      parameters:
+        - name: configId
+          in: path
+          description: The unique langfuse identifier of a score config
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreConfig'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScoreConfigRequest'
   /api/public/v2/scores:
     get:
       description: Get a list of scores (supports both trace and session scores)
@@ -3560,6 +4453,27 @@ paths:
         - name: configId
           in: query
           description: Retrieve only scores with a specific configId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionId
+          in: query
+          description: Retrieve only scores with a specific sessionId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: datasetRunId
+          in: query
+          description: Retrieve only scores with a specific datasetRunId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: traceId
+          in: query
+          description: Retrieve only scores with a specific traceId.
           required: false
           schema:
             type: string
@@ -4100,9 +5014,180 @@ paths:
           in: query
           description: >-
             Comma-separated list of fields to include in the response. Available
-            field groups are 'core' (always included), 'io' (input, output,
-            metadata), 'scores', 'observations', 'metrics'. If not provided, all
-            fields are included. Example: 'core,scores,metrics'
+            field groups: 'core' (always included), 'io' (input, output,
+            metadata), 'scores', 'observations', 'metrics'. If not specified,
+            all fields are returned. Example: 'core,scores,metrics'. Note:
+            Excluded 'observations' or 'scores' fields return empty arrays;
+            excluded 'metrics' returns -1 for 'totalCost' and 'latency'.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON string containing an array of filter conditions. When provided,
+            this takes precedence over query parameter filters (userId, name,
+            sessionId, tags, version, release, environment, fromTimestamp,
+            toTimestamp).
+
+
+            ## Filter Structure
+
+            Each filter condition has the following structure:
+
+            ```json
+
+            [
+              {
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "column": string,         // Required. Column to filter on (see available columns below)
+                "operator": string,       // Required. Operator based on type:
+                                          // - datetime: ">", "<", ">=", "<="
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringOptions: "any of", "none of"
+                                          // - categoryOptions: "any of", "none of"
+                                          // - arrayOptions: "any of", "none of", "all of"
+                                          // - number: "=", ">", "<", ">=", "<="
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - numberObject: "=", ">", "<", ">=", "<="
+                                          // - boolean: "=", "<>"
+                                          // - null: "is null", "is not null"
+                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
+                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+              }
+            ]
+
+            ```
+
+
+            ## Available Columns
+
+
+            ### Core Trace Fields
+
+            - `id` (string) - Trace ID
+
+            - `name` (string) - Trace name
+
+            - `timestamp` (datetime) - Trace timestamp
+
+            - `userId` (string) - User ID
+
+            - `sessionId` (string) - Session ID
+
+            - `environment` (string) - Environment tag
+
+            - `version` (string) - Version tag
+
+            - `release` (string) - Release tag
+
+            - `tags` (arrayOptions) - Array of tags
+
+            - `bookmarked` (boolean) - Bookmark status
+
+
+            ### Structured Data
+
+            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
+            key-value pairs. Use `key` parameter to filter on specific metadata
+            keys.
+
+
+            ### Aggregated Metrics (from observations)
+
+            These metrics are aggregated from all observations within the trace:
+
+            - `latency` (number) - Latency in seconds (time from first
+            observation start to last observation end)
+
+            - `inputTokens` (number) - Total input tokens across all
+            observations
+
+            - `outputTokens` (number) - Total output tokens across all
+            observations
+
+            - `totalTokens` (number) - Total tokens (alias: `tokens`)
+
+            - `inputCost` (number) - Total input cost in USD
+
+            - `outputCost` (number) - Total output cost in USD
+
+            - `totalCost` (number) - Total cost in USD
+
+
+            ### Observation Level Aggregations
+
+            These fields aggregate observation levels within the trace:
+
+            - `level` (string) - Highest severity level (ERROR > WARNING >
+            DEFAULT > DEBUG)
+
+            - `warningCount` (number) - Count of WARNING level observations
+
+            - `errorCount` (number) - Count of ERROR level observations
+
+            - `defaultCount` (number) - Count of DEFAULT level observations
+
+            - `debugCount` (number) - Count of DEBUG level observations
+
+
+            ### Scores (requires join with scores table)
+
+            - `scores_avg` (number) - Average of numeric scores (alias:
+            `scores`)
+
+            - `score_categories` (categoryOptions) - Categorical score values
+
+
+            ## Filter Examples
+
+            ```json
+
+            [
+              {
+                "type": "datetime",
+                "column": "timestamp",
+                "operator": ">=",
+                "value": "2024-01-01T00:00:00Z"
+              },
+              {
+                "type": "string",
+                "column": "userId",
+                "operator": "=",
+                "value": "user-123"
+              },
+              {
+                "type": "number",
+                "column": "totalCost",
+                "operator": ">=",
+                "value": 0.01
+              },
+              {
+                "type": "arrayOptions",
+                "column": "tags",
+                "operator": "all of",
+                "value": ["production", "critical"]
+              },
+              {
+                "type": "stringObject",
+                "column": "metadata",
+                "key": "customer_tier",
+                "operator": "=",
+                "value": "enterprise"
+              }
+            ]
+
+            ```
+
+
+            ## Performance Notes
+
+            - Filtering on `userId`, `sessionId`, or `metadata` may enable skip
+            indexes for better query performance
+
+            - Score filters require a join with the scores table and may impact
+            query performance
           required: false
           schema:
             type: string
@@ -4209,6 +5294,7 @@ components:
       enum:
         - TRACE
         - OBSERVATION
+        - SESSION
     AnnotationQueue:
       title: AnnotationQueue
       type: object
@@ -4294,6 +5380,22 @@ components:
       required:
         - data
         - meta
+    CreateAnnotationQueueRequest:
+      title: CreateAnnotationQueueRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        scoreConfigIds:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - scoreConfigIds
     CreateAnnotationQueueItemRequest:
       title: CreateAnnotationQueueItemRequest
       type: object
@@ -4327,6 +5429,208 @@ components:
       required:
         - success
         - message
+    AnnotationQueueAssignmentRequest:
+      title: AnnotationQueueAssignmentRequest
+      type: object
+      properties:
+        userId:
+          type: string
+      required:
+        - userId
+    DeleteAnnotationQueueAssignmentResponse:
+      title: DeleteAnnotationQueueAssignmentResponse
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+    CreateAnnotationQueueAssignmentResponse:
+      title: CreateAnnotationQueueAssignmentResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        queueId:
+          type: string
+        projectId:
+          type: string
+      required:
+        - userId
+        - queueId
+        - projectId
+    BlobStorageIntegrationType:
+      title: BlobStorageIntegrationType
+      type: string
+      enum:
+        - S3
+        - S3_COMPATIBLE
+        - AZURE_BLOB_STORAGE
+    BlobStorageIntegrationFileType:
+      title: BlobStorageIntegrationFileType
+      type: string
+      enum:
+        - JSON
+        - CSV
+        - JSONL
+    BlobStorageExportMode:
+      title: BlobStorageExportMode
+      type: string
+      enum:
+        - FULL_HISTORY
+        - FROM_TODAY
+        - FROM_CUSTOM_DATE
+    BlobStorageExportFrequency:
+      title: BlobStorageExportFrequency
+      type: string
+      enum:
+        - hourly
+        - daily
+        - weekly
+    CreateBlobStorageIntegrationRequest:
+      title: CreateBlobStorageIntegrationRequest
+      type: object
+      properties:
+        projectId:
+          type: string
+          description: ID of the project in which to configure the blob storage integration
+        type:
+          $ref: '#/components/schemas/BlobStorageIntegrationType'
+        bucketName:
+          type: string
+          description: Name of the storage bucket
+        endpoint:
+          type: string
+          nullable: true
+          description: Custom endpoint URL (required for S3_COMPATIBLE type)
+        region:
+          type: string
+          description: Storage region
+        accessKeyId:
+          type: string
+          nullable: true
+          description: Access key ID for authentication
+        secretAccessKey:
+          type: string
+          nullable: true
+          description: Secret access key for authentication (will be encrypted when stored)
+        prefix:
+          type: string
+          nullable: true
+          description: >-
+            Path prefix for exported files (must end with forward slash if
+            provided)
+        exportFrequency:
+          $ref: '#/components/schemas/BlobStorageExportFrequency'
+        enabled:
+          type: boolean
+          description: Whether the integration is active
+        forcePathStyle:
+          type: boolean
+          description: Use path-style URLs for S3 requests
+        fileType:
+          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+        exportMode:
+          $ref: '#/components/schemas/BlobStorageExportMode'
+        exportStartDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Custom start date for exports (required when exportMode is
+            FROM_CUSTOM_DATE)
+      required:
+        - projectId
+        - type
+        - bucketName
+        - region
+        - exportFrequency
+        - enabled
+        - forcePathStyle
+        - fileType
+        - exportMode
+    BlobStorageIntegrationResponse:
+      title: BlobStorageIntegrationResponse
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        type:
+          $ref: '#/components/schemas/BlobStorageIntegrationType'
+        bucketName:
+          type: string
+        endpoint:
+          type: string
+          nullable: true
+        region:
+          type: string
+        accessKeyId:
+          type: string
+          nullable: true
+        prefix:
+          type: string
+        exportFrequency:
+          $ref: '#/components/schemas/BlobStorageExportFrequency'
+        enabled:
+          type: boolean
+        forcePathStyle:
+          type: boolean
+        fileType:
+          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+        exportMode:
+          $ref: '#/components/schemas/BlobStorageExportMode'
+        exportStartDate:
+          type: string
+          format: date-time
+          nullable: true
+        nextSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - type
+        - bucketName
+        - region
+        - prefix
+        - exportFrequency
+        - enabled
+        - forcePathStyle
+        - fileType
+        - exportMode
+        - createdAt
+        - updatedAt
+    BlobStorageIntegrationsResponse:
+      title: BlobStorageIntegrationsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobStorageIntegrationResponse'
+      required:
+        - data
+    BlobStorageIntegrationDeletionResponse:
+      title: BlobStorageIntegrationDeletionResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     CreateCommentRequest:
       title: CreateCommentRequest
       type: object
@@ -4348,7 +5652,7 @@ components:
           type: string
           description: >-
             The content of the comment. May include markdown. Currently limited
-            to 3000 characters.
+            to 5000 characters.
         authorUserId:
           type: string
           nullable: true
@@ -4855,8 +6159,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Reference an annotation queue on a score. Populated if the score was
-            initially created in an annotation queue.
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         environment:
           type: string
           nullable: true
@@ -4911,16 +6215,16 @@ components:
         value:
           type: number
           format: double
-          nullable: true
           description: >-
-            Only defined if a config is linked. Represents the numeric category
-            mapping of the stringValue
+            Represents the numeric category mapping of the stringValue. If no
+            config is linked, defaults to 0.
         stringValue:
           type: string
           description: >-
             The string representation of the score value. If no config is
             linked, can be any string. Otherwise, must map to a config category
       required:
+        - value
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScoreV1'
@@ -5010,8 +6314,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Reference an annotation queue on a score. Populated if the score was
-            initially created in an annotation queue.
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         environment:
           type: string
           nullable: true
@@ -5065,16 +6369,16 @@ components:
         value:
           type: number
           format: double
-          nullable: true
           description: >-
-            Only defined if a config is linked. Represents the numeric category
-            mapping of the stringValue
+            Represents the numeric category mapping of the stringValue. If no
+            config is linked, defaults to 0.
         stringValue:
           type: string
           description: >-
             The string representation of the score value. If no config is
             linked, can be any string. Otherwise, must map to a config category
       required:
+        - value
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScore'
@@ -5167,6 +6471,12 @@ components:
           nullable: true
         metadata:
           nullable: true
+        inputSchema:
+          nullable: true
+          description: JSON Schema for validating dataset item inputs
+        expectedOutputSchema:
+          nullable: true
+          description: JSON Schema for validating dataset item expected outputs
         projectId:
           type: string
         createdAt:
@@ -5305,6 +6615,24 @@ components:
       description: >-
         Model definition used for transforming usage into USD cost and/or
         tokenization.
+
+
+        Models can have either simple flat pricing or tiered pricing:
+
+        - Flat pricing: Single price per usage type (legacy, but still
+        supported)
+
+        - Tiered pricing: Multiple pricing tiers with conditional matching based
+        on usage patterns
+
+
+        The pricing tiers approach is recommended for models with usage-based
+        pricing variations.
+
+        When using tiered pricing, the flat price fields (inputPrice,
+        outputPrice, prices) are populated
+
+        from the default tier for backward compatibility.
       properties:
         id:
           type: string
@@ -5360,17 +6688,57 @@ components:
             JSON. See docs for more details.
         isLangfuseManaged:
           type: boolean
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the model was created
         prices:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/ModelPrice'
-          description: Price (USD) by usage type
+          description: >-
+            Deprecated. Use 'pricingTiers' instead for models with usage-based
+            pricing variations.
+
+
+            This field shows prices by usage type from the default pricing tier.
+            Maintained for backward compatibility.
+
+            If the model uses tiered pricing, this field will be populated from
+            the default tier's prices.
+        pricingTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTier'
+          description: >-
+            Array of pricing tiers with conditional pricing based on usage
+            thresholds.
+
+
+            Pricing tiers enable accurate cost tracking for models that charge
+            different rates based on usage patterns
+
+            (e.g., different rates for high-volume usage, large context windows,
+            or cached tokens).
+
+
+            Each model must have exactly one default tier (isDefault=true,
+            priority=0) that serves as a fallback.
+
+            Additional conditional tiers can be defined with specific matching
+            criteria.
+
+
+            If this array is empty, the model uses legacy flat pricing from the
+            inputPrice/outputPrice/totalPrice fields.
       required:
         - id
         - modelName
         - matchPattern
         - isLangfuseManaged
+        - createdAt
         - prices
+        - pricingTiers
     ModelPrice:
       title: ModelPrice
       type: object
@@ -5380,6 +6748,332 @@ components:
           format: double
       required:
         - price
+    PricingTierCondition:
+      title: PricingTierCondition
+      type: object
+      description: >-
+        Condition for matching a pricing tier based on usage details. Used to
+        implement tiered pricing models where costs vary based on usage
+        thresholds.
+
+
+        How it works:
+
+        1. The regex pattern matches against usage detail keys (e.g.,
+        "input_tokens", "input_cached")
+
+        2. Values of all matching keys are summed together
+
+        3. The sum is compared against the threshold value using the specified
+        operator
+
+        4. All conditions in a tier must be met (AND logic) for the tier to
+        match
+
+
+        Common use cases:
+
+        - Threshold-based pricing: Match when accumulated usage exceeds a
+        certain amount
+
+        - Usage-type-specific pricing: Different rates for cached vs non-cached
+        tokens, or input vs output
+
+        - Volume-based pricing: Different rates based on total request or token
+        count
+      properties:
+        usageDetailPattern:
+          type: string
+          description: >-
+            Regex pattern to match against usage detail keys. All matching keys'
+            values are summed for threshold comparison.
+
+
+            Examples:
+
+            - "^input" matches "input", "input_tokens", "input_cached", etc.
+
+            - "^(input|prompt)" matches both "input_tokens" and "prompt_tokens"
+
+            - "_cache$" matches "input_cache", "output_cache", etc.
+
+
+            The pattern is case-insensitive by default. If no keys match, the
+            sum is treated as zero.
+        operator:
+          $ref: '#/components/schemas/PricingTierOperator'
+          description: >-
+            Comparison operator to apply between the summed value and the
+            threshold.
+
+
+            - gt: greater than (sum > threshold)
+
+            - gte: greater than or equal (sum >= threshold)
+
+            - lt: less than (sum < threshold)
+
+            - lte: less than or equal (sum <= threshold)
+
+            - eq: equal (sum == threshold)
+
+            - neq: not equal (sum != threshold)
+        value:
+          type: number
+          format: double
+          description: >-
+            Threshold value for comparison. For token-based pricing, this is
+            typically the token count threshold (e.g., 200000 for a 200K token
+            threshold).
+        caseSensitive:
+          type: boolean
+          description: >-
+            Whether the regex pattern matching is case-sensitive. Default is
+            false (case-insensitive matching).
+      required:
+        - usageDetailPattern
+        - operator
+        - value
+        - caseSensitive
+    PricingTier:
+      title: PricingTier
+      type: object
+      description: >-
+        Pricing tier definition with conditional pricing based on usage
+        thresholds.
+
+
+        Pricing tiers enable accurate cost tracking for LLM providers that
+        charge different rates based on usage patterns.
+
+        For example, some providers charge higher rates when context size
+        exceeds certain thresholds.
+
+
+        How tier matching works:
+
+        1. Tiers are evaluated in ascending priority order (priority 1 before
+        priority 2, etc.)
+
+        2. The first tier where ALL conditions match is selected
+
+        3. If no conditional tiers match, the default tier is used as a fallback
+
+        4. The default tier has priority 0 and no conditions
+
+
+        Why priorities matter:
+
+        - Lower priority numbers are evaluated first, allowing you to define
+        specific cases before general ones
+
+        - Example: Priority 1 for "high usage" (>200K tokens), Priority 2 for
+        "medium usage" (>100K tokens), Priority 0 for default
+
+        - Without proper ordering, a less specific condition might match before
+        a more specific one
+
+
+        Every model must have exactly one default tier to ensure cost
+        calculation always succeeds.
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the pricing tier
+        name:
+          type: string
+          description: >-
+            Name of the pricing tier for display and identification purposes.
+
+
+            Examples: "Standard", "High Volume Tier", "Large Context",
+            "Extended Context Tier"
+        isDefault:
+          type: boolean
+          description: >-
+            Whether this is the default tier. Every model must have exactly one
+            default tier with priority 0 and no conditions.
+
+
+            The default tier serves as a fallback when no conditional tiers
+            match, ensuring cost calculation always succeeds.
+
+            It typically represents the base pricing for standard usage
+            patterns.
+        priority:
+          type: integer
+          description: >-
+            Priority for tier matching evaluation. Lower numbers = higher
+            priority (evaluated first).
+
+
+            The default tier must always have priority 0. Conditional tiers
+            should have priority 1, 2, 3, etc.
+
+
+            Example ordering:
+
+            - Priority 0: Default tier (no conditions, always matches as
+            fallback)
+
+            - Priority 1: High usage tier (e.g., >200K tokens)
+
+            - Priority 2: Medium usage tier (e.g., >100K tokens)
+
+
+            This ensures more specific conditions are checked before general
+            ones.
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTierCondition'
+          description: >-
+            Array of conditions that must ALL be met for this tier to match (AND
+            logic).
+
+
+            The default tier must have an empty conditions array. Conditional
+            tiers should have one or more conditions
+
+            that define when this tier's pricing applies.
+
+
+            Multiple conditions enable complex matching scenarios (e.g., "high
+            input tokens AND low output tokens").
+        prices:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          description: >-
+            Prices (USD) by usage type for this tier.
+
+
+            Common usage types: "input", "output", "total", "request", "image"
+
+            Prices are specified in USD per unit (e.g., per token, per request,
+            per second).
+
+
+            Example: {"input": 0.000003, "output": 0.000015} means $3 per
+            million input tokens and $15 per million output tokens.
+      required:
+        - id
+        - name
+        - isDefault
+        - priority
+        - conditions
+        - prices
+    PricingTierInput:
+      title: PricingTierInput
+      type: object
+      description: >-
+        Input schema for creating a pricing tier. The tier ID will be
+        automatically generated server-side.
+
+
+        When creating a model with pricing tiers:
+
+        - Exactly one tier must have isDefault=true (the fallback tier)
+
+        - The default tier must have priority=0 and conditions=[]
+
+        - All tier names and priorities must be unique within the model
+
+        - Each tier must define at least one price
+
+
+        See PricingTier for detailed information about how tiers work and why
+        they're useful.
+      properties:
+        name:
+          type: string
+          description: >-
+            Name of the pricing tier for display and identification purposes.
+
+
+            Must be unique within the model. Common patterns: "Standard
+            Pricing", "High Volume Tier", "Extended Context"
+        isDefault:
+          type: boolean
+          description: >-
+            Whether this is the default tier. Exactly one tier per model must be
+            marked as default.
+
+
+            Requirements for default tier:
+
+            - Must have isDefault=true
+
+            - Must have priority=0
+
+            - Must have empty conditions array (conditions=[])
+
+
+            The default tier acts as a fallback when no conditional tiers match.
+        priority:
+          type: integer
+          description: >-
+            Priority for tier matching evaluation. Lower numbers = higher
+            priority (evaluated first).
+
+
+            Must be unique within the model. The default tier must have
+            priority=0.
+
+            Conditional tiers should use priority 1, 2, 3, etc. based on their
+            specificity.
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTierCondition'
+          description: >-
+            Array of conditions that must ALL be met for this tier to match (AND
+            logic).
+
+
+            The default tier must have an empty array (conditions=[]).
+
+            Conditional tiers should define one or more conditions that specify
+            when this tier's pricing applies.
+
+
+            Each condition specifies a regex pattern, operator, and threshold
+            value for matching against usage details.
+        prices:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          description: >-
+            Prices (USD) by usage type for this tier. At least one price must be
+            defined.
+
+
+            Common usage types: "input", "output", "total", "request", "image"
+
+            Prices are in USD per unit (e.g., per token).
+
+
+            Example: {"input": 0.000003, "output": 0.000015} represents $3 per
+            million input tokens and $15 per million output tokens.
+      required:
+        - name
+        - isDefault
+        - priority
+        - conditions
+        - prices
+    PricingTierOperator:
+      title: PricingTierOperator
+      type: string
+      enum:
+        - gt
+        - gte
+        - lt
+        - lte
+        - eq
+        - neq
+      description: Comparison operators for pricing tier conditions
     ModelUsageUnit:
       title: ModelUsageUnit
       type: string
@@ -5556,6 +7250,17 @@ components:
           nullable: true
         metadata:
           nullable: true
+        inputSchema:
+          nullable: true
+          description: >-
+            JSON Schema for validating dataset item inputs. When set, all new
+            and existing dataset items will be validated against this schema.
+        expectedOutputSchema:
+          nullable: true
+          description: >-
+            JSON Schema for validating dataset item expected outputs. When set,
+            all new and existing dataset items will be validated against this
+            schema.
       required:
         - name
     PaginatedDatasetRuns:
@@ -5713,6 +7418,13 @@ components:
         - SPAN
         - GENERATION
         - EVENT
+        - AGENT
+        - TOOL
+        - CHAIN
+        - RETRIEVER
+        - EVALUATOR
+        - EMBEDDING
+        - GUARDRAIL
     IngestionUsage:
       title: IngestionUsage
       oneOf:
@@ -6015,6 +7727,12 @@ components:
         environment:
           type: string
           nullable: true
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
@@ -6268,6 +7986,122 @@ components:
             type: integer
         - $ref: '#/components/schemas/OpenAICompletionUsageSchema'
         - $ref: '#/components/schemas/OpenAIResponseUsageSchema'
+    LlmConnection:
+      title: LlmConnection
+      type: object
+      description: LLM API connection configuration (secrets excluded)
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+          description: >-
+            Provider name (e.g., 'openai', 'my-gateway'). Must be unique in
+            project, used for upserting.
+        adapter:
+          type: string
+          description: The adapter used to interface with the LLM
+        displaySecretKey:
+          type: string
+          description: Masked version of the secret key for display purposes
+        baseURL:
+          type: string
+          nullable: true
+          description: Custom base URL for the LLM API
+        customModels:
+          type: array
+          items:
+            type: string
+          description: List of custom model names available for this connection
+        withDefaultModels:
+          type: boolean
+          description: Whether to include default models for this adapter
+        extraHeaderKeys:
+          type: array
+          items:
+            type: string
+          description: >-
+            Keys of extra headers sent with requests (values excluded for
+            security)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - provider
+        - adapter
+        - displaySecretKey
+        - customModels
+        - withDefaultModels
+        - extraHeaderKeys
+        - createdAt
+        - updatedAt
+    PaginatedLlmConnections:
+      title: PaginatedLlmConnections
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LlmConnection'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    UpsertLlmConnectionRequest:
+      title: UpsertLlmConnectionRequest
+      type: object
+      description: Request to create or update an LLM connection (upsert)
+      properties:
+        provider:
+          type: string
+          description: >-
+            Provider name (e.g., 'openai', 'my-gateway'). Must be unique in
+            project, used for upserting.
+        adapter:
+          $ref: '#/components/schemas/LlmAdapter'
+          description: The adapter used to interface with the LLM
+        secretKey:
+          type: string
+          description: Secret key for the LLM API.
+        baseURL:
+          type: string
+          nullable: true
+          description: Custom base URL for the LLM API
+        customModels:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: List of custom model names
+        withDefaultModels:
+          type: boolean
+          nullable: true
+          description: Whether to include default models. Default is true.
+        extraHeaders:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Extra headers to send with requests
+      required:
+        - provider
+        - adapter
+        - secretKey
+    LlmAdapter:
+      title: LlmAdapter
+      type: string
+      enum:
+        - anthropic
+        - openai
+        - azure
+        - bedrock
+        - google-vertex-ai
+        - google-ai-studio
     GetMediaResponse:
       title: GetMediaResponse
       type: object
@@ -6379,6 +8213,8 @@ components:
         - image/svg+xml
         - image/tiff
         - image/bmp
+        - image/avif
+        - image/heic
         - audio/mpeg
         - audio/mp3
         - audio/wav
@@ -6387,19 +8223,42 @@ components:
         - audio/aac
         - audio/mp4
         - audio/flac
+        - audio/opus
+        - audio/webm
         - video/mp4
         - video/webm
+        - video/ogg
+        - video/mpeg
+        - video/quicktime
+        - video/x-msvideo
+        - video/x-matroska
         - text/plain
         - text/html
         - text/css
         - text/csv
+        - text/markdown
+        - text/x-python
+        - application/javascript
+        - text/x-typescript
+        - application/x-yaml
         - application/pdf
         - application/msword
         - application/vnd.ms-excel
+        - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
         - application/zip
         - application/json
         - application/xml
         - application/octet-stream
+        - >-
+          application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        - >-
+          application/vnd.openxmlformats-officedocument.presentationml.presentation
+        - application/rtf
+        - application/x-ndjson
+        - application/vnd.apache.parquet
+        - application/gzip
+        - application/x-tar
+        - application/x-7z-compressed
       description: The MIME type of the media record
     MetricsResponse:
       title: MetricsResponse
@@ -6462,19 +8321,63 @@ components:
           type: number
           format: double
           nullable: true
-          description: Price (USD) per input unit
+          description: >-
+            Deprecated. Use 'pricingTiers' instead. Price (USD) per input unit.
+            Creates a default tier if pricingTiers not provided.
         outputPrice:
           type: number
           format: double
           nullable: true
-          description: Price (USD) per output unit
+          description: >-
+            Deprecated. Use 'pricingTiers' instead. Price (USD) per output unit.
+            Creates a default tier if pricingTiers not provided.
         totalPrice:
           type: number
           format: double
           nullable: true
           description: >-
-            Price (USD) per total units. Cannot be set if input or output price
-            is set.
+            Deprecated. Use 'pricingTiers' instead. Price (USD) per total units.
+            Cannot be set if input or output price is set. Creates a default
+            tier if pricingTiers not provided.
+        pricingTiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTierInput'
+          nullable: true
+          description: >-
+            Optional. Array of pricing tiers for this model.
+
+
+            Use pricing tiers for all models - both those with threshold-based
+            pricing variations and those with simple flat pricing:
+
+
+            - For models with standard flat pricing: Create a single default
+            tier with your prices
+              (e.g., one tier with isDefault=true, priority=0, conditions=[], and your standard prices)
+
+            - For models with threshold-based pricing: Create a default tier
+            plus additional conditional tiers
+              (e.g., default tier for standard usage + high-volume tier for usage above certain thresholds)
+
+            Requirements:
+
+            - Cannot be provided with flat prices
+            (inputPrice/outputPrice/totalPrice) - use one approach or the other
+
+            - Must include exactly one default tier with isDefault=true,
+            priority=0, and conditions=[]
+
+            - All tier names and priorities must be unique within the model
+
+            - Each tier must define at least one price
+
+
+            If omitted, you must provide flat prices instead
+            (inputPrice/outputPrice/totalPrice),
+
+            which will automatically create a single default tier named
+            "Standard".
         tokenizerId:
           type: string
           nullable: true
@@ -6515,6 +8418,147 @@ components:
       required:
         - data
         - meta
+    OtelResourceSpan:
+      title: OtelResourceSpan
+      type: object
+      description: >-
+        Represents a collection of spans from a single resource as per OTLP
+        specification
+      properties:
+        resource:
+          $ref: '#/components/schemas/OtelResource'
+          nullable: true
+          description: Resource information
+        scopeSpans:
+          type: array
+          items:
+            $ref: '#/components/schemas/OtelScopeSpan'
+          nullable: true
+          description: Array of scope spans
+    OtelResource:
+      title: OtelResource
+      type: object
+      description: Resource attributes identifying the source of telemetry
+      properties:
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OtelAttribute'
+          nullable: true
+          description: Resource attributes like service.name, service.version, etc.
+    OtelScopeSpan:
+      title: OtelScopeSpan
+      type: object
+      description: Collection of spans from a single instrumentation scope
+      properties:
+        scope:
+          $ref: '#/components/schemas/OtelScope'
+          nullable: true
+          description: Instrumentation scope information
+        spans:
+          type: array
+          items:
+            $ref: '#/components/schemas/OtelSpan'
+          nullable: true
+          description: Array of spans
+    OtelScope:
+      title: OtelScope
+      type: object
+      description: Instrumentation scope information
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: Instrumentation scope name
+        version:
+          type: string
+          nullable: true
+          description: Instrumentation scope version
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OtelAttribute'
+          nullable: true
+          description: Additional scope attributes
+    OtelSpan:
+      title: OtelSpan
+      type: object
+      description: Individual span representing a unit of work or operation
+      properties:
+        traceId:
+          nullable: true
+          description: Trace ID (16 bytes, hex-encoded string in JSON or Buffer in binary)
+        spanId:
+          nullable: true
+          description: Span ID (8 bytes, hex-encoded string in JSON or Buffer in binary)
+        parentSpanId:
+          nullable: true
+          description: Parent span ID if this is a child span
+        name:
+          type: string
+          nullable: true
+          description: Span name describing the operation
+        kind:
+          type: integer
+          nullable: true
+          description: Span kind (1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER)
+        startTimeUnixNano:
+          nullable: true
+          description: Start time in nanoseconds since Unix epoch
+        endTimeUnixNano:
+          nullable: true
+          description: End time in nanoseconds since Unix epoch
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OtelAttribute'
+          nullable: true
+          description: >-
+            Span attributes including Langfuse-specific attributes
+            (langfuse.observation.*)
+        status:
+          nullable: true
+          description: Span status object
+    OtelAttribute:
+      title: OtelAttribute
+      type: object
+      description: Key-value attribute pair for resources, scopes, or spans
+      properties:
+        key:
+          type: string
+          nullable: true
+          description: Attribute key (e.g., "service.name", "langfuse.observation.type")
+        value:
+          $ref: '#/components/schemas/OtelAttributeValue'
+          nullable: true
+          description: Attribute value
+    OtelAttributeValue:
+      title: OtelAttributeValue
+      type: object
+      description: Attribute value wrapper supporting different value types
+      properties:
+        stringValue:
+          type: string
+          nullable: true
+          description: String value
+        intValue:
+          type: integer
+          nullable: true
+          description: Integer value
+        doubleValue:
+          type: number
+          format: double
+          nullable: true
+          description: Double value
+        boolValue:
+          type: boolean
+          nullable: true
+          description: Boolean value
+    OtelTraceResponse:
+      title: OtelTraceResponse
+      type: object
+      description: Response from trace export request. Empty object indicates success.
+      properties: {}
     MembershipRole:
       title: MembershipRole
       type: string
@@ -6534,6 +8578,14 @@ components:
       required:
         - userId
         - role
+    DeleteMembershipRequest:
+      title: DeleteMembershipRequest
+      type: object
+      properties:
+        userId:
+          type: string
+      required:
+        - userId
     MembershipResponse:
       title: MembershipResponse
       type: object
@@ -6551,6 +8603,17 @@ components:
         - role
         - email
         - name
+    MembershipDeletionResponse:
+      title: MembershipDeletionResponse
+      type: object
+      properties:
+        message:
+          type: string
+        userId:
+          type: string
+      required:
+        - message
+        - userId
     MembershipsResponse:
       title: MembershipsResponse
       type: object
@@ -6594,6 +8657,45 @@ components:
             $ref: '#/components/schemas/OrganizationProject'
       required:
         - projects
+    OrganizationApiKey:
+      title: OrganizationApiKey
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        publicKey:
+          type: string
+        displaySecretKey:
+          type: string
+      required:
+        - id
+        - createdAt
+        - publicKey
+        - displaySecretKey
+    OrganizationApiKeysResponse:
+      title: OrganizationApiKeysResponse
+      type: object
+      properties:
+        apiKeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationApiKey'
+      required:
+        - apiKeys
     Projects:
       title: Projects
       type: object
@@ -6731,6 +8833,9 @@ components:
       properties:
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/PromptType'
+          description: Indicates whether the prompt is a text or chat prompt.
         versions:
           type: array
           items:
@@ -6752,6 +8857,7 @@ components:
             filters (if any are provided)
       required:
         - name
+        - type
         - versions
         - labels
         - tags
@@ -6867,6 +8973,12 @@ components:
             - $ref: '#/components/schemas/TextPrompt'
           required:
             - type
+    PromptType:
+      title: PromptType
+      type: string
+      enum:
+        - chat
+        - text
     BasePrompt:
       title: BasePrompt
       type: object
@@ -7320,6 +9432,48 @@ components:
       required:
         - name
         - dataType
+    UpdateScoreConfigRequest:
+      title: UpdateScoreConfigRequest
+      type: object
+      properties:
+        isArchived:
+          type: boolean
+          nullable: true
+          description: The status of the score config showing if it is archived or not
+        name:
+          type: string
+          nullable: true
+          description: The name of the score config
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigCategory'
+          nullable: true
+          description: >-
+            Configure custom categories for categorical scores. Pass a list of
+            objects with `label` and `value` properties. Categories are
+            autogenerated for boolean configs and cannot be passed
+        minValue:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Configure a minimum value for numerical scores. If not set, the
+            minimum value defaults to -∞
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Configure a maximum value for numerical scores. If not set, the
+            maximum value defaults to +∞
+        description:
+          type: string
+          nullable: true
+          description: >-
+            Description is shown across the Langfuse UI and can be used to e.g.
+            explain the config categories in detail, why a numeric range was
+            set, or provide additional context on config name or usage
     GetScoresResponseTraceData:
       title: GetScoresResponseTraceData
       type: object
@@ -7446,6 +9600,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         environment:
           type: string
@@ -7454,6 +9610,12 @@ components:
             The environment of the score. Can be any lowercase alphanumeric
             string with hyphens and underscores that does not start with
             'langfuse'.
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            The annotation queue referenced by the score. Indicates if score was
+            initially created while processing annotation queue.
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
           nullable: true

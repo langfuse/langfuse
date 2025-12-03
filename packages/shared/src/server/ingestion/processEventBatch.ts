@@ -1,14 +1,13 @@
 import { randomUUID } from "crypto";
 import { z } from "zod/v4";
 
-import { type Model } from "../../db";
 import { env } from "../../env";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
   UnauthorizedError,
 } from "../../errors";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
+import { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
@@ -21,11 +20,20 @@ import { logger } from "../logger";
 import { QueueJobs } from "../queues";
 import { IngestionQueue } from "../redis/ingestionQueue";
 import { redis } from "../redis/redis";
-import { eventTypes, ingestionEvent, IngestionEventType } from "./types";
+import {
+  eventTypes,
+  createIngestionEventSchema,
+  IngestionEventType,
+} from "./types";
 import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { isTraceIdInSample } from "./sampling";
+import {
+  isS3SlowDownError,
+  markProjectS3Slowdown,
+} from "../redis/s3SlowdownTracking";
 
 let s3StorageServiceClient: StorageService;
 
@@ -45,18 +53,13 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
-export type TokenCountDelegate = (p: { // eslint-disable-line no-unused-vars
-  model: Model;
-  text: unknown;
-}) => number | undefined;
-
 /**
  * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
  * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
  * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
  * @param delay - Delay overwrite. Used if non-null.
  */
-const getDelay = (delay: number | null) => {
+const getDelay = (delay: number | null, source: "api" | "otel") => {
   if (delay !== null) {
     return delay;
   }
@@ -68,6 +71,10 @@ const getDelay = (delay: number | null) => {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
   }
 
+  if (source === "otel") {
+    return 0;
+  }
+
   // Use 5s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,
   // we use this instead.
   // Values should be revisited based on a cost/performance trade-off.
@@ -75,17 +82,29 @@ const getDelay = (delay: number | null) => {
 };
 
 /**
+ * Options for event batch processing.
+ * @property delay - Delay in ms to wait before processing events in the batch.
+ * @property source - Source of the events for metrics tracking (e.g., "otel", "api").
+ * @property isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
+ * @property forwardToEventsTable - Whether to forward events to the staging events table for batch propagation. If undefined, falls back to environment flags.
+ */
+type ProcessEventBatchOptions = {
+  delay?: number | null;
+  source?: "api" | "otel";
+  isLangfuseInternal?: boolean;
+  forwardToEventsTable?: boolean;
+};
+
+/**
  * Processes a batch of events.
  * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
- * @param authCheck - AuthHeaderValidVerificationResult
- * @param delay - (Optional) Delay in ms to wait before processing events in the batch.
- * @param source - (Optional) Source of the events for metrics tracking (e.g., "otel", "api").
+ * @param authCheck - AuthHeaderValidVerificationResultIngestion
+ * @param options - (Optional) Options for the event batch processing.
  */
 export const processEventBatch = async (
   input: unknown[],
-  authCheck: AuthHeaderValidVerificationResult,
-  delay: number | null = null,
-  source: "api" | "otel" = "api",
+  authCheck: AuthHeaderValidVerificationResultIngestion,
+  options: ProcessEventBatchOptions = {},
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -95,6 +114,16 @@ export const processEventBatch = async (
     error?: string;
   }[];
 }> => {
+  if (input.length === 0) {
+    return { successes: [], errors: [] };
+  }
+  const {
+    delay = null,
+    source = "api",
+    isLangfuseInternal = false,
+    forwardToEventsTable,
+  } = options;
+
   // add context of api call to the span
   const currentSpan = getCurrentSpan();
   recordIncrement("langfuse.ingestion.event", input.length, { source });
@@ -107,8 +136,10 @@ export const processEventBatch = async (
     "langfuse.project.id",
     authCheck.scope.projectId ?? "",
   );
-  currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
-  currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
+  if (authCheck.scope.orgId)
+    currentSpan?.setAttribute("langfuse.org.id", authCheck.scope.orgId);
+  if (authCheck.scope.plan)
+    currentSpan?.setAttribute("langfuse.org.plan", authCheck.scope.plan);
 
   /**************
    * VALIDATION *
@@ -120,9 +151,10 @@ export const processEventBatch = async (
   const validationErrors: { id: string; error: unknown }[] = [];
   const authenticationErrors: { id: string; error: unknown }[] = [];
 
-  const batch: z.infer<typeof ingestionEvent>[] = input
+  const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
+  const batch: z.infer<typeof ingestionSchema>[] = input
     .flatMap((event) => {
-      const parsed = ingestionEvent.safeParse(event);
+      const parsed = ingestionSchema.safeParse(event);
       if (!parsed.success) {
         validationErrors.push({
           id:
@@ -211,6 +243,20 @@ export const processEventBatch = async (
     results.forEach((result) => {
       if (result.status === "rejected") {
         s3UploadErrored = true;
+
+        // Check if this is a SlowDown error and mark the project for secondary queue
+        if (isS3SlowDownError(result.reason)) {
+          logger.warn(
+            "S3 SlowDown error during upload, marking project for secondary queue",
+            {
+              projectId: authCheck.scope.projectId,
+              error: result.reason,
+            },
+          );
+          // Fire and forget - don't await, don't block the error flow
+          markProjectS3Slowdown(authCheck.scope.projectId!).catch(() => {});
+        }
+
         logger.error("Failed to upload event to S3", {
           error: result.reason,
         });
@@ -238,11 +284,39 @@ export const processEventBatch = async (
       const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
       const queue = IngestionQueue.getInstance({ shardingKey });
 
-      const shouldSkipS3List =
-        getClickhouseEntityType(eventData.type) === "observation" &&
+      const isDatasetRunItemEvent =
+        getClickhouseEntityType(eventData.type) === "dataset_run_item";
+      const isObservationEvent =
+        getClickhouseEntityType(eventData.type) === "observation";
+
+      const isOtelOrSkipS3Project =
         authCheck.scope.projectId !== null &&
-        (projectIdsToSkipS3List.includes(authCheck.scope.projectId) ||
-          source === "otel");
+        (source === "otel" ||
+          projectIdsToSkipS3List.includes(authCheck.scope.projectId));
+
+      const shouldSkipS3List =
+        isDatasetRunItemEvent || (isObservationEvent && isOtelOrSkipS3Project);
+
+      const { isSampled, isSamplingConfigured } = isTraceIdInSample({
+        projectId: authCheck.scope.projectId,
+        event: eventData.data[0],
+      });
+
+      if (!isSampled) {
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "out",
+        });
+
+        return;
+      }
+
+      if (isSamplingConfigured) {
+        recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
+          projectId: authCheck.scope.projectId ?? "<not set>",
+          sampling_decision: "in",
+        });
+      }
 
       return queue
         ? queue.add(
@@ -257,6 +331,7 @@ export const processEventBatch = async (
                   eventBodyId: eventData.eventBodyId,
                   fileKey: eventData.key,
                   skipS3List: shouldSkipS3List,
+                  forwardToEventsTable,
                 },
                 authCheck: authCheck as {
                   validKey: true;
@@ -267,9 +342,9 @@ export const processEventBatch = async (
                 },
               },
             },
-            { delay: getDelay(delay) },
+            { delay: getDelay(delay, source) },
           )
-        : Promise.reject("Failed to instantiate queue");
+        : Promise.reject("Failed to instantiate ingestion queue");
     }),
   );
 
@@ -282,7 +357,7 @@ export const processEventBatch = async (
 
 const isAuthorized = (
   event: IngestionEventType,
-  authScope: AuthHeaderValidVerificationResult,
+  authScope: AuthHeaderValidVerificationResultIngestion,
 ): boolean => {
   if (event.type === eventTypes.SDK_LOG) {
     return true;
@@ -301,7 +376,7 @@ const isAuthorized = (
 /**
  * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
  */
-const sortBatch = (batch: Array<z.infer<typeof ingestionEvent>>) => {
+const sortBatch = (batch: IngestionEventType[]) => {
   const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
     eventTypes.GENERATION_UPDATE,
     eventTypes.SPAN_UPDATE,

@@ -13,17 +13,22 @@ import {
   FilterCondition,
 } from "@langfuse/shared";
 import {
-  getDatabaseReadStream,
+  getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
-import { processAddToQueue } from "./processAddToQueue";
+import {
+  processAddObservationsToQueue,
+  processAddSessionsToQueue,
+  processAddTracesToQueue,
+} from "./processAddToQueue";
 import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
+import { getObservationStream } from "../database-read-stream/observation-stream";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -55,7 +60,23 @@ async function processActionChunk(
         break;
 
       case "trace-add-to-annotation-queue":
-        await processAddToQueue(projectId, chunkIds, targetId as string);
+        await processAddTracesToQueue(projectId, chunkIds, targetId as string);
+        break;
+
+      case "session-add-to-annotation-queue":
+        await processAddSessionsToQueue(
+          projectId,
+          chunkIds,
+          targetId as string,
+        );
+        break;
+
+      case "observation-add-to-annotation-queue":
+        await processAddObservationsToQueue(
+          projectId,
+          chunkIds,
+          targetId as string,
+        );
         break;
 
       case "score-delete":
@@ -133,6 +154,8 @@ export const handleBatchActionJob = async (
   if (
     actionId === "trace-delete" ||
     actionId === "trace-add-to-annotation-queue" ||
+    actionId === "session-add-to-annotation-queue" ||
+    actionId === "observation-add-to-annotation-queue" ||
     actionId === "score-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
@@ -152,15 +175,23 @@ export const handleBatchActionJob = async (
             searchQuery: query.searchQuery ?? undefined,
             searchType: query.searchType ?? ["id" as const],
           })
-        : await getDatabaseReadStream({
-            projectId: projectId,
-            cutoffCreatedAt: new Date(cutoffCreatedAt),
-            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-            orderBy: query.orderBy,
-            tableName: tableName,
-            searchQuery: query.searchQuery ?? undefined,
-            searchType: query.searchType ?? ["id" as const],
-          });
+        : tableName === BatchTableNames.Observations
+          ? await getObservationStream({
+              projectId: projectId,
+              cutoffCreatedAt: new Date(cutoffCreatedAt),
+              filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+              searchQuery: query.searchQuery ?? undefined,
+              searchType: query.searchType ?? ["id" as const],
+            })
+          : await getDatabaseReadStreamPaginated({
+              projectId: projectId,
+              cutoffCreatedAt: new Date(cutoffCreatedAt),
+              filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+              orderBy: query.orderBy,
+              tableName: tableName as BatchTableNames,
+              searchQuery: query.searchQuery ?? undefined,
+              searchType: query.searchType ?? ["id" as const],
+            });
 
     // Process stream in database-sized batches
     // 1. Read all records
@@ -213,7 +244,7 @@ export const handleBatchActionJob = async (
             searchType: query.searchType,
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           }) // when reading from clickhouse, we only want to read the necessary identifiers.
-        : await getDatabaseReadStream({
+        : await getDatabaseReadStreamPaginated({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
             filter: convertDatesInFiltersFromStrings(query.filter ?? []),

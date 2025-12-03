@@ -294,7 +294,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
-    it("should fetch the latest prompt if label is latest", async () => {
+    (it("should fetch the latest prompt if label is latest", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const promptName = "latestPrompt_" + nanoid();
 
@@ -396,7 +396,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         }
 
         testPromptEquality(productionPromptParams, fetchedPrompt.body);
-      });
+      }));
 
     it("should return a 404 if prompt does not exist", async () => {
       const fetchedPrompt = await makeAPICall<Prompt>(
@@ -922,6 +922,9 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         );
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Invalid request data");
+        expect(JSON.stringify(response.body.error)).toContain(
+          `"message":"${expectedError}"`,
+        );
         const hasExpectedMessage = JSON.stringify(response.body.error).includes(
           `"message":"${expectedError}"`,
         );
@@ -969,7 +972,12 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           auth,
         );
         await testInvalidName("new", "Prompt name cannot be 'new'", auth);
-        await testInvalidName("", "Enter a name", auth);
+        await testInvalidName("", "Text cannot be empty", auth);
+        await testInvalidName(
+          "Test <div>",
+          "Text cannot contain HTML tags",
+          auth,
+        );
       });
 
       it("should accept valid prompt names", async () => {
@@ -1261,6 +1269,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(promptMeta1.versions).toEqual([1, 2, 4]);
       expect(promptMeta1.labels).toEqual(["production", "version2"]);
       expect(promptMeta1.tags).toEqual([]);
+      expect(promptMeta1.type).toBe(PromptType.Text);
       expect(promptMeta1.lastUpdatedAt).toBeDefined();
 
       // Validate prompt-2 meta
@@ -1268,6 +1277,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(promptMeta2.versions).toEqual([1, 2, 3]);
       expect(promptMeta2.labels).toEqual(["dev", "production", "staging"]);
       expect(promptMeta2.tags).toEqual([]);
+      expect(promptMeta2.type).toBe(PromptType.Text);
       expect(promptMeta2.lastUpdatedAt).toBeDefined();
 
       // Validate prompt-3 meta
@@ -1275,6 +1285,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(promptMeta3.versions).toEqual([1]);
       expect(promptMeta3.labels).toEqual(["production"]);
       expect(promptMeta3.tags).toEqual(["tag-1"]);
+      expect(promptMeta3.type).toBe(PromptType.Chat);
       expect(promptMeta3.lastUpdatedAt).toBeDefined();
 
       // Validate pagination
@@ -1306,6 +1317,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.data[0].versions).toEqual([1, 2, 4]);
       expect(body.data[0].labels).toEqual(["production", "version2"]);
       expect(body.data[0].tags).toEqual([]);
+      expect(body.data[0].type).toBe(PromptType.Text);
 
       // Validate pagination
       expect(body.meta.page).toBe(1);
@@ -1328,6 +1340,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body2.data[0].versions).toEqual([1, 2, 3]);
       expect(body2.data[0].labels).toEqual(["dev", "production", "staging"]);
       expect(body2.data[0].tags).toEqual([]);
+      expect(body2.data[0].type).toBe(PromptType.Text);
 
       // Validate pagination
       expect(body2.meta.page).toBe(1);
@@ -1362,6 +1375,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body.data[0].versions).toEqual([1]);
       expect(body.data[0].labels).toEqual(["production"]);
       expect(body.data[0].tags).toEqual(["tag-1"]);
+      expect(body.data[0].type).toBe(PromptType.Chat);
 
       // Validate pagination
       expect(body.meta.page).toBe(1);
@@ -1401,6 +1415,14 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(
         body.data.some((promptMeta) => promptMeta.name === "prompt-3"),
       ).toBe(true);
+      const expectedTypesByName: Record<string, PromptType> = {
+        "prompt-1": PromptType.Text,
+        "prompt-2": PromptType.Text,
+        "prompt-3": PromptType.Chat,
+      };
+      body.data.forEach((promptMeta) =>
+        expect(promptMeta.type).toBe(expectedTypesByName[promptMeta.name]),
+      );
 
       // Validate pagination
       expect(body.meta.page).toBe(1);
@@ -1423,6 +1445,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(body2.data[0].versions).toEqual([3]); // Only version 3 should be present as it is the only one with dev label
       expect(body2.data[0].labels).toEqual(["dev"]); // Only dev label should be present
       expect(body2.data[0].tags).toEqual([]);
+      expect(body2.data[0].type).toBe(PromptType.Text);
 
       // Validate pagination
       expect(body2.meta.page).toBe(1);
@@ -1494,12 +1517,14 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     );
     expect(prompt1).toBeDefined();
     expect(prompt1?.lastConfig).toEqual({ version: 4 });
+    expect(prompt1?.type).toBe(PromptType.Text);
 
     const prompt2 = body.data.find(
       (promptMeta) => promptMeta.name === "prompt-2",
     );
     expect(prompt2).toBeDefined();
     expect(prompt2?.lastConfig).toEqual({});
+    expect(prompt2?.type).toBe(PromptType.Text);
 
     // validate with label filter
     const response2 = await makeAPICall(
@@ -1514,6 +1539,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     expect(body2.data).toHaveLength(1);
     expect(body2.data[0].name).toBe("prompt-1");
     expect(body2.data[0].lastConfig).toEqual({ version: 2 });
+    expect(body2.data[0].type).toBe(PromptType.Text);
 
     // validate with version filter
     const response3 = await makeAPICall(
@@ -1530,6 +1556,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       (promptMeta) => promptMeta.name === "prompt-1",
     );
     expect(prompt1v1?.lastConfig).toEqual({ version: 1 });
+    expect(prompt1v1?.type).toBe(PromptType.Text);
   });
 
   it("should respect the fromUpdatedAt and toUpdatedAt filters on GET /prompts", async () => {
@@ -3132,6 +3159,7 @@ const getMockPrompts = (projectId: string, otherProjectId: string) => [
     projectId,
     config: {},
     tags: ["tag-1"],
+    type: PromptType.Chat,
     version: 1,
     updatedAt: new Date("2000-01-01T00:00:00.000Z"),
   },

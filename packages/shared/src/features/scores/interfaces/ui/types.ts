@@ -5,6 +5,7 @@ export type BaseAggregate = {
   comment?: string | null;
   id?: string | null;
   hasMetadata?: boolean | null;
+  timestamp?: Date | null;
 };
 
 export type CategoricalAggregate = BaseAggregate & {
@@ -19,10 +20,9 @@ export type NumericAggregate = BaseAggregate & {
   average: number;
 };
 
-export type ScoreAggregate = Record<
-  string,
-  CategoricalAggregate | NumericAggregate
->;
+export type AggregatedScoreData = CategoricalAggregate | NumericAggregate;
+
+export type ScoreAggregate = Record<string, AggregatedScoreData>;
 
 export type ScoreSimplified = {
   id: string;
@@ -33,10 +33,10 @@ export type ScoreSimplified = {
   comment?: string | null;
   metadata?: MetadataDomain | null;
   stringValue?: string | null;
+  timestamp: Date;
 };
 
 export type LastUserScore = ScoreSimplified & {
-  timestamp: string;
   traceId: string;
   observationId?: string | null;
 

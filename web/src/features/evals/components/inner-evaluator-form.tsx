@@ -30,7 +30,7 @@ import {
   type ObservationType,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { type EvalTemplate, variableMapping } from "@langfuse/shared";
@@ -48,6 +48,7 @@ import {
   isTraceOrDatasetObject,
   isTraceTarget,
   type LangfuseObject,
+  type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import {
@@ -69,11 +70,36 @@ import {
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/src/components/ui/tooltip";
+import { InfoIcon } from "lucide-react";
 
 // Lazy load TracesTable
 const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
 );
+
+const OUTPUT_MAPPING = [
+  "generation",
+  "output",
+  "response",
+  "answer",
+  "completion",
+];
+
+const inferDefaultMapping = (
+  variable: string,
+): Pick<VariableMapping, "langfuseObject" | "selectedColumnId"> => {
+  return {
+    langfuseObject: "trace" as const,
+    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
+      ? "output"
+      : "input",
+  };
+};
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -83,45 +109,50 @@ const fieldHasJsonSelectorOption = (
   selectedColumnId === "metadata" ||
   selectedColumnId === "expected_output";
 
-const TracesPreview = ({
-  projectId,
-  filterState,
-}: {
-  projectId: string;
-  filterState: z.infer<typeof singleFilter>[];
-}) => {
-  const dateRange = useMemo(() => {
-    return {
-      from: getDateFromOption({
-        filterSource: "TABLE",
-        option: "24 hours",
-      }),
-    } as TableDateRange;
-  }, []);
+const TracesPreview = memo(
+  ({
+    projectId,
+    filterState,
+  }: {
+    projectId: string;
+    filterState: z.infer<typeof singleFilter>[];
+  }) => {
+    const dateRange = useMemo(() => {
+      return {
+        from: getDateFromOption({
+          filterSource: "TABLE",
+          option: "last1Day",
+        }),
+      } as TableDateRange;
+    }, []);
 
-  return (
-    <>
-      <div className="flex flex-col items-start gap-1">
-        <span className="text-sm font-medium leading-none">
-          Preview sample matched traces
-        </span>
-        <FormDescription>
-          Sample over the last 24 hours that match these filters
-        </FormDescription>
-      </div>
-      <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
-        <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-          <TracesTable
-            projectId={projectId}
-            hideControls
-            externalFilterState={filterState}
-            externalDateRange={dateRange}
-          />
-        </Suspense>
-      </div>
-    </>
-  );
-};
+    return (
+      <>
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-sm font-medium leading-none">
+            Preview sample matched traces
+          </span>
+          <FormDescription>
+            Sample over the last 24 hours that match these filters
+          </FormDescription>
+        </div>
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+          <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
+            <TracesTable
+              projectId={projectId}
+              hideControls
+              externalFilterState={filterState}
+              externalDateRange={dateRange}
+              limitRows={10}
+            />
+          </Suspense>
+        </div>
+      </>
+    );
+  },
+);
+
+TracesPreview.displayName = "TracesPreview";
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -191,7 +222,9 @@ export const InnerEvaluatorForm = (props: {
 
   const environmentFilterOptionsResponse =
     api.projects.environmentFilterOptions.useQuery(
-      { projectId: props.projectId },
+      {
+        projectId: props.projectId,
+      },
       {
         trpc: { context: { skipBatch: true } },
         refetchOnMount: false,
@@ -202,8 +235,23 @@ export const InnerEvaluatorForm = (props: {
     );
 
   const traceFilterOptions = useMemo(() => {
+    // Normalize API response to match TraceOptions type (count should be number, not string)
+    const normalized = traceFilterOptionsResponse.data
+      ? {
+          name: traceFilterOptionsResponse.data.name?.map((n) => ({
+            value: n.value,
+            count: Number(n.count),
+          })),
+          scores_avg: traceFilterOptionsResponse.data.scores_avg,
+          score_categories: traceFilterOptionsResponse.data.score_categories,
+          tags: traceFilterOptionsResponse.data.tags?.map((t) => ({
+            value: t.value,
+          })),
+        }
+      : {};
+
     return {
-      ...(traceFilterOptionsResponse.data ?? {}),
+      ...normalized,
       environment: environmentFilterOptionsResponse.data?.map((e) => ({
         value: e.environment,
       })),
@@ -256,8 +304,7 @@ export const InnerEvaluatorForm = (props: {
         "mapping",
         props.evalTemplate.vars.map((v) => ({
           templateVariable: v,
-          langfuseObject: "trace" as const,
-          selectedColumnId: "input",
+          ...inferDefaultMapping(v),
         })),
       );
       form.setValue("scoreName", `${props.evalTemplate.name}`);
@@ -443,6 +490,73 @@ export const InnerEvaluatorForm = (props: {
           <div className="flex flex-col gap-4">
             <FormField
               control={form.control}
+              name="target"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Target data{" "}
+                    {props.mode === "edit" && (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <InfoIcon className="size-3 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] p-2">
+                          <span className="leading-4">
+                            An evaluator&apos;s target data may only be
+                            configured at creation.
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </FormLabel>
+                  <FormControl>
+                    <Tabs
+                      defaultValue="trace"
+                      value={field.value}
+                      onValueChange={(value) => {
+                        const isTrace = isTraceTarget(value);
+                        const langfuseObject: LangfuseObject = isTrace
+                          ? "trace"
+                          : "dataset_item";
+                        const newMapping = form
+                          .getValues("mapping")
+                          .map((field) => ({
+                            ...field,
+                            langfuseObject,
+                          }));
+                        form.setValue("filter", []);
+                        form.setValue("mapping", newMapping);
+                        setAvailableVariables(
+                          isTrace
+                            ? availableTraceEvalVariables
+                            : availableDatasetEvalVariables,
+                        );
+                        field.onChange(value);
+                      }}
+                    >
+                      <TabsList>
+                        <TabsTrigger
+                          value="trace"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Live tracing data
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="dataset"
+                          disabled={props.disabled || props.mode === "edit"}
+                        >
+                          Dataset runs
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="timeScope"
               render={({ field }) => (
                 <FormItem className="flex-1">
@@ -500,69 +614,37 @@ export const InnerEvaluatorForm = (props: {
                               : "dataset run items"}
                           </label>
                           {field.value.includes("EXISTING") &&
-                            props.mode !== "edit" &&
-                            !props.disabled && (
+                            !props.disabled &&
+                            (props.mode === "edit" ? (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <InfoIcon className="size-3 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[300px] p-2">
+                                  <span className="leading-4">
+                                    This evaluator has already run on existing{" "}
+                                    {form.watch("target") === "trace"
+                                      ? "traces"
+                                      : "dataset run items"}{" "}
+                                    once. Set up a new evaluator to re-run on
+                                    existing{" "}
+                                    {form.watch("target") === "trace"
+                                      ? "traces"
+                                      : "dataset run items"}
+                                    .
+                                  </span>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
                               <ExecutionCountTooltip
                                 projectId={props.projectId}
                                 item={form.watch("target")}
                                 filter={form.watch("filter")}
                               />
-                            )}
+                            ))}
                         </div>
                       </div>
                     </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="target"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Target data</FormLabel>
-                  <FormControl>
-                    <Tabs
-                      defaultValue="trace"
-                      value={field.value}
-                      onValueChange={(value) => {
-                        const isTrace = isTraceTarget(value);
-                        const langfuseObject: LangfuseObject = isTrace
-                          ? "trace"
-                          : "dataset_item";
-                        const newMapping = form
-                          .getValues("mapping")
-                          .map((field) => ({
-                            ...field,
-                            langfuseObject,
-                          }));
-                        form.setValue("filter", []);
-                        form.setValue("mapping", newMapping);
-                        setAvailableVariables(
-                          isTrace
-                            ? availableTraceEvalVariables
-                            : availableDatasetEvalVariables,
-                        );
-                        field.onChange(value);
-                      }}
-                    >
-                      <TabsList>
-                        <TabsTrigger
-                          value="trace"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Live tracing data
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="dataset"
-                          disabled={props.disabled || props.mode === "edit"}
-                        >
-                          Experiment runs
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -782,7 +864,7 @@ export const InnerEvaluatorForm = (props: {
                               "Variable in the template to be replaced with the mapped data."
                             }
                             href={
-                              "https://langfuse.com/docs/scores/model-based-evals"
+                              "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                             }
                           />
                         </div>
@@ -798,7 +880,7 @@ export const InnerEvaluatorForm = (props: {
                                   "Langfuse object to retrieve the data from."
                                 }
                                 href={
-                                  "https://langfuse.com/docs/scores/model-based-evals"
+                                  "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 }
                               />
                               <FormItem className="w-2/3">
@@ -861,7 +943,7 @@ export const InnerEvaluatorForm = (props: {
                                       "Name of the Langfuse object to retrieve the data from."
                                     }
                                     href={
-                                      "https://langfuse.com/docs/scores/model-based-evals"
+                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                     }
                                   />
                                   <FormItem className="w-2/3">
@@ -961,7 +1043,7 @@ export const InnerEvaluatorForm = (props: {
                                   "Variable on the Langfuse object to insert into the template."
                                 }
                                 href={
-                                  "https://langfuse.com/docs/scores/model-based-evals"
+                                  "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 }
                               />
                               <FormItem className="w-2/3">
@@ -1029,7 +1111,7 @@ export const InnerEvaluatorForm = (props: {
                                     "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
                                   }
                                   href={
-                                    "https://langfuse.com/docs/scores/model-based-evals"
+                                    "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                   }
                                 />
                                 <FormItem className="w-2/3">
@@ -1065,10 +1147,10 @@ export const InnerEvaluatorForm = (props: {
       {!props.disabled ? (
         <Button
           type="submit"
-          loading={createJobMutation.isLoading || updateJobMutation.isLoading}
+          loading={createJobMutation.isPending || updateJobMutation.isPending}
           className="mt-3 max-w-fit"
         >
-          Execute
+          {props.mode === "edit" ? "Update" : "Execute"}
         </Button>
       ) : null}
       {formError ? (
@@ -1083,7 +1165,15 @@ export const InnerEvaluatorForm = (props: {
     <Form {...form}>
       <form
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => {
+          e.stopPropagation(); // Prevent event bubbling to parent forms
+          form.handleSubmit(onSubmit)(e);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+            e.preventDefault();
+          }
+        }}
         className="flex w-full flex-col gap-4"
       >
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}

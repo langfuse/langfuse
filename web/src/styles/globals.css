@@ -79,6 +79,18 @@
     --chart-3: var(--dark-blue);
     --chart-4: var(--dark-red);
     --chart-grid: var(--muted-gray);
+    --color-1: oklch(66.2% 0.225 25.9);
+    --color-2: oklch(60.4% 0.26 302);
+    --color-3: oklch(69.6% 0.165 251);
+    --color-4: oklch(80.2% 0.134 225);
+    --color-5: oklch(90.7% 0.231 133);
+
+    /* Banner height system for fixed/sticky positioning
+       Banner components dynamically update --banner-height via JS */
+    --banner-height: 0px;
+    --banner-offset: calc(
+      env(safe-area-inset-top, 0px) + var(--banner-height, 0px)
+    );
   }
 
   .dark {
@@ -159,12 +171,22 @@
     --chart-3: var(--dark-blue);
     --chart-4: var(--dark-red);
     --chart-grid: var(--muted-gray);
+    --color-1: oklch(66.2% 0.225 25.9);
+    --color-2: oklch(60.4% 0.26 302);
+    --color-3: oklch(69.6% 0.165 251);
+    --color-4: oklch(80.2% 0.134 225);
+    --color-5: oklch(90.7% 0.231 133);
+  }
+
+  .theme {
+    --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   }
 }
 
 @layer base {
   * {
     @apply border-border;
+    overscroll-behavior-y: none;
   }
 
   body {
@@ -213,4 +235,30 @@
   height: 10px !important;
   border-right: 2px solid currentColor !important;
   border-bottom: 2px solid currentColor !important;
+}
+
+@theme inline {
+  @keyframes rainbow {
+    0% {
+      background-position: 0%;
+    }
+
+    100% {
+      background-position: 200%;
+    }
+  }
+}
+
+/* 
+ * Fix for Vaul drawer blocking text selection
+ * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
+ * We override this for drawers that set blockTextSelection={false}
+ * See: node_modules/vaul/dist/index.js line 84
+ */
+[data-vaul-drawer][data-allow-text-selection="true"],
+[data-vaul-drawer][data-allow-text-selection="true"] * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
 }

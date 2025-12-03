@@ -6,6 +6,10 @@ import {
   singleFilter,
   sessionsViewCols,
   promptsTableCols,
+  datasetRunsTableCols,
+  datasetItemFilterColumns,
+  datasetRunItemsTableCols,
+  usersTableCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -14,7 +18,6 @@ import {
   decodeDelimitedArray,
   withDefault,
 } from "use-query-params";
-import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
@@ -27,28 +30,34 @@ const DEBUG_QUERY_STATE = false;
 const getCommaArrayParam = (table: TableName) => ({
   encode: (filterState: FilterState) =>
     encodeDelimitedArray(
-      filterState.map((f) => {
-        const columnId = getColumnId(table, f.column);
+      filterState
+        .map((f) => {
+          const columnId = getColumnId(table, f.column);
 
-        const stringified = `${columnId};${f.type};${
-          f.type === "numberObject" ||
-          f.type === "stringObject" ||
-          f.type === "categoryOptions"
-            ? f.key
-            : ""
-        };${f.operator};${encodeURIComponent(
-          f.type === "datetime"
-            ? new Date(f.value).toISOString()
-            : f.type === "stringOptions" ||
-                f.type === "arrayOptions" ||
-                f.type === "categoryOptions"
-              ? f.value.join("|")
-              : f.value,
-        )}`;
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
-        return stringified;
-      }),
+          if (!columnId) {
+            return null;
+          }
+
+          const stringified = `${columnId};${f.type};${
+            f.type === "numberObject" ||
+            f.type === "stringObject" ||
+            f.type === "categoryOptions"
+              ? f.key
+              : ""
+          };${f.operator};${encodeURIComponent(
+            f.type === "datetime"
+              ? new Date(f.value).toISOString()
+              : f.type === "stringOptions" ||
+                  f.type === "arrayOptions" ||
+                  f.type === "categoryOptions"
+                ? f.value.join("|")
+                : f.value,
+          )}`;
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
+          return stringified;
+        })
+        .filter((s): s is string => s !== null),
       ",",
     ),
 
@@ -141,6 +150,9 @@ const tableCols = {
   users: usersTableCols,
   eval_configs: evalConfigFilterColumns,
   job_executions: evalExecutionsFilterCols,
+  dataset_items: datasetItemFilterColumns,
+  dataset_runs: datasetRunsTableCols,
+  dataset_run_items_by_run: datasetRunItemsTableCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },
@@ -160,7 +172,10 @@ const tableCols = {
 };
 
 function getColumnId(table: TableName, name: string): string | undefined {
-  return tableCols[table]?.find((col) => col.name === name)?.id;
+  // TODO: make this more robust, will change with new filters
+  // to give more leeway to LLMs, we check against name or id
+  return tableCols[table]?.find((col) => col.name === name || col.id === name)
+    ?.id;
 }
 
 function getColumnName(table: TableName, id: string): string | undefined {

@@ -2,24 +2,38 @@ import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
   projectId: string;
+  fromTimestamp?: Date;
 };
 
 export const getEnvironmentsForProject = async (
   props: EnvironmentFilterProps,
 ): Promise<{ environment: string }[]> => {
-  const { projectId } = props;
+  const { projectId, fromTimestamp } = props;
 
   const query = `
-    SELECT environments
-    FROM project_environments FINAL
-    WHERE project_id = {projectId: String}
+    (
+      SELECT distinct environment
+      FROM traces
+      WHERE project_id = {projectId: String}
+      ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
+    ) UNION ALL (
+      SELECT distinct environment
+      FROM observations
+      WHERE project_id = {projectId: String}
+      ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
+    ) UNION ALL (
+      SELECT distinct environment
+      FROM scores
+      WHERE project_id = {projectId: String}
+      ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
+    )  
   `;
 
   const results = await queryClickhouse<{
-    environments: string[];
+    environment: string;
   }>({
     query,
-    params: { projectId },
+    params: { projectId, fromTimestamp },
     tags: {
       feature: "tracing",
       type: "environment",
@@ -27,10 +41,12 @@ export const getEnvironmentsForProject = async (
       projectId,
     },
   });
+  // Always add default environment to list
+  results.push({ environment: "default" });
 
-  const environments = results.length > 0 ? results[0].environments : [];
-  environments.push("default");
-  return Array.from(new Set(environments)).map((environment) => ({
-    environment,
-  }));
+  return Array.from(new Set(results.map((e) => e.environment))).map(
+    (environment) => ({
+      environment,
+    }),
+  );
 };

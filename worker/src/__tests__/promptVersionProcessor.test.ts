@@ -41,6 +41,7 @@ describe("promptVersionChangeWorker", () => {
           projectId,
           type: ActionType.WEBHOOK,
           config: {
+            type: "WEBHOOK",
             url: "https://webhook.example.com/test",
             headers: {},
             method: "POST",
@@ -133,6 +134,7 @@ describe("promptVersionChangeWorker", () => {
           projectId,
           type: ActionType.WEBHOOK,
           config: {
+            type: "WEBHOOK",
             url: "https://webhook.example.com/test",
             headers: {},
             method: "POST",

@@ -1,8 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import {
   Avatar,
   AvatarFallback,
@@ -138,9 +139,10 @@ export function AuditLogsTable(props: { projectId: string }) {
       />
       <SettingsTableCard>
         <DataTable
+          tableName={"auditLogs"}
           columns={columns}
           data={
-            auditLogs.isLoading
+            auditLogs.isPending
               ? { isLoading: true, isError: false }
               : auditLogs.isError
                 ? {
@@ -151,7 +153,7 @@ export function AuditLogsTable(props: { projectId: string }) {
                 : {
                     isLoading: false,
                     isError: false,
-                    data: auditLogs.data.data,
+                    data: safeExtract(auditLogs.data, "data", []),
                   }
           }
           pagination={{

@@ -20,7 +20,7 @@ import { AddLabelForm } from "./AddLabelForm";
 import { LabelCommandItem } from "./LabelCommandItem";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { isReservedPromptLabel } from "@/src/features/prompts/utils";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 import { cn } from "@/src/utils/tailwind";
 
 export function SetPromptVersionLabels({
@@ -30,6 +30,7 @@ export function SetPromptVersionLabels({
   setIsOpen,
   title,
   showOnlyOnHover = false,
+  maxVisibleLabels = 8,
 }: {
   promptLabels: string[];
   prompt: Prompt;
@@ -37,6 +38,7 @@ export function SetPromptVersionLabels({
   setIsOpen: (isOpen: boolean) => void;
   title?: ReactNode;
   showOnlyOnHover?: boolean;
+  maxVisibleLabels?: number;
 }) {
   const projectId = useProjectIdFromURL();
   const utils = api.useUtils();
@@ -82,12 +84,6 @@ export function SetPromptVersionLabels({
     },
   });
 
-  const sortedLabels = [...promptLabels].sort((a, b) => {
-    if (a === PRODUCTION_LABEL) return -1;
-    if (b === PRODUCTION_LABEL) return 1;
-    return a.localeCompare(b);
-  });
-
   const handleSubmitLabels = async () => {
     try {
       if (!projectId) {
@@ -123,17 +119,13 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          {sortedLabels.map((label) => (
-            <StatusBadge
-              type={label}
-              key={label}
-              className="break-all sm:break-normal"
-              isLive={label === PRODUCTION_LABEL}
-            />
-          ))}
+          <TruncatedLabels
+            labels={promptLabels}
+            maxVisibleLabels={maxVisibleLabels}
+          />
           <Button
             variant="outline"
-            title="Add prompt version label"
+            title="Add prompt label"
             className={cn(
               "h-6 w-6 bg-muted-gray text-primary",
               showOnlyOnHover && "opacity-0 group-hover:opacity-100",
@@ -154,7 +146,7 @@ export function SetPromptVersionLabels({
           onClick={(event) => event.stopPropagation()}
           className="flex flex-col"
         >
-          <h2 className="text-md mb-3 font-semibold">Prompt version labels</h2>
+          <h2 className="text-md mb-3 font-semibold">Prompt labels</h2>
           <h2 className="mb-3 text-xs">
             Use labels to fetch prompts via SDKs. The{" "}
             <strong>production</strong> labeled prompt will be served by
@@ -226,7 +218,7 @@ export function SetPromptVersionLabels({
                 ? "destructive"
                 : "default"
             }
-            loading={mutatePromptVersionLabels.isLoading}
+            loading={mutatePromptVersionLabels.isPending}
             disabled={!labelsChanged}
             className="w-full"
             onClick={handleSubmitLabels}

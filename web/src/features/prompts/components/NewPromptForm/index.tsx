@@ -41,7 +41,7 @@ import {
 } from "./validation";
 import { Input } from "@/src/components/ui/input";
 import Link from "next/link";
-import { ArrowTopRightIcon } from "@radix-ui/react-icons";
+import { SquareArrowOutUpRight } from "lucide-react";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
@@ -73,7 +73,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       type: initialPrompt?.type,
       prompt: initialPrompt?.prompt?.valueOf(),
     });
-  } catch (err) {
+  } catch (_err) {
     initialPromptVariant = null;
   }
 
@@ -90,7 +90,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     name: initialPrompt?.name ?? (folderPath ? `${folderPath}/` : ""),
     config: JSON.stringify(initialPrompt?.config?.valueOf(), null, 2) || "{}",
     isActive: !Boolean(initialPrompt),
-    commitMessage: initialPrompt?.commitMessage ?? undefined,
+    commitMessage: undefined,
   };
 
   const form = useForm({
@@ -218,7 +218,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                       <a
                         target="_blank"
                         rel="noopener noreferrer"
-                        href="https://langfuse.com/docs/prompts/get-started#prompt-folders-for-organization"
+                        href="https://langfuse.com/docs/prompt-management/get-started#prompt-folders-for-organization"
                       >
                         <i>folders</i>
                       </a>
@@ -236,10 +236,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                         {errorMessage?.includes("already exist") ? (
                           <Link
                             href={`/project/${projectId}/prompts/${currentName.trim()}`}
-                            className="flex flex-row"
+                            className="flex flex-row items-center"
                           >
-                            Create a new version for it here.{" "}
-                            <ArrowTopRightIcon />
+                            Create a new version for it here.
+                            <SquareArrowOutUpRight className="ml-1 h-3 w-3" />
                           </Link>
                         ) : null}
                       </div>
@@ -364,11 +364,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           name="isActive"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Labels</FormLabel>
-              <FormDescription>
-                This version will be labeled as the version to be used in
-                production for this prompt. Labels can be updated later.
-              </FormDescription>
               <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
                 <FormControl>
                   <Checkbox
@@ -389,7 +384,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
           name="commitMessage"
           render={({ field }) => (
             <FormItem className="relative">
-              <FormLabel>Commit message (optional)</FormLabel>
+              <FormLabel>Commit message</FormLabel>
               <FormDescription>
                 Provide information about the changes made in this version.
                 Helps maintain a clear history of prompt iterations.
@@ -411,7 +406,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
             <ReviewPromptDialog
               initialPrompt={initialPrompt}
               getNewPromptValues={form.getValues}
-              isLoading={createPromptMutation.isLoading}
+              isLoading={createPromptMutation.isPending}
               onConfirm={form.handleSubmit(onSubmit)}
             >
               <Button
@@ -425,7 +420,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
             <Button
               type="submit"
-              loading={createPromptMutation.isLoading}
+              loading={createPromptMutation.isPending}
               className="w-full"
               disabled={!form.formState.isValid}
             >
@@ -435,7 +430,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         ) : (
           <Button
             type="submit"
-            loading={createPromptMutation.isLoading}
+            loading={createPromptMutation.isPending}
             className="w-full"
             disabled={Boolean(
               !initialPrompt && form.formState.errors.name?.message,

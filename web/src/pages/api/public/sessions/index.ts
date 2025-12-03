@@ -14,39 +14,34 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { fromTimestamp, toTimestamp, limit, page, environment } = query;
 
-      const sessions = await prisma.traceSession.findMany({
-        select: {
-          id: true,
-          createdAt: true,
-          projectId: true,
-          environment: true,
+      const where = {
+        projectId: auth.scope.projectId,
+        createdAt: {
+          ...(fromTimestamp && { gte: new Date(fromTimestamp) }),
+          ...(toTimestamp && { lt: new Date(toTimestamp) }),
         },
-        where: {
-          projectId: auth.scope.projectId,
-          createdAt: {
-            ...(fromTimestamp && { gte: new Date(fromTimestamp) }),
-            ...(toTimestamp && { lt: new Date(toTimestamp) }),
-          },
-          environment: environment
-            ? Array.isArray(environment)
-              ? { in: environment }
-              : environment
-            : undefined,
-        },
-        orderBy: { createdAt: "desc" },
-        take: limit,
-        skip: (page - 1) * limit,
-      });
+        environment: environment
+          ? Array.isArray(environment)
+            ? { in: environment }
+            : environment
+          : undefined,
+      };
 
-      const totalItems = await prisma.traceSession.count({
-        where: {
-          projectId: auth.scope.projectId,
-          createdAt: {
-            ...(fromTimestamp && { gte: new Date(fromTimestamp) }),
-            ...(toTimestamp && { lt: new Date(toTimestamp) }),
+      const [sessions, totalItems] = await Promise.all([
+        prisma.traceSession.findMany({
+          select: {
+            id: true,
+            createdAt: true,
+            projectId: true,
+            environment: true,
           },
-        },
-      });
+          where,
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          skip: (page - 1) * limit,
+        }),
+        prisma.traceSession.count({ where }),
+      ]);
 
       return {
         data: sessions,

@@ -5,7 +5,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["db:generate", "^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true
     },
     "start": {
       "dependsOn": ["^start"]
@@ -21,27 +22,33 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+      "dependsOn": ["db:generate"]
     },
     "dev:worker": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+      "dependsOn": ["db:generate"]
     },
     "dev:web": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate", "@langfuse/shared#build"]
+      "dependsOn": ["db:generate"]
     },
     "db:generate": {
       "cache": false,
       "dependsOn": ["^db:generate"]
     },
     "lint": {
-      "cache": false
+      "cache": true,
+      "outputs": []
     },
     "test": {
-      "dependsOn": ["^test", "db:generate"]
+      "dependsOn": ["^test", "db:generate"],
+      "cache": true
+    },
+    "worker#dev": {
+      "cache": false,
+      "persistent": true
     }
   }
 }

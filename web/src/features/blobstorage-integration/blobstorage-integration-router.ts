@@ -20,6 +20,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   type BlobStorageIntegration,
   BlobStorageIntegrationType,
+  BlobStorageExportMode,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
@@ -85,6 +86,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           enabled,
           forcePathStyle,
           fileType,
+          exportMode,
+          exportStartDate,
         } = input;
 
         const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -100,6 +103,15 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           });
         }
 
+        // Determine the export start date based on export mode
+        let finalExportStartDate: Date | null = null;
+        if (exportMode === BlobStorageExportMode.FROM_TODAY) {
+          finalExportStartDate = new Date();
+        } else if (exportMode === BlobStorageExportMode.FROM_CUSTOM_DATE) {
+          finalExportStartDate = exportStartDate || new Date();
+        }
+        // For FULL_HISTORY mode, exportStartDate remains null
+
         const data: Partial<BlobStorageIntegration> = {
           type,
           bucketName,
@@ -111,6 +123,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           accessKeyId,
           forcePathStyle: forcePathStyle || false,
           fileType,
+          exportMode,
+          exportStartDate: finalExportStartDate,
         };
 
         // Use a transaction to check if record exists, then create or update
@@ -342,7 +356,7 @@ Configuration: ${type} storage
 This file can be safely deleted.`;
 
         // Upload the test file
-        const result = await storageService.uploadFile({
+        const result = await storageService.uploadWithSignedUrl({
           fileName: testFileName,
           fileType: "text/plain",
           data: testContent,

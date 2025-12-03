@@ -12,12 +12,16 @@ import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
+import { type OrderByState } from "@langfuse/shared";
 
 export const Chart = ({
   chartType,
   data,
   rowLimit,
   chartConfig,
+  sortState,
+  onSortChange,
+  isLoading = false,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -28,7 +32,11 @@ export const Chart = ({
     bins?: number;
     dimensions?: string[];
     metrics?: string[];
+    defaultSort?: OrderByState;
   };
+  sortState?: OrderByState | null;
+  onSortChange?: (sortState: OrderByState | null) => void;
+  isLoading?: boolean;
 }) => {
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -73,8 +81,17 @@ export const Chart = ({
           dimensions: chartConfig?.dimensions ?? [],
           metrics: chartConfig?.metrics ?? ["metric"], // Use metrics from chartConfig
           rowLimit: chartConfig?.row_limit ?? rowLimit,
+          defaultSort: chartConfig?.defaultSort,
         };
-        return <PivotTable data={renderedData} config={pivotConfig} />;
+        return (
+          <PivotTable
+            data={renderedData}
+            config={pivotConfig}
+            sortState={sortState}
+            onSortChange={onSortChange}
+            isLoading={isLoading}
+          />
+        );
       }
       default:
         return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;

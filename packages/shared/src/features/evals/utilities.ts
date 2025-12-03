@@ -27,16 +27,42 @@ export const parseUnknownToString = (value: unknown): string => {
   return String(value);
 };
 
+/**
+ * Recursively parses JSON strings that may have been encoded multiple times.
+ * This handles cases where data has been JSON.stringify'd multiple times.
+ *
+ * @param value - The potentially multi-encoded JSON string
+ * @returns The final parsed object or the original value if parsing fails
+ */
+function parseMultiEncodedJson(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    // If result is still a string, it might be double-encoded - recurse
+    if (typeof parsed === "string") {
+      return parseMultiEncodedJson(parsed);
+    }
+
+    return parsed;
+  } catch {
+    // If parsing fails, return original value
+    return value;
+  }
+}
+
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
+  // selectedColumn should already be preprocessed by preprocessObjectWithJsonFields
+  // so we can directly use it with JSONPath
   const result = JSONPath({
     path: jsonSelector,
-    json:
-      typeof selectedColumn === "string"
-        ? JSON.parse(selectedColumn)
-        : selectedColumn,
+    json: selectedColumn as any, // JSONPath accepts unknown but types are strict
   });
 
-  return result.length > 0 ? result[0] : undefined;
+  return Array.isArray(result) && result.length > 0 ? result[0] : undefined;
 }
 
 export function extractValueFromObject(
@@ -44,7 +70,13 @@ export function extractValueFromObject(
   mapping: z.infer<typeof variableMapping>,
   parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown, // eslint-disable-line no-unused-vars
 ): { value: string; error: Error | null } {
-  const selectedColumn = obj[mapping.selectedColumnId];
+  let selectedColumn = obj[mapping.selectedColumnId];
+
+  // Simple preprocessing: attempt to parse to valid JSON object
+  if (typeof selectedColumn === "string") {
+    selectedColumn = parseMultiEncodedJson(selectedColumn);
+  }
+
   const jsonParser = parseJson || parseJsonDefault;
 
   let jsonSelectedColumn;

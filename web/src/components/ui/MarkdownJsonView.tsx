@@ -1,21 +1,20 @@
 import {
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
-} from "@/src/components/schemas/ChatMlSchema";
+} from "@langfuse/shared";
 import { StringOrMarkdownSchema } from "@/src/components/schemas/MarkdownSchema";
 import { Button } from "@/src/components/ui/button";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod/v4";
-import { BsMarkdown } from "react-icons/bs";
-import { cn } from "@/src/utils/tailwind";
+import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 
 type MarkdownJsonViewHeaderProps = {
   title: string;
+  titleIcon?: React.ReactNode;
   handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   canEnableMarkdown?: boolean;
@@ -24,34 +23,22 @@ type MarkdownJsonViewHeaderProps = {
 
 export function MarkdownJsonViewHeader({
   title,
-  handleOnValueChange,
+  titleIcon,
+  handleOnValueChange: _handleOnValueChange,
   handleOnCopy,
-  canEnableMarkdown = true,
+  canEnableMarkdown: _canEnableMarkdown = true,
   controlButtons,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
-  const { isMarkdownEnabled } = useMarkdownContext();
 
   return (
-    <div className="flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize">
-      {title}
+    <div className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors group-hover:bg-muted/80">
+      <div className="flex items-center gap-2">
+        {titleIcon}
+        {title}
+      </div>
       <div className="mr-1 flex min-w-0 flex-shrink flex-row items-center gap-1">
         {controlButtons}
-        {canEnableMarkdown && (
-          <Button
-            title={isMarkdownEnabled ? "Disable Markdown" : "Enable Markdown"}
-            variant="ghost"
-            size="icon-xs"
-            type="button"
-            onClick={handleOnValueChange}
-            className={cn(
-              "hover:bg-border",
-              !isMarkdownEnabled ? "opacity-50" : "opacity-100",
-            )}
-          >
-            <BsMarkdown className="h-4 w-4" />
-          </Button>
-        )}
         <Button
           title="Copy to clipboard"
           variant="ghost"
@@ -78,24 +65,38 @@ export function MarkdownJsonViewHeader({
 const isSupportedMarkdownFormat = (
   content: unknown,
   contentValidation: z.ZodSafeParseResult<z.infer<typeof OpenAIContentSchema>>,
-): content is z.infer<typeof OpenAIContentSchema> => contentValidation.success;
+): content is z.infer<typeof OpenAIContentSchema> => {
+  if (!contentValidation.success) return false;
+
+  // Don't render if markdown content is huge
+  const contentSize = JSON.stringify(content || {}).length;
+  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
+    return false;
+  }
+
+  return true;
+};
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
 export function MarkdownJsonView({
   content,
   title,
+  titleIcon,
   className,
   customCodeHeaderClassName,
   audio,
   media,
+  controlButtons,
 }: {
   content?: unknown;
   title?: string;
+  titleIcon?: React.ReactNode;
   className?: string;
   customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
+  controlButtons?: React.ReactNode;
 }) {
   const stringOrValidatedMarkdown = useMemo(
     () => StringOrMarkdownSchema.safeParse(content),
@@ -106,7 +107,6 @@ export function MarkdownJsonView({
     [content],
   );
 
-  const { isMarkdownEnabled } = useMarkdownContext();
   const canEnableMarkdown = isSupportedMarkdownFormat(
     content,
     validatedOpenAIContent,
@@ -114,21 +114,25 @@ export function MarkdownJsonView({
 
   return (
     <>
-      {isMarkdownEnabled && canEnableMarkdown ? (
+      {canEnableMarkdown ? (
         <MarkdownView
           markdown={stringOrValidatedMarkdown.data ?? content}
           title={title}
+          titleIcon={titleIcon}
           customCodeHeaderClassName={customCodeHeaderClassName}
           audio={audio}
           media={media}
+          controlButtons={controlButtons}
         />
       ) : (
-        <JSONView
+        <PrettyJsonView
           json={content ?? (audio ? { audio } : null)}
-          canEnableMarkdown={canEnableMarkdown}
           title={title}
+          titleIcon={titleIcon}
           className={className}
           media={media}
+          currentView="pretty"
+          controlButtons={controlButtons}
         />
       )}
     </>

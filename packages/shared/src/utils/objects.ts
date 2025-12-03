@@ -6,7 +6,7 @@ type OmitKeys<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
 export function removeObjectKeys<T, K extends keyof T>(
   obj: T,
-  keys: K[]
+  keys: K[],
 ): OmitKeys<T, K> {
   const result = { ...obj };
   for (const key of keys) {

@@ -617,4 +617,586 @@ describe("prompts trpc", () => {
       });
     });
   });
+
+  describe("prompts.all with search", () => {
+    it("should find prompts by searching in content, name, tags, and labels", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test prompts with different searchable content
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "customer-service-prompt",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "You are a helpful customer support agent. Answer questions about billing and account issues.",
+          },
+          createdBy: "test-user",
+          tags: ["support", "customer"],
+          labels: ["production"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "marketing-prompt",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "Create engaging marketing content that drives sales and conversions.",
+          },
+          createdBy: "test-user",
+          tags: ["marketing", "content"],
+          labels: ["staging"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "technical-docs",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "Generate comprehensive technical documentation for APIs and software systems.",
+          },
+          createdBy: "test-user",
+          tags: ["technical", "documentation"],
+          labels: ["latest"],
+        },
+      });
+
+      // Test 1: Search by prompt content
+      const contentSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "customer support agent",
+        searchType: ["content"],
+      });
+
+      expect(contentSearchResults.prompts).toHaveLength(1);
+      expect(contentSearchResults.prompts[0].name).toBe(
+        "customer-service-prompt",
+      );
+
+      // Test 2: Search by prompt name
+      const nameSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "marketing",
+        searchType: ["id"],
+      });
+
+      expect(nameSearchResults.prompts).toHaveLength(1);
+      expect(nameSearchResults.prompts[0].name).toBe("marketing-prompt");
+
+      // Test 3: Search by tags
+      const tagSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "documentation",
+        searchType: ["id"],
+      });
+
+      expect(tagSearchResults.prompts).toHaveLength(1);
+      expect(tagSearchResults.prompts[0].name).toBe("technical-docs");
+
+      // Test 4: Search with no matches
+      const noMatchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "nonexistent content",
+        searchType: ["id", "content"],
+      });
+
+      expect(noMatchResults.prompts).toHaveLength(0);
+
+      // Test 5: Case insensitive search
+      const caseInsensitiveResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "TECHNICAL",
+        searchType: ["id"],
+      });
+
+      expect(caseInsensitiveResults.prompts).toHaveLength(1);
+      expect(caseInsensitiveResults.prompts[0].name).toBe("technical-docs");
+    });
+
+    it("should find prompts with multiple versions when searching content", async () => {
+      const { project, caller } = await prepare();
+
+      // Create multiple versions of the same prompt with different content
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "evolving-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "You are a basic chatbot. Answer simple questions." },
+          createdBy: "test-user",
+          tags: ["basic"],
+          labels: [],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "evolving-prompt",
+          version: 2,
+          type: "text",
+          prompt: {
+            text: "You are an advanced AI assistant with expertise in machine learning.",
+          },
+          createdBy: "test-user",
+          tags: ["advanced"],
+          labels: ["latest"],
+        },
+      });
+
+      // Search for content that exists in version 2 but not version 1
+      const searchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "machine learning",
+        searchType: ["content"],
+      });
+
+      // Should find the prompt because one of its versions contains the search term
+      expect(searchResults.prompts).toHaveLength(1);
+      expect(searchResults.prompts[0].name).toBe("evolving-prompt");
+      // The returned prompt should be the latest version
+      expect(searchResults.prompts[0].version).toBe(2);
+    });
+  });
+
+  describe("prompts.count with search and searchType", () => {
+    it("should count prompts correctly with different search types", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test prompts with different searchable content
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "customer-service-prompt",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "You are a helpful customer support agent. Answer questions about billing and account issues.",
+          },
+          createdBy: "test-user",
+          tags: ["support", "customer"],
+          labels: ["production"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "marketing-prompt",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "Create engaging marketing content that drives sales and conversions.",
+          },
+          createdBy: "test-user",
+          tags: ["marketing", "content"],
+          labels: ["staging"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "technical-docs",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "Generate comprehensive technical documentation for APIs and software systems.",
+          },
+          createdBy: "test-user",
+          tags: ["technical", "documentation"],
+          labels: ["latest"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "sales-support-prompt",
+          version: 1,
+          type: "text",
+          prompt: {
+            text: "Assist sales teams with lead qualification and customer outreach.",
+          },
+          createdBy: "test-user",
+          tags: ["sales", "support"],
+          labels: ["production"],
+        },
+      });
+
+      // Test 1: Count all prompts (no search)
+      const totalCountResult = await caller.prompts.count({
+        projectId: project.id,
+      });
+      expect(totalCountResult.totalCount).toBe(BigInt(4));
+
+      // Test 2: Count with ID search type (default) - search in names and tags
+      const idSearchCountResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "support",
+        searchType: ["id"],
+      });
+      // Should find "customer-service-prompt" and "sales-support-prompt" (by name and tags)
+      expect(idSearchCountResult.totalCount).toBe(BigInt(2));
+
+      // Test 3: Count with content search type - search in prompt content
+      const contentSearchCountResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "customer",
+        searchType: ["content"],
+      });
+      // Should find "customer-service-prompt" and "sales-support-prompt" (by content: "customer" appears in both)
+      expect(contentSearchCountResult.totalCount).toBe(BigInt(2));
+
+      // Test 4: Count with both ID and content search types
+      const combinedSearchCountResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "marketing",
+        searchType: ["id", "content"],
+      });
+      // Should find "marketing-prompt" (by both name and content)
+      expect(combinedSearchCountResult.totalCount).toBe(BigInt(1));
+
+      // Test 5: Count with tag-specific search (ID search type)
+      const tagSearchCountResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "documentation",
+        searchType: ["id"],
+      });
+      // Should find "technical-docs" (by tag)
+      expect(tagSearchCountResult.totalCount).toBe(BigInt(1));
+
+      // Test 6: Count with content that doesn't exist in names/tags but exists in prompt text
+      const contentOnlySearchResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "billing",
+        searchType: ["content"],
+      });
+      // Should find "customer-service-prompt" (by content only)
+      expect(contentOnlySearchResult.totalCount).toBe(BigInt(1));
+
+      // Test 7: Count with no matches
+      const noMatchCountResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "nonexistent",
+        searchType: ["id", "content"],
+      });
+      expect(noMatchCountResult.totalCount).toBe(BigInt(0));
+
+      // Test 8: Count with case insensitive search
+      const caseInsensitiveCountResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "TECHNICAL",
+        searchType: ["id"],
+      });
+      // Should find "technical-docs" (case insensitive)
+      expect(caseInsensitiveCountResult.totalCount).toBe(BigInt(1));
+
+      // Test 9: Count with filters and search combined
+      const filteredSearchCountResult = await caller.prompts.count({
+        projectId: project.id,
+        searchQuery: "support",
+        searchType: ["id"],
+        filter: [
+          {
+            column: "labels",
+            type: "arrayOptions",
+            operator: "any of",
+            value: ["production"],
+          },
+        ],
+      });
+      // Should find prompts with "support" AND "production" label
+      expect(filteredSearchCountResult.totalCount).toBe(BigInt(2));
+    });
+
+    it("should count prompts with folder path prefix and search", async () => {
+      const { project, caller } = await prepare();
+
+      // Create prompts in different folder structures
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder1/customer-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "Customer service prompt" },
+          createdBy: "test-user",
+          tags: ["customer"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder1/support-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "Technical support prompt" },
+          createdBy: "test-user",
+          tags: ["support"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder2/customer-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "Another customer prompt" },
+          createdBy: "test-user",
+          tags: ["customer"],
+        },
+      });
+
+      // Test: Count with path prefix and search
+      const folderSearchCountResult = await caller.prompts.count({
+        projectId: project.id,
+        pathPrefix: "folder1",
+        searchQuery: "customer",
+        searchType: ["id"],
+      });
+      // Should only find prompts in folder1 that match "customer"
+      expect(folderSearchCountResult.totalCount).toBe(BigInt(1));
+
+      // Test: Count with path prefix but no search
+      const folderCountResult = await caller.prompts.count({
+        projectId: project.id,
+        pathPrefix: "folder1",
+      });
+      // Should find all prompts in folder1
+      expect(folderCountResult.totalCount).toBe(BigInt(2));
+    });
+  });
+
+  describe("folder navigation with conflicting names", () => {
+    it("should handle prompts where individual prompt name conflicts with folder prefix - BUG REPRODUCTION", async () => {
+      const { project, caller } = await prepare();
+
+      // Create the exact bug scenario:
+      // - a/prompt (individual prompt)
+      // - a/prompt/v1 (prompt in subfolder)
+      // - a/prompt/v2 (prompt in subfolder)
+      // Bug: LFE-6515
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "a/prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is the individual a/prompt" },
+          createdBy: "test-user",
+          tags: ["individual"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "a/prompt/v1",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is a/prompt/v1" },
+          createdBy: "test-user",
+          tags: ["subfolder"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "a/prompt/v2",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is a/prompt/v2" },
+          createdBy: "test-user",
+          tags: ["subfolder"],
+        },
+      });
+
+      // Test 1: Root level should show folder "a"
+      const rootResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+      });
+
+      // Should show exactly one item: the "a" folder
+      expect(rootResults.prompts).toHaveLength(1);
+      expect(rootResults.prompts[0].name).toBe("a");
+
+      // Test 2: Folder "a" level should show BOTH individual "prompt" AND folder entry for "prompt/*"
+      const folderAResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        pathPrefix: "a",
+      });
+
+      // We expect 2 items: individual "prompt" and folder "prompt" (for v1, v2)
+      expect(folderAResults.prompts).toHaveLength(2);
+
+      // Should have both an individual prompt and a folder entry
+      const promptNames = folderAResults.prompts.map((p) => p.name);
+      expect(promptNames).toContain("prompt");
+
+      // Test 3: Folder "a/prompt" level should show v1 and v2
+      const subfolderResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        pathPrefix: "a/prompt",
+      });
+
+      // Should show exactly 2 items: v1 and v2
+      expect(subfolderResults.prompts).toHaveLength(2);
+      const subfolderNames = subfolderResults.prompts.map((p) => p.name);
+      expect(subfolderNames).toContain("v1");
+      expect(subfolderNames).toContain("v2");
+
+      // Test 4: Count verification
+      const rootCount = await caller.prompts.count({
+        projectId: project.id,
+      });
+      expect(rootCount.totalCount).toBe(BigInt(1)); // Should show 1 folder
+
+      const folderACount = await caller.prompts.count({
+        projectId: project.id,
+        pathPrefix: "a",
+      });
+      expect(folderACount.totalCount).toBe(BigInt(2)); // Should show individual + folder entry
+
+      const subfolderCount = await caller.prompts.count({
+        projectId: project.id,
+        pathPrefix: "a/prompt",
+      });
+      expect(subfolderCount.totalCount).toBe(BigInt(2)); // Should show v1 and v2
+    });
+
+    it("should maintain search functionality across conflicting folder/prompt names", async () => {
+      const { project, caller } = await prepare();
+
+      // Create searchable content in conflicting structure
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "search/test",
+          version: 1,
+          type: "text",
+          prompt: { text: "Individual search test with unique keyword" },
+          createdBy: "test-user",
+          tags: ["searchable"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "search/test/nested1",
+          version: 1,
+          type: "text",
+          prompt: { text: "Nested prompt with unique keyword" },
+          createdBy: "test-user",
+          tags: ["nested"],
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "search/test/nested2",
+          version: 1,
+          type: "text",
+          prompt: { text: "Another nested prompt" },
+          createdBy: "test-user",
+          tags: ["nested"],
+        },
+      });
+
+      // Test search at different folder levels
+      const searchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        searchQuery: "unique",
+        searchType: ["content"],
+      });
+
+      // Should find prompts containing "unique" keyword
+      expect(searchResults.prompts.length).toBeGreaterThan(0);
+
+      // Test search within specific folder
+      const folderSearchResults = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        pathPrefix: "search/test",
+        searchQuery: "nested",
+        searchType: ["content"],
+      });
+      // Should find nested prompts within the folder
+      expect(folderSearchResults.prompts.length).toBeGreaterThan(0);
+    });
+  });
 });

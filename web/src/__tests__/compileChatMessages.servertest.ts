@@ -65,35 +65,48 @@ describe("compileChatMessages", () => {
     }).toThrow("Missing value for message placeholder: missing_placeholder");
   });
 
-  it("should throw error when placeholder messages lack required properties", () => {
+  it("should allow arbitrary placeholder fill-in values", () => {
     const promptTemplate = [
+      { role: "system", content: "You are a helpful assistant." },
       {
         type: ChatMessageType.Placeholder,
-        name: "invalid_messages",
+        name: "arbitrary_messages",
       },
     ];
 
-    // Test missing role property
-    const placeholderValuesNoRole = {
-      invalid_messages: [{ content: "Hello" }],
+    // Test with arbitrary objects (non-role/content structure)
+    const placeholderValues = {
+      arbitrary_messages: [
+        { type: "custom", data: ["some data", "and some more data!"], id: 123 },
+        { action: "click", target: "button", value: "submit" },
+        { role: "user", content: "This still works" }, // Mixed with standard format
+      ],
     };
 
-    expect(() => {
-      compileChatMessages(promptTemplate, placeholderValuesNoRole);
-    }).toThrow(
-      "Invalid message format in placeholder 'invalid_messages': messages must have 'role' and 'content' properties",
+    const compiledMessages = compileChatMessages(
+      promptTemplate,
+      placeholderValues,
     );
 
-    // Test missing content property
-    const placeholderValuesNoContent = {
-      invalid_messages: [{ role: "user" }],
-    };
-
-    expect(() => {
-      compileChatMessages(promptTemplate, placeholderValuesNoContent);
-    }).toThrow(
-      "Invalid message format in placeholder 'invalid_messages': messages must have 'role' and 'content' properties",
-    );
+    expect(compiledMessages).toHaveLength(4);
+    expect(compiledMessages[0]).toEqual({
+      role: "system",
+      content: "You are a helpful assistant.",
+    });
+    expect(compiledMessages[1]).toEqual({
+      type: "custom",
+      data: ["some data", "and some more data!"],
+      id: 123,
+    });
+    expect(compiledMessages[2]).toEqual({
+      action: "click",
+      target: "button",
+      value: "submit",
+    });
+    expect(compiledMessages[3]).toEqual({
+      role: "user",
+      content: "This still works",
+    });
   });
 
   it("should compile placeholders without applying text substitutions when no variables provided", () => {

@@ -53,7 +53,7 @@ export const llmSchemaRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "project",
+          resourceType: "llmSchema",
           resourceId: llmSchema.id,
           action: "create",
           after: llmSchema,
@@ -164,7 +164,7 @@ export const llmSchemaRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "project",
+          resourceType: "llmSchema",
           resourceId: updatedSchema.id,
           action: "update",
           before: existingSchema,
@@ -217,7 +217,7 @@ export const llmSchemaRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "project",
+          resourceType: "llmSchema",
           resourceId: input.id,
           action: "delete",
           before: existingSchema,

@@ -4,7 +4,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -113,14 +113,11 @@ export const AutomationExecutionsTable: React.FC<
       accessorKey: "error",
       header: "Error",
       id: "error",
+      size: 150,
       cell: ({ row }) => {
         const value = row.getValue("error") as string | null;
         if (!value) return <span className="text-muted-foreground">-</span>;
-        return (
-          <div className="max-w-xs">
-            <span className="break-words text-xs text-red-600">{value}</span>
-          </div>
-        );
+        return value;
       },
     },
   ];
@@ -161,6 +158,7 @@ export const AutomationExecutionsTable: React.FC<
         setRowHeight={setRowHeight}
       />
       <DataTable
+        tableName={"automationExecutions"}
         columns={columns}
         data={{
           isLoading,

@@ -17,8 +17,9 @@ export interface PromptMessage {
  */
 export function extractPlaceholderNames(messages: PromptMessage[]): string[] {
   return messages
-    .filter((msg): msg is PromptMessage & { name: string } =>
-      msg.type === "placeholder" && typeof msg.name === "string"
+    .filter(
+      (msg): msg is PromptMessage & { name: string } =>
+        msg.type === "placeholder" && typeof msg.name === "string",
     )
-    .map(msg => msg.name);
+    .map((msg) => msg.name);
 }

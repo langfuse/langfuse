@@ -4,13 +4,12 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { TokenCountDelegate } from "../ingestion/processEventBatch";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
+import { JSONObjectSchema } from "../../utils/zod";
 
 /* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
-export const LLMJSONSchema = z.record(z.string(), z.unknown());
+export const LLMJSONSchema = z.record(z.string(), z.any());
 export type LLMJSONSchema = z.infer<typeof LLMJSONSchema>;
 
 export const JSONSchemaFormSchema = z
@@ -59,10 +58,20 @@ const AnthropicMessageContentWithToolUse = z.union([
   }),
 ]);
 
+const GoogleAIStudioMessageContentWithToolUse = z.object({
+  functionCall: z.object({
+    name: z.string(),
+    args: z.unknown(),
+  }),
+});
+
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
-  args: z.record(z.string(), z.unknown()),
+  args: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .transform((val) => val ?? {}),
 });
 export type LLMToolCall = z.infer<typeof LLMToolCallSchema>;
 
@@ -103,7 +112,11 @@ export const OpenAIResponseFormatSchema = z.object({
 });
 
 export const ToolCallResponseSchema = z.object({
-  content: z.union([z.string(), z.array(AnthropicMessageContentWithToolUse)]),
+  content: z.union([
+    z.string(),
+    z.array(AnthropicMessageContentWithToolUse),
+    z.array(GoogleAIStudioMessageContentWithToolUse),
+  ]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
@@ -113,6 +126,7 @@ export enum ChatMessageRole {
   User = "user",
   Assistant = "assistant",
   Tool = "tool",
+  Model = "model", // Google Gemini assistant format
 }
 
 // Thought: should placeholder not semantically be part of this, because it can be
@@ -124,6 +138,7 @@ export enum ChatMessageType {
   AssistantText = "assistant-text",
   AssistantToolCall = "assistant-tool-call",
   ToolResult = "tool-result",
+  ModelText = "model-text",
   PublicAPICreated = "public-api-created",
   Placeholder = "placeholder",
 }
@@ -155,6 +170,13 @@ export const AssistantTextMessageSchema = z.object({
   content: z.string(),
 });
 export type AssistantTextMessage = z.infer<typeof AssistantTextMessageSchema>;
+
+export const ModelMessageSchema = z.object({
+  type: z.literal(ChatMessageType.ModelText),
+  role: z.literal(ChatMessageRole.Model),
+  content: z.string(),
+});
+export type ModelMessage = z.infer<typeof ModelMessageSchema>;
 
 export const AssistantToolCallMessageSchema = z.object({
   type: z.literal(ChatMessageType.AssistantToolCall),
@@ -193,10 +215,11 @@ export const ChatMessageSchema = z.union([
   AssistantTextMessageSchema,
   AssistantToolCallMessageSchema,
   ToolResultMessageSchema,
+  ModelMessageSchema,
   z
     .object({
       role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK
-      content: z.string(),
+      content: z.union([z.string(), z.array(z.any()), z.any()]), // Support arbitrary content types for message placeholders
     })
     .transform((msg) => {
       return {
@@ -226,17 +249,11 @@ export type PromptVariable = { name: string; value: string; isUsed: boolean };
 export enum LLMAdapter {
   Anthropic = "anthropic",
   OpenAI = "openai",
-  Atla = "atla",
   Azure = "azure",
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
 }
-
-export const SYSTEM_ROLES: string[] = [
-  ChatMessageRole.System,
-  ChatMessageRole.Developer,
-];
 
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
@@ -267,6 +284,7 @@ export const ZodModelConfig = z.object({
   max_tokens: z.coerce.number().optional(),
   temperature: z.coerce.number().optional(),
   top_p: z.coerce.number().optional(),
+  providerOptions: JSONObjectSchema.optional(),
 });
 
 // Experiment config
@@ -276,12 +294,15 @@ export const ExperimentMetadataSchema = z
     provider: z.string(),
     model: z.string(),
     model_params: ZodModelConfig,
+    structured_output_schema: LLMJSONSchema.optional(),
+    experiment_name: z.string().optional(),
+    experiment_run_name: z.string().optional(),
     error: z.string().optional(),
   })
   .strict();
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
 
-// NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
+// NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const openAIModels = [
   "gpt-4.1",
@@ -290,6 +311,14 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.1",
+  "gpt-5.1-2025-11-13",
+  "gpt-5",
+  "gpt-5-2025-08-07",
+  "gpt-5-mini",
+  "gpt-5-mini-2025-08-07",
+  "gpt-5-nano",
+  "gpt-5-nano-2025-08-07",
   "o3",
   "o3-2025-04-16",
   "o4-mini",
@@ -321,12 +350,69 @@ export const openAIModels = [
   "gpt-3.5-turbo",
 ] as const;
 
+type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
+export const openAIModelToReasoning: OpenAIReasoningMap = {
+  // reasoning models
+  "gpt-5.1": true,
+  "gpt-5.1-2025-11-13": true,
+  "gpt-5": true,
+  "gpt-5-2025-08-07": true,
+  "gpt-5-mini": true,
+  "gpt-5-mini-2025-08-07": true,
+  "gpt-5-nano": true,
+  "gpt-5-nano-2025-08-07": true,
+  o3: true,
+  "o3-2025-04-16": true,
+  "o4-mini": true,
+  "o4-mini-2025-04-16": true,
+  "o3-mini": true,
+  "o3-mini-2025-01-31": true,
+  "o1-preview": true,
+  "o1-preview-2024-09-12": true,
+  "o1-mini": true,
+  "o1-mini-2024-09-12": true,
+  // non-reasoning models
+  "gpt-4.5-preview": false,
+  "gpt-4.5-preview-2025-02-27": false,
+  "gpt-4-turbo-preview": false,
+  "gpt-4-1106-preview": false,
+  "gpt-4-0613": false,
+  "gpt-4-0125-preview": false,
+  "gpt-4": false,
+  "gpt-3.5-turbo-16k-0613": false,
+  "gpt-3.5-turbo-16k": false,
+  "gpt-3.5-turbo-1106": false,
+  "gpt-3.5-turbo-0613": false,
+  "gpt-3.5-turbo-0301": false,
+  "gpt-3.5-turbo-0125": false,
+  "gpt-3.5-turbo": false,
+  "gpt-4.1": false,
+  "gpt-4.1-2025-04-14": false,
+  "gpt-4.1-mini": false,
+  "gpt-4.1-mini-2025-04-14": false,
+  "gpt-4.1-nano": false,
+  "gpt-4.1-nano-2025-04-14": false,
+  "gpt-4o": false,
+  "gpt-4o-2024-08-06": false,
+  "gpt-4o-2024-05-13": false,
+  "gpt-4o-mini": false,
+  "gpt-4o-mini-2024-07-18": false,
+};
+
+export const isOpenAIReasoningModel = (model: OpenAIModel): boolean => {
+  return openAIModelToReasoning[model];
+};
+
 export type OpenAIModel = (typeof openAIModels)[number];
 
-// NOTE: Update docs page when changing this! https://langfuse.com/docs/playground#openai-playground--anthropic-playground
+// NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
+  "claude-sonnet-4-5-20250929",
+  "claude-haiku-4-5-20251001",
+  "claude-opus-4-5-20251101",
   "claude-sonnet-4-20250514",
+  "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
   "claude-3-7-sonnet-20250219",
   "claude-3-5-sonnet-20241022",
@@ -342,15 +428,15 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
-  "gemini-2.5-pro",
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-2.5-pro",
+  "gemini-3-pro-preview",
+  "gemini-2.5-flash-preview-09-2025",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-exp",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
@@ -361,19 +447,15 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-3-pro-preview",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",
-  "gemini-2.0-flash-lite-preview",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
   "gemini-1.5-flash-8b",
 ] as const;
-
-export const atlaModels = ["atla-selene", "atla-selene-20250214"] as const;
 
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
@@ -384,7 +466,6 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
-  [LLMAdapter.Atla]: atlaModels,
 } as const;
 
 export type LLMFunctionCall = {
@@ -419,11 +500,24 @@ export type LLMApiKey =
     ? z.infer<typeof LLMApiKeySchema>
     : never;
 
-export type TraceParams = {
-  traceName: string;
+export enum LangfuseInternalTraceEnvironment {
+  PromptExperiments = "langfuse-prompt-experiment",
+  LLMJudge = "langfuse-llm-as-a-judge",
+}
+
+export type TraceSinkParams = {
+  /**
+   * IMPORTANT: This controls into what project the resulting traces are ingested.
+   */
+  targetProjectId: string;
   traceId: string;
-  projectId: string;
-  tags: string[];
-  tokenCountDelegate: TokenCountDelegate;
-  authCheck: AuthHeaderValidVerificationResult;
+  traceName: string;
+  // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
+  environment: string;
+  userId?: string;
+  metadata?: Record<string, unknown>;
+  prompt?: {
+    name: string;
+    version: number;
+  };
 };

@@ -41,9 +41,17 @@ import { InlineFilterBuilder } from "@/src/features/filters/components/filter-bu
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+
+// Define Slack action schema
+const slackSchema = z.object({
+  channelId: z.string().min(1, "Channel is required"),
+  channelName: z.string().min(1, "Channel name is required"),
+  messageTemplate: z.string().optional(),
+});
 
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
@@ -54,7 +62,9 @@ enum TriggerEventSource {
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   eventSource: z.string().min(1, "Event source is required"),
-  eventAction: z.array(z.string()),
+  eventAction: z
+    .array(z.string())
+    .min(1, "At least one event action is required"),
   status: z.enum(["ACTIVE", "INACTIVE"]),
   filter: z.array(z.any()).optional(),
 });
@@ -64,7 +74,10 @@ const formSchema = z.discriminatedUnion("actionType", [
     actionType: z.literal("WEBHOOK"),
     webhook: webhookSchema,
   }),
-  // add more action types here
+  baseFormSchema.extend({
+    actionType: z.literal("SLACK"),
+    slack: slackSchema,
+  }),
 ]);
 
 type FormValues = z.infer<typeof formSchema>;
@@ -113,7 +126,7 @@ export const AutomationForm = ({
 
   // Get the action type for the form when editing
   const getActionType = () => {
-    if (isEditing && automation?.action?.type) {
+    if (automation?.action?.type) {
       return automation.action.type as ActionTypes;
     }
     return "WEBHOOK";
@@ -125,7 +138,8 @@ export const AutomationForm = ({
     const today = new Date().toLocaleString("sv").split("T")[0]; // YYYY-MM-DD
 
     const baseValues = {
-      name: isEditing && automation ? automation.name : `Webhook ${today}`,
+      name:
+        isEditing && automation ? automation.name : `${actionType} ${today}`,
       eventSource: automation
         ? automation.trigger.eventSource
         : TriggerEventSource.Prompt,
@@ -154,6 +168,20 @@ export const AutomationForm = ({
           },
         },
       };
+    } else if (actionType === "SLACK") {
+      // Use action handler to get default values with proper typing
+      const handler = ActionHandlerRegistry.getHandler("SLACK");
+      const slackDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "SLACK" as const,
+        eventSource: TriggerEventSource.Prompt,
+        slack: {
+          channelId: slackDefaults.slack.channelId || "",
+          channelName: slackDefaults.slack.channelName || "",
+          messageTemplate: slackDefaults.slack.messageTemplate || "",
+        },
+      };
     } else {
       throw new Error("Invalid action type");
     }
@@ -175,10 +203,10 @@ export const AutomationForm = ({
   // Handle form submission
   const onSubmit = async (data: FormValues) => {
     if (!hasAccess) {
-      showSuccessToast({
-        title: "Permission Denied",
-        description: "You don't have permission to modify automations.",
-      });
+      showErrorToast(
+        "Permission Denied",
+        "You don't have permission to modify automations.",
+      );
       return;
     }
 
@@ -187,11 +215,10 @@ export const AutomationForm = ({
     const validation = handler.validateFormData(data);
 
     if (!validation.isValid) {
-      showSuccessToast({
-        title: "Validation Error",
-        description:
-          validation.errors?.join(", ") || "Please fill in all required fields",
-      });
+      showErrorToast(
+        "Validation Error",
+        validation.errors?.join(", ") || "Please fill in all required fields",
+      );
       return;
     }
 
@@ -211,6 +238,11 @@ export const AutomationForm = ({
         actionConfig: actionConfig,
       });
 
+      showSuccessToast({
+        title: "Automation Updated",
+        description: `Successfully updated automation "${data.name}".`,
+      });
+
       onSuccess?.(automation.id);
     } else {
       // Create new automation
@@ -224,21 +256,40 @@ export const AutomationForm = ({
         actionType: data.actionType,
         actionConfig: actionConfig,
       });
+
+      showSuccessToast({
+        title: "Automation Created",
+        description: `Successfully created automation "${data.name}".`,
+      });
+
       onSuccess?.(result.automation.id, result.webhookSecret);
     }
   };
 
   // Update button text based on if we're editing an existing automation
   const submitButtonText =
-    isEditing && automation ? "Update Webhook" : "Save Webhook";
+    isEditing && automation ? "Update Automation" : "Save Automation";
 
   // Update required fields based on action type
   const handleActionTypeChange = (value: ActionTypes) => {
     setActiveTab(value.toLowerCase());
     form.setValue("actionType", value);
-    const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-    const defaultValues = handler.getDefaultValues();
-    form.setValue("webhook", defaultValues.webhook);
+
+    if (value === "WEBHOOK") {
+      const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("webhook", defaultValues.webhook);
+    } else if (value === "SLACK") {
+      const handler = ActionHandlerRegistry.getHandler("SLACK");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("slack", defaultValues.slack);
+    }
+
+    // If we are creating a new automation, update the default name
+    if (!automation) {
+      const today = new Date().toLocaleString("sv").split("T")[0];
+      form.setValue("name", `${value} ${today}`);
+    }
   };
 
   // Handle cancel button click
@@ -449,7 +500,9 @@ export const AutomationForm = ({
                           <SelectItem key={actionType} value={actionType}>
                             {actionType === "WEBHOOK"
                               ? "Webhook"
-                              : "Annotation Queue"}
+                              : actionType === "SLACK"
+                                ? "Slack"
+                                : "Annotation Queue"}
                           </SelectItem>
                         ),
                       )}

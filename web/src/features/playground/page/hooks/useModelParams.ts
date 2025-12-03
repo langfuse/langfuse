@@ -9,8 +9,16 @@ import {
   type UIModelParams,
 } from "@langfuse/shared";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
+import { getModelNameKey, getModelProviderKey } from "../storage/keys";
 
-export const useModelParams = () => {
+/**
+ * Hook for managing model parameters with window isolation support
+ * Supports both single-window and multi-window scenarios through window-specific localStorage keys
+ *
+ * @param windowId - Optional window identifier for state isolation. Defaults to "default" for backward compatibility
+ * @returns Object with model parameters state and management functions
+ */
+export const useModelParams = (windowId?: string) => {
   const [modelParams, setModelParams] = useState<UIModelParams>({
     ...getDefaultAdapterParams(LLMAdapter.OpenAI),
     provider: { value: "", enabled: true },
@@ -26,13 +34,17 @@ export const useModelParams = () => {
     { enabled: Boolean(projectId) },
   );
 
+  // Generate window-specific localStorage keys
+  const modelNameKey = getModelNameKey(windowId ?? "");
+  const modelProviderKey = getModelProviderKey(windowId ?? "");
+
   const [persistedModelName, setPersistedModelName] = useLocalStorage<
     string | null
-  >("llmModelName", null);
+  >(modelNameKey, null);
 
   const [persistedModelProvider, setPersistedModelProvider] = useLocalStorage<
     string | null
-  >("llmModelProvider", null);
+  >(modelProviderKey, null);
 
   const availableProviders = useMemo(() => {
     const adapter = availableLLMApiKeys.data?.data ?? [];
@@ -43,6 +55,18 @@ export const useModelParams = () => {
   const selectedProviderApiKey = availableLLMApiKeys.data?.data.find(
     (key) => key.provider === modelParams.provider.value,
   );
+
+  const providerModelCombinations =
+    availableLLMApiKeys.data?.data.reduce((acc, v) => {
+      if (v.withDefaultModels) {
+        acc.push(
+          ...supportedModels[v.adapter].map((m) => `${v.provider}: ${m}`),
+        );
+      }
+      acc.push(...v.customModels.map((m) => `${v.provider}: ${m}`));
+
+      return acc;
+    }, [] as string[]) ?? [];
 
   const availableModels = useMemo(
     () =>
@@ -88,7 +112,12 @@ export const useModelParams = () => {
 
   // Set default provider and model
   useEffect(() => {
-    if (availableProviders.length > 0 && !modelParams.provider.value) {
+    if (
+      availableProviders.length > 0 &&
+      (!modelParams.provider.value ||
+        !availableProviders.includes(modelParams.provider.value))
+    ) {
+      // fall back to a valid provider whenever the cached value is missing or no longer available (e.g. after switching projects)
       if (
         persistedModelProvider &&
         availableProviders.includes(persistedModelProvider)
@@ -170,6 +199,7 @@ export const useModelParams = () => {
     availableModels,
     updateModelParamValue,
     setModelParamEnabled,
+    providerModelCombinations,
   };
 };
 
@@ -188,6 +218,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.Azure:
@@ -200,6 +231,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     // Docs: https://docs.anthropic.com/claude/reference/messages_post
@@ -213,6 +245,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 1, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.Bedrock:
@@ -225,6 +258,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 1, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.VertexAI:
@@ -237,6 +271,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
 
     case LLMAdapter.GoogleAIStudio:
@@ -249,17 +284,7 @@ function getDefaultAdapterParams(
         maxTemperature: { value: 2, enabled: false },
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
-      };
-    case LLMAdapter.Atla:
-      return {
-        adapter: {
-          value: adapter,
-          enabled: true,
-        },
-        temperature: { value: 0, enabled: false },
-        maxTemperature: { value: 1, enabled: false },
-        max_tokens: { value: 4096, enabled: false },
-        top_p: { value: 1, enabled: false },
+        providerOptions: { value: {}, enabled: false },
       };
   }
 }

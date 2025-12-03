@@ -51,7 +51,7 @@ export const DeleteAnnotationQueueButton = ({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!mutDelete.isLoading) {
+        if (!mutDelete.isPending) {
           setIsOpen(open);
         }
       }}
@@ -69,8 +69,8 @@ export const DeleteAnnotationQueueButton = ({
         <DialogFooter>
           <Button
             variant="destructive"
-            loading={mutDelete.isLoading}
-            disabled={mutDelete.isLoading}
+            loading={mutDelete.isPending}
+            disabled={mutDelete.isPending}
             onClick={async (event) => {
               event.preventDefault();
               await mutDelete.mutateAsync({

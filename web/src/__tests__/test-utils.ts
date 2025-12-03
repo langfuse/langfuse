@@ -6,7 +6,9 @@ import {
   getQueue,
   IngestionQueue,
   logger,
+  OtelIngestionQueue,
   QueueName,
+  TraceUpsertQueue,
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
@@ -34,7 +36,7 @@ export const ensureTestDatabaseExists = async () => {
       stdio: "inherit",
     });
     console.log("Test database schema verified/updated");
-  } catch (error) {
+  } catch (_error) {
     console.log("Test database not accessible, creating...");
 
     const url = new URL(env.DATABASE_URL);
@@ -88,6 +90,7 @@ export const pruneDatabase = async () => {
   await prisma.scoreConfig.deleteMany();
   await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
+  await prisma.datasetItemEvent.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();
@@ -101,13 +104,17 @@ export const pruneDatabase = async () => {
 };
 export const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
-  queues.push(...IngestionQueue.getShardNames());
+  queues.push(
+    ...IngestionQueue.getShardNames(),
+    ...TraceUpsertQueue.getShardNames(),
+  );
 
   const listOfQueuesToIgnore = [
     QueueName.DataRetentionQueue,
     QueueName.BlobStorageIntegrationQueue,
     QueueName.DeadLetterRetryQueue,
     QueueName.PostHogIntegrationQueue,
+    QueueName.CloudFreeTierUsageThresholdQueue,
   ];
 
   return queues
@@ -117,7 +124,18 @@ export const getQueues = () => {
     .map((queueName) =>
       queueName.startsWith(QueueName.IngestionQueue)
         ? IngestionQueue.getInstance({ shardName: queueName })
-        : getQueue(queueName as Exclude<QueueName, QueueName.IngestionQueue>),
+        : queueName.startsWith(QueueName.TraceUpsert)
+          ? TraceUpsertQueue.getInstance({ shardName: queueName })
+          : queueName.startsWith(QueueName.OtelIngestionQueue)
+            ? OtelIngestionQueue.getInstance({ shardName: queueName })
+            : getQueue(
+                queueName as Exclude<
+                  QueueName,
+                  | QueueName.IngestionQueue
+                  | QueueName.TraceUpsert
+                  | QueueName.OtelIngestionQueue
+                >,
+              ),
     );
 };
 
@@ -186,6 +204,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   url: string,
   body?: unknown,
   auth?: string,
+  customHeaders?: Record<string, string>,
 ): Promise<{ body: T; status: number }> {
   const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
@@ -196,6 +215,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
       Accept: "application/json",
       "Content-Type": "application/json;charset=UTF-8",
       Authorization: authorization,
+      ...customHeaders,
     },
     ...(method !== "GET" &&
       body !== undefined && { body: JSON.stringify(body) }),

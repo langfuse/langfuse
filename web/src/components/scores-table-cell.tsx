@@ -5,7 +5,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import {
   type CategoricalAggregate,
-  type NumericAggregate,
+  type AggregatedScoreData,
 } from "@langfuse/shared";
 
 import { numberFormatter } from "@/src/utils/numbers";
@@ -43,18 +43,18 @@ const ScoreValueCounts = ({
 
 export const ScoresTableCell = ({
   aggregate,
-  showSingleValue = false,
+  displayFormat,
   wrap = true,
   hasMetadata,
 }: {
-  aggregate: CategoricalAggregate | NumericAggregate;
-  showSingleValue?: boolean;
+  aggregate: AggregatedScoreData;
+  displayFormat: "smart" | "aggregate";
   wrap?: boolean;
   hasMetadata?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
 
-  if (showSingleValue && aggregate.values.length === 1 && projectId) {
+  if (displayFormat === "smart" && aggregate.values.length === 1 && projectId) {
     const value =
       aggregate.type === "NUMERIC"
         ? aggregate.average.toFixed(4)
@@ -70,7 +70,7 @@ export const ScoresTableCell = ({
             <HoverCardTrigger className="inline-block cursor-pointer">
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
-            <HoverCardContent className="overflow-hidden whitespace-normal break-normal">
+            <HoverCardContent className="overflow-hidden whitespace-normal break-normal text-xs">
               <p className="whitespace-pre-wrap">{aggregate.comment}</p>
             </HoverCardContent>
           </HoverCard>
@@ -111,7 +111,7 @@ export const ScoresTableCell = ({
               />
             </div>
           </HoverCardTrigger>
-          <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal">
+          <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal text-xs">
             <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap={wrap} />
           </HoverCardContent>
         </HoverCard>
@@ -159,7 +159,7 @@ function AggregateScoreMetadataPeek({
       <HoverCardTrigger className="inline-block cursor-pointer">
         <BracesIcon size={12} />
       </HoverCardTrigger>
-      <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0">
+      <HoverCardContent className="overflow-hidden whitespace-normal break-normal rounded-md border-none p-0 text-xs">
         {metadataLoaded ? (
           <JSONView codeClassName="!rounded-md" json={metadata} />
         ) : (

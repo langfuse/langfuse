@@ -16,6 +16,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
 import { type Row } from "@tanstack/react-table";
@@ -36,6 +37,8 @@ import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { useQueryParam, withDefault, StringParam } from "use-query-params";
+import { useEffect } from "react";
 
 export type MembersTableRow = {
   user: {
@@ -84,9 +87,23 @@ export function MembersTable({
     },
   );
 
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
+
+  useEffect(() => {
+    setPaginationState((prev) => ({
+      pageIndex: 0,
+      pageSize: prev.pageSize,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   const membersViaOrg = api.members.allFromOrg.useQuery(
     {
       orgId,
+      searchQuery: searchQuery ?? undefined,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -96,8 +113,8 @@ export function MembersTable({
   );
   const membersViaProject = api.members.allFromProject.useQuery(
     {
-      orgId,
       projectId: project?.id ?? "NOT ENABLED",
+      searchQuery: searchQuery ?? undefined,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -170,7 +187,7 @@ export function MembersTable({
       headerTooltip: {
         description:
           "The org-role is the default role for this user in this organization and applies to the organization and all its projects.",
-        href: "https://langfuse.com/docs/rbac",
+        href: "https://langfuse.com/docs/administration/rbac",
       },
       cell: ({ row }) => {
         const orgRole = row.getValue("orgRole") as MembersTableRow["orgRole"];
@@ -232,7 +249,7 @@ export function MembersTable({
             headerTooltip: {
               description:
                 "The role for this user in this specific project. This role overrides the default project role.",
-              href: "https://langfuse.com/docs/rbac",
+              href: "https://langfuse.com/docs/administration/rbac",
             },
             cell: ({
               row,
@@ -309,10 +326,13 @@ export function MembersTable({
   ];
 
   const [columnVisibility, setColumnVisibility] =
-    useColumnVisibility<MembersTableRow>("membersColumnVisibility", columns);
+    useColumnVisibility<MembersTableRow>(
+      project ? "membersColumnVisibilityProject" : "membersColumnVisibilityOrg",
+      columns,
+    );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<MembersTableRow>(
-    "membersColumnOrder",
+    project ? "membersColumnOrderProject" : "membersColumnOrderOrg",
     columns,
   );
 
@@ -357,14 +377,23 @@ export function MembersTable({
         actionButtons={
           <CreateProjectMemberButton orgId={orgId} project={project} />
         }
+        searchConfig={{
+          metadataSearchFields: ["Name", "Email"],
+          updateQuery: setSearchQuery,
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: false,
+          setSearchType: undefined,
+          searchType: undefined,
+        }}
         className={showSettingsCard ? "px-0" : undefined}
       />
       {showSettingsCard ? (
         <SettingsTableCard>
           <DataTable
+            tableName={project ? "projectMembers" : "orgMembers"}
             columns={columns}
             data={
-              members.isLoading
+              members.isPending
                 ? { isLoading: true, isError: false }
                 : members.isError
                   ? {
@@ -375,8 +404,8 @@ export function MembersTable({
                   : {
                       isLoading: false,
                       isError: false,
-                      data: members.data.memberships.map((t) =>
-                        convertToTableRow(t),
+                      data: safeExtract(members.data, "memberships", []).map(
+                        (t) => convertToTableRow(t),
                       ),
                     }
             }
@@ -393,9 +422,10 @@ export function MembersTable({
         </SettingsTableCard>
       ) : (
         <DataTable
+          tableName={project ? "projectMembers" : "orgMembers"}
           columns={columns}
           data={
-            members.isLoading
+            members.isPending
               ? { isLoading: true, isError: false }
               : members.isError
                 ? {
@@ -406,8 +436,8 @@ export function MembersTable({
                 : {
                     isLoading: false,
                     isError: false,
-                    data: members.data.memberships.map((t) =>
-                      convertToTableRow(t),
+                    data: safeExtract(members.data, "memberships", []).map(
+                      (t) => convertToTableRow(t),
                     ),
                   }
           }
@@ -455,7 +485,7 @@ const OrgRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentRole}
       onValueChange={(value) => {
         if (
@@ -515,7 +545,7 @@ const ProjectRoleDropdown = ({
 
   return (
     <Select
-      disabled={!hasCudAccess || mut.isLoading}
+      disabled={!hasCudAccess || mut.isPending}
       value={currentProjectRole ?? Role.NONE}
       onValueChange={(value) => {
         if (

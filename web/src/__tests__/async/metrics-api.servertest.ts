@@ -497,4 +497,137 @@ describe("/api/public/metrics API Endpoint", () => {
       expect(height).toBeGreaterThanOrEqual(0);
     });
   });
+
+  describe("LFE-6148: Comprehensive filter validation", () => {
+    it("should return 400 error for invalid array field filters", async () => {
+      // Test using string type on array field (tags) - should return validation error
+      const invalidStringTypeQuery = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "tags",
+            operator: "contains",
+            value: "test-tag",
+            type: "string", // Invalid: array fields require arrayOptions type
+          },
+        ],
+        timeDimension: {
+          granularity: "day",
+        },
+        fromTimestamp: yesterday.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      // Make API call and expect 400 error
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidStringTypeQuery))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: "InvalidRequestError",
+        message: expect.stringContaining(
+          "Array fields require type 'arrayOptions', not 'string'",
+        ),
+      });
+    });
+
+    it("should return 400 error for invalid metadata filters", async () => {
+      // Test using wrong type for metadata field
+      const invalidMetadataTypeQuery = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "metadata",
+            operator: "contains",
+            value: "test-value",
+            type: "string", // Invalid: metadata requires stringObject type
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: yesterday.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidMetadataTypeQuery))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: "InvalidRequestError",
+        message: expect.stringContaining(
+          "Metadata filters require type 'stringObject'",
+        ),
+      });
+    });
+
+    it("should work correctly with proper array field filter configuration", async () => {
+      // Setup test data with tags
+      const taggedTraceId = randomUUID();
+      await createTracesCh([
+        createTrace({
+          id: taggedTraceId,
+          name: "tagged-trace",
+          project_id: projectId,
+          timestamp: now.getTime(),
+          tags: ["test-tag", "another-tag"],
+          metadata: { test: testMetadataValue },
+        }),
+      ]);
+
+      // Test with correct arrayOptions filter
+      const validQuery = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "tags",
+            operator: "any of", // Correct operator for array fields
+            value: ["test-tag"],
+            type: "arrayOptions", // Correct type for array fields
+          },
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "test",
+            value: testMetadataValue,
+            type: "stringObject",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: yesterday.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      // Make the API call
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(validQuery))}`,
+      );
+
+      // Should succeed and return data
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data.length).toBeGreaterThan(0);
+
+      // Verify we got the tagged trace
+      const taggedTraceResult = response.body.data.find(
+        (row: any) => row.name === "tagged-trace",
+      );
+      expect(taggedTraceResult).toBeDefined();
+      expect(Number(taggedTraceResult.count_count)).toBe(1);
+    });
+  });
 });

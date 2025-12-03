@@ -12,6 +12,7 @@ import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetention
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export async function handleUpdateProject(
   req: NextApiRequest,
@@ -25,7 +26,7 @@ export async function handleUpdateProject(
     // Validate project name
     try {
       projectNameSchema.parse({ name });
-    } catch (error) {
+    } catch (_error) {
       return res.status(400).json({
         message: "Invalid project name. Should be between 3 and 60 characters.",
       });
@@ -45,7 +46,7 @@ export async function handleUpdateProject(
     if (retention !== undefined) {
       try {
         projectRetentionSchema.parse({ retention });
-      } catch (error) {
+      } catch (_error) {
         return res.status(400).json({
           message: "Invalid retention value. Must be 0 or at least 3 days.",
         });
@@ -108,7 +109,9 @@ export async function handleDeleteProject(
 ) {
   try {
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
-    await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(projectId);
+    await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
+      projectId,
+    );
 
     // Delete API keys from DB
     await prisma.apiKey.deleteMany({
@@ -119,7 +122,7 @@ export async function handleDeleteProject(
     });
 
     // Mark project as deleted
-    await prisma.project.update({
+    const project = await prisma.project.update({
       where: {
         id: projectId,
         orgId: scope.orgId,
@@ -127,6 +130,17 @@ export async function handleDeleteProject(
       data: {
         deletedAt: new Date(),
       },
+    });
+
+    // Create audit log entry
+    await auditLog({
+      apiKeyId: scope.apiKeyId,
+      orgId: scope.orgId,
+      projectId,
+      resourceType: "project",
+      resourceId: projectId,
+      before: project,
+      action: "delete",
     });
 
     // Queue project deletion job

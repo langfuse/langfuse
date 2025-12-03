@@ -20,6 +20,13 @@ service:
       request: MembershipRequest
       response: MembershipResponse
 
+    deleteOrganizationMembership:
+      docs: Delete a membership from the organization associated with the API key (requires organization-scoped API key)
+      method: DELETE
+      path: /organizations/memberships
+      request: DeleteMembershipRequest
+      response: MembershipDeletionResponse
+
     getProjectMemberships:
       docs: Get all memberships for a specific project (requires organization-scoped API key)
       method: GET
@@ -37,11 +44,26 @@ service:
       request: MembershipRequest
       response: MembershipResponse
 
+    deleteProjectMembership:
+      docs: Delete a membership from a specific project (requires organization-scoped API key). The user must be a member of the organization.
+      method: DELETE
+      path: /projects/{projectId}/memberships
+      path-parameters:
+        projectId: string
+      request: DeleteMembershipRequest
+      response: MembershipDeletionResponse
+
     getOrganizationProjects:
       docs: Get all projects for the organization associated with the API key (requires organization-scoped API key)
       method: GET
       path: /organizations/projects
       response: OrganizationProjectsResponse
+
+    getOrganizationApiKeys:
+      docs: Get all API keys for the organization associated with the API key (requires organization-scoped API key)
+      method: GET
+      path: /organizations/apiKeys
+      response: OrganizationApiKeysResponse
 
 types:
   MembershipRole:
@@ -56,12 +78,21 @@ types:
       userId: string
       role: MembershipRole
 
+  DeleteMembershipRequest:
+    properties:
+      userId: string
+
   MembershipResponse:
     properties:
       userId: string
       role: MembershipRole
       email: string
       name: string
+
+  MembershipDeletionResponse:
+    properties:
+      message: string
+      userId: string
 
   MembershipsResponse:
     properties:
@@ -78,3 +109,17 @@ types:
   OrganizationProjectsResponse:
     properties:
       projects: list<OrganizationProject>
+
+  OrganizationApiKey:
+    properties:
+      id: string
+      createdAt: datetime
+      expiresAt: optional<datetime>
+      lastUsedAt: optional<datetime>
+      note: optional<string>
+      publicKey: string
+      displaySecretKey: string
+
+  OrganizationApiKeysResponse:
+    properties:
+      apiKeys: list<OrganizationApiKey>

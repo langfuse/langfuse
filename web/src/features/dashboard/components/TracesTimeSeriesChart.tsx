@@ -39,7 +39,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -85,7 +86,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
     metrics: [{ measure: "count", aggregation: "count" }],
     filters: mapLegacyUiTableFilterToView("observations", globalFilterState),
     timeDimension: {
-      granularity: dashboardDateRangeAggregationSettings[agg].date_trunc,
+      granularity:
+        dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
     },
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -158,7 +160,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     <DashboardCard
       className={className}
       title="Traces by time"
-      isLoading={isLoading || traces.isLoading}
+      isLoading={isLoading || traces.isPending}
       cardContentClassName="flex flex-col content-end "
     >
       <TabComponent
@@ -177,7 +179,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
-                    className="h-full min-h-80 self-stretch"
+                    className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
                     data={item.data}
                     connectNulls={true}
@@ -185,9 +187,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   />
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || traces.isLoading}
+                    isLoading={isLoading || traces.isPending}
                     description="Traces contain details about LLM applications and can be created using the SDK."
-                    href="https://langfuse.com/docs/tracing"
+                    href="https://langfuse.com/docs/observability/overview"
                   />
                 )}
               </>

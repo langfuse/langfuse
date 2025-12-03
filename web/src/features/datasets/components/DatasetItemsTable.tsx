@@ -1,7 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { type RouterOutput } from "@/src/utils/types";
+import { useRouter } from "next/router";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,26 +12,31 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Archive, ListTree, MoreVertical, Trash2 } from "lucide-react";
+import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { type DatasetItem, DatasetStatus, type Prisma } from "@langfuse/shared";
+import {
+  type DatasetItem,
+  datasetItemFilterColumns,
+  DatasetStatus,
+  type Prisma,
+} from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/CodeJsonViewer";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
-import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
-import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
+import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { useDebounce } from "@/src/hooks/useDebounce";
+import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 
 type RowData = {
   id: string;
@@ -53,11 +60,10 @@ export function DatasetItemsTable({
   datasetId: string;
   menuItems?: React.ReactNode;
 }) {
+  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -65,23 +71,36 @@ export function DatasetItemsTable({
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetItems",
-    "s",
+    "m",
   );
+
+  const [filterState, setFilterState] = useQueryFilterState(
+    [],
+    "dataset_items",
+    projectId,
+  );
+
+  const { searchQuery, searchType, setSearchQuery, setSearchType } =
+    useFullTextSearch();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
     datasetId,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
+    searchQuery: searchQuery ?? undefined,
+    searchType: searchType,
   });
 
   useEffect(() => {
     if (items.isSuccess) {
+      const { datasetItems = [] } = items.data ?? {};
       setDetailPageList(
         "datasetItems",
-        items.data.datasetItems.map((t) => ({ id: t.id })),
+        datasetItems.map((t) => ({ id: t.id })),
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,7 +120,7 @@ export function DatasetItemsTable({
       header: "Item id",
       id: "id",
       size: 90,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (
@@ -232,6 +251,17 @@ export function DatasetItemsTable({
               <DropdownMenuItem
                 disabled={!hasAccess}
                 onClick={() => {
+                  router.push(
+                    `/project/${projectId}/datasets/${datasetId}/items/${id}`,
+                  );
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!hasAccess}
+                onClick={() => {
                   capture("dataset_item:archive_toggle", {
                     status:
                       status === DatasetStatus.ARCHIVED
@@ -326,39 +356,16 @@ export function DatasetItemsTable({
     />
   );
 
-  if (items.data?.totalDatasetItems === 0 && hasAccess) {
-    return (
-      <>
-        <DataTableToolbar
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          actionButtons={[menuItems, batchExportButton].filter(Boolean)}
-        />
-        {preview ? (
-          <PreviewCsvImport
-            preview={preview}
-            csvFile={csvFile}
-            projectId={projectId}
-            datasetId={datasetId}
-            setCsvFile={setCsvFile}
-            setPreview={setPreview}
-          />
-        ) : (
-          <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
-        )}
-      </>
-    );
-  }
+  const setFilterStateWithDebounce = useDebounce(setFilterState);
+  const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
 
   return (
     <>
       <DataTableToolbar
         columns={columns}
+        filterColumnDefinition={datasetItemFilterColumns}
+        filterState={filterState}
+        setFilterState={setFilterStateWithDebounce}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}
@@ -366,11 +373,25 @@ export function DatasetItemsTable({
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
+        searchConfig={{
+          metadataSearchFields: ["ID"],
+          updateQuery: setSearchQueryWithDebounce,
+          currentQuery: searchQuery ?? undefined,
+          tableAllowsFullTextSearch: true,
+          setSearchType,
+          searchType,
+          customDropdownLabels: {
+            metadata: "IDs",
+            fullText: "Full Text",
+          },
+          hidePerformanceWarning: true,
+        }}
       />
       <DataTable
+        tableName={"datasetItems"}
         columns={columns}
         data={
-          items.isLoading
+          items.isPending
             ? { isLoading: true, isError: false }
             : items.isError
               ? {
@@ -381,7 +402,7 @@ export function DatasetItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.datasetItems.map((t) =>
+                  data: safeExtract(items.data, "datasetItems", []).map((t) =>
                     convertToTableRow(t),
                   ),
                 }

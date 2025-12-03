@@ -1,6 +1,10 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import { createNewRedisInstance, redisQueueRetryOptions } from "./redis";
+import {
+  createNewRedisInstance,
+  getQueuePrefix,
+  redisQueueRetryOptions,
+} from "./redis";
 import { logger } from "../logger";
 
 export class WebhookQueue {
@@ -23,6 +27,7 @@ export class WebhookQueue {
           QueueName.WebhookQueue,
           {
             connection: newRedis,
+            prefix: getQueuePrefix(QueueName.WebhookQueue),
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

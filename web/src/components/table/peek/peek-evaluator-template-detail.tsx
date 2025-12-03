@@ -1,4 +1,4 @@
-import { usePeekState } from "@/src/components/table/peek/hooks/usePeekState";
+import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePeekEvalTemplateData } from "@/src/components/table/peek/hooks/usePeekEvalTemplateData";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
@@ -10,7 +10,8 @@ export const PeekViewEvaluatorTemplateDetail = ({
 }: {
   projectId: string;
 }) => {
-  const { peekId } = usePeekState();
+  const router = useRouter();
+  const peekId = router.query.peek as string | undefined;
 
   const { data: template } = usePeekEvalTemplateData({
     templateId: peekId,
@@ -18,7 +19,7 @@ export const PeekViewEvaluatorTemplateDetail = ({
   });
 
   if (!template) {
-    return <Skeleton className="h-full w-full" />;
+    return <Skeleton className="h-full w-full rounded-none" />;
   }
 
   return (

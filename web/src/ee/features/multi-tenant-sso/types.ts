@@ -72,6 +72,35 @@ export const OktaProviderSchema = base.extend({
     .object({
       clientId: z.string(),
       clientSecret: z.string(),
+      issuer: z.string().startsWith("https://", {
+        message: "Okta issuer must start with https://",
+      }),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
+export const AuthentikProviderSchema = base.extend({
+  authProvider: z.literal("authentik"),
+  authConfig: z
+    .object({
+      clientId: z.string(),
+      clientSecret: z.string(),
+      issuer: z.string().regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+        message:
+          "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
+      }),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
+export const OneLoginProviderSchema = base.extend({
+  authProvider: z.literal("onelogin"),
+  authConfig: z
+    .object({
+      clientId: z.string(),
+      clientSecret: z.string(),
       issuer: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
     })
@@ -106,6 +135,7 @@ export const KeycloakProviderSchema = base.extend({
   authProvider: z.literal("keycloak"),
   authConfig: z
     .object({
+      name: z.string().optional(),
       clientId: z.string(),
       clientSecret: z.string(),
       issuer: z.string(),
@@ -129,6 +159,19 @@ export const CustomProviderSchema = base.extend({
     .nullish(),
 });
 
+export const JumpCloudProviderSchema = base.extend({
+  authProvider: z.literal("jumpcloud"),
+  authConfig: z
+    .object({
+      clientId: z.string(),
+      clientSecret: z.string(),
+      issuer: z.url(),
+      scope: z.string().nullish(),
+      allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+    })
+    .nullish(),
+});
+
 export type GoogleProviderSchema = z.infer<typeof GoogleProviderSchema>;
 export type GithubProviderSchema = z.infer<typeof GithubProviderSchema>;
 export type GithubEnterpriseProviderSchema = z.infer<
@@ -137,10 +180,13 @@ export type GithubEnterpriseProviderSchema = z.infer<
 export type GitlabProviderSchema = z.infer<typeof GitlabProviderSchema>;
 export type Auth0ProviderSchema = z.infer<typeof Auth0ProviderSchema>;
 export type OktaProviderSchema = z.infer<typeof OktaProviderSchema>;
+export type AuthentikProviderSchema = z.infer<typeof AuthentikProviderSchema>;
+export type OneLoginProviderSchema = z.infer<typeof OneLoginProviderSchema>;
 export type AzureAdProviderSchema = z.infer<typeof AzureAdProviderSchema>;
 export type CognitoProviderSchema = z.infer<typeof CognitoProviderSchema>;
 export type KeycloakProviderSchema = z.infer<typeof KeycloakProviderSchema>;
 export type CustomProviderSchema = z.infer<typeof CustomProviderSchema>;
+export type JumpCloudProviderSchema = z.infer<typeof JumpCloudProviderSchema>;
 
 export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   GoogleProviderSchema,
@@ -149,9 +195,12 @@ export const SsoProviderSchema = z.discriminatedUnion("authProvider", [
   GitlabProviderSchema,
   Auth0ProviderSchema,
   OktaProviderSchema,
+  AuthentikProviderSchema,
+  OneLoginProviderSchema,
   AzureAdProviderSchema,
   CognitoProviderSchema,
   KeycloakProviderSchema,
+  JumpCloudProviderSchema,
   CustomProviderSchema,
 ]);
 

@@ -4,9 +4,12 @@ import {
   paginationMetaResponseZod,
   orderBy,
   publicApiPaginationZod,
+  singleFilter,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
+import { useEventsTableSchema } from "../../query";
 
 /**
  * Field groups for selective field fetching
@@ -92,6 +95,21 @@ export const GetTracesV1Query = z.object({
         .filter((f) => TRACE_FIELD_GROUPS.includes(f as TraceFieldGroup));
     })
     .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
+  useEventsTable: useEventsTableSchema,
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
 });
 export const GetTracesV1Response = z
   .object({
@@ -126,7 +144,10 @@ export const DeleteTraceV1Response = z
 // DELETE /api/public/traces
 export const DeleteTracesV1Body = z
   .object({
-    traceIds: z.array(z.string()).min(1, "At least 1 traceId is required."),
+    traceIds: z
+      .array(z.string())
+      .min(1, "At least 1 traceId is required.")
+      .max(1000, "Cannot specify more than 1000 traces in a single request."),
   })
   .strict();
 export const DeleteTracesV1Response = z

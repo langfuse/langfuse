@@ -22,8 +22,8 @@ export function encrypt(plainText: string): string {
   const iv = crypto.randomBytes(IV_LENGTH); // Directly use Buffer returned by randomBytes
   const cipher = crypto.createCipheriv(
     "aes-256-gcm",
-    Buffer.from(ENCRYPTION_KEY, "hex"),
-    iv,
+    new Uint8Array(Buffer.from(ENCRYPTION_KEY, "hex")),
+    new Uint8Array(iv),
   );
   let encrypted = cipher.update(plainText, "utf8", "hex");
   encrypted += cipher.final("hex");
@@ -48,12 +48,16 @@ export function decrypt(text: string): string {
 
   const decipher = crypto.createDecipheriv(
     "aes-256-gcm",
-    Buffer.from(ENCRYPTION_KEY, "hex"),
-    iv,
+    new Uint8Array(Buffer.from(ENCRYPTION_KEY, "hex")),
+    new Uint8Array(iv),
   );
-  decipher.setAuthTag(authTag);
+  decipher.setAuthTag(new Uint8Array(authTag));
 
-  let decrypted = decipher.update(encryptedText, undefined, "utf8");
+  let decrypted = decipher.update(
+    new Uint8Array(encryptedText),
+    undefined,
+    "utf8",
+  );
   decrypted += decipher.final("utf8");
 
   return decrypted.toString();

@@ -5,6 +5,10 @@ import {
   ActionCreateSchema,
   ActionType,
   JobConfigState,
+  singleFilter,
+  isSafeWebhookActionConfig,
+  isWebhookAction,
+  convertToSafeWebhookConfig,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -15,7 +19,7 @@ import {
   getConsecutiveAutomationFailures,
   logger,
 } from "@langfuse/shared/src/server";
-import { generateWebhookSecret } from "@langfuse/shared/encryption";
+import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -25,7 +29,7 @@ export const CreateAutomationInputSchema = z.object({
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
   eventAction: z.array(z.string()),
-  filter: z.array(z.any()).nullable(),
+  filter: z.array(singleFilter).nullable(),
   status: z.enum(JobConfigState).default(JobConfigState.ACTIVE),
   // Action fields
   actionType: z.enum(ActionType),
@@ -89,6 +93,13 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
+      if (!isSafeWebhookActionConfig(existingAction.config)) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Invalid webhook configuration for action ${input.actionId}`,
+        });
+      }
+
       // Generate new webhook secret
       const { secretKey: newSecretKey, displaySecretKey: newDisplaySecretKey } =
         generateWebhookSecret();
@@ -108,8 +119,8 @@ export const automationsRouter = createTRPCRouter({
 
       // Update action config with new secret
       const updatedConfig = {
-        ...(existingAction.config as any),
-        secretKey: newSecretKey,
+        ...existingAction.config,
+        secretKey: encrypt(newSecretKey),
         displaySecretKey: newDisplaySecretKey,
       };
 
@@ -242,12 +253,31 @@ export const automationsRouter = createTRPCRouter({
       const triggerId = v4();
       const actionId = v4();
 
-      // Process webhook action configuration using helper
-      const { finalActionConfig, newUnencryptedWebhookSecret } =
-        await processWebhookActionConfig({
+      // Build action config depending on action type
+      let finalActionConfig = input.actionConfig;
+      let newUnencryptedWebhookSecret: string | undefined = undefined;
+
+      if (input.actionType === "WEBHOOK") {
+        const webhookResult = await processWebhookActionConfig({
           actionConfig: input.actionConfig,
           projectId: input.projectId,
         });
+        finalActionConfig = webhookResult.finalActionConfig;
+        newUnencryptedWebhookSecret = webhookResult.newUnencryptedWebhookSecret;
+      } else if (input.actionType === "SLACK") {
+        // Validate that Slack integration exists for this project
+        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
+          where: { projectId: input.projectId },
+        });
+
+        if (!slackIntegration) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              "Slack integration not found. Please connect your Slack workspace first.",
+          });
+        }
+      }
 
       const [trigger, action, automation] = await ctx.prisma.$transaction(
         async (tx) => {
@@ -302,14 +332,18 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action,
+        action: {
+          ...action,
+          config: isWebhookAction(action)
+            ? convertToSafeWebhookConfig(action.config)
+            : action.config,
+        },
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
       };
     }),
 
-  // Update an existing automation
   updateAutomation: protectedProjectProcedure
     .input(UpdateAutomationInputSchema)
     .mutation(async ({ ctx, input }) => {
@@ -332,12 +366,29 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      // Process webhook action configuration using helper
-      const { finalActionConfig } = await processWebhookActionConfig({
-        actionConfig: input.actionConfig,
-        actionId: existingAutomation.action.id,
-        projectId: input.projectId,
-      });
+      let finalActionConfig = input.actionConfig;
+
+      if (input.actionType === "WEBHOOK") {
+        const webhookResult = await processWebhookActionConfig({
+          actionConfig: input.actionConfig,
+          actionId: existingAutomation.action.id,
+          projectId: input.projectId,
+        });
+        finalActionConfig = webhookResult.finalActionConfig;
+      } else if (input.actionType === "SLACK") {
+        // Validate that Slack integration exists for this project
+        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
+          where: { projectId: input.projectId },
+        });
+
+        if (!slackIntegration) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message:
+              "Slack integration not found. Please connect your Slack workspace first.",
+          });
+        }
+      }
 
       const [action, trigger, automation] = await ctx.prisma.$transaction(
         async (tx) => {
@@ -378,7 +429,6 @@ export const automationsRouter = createTRPCRouter({
             },
           });
 
-          // Get the updated automation
           const automation = await tx.automation.findFirst({
             where: {
               id: input.automationId,
@@ -407,7 +457,16 @@ export const automationsRouter = createTRPCRouter({
         },
       });
 
-      return { action, trigger, automation };
+      return {
+        action: {
+          ...action,
+          config: isWebhookAction(action)
+            ? convertToSafeWebhookConfig(action.config)
+            : action.config,
+        },
+        trigger,
+        automation,
+      };
     }),
 
   // Delete an automation (both trigger and action)
@@ -475,5 +534,23 @@ export const automationsRouter = createTRPCRouter({
           before: existingAutomation,
         });
       });
+    }),
+
+  count: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const count = await ctx.prisma.action.count({
+        where: {
+          projectId: input.projectId,
+        },
+      });
+
+      return count;
     }),
 });

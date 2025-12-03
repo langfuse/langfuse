@@ -6,7 +6,7 @@ import {
   createObservationsCh,
 } from "@langfuse/shared/src/server";
 import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/dashboard/server/dashboard-router";
+import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
 describe("selfServeDashboards", () => {
   // Single project ID for all tests
@@ -497,7 +497,7 @@ describe("selfServeDashboards", () => {
       const modelRow = queryBuilderResult[0];
       expect(modelRow.providedModelName).toBe("gpt-4-turbo");
       expect(modelRow.sum_totalCost).toBe(900);
-      expect(modelRow.sum_totalTokens).toBe("20736");
+      expect(Number(modelRow.sum_totalTokens)).toBe(20736);
     });
 
     it("should filter observations by environment", async () => {

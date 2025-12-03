@@ -1,194 +1,138 @@
 import { api } from "@/src/utils/api";
-import { type AnnotateFormSchemaType, type ScoreTarget } from "../types";
-import { type ValidatedScoreConfig, type APIScoreV2 } from "@langfuse/shared";
 import {
-  type UseFieldArrayUpdate,
-  type UseFieldArrayRemove,
-  type FieldArrayWithId,
-  type useFieldArray,
-} from "react-hook-form";
-import { isTraceScore } from "@/src/features/scores/lib/helpers";
+  isSessionScore,
+  isTraceScore,
+} from "@/src/features/scores/lib/helpers";
+import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { type ScoreTarget } from "@langfuse/shared";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
-const onTraceScoreSettledUpsert =
-  ({
-    utils,
-    fields,
-    update,
-    isDrawerOpen,
-    setShowSaving,
-  }: {
-    utils: ReturnType<typeof api.useUtils>;
-    fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
-    update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
-    isDrawerOpen: boolean;
-    setShowSaving: (showSaving: boolean) => void;
-  }) =>
-  async (data?: APIScoreV2, error?: unknown) => {
-    if (!data || error) return;
-
-    const { id, value, stringValue, name, dataType, configId, comment } = data;
-    const updatedScoreIndex = fields.findIndex(
-      (field) => field.configId === configId,
-    );
-
-    update(updatedScoreIndex, {
-      value,
-      name,
-      dataType,
-      scoreId: id,
-      stringValue: stringValue ?? undefined,
-      configId: configId ?? undefined,
-      comment: comment ?? undefined,
-    });
-
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.traces.byIdWithObservationsAndScores.invalidate(),
-      utils.sessions.invalidate(),
-    ]);
-
-    if (!isDrawerOpen) setShowSaving(false);
+export function useScoreMutations({
+  scoreTarget,
+  scoreMetadata,
+}: {
+  scoreTarget: ScoreTarget;
+  scoreMetadata: {
+    projectId: string;
+    queueId?: string;
+    environment?: string;
   };
+}) {
+  const {
+    set: cacheSet,
+    get: cacheGet,
+    delete: cacheDelete,
+    rollbackSet: cacheRollbackSet,
+    rollbackDelete: cacheRollbackDelete,
+    setColumn: cacheSetColumn,
+  } = useScoreCache();
 
-const onScoreSettledDelete =
-  ({
-    utils,
-    fields,
-    update,
-    configs,
-    remove,
-    isDrawerOpen,
-    setShowSaving,
-  }: {
-    utils: ReturnType<typeof api.useUtils>;
-    fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
-    update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
-    configs: ValidatedScoreConfig[];
-    remove: ReturnType<typeof useFieldArray>["remove"];
-    isDrawerOpen: boolean;
-    setShowSaving: (showSaving: boolean) => void;
-  }) =>
-  async (data?: APIScoreV2, error?: unknown) => {
-    if (!data || error) return;
-
-    const { id, name, dataType, configId } = data;
-    const updatedScoreIndex = fields.findIndex((field) => field.scoreId === id);
-
-    const config = configs.find((config) => config.id === configId);
-    if (config && config.isArchived) {
-      remove(updatedScoreIndex);
-    } else {
-      update(updatedScoreIndex, {
-        name,
-        dataType,
-        configId: configId ?? undefined,
-        value: null,
-        scoreId: undefined,
-        stringValue: undefined,
-        comment: undefined,
-      });
-    }
-
-    await Promise.all(
-      [
-        utils.scores.invalidate(),
-        utils.traces.byIdWithObservationsAndScores.invalidate(),
-        utils.sessions.invalidate(),
-      ].filter(Boolean),
-    );
-
-    if (!isDrawerOpen) setShowSaving(false);
-  };
-
-const onSessionScoreSettledUpsert =
-  ({
-    utils,
-    fields,
-    update,
-    isDrawerOpen,
-    setShowSaving,
-  }: {
-    utils: ReturnType<typeof api.useUtils>;
-    fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[];
-    update: UseFieldArrayUpdate<AnnotateFormSchemaType>;
-    isDrawerOpen: boolean;
-    setShowSaving: (showSaving: boolean) => void;
-  }) =>
-  async (data?: APIScoreV2, error?: unknown) => {
-    if (!data || error) return;
-
-    const { id, value, stringValue, name, dataType, configId, comment } = data;
-    const updatedScoreIndex = fields.findIndex(
-      (field) => field.configId === configId,
-    );
-
-    update(updatedScoreIndex, {
-      value,
-      name,
-      dataType,
-      scoreId: id,
-      stringValue: stringValue ?? undefined,
-      configId: configId ?? undefined,
-      comment: comment ?? undefined,
-    });
-
-    await Promise.all([
-      utils.scores.invalidate(),
-      utils.sessions.byIdWithScores.invalidate(),
-    ]);
-
-    if (!isDrawerOpen) setShowSaving(false);
-  };
-
-export function useScoreMutations(
-  scoreTarget: ScoreTarget,
-  projectId: string,
-  fields: FieldArrayWithId<AnnotateFormSchemaType, "scoreData", "id">[],
-  update: UseFieldArrayUpdate<AnnotateFormSchemaType>,
-  remove: UseFieldArrayRemove,
-  configs: ValidatedScoreConfig[],
-  isDrawerOpen: boolean,
-  setShowSaving: (showSaving: boolean) => void,
-) {
-  const utils = api.useUtils();
-
-  const onSettledUpsert = isTraceScore(scoreTarget)
-    ? onTraceScoreSettledUpsert({
-        utils,
-        fields,
-        update,
-        isDrawerOpen,
-        setShowSaving,
-      })
-    : onSessionScoreSettledUpsert({
-        utils,
-        fields,
-        update,
-        isDrawerOpen,
-        setShowSaving,
-      });
-
-  const onSettledDelete = onScoreSettledDelete({
-    utils,
-    fields,
-    update,
-    remove,
-    configs,
-    isDrawerOpen,
-    setShowSaving,
-  });
-
-  // Create mutations with shared invalidation logic
+  // Create mutations with cache writes
   const createMutation = api.scores.createAnnotationScore.useMutation({
-    onSettled: onSettledUpsert,
+    onMutate: (variables) => {
+      if (!variables.id) return;
+
+      // Write to columns cache
+      cacheSetColumn({
+        name: variables.name,
+        dataType: variables.dataType,
+        source: "ANNOTATION",
+      });
+
+      // Write to cache for optimistic update
+      cacheSet(variables.id, {
+        id: variables.id,
+        projectId: scoreMetadata.projectId,
+        environment: scoreMetadata.environment ?? "default",
+        traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
+        observationId: isTraceScore(scoreTarget)
+          ? (scoreTarget.observationId ?? null)
+          : null,
+        sessionId: isSessionScore(scoreTarget) ? scoreTarget.sessionId : null,
+        configId: variables.configId,
+        name: variables.name,
+        dataType: variables.dataType,
+        source: "ANNOTATION",
+        value: variables.value ?? null,
+        stringValue: variables.stringValue ?? null,
+        comment: variables.comment ?? null,
+        timestamp: (variables.timestamp as Date | undefined) ?? new Date(),
+      });
+
+      return { scoreId: variables.id! };
+    },
+    onError: (err, variables) => {
+      if (!variables.id) return;
+      // Rollback failed create from cache
+      cacheRollbackSet(variables.id);
+      showErrorToast("Failed to create score", err.message, "WARNING");
+    },
   });
 
   const updateMutation = api.scores.updateAnnotationScore.useMutation({
-    onSettled: onSettledUpsert,
+    onMutate: (variables) => {
+      const previousCacheValue = cacheGet(variables.id);
+
+      if (!previousCacheValue) {
+        // Write to cache for optimistic update
+        cacheSet(variables.id, {
+          id: variables.id,
+          projectId: scoreMetadata.projectId,
+          environment: scoreMetadata.environment ?? "default",
+          traceId: isTraceScore(scoreTarget) ? scoreTarget.traceId : null,
+          observationId: isTraceScore(scoreTarget)
+            ? (scoreTarget.observationId ?? null)
+            : null,
+          sessionId: isSessionScore(scoreTarget) ? scoreTarget.sessionId : null,
+          configId: variables.configId,
+          name: variables.name,
+          dataType: variables.dataType,
+          source: "ANNOTATION",
+          value: variables.value ?? null,
+          stringValue: variables.stringValue ?? null,
+          comment: variables.comment ?? null,
+          timestamp: (variables.timestamp as Date | undefined) ?? new Date(),
+        });
+      } else {
+        // Merge update into existing cache entry
+        cacheSet(variables.id, {
+          ...previousCacheValue,
+          value: variables.value ?? previousCacheValue.value,
+          stringValue: variables.stringValue ?? previousCacheValue.stringValue,
+          comment: variables.comment ?? null,
+        });
+      }
+
+      return { previousCacheValue };
+    },
+    onError: (err, variables, context) => {
+      // Rollback cache
+      if (context?.previousCacheValue) {
+        // Had cache entry → restore previous value
+        cacheSet(variables.id, context.previousCacheValue);
+      } else {
+        // No cache entry → was DB-persisted → rollback optimistic update
+        cacheRollbackSet(variables.id);
+      }
+      showErrorToast("Failed to update score", err.message, "WARNING");
+    },
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
-    onSettled: onSettledDelete,
+    onMutate: (variables) => {
+      // Snapshot score before delete (may be undefined)
+      const previousCacheValue = cacheGet(variables.id);
+
+      // Mark score as deleted
+      cacheDelete(variables.id);
+
+      return { previousCacheValue };
+    },
+    onError: (err, variables, context) => {
+      // Rollback
+      cacheRollbackDelete(variables.id, context?.previousCacheValue);
+      showErrorToast("Failed to delete score", err.message, "WARNING");
+    },
   });
 
   return {

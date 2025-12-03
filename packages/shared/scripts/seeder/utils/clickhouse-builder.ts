@@ -2,6 +2,8 @@ import {
   TraceRecordInsertType,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
+  DatasetRunItemRecordInsertType,
+  createDatasetRunItemsCh,
 } from "../../../src/server";
 import { SEED_TEXT_PROMPTS } from "./postgres-seed-constants";
 import {
@@ -40,6 +42,16 @@ export class ClickHouseQueryBuilder {
     observations: ObservationRecordInsertType[],
   ): Promise<InsertResult> {
     return await createObservationsCh(observations);
+  }
+
+  /**
+   * Creates INSERT query for dataset run items data using VALUES syntax.
+   * Use for: Small datasets, dataset run items that link to postgres data (e.g. dataset runs)
+   */
+  async executeDatasetRunItemsInsert(
+    datasetRunItems: DatasetRunItemRecordInsertType[],
+  ): Promise<InsertResult> {
+    return await createDatasetRunItemsCh(datasetRunItems);
   }
 
   /**
@@ -181,7 +193,9 @@ export class ClickHouseQueryBuilder {
         start_time AS created_at,
         start_time AS updated_at,
         start_time AS event_ts,
-        0 AS is_deleted
+        0 AS is_deleted,
+        '' AS usage_pricing_tier_id,
+        '' AS usage_pricing_tier_name
       FROM numbers(${totalObservations});
     `;
   }
@@ -235,7 +249,8 @@ export class ClickHouseQueryBuilder {
         timestamp AS created_at,
         timestamp AS updated_at,
         timestamp AS event_ts,
-        0 AS is_deleted
+        0 AS is_deleted,
+        NULL AS execution_trace_id
       FROM numbers(${totalScores});
     `;
   }

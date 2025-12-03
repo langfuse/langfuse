@@ -8,6 +8,7 @@ import * as z from "zod/v4";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { StringNoHTML } from "@langfuse/shared";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -46,7 +47,7 @@ export const projectApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        note: z.string().optional(),
+        note: StringNoHTML.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -77,7 +78,7 @@ export const projectApiKeysRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         keyId: z.string(),
-        note: z.string(),
+        note: StringNoHTML,
       }),
     )
     .mutation(async ({ input, ctx }) => {

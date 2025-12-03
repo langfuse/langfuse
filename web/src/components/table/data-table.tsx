@@ -1,6 +1,11 @@
 "use client";
 import { type OrderByState } from "@langfuse/shared";
-import React, { useState, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
 import {
@@ -22,6 +27,8 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
+  type ColumnPinningState,
+  type Column,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -33,11 +40,13 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import { TablePeekView } from "@/src/components/table/peek";
-import { type PeekViewProps } from "@/src/components/table/peek/hooks/usePeekView";
-import { usePeekView } from "@/src/components/table/peek/hooks/usePeekView";
+import {
+  type DataTablePeekViewProps,
+  TablePeekView,
+} from "@/src/components/table/peek";
 import { isEqual } from "lodash";
 import { useRouter } from "next/router";
+import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -47,6 +56,8 @@ interface DataTableProps<TData, TValue> {
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
+    hideTotalCount?: boolean;
+    canJumpPages?: boolean;
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
@@ -61,10 +72,11 @@ interface DataTableProps<TData, TValue> {
   customRowHeights?: CustomHeights;
   className?: string;
   shouldRenderGroupHeaders?: boolean;
-  onRowClick?: (row: TData) => void;
-  peekView?: PeekViewProps<TData>;
-  pinFirstColumn?: boolean;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  peekView?: DataTablePeekViewProps;
   hidePagination?: boolean;
+  tableName: string;
+  getRowClassName?: (row: TData) => string;
 }
 
 export interface AsyncTableData<T> {
@@ -99,6 +111,36 @@ function isValidCssVariableName({
   return regex.test(name);
 }
 
+// These are the important styles to make sticky column pinning work!
+const getCommonPinningStyles = <TData,>(
+  column: Column<TData>,
+): CSSProperties => {
+  const isPinned = column.getIsPinned();
+
+  return {
+    left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
+    right: isPinned === "right" ? `${column.getAfter("right")}px` : undefined,
+    position: isPinned ? "sticky" : "relative",
+    width: column.getSize(),
+    zIndex: isPinned ? 10 : 0,
+    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
+  };
+};
+
+// Get additional CSS classes for pinned columns
+const getPinningClasses = <TData,>(column: Column<TData>): string => {
+  const isPinned = column.getIsPinned();
+  const isLastLeftPinnedColumn =
+    isPinned === "left" && column.getIsLastColumn("left");
+  const isFirstRightPinnedColumn =
+    isPinned === "right" && column.getIsFirstColumn("right");
+
+  return cn(
+    isLastLeftPinnedColumn && "border-r border-border",
+    isFirstRightPinnedColumn && "border-l border-border",
+  );
+};
+
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
@@ -118,8 +160,9 @@ export function DataTable<TData extends object, TValue>({
   shouldRenderGroupHeaders = false,
   onRowClick,
   peekView,
-  pinFirstColumn = false,
   hidePagination = false,
+  tableName,
+  getRowClassName,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -135,6 +178,19 @@ export function DataTable<TData extends object, TValue>({
     });
     return flatColumnsByGroup;
   }, [columns]);
+
+  const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
+
+  // Infer column pinning state from column properties
+  const columnPinning = useMemo<ColumnPinningState>(
+    () => ({
+      left: columns
+        .filter((col) => col.isPinnedLeft)
+        .map((col) => col.id || col.accessorKey),
+      right: [],
+    }),
+    [columns],
+  );
 
   const table = useReactTable({
     data: data.data ?? [],
@@ -169,7 +225,10 @@ export function DataTable<TData extends object, TValue>({
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
       rowSelection,
+      columnSizing,
+      columnPinning,
     },
+    onColumnSizingChange: setColumnSizing,
     manualFiltering: true,
     defaultColumn: {
       minSize: 20,
@@ -177,32 +236,25 @@ export function DataTable<TData extends object, TValue>({
       maxSize: Number.MAX_SAFE_INTEGER,
     },
     columnResizeMode: "onChange",
-  });
-
-  const getRowMemoized = useCallback(
-    (id: string) => table.getRow(id)?.original,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
-  const {
-    row: peekRow,
-    handleOnRowClickPeek,
-    peekViewId,
-  } = usePeekView({
-    getRow: getRowMemoized,
-    peekView,
+    autoResetPageIndex: false,
   });
 
   const handleOnRowClick = useCallback(
-    (row: TData) => {
-      handleOnRowClickPeek?.(row);
-      onRowClick?.(row);
+    (row: TData, event?: React.MouseEvent) => {
+      // Call the table-specific onRowClick first (for modifier key handling)
+      onRowClick?.(row, event);
+
+      // If the table handler didn't prevent default, handle peek view
+      if (peekView && !event?.defaultPrevented) {
+        const rowId =
+          "id" in row && typeof row.id === "string" ? row.id : undefined;
+        peekView.openPeek?.(rowId, row);
+      }
     },
-    [handleOnRowClickPeek, onRowClick],
+    [onRowClick, peekView],
   );
 
-  const hasRowClickAction = !!onRowClick || !!peekView;
+  const hasRowClickAction = !!onRowClick || !!peekView?.openPeek;
 
   // memo column sizes for performance
   // https://tanstack.com/table/v8/docs/guide/column-sizing#advanced-column-resizing-performance
@@ -239,11 +291,11 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          className={cn("relative w-full overflow-auto border-t")}
+          className={cn("relative min-h-full w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
           <Table>
-            <TableHeader className="sticky top-0 z-10">
+            <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
@@ -265,11 +317,12 @@ export function DataTable<TData extends object, TValue>({
                         className={cn(
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
-                          pinFirstColumn &&
-                            header.index === 0 &&
-                            "sticky left-0 z-20 border-r bg-background",
+                          getPinningClasses(header.column),
                         )}
-                        style={{ width }}
+                        style={{
+                          width,
+                          ...getCommonPinningStyles(header.column),
+                        }}
                         onClick={(event) => {
                           event.preventDefault();
 
@@ -353,11 +406,12 @@ export function DataTable<TData extends object, TValue>({
               <MemoizedTableBody
                 table={table}
                 rowheighttw={rowheighttw}
+                rowHeight={rowHeight}
                 columns={columns}
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
+                getRowClassName={getRowClassName}
                 tableSnapshot={{
                   tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
                   columnVisibility,
@@ -369,24 +423,18 @@ export function DataTable<TData extends object, TValue>({
               <TableBodyComponent
                 table={table}
                 rowheighttw={rowheighttw}
+                rowHeight={rowHeight}
                 columns={columns}
                 data={data}
                 help={help}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                pinFirstColumn={pinFirstColumn}
+                getRowClassName={getRowClassName}
               />
             )}
           </Table>
         </div>
-        <div className="grow"></div>
       </div>
-      {peekView && (
-        <TablePeekView
-          peekView={peekView}
-          row={peekRow}
-          selectedRowId={peekViewId}
-        />
-      )}
+      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(
@@ -397,6 +445,8 @@ export function DataTable<TData extends object, TValue>({
             table={table}
             isLoading={data.isLoading}
             paginationOptions={pagination.options}
+            hideTotalCount={pagination.hideTotalCount}
+            canJumpPages={pagination.canJumpPages}
           />
         </div>
       ) : null}
@@ -418,11 +468,12 @@ function renderOrderingIndicator(orderBy?: OrderByState) {
 interface TableBodyComponentProps<TData> {
   table: ReturnType<typeof useReactTable<TData>>;
   rowheighttw?: string;
+  rowHeight?: RowHeight;
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
-  onRowClick?: (row: TData) => void;
-  pinFirstColumn?: boolean;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
     tableDataUpdatedAt?: number;
     columnVisibility?: VisibilityState;
@@ -434,18 +485,21 @@ interface TableBodyComponentProps<TData> {
 function TableRowComponent<TData>({
   row,
   onRowClick,
+  getRowClassName,
   children,
 }: {
   row: Row<TData>;
-  onRowClick?: (row: TData) => void;
+  onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  getRowClassName?: (row: TData) => string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
+
   return (
     <TableRow
       data-row-index={row.index}
-      onClick={() => onRowClick?.(row.original)}
+      onClick={(e) => onRowClick?.(row.original, e)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           onRowClick?.(row.original);
@@ -455,6 +509,7 @@ function TableRowComponent<TData>({
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
         selectedRowId && selectedRowId === row.id ? "bg-accent" : undefined,
+        getRowClassName?.(row.original),
       )}
     >
       {children}
@@ -465,11 +520,12 @@ function TableRowComponent<TData>({
 function TableBodyComponent<TData>({
   table,
   rowheighttw,
+  rowHeight,
   columns,
   data,
   help,
   onRowClick,
-  pinFirstColumn = false,
+  getRowClassName,
 }: TableBodyComponentProps<TData>) {
   return (
     <TableBody>
@@ -484,26 +540,59 @@ function TableBodyComponent<TData>({
         </TableRow>
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
-          <TableRowComponent key={row.id} row={row} onRowClick={onRowClick}>
-            {row.getVisibleCells().map((cell) => (
-              <TableCell
-                key={cell.id}
-                className={cn(
-                  "overflow-hidden border-b p-1 text-xs first:pl-2",
-                  rowheighttw === "s" && "whitespace-nowrap",
-                  pinFirstColumn &&
-                    cell.column.getIndex() === 0 &&
-                    "sticky left-0 border-r bg-background",
-                )}
-                style={{
-                  width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                }}
-              >
-                <div className={cn("flex items-center", rowheighttw)}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </div>
-              </TableCell>
-            ))}
+          <TableRowComponent
+            key={row.id}
+            row={row}
+            onRowClick={onRowClick}
+            getRowClassName={getRowClassName}
+          >
+            {row.getVisibleCells().map((cell) => {
+              const cellValue = cell.getValue();
+              const isStringCell = typeof cellValue === "string";
+              const isSmallRowHeight = (rowHeight ?? "s") === "s";
+
+              return (
+                <TableCell
+                  key={cell.id}
+                  className={cn(
+                    "overflow-hidden border-b p-1 text-xs first:pl-2",
+                    isSmallRowHeight && "whitespace-nowrap",
+                    getPinningClasses(cell.column),
+                  )}
+                  style={{
+                    width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                    ...getCommonPinningStyles(cell.column),
+                  }}
+                >
+                  <div
+                    className={cn(
+                      "flex",
+                      "items-start",
+                      isSmallRowHeight && "items-center",
+                      rowheighttw,
+                    )}
+                  >
+                    {isStringCell && isSmallRowHeight ? (
+                      <div className="min-w-0 truncate">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    ) : isStringCell && !isSmallRowHeight ? (
+                      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    ) : (
+                      flexRender(cell.column.columnDef.cell, cell.getContext())
+                    )}
+                  </div>
+                </TableCell>
+              );
+            })}
           </TableRowComponent>
         ))
       ) : (
@@ -552,6 +641,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.table.options.data !== next.table.options.data) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
+  if (prev.rowHeight !== next.rowHeight) return false;
 
   // Then do more expensive deep equality checks
   if (

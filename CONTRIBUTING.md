@@ -35,6 +35,10 @@ A good first step is to search for open [issues](https://github.com/langfuse/lan
 
 ## Project Overview
 
+We recommend checking out DeepWiki to familiarize yourself with the project:
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/langfuse/langfuse)
+
 ### Technologies we use
 
 - Application (this repository)
@@ -108,15 +112,19 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 
 Requirements
 
-- Node.js 20 as specified in the [.nvmrc](.nvmrc)
+- Node.js 24 as specified in the [.nvmrc](.nvmrc)
 - Pnpm v.9.5.0
 - Docker to run the database locally
+- Clickhouse client
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
 **Steps**
 
-1. Install [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+1. Install development dependencies:
+	- [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+	- [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
+
 2. Fork the repository and clone it locally
 
    ```bash
@@ -124,28 +132,33 @@ Requirements
    cd langfuse
    ```
 
-3. Create an env file
+3. Install dependencies and set up pre-commit hooks
+
+   ```bash
+   pnpm install
+   pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
+   ```
+
+4. Create an env file
 
    ```bash
     cp .env.dev.example .env
    ```
 
-4. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it.
+5. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
 
    ```bash
-   pnpm run dx # first run only (resets db, node_modules, ...)
+   pnpm run dx # first run only (resets db, docker containers, etc...)
    pnpm run dev # any subsequent runs
    ```
 
    You will be asked whether you want to reset Postgres and ClickHouse. Confirm both with 'Y' and press enter.
 
-5. Open the web app in your browser to start using Langfuse:
-
+6. Open the web app in your browser to start using Langfuse:
    - [Sign up page, http://localhost:3000](http://localhost:3000)
    - [Demo project, http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
 
-6. Log in as a test user:
-
+7. Log in as a test user:
    - Username: `demo@langfuse.com`
    - Password: `password`
 
@@ -234,7 +247,7 @@ We're using Jest with in the `web` package. Therefore, if you want to provide an
 There are three types of unit tests:
 
 - `test-sync`
-- `test-async`
+- `test` (for async folder tests)
 - `test-client`
 
 To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
@@ -242,6 +255,8 @@ To run a specific test, for example the test: `"should handle special characters
 ```sh
 cd web  # or with --filter=web
 pnpm test-sync --testPathPattern="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
+# for async folder tests:
+pnpm test -- --testPathPattern="observations-api" --testNamePattern="should fetch all observations"
 ```
 
 To run all tests:
@@ -409,3 +424,4 @@ npx fern-api generate --api organizations  # for the organizations API
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
+

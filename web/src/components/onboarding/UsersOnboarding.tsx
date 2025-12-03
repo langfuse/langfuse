@@ -43,7 +43,7 @@ export function UsersOnboarding() {
           To start tracking users, you need to add a `userId` to your traces.
           See{" "}
           <Link
-            href="https://langfuse.com/docs/tracing-features/users"
+            href="https://langfuse.com/docs/observability/features/users"
             className="underline"
           >
             documentation

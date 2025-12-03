@@ -2,6 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -35,6 +36,7 @@ import {
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import TableIdOrName from "@/src/components/table/table-id";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -101,8 +103,8 @@ const QueueItemTableMultiSelectAction = ({
             <Button
               type="button"
               variant="destructive"
-              loading={mutDeleteItems.isLoading}
-              disabled={mutDeleteItems.isLoading}
+              loading={mutDeleteItems.isPending}
+              disabled={mutDeleteItems.isPending}
               onClick={() => {
                 void mutDeleteItems
                   .mutateAsync({
@@ -125,10 +127,7 @@ const QueueItemTableMultiSelectAction = ({
 
 export type QueueItemRowData = {
   id: string;
-  source: {
-    traceId: string;
-    observationId?: string;
-  };
+  sourceId: string;
   status: AnnotationQueueStatus;
   completedAt: string;
   annotatorUser: {
@@ -136,7 +135,27 @@ export type QueueItemRowData = {
     userName?: string;
     image?: string;
   };
-};
+} & (
+  | {
+      objectType: "OBSERVATION";
+      source: {
+        traceId: string;
+        observationId: string;
+      };
+    }
+  | {
+      objectType: "TRACE";
+      source: {
+        traceId: string;
+      };
+    }
+  | {
+      objectType: "SESSION";
+      source: {
+        sessionId: string;
+      };
+    }
+);
 
 export function AnnotationQueueItemsTable({
   projectId,
@@ -164,7 +183,8 @@ export function AnnotationQueueItemsTable({
       id: "select",
       accessorKey: "select",
       size: 30,
-      isPinned: true,
+      isPinnedLeft: true,
+      isFixedPosition: true,
       header: ({ table }) => {
         return (
           <div className="flex h-full items-center">
@@ -204,7 +224,7 @@ export function AnnotationQueueItemsTable({
       header: "Id",
       id: "id",
       size: 70,
-      isPinned: true,
+      isFixedPosition: true,
       cell: ({ row }) => {
         const id: QueueItemRowData["id"] = row.getValue("id");
         return (
@@ -216,36 +236,70 @@ export function AnnotationQueueItemsTable({
       },
     },
     {
+      accessorKey: "objectType",
+      header: "Type",
+      id: "objectType",
+      size: 50,
+      cell: ({ row }) => {
+        const objectType: QueueItemRowData["objectType"] =
+          row.getValue("objectType");
+        return <span className="capitalize">{objectType.toLowerCase()}</span>;
+      },
+    },
+    {
       accessorKey: "source",
       header: "Source",
       headerTooltip: {
         description:
-          "Link to the source trace based on which this item was added",
+          "Link to the source trace, observation or session based on which this item was added",
       },
       id: "source",
       size: 50,
       cell: ({ row }) => {
-        const source: QueueItemRowData["source"] = row.getValue("source");
-        if (!source) return null;
+        const rowData = row.original;
+        if (!rowData.source) return null;
 
-        if (!!source.observationId) {
-          return (
-            <TableLink
-              path={`/project/${projectId}/traces/${source.traceId}?observation=${source.observationId}`}
-              value={source.observationId}
-              icon={<ListTree className="h-4 w-4" />}
-            />
-          );
-        } else {
-          return (
-            <TableLink
-              path={`/project/${projectId}/traces/${source.traceId}`}
-              value={source.traceId}
-              icon={<ListTree className="h-4 w-4" />}
-            />
-          );
+        switch (rowData.objectType) {
+          case "OBSERVATION":
+            return (
+              <TableLink
+                path={`/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`}
+                value={`Observation: ${rowData.source.observationId}`}
+                icon={<ListTree className="h-4 w-4" />}
+              />
+            );
+          case "TRACE":
+            return (
+              <TableLink
+                path={`/project/${projectId}/traces/${rowData.source.traceId}`}
+                value={`Trace: ${rowData.source.traceId}`}
+                icon={<ListTree className="h-4 w-4" />}
+              />
+            );
+          case "SESSION":
+            return (
+              <TableLink
+                path={`/project/${projectId}/sessions/${rowData.source.sessionId}`}
+                value={`Session: ${rowData.source.sessionId}`}
+                icon={<ListTree className="h-4 w-4" />}
+              />
+            );
+          default:
+            throw new Error(`Unknown object type`);
         }
       },
+    },
+    {
+      accessorKey: "sourceId",
+      header: "Source ID",
+      id: "sourceId",
+      size: 50,
+      cell: ({ row }) => {
+        const sourceId: QueueItemRowData["sourceId"] = row.getValue("sourceId");
+        return <TableIdOrName value={sourceId} />;
+      },
+      enableHiding: true,
+      defaultHidden: true,
     },
     {
       accessorKey: "status",
@@ -310,25 +364,47 @@ export function AnnotationQueueItemsTable({
   const convertToTableRow = (
     item: RouterOutput["annotationQueueItems"]["itemsByQueueId"]["queueItems"][number],
   ): QueueItemRowData => {
-    return {
+    const baseData = {
       id: item.id,
       completedAt: item.completedAt?.toLocaleString() ?? "",
       status: item.status,
-      source:
-        item.objectType === "OBSERVATION"
-          ? {
-              traceId: item.parentTraceId ?? "",
-              observationId: item.objectId,
-            }
-          : {
-              traceId: item.objectId,
-            },
       annotatorUser: {
         userId: item.annotatorUserId ?? undefined,
         userName: item.annotatorUserName ?? undefined,
         image: item.annotatorUserImage ?? undefined,
       },
+      sourceId: item.objectId,
     };
+
+    switch (item.objectType) {
+      case "OBSERVATION":
+        return {
+          ...baseData,
+          objectType: "OBSERVATION" as const,
+          source: {
+            traceId: item.parentTraceId ?? "",
+            observationId: item.objectId,
+          },
+        };
+      case "TRACE":
+        return {
+          ...baseData,
+          objectType: "TRACE" as const,
+          source: {
+            traceId: item.objectId,
+          },
+        };
+      case "SESSION":
+        return {
+          ...baseData,
+          objectType: "SESSION" as const,
+          source: {
+            sessionId: item.objectId,
+          },
+        };
+      default:
+        throw new Error(`Unknown object type: ${item.objectType}`);
+    }
   };
 
   const [columnVisibility, setColumnVisibility] =
@@ -370,6 +446,7 @@ export function AnnotationQueueItemsTable({
         ]}
       />
       <DataTable
+        tableName={"annotationQueueItems"}
         columns={columns}
         data={
           items.isLoading
@@ -383,7 +460,7 @@ export function AnnotationQueueItemsTable({
               : {
                   isLoading: false,
                   isError: false,
-                  data: items.data.queueItems.map((item) =>
+                  data: safeExtract(items.data, "queueItems", []).map((item) =>
                     convertToTableRow(item),
                   ),
                 }
@@ -391,7 +468,7 @@ export function AnnotationQueueItemsTable({
         help={{
           description:
             "Add traces and/or observations to your annotation queue to have them annotated by your team across predefined dimensions.",
-          href: "https://langfuse.com/docs/scores/model-based-evals",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
         }}
         pagination={{
           totalCount: items.data?.totalItems ?? null,

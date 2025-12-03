@@ -3,8 +3,8 @@ import { jsonSchema } from "../utils/zod";
 import { EventActionSchema } from "./automations";
 
 export const WebhookDefaultHeaders = {
-  "Content-Type": "application/json",
-  "User-Agent": "Langfuse/1.0",
+  "content-type": "application/json",
+  "user-agent": "Langfuse/1.0",
 };
 
 export const WebhookOutboundBaseSchema = z.object({

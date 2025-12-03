@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { DatasetRunItemsTable } from "@/src/features/datasets/components/DatasetRunItemsTable";
+import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
@@ -82,6 +82,7 @@ export default function Dataset() {
                   <DeleteDatasetRunButton
                     projectId={projectId}
                     datasetRunId={runId}
+                    datasetId={datasetId}
                     redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
                   />
                 </DropdownMenuItem>
@@ -93,18 +94,21 @@ export default function Dataset() {
     >
       <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
-          <DatasetRunItemsTable
+          <DatasetRunItemsByRunTable
             projectId={projectId}
             datasetId={datasetId}
             datasetRunId={runId}
           />
         </div>
-        <SidePanel mobileTitle="Run details" id="run-details">
+        <SidePanel
+          mobileTitle="Experiment run details"
+          id="experiment-run-details"
+        >
           <SidePanelHeader>
-            <SidePanelTitle>Run details</SidePanelTitle>
+            <SidePanelTitle>Experiment run details</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent>
-            {run.isLoading ? (
+            {run.isPending ? (
               <Skeleton className="h-full w-full" />
             ) : (
               <>

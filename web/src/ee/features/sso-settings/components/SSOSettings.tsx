@@ -2,9 +2,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/ui/button";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
 export const SSOSettings = () => {
   const hasEntitlement = useHasEntitlement("cloud-multi-tenant-sso");
+  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
 
   const commonContent = (
     <>
@@ -40,15 +43,17 @@ export const SSOSettings = () => {
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Contact Langfuse Support</AlertTitle>
-        <AlertDescription>
-          To set up or change your SSO configuration, please reach out to{" "}
-          <a
-            href="mailto:support@langfuse.com"
-            className="font-medium underline underline-offset-4"
+        <AlertDescription className="flex flex-col gap-3">
+          <p>
+            To set up or change your SSO configuration, please reach out to our
+            support engineering team.
+          </p>
+          <Button
+            onClick={() => setSupportDrawerOpen(true)}
+            className="self-start"
           >
-            support@langfuse.com
-          </a>
-          .
+            Contact Support
+          </Button>
         </AlertDescription>
       </Alert>
     </div>

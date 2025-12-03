@@ -92,19 +92,17 @@ describe("trace deletion", () => {
 
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await Promise.all([
       mediaStorageService.uploadFile({
         fileName: `${projectId}/trace-${traceId}.txt`,
         fileType,
         data,
-        expiresInSeconds,
       }),
       mediaStorageService.uploadFile({
         fileName: `${projectId}/observation-${observationId}.txt`,
         fileType,
         data,
-        expiresInSeconds,
       }),
     ]);
 
@@ -186,12 +184,11 @@ describe("trace deletion", () => {
 
     const fileType = "text/plain";
     const data = "Hello, world!";
-    const expiresInSeconds = 3600;
+
     await mediaStorageService.uploadFile({
       fileName: `${projectId}/trace-${traceId1}.txt`,
       fileType,
       data,
-      expiresInSeconds,
     });
 
     const traceMediaId = randomUUID();
@@ -275,25 +272,22 @@ describe("trace deletion", () => {
 
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
-    const expiresInSeconds = 3600;
+
     await Promise.all([
       eventStorageService.uploadFile({
         fileName: `${projectId}/traces/${traceId}-trace.json`,
         fileType,
         data,
-        expiresInSeconds,
       }),
       eventStorageService.uploadFile({
         fileName: `${projectId}/observation/${traceId}-observation.json`,
         fileType,
         data,
-        expiresInSeconds,
       }),
       eventStorageService.uploadFile({
         fileName: `${projectId}/score/${traceId}-score.json`,
         fileType,
         data,
-        expiresInSeconds,
       }),
     ]);
 

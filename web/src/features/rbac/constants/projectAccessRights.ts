@@ -1,6 +1,8 @@
 import { type Role } from "@langfuse/shared/src/db";
 
-const projectScopes = [
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const projectScopes = [
   "projectMembers:read",
   "projectMembers:CUD",
 
@@ -20,6 +22,8 @@ const projectScopes = [
 
   "annotationQueues:read",
   "annotationQueues:CUD",
+  "annotationQueueAssignments:read",
+  "annotationQueueAssignments:CUD",
 
   "project:read",
   "project:update",
@@ -121,6 +125,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "comments:read",
     "annotationQueues:read",
     "annotationQueues:CUD",
+    "annotationQueueAssignments:read",
+    "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
     "auditLogs:read",
@@ -172,6 +178,8 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "comments:read",
     "annotationQueues:read",
     "annotationQueues:CUD",
+    "annotationQueueAssignments:read",
+    "annotationQueueAssignments:CUD",
     "promptExperiments:CUD",
     "promptExperiments:read",
     "auditLogs:read",
@@ -211,6 +219,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "comments:read",
     "annotationQueues:read",
     "annotationQueues:CUD",
+    "annotationQueueAssignments:read",
     "promptExperiments:CUD",
     "promptExperiments:read",
     "dashboards:read",
@@ -218,7 +227,6 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "TableViewPresets:CUD",
     "TableViewPresets:read",
     "automations:read",
-    "automations:CUD",
   ],
   VIEWER: [
     "project:read",

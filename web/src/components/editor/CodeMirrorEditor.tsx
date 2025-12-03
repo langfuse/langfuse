@@ -106,7 +106,7 @@ const promptLinter = linter((view) => {
           message: "Malformed prompt dependency tag",
         });
       }
-    } catch (error) {
+    } catch (_error) {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
@@ -145,7 +145,7 @@ export function CodeMirrorEditor({
   mode: "json" | "text" | "prompt";
   minHeight: "none" | 30 | 100 | 200;
   placeholder?: string;
-  editorRef?: React.RefObject<ReactCodeMirrorRef>;
+  editorRef?: React.RefObject<ReactCodeMirrorRef | null>;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;

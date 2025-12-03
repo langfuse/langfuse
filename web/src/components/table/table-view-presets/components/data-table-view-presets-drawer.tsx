@@ -79,6 +79,20 @@ import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
+interface SystemPreset {
+  id: string;
+  name: string;
+  isSystem: true;
+}
+
+const SYSTEM_PRESETS: { DEFAULT: SystemPreset } = {
+  DEFAULT: {
+    id: "__langfuse_default__",
+    name: "My view (default)",
+    isSystem: true,
+  },
+};
+
 interface TableViewPresetsDrawerProps {
   viewConfig: {
     tableName: TableViewPresetTableName;
@@ -153,6 +167,12 @@ export function TableViewPresetsDrawer({
   });
 
   const handleSelectView = async (viewId: string) => {
+    // Handle system preset - just select it like any view
+    if (viewId === SYSTEM_PRESETS.DEFAULT.id) {
+      handleSetViewId(null);
+      return;
+    }
+
     capture("saved_views:view_selected", {
       tableName,
       viewId,
@@ -168,7 +188,7 @@ export function TableViewPresetsDrawer({
       if (fetchedViewData) {
         applyViewState(fetchedViewData);
       }
-    } catch (error) {
+    } catch (_error) {
       showErrorToast(
         "Failed to apply view selection",
         "Please try again",
@@ -235,13 +255,11 @@ export function TableViewPresetsDrawer({
   };
 
   const onSubmit = (id?: string) => (data: { name: string }) => {
-    console.log("submitting");
     if (id) {
       handleUpdateViewName({ id, name: data.name });
       setIsEditPopoverOpen(false);
       setDropdownId(null);
     } else {
-      console.log("Creating view");
       handleCreateView({ name: data.name });
     }
   };
@@ -292,8 +310,8 @@ export function TableViewPresetsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button variant="outline" title={selectedViewName ?? "Table View"}>
-            <span>{selectedViewName ?? "Table View"}</span>
+          <Button variant="outline" title={selectedViewName ?? "Saved Views"}>
+            <span>{selectedViewName ?? "Saved Views"}</span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
@@ -304,31 +322,25 @@ export function TableViewPresetsDrawer({
           </Button>
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">
-          <div className="mx-auto h-[80svh] w-full overflow-y-auto">
-            <div className="sticky top-0 z-10">
-              <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
-                <DrawerTitle className="flex flex-row items-center gap-1">
-                  Saved Table Views{" "}
-                  <a
-                    href="https://github.com/orgs/langfuse/discussions/4657"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center"
-                    title="Saving table view presets is currently in beta. Click here to provide feedback!"
-                  >
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      Beta
-                    </span>
-                  </a>
-                </DrawerTitle>
-                <DrawerClose asChild>
-                  <Button variant="outline" size="icon">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </DrawerClose>
-              </DrawerHeader>
-              <Separator />
-            </div>
+          <div className="mx-auto w-full">
+            <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
+              <DrawerTitle className="flex flex-row items-center gap-1">
+                Saved Table Views{" "}
+                <a
+                  href="https://github.com/orgs/langfuse/discussions/4657"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center"
+                  title="Saving table view presets is currently in beta. Click here to provide feedback!"
+                ></a>
+              </DrawerTitle>
+              <DrawerClose asChild>
+                <Button variant="outline" size="icon">
+                  <X className="h-4 w-4" />
+                </Button>
+              </DrawerClose>
+            </DrawerHeader>
+            <Separator />
 
             <Command className="h-fit rounded-none border-none pb-1 shadow-none">
               <CommandInput
@@ -337,9 +349,30 @@ export function TableViewPresetsDrawer({
                 onValueChange={setSearchQueryLocal}
                 className="h-12 border-none focus:ring-0"
               />
-              <CommandList>
+              <CommandList className="max-h-[calc(100vh-150px)]">
                 <CommandEmpty>No saved table views found</CommandEmpty>
                 <CommandGroup className="pb-0">
+                  {/* System Preset: Langfuse Default */}
+                  <CommandItem
+                    key={SYSTEM_PRESETS.DEFAULT.id}
+                    onSelect={() => handleSelectView(SYSTEM_PRESETS.DEFAULT.id)}
+                    className={cn(
+                      "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                      selectedViewId === null && "bg-muted font-medium",
+                    )}
+                    title="Reflects your current table settings without applying any saved custom table views"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {SYSTEM_PRESETS.DEFAULT.name}
+                      </span>
+                      <span className="w-fit pl-0 text-xs text-muted-foreground">
+                        Your working view
+                      </span>
+                    </div>
+                  </CommandItem>
+
+                  {/* User Presets */}
                   {TableViewPresetsList?.map((view) => (
                     <CommandItem
                       key={view.id}
@@ -354,7 +387,7 @@ export function TableViewPresetsDrawer({
                         {view.id === selectedViewId && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="xs"
                             className={cn(
                               "w-fit pl-0 text-xs",
                               hasWriteAccess
@@ -369,7 +402,7 @@ export function TableViewPresetsDrawer({
                             }}
                             disabled={!hasWriteAccess}
                           >
-                            Update
+                            Update View
                           </Button>
                         )}
                       </div>
@@ -470,7 +503,7 @@ export function TableViewPresetsDrawer({
                                       <div className="flex w-full justify-end">
                                         <Button
                                           type="submit"
-                                          loading={updateNameMutation.isLoading}
+                                          loading={updateNameMutation.isPending}
                                           disabled={
                                             !!form.formState.errors.name
                                           }
@@ -493,7 +526,7 @@ export function TableViewPresetsDrawer({
                                   await handleDeleteView(view.id);
                                 }}
                                 isDeleteMutationLoading={
-                                  deleteMutation.isLoading
+                                  deleteMutation.isPending
                                 }
                                 invalidateFunc={() => {
                                   utils.TableViewPresets.invalidate();
@@ -510,7 +543,7 @@ export function TableViewPresetsDrawer({
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <div className="flex items-center text-xs text-muted-foreground">
-                          <Avatar>
+                          <Avatar className="h-6 w-6">
                             <AvatarImage
                               src={view.createdByUser?.image ?? undefined}
                               alt={view.createdByUser?.name ?? "User Avatar"}
@@ -545,7 +578,7 @@ export function TableViewPresetsDrawer({
                 className="w-full justify-start px-1"
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create New View
+                Create Custom View
               </Button>
             </div>
           </div>
@@ -614,13 +647,13 @@ export function TableViewPresetsDrawer({
                 <Button
                   type="submit"
                   disabled={
-                    createMutation.isLoading ||
+                    createMutation.isPending ||
                     !!form.formState.errors.name ||
                     !hasWriteAccess
                   }
                 >
                   {!hasWriteAccess && <Lock className="mr-2 h-4 w-4" />}
-                  {createMutation.isLoading ? "Saving..." : "Save View"}
+                  {createMutation.isPending ? "Saving..." : "Save View"}
                 </Button>
               </DialogFooter>
             </form>

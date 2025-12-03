@@ -4,15 +4,17 @@ import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
 import {
-	type JobConfiguration,
-	JobExecutionStatus,
-	PrismaClient,
-	type Project,
-	ScoreDataType,
+  type JobConfiguration,
+  JobExecutionStatus,
+  PrismaClient,
+  type Project,
+  ScoreConfigCategoryDomain,
+  ScoreDataType,
 } from "../../src/index";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
-import {EVAL_TRACE_COUNT,
+import {
+  EVAL_TRACE_COUNT,
   FAILED_EVAL_TRACE_INTERVAL,
   SEED_CHAT_ML_PROMPTS,
   SEED_DATASETS,
@@ -22,16 +24,12 @@ import {EVAL_TRACE_COUNT,
   SEED_TEXT_PROMPTS,
 } from "./utils/postgres-seed-constants";
 import {
-  generateDatasetRunTraceId,
+  generateDatasetItemId,
   generateEvalObservationId,
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
-
-type ConfigCategory = {
-  label: string;
-  value: number;
-};
+import { seedDatasetVersions } from "./seed-dataset-versions";
 
 const options = {
   environment: { type: "string" },
@@ -108,6 +106,9 @@ async function main() {
       orgId: seedOrgId,
     },
   });
+
+  // Realistic support chat scenario
+  await createSupportChatSession(project1);
 
   await prisma.organizationMembership.upsert({
     where: {
@@ -346,6 +347,7 @@ async function main() {
     );
 
     await createDashboardsAndWidgets([project1, project2]);
+    await seedDatasetVersions(prisma, [project1.id, project2.id]);
 
     await prisma.llmSchema.createMany({
       data: [
@@ -516,6 +518,7 @@ export async function createDatasets(
             description: data.description,
             projectId,
             metadata: data.metadata,
+            id: `${datasetName}-${projectId.slice(-8)}`,
           },
         }));
 
@@ -531,13 +534,13 @@ export async function createDatasets(
         const datasetItem = await prisma.datasetItem.upsert({
           where: {
             id_projectId: {
-              id: `${dataset.id}-${index}`,
+              id: generateDatasetItemId(datasetName, index, projectId),
               projectId,
             },
           },
           create: {
             projectId,
-            id: `${dataset.id}-${index}`,
+            id: generateDatasetItemId(datasetName, index, projectId),
             datasetId: dataset.id,
             sourceTraceId: sourceTraceId ?? null,
             sourceObservationId: null,
@@ -551,17 +554,19 @@ export async function createDatasets(
       }
 
       for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
-        const datasetRun = await prisma.datasetRuns.upsert({
+        if (!data.shouldRunExperiment) continue;
+
+        await prisma.datasetRuns.upsert({
           where: {
-            datasetId_projectId_name: {
-              datasetId: dataset.id,
+            id_projectId: {
+              id: `demo-dataset-run-${datasetRunNumber}-${datasetName}-${projectId.slice(-8)}`,
               projectId,
-              name: `demo-dataset-run-${datasetRunNumber}`,
             },
           },
           create: {
             projectId,
-            name: `demo-dataset-run-${datasetRunNumber}`,
+            id: `demo-dataset-run-${datasetRunNumber}-${datasetName}-${projectId.slice(-8)}`,
+            name: `demo-dataset-run-${datasetRunNumber}-${datasetName}`,
             description: Math.random() > 0.5 ? "Dataset run description" : "",
             datasetId: dataset.id,
             metadata: [
@@ -574,25 +579,6 @@ export async function createDatasets(
           },
           update: {},
         });
-
-        for (let index = 0; index < datasetItemIds.length; index++) {
-          await prisma.datasetRunItems.upsert({
-            where: {
-              id_projectId: {
-                id: `${dataset.id}-${index}-${datasetRunNumber}`,
-                projectId,
-              },
-            },
-            create: {
-              id: `${dataset.id}-${index}-${datasetRunNumber}`,
-              projectId,
-              datasetItemId: datasetItemIds[index],
-              traceId: `${generateDatasetRunTraceId(datasetName, index, projectId, datasetRunNumber)}`,
-              datasetRunId: datasetRun.id,
-            },
-            update: {},
-          });
-        }
       }
     }
   }
@@ -740,6 +726,7 @@ async function generatePrompts(project: Project) {
         createdBy: version.createdBy,
         prompt: version.prompt,
         name: version.name,
+        type: version.type ?? "text",
         config: version.config,
         version: version.version,
         labels: version.labels,
@@ -761,7 +748,7 @@ async function generateConfigsForProject(projects: Project[]) {
       name: string;
       id: string;
       dataType: ScoreDataType;
-      categories: ConfigCategory[] | null;
+      categories: ScoreConfigCategoryDomain[] | null;
     }[]
   > = new Map();
 
@@ -788,12 +775,30 @@ async function createTraceSessions(project1: Project, project2: Project) {
   }
 }
 
+async function createSupportChatSession(project: Project) {
+  const sessionId = "support-chat-session";
+  await prisma.traceSession.upsert({
+    where: {
+      id_projectId: {
+        id: sessionId,
+        projectId: project.id,
+      },
+    },
+    create: {
+      id: sessionId,
+      projectId: project.id,
+      environment: "default",
+    },
+    update: {},
+  });
+}
+
 async function generateConfigs(project: Project) {
   const configNameAndId: {
     name: string;
     id: string;
     dataType: ScoreDataType;
-    categories: ConfigCategory[] | null;
+    categories: ScoreConfigCategoryDomain[] | null;
   }[] = [];
 
   const configs = [
@@ -870,7 +875,7 @@ async function generateQueuesForProject(
       name: string;
       id: string;
       dataType: ScoreDataType;
-      categories: ConfigCategory[] | null;
+      categories: ScoreConfigCategoryDomain[] | null;
     }[]
   >,
 ) {
@@ -894,7 +899,7 @@ async function generateQueues(
     name: string;
     id: string;
     dataType: ScoreDataType;
-    categories: ConfigCategory[] | null;
+    categories: ScoreConfigCategoryDomain[] | null;
   }[],
 ) {
   const queue = {

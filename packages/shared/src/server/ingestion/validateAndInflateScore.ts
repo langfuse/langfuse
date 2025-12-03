@@ -1,23 +1,23 @@
 import {
   ScoreBodyWithoutConfig,
+  ScoreConfigDomain,
   ScoreDomain,
   ScorePropsAgainstConfig,
-  validateDbScoreConfigSafe,
-  ValidatedScoreConfig,
 } from "../../../src";
 import { prisma, ScoreDataType } from "../../db";
-
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
+import { validateDbScoreConfigSafe } from "../../features/scoreConfigs/validation";
+import { ScoreEventType } from "./types";
 
 type ValidateAndInflateScoreParams = {
   projectId: string;
   scoreId: string;
-  body: any;
+  body: ScoreEventType["body"];
 };
 
 export async function validateAndInflateScore(
   params: ValidateAndInflateScoreParams,
-): Promise<ScoreDomain> {
+) {
   const { body, projectId, scoreId } = params;
 
   if (body.configId) {
@@ -40,16 +40,17 @@ export async function validateAndInflateScore(
       name: config.name,
     };
 
-    validateConfigAgainstBody(
-      bodyWithConfigOverrides,
-      config as ValidatedScoreConfig,
-    );
+    validateConfigAgainstBody({
+      body: bodyWithConfigOverrides,
+      config: config as ScoreConfigDomain,
+      context: "INGESTION",
+    });
 
     return inflateScoreBody({
       projectId,
       scoreId,
       body: bodyWithConfigOverrides,
-      config: config as ValidatedScoreConfig,
+      config: config as ScoreConfigDomain,
     });
   }
 
@@ -74,22 +75,26 @@ function inferDataType(value: string | number): ScoreDataType {
 }
 
 function mapStringValueToNumericValue(
-  config: ValidatedScoreConfig,
+  config: ScoreConfigDomain,
   label: string,
-): number | null {
+): number {
   return (
-    config.categories?.find((category) => category.label === label)?.value ??
-    null
+    config.categories?.find((category) => category.label === label)?.value ?? 0
   );
 }
 
 function inflateScoreBody(
-  params: ValidateAndInflateScoreParams & { config?: ValidatedScoreConfig },
-): ScoreDomain {
+  params: ValidateAndInflateScoreParams & { config?: ScoreConfigDomain },
+) {
   const { body, projectId, scoreId, config } = params;
 
   const relevantDataType = config?.dataType ?? body.dataType;
-  const scoreProps = { source: "API", ...body, id: scoreId, projectId };
+  const scoreProps = {
+    ...body,
+    source: body.source ?? "API",
+    id: scoreId,
+    projectId,
+  };
 
   if (typeof body.value === "number") {
     if (relevantDataType && relevantDataType === ScoreDataType.BOOLEAN) {
@@ -104,22 +109,56 @@ function inflateScoreBody(
     return {
       ...scoreProps,
       value: body.value,
+      stringValue: null,
       dataType: ScoreDataType.NUMERIC,
     };
   }
 
   return {
     ...scoreProps,
-    value: config ? mapStringValueToNumericValue(config, body.value) : null,
+    value: config ? mapStringValueToNumericValue(config, body.value) : 0,
     stringValue: body.value,
     dataType: ScoreDataType.CATEGORICAL,
   };
 }
 
-function validateConfigAgainstBody(
-  body: any,
-  config: ValidatedScoreConfig,
-): void {
+type ScoreBodyWithContext =
+  | {
+      body: ScoreEventType["body"];
+      context: "INGESTION";
+    }
+  | {
+      body: ScoreDomain;
+      context: "ANNOTATION";
+    };
+
+function resolveScoreValueIngestion(
+  body: ScoreEventType["body"],
+): string | number | null {
+  return body.value;
+}
+
+function resolveScoreValueAnnotation(
+  body: ScoreDomain,
+): string | number | null {
+  switch (body.dataType) {
+    case ScoreDataType.NUMERIC:
+    case ScoreDataType.BOOLEAN:
+      return body.value;
+    case ScoreDataType.CATEGORICAL:
+      return body.stringValue;
+  }
+}
+
+type ValidateConfigAgainstBodyParams = {
+  config: ScoreConfigDomain;
+} & ScoreBodyWithContext;
+
+export function validateConfigAgainstBody({
+  body,
+  config,
+  context,
+}: ValidateConfigAgainstBodyParams): void {
   const { maxValue, minValue, categories, dataType: configDataType } = config;
 
   if (body.dataType && body.dataType !== configDataType) {
@@ -141,20 +180,13 @@ function validateConfigAgainstBody(
   }
 
   const relevantDataType = configDataType ?? body.dataType;
-
-  const dataTypeValidation = ScoreBodyWithoutConfig.safeParse({
-    ...body,
-    dataType: relevantDataType,
-  });
-
-  if (!dataTypeValidation.success) {
-    throw new InvalidRequestError(
-      `Ingested score body not valid against provided config data type.`,
-    );
-  }
+  const scoreValue =
+    context === "INGESTION"
+      ? resolveScoreValueIngestion(body)
+      : resolveScoreValueAnnotation(body);
 
   const rangeValidation = ScorePropsAgainstConfig.safeParse({
-    value: body.value,
+    value: scoreValue,
     dataType: relevantDataType,
     ...(maxValue !== null && maxValue !== undefined && { maxValue }),
     ...(minValue !== null && minValue !== undefined && { minValue }),

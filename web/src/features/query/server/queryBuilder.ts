@@ -1,5 +1,8 @@
 import { type z } from "zod/v4";
-import { convertDateToClickhouseDateTime } from "@langfuse/shared/src/server";
+import {
+  convertDateToClickhouseDateTime,
+  shouldSkipObservationsFinal,
+} from "@langfuse/shared/src/server";
 import {
   type QueryType,
   type ViewDeclarationType,
@@ -117,13 +120,75 @@ export class QueryBuilder {
     });
   }
 
+  private validateFilters(
+    filters: z.infer<typeof queryModel>["filters"],
+    view: ViewDeclarationType,
+  ) {
+    for (const filter of filters) {
+      // Validate filters on dimension fields
+      if (filter.column in view.dimensions) {
+        const dimension = view.dimensions[filter.column];
+
+        // Array fields (like tags) validation
+        if (dimension.type === "string[]") {
+          if (filter.type === "string") {
+            throw new InvalidRequestError(
+              `Invalid filter for field '${filter.column}': Array fields require type 'arrayOptions', not 'string'. ` +
+                `Use operators like 'any of', 'all of', or 'none of' with an array of values.`,
+            );
+          }
+
+          // Additional validation: ensure value is array for arrayOptions
+          if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
+            throw new InvalidRequestError(
+              `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
+            );
+          }
+        }
+      }
+
+      // Special validation for metadata filters
+      else if (filter.column === "metadata") {
+        if (filter.type !== "stringObject") {
+          throw new InvalidRequestError(
+            `Invalid filter for field 'metadata': Metadata filters require type 'stringObject' with a 'key' property, not '${filter.type}'. ` +
+              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
+          );
+        }
+
+        // Validate stringObject has required key
+        if (filter.type === "stringObject" && !("key" in filter)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field 'metadata': stringObject type requires a 'key' property to specify which metadata field to filter on. ` +
+              `Example: {"column": "metadata", "type": "stringObject", "key": "environment", "operator": "=", "value": "production"}`,
+          );
+        }
+
+        // Validate stringObject value type
+        if (
+          filter.type === "stringObject" &&
+          typeof filter.value !== "string"
+        ) {
+          throw new InvalidRequestError(
+            // @ts-ignore
+            `Invalid filter for field 'metadata': stringObject type requires a string value, not '${typeof filter.value}'.`,
+          );
+        }
+      }
+    }
+  }
+
   private mapFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
   ) {
+    // Validate all filters before processing
+    this.validateFilters(filters, view);
+
     // Transform our filters to match the column mapping format expected by createFilterFromFilterState
     const columnMappings = filters.map((filter) => {
       let clickhouseSelect: string;
+      let queryPrefix: string = "";
       let clickhouseTableName: string = view.name;
       let type: string;
 
@@ -144,15 +209,18 @@ export class QueryBuilder {
         //   }
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
+        queryPrefix = clickhouseTableName;
         type = "datetime";
       } else if (filter.column === "metadata") {
         clickhouseSelect = "metadata";
+        queryPrefix = clickhouseTableName;
         type = "stringObject";
       } else if (filter.column.endsWith("Name")) {
         // Sometimes, the filter does not update correctly and sends us scoreName instead of name for scores, etc.
         // If this happens, none of the conditions above apply, and we use this fallback to avoid raising an error.
         // As this is hard to catch, we include this workaround. (LFE-4838).
         clickhouseSelect = "name";
+        queryPrefix = clickhouseTableName;
         type = "string";
       } else {
         throw new InvalidRequestError(
@@ -165,7 +233,7 @@ export class QueryBuilder {
         uiTableId: filter.column,
         clickhouseTableName,
         clickhouseSelect,
-        queryPrefix: clickhouseTableName,
+        queryPrefix,
         type,
       };
     });
@@ -294,6 +362,7 @@ export class QueryBuilder {
     view: ViewDeclarationType,
     filterList: FilterList,
     query: QueryType,
+    skipObservationsFinal: boolean,
   ) {
     const relationJoins = [];
     for (const relationTableName of relationTables) {
@@ -304,7 +373,11 @@ export class QueryBuilder {
       }
 
       const relation = view.tableRelations[relationTableName];
-      let joinStatement = `LEFT JOIN ${relation.name} FINAL ${relation.joinConditionSql}`;
+      // Conditionally add FINAL - skip for observations if flag is set
+      const shouldUseFinal = !(
+        relation.name === "observations" && skipObservationsFinal
+      );
+      let joinStatement = `LEFT JOIN ${relation.name}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
@@ -428,7 +501,7 @@ export class QueryBuilder {
       dimensions += `${appliedDimensions
         .map(
           (dimension) =>
-            `any(${dimension.table}.${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
+            `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
         )
         .join(",\n")},`;
     }
@@ -719,10 +792,10 @@ export class QueryBuilder {
    *   ORDER BY <fields with directions>
    * ```
    */
-  public build(
+  public async build(
     query: QueryType,
     projectId: string,
-  ): { query: string; parameters: Record<string, unknown> } {
+  ): Promise<{ query: string; parameters: Record<string, unknown> }> {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);
     if (!parseResult.success) {
@@ -734,8 +807,16 @@ export class QueryBuilder {
     // Initialize parameters object
     const parameters: Record<string, unknown> = {};
 
-    // Get view declaration
-    const view = this.getViewDeclaration(query.view);
+    // Check if we should skip FINAL modifier for observations (OTEL optimization)
+    const skipObservationsFinal = await shouldSkipObservationsFinal(projectId);
+    let view = this.getViewDeclaration(query.view);
+    // Skip FINAL on observations base table if OTEL project
+    if (view.name === "observations" && skipObservationsFinal) {
+      view = {
+        ...view,
+        baseCte: "observations", // Remove FINAL (was "observations FINAL")
+      };
+    }
 
     // Map dimensions and metrics
     const appliedDimensions = this.mapDimensions(query.dimensions, view);
@@ -769,6 +850,7 @@ export class QueryBuilder {
         view,
         filterList,
         query,
+        skipObservationsFinal,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }

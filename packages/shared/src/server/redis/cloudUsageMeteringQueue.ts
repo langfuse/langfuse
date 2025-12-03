@@ -1,7 +1,11 @@
 import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
-import { createNewRedisInstance, redisQueueRetryOptions, getQueuePrefix } from "./redis";
+import {
+  createNewRedisInstance,
+  redisQueueRetryOptions,
+  getQueuePrefix,
+} from "./redis";
 import { logger } from "../logger";
 
 export class CloudUsageMeteringQueue {
@@ -42,6 +46,11 @@ export class CloudUsageMeteringQueue {
     });
 
     if (CloudUsageMeteringQueue.instance) {
+      logger.info("[CloudUsageMeteringQueue] Scheduling recurring job", {
+        pattern: "5 * * * *",
+        jobId: "cloud-usage-metering-recurring",
+        timestamp: new Date().toISOString(),
+      });
       CloudUsageMeteringQueue.instance.add(
         QueueJobs.CloudUsageMeteringJob,
         {},
@@ -51,11 +60,12 @@ export class CloudUsageMeteringQueue {
         },
       );
 
-      CloudUsageMeteringQueue.instance.add(
-        QueueJobs.CloudUsageMeteringJob,
-        {},
-        {},
-      );
+      logger.info("[CloudUsageMeteringQueue] Scheduling bootstrap job", {
+        jobId: "cloud-usage-metering-bootstrap",
+        timestamp: new Date().toISOString(),
+      });
+      // Bootstrap job to run immediately on startup
+      CloudUsageMeteringQueue.instance.add(QueueJobs.CloudUsageMeteringJob, {});
     }
 
     return CloudUsageMeteringQueue.instance;

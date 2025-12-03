@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "@radix-ui/react-icons";
+
 import { PromptSelectionDialog } from "@/src/features/prompts/components/PromptSelectionDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { Plus } from "lucide-react";
 
 type PromptLinkingEditorProps = {
   value: string;
@@ -69,7 +70,7 @@ export function PromptLinkingEditor({
         className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1"
         onClick={() => setIsDialogOpen(true)}
       >
-        <PlusIcon className="h-4 w-4" />
+        <Plus className="mr-2 h-4 w-4" />
         <span className="text-xs">Add prompt reference</span>
       </Button>
 

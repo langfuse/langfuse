@@ -130,7 +130,7 @@ export default function ConfigureRetention() {
               variant="secondary"
               hasAccess={hasAccess}
               hasEntitlement={hasEntitlement}
-              loading={setRetention.isLoading}
+              loading={setRetention.isPending}
               disabled={form.getValues().retention === null}
               className="mt-4"
               type="submit"

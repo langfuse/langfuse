@@ -12,7 +12,7 @@ export const entityChangeWorker = async (
   event: EntityChangeEventType,
 ): Promise<void> => {
   try {
-    logger.info(
+    logger.debug(
       `Processing entity change event for entity ${event.entityType}`,
       { event: JSON.stringify(event, null, 2) },
     );

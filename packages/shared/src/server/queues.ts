@@ -15,6 +15,7 @@ export const IngestionEvent = z.object({
     eventBodyId: z.string(),
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
+    forwardToEventsTable: z.boolean().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -24,13 +25,32 @@ export const IngestionEvent = z.object({
   }),
 });
 
+export const OtelIngestionEvent = z.object({
+  data: z.object({
+    fileKey: z.string(),
+    publicKey: z.string().optional(),
+  }),
+  authCheck: z.object({
+    validKey: z.literal(true),
+    scope: z.object({
+      projectId: z.string(),
+      accessLevel: z.literal("project"),
+    }),
+  }),
+});
+
 export const BatchExportJobSchema = z.object({
   projectId: z.string(),
   batchExportId: z.string(),
 });
+export const CloudSpendAlertJobSchema = z.object({
+  orgId: z.string(),
+});
 export const TraceQueueEventSchema = z.object({
   projectId: z.string(),
   traceId: z.string(),
+  exactTimestamp: z.date().optional(),
+  traceEnvironment: z.string().optional(), // Optional to maintain backward compatibility with existing jobs in queue during deployment. 'optional()' can be removed after queue was exhausted
 });
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
@@ -40,6 +60,21 @@ export const ScoresQueueEventSchema = z.object({
   projectId: z.string(),
   scoreIds: z.array(z.string()),
 });
+export const DatasetQueueEventSchema = z.discriminatedUnion("deletionType", [
+  // Delete all run items for a specific dataset
+  z.object({
+    deletionType: z.literal("dataset"),
+    projectId: z.string(),
+    datasetId: z.string(),
+  }),
+  // Delete all run items for multiple dataset runs (also used for single run deletion)
+  z.object({
+    deletionType: z.literal("dataset-runs"),
+    projectId: z.string(),
+    datasetId: z.string(),
+    datasetRunIds: z.array(z.string()),
+  }),
+]);
 export const ProjectQueueEventSchema = z.object({
   projectId: z.string(),
   orgId: z.string(),
@@ -56,6 +91,9 @@ export const EvalExecutionEvent = z.object({
   delay: z.number().nullish(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
+  projectId: z.string(),
+});
+export const MixpanelIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
@@ -102,6 +140,24 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       type: z.enum(BatchActionType),
     }),
     z.object({
+      actionId: z.literal("session-add-to-annotation-queue"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("observation-add-to-annotation-queue"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
       actionId: z.literal("eval-create"),
       targetObject: z.enum(["trace", "dataset"]),
       configId: z.string(),
@@ -131,6 +187,16 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const NotificationEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("COMMENT_MENTION"),
+    commentId: z.string(),
+    projectId: z.string(),
+    mentionedUserIds: z.array(z.string()),
+  }),
+  // Future notification types can be added here
+]);
+
 export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
   action: EventActionSchema,
@@ -144,6 +210,7 @@ export const WebhookInputSchema = z.object({
   payload: WebhookOutboundEnvelopeSchema,
 });
 
+export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   z.object({
     entityType: z.literal("prompt-version"),
@@ -154,28 +221,32 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
   }),
   // Add other entity types here in the future
 ]);
-
-export type WebhookInput = z.infer<typeof WebhookInputSchema>;
 export type EntityChangeEventType = z.infer<typeof EntityChangeEventSchema>;
 
 export type CreateEvalQueueEventType = z.infer<
   typeof CreateEvalQueueEventSchema
 >;
 export type BatchExportJobType = z.infer<typeof BatchExportJobSchema>;
+export type CloudSpendAlertJobType = z.infer<typeof CloudSpendAlertJobSchema>;
 export type TraceQueueEventType = z.infer<typeof TraceQueueEventSchema>;
 export type TracesQueueEventType = z.infer<typeof TracesQueueEventSchema>;
 export type ScoresQueueEventType = z.infer<typeof ScoresQueueEventSchema>;
+export type DatasetQueueEventType = z.infer<typeof DatasetQueueEventSchema>;
 export type ProjectQueueEventType = z.infer<typeof ProjectQueueEventSchema>;
 export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
+export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
 export type ExperimentCreateEventType = z.infer<
   typeof ExperimentCreateEventSchema
 >;
 export type PostHogIntegrationProcessingEventType = z.infer<
   typeof PostHogIntegrationProcessingEventSchema
+>;
+export type MixpanelIntegrationProcessingEventType = z.infer<
+  typeof MixpanelIntegrationProcessingEventSchema
 >;
 export type DataRetentionProcessingEventType = z.infer<
   typeof DataRetentionProcessingEventSchema
@@ -189,8 +260,14 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
 
-export type WebhookQueueEventType = z.infer<typeof WebhookInputSchema>;
+export const RetryBaggage = z.object({
+  originalJobTimestamp: z.date(),
+  attempt: z.number(),
+});
+
+export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -199,12 +276,17 @@ export enum QueueName {
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
+  OtelIngestionQueue = "otel-ingestion-queue",
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
+  CloudSpendAlertQueue = "cloud-spend-alert-queue",
+  CloudFreeTierUsageThresholdQueue = "cloud-free-tier-usage-threshold-queue",
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  MixpanelIntegrationQueue = "mixpanel-integration-queue",
+  MixpanelIntegrationProcessingQueue = "mixpanel-integration-processing-queue",
   BlobStorageIntegrationQueue = "blobstorage-integration-queue",
   BlobStorageIntegrationProcessingQueue = "blobstorage-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
@@ -214,9 +296,12 @@ export enum QueueName {
   BatchActionQueue = "batch-action-queue",
   CreateEvalQueue = "create-eval-queue",
   ScoreDelete = "score-delete",
+  DatasetDelete = "dataset-delete-queue",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
+  EventPropagationQueue = "event-propagation-queue",
+  NotificationQueue = "notification-queue",
 }
 
 export enum QueueJobs {
@@ -227,11 +312,16 @@ export enum QueueJobs {
   EvaluationExecution = "evaluation-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
+  CloudSpendAlertJob = "cloud-spend-alert-job",
+  CloudFreeTierUsageThresholdJob = "cloud-free-tier-usage-threshold-job",
+  OtelIngestionJob = "otel-ingestion-job",
   IngestionJob = "ingestion-job",
   IngestionSecondaryJob = "secondary-ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  MixpanelIntegrationJob = "mixpanel-integration-job",
+  MixpanelIntegrationProcessingJob = "mixpanel-integration-processing-job",
   BlobStorageIntegrationJob = "blobstorage-integration-job",
   BlobStorageIntegrationProcessingJob = "blobstorage-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
@@ -241,9 +331,12 @@ export enum QueueJobs {
   BatchActionProcessingJob = "batch-action-processing-job",
   CreateEvalJob = "create-eval-job",
   ScoreDelete = "score-delete",
+  DatasetDelete = "dataset-delete-job",
   DeadLetterRetryJob = "dead-letter-retry-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
+  EventPropagationJob = "event-propagation-job",
+  NotificationJob = "notification-job",
 }
 
 export type TQueueJobTypes = {
@@ -265,6 +358,12 @@ export type TQueueJobTypes = {
     payload: ScoresQueueEventType;
     name: QueueJobs.ScoreDelete;
   };
+  [QueueName.DatasetDelete]: {
+    timestamp: Date;
+    id: string;
+    payload: DatasetQueueEventType;
+    name: QueueJobs.DatasetDelete;
+  };
   [QueueName.ProjectDelete]: {
     timestamp: Date;
     id: string;
@@ -276,18 +375,26 @@ export type TQueueJobTypes = {
     id: string;
     payload: DatasetRunItemUpsertEventType;
     name: QueueJobs.DatasetRunItemUpsert;
+    retryBaggage?: RetryBaggage;
   };
   [QueueName.EvaluationExecution]: {
     timestamp: Date;
     id: string;
     payload: EvalExecutionEventType;
     name: QueueJobs.EvaluationExecution;
+    retryBaggage?: RetryBaggage;
   };
   [QueueName.BatchExport]: {
     timestamp: Date;
     id: string;
     payload: BatchExportJobType;
     name: QueueJobs.BatchExportJob;
+  };
+  [QueueName.OtelIngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: OtelIngestionEventQueueType;
+    name: QueueJobs.OtelIngestionJob;
   };
   [QueueName.IngestionQueue]: {
     timestamp: Date;
@@ -306,12 +413,19 @@ export type TQueueJobTypes = {
     id: string;
     payload: ExperimentCreateEventType;
     name: QueueJobs.ExperimentCreateJob;
+    retryBaggage?: RetryBaggage;
   };
   [QueueName.PostHogIntegrationProcessingQueue]: {
     timestamp: Date;
     id: string;
     payload: PostHogIntegrationProcessingEventType;
     name: QueueJobs.PostHogIntegrationProcessingJob;
+  };
+  [QueueName.MixpanelIntegrationProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MixpanelIntegrationProcessingEventType;
+    name: QueueJobs.MixpanelIntegrationProcessingJob;
   };
   [QueueName.DataRetentionProcessingQueue]: {
     timestamp: Date;
@@ -354,5 +468,30 @@ export type TQueueJobTypes = {
     id: string;
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
+  };
+  [QueueName.CloudSpendAlertQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: CloudSpendAlertJobType;
+    name: QueueJobs.CloudSpendAlertJob;
+  };
+  [QueueName.CloudFreeTierUsageThresholdQueue]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.CloudFreeTierUsageThresholdJob;
+  };
+  [QueueName.EventPropagationQueue]: {
+    timestamp: Date;
+    id: string;
+    payload?: {
+      partition?: string;
+    };
+    name: QueueJobs.EventPropagationJob;
+  };
+  [QueueName.NotificationQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: NotificationEventType;
+    name: QueueJobs.NotificationJob;
   };
 };

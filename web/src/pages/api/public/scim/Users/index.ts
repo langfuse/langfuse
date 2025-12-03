@@ -5,6 +5,8 @@ import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import { z } from "zod";
+import { type Role } from "@langfuse/shared";
 
 export default async function handler(
   req: NextApiRequest,
@@ -49,6 +51,10 @@ export default async function handler(
       status: 403,
     });
   }
+
+  logger.info(
+    `Received request for /api/public/scim/Users with method ${req.method} for orgId ${authCheck.scope.orgId}`,
+  );
 
   if (req.method === "GET") {
     try {
@@ -133,14 +139,47 @@ export default async function handler(
 
   if (req.method === "POST") {
     try {
-      const { userName, name, password } = req.body;
+      let body = req.body;
+      if (typeof body === "string") {
+        try {
+          body = JSON.parse(body);
+        } catch (error) {
+          logger.error("Failed to parse JSON body", error);
+          return res.status(400).json({
+            schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            detail: "Invalid JSON body",
+            status: 400,
+          });
+        }
+      }
+
+      const { userName, name, password, displayName, roles } = body;
 
       if (!userName) {
+        logger.warn("userName is required for SCIM user creation");
         return res.status(400).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
           detail: "userName is required",
           status: 400,
         });
+      }
+
+      let role: Role = "NONE";
+      if (roles && Array.isArray(roles) && roles.length > 0) {
+        const roleSchema = z.array(
+          z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]),
+        );
+        const parsedRoles = roleSchema.safeParse(roles);
+        if (!parsedRoles.success) {
+          logger.warn("Invalid roles provided for SCIM user creation");
+          return res.status(400).json({
+            schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            detail: `Invalid roles provided: ${JSON.stringify(roles)}, must be one of OWNER, ADMIN, MEMBER, VIEWER, NONE`,
+            status: 400,
+          });
+        }
+        // Use the first valid role
+        role = parsedRoles.data[0];
       }
 
       // Check if user already exists
@@ -154,6 +193,9 @@ export default async function handler(
       });
 
       if (existingUser.length > 0) {
+        logger.warn(
+          `User with userName ${userName} already exists in organization ${authCheck.scope.orgId}`,
+        );
         return res.status(409).json({
           schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
           detail: "User with this userName already exists",
@@ -168,7 +210,7 @@ export default async function handler(
         },
         create: {
           email: userName.toLowerCase(),
-          name: name.formatted,
+          name: name?.formatted || displayName,
           password: password ? await hashPassword(password) : undefined,
         },
         update: {},
@@ -177,7 +219,7 @@ export default async function handler(
         data: {
           userId: user.id,
           orgId: authCheck.scope.orgId,
-          role: "NONE",
+          role,
         },
       });
 

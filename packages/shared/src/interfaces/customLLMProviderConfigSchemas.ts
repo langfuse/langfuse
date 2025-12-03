@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
 
+// Sentinel value for Bedrock default credential provider chain
+export const BEDROCK_USE_DEFAULT_CREDENTIALS =
+  "__BEDROCK_DEFAULT_CREDENTIALS__";
+
 export const BedrockConfigSchema = z.object({ region: z.string() });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 

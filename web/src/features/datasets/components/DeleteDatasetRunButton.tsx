@@ -19,10 +19,12 @@ export const DeleteDatasetRunButton = ({
   projectId,
   datasetRunId,
   redirectUrl,
+  datasetId,
 }: {
   projectId: string;
   datasetRunId: string;
   redirectUrl?: string;
+  datasetId: string;
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const capture = usePostHogClientCapture();
@@ -56,7 +58,7 @@ export const DeleteDatasetRunButton = ({
     <Dialog
       open={isDialogOpen}
       onOpenChange={(isOpen) => {
-        if (!mutDelete.isLoading) {
+        if (!mutDelete.isPending) {
           setIsDialogOpen(isOpen);
         }
       }}
@@ -73,13 +75,14 @@ export const DeleteDatasetRunButton = ({
         <DialogFooter>
           <Button
             variant="destructive"
-            loading={mutDelete.isLoading}
-            disabled={mutDelete.isLoading}
+            loading={mutDelete.isPending}
+            disabled={mutDelete.isPending}
             onClick={async (event) => {
               event.preventDefault();
               capture("dataset_run:delete_form_submit");
               await mutDelete.mutateAsync({
                 projectId,
+                datasetId: datasetId,
                 datasetRunIds: [datasetRunId],
               });
               setIsDialogOpen(false);

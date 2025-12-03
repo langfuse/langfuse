@@ -16,18 +16,23 @@ import {
   logger,
   getObservationCostByTypeByTime,
   getObservationUsageByTypeByTime,
-  queryClickhouse,
   DashboardService,
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import {
   type QueryType,
   query as customQuery,
 } from "@/src/features/query/types";
-import { paginationZod, orderBy, InvalidRequestError } from "@langfuse/shared";
+import {
+  paginationZod,
+  orderBy,
+  StringNoHTML,
+  InvalidRequestError,
+  singleFilter,
+} from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -53,21 +58,28 @@ const UpdateDashboardDefinitionInput = z.object({
 const UpdateDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
-  name: z.string().min(1, "Dashboard name is required"),
-  description: z.string(),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
+  description: StringNoHTML,
 });
 
 // Create dashboard input schema
 const CreateDashboardInput = z.object({
   projectId: z.string(),
-  name: z.string().min(1, "Dashboard name is required"),
-  description: z.string(),
+  name: StringNoHTML.min(1, "Dashboard name is required"),
+  description: StringNoHTML,
 });
 
 // Clone dashboard input schema
 const CloneDashboardInput = z.object({
   projectId: z.string(),
   dashboardId: z.string(),
+});
+
+// Update dashboard filters input schema
+const UpdateDashboardFiltersInput = z.object({
+  projectId: z.string(),
+  dashboardId: z.string(),
+  filters: z.array(singleFilter),
 });
 
 export const dashboardRouter = createTRPCRouter({
@@ -152,7 +164,22 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      return executeQuery(input.projectId, input.query as QueryType);
+      try {
+        return executeQuery(input.projectId, input.query as QueryType);
+      } catch (error) {
+        if (error instanceof InvalidRequestError) {
+          logger.warn("Bad request in query execution", error, {
+            projectId: input.projectId,
+            query: input.query,
+          });
+          throw error;
+        }
+        logger.error("Error executing query", error, {
+          projectId: input.projectId,
+          query: input.query,
+        });
+        throw error;
+      }
     }),
 
   allDashboards: protectedProjectProcedure
@@ -290,6 +317,25 @@ export const dashboardRouter = createTRPCRouter({
       return clonedDashboard;
     }),
 
+  updateDashboardFilters: protectedProjectProcedure
+    .input(UpdateDashboardFiltersInput)
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "dashboards:CUD",
+      });
+
+      const dashboard = await DashboardService.updateDashboardFilters(
+        input.dashboardId,
+        input.projectId,
+        input.filters,
+        ctx.session.user.id,
+      );
+
+      return dashboard;
+    }),
+
   // Delete dashboard input schema
   delete: protectedProjectProcedure
     .input(
@@ -313,57 +359,3 @@ export const dashboardRouter = createTRPCRouter({
       return { success: true };
     }),
 });
-
-/**
- * Execute a query using the QueryBuilder.
- *
- * @param projectId - The project ID
- * @param query - The query configuration as defined in QueryType
- * @returns The query result data
- */
-export async function executeQuery(
-  projectId: string,
-  query: QueryType,
-): Promise<Array<Record<string, unknown>>> {
-  try {
-    const { query: compiledQuery, parameters } = new QueryBuilder(
-      query.chartConfig,
-    ).build(query, projectId);
-
-    const result = await queryClickhouse<Record<string, unknown>>({
-      query: compiledQuery,
-      params: parameters,
-      clickhouseConfigs: {
-        clickhouse_settings: {
-          date_time_output_format: "iso",
-        },
-      },
-      tags: {
-        feature: "custom-queries",
-        type: query.view,
-        kind: "analytic",
-        projectId,
-      },
-    });
-    return result;
-  } catch (error) {
-    // If the error is a known invalid request, return a 400 error
-    if (error instanceof InvalidRequestError) {
-      logger.warn("Bad request in query execution", error, {
-        projectId,
-        query,
-      });
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: error.message || "Invalid request",
-        cause: error,
-      });
-    }
-    logger.error("Error executing query", error, { projectId, query });
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to execute query",
-      cause: error,
-    });
-  }
-}

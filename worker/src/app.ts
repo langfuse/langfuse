@@ -16,25 +16,32 @@ import {
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
-
 import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
+import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
+import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
   DataRetentionQueue,
   MeteringDataPostgresExportQueue,
   PostHogIntegrationQueue,
+  MixpanelIntegrationQueue,
   QueueName,
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
   IngestionQueue,
-  webhookProcessor,
+  OtelIngestionQueue,
+  TraceUpsertQueue,
+  CloudFreeTierUsageThresholdQueue,
+  EventPropagationQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
+import { prisma } from "@langfuse/shared/src/db";
+import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { projectDeleteProcessor } from "./queues/projectDelete";
@@ -42,6 +49,10 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import {
+  mixpanelIntegrationProcessingProcessor,
+  mixpanelIntegrationProcessor,
+} from "./queues/mixpanelIntegrationQueue";
 import {
   blobStorageIntegrationProcessingProcessor,
   blobStorageIntegrationProcessor,
@@ -56,6 +67,12 @@ import { batchActionQueueProcessor } from "./queues/batchActionQueue";
 import { scoreDeleteProcessor } from "./queues/scoreDelete";
 import { DlqRetryService } from "./services/dlq/dlqRetryService";
 import { entityChangeQueueProcessor } from "./queues/entityChangeQueue";
+import { webhookProcessor } from "./queues/webhooks";
+import { datasetDeleteProcessor } from "./queues/datasetDelete";
+import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
+import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
+import { notificationQueueProcessor } from "./queues/notificationQueue";
+import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
 
 const app = express();
 
@@ -80,14 +97,25 @@ if (env.LANGFUSE_ENABLE_BACKGROUND_MIGRATIONS === "true") {
   });
 }
 
+// Initialize ClickhouseReadSkipCache on container start
+ClickhouseReadSkipCache.getInstance(prisma)
+  .initialize()
+  .catch((err) => {
+    logger.error("Error initializing ClickhouseReadSkipCache", err);
+  });
+
 if (env.QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.TraceUpsert,
-    evalJobTraceCreatorQueueProcessor,
-    {
-      concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
-    },
-  );
+  // Register workers for all trace upsert queue shards
+  const traceUpsertShardNames = TraceUpsertQueue.getShardNames();
+  traceUpsertShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      evalJobTraceCreatorQueueProcessor,
+      {
+        concurrency: env.LANGFUSE_TRACE_UPSERT_WORKER_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
@@ -96,6 +124,11 @@ if (env.QUEUE_CONSUMER_CREATE_EVAL_QUEUE_IS_ENABLED === "true") {
     evalJobCreatorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+      limiter: {
+        // Process at most `max` jobs per `duration` milliseconds globally
+        max: env.LANGFUSE_EVAL_CREATOR_WORKER_CONCURRENCY,
+        duration: env.LANGFUSE_EVAL_CREATOR_LIMITER_DURATION,
+      },
     },
   );
 }
@@ -128,6 +161,11 @@ if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
     concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
+    // Same configuration as EvaluationExecution or
+    // BlobStorageIntegrationProcessingQueue queue, see detailed comment there
+    maxStalledCount: 3,
+    lockDuration: 60000, // 60 seconds
+    stalledInterval: 120000, // 120 seconds
     limiter: {
       // Process at most `max` delete jobs per 2 min
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
@@ -143,6 +181,17 @@ if (env.QUEUE_CONSUMER_SCORE_DELETE_QUEUE_IS_ENABLED === "true") {
       // Process at most `max` delete jobs per 15 seconds
       max: env.LANGFUSE_SCORE_DELETE_CONCURRENCY,
       duration: env.LANGFUSE_CLICKHOUSE_TRACE_DELETION_CONCURRENCY_DURATION_MS,
+    },
+  });
+}
+
+if (env.QUEUE_CONSUMER_DATASET_DELETE_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.DatasetDelete, datasetDeleteProcessor, {
+    concurrency: env.LANGFUSE_DATASET_DELETE_CONCURRENCY,
+    limiter: {
+      max: env.LANGFUSE_DATASET_DELETE_CONCURRENCY,
+      duration:
+        env.LANGFUSE_CLICKHOUSE_DATASET_DELETION_CONCURRENCY_DURATION_MS,
     },
   });
 }
@@ -175,6 +224,13 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
     evalJobExecutorQueueProcessor,
     {
       concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
     },
   );
 }
@@ -202,6 +258,20 @@ if (env.QUEUE_CONSUMER_BATCH_ACTION_QUEUE_IS_ENABLED === "true") {
       },
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED === "true") {
+  // Register workers for all ingestion queue shards
+  const shardNames = OtelIngestionQueue.getShardNames();
+  shardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      otelIngestionQueueProcessor,
+      {
+        concurrency: env.LANGFUSE_OTEL_INGESTION_QUEUE_PROCESSING_CONCURRENCY,
+      },
+    );
+  });
 }
 
 if (env.QUEUE_CONSUMER_INGESTION_QUEUE_IS_ENABLED === "true") {
@@ -247,6 +317,49 @@ if (
   );
 }
 
+// Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
+if (
+  env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
+  env.STRIPE_SECRET_KEY
+) {
+  WorkerManager.register(
+    QueueName.CloudSpendAlertQueue,
+    cloudSpendAlertQueueProcessor,
+    {
+      concurrency: 20,
+      limiter: {
+        // Process at most 600 jobs per minute / 10 jobs per second for Stripe API rate limits
+        // - stripe allows 100 ops / sec but we want to use a lower limit to account for 3 environments and other calls
+        // - See: https://docs.stripe.com/rate-limits
+        max: 900,
+        duration: 60_000,
+      },
+    },
+  );
+}
+
+// Free Tier Usage Threshold Queue: Only enable in cloud environment
+if (
+  env.QUEUE_CONSUMER_FREE_TIER_USAGE_THRESHOLD_QUEUE_IS_ENABLED === "true" &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && // Only in cloud deployments
+  env.STRIPE_SECRET_KEY
+) {
+  // Instantiate the queue to trigger scheduled jobs
+  CloudFreeTierUsageThresholdQueue.getInstance();
+  WorkerManager.register(
+    QueueName.CloudFreeTierUsageThresholdQueue,
+    cloudFreeTierUsageThresholdQueueProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most `max` jobs per 30 seconds
+        max: 1,
+        duration: 30_000,
+      },
+    },
+  );
+}
+
 if (env.QUEUE_CONSUMER_EXPERIMENT_CREATE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.ExperimentCreate,
@@ -274,8 +387,41 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
     postHogIntegrationProcessingProcessor,
     {
       concurrency: 1,
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
       limiter: {
         // Process at most one PostHog job globally per 10s.
+        max: 1,
+        duration: 10_000,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  MixpanelIntegrationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationQueue,
+    mixpanelIntegrationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+
+  WorkerManager.register(
+    QueueName.MixpanelIntegrationProcessingQueue,
+    mixpanelIntegrationProcessingProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // Process at most one Mixpanel job globally per 10s.
         max: 1,
         duration: 10_000,
       },
@@ -300,6 +446,13 @@ if (env.QUEUE_CONSUMER_BLOB_STORAGE_INTEGRATION_QUEUE_IS_ENABLED === "true") {
     blobStorageIntegrationProcessingProcessor,
     {
       concurrency: 1,
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
     },
   );
 }
@@ -354,6 +507,37 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
       concurrency: env.LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY,
     },
   );
+}
+
+if (
+  env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
+  env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+) {
+  // Instantiate the queue to trigger scheduled jobs
+  EventPropagationQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.EventPropagationQueue,
+    eventPropagationProcessor,
+    {
+      concurrency: 1,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.NotificationQueue,
+    notificationQueueProcessor,
+    {
+      concurrency: 5, // Process up to 5 notification jobs concurrently
+    },
+  );
+}
+
+if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
+  // Start the ClickHouse mutation monitor after all workers are registered
+  MutationMonitor.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

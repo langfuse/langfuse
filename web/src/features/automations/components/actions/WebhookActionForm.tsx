@@ -15,13 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { X, Plus, RefreshCw } from "lucide-react";
+import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod/v4";
 import {
   type ActionDomain,
   type ActionDomainWithSecrets,
   AvailableWebhookApiSchema,
+  type SafeWebhookActionConfig,
   WebhookDefaultHeaders,
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -42,6 +43,7 @@ import {
 } from "@/src/components/ui/popover";
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export const webhookSchema = z.object({
   url: z.url(),
@@ -59,6 +61,9 @@ export const webhookSchema = z.object({
         },
       ),
       value: z.string(),
+      displayValue: z.string(),
+      isSecret: z.boolean(),
+      wasSecret: z.boolean(),
     }),
   ),
   apiVersion: AvailableWebhookApiSchema,
@@ -99,7 +104,19 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
 
   // Function to add a new header pair
   const addHeader = () => {
-    appendHeader({ name: "", value: "" });
+    appendHeader({
+      name: "",
+      value: "",
+      displayValue: "",
+      isSecret: false,
+      wasSecret: false,
+    });
+  };
+
+  // Function to toggle secret status of a header
+  const toggleHeaderSecret = (index: number) => {
+    const currentValue = form.watch(`webhook.headers.${index}.isSecret`);
+    form.setValue(`webhook.headers.${index}.isSecret`, !currentValue);
   };
 
   return (
@@ -170,7 +187,10 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             ...WebhookDefaultHeaders,
             "x-langfuse-signature": `t=<timestamp>,v1=<signature>`,
           }).map(([key, value]) => (
-            <div key={key} className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2">
+            <div
+              key={key}
+              className="mb-2 grid grid-cols-[1fr,1fr,auto,auto] gap-2"
+            >
               <FormItem>
                 <FormControl>
                   <Input value={key} disabled={true} className="bg-muted/50" />
@@ -185,8 +205,6 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   />
                 </FormControl>
               </FormItem>
-              <div className="w-10" />{" "}
-              {/* Spacer to align with editable headers */}
             </div>
           ))}
         </div>
@@ -201,10 +219,17 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           const originalIndex = headerFields.findIndex(
             (f) => f.id === field.id,
           );
+          const isSecret = form.watch(
+            `webhook.headers.${originalIndex}.isSecret`,
+          );
+          const displayValue = form.watch(
+            `webhook.headers.${originalIndex}.displayValue`,
+          );
+
           return (
             <div
               key={field.id}
-              className="mb-2 grid grid-cols-[1fr,1fr,auto] gap-2"
+              className="mb-2 grid grid-cols-[1fr,1fr,auto,auto] gap-2"
             >
               <FormField
                 control={form.control}
@@ -229,15 +254,34 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder="Value"
+                        placeholder={
+                          isSecret && displayValue
+                            ? displayValue
+                            : displayValue || "Value"
+                        }
                         {...field}
                         disabled={disabled}
+                        type={isSecret ? "password" : "text"}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => toggleHeaderSecret(originalIndex)}
+                disabled={disabled}
+                title={isSecret ? "Make header public" : "Make header secret"}
+              >
+                {isSecret ? (
+                  <Lock className="h-4 w-4 text-orange-500" />
+                ) : (
+                  <LockOpen className="h-4 w-4 text-muted-foreground" />
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -277,7 +321,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
               <div className="flex-1">
                 <CodeView
                   className="bg-muted/50"
-                  content={action.config.displaySecretKey}
+                  content={
+                    (action.config as SafeWebhookActionConfig).displaySecretKey
+                  }
                   defaultCollapsed={false}
                 />
               </div>
@@ -320,6 +366,10 @@ export const RegenerateWebhookSecretButton = ({
   const regenerateSecretMutation =
     api.automations.regenerateWebhookSecret.useMutation({
       onSuccess: (data) => {
+        showSuccessToast({
+          title: "Webhook Secret Regenerated",
+          description: "Your webhook secret has been successfully regenerated.",
+        });
         setRegeneratedSecret(data.webhookSecret);
         setShowRegenerateDialog(true);
         utils.automations.invalidate();
@@ -348,10 +398,10 @@ export const RegenerateWebhookSecretButton = ({
             type="button"
             variant="outline"
             size="default"
-            disabled={regenerateSecretMutation.isLoading}
+            disabled={regenerateSecretMutation.isPending}
           >
             <RefreshCw
-              className={`mr-2 h-4 w-4 ${regenerateSecretMutation.isLoading ? "animate-spin" : ""}`}
+              className={`mr-2 h-4 w-4 ${regenerateSecretMutation.isPending ? "animate-spin" : ""}`}
             />
             Regenerate
           </Button>
@@ -368,14 +418,14 @@ export const RegenerateWebhookSecretButton = ({
               type="button"
               variant="outline"
               onClick={() => setShowConfirmPopover(false)}
-              disabled={regenerateSecretMutation.isLoading}
+              disabled={regenerateSecretMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
-              loading={regenerateSecretMutation.isLoading}
+              loading={regenerateSecretMutation.isPending}
               onClick={handleRegenerateSecret}
             >
               Regenerate Secret
@@ -420,19 +470,28 @@ export const RegenerateWebhookSecretButton = ({
 
 // Function to convert the array of header objects to a Record for API
 export const formatWebhookHeaders = (
-  headers: { name: string; value: string }[],
-): Record<string, string> => {
-  const headersObject: Record<string, string> = {};
+  headers: {
+    name: string;
+    value: string;
+    displayValue: string;
+    isSecret: boolean;
+    wasSecret: boolean;
+  }[],
+): Record<string, { secret: boolean; value: string }> => {
+  const requestHeaders: Record<string, { secret: boolean; value: string }> = {};
   const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
 
   headers.forEach((header) => {
-    if (header.name.trim() && header.value.trim()) {
+    if (header.name.trim()) {
       // Exclude default headers - they will be added automatically by the API
       if (!defaultHeaderKeys.includes(header.name.trim().toLowerCase())) {
-        headersObject[header.name.trim()] = header.value.trim();
+        requestHeaders[header.name.trim()] = {
+          secret: header.isSecret || false,
+          value: header.value.trim(),
+        };
       }
     }
   });
 
-  return headersObject;
+  return requestHeaders;
 };

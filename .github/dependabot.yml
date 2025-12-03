@@ -36,6 +36,7 @@ updates:
         patterns:
           - "express"
           - "@types/express"
+          - "@types/express-serve-static-core"
       observability:
         patterns:
           - "dd-trace"

@@ -113,7 +113,7 @@ export default function RenameOrganization() {
               <Button
                 variant="secondary"
                 type="submit"
-                loading={renameOrganization.isLoading}
+                loading={renameOrganization.isPending}
                 disabled={form.getValues().name === "" || !hasAccess}
                 className="mt-4"
               >

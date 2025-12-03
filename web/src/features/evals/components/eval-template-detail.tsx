@@ -33,9 +33,6 @@ export const EvalTemplateDetail = () => {
   const templateId = router.query.id as string;
 
   const [isEditing, setIsEditing] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<EvalTemplate | null>(
-    null,
-  );
 
   // get the current template by id
   const template = api.evals.templateById.useQuery({
@@ -52,21 +49,13 @@ export const EvalTemplateDetail = () => {
     },
     {
       enabled:
-        !template.isLoading &&
+        !template.isPending &&
         !template.isError &&
         template.data?.name !== undefined,
     },
   );
 
-  // Set the selected template when data is loaded
-  React.useEffect(() => {
-    if (template.data && !selectedTemplate) {
-      setSelectedTemplate(template.data);
-    }
-  }, [template.data, selectedTemplate]);
-
   const handleTemplateSelect = (newTemplate: EvalTemplate) => {
-    setSelectedTemplate(newTemplate);
     // Update URL without full page reload
     router.push(
       `/project/${projectId}/evals/templates/${newTemplate.id}`,
@@ -75,13 +64,10 @@ export const EvalTemplateDetail = () => {
     );
   };
 
-  // Get the appropriate template to display
-  const displayTemplate = selectedTemplate || template.data;
-
   return (
     <Page
       headerProps={{
-        title: `${displayTemplate?.name || ""}`,
+        title: `${template.data?.name ?? ""}`,
         itemType: "EVALUATOR",
         breadcrumb: [
           {
@@ -95,7 +81,7 @@ export const EvalTemplateDetail = () => {
               projectId={projectId}
               isEditing={isEditing}
               setIsEditing={setIsEditing}
-              isCustom={!!displayTemplate?.projectId}
+              isCustom={!!template.data?.projectId}
             />
 
             {/* TODO: moved to LFE-4573 */}
@@ -108,20 +94,20 @@ export const EvalTemplateDetail = () => {
                   ? `${template.data.name}-v${template.data.version}`
                   : undefined
               }
-              enabled={!template.isLoading}
+              enabled={!template.isPending}
             /> */}
           </>
         ),
       }}
     >
-      {allTemplates.isLoading || !allTemplates.data || !displayTemplate ? (
+      {allTemplates.isLoading || !allTemplates.data || !template.data ? (
         <div className="p-3">Loading...</div>
       ) : isEditing ? (
         <div className="overflow-y-auto p-3 pt-1">
           <EvalTemplateForm
             useDialog={false}
             projectId={projectId}
-            existingEvalTemplate={displayTemplate}
+            existingEvalTemplate={template.data}
             isEditing={isEditing}
             setIsEditing={setIsEditing}
           />
@@ -132,7 +118,7 @@ export const EvalTemplateDetail = () => {
             <EvalTemplateForm
               useDialog={false}
               projectId={projectId}
-              existingEvalTemplate={displayTemplate}
+              existingEvalTemplate={template.data}
               isEditing={isEditing}
               setIsEditing={setIsEditing}
             />
@@ -150,7 +136,7 @@ export const EvalTemplateDetail = () => {
                     <div
                       key={template.id}
                       className={`flex cursor-pointer flex-col rounded-md px-2 py-1.5 hover:bg-accent ${
-                        template.id === displayTemplate.id ? "bg-accent" : ""
+                        template.id === templateId ? "bg-accent" : ""
                       }`}
                       onClick={() => handleTemplateSelect(template)}
                     >

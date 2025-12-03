@@ -17,6 +17,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
@@ -29,10 +30,9 @@ import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-u
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
-  TabsBarList,
-  TabsBarTrigger,
-  TabsBar,
-} from "@/src/components/ui/tabs-bar";
+  getDatasetTabs,
+  DATASET_TABS,
+} from "@/src/features/navigation/utils/dataset-tabs";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
@@ -85,7 +85,7 @@ export default function Dataset() {
     void utils.datasets.runsByDatasetId.invalidate();
     void utils.datasets.baseRunDataByDatasetId.invalidate();
     showSuccessToast({
-      title: "Experiment run triggered successfully",
+      title: "Experiment triggered successfully",
       description: "Waiting for experiment to complete...",
       link: {
         text: "View experiment",
@@ -119,7 +119,7 @@ export default function Dataset() {
 
   const {
     activeEvaluators,
-    inActiveEvaluators,
+    pausedEvaluators,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -162,20 +162,10 @@ export default function Dataset() {
               description: dataset.data.description,
             }
           : undefined,
-        tabsComponent: (
-          <TabsBar value="runs">
-            <TabsBarList>
-              <TabsBarTrigger value="runs">Runs</TabsBarTrigger>
-              <TabsBarTrigger value="items" asChild>
-                <Link
-                  href={`/project/${projectId}/datasets/${datasetId}/items`}
-                >
-                  Items
-                </Link>
-              </TabsBarTrigger>
-            </TabsBarList>
-          </TabsBar>
-        ),
+        tabsProps: {
+          tabs: getDatasetTabs(projectId, datasetId),
+          activeTab: DATASET_TABS.RUNS,
+        },
         actionButtonsRight: (
           <>
             <Dialog
@@ -188,10 +178,10 @@ export default function Dataset() {
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  <span className="ml-2 hidden md:block">New experiment</span>
+                  <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
                 <CreateExperimentsForm
                   key={`create-experiment-form-${datasetId}`}
                   projectId={projectId as string}
@@ -214,7 +204,7 @@ export default function Dataset() {
                   onConfigureTemplate={handleConfigureEvaluator}
                   onSelectEvaluator={handleSelectEvaluator}
                   activeTemplateIds={activeEvaluators}
-                  inactiveTemplateIds={inActiveEvaluators}
+                  inactiveTemplateIds={pausedEvaluators}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>
@@ -248,6 +238,10 @@ export default function Dataset() {
                     datasetName={dataset.data?.name ?? ""}
                     datasetDescription={dataset.data?.description ?? undefined}
                     datasetMetadata={dataset.data?.metadata}
+                    datasetInputSchema={dataset.data?.inputSchema ?? undefined}
+                    datasetExpectedOutputSchema={
+                      dataset.data?.expectedOutputSchema ?? undefined
+                    }
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -301,10 +295,12 @@ export default function Dataset() {
           }}
         >
           <DialogContent className="max-h-[90vh] max-w-screen-md overflow-y-auto">
-            <DialogTitle>
-              {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
-              Evaluator
-            </DialogTitle>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedEvaluatorData.evaluator.id ? "Edit" : "Configure"}{" "}
+                Evaluator
+              </DialogTitle>
+            </DialogHeader>
             <EvaluatorForm
               useDialog={true}
               projectId={projectId}

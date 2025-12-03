@@ -12,7 +12,7 @@ import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import Layout from "@/src/components/layouts/layout";
+import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
@@ -27,17 +27,55 @@ import "core-js/features/array/to-reversed";
 import "core-js/features/array/to-spliced";
 import "core-js/features/array/to-sorted";
 
-// Other CSS
 import "react18-json-view/src/style.css";
+
+// Polyfill to prevent React crashes when Google Translate modifies the DOM.
+// Google Translate wraps text nodes in <font> elements, which breaks React's
+// reconciliation when it tries to remove/insert nodes that no longer exist
+// in the expected location. This catches NotFoundError and prevents crashes
+// while still allowing translation to work.
+// See: https://github.com/facebook/react/issues/11538
+// See also: https://issues.chromium.org/issues/41407169
+if (typeof window !== "undefined") {
+  const originalRemoveChild = Element.prototype.removeChild;
+  const originalInsertBefore = Element.prototype.insertBefore;
+
+  Element.prototype.removeChild = function <T extends Node>(child: T): T {
+    try {
+      return originalRemoveChild.call(this, child) as T;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotFoundError") {
+        // Node was likely moved by Google Translate - silently ignore
+        return child;
+      }
+      throw error;
+    }
+  };
+
+  Element.prototype.insertBefore = function <T extends Node>(
+    newNode: T,
+    referenceNode: Node | null,
+  ): T {
+    try {
+      return originalInsertBefore.call(this, newNode, referenceNode) as T;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotFoundError") {
+        // Reference node was likely moved by Google Translate
+        // Fallback: append to end (DOM is already inconsistent anyway)
+        return this.appendChild(newNode) as T;
+      }
+      throw error;
+    }
+  };
+}
+
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import PlainChat, {
-  chatSetCustomer,
-  chatSetThreadDetails,
-} from "@/src/features/support-chat/PlainChat";
+import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -103,14 +141,17 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     enableSystem
                     disableTransitionOnChange
                   >
-                    <Layout>
-                      <Component {...pageProps} />
-                      <UserTracking />
-                    </Layout>
-                    <BetterStackUptimeStatusMessage />
+                    <ScoreCacheProvider>
+                      <SupportDrawerProvider defaultOpen={false}>
+                        <AppLayout>
+                          <Component {...pageProps} />
+                          <UserTracking />
+                        </AppLayout>
+                      </SupportDrawerProvider>
+                      <BetterStackUptimeStatusMessage />
+                    </ScoreCacheProvider>
                   </ThemeProvider>
                 </MarkdownContextProvider>
-                <PlainChat />
               </DetailPageListsProvider>
             </SessionProvider>
           </PostHogProvider>
@@ -124,8 +165,8 @@ export default api.withTRPC(MyApp);
 
 function UserTracking() {
   const session = useSession();
+  const { region } = useLangfuseCloudRegion();
   const sessionUser = session.data?.user;
-  const { organization } = useQueryProjectOrOrganization();
 
   // Track user identity and properties
   const lastIdentifiedUser = useRef<string | null>(null);
@@ -150,21 +191,13 @@ function UserTracking() {
                 organization: org,
               })),
             ) ?? undefined,
-          LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          LANGFUSE_CLOUD_REGION: region,
         });
 
       // Sentry
       setUser({
         email: sessionUser.email ?? undefined,
         id: sessionUser.id ?? undefined,
-      });
-
-      // Chat
-      chatSetCustomer({
-        email: sessionUser.email ?? undefined,
-        fullName: sessionUser.name ?? undefined,
-        emailHash: sessionUser.emailSupportHash ?? undefined,
-        chatAvatarUrl: sessionUser.image ?? undefined,
       });
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
@@ -175,23 +208,7 @@ function UserTracking() {
       // Sentry
       setUser(null);
     }
-  }, [sessionUser, session.status]);
-
-  // update chat thread details
-  const plan = organization?.plan;
-  // const currentOrgIsDemoOrg =
-  //   env.NEXT_PUBLIC_DEMO_ORG_ID &&
-  //   organization?.id &&
-  //   organization.id === env.NEXT_PUBLIC_DEMO_ORG_ID;
-  // const projectRole = project?.role;
-  // const organizationRole = organization?.role;
-  const organizationId = organization?.id;
-  useEffect(() => {
-    chatSetThreadDetails({
-      orgId: organizationId ?? undefined,
-      plan: plan ?? undefined,
-    });
-  }, [plan, organizationId]);
+  }, [sessionUser, session.status, region]);
 
   // add stripe link to chat
   // const orgStripeLink = organization?.cloudConfig?.stripe?.customerId
@@ -222,7 +239,8 @@ if (
 }
 
 function BetterStackUptimeStatusMessage() {
-  if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return null;
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  if (!isLangfuseCloud) return null;
   return (
     <script
       src="https://uptime.betterstack.com/widgets/announcement.js"

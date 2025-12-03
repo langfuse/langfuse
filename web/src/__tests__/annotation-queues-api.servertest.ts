@@ -14,6 +14,7 @@ import {
   CreateAnnotationQueueItemResponse,
   UpdateAnnotationQueueItemResponse,
   DeleteAnnotationQueueItemResponse,
+  CreateAnnotationQueueResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import {
   AnnotationQueueObjectType,
@@ -170,6 +171,120 @@ describe("Annotation Queues API Endpoints", () => {
       // Both pages should have the expected number of items
       expect(firstPageResponse.body.data.length).toBe(limit);
       expect(secondPageResponse.body.data.length).toBe(limit);
+    });
+  });
+
+  describe("POST /annotation-queues", () => {
+    it("should create a new annotation queue", async () => {
+      const scoreConfig = await prisma.scoreConfig.create({
+        data: {
+          name: "Test Score Config",
+          description: "Test Score Config Description",
+          projectId,
+          dataType: "NUMERIC",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueResponse,
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: "Test Queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [scoreConfig.id],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.id).toBeDefined();
+      expect(response.body.name).toBe("Test Queue");
+      expect(response.body.description).toBe("Test Queue Description");
+      expect(response.body.scoreConfigIds).toEqual([scoreConfig.id]);
+    });
+
+    it("should return 400 if the queue name already exists", async () => {
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: "Test Queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 if no score config IDs are provided", async () => {
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: "No configs queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 400 if the score config IDs are invalid", async () => {
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: "Invalid configs queue",
+          description: "Test Queue Description",
+          scoreConfigIds: ["invalid-score-config-id"],
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should return 405 if the user is on the Hobby plan and has reached the maximum number of annotation queues", async () => {
+      const { auth: hobbyPlanAuth, projectId: hobbyProjectId } =
+        await createOrgProjectAndApiKey({
+          plan: "Hobby",
+        });
+
+      const config = await prisma.scoreConfig.create({
+        data: {
+          name: "Test Score Config",
+          description: "Test Score Config Description",
+          projectId: hobbyProjectId,
+          dataType: "NUMERIC",
+        },
+      });
+
+      await prisma.annotationQueue.create({
+        data: {
+          name: "First queue",
+          description: "First queue description",
+          scoreConfigIds: [config.id],
+          projectId: hobbyProjectId,
+        },
+      });
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/annotation-queues",
+        {
+          name: "Hobby plan queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [config.id],
+        },
+        hobbyPlanAuth,
+      );
+
+      expect(response.status).toBe(405);
     });
   });
 

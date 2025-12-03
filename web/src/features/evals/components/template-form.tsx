@@ -185,6 +185,7 @@ export const InnerEvalTemplateForm = (props: {
     updateModelParamValue,
     setModelParamEnabled,
     availableModels,
+    providerModelCombinations,
     availableProviders,
   } = useModelParams();
 
@@ -424,6 +425,7 @@ export const InnerEvalTemplateForm = (props: {
                 {...{
                   modelParams,
                   availableModels,
+                  providerModelCombinations,
                   availableProviders,
                   updateModelParamValue: updateModelParamValue,
                   setModelParamEnabled,
@@ -517,7 +519,7 @@ export const InnerEvalTemplateForm = (props: {
       {props.isEditing && (
         <Button
           type="submit"
-          loading={createEvalTemplateMutation.isLoading}
+          loading={createEvalTemplateMutation.isPending}
           className="max-w-fit"
         >
           Save

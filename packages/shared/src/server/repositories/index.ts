@@ -1,6 +1,7 @@
 export * from "./scores";
 export * from "./traces";
 export * from "./observations";
+export * from "./events";
 export * from "./types";
 export * from "./dashboards";
 export * from "./traces_converters";
@@ -13,3 +14,7 @@ export * from "./scores-utils";
 export * from "./blobStorageLog";
 export * from "./environments";
 export * from "./automation-repository";
+export * from "./dataset-run-items-converters";
+export * from "./dataset-run-items";
+export * from "./dataset-items";
+export * from "./comments";

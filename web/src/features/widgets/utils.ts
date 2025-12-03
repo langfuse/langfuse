@@ -7,6 +7,10 @@ export type WidgetChartConfig = {
   type: DashboardWidgetChartType;
   row_limit?: number;
   bins?: number;
+  defaultSort?: {
+    column: string;
+    order: "ASC" | "DESC";
+  };
 };
 
 /**

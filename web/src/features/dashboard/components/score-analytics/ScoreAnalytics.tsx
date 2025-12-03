@@ -10,16 +10,17 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-  toOrderedScoresList,
 } from "@/src/features/scores/lib/helpers";
-import { getScoreDataTypeIcon } from "@/src/features/scores/components/ScoreDetailColumnHelpers";
 import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components/score-analytics/NumericScoreTimeSeriesChart";
 import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
 import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { Flex, Text } from "@tremor/react";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import {
+  convertScoreColumnsToAnalyticsData,
+  getScoreDataTypeIcon,
+} from "@/src/features/scores/lib/scoreColumns";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -37,38 +38,22 @@ export function ScoreAnalytics(props: {
       [],
     );
 
-  const scoreKeysAndProps = api.scores.getScoreKeysAndProps.useQuery(
+  const scoreKeysAndProps = api.scores.getScoreColumns.useQuery(
     {
       projectId: props.projectId,
-      selectedTimeOption: { option: props.agg, filterSource: "DASHBOARD" },
+      fromTimestamp: props.fromTimestamp,
+      toTimestamp: props.toTimestamp,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       enabled: !props.isLoading,
     },
   );
 
-  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(() => {
-    const scoreAnalyticsOptions = scoreKeysAndProps.data
-      ? toOrderedScoresList(scoreKeysAndProps.data).map(
-          ({ key, name, dataType, source }) => ({
-            key,
-            value: `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`,
-          }),
-        )
-      : [];
-
-    return {
-      scoreAnalyticsOptions,
-      scoreKeyToData: new Map(
-        scoreKeysAndProps.data?.map((obj) => [obj.key, obj]) ?? [],
-      ),
-    };
-  }, [scoreKeysAndProps.data]);
+  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
+    () =>
+      convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
+    [scoreKeysAndProps.data],
+  );
 
   const scoreAnalyticsValues = scoreAnalyticsOptions?.filter((option) =>
     selectedDashboardScoreKeys.includes(option.key),
@@ -79,12 +64,12 @@ export function ScoreAnalytics(props: {
       className={props.className}
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
-      isLoading={props.isLoading || scoreKeysAndProps.isLoading}
+      isLoading={props.isLoading || scoreKeysAndProps.isPending}
       headerClassName={"grid grid-cols-[1fr,auto,auto] items-center"}
       headerChildren={
-        !scoreKeysAndProps.isLoading &&
+        !scoreKeysAndProps.isPending &&
         !props.isLoading &&
-        Boolean(scoreKeysAndProps.data?.length) && (
+        Boolean(scoreKeysAndProps.data?.scoreColumns.length) && (
           <MultiSelectKeyValues
             placeholder="Search score..."
             onValueChange={(values, changedValueId, selectedValueKeys) => {
@@ -111,9 +96,9 @@ export function ScoreAnalytics(props: {
         )
       }
     >
-      {Boolean(scoreKeysAndProps.data?.length) &&
+      {Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
       Boolean(scoreAnalyticsValues.length) ? (
-        <div className="grid grid-flow-row gap-4">
+        <div className="grid grid-flow-row gap-4 [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground">
           {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
             const scoreData = scoreKeyToData.get(scoreKey);
             if (!scoreData) return null;
@@ -190,18 +175,14 @@ export function ScoreAnalytics(props: {
             );
           })}
         </div>
-      ) : Boolean(scoreKeysAndProps.data?.length) ? (
-        <Flex
-          alignItems="center"
-          justifyContent="center"
-          className="min-h-[9rem] w-full flex-1 rounded-tremor-default border"
-        >
-          <Text className="text-tremor-content">
+      ) : Boolean(scoreKeysAndProps.data?.scoreColumns.length) ? (
+        <div className="flex min-h-[9rem] w-full flex-1 items-center justify-center rounded-tremor-default border">
+          <p className="text-tremor-content">
             Select a score to view analytics
-          </Text>
-        </Flex>
+          </p>
+        </div>
       ) : (
-        <NoDataOrLoading isLoading={scoreKeysAndProps.isLoading} />
+        <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
       )}
     </DashboardCard>
   );
