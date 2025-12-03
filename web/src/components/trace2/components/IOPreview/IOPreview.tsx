@@ -144,8 +144,20 @@ export function IOPreview({
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
   // Parse input/output
+  const t0 = performance.now();
   const parsedInput = deepParseJson(input);
+  const t1 = performance.now();
   const parsedOutput = deepParseJson(output);
+  const t2 = performance.now();
+
+  const inputSize = JSON.stringify(input || {}).length;
+  const outputSize = JSON.stringify(output || {}).length;
+
+  console.log(
+    `[IOPreview] deepParseJson calls:`,
+    `\n  - Input: ${(inputSize / 1024).toFixed(2)}KB, parse time: ${(t1 - t0).toFixed(2)}ms`,
+    `\n  - Output: ${(outputSize / 1024).toFixed(2)}KB, parse time: ${(t2 - t1).toFixed(2)}ms`,
+  );
 
   // Parse ChatML format
   const {

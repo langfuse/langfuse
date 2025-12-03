@@ -60,19 +60,58 @@ export function useChatMLParser(
   metadata: Prisma.JsonValue | undefined,
   observationName: string | undefined,
 ): ChatMLParserResult {
+  // Performance: Track deepParseJson calls
+  const t0 = performance.now();
   const parsedInput = deepParseJson(input);
+  const t1 = performance.now();
   const parsedOutput = deepParseJson(output);
+  const t2 = performance.now();
   const parsedMetadata = deepParseJson(metadata);
+  const t3 = performance.now();
+
+  const inputSize = JSON.stringify(input || {}).length;
+  const outputSize = JSON.stringify(output || {}).length;
+
+  console.log(
+    `[useChatMLParser] deepParseJson calls:`,
+    `\n  - Input size: ${(inputSize / 1024).toFixed(2)}KB, parse time: ${(t1 - t0).toFixed(2)}ms`,
+    `\n  - Output size: ${(outputSize / 1024).toFixed(2)}KB, parse time: ${(t2 - t1).toFixed(2)}ms`,
+    `\n  - Metadata parse time: ${(t3 - t2).toFixed(2)}ms`,
+  );
 
   return useMemo(() => {
+    const startTime = performance.now();
+    console.log("[useChatMLParser] Starting ChatML parsing in useMemo...");
+
+    // Normalize input
+    const t0 = performance.now();
     const ctx = { metadata: parsedMetadata, observationName };
     const inResult = normalizeInput(parsedInput, ctx);
+    const t1 = performance.now();
+
+    // Normalize output
     const outResult = normalizeOutput(parsedOutput, ctx);
+    const t2 = performance.now();
+
+    // Clean legacy output
     const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
+    const t3 = performance.now();
+
+    // Combine messages
     const messages = combineInputOutputMessages(
       inResult,
       outResult,
       outputClean,
+    );
+    const t4 = performance.now();
+
+    console.log(
+      `[useChatMLParser] Normalization times:`,
+      `\n  - normalizeInput: ${(t1 - t0).toFixed(2)}ms`,
+      `\n  - normalizeOutput: ${(t2 - t1).toFixed(2)}ms`,
+      `\n  - cleanLegacyOutput: ${(t3 - t2).toFixed(2)}ms`,
+      `\n  - combineInputOutputMessages: ${(t4 - t3).toFixed(2)}ms`,
+      `\n  - Messages created: ${messages.length}`,
     );
 
     // Extract all unique tools from messages (no numbering yet)
@@ -87,6 +126,8 @@ export function useChatMLParser(
         }
       }
     }
+
+    const t5 = performance.now();
 
     // Count tool call invocations
     // Only number tool calls from OUTPUT messages (current invocation), not input (history)
@@ -132,6 +173,8 @@ export function useChatMLParser(
       }
     }
 
+    const t6 = performance.now();
+
     // Sort tools by display order (called first, then by call count)
     const sortedTools = Array.from(toolsMap.values()).sort((a, b) => {
       const callCountA = toolCallCounts.get(a.name) || 0;
@@ -146,6 +189,16 @@ export function useChatMLParser(
     sortedTools.forEach((tool, index) => {
       toolNameToDefinitionNumber.set(tool.name, index + 1);
     });
+
+    const totalTime = performance.now() - startTime;
+
+    console.log(
+      `[useChatMLParser] Tool processing:`,
+      `\n  - Tool extraction: ${(t5 - t4).toFixed(2)}ms (${toolsMap.size} unique tools)`,
+      `\n  - Tool counting loop: ${(t6 - t5).toFixed(2)}ms (${messages.length} messages)`,
+      `\n  - Tool sorting: ${(performance.now() - t6).toFixed(2)}ms`,
+      `\n  ⏱️  TOTAL useMemo TIME: ${totalTime.toFixed(2)}ms`,
+    );
 
     return {
       canDisplayAsChat:
