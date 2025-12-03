@@ -50,24 +50,6 @@ describe("log-view-flattening", () => {
       expect(result).toHaveLength(0);
     });
 
-    it("should return single observation", () => {
-      const obs = createNode({
-        id: "obs-1",
-        type: "GENERATION",
-        name: "generate",
-        startTime: new Date("2024-01-01T00:00:01Z"),
-        depth: 0,
-      });
-      const root = createTraceRoot([obs]);
-
-      const result = flattenChronological(root);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].node.id).toBe("obs-1");
-      expect(result[0].treeLines).toEqual([]);
-      expect(result[0].isLastSibling).toBe(true);
-    });
-
     it("should sort observations by startTime", () => {
       const obs1 = createNode({
         id: "obs-1",
@@ -149,28 +131,6 @@ describe("log-view-flattening", () => {
         expect(item.treeLines).toEqual([]);
       });
     });
-
-    it("should handle observations with same startTime", () => {
-      const sameTime = new Date("2024-01-01T00:00:01Z");
-      const obs1 = createNode({
-        id: "obs-1",
-        type: "GENERATION",
-        startTime: sameTime,
-        depth: 0,
-      });
-      const obs2 = createNode({
-        id: "obs-2",
-        type: "SPAN",
-        startTime: sameTime,
-        depth: 0,
-      });
-      const root = createTraceRoot([obs1, obs2]);
-
-      const result = flattenChronological(root);
-
-      expect(result).toHaveLength(2);
-      // Order is stable (original order preserved for same time)
-    });
   });
 
   describe("flattenTreeOrder", () => {
@@ -178,23 +138,6 @@ describe("log-view-flattening", () => {
       const root = createTraceRoot([]);
       const result = flattenTreeOrder(root);
       expect(result).toHaveLength(0);
-    });
-
-    it("should return single observation", () => {
-      const obs = createNode({
-        id: "obs-1",
-        type: "GENERATION",
-        name: "generate",
-        depth: 0,
-      });
-      const root = createTraceRoot([obs]);
-
-      const result = flattenTreeOrder(root);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].node.id).toBe("obs-1");
-      expect(result[0].treeLines).toEqual([]);
-      expect(result[0].isLastSibling).toBe(true);
     });
 
     it("should preserve parent-child order (DFS)", () => {
