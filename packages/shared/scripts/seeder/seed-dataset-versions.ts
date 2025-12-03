@@ -16,10 +16,11 @@ interface VersionData {
   operations: Array<{
     itemId: string;
     operation: "create" | "update" | "delete";
+    status: "ACTIVE" | null;
     input?: any;
     expectedOutput?: any;
     metadata?: any;
-    deletedAt?: Date | null;
+    validFrom?: Date;
   }>;
 }
 
@@ -64,8 +65,8 @@ export async function seedDatasetVersions(
           operation: "create" as const,
           input: { prompt: `Initial prompt for ${itemId}` },
           expectedOutput: { response: `Initial response for ${itemId}` },
+          status: "ACTIVE" as const,
           metadata: { version: v, batch: true },
-          deletedAt: null,
         });
       }
 
@@ -103,8 +104,8 @@ export async function seedDatasetVersions(
             expectedOutput: {
               response: `Updated response v${v} for ${itemId}`,
             },
+            status: "ACTIVE" as const,
             metadata: { version: v + BULK_VERSIONS, updated: true },
-            deletedAt: null,
           });
         } else if (rand < 0.9) {
           // 30% creates (new items)
@@ -115,18 +116,19 @@ export async function seedDatasetVersions(
             operation: "create" as const,
             input: { prompt: `New prompt v${v} for ${newItemId}` },
             expectedOutput: { response: `New response v${v} for ${newItemId}` },
+            status: "ACTIVE" as const,
             metadata: { version: v + BULK_VERSIONS, new: true },
-            deletedAt: null,
           });
         } else {
           // 10% deletes
           operations.push({
             itemId,
             operation: "delete" as const,
-            input: { prompt: `Deleted prompt for ${itemId}` },
-            expectedOutput: { response: `Deleted response for ${itemId}` },
-            metadata: { version: v + BULK_VERSIONS, deleted: true },
-            deletedAt: timestamp,
+            input: null,
+            expectedOutput: null,
+            metadata: null,
+            status: null,
+            validFrom: timestamp,
           });
         }
       }
@@ -138,30 +140,45 @@ export async function seedDatasetVersions(
       `Created ${ADDITIONAL_VERSIONS} additional versions with mixed operations`,
     );
 
-    // Insert all data
-    logger.info("Starting bulk insert...");
+    // Insert all data into dataset_items table using versioned pattern
+    logger.info("Starting bulk insert into dataset_items...");
     let totalInserts = 0;
     const BATCH_SIZE = 1000;
 
     for (const version of versions) {
-      const items = version.operations.map((op) => ({
-        id: v4(),
-        itemId: op.itemId,
-        projectId,
-        datasetId: dataset.id,
-        input: op.input,
-        expectedOutput: op.expectedOutput,
-        metadata: op.metadata,
-        createdAt: version.timestamp,
-        deletedAt: op.deletedAt,
-        status: "ACTIVE" as const,
-      }));
+      const items = version.operations.map((op) => {
+        const baseRow = {
+          id: op.itemId, // The logical item ID (stays same across versions)
+          projectId,
+          datasetId: dataset.id,
+          input: op.input,
+          expectedOutput: op.expectedOutput,
+          metadata: op.metadata,
+          status: op.status,
+          sourceTraceId: null,
+          sourceObservationId: null,
+          sysId: v4(), // Unique version identifier (physical row ID)
+        };
+        if (op.operation === "delete") {
+          return {
+            ...baseRow,
+            validFrom: op.validFrom, // When this version became valid
+            isDeleted: true, // Soft delete flag
+          };
+        } else {
+          return {
+            ...baseRow,
+            validFrom: version.timestamp, // When this version became valid
+          };
+        }
+      });
 
-      // Insert in batches using Prisma (cleaner than raw SQL)
+      // Insert in batches directly into dataset_items (versioned table)
       for (let i = 0; i < items.length; i += BATCH_SIZE) {
         const batch = items.slice(i, i + BATCH_SIZE);
-        await prismaClient.datasetItemEvent.createMany({
+        await prismaClient.datasetItem.createMany({
           data: batch,
+          skipDuplicates: false, // We want all versions
         });
         totalInserts += batch.length;
       }
@@ -171,7 +188,9 @@ export async function seedDatasetVersions(
       }
     }
 
-    logger.info(`✅ Complete! Inserted ${totalInserts} total rows`);
+    logger.info(
+      `✅ Complete! Inserted ${totalInserts} total version rows into dataset_items`,
+    );
     logger.info(`   Dataset: ${TEST_DATASET_NAME}`);
     logger.info(`   Versions: ${TOTAL_VERSIONS}`);
     logger.info(`   Unique items: ~${ITEM_COUNT}`);
