@@ -453,10 +453,11 @@ export function Trace(props: {
               capture("notification:dismiss_notification", {
                 notification_id: OBSERVATION_TYPE_ALERT_ID,
               });
-              setDismissedTraceViewNotifications([
-                ...dismissedTraceViewNotifications,
-                OBSERVATION_TYPE_ALERT_ID,
-              ]);
+              setDismissedTraceViewNotifications((prev) =>
+                prev.includes(OBSERVATION_TYPE_ALERT_ID)
+                  ? prev
+                  : [...prev, OBSERVATION_TYPE_ALERT_ID],
+              );
             }}
             title="Dismiss"
           >

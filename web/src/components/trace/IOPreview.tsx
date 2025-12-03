@@ -384,10 +384,11 @@ export const IOPreview: React.FC<{
               capture("notification:dismiss_notification", {
                 notification_id: EMPTY_IO_ALERT_ID,
               });
-              setDismissedTraceViewNotifications([
-                ...dismissedTraceViewNotifications,
-                EMPTY_IO_ALERT_ID,
-              ]);
+              setDismissedTraceViewNotifications((prev) =>
+                prev.includes(EMPTY_IO_ALERT_ID)
+                  ? prev
+                  : [...prev, EMPTY_IO_ALERT_ID],
+              );
             }}
             title="Dismiss"
           >
