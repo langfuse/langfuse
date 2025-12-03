@@ -30,9 +30,17 @@ import {
 } from "@/src/utils/chatml";
 import { ToolCallDefinitionCard } from "@/src/components/trace/ToolCallDefinitionCard";
 import { ToolCallInvocationsView } from "@/src/components/trace/ToolCallInvocationsView";
-import { ListChevronsDownUp, ListChevronsUpDown, BookOpen } from "lucide-react";
+import {
+  ListChevronsDownUp,
+  ListChevronsUpDown,
+  BookOpen,
+  X,
+} from "lucide-react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import Link from "next/link";
+
+const EMPTY_IO_ALERT_ID = "empty-io-alert";
+const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export const IOPreview: React.FC<{
   input?: Prisma.JsonValue;
@@ -73,6 +81,8 @@ export const IOPreview: React.FC<{
   >("jsonViewPreference", "pretty");
   const selectedView = currentView ?? localCurrentView;
   const capture = usePostHogClientCapture();
+  const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
+    useLocalStorage<string[]>(STORAGE_KEY, []);
   const input = deepParseJson(props.input);
   const output = deepParseJson(props.output);
   const metadata = deepParseJson(props.metadata);
@@ -206,7 +216,10 @@ export const IOPreview: React.FC<{
   const isInputEmpty = input === null || input === undefined;
   const isOutputEmpty = output === null || output === undefined;
   const showEmptyState =
-    (isInputEmpty || isOutputEmpty) && !isLoading && !hideIfNull;
+    (isInputEmpty || isOutputEmpty) &&
+    !isLoading &&
+    !hideIfNull &&
+    !dismissedTraceViewNotifications.includes(EMPTY_IO_ALERT_ID);
 
   const title = isInputEmpty
     ? isOutputEmpty
@@ -362,8 +375,25 @@ export const IOPreview: React.FC<{
         </div>
       )}
       {showEmptyState && (
-        <div className="mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
-          <div className="flex w-full flex-row items-center gap-2">
+        <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
+            onClick={() => {
+              capture("notification:dismiss_notification", {
+                notification_id: EMPTY_IO_ALERT_ID,
+              });
+              setDismissedTraceViewNotifications([
+                ...dismissedTraceViewNotifications,
+                EMPTY_IO_ALERT_ID,
+              ]);
+            }}
+            title="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+          <div className="flex w-full flex-row items-center gap-2 pr-6">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </div>
@@ -376,6 +406,11 @@ export const IOPreview: React.FC<{
             <Link
               href="https://langfuse.com/faq/all/empty-trace-input-and-output"
               target="_blank"
+              onClick={() => {
+                capture("notification:click_link", {
+                  notification_id: EMPTY_IO_ALERT_ID,
+                });
+              }}
             >
               View Documentation
             </Link>

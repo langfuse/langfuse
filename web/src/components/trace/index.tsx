@@ -19,6 +19,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Info,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState, useMemo, useRef, useEffect } from "react";
@@ -60,6 +61,9 @@ const getNestedObservationKeys = (
   collectKeys(observations);
   return keys;
 };
+
+const OBSERVATION_TYPE_ALERT_ID = "observation-type-alert";
+const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -103,6 +107,8 @@ export function Trace(props: {
   ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
+  const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
+    useLocalStorage<string[]>(STORAGE_KEY, []);
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
 
   // Use imperative panel API for collapse/expand
@@ -434,26 +440,49 @@ export function Trace(props: {
     if (
       context === "peek" &&
       props.observations.length > 0 &&
-      props.observations.every((o) => o.type === "SPAN")
+      props.observations.every((o) => o.type === "SPAN") &&
+      !dismissedTraceViewNotifications.includes(OBSERVATION_TYPE_ALERT_ID)
     ) {
       return (
-        <div className="mx-2 mb-2 flex flex-col items-start justify-center gap-2 rounded-lg border border-dashed p-4">
-          <div className="flex w-full flex-row items-center gap-2">
+        <div className="relative mx-2 mb-2 flex flex-col items-start justify-center gap-2 rounded-lg border border-dashed p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
+            onClick={() => {
+              capture("notification:dismiss_notification", {
+                notification_id: OBSERVATION_TYPE_ALERT_ID,
+              });
+              setDismissedTraceViewNotifications([
+                ...dismissedTraceViewNotifications,
+                OBSERVATION_TYPE_ALERT_ID,
+              ]);
+            }}
+            title="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+          <div className="flex w-full flex-row items-center gap-2 pr-6">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
               <Info className="h-4 w-4 text-muted-foreground" />
             </div>
             <h3 className="text-sm font-semibold">
-              You’re only using spans here.
+              You're only using spans here.
             </h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            You’ll get much richer insights by using specific observation types.
+            You'll get much richer insights by using specific observation types.
           </p>
           <Button variant="outline" asChild size="sm">
             <Link
               href="https://langfuse.com/docs/observability/features/observation-types"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => {
+                capture("notification:click_link", {
+                  notification_id: OBSERVATION_TYPE_ALERT_ID,
+                });
+              }}
             >
               Learn how to use observation types
             </Link>
@@ -462,7 +491,13 @@ export function Trace(props: {
       );
     }
     return null;
-  }, [context, props.observations]);
+  }, [
+    context,
+    props.observations,
+    dismissedTraceViewNotifications,
+    setDismissedTraceViewNotifications,
+    capture,
+  ]);
 
   return (
     <JsonExpansionProvider>

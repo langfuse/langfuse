@@ -12,10 +12,13 @@ import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import { Button } from "@/src/components/ui/button";
-import { BookOpen } from "lucide-react";
+import { BookOpen, X } from "lucide-react";
 import Link from "next/link";
 
 export type { ViewMode };
+
+const EMPTY_IO_ALERT_ID = "empty-io-alert";
+const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export interface ExpansionStateProps {
   inputExpansionState?: Record<string, boolean> | boolean;
@@ -134,6 +137,8 @@ export function IOPreview({
   setIsPrettyViewAvailable,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
+  const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
+    useLocalStorage<string[]>(STORAGE_KEY, []);
 
   // View state management
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<ViewMode>(
@@ -211,7 +216,10 @@ export function IOPreview({
   const isInputEmpty = parsedInput === null || parsedInput === undefined;
   const isOutputEmpty = parsedOutput === null || parsedOutput === undefined;
   const showEmptyState =
-    (isInputEmpty || isOutputEmpty) && !isLoading && !hideIfNull;
+    (isInputEmpty || isOutputEmpty) &&
+    !isLoading &&
+    !hideIfNull &&
+    !dismissedTraceViewNotifications.includes(EMPTY_IO_ALERT_ID);
 
   const title = isInputEmpty
     ? isOutputEmpty
@@ -261,8 +269,25 @@ export function IOPreview({
         <JsonInputOutputView {...jsonViewProps} />
       </div>
       {showEmptyState && (
-        <div className="mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
-          <div className="flex w-full flex-row items-center gap-2">
+        <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
+            onClick={() => {
+              capture("notification:dismiss_notification", {
+                notification_id: EMPTY_IO_ALERT_ID,
+              });
+              setDismissedTraceViewNotifications([
+                ...dismissedTraceViewNotifications,
+                EMPTY_IO_ALERT_ID,
+              ]);
+            }}
+            title="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+          <div className="flex w-full flex-row items-center gap-2 pr-6">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </div>
@@ -275,6 +300,11 @@ export function IOPreview({
             <Link
               href="https://langfuse.com/faq/all/empty-trace-input-and-output"
               target="_blank"
+              onClick={() => {
+                capture("notification:click_link", {
+                  notification_id: EMPTY_IO_ALERT_ID,
+                });
+              }}
             >
               View Documentation
             </Link>
