@@ -254,80 +254,31 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   });
 
   maybe("Denormalized Trace Fields", () => {
-    it("should support userId dimension from events table", async () => {
-      const query = {
-        view: "observations",
-        dimensions: [{ field: "userId" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
+    ["traceId", "userId", "sessionId", "tags", "release"].forEach((field) => {
+      it(`should support ${field} dimension from events table`, async () => {
+        const query = {
+          view: "observations",
+          dimensions: [{ field }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+          toTimestamp: new Date().toISOString(),
+        };
 
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
+        const response = await makeZodVerifiedAPICall(
+          GetMetricsV2Response,
+          "GET",
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+        );
 
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-    });
-
-    it("should support sessionId dimension from events table", async () => {
-      const query = {
-        view: "observations",
-        dimensions: [{ field: "sessionId" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-    });
-
-    it("should support tags dimension from events table", async () => {
-      const query = {
-        view: "observations",
-        dimensions: [{ field: "tags" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-    });
-
-    it("should support release dimension from events table", async () => {
-      const query = {
-        view: "observations",
-        dimensions: [{ field: "release" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
+        expect(response.status).toBe(200);
+        expect(response.body.data).toBeDefined();
+        expect(response.body.data.length).toBeGreaterThan(0);
+        expect(
+          response.body.data.filter((x) =>
+            x.count_count && x[field] ? (x.count_count as number) > 0 : false,
+          ).length,
+        ).toBeGreaterThan(0);
+      });
     });
 
     it("should support multiple denormalized dimensions together", async () => {
