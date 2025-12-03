@@ -628,7 +628,7 @@ model DatasetItem {
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
   // dataset version cols 
-  sysId               String?           @default(cuid()) @map("sys_id")
+  sysId               String            @default(cuid()) @map("sys_id")
   validFrom           DateTime          @default(now()) @map("valid_from")
   isDeleted           Boolean           @default(false) @map("is_deleted")
   datasetRunItems     DatasetRunItems[]
