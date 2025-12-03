@@ -60,24 +60,13 @@ export function useChatMLParser(
   metadata: Prisma.JsonValue | undefined,
   observationName: string | undefined,
 ): ChatMLParserResult {
-  // Performance: Track deepParseJson calls
-  const t0 = performance.now();
-  const parsedInput = deepParseJson(input);
-  const t1 = performance.now();
-  const parsedOutput = deepParseJson(output);
-  const t2 = performance.now();
-  const parsedMetadata = deepParseJson(metadata);
-  const t3 = performance.now();
-
-  const inputSize = JSON.stringify(input || {}).length;
-  const outputSize = JSON.stringify(output || {}).length;
-
-  console.log(
-    `[useChatMLParser] deepParseJson calls:`,
-    `\n  - Input size: ${(inputSize / 1024).toFixed(2)}KB, parse time: ${(t1 - t0).toFixed(2)}ms`,
-    `\n  - Output size: ${(outputSize / 1024).toFixed(2)}KB, parse time: ${(t2 - t1).toFixed(2)}ms`,
-    `\n  - Metadata parse time: ${(t3 - t2).toFixed(2)}ms`,
-  );
+  // Parse with size/depth limits - ChatML only needs top-level structure
+  const parsedInput = deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
+  const parsedOutput = deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
+  const parsedMetadata = deepParseJson(metadata, {
+    maxSize: 100_000,
+    maxDepth: 2,
+  });
 
   return useMemo(() => {
     const startTime = performance.now();

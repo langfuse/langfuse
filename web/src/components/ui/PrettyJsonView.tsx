@@ -760,35 +760,34 @@ export function PrettyJsonView(props: {
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
 }) {
-  const jsonDependency = useMemo(() => {
-    const t0 = performance.now();
-    const result =
-      typeof props.json === "string" ? props.json : JSON.stringify(props.json);
-    const elapsed = performance.now() - t0;
+  // Skip expensive deepParseJson if data is already an object (not a string)
+  const parsedJson = useMemo(() => {
+    const startTime = performance.now();
 
-    console.log(
-      `[PrettyJsonView:${props.title || "untitled"}] jsonDependency creation: ${elapsed.toFixed(2)}ms`,
-    );
+    // Fast path: if already an object, likely no parsing needed
+    if (typeof props.json !== "string") {
+      const elapsed = performance.now() - startTime;
+      console.log(
+        `[PrettyJsonView:${props.title || "untitled"}] Skipping deepParseJson - already an object (${elapsed.toFixed(2)}ms)`,
+      );
+      return props.json;
+    }
+
+    // Only parse strings, with size/depth limits
+    const result = deepParseJson(props.json, {
+      maxSize: 500_000,
+      maxDepth: 2,
+    });
+    const elapsed = performance.now() - startTime;
+
+    if (elapsed > 5) {
+      console.log(
+        `[PrettyJsonView:${props.title || "untitled"}] deepParseJson completed in ${elapsed.toFixed(2)}ms`,
+      );
+    }
 
     return result;
   }, [props.json, props.title]);
-
-  const parsedJson = useMemo(() => {
-    const t0 = performance.now();
-    const result = deepParseJson(props.json);
-    const elapsed = performance.now() - t0;
-
-    const jsonSize = jsonDependency.length;
-    console.log(
-      `[PrettyJsonView:${props.title || "untitled"}] deepParseJson:`,
-      `\n  - JSON size: ${(jsonSize / 1024).toFixed(2)}KB`,
-      `\n  - Parse time: ${elapsed.toFixed(2)}ms`,
-    );
-
-    return result;
-    // We want to use jsonDependency as dep because it's more stable than props.json
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jsonDependency, props.title]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);

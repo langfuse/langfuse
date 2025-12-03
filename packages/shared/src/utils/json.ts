@@ -38,20 +38,78 @@ function tryParsePythonDict(str: string): unknown {
 }
 
 /**
+ * Options for deepParseJson
+ */
+export interface DeepParseJsonOptions {
+  /** Maximum size in bytes before skipping parsing (default: 500KB) */
+  maxSize?: number;
+  /** Maximum recursion depth (default: 3) */
+  maxDepth?: number;
+}
+
+/**
  * Deeply parses a JSON string or object for nested stringified JSON
+ * Performance optimized with size and depth limits to prevent UI freezing
+ *
  * @param json JSON string or object to parse
+ * @param options Options to control parsing behavior
  * @returns Parsed JSON object
  */
-export function deepParseJson(json: unknown): unknown {
+export function deepParseJson(
+  json: unknown,
+  options: DeepParseJsonOptions = {},
+): unknown {
+  const { maxSize = 500_000, maxDepth = 3 } = options;
+  const startTime = performance.now();
+
+  // Size check: skip parsing for large objects to prevent UI freeze
+  if (typeof json === "object" && json !== null) {
+    const size = JSON.stringify(json).length;
+    if (size > maxSize) {
+      const elapsed = performance.now() - startTime;
+      console.log(
+        `[deepParseJson] Skipping: ${(size / 1024).toFixed(1)}KB > ${(maxSize / 1024).toFixed(1)}KB limit (${elapsed.toFixed(2)}ms)`,
+      );
+      return json;
+    }
+  }
+
+  // Perform depth-limited parsing
+  const result = deepParseJsonRecursive(json, 0, maxDepth);
+
+  const elapsed = performance.now() - startTime;
+  if (elapsed > 10) {
+    // Only log slow operations
+    console.log(
+      `[deepParseJson] Completed in ${elapsed.toFixed(2)}ms (maxDepth: ${maxDepth})`,
+    );
+  }
+
+  return result;
+}
+
+/**
+ * Internal recursive implementation with depth tracking
+ */
+function deepParseJsonRecursive(
+  json: unknown,
+  currentDepth: number,
+  maxDepth: number,
+): unknown {
+  // Stop recursing if we've hit max depth
+  if (currentDepth >= maxDepth) {
+    return json;
+  }
+
   if (typeof json === "string") {
     try {
       const parsed = JSON.parse(json);
       if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
-      return deepParseJson(parsed); // Recursively parse parsed value
+      return deepParseJsonRecursive(parsed, currentDepth + 1, maxDepth); // Recursively parse parsed value
     } catch (e) {
       const pythonParsed = tryParsePythonDict(json);
       if (pythonParsed !== json) {
-        return deepParseJson(pythonParsed);
+        return deepParseJsonRecursive(pythonParsed, currentDepth + 1, maxDepth);
       }
       return json; // If it's not a valid JSON string, just return the original string
     }
@@ -59,15 +117,17 @@ export function deepParseJson(json: unknown): unknown {
     // Handle arrays
     if (Array.isArray(json)) {
       for (let i = 0; i < json.length; i++) {
-        json[i] = deepParseJson(json[i]);
+        json[i] = deepParseJsonRecursive(json[i], currentDepth + 1, maxDepth);
       }
     } else {
       // Handle nested objects
       for (const key in json) {
         // Ensure we only iterate over the object's own properties
         if (Object.prototype.hasOwnProperty.call(json, key)) {
-          (json as Record<string, unknown>)[key] = deepParseJson(
+          (json as Record<string, unknown>)[key] = deepParseJsonRecursive(
             (json as Record<string, unknown>)[key],
+            currentDepth + 1,
+            maxDepth,
           );
         }
       }
