@@ -26,7 +26,7 @@ export async function handleUpdateProject(
     // Validate project name
     try {
       projectNameSchema.parse({ name });
-    } catch (error) {
+    } catch (_error) {
       return res.status(400).json({
         message: "Invalid project name. Should be between 3 and 60 characters.",
       });
@@ -46,7 +46,7 @@ export async function handleUpdateProject(
     if (retention !== undefined) {
       try {
         projectRetentionSchema.parse({ retention });
-      } catch (error) {
+      } catch (_error) {
         return res.status(400).json({
           message: "Invalid retention value. Must be 0 or at least 3 days.",
         });
@@ -109,7 +109,9 @@ export async function handleDeleteProject(
 ) {
   try {
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
-    await new ApiAuthService(prisma, redis).invalidateProjectApiKeys(projectId);
+    await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
+      projectId,
+    );
 
     // Delete API keys from DB
     await prisma.apiKey.deleteMany({

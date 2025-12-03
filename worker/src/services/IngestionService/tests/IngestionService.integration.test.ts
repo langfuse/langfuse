@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod/v4";
+import { uuid, z } from "zod/v4";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   clickhouseClient,
@@ -20,7 +20,7 @@ import { pruneDatabase } from "../../../__tests__/utils";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
-import { ModelUsageUnit, ScoreSource } from "@langfuse/shared";
+import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
 import { Cluster } from "ioredis";
 import { env } from "../../../env";
 
@@ -529,7 +529,7 @@ describe("Ingestion end-to-end tests", () => {
             dataType: "NUMERIC",
             name: "score-name",
             value: 100.5,
-            source: ScoreSource.EVAL,
+            source: ScoreSourceEnum.EVAL,
             traceId: traceId,
             environment,
           },
@@ -619,7 +619,7 @@ describe("Ingestion end-to-end tests", () => {
       expect(score.name).toBe("score-name");
       expect(score.value).toBe(100.5);
       expect(score.observation_id).toBeNull();
-      expect(score.source).toBe(ScoreSource.EVAL);
+      expect(score.source).toBe(ScoreSourceEnum.EVAL);
       expect(score.project_id).toBe("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a");
     }, 10_000);
   });
@@ -1019,6 +1019,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
+    const queueId = randomUUID();
     const scoreEventList: ScoreEventType[] = [
       {
         id: randomUUID(),
@@ -1030,9 +1031,10 @@ describe("Ingestion end-to-end tests", () => {
           configId: scoreConfigId,
           name: "score-name",
           traceId: traceId,
-          source: ScoreSource.API,
+          source: ScoreSourceEnum.API,
           value: 100.5,
           observationId: generationId,
+          queueId,
           environment,
         },
       },
@@ -1112,6 +1114,7 @@ describe("Ingestion end-to-end tests", () => {
     expect(score.observation_id).toBe(generationId);
     expect(score.value).toBe(100.5);
     expect(score.config_id).toBe(scoreConfigId);
+    expect(score.queue_id).toBe(queueId);
   });
 
   it("should silently reject invalid scores while processing valid ones", async () => {
@@ -1189,7 +1192,7 @@ describe("Ingestion end-to-end tests", () => {
               dataType: "NUMERIC",
               name: "valid-config",
               value: 85.5, // Within range 0-100
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               traceId: traceId,
               environment,
               configId: validScoreConfigId,
@@ -1214,7 +1217,7 @@ describe("Ingestion end-to-end tests", () => {
               configId: validScoreConfigId,
               name: "valid-config",
               traceId: traceId,
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               value: 150, // Outside range 0-100, should fail validation
               environment,
             },
@@ -1230,7 +1233,7 @@ describe("Ingestion end-to-end tests", () => {
               configId: validScoreConfigId,
               name: "archived-config",
               traceId: traceId,
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               value: 50,
               environment,
             },
@@ -1246,7 +1249,7 @@ describe("Ingestion end-to-end tests", () => {
               configId: archivedScoreConfigId,
               name: "archived-config",
               traceId: traceId,
-              source: ScoreSource.API,
+              source: ScoreSourceEnum.API,
               value: 50, // Valid value but config is archived
               environment,
             },
@@ -1401,9 +1404,12 @@ describe("Ingestion end-to-end tests", () => {
   }, 10_000);
 
   it("should merge observations and set negative tokens and cost to null", async () => {
+    const modelId = "clyrjpbe20000t0mzcbwc42rg";
+    const pricingTierId = "f94390ea-8d08-4bbb-b106-519f3eaf81bb";
+
     await prisma.model.create({
       data: {
-        id: "clyrjpbe20000t0mzcbwc42rg",
+        id: modelId,
         modelName: "gpt-4o-mini-2024-07-18",
         matchPattern: "(?i)^(gpt-4o-mini-2024-07-18)$",
         startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -1419,9 +1425,21 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
+    await prisma.pricingTier.create({
+      data: {
+        id: pricingTierId,
+        name: "Standard",
+        conditions: [],
+        isDefault: true,
+        priority: 0,
+        modelId: modelId,
+      },
+    });
+
     await prisma.price.create({
       data: {
         id: "cm2uio8ef006mh6qlzc2mqa0e",
+        pricingTierId,
         modelId: "clyrjpbe20000t0mzcbwc42rg",
         projectId: null,
         price: 0.00000015,
@@ -1432,6 +1450,7 @@ describe("Ingestion end-to-end tests", () => {
     await prisma.price.create({
       data: {
         id: "cm2uio8ef006oh6qlldn36376",
+        pricingTierId,
         modelId: "clyrjpbe20000t0mzcbwc42rg",
         projectId: null,
         price: 0.0000006,
@@ -1519,6 +1538,9 @@ describe("Ingestion end-to-end tests", () => {
   });
 
   it("should merge observations and calculate cost", async () => {
+    const modelId = "clyrjpbe20000t0mzcbwc42rg";
+    const pricingTierId = "f94390ea-8d08-4bbb-b106-519f3eaf81bb";
+
     await prisma.model.create({
       data: {
         id: "clyrjpbe20000t0mzcbwc42rg",
@@ -1537,9 +1559,21 @@ describe("Ingestion end-to-end tests", () => {
       },
     });
 
+    await prisma.pricingTier.create({
+      data: {
+        id: pricingTierId,
+        name: "Standard",
+        conditions: [],
+        isDefault: true,
+        priority: 0,
+        modelId: modelId,
+      },
+    });
+
     await prisma.price.create({
       data: {
         id: "cm2uio8ef006mh6qlzc2mqa0e",
+        pricingTierId,
         modelId: "clyrjpbe20000t0mzcbwc42rg",
         projectId: null,
         price: 0.00000015,
@@ -1550,6 +1584,7 @@ describe("Ingestion end-to-end tests", () => {
     await prisma.price.create({
       data: {
         id: "cm2uio8ef006oh6qlldn36376",
+        pricingTierId,
         modelId: "clyrjpbe20000t0mzcbwc42rg",
         projectId: null,
         price: 0.0000006,
@@ -2267,6 +2302,520 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.metadata).toEqual(output);
     });
   });
+
+  describe("Tiered Pricing", () => {
+    it("should apply default tier for usage below threshold (Anthropic Claude example)", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = "claude-sonnet-test";
+
+      // Create model with tiered pricing (Anthropic Claude pattern: $3/M tokens default, $6/M tokens >200K)
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          modelName: "claude-sonnet-4.5",
+          matchPattern: "(?i)^(claude-sonnet-4.5)$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000003, // $3/M tokens
+                      modelId,
+                    },
+                    {
+                      usageType: "output",
+                      price: 0.000015, // $15/M tokens
+                      modelId,
+                    },
+                  ],
+                },
+              },
+              {
+                name: "Large Context (>200K)",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    usageDetailPattern: "^input",
+                    operator: "gt",
+                    value: 200000,
+                    caseSensitive: false,
+                  },
+                ],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000006, // $6/M tokens
+                      modelId,
+                    },
+                    {
+                      usageType: "output",
+                      price: 0.000015, // $15/M tokens
+                      modelId,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const generationEventList: ObservationEvent[] = [
+        {
+          id: randomUUID(),
+          type: "observation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            startTime: new Date().toISOString(),
+            model: "claude-sonnet-4.5",
+            usage: {
+              input: 100000, // Below 200K threshold
+              output: 2000,
+              unit: ModelUsageUnit.Tokens,
+            },
+            environment,
+          },
+        },
+      ];
+
+      await Promise.all([
+        ingestionService.processTraceEventList({
+          projectId,
+          entityId: traceId,
+          createdAtTimestamp: new Date(),
+          traceEventList: [
+            {
+              id: randomUUID(),
+              type: "trace-create",
+              timestamp: new Date().toISOString(),
+              body: {
+                id: traceId,
+                name: "trace-name",
+                timestamp: new Date().toISOString(),
+                environment,
+              },
+            },
+          ],
+        }),
+        ingestionService.processObservationEventList({
+          projectId,
+          entityId: generationId,
+          createdAtTimestamp: new Date(),
+          observationEventList: generationEventList,
+        }),
+      ]);
+
+      await clickhouseWriter.flushAll(true);
+
+      const generation = await getClickhouseRecord(
+        TableName.Observations,
+        generationId,
+      );
+
+      expect(generation.internal_model_id).toBe(modelId);
+      expect(generation.usage_details.input).toBe(100000);
+      expect(generation.usage_details.output).toBe(2000);
+
+      // Verify default tier was used
+      expect(generation.usage_pricing_tier_name).toBe("Standard");
+      expect(generation.usage_pricing_tier_id).toBeDefined();
+
+      // Verify cost calculation with default tier prices ($3/M input, $15/M output)
+      expect(generation.cost_details.input).toBeCloseTo(0.3, 6); // 100K * $3/M
+      expect(generation.cost_details.output).toBeCloseTo(0.03, 6); // 2K * $15/M
+      expect(generation.cost_details.total).toBeCloseTo(0.33, 6);
+      expect(generation.total_cost).toBeCloseTo(0.33, 6);
+    });
+
+    it("should apply large context tier for usage above threshold (Anthropic Claude example)", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = "claude-sonnet-test-2";
+
+      // Create model with tiered pricing
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          modelName: "claude-sonnet-4.5-test",
+          matchPattern: "(?i)^(claude-sonnet-4.5-test)$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000003, // $3/M tokens
+                      modelId,
+                    },
+                    {
+                      usageType: "output",
+                      price: 0.000015, // $15/M tokens
+                      modelId,
+                    },
+                  ],
+                },
+              },
+              {
+                name: "Large Context (>200K)",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    usageDetailPattern: "^input",
+                    operator: "gt",
+                    value: 200000,
+                    caseSensitive: false,
+                  },
+                ],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000006, // $6/M tokens
+                      modelId,
+                    },
+                    {
+                      usageType: "output",
+                      price: 0.000015, // $15/M tokens
+                      modelId,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const generationEventList: ObservationEvent[] = [
+        {
+          id: randomUUID(),
+          type: "observation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            startTime: new Date().toISOString(),
+            model: "claude-sonnet-4.5-test",
+            usage: {
+              input: 250000, // Above 200K threshold
+              output: 2000,
+              unit: ModelUsageUnit.Tokens,
+            },
+            environment,
+          },
+        },
+      ];
+
+      await Promise.all([
+        ingestionService.processTraceEventList({
+          projectId,
+          entityId: traceId,
+          createdAtTimestamp: new Date(),
+          traceEventList: [
+            {
+              id: randomUUID(),
+              type: "trace-create",
+              timestamp: new Date().toISOString(),
+              body: {
+                id: traceId,
+                name: "trace-name",
+                timestamp: new Date().toISOString(),
+                environment,
+              },
+            },
+          ],
+        }),
+        ingestionService.processObservationEventList({
+          projectId,
+          entityId: generationId,
+          createdAtTimestamp: new Date(),
+          observationEventList: generationEventList,
+        }),
+      ]);
+
+      await clickhouseWriter.flushAll(true);
+
+      const generation = await getClickhouseRecord(
+        TableName.Observations,
+        generationId,
+      );
+
+      expect(generation.internal_model_id).toBe(modelId);
+      expect(generation.usage_details.input).toBe(250000);
+      expect(generation.usage_details.output).toBe(2000);
+
+      // Verify large context tier was used
+      expect(generation.usage_pricing_tier_name).toBe("Large Context (>200K)");
+      expect(generation.usage_pricing_tier_id).toBeDefined();
+
+      // Verify cost calculation with large context tier prices ($6/M input, $15/M output)
+      expect(generation.cost_details.input).toBeCloseTo(1.5, 6); // 250K * $6/M
+      expect(generation.cost_details.output).toBeCloseTo(0.03, 6); // 2K * $15/M
+      expect(generation.cost_details.total).toBeCloseTo(1.53, 6);
+      expect(generation.total_cost).toBeCloseTo(1.53, 6);
+    });
+
+    it("should match pattern with granular usage details (input_cached + input_regular)", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = "claude-test-granular";
+
+      // Create model with tiered pricing that sums all input* fields
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          modelName: "claude-test-granular",
+          matchPattern: "(?i)^(claude-test-granular)$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000003,
+                      modelId,
+                    },
+                  ],
+                },
+              },
+              {
+                name: "Large Context (>200K)",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    usageDetailPattern: "^input", // Matches input_cached + input_regular
+                    operator: "gt",
+                    value: 200000,
+                    caseSensitive: false,
+                  },
+                ],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000006,
+                      modelId,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const generationEventList: ObservationEvent[] = [
+        {
+          id: randomUUID(),
+          type: "observation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            startTime: new Date().toISOString(),
+            model: "claude-test-granular",
+            usageDetails: {
+              input_cached: 150000,
+              input_regular: 60000, // Total: 210K > 200K
+            },
+            environment,
+          },
+        },
+      ];
+
+      await Promise.all([
+        ingestionService.processTraceEventList({
+          projectId,
+          entityId: traceId,
+          createdAtTimestamp: new Date(),
+          traceEventList: [
+            {
+              id: randomUUID(),
+              type: "trace-create",
+              timestamp: new Date().toISOString(),
+              body: {
+                id: traceId,
+                name: "trace-name",
+                timestamp: new Date().toISOString(),
+                environment,
+              },
+            },
+          ],
+        }),
+        ingestionService.processObservationEventList({
+          projectId,
+          entityId: generationId,
+          createdAtTimestamp: new Date(),
+          observationEventList: generationEventList,
+        }),
+      ]);
+
+      await clickhouseWriter.flushAll(true);
+
+      const generation = await getClickhouseRecord(
+        TableName.Observations,
+        generationId,
+      );
+
+      expect(generation.internal_model_id).toBe(modelId);
+
+      // Verify large context tier was used (150K + 60K = 210K > 200K)
+      expect(generation.usage_pricing_tier_name).toBe("Large Context (>200K)");
+      expect(generation.usage_pricing_tier_id).toBeDefined();
+    });
+
+    it("should handle exactly at threshold boundary (200K tokens)", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = "claude-boundary-test";
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          modelName: "claude-boundary",
+          matchPattern: "(?i)^(claude-boundary)$",
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000003,
+                      modelId,
+                    },
+                  ],
+                },
+              },
+              {
+                name: "Large Context (>200K)",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    usageDetailPattern: "^input",
+                    operator: "gt", // Strictly greater than
+                    value: 200000,
+                    caseSensitive: false,
+                  },
+                ],
+                prices: {
+                  create: [
+                    {
+                      usageType: "input",
+                      price: 0.000006,
+                      modelId,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const generationEventList: ObservationEvent[] = [
+        {
+          id: randomUUID(),
+          type: "observation-create",
+          timestamp: new Date().toISOString(),
+          body: {
+            id: generationId,
+            traceId: traceId,
+            type: "GENERATION",
+            name: "generation-name",
+            startTime: new Date().toISOString(),
+            model: "claude-boundary",
+            usage: {
+              input: 200000, // Exactly at threshold
+              output: 100,
+              unit: ModelUsageUnit.Tokens,
+            },
+            environment,
+          },
+        },
+      ];
+
+      await Promise.all([
+        ingestionService.processTraceEventList({
+          projectId,
+          entityId: traceId,
+          createdAtTimestamp: new Date(),
+          traceEventList: [
+            {
+              id: randomUUID(),
+              type: "trace-create",
+              timestamp: new Date().toISOString(),
+              body: {
+                id: traceId,
+                name: "trace-name",
+                timestamp: new Date().toISOString(),
+                environment,
+              },
+            },
+          ],
+        }),
+        ingestionService.processObservationEventList({
+          projectId,
+          entityId: generationId,
+          createdAtTimestamp: new Date(),
+          observationEventList: generationEventList,
+        }),
+      ]);
+
+      await clickhouseWriter.flushAll(true);
+
+      const generation = await getClickhouseRecord(
+        TableName.Observations,
+        generationId,
+      );
+
+      // At exactly 200K, should use default tier (operator is "gt", not "gte")
+      expect(generation.usage_pricing_tier_name).toBe("Standard");
+      expect(generation.cost_details.input).toBeCloseTo(0.6, 6); // 200K * $3/M
+    });
+  });
 });
 
 async function getClickhouseRecord<T extends TableName>(
@@ -2293,11 +2842,11 @@ async function getClickhouseRecord<T extends TableName>(
                 version as version,
                 project_id,
                 environment,
-                finalizeAggregation(public) as public,
-                finalizeAggregation(bookmarked) as bookmarked,
+                public as public,
+                bookmarked as bookmarked,
                 tags,
-                finalizeAggregation(input) as input,
-                finalizeAggregation(output) as output,
+                input as input,
+                output as output,
                 session_id as session_id,
                 0 as is_deleted,
                 start_time as timestamp,

@@ -1,11 +1,15 @@
+import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { getObservationById } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
+import { LangfuseNotFoundError, parseIO } from "@langfuse/shared";
+import {
+  getObservationById,
+  getObservationByIdFromEventsTable,
+} from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
+import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export const observationsRouter = createTRPCRouter({
   byId: protectedGetTraceProcedure
@@ -15,43 +19,35 @@ export const observationsRouter = createTRPCRouter({
         traceId: z.string(), // required for protectedGetTraceProcedure
         projectId: z.string(), // required for protectedGetTraceProcedure
         startTime: z.date().nullish(),
-        truncated: z.boolean().default(false), // used to truncate the input and output
+        verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
     )
     .query(async ({ input }) => {
-      try {
-        const obs = await getObservationById({
-          id: input.observationId,
-          projectId: input.projectId,
-          fetchWithInputOutput: true,
-          traceId: input.traceId,
-          startTime: input.startTime ?? undefined,
-          renderingProps: {
-            truncated: input.truncated,
-            shouldJsonParse: false,
-          },
-        });
-        if (!obs) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Observation not found within authorized project",
-          });
-        }
-        return {
-          ...obs,
-          input: obs.input as string,
-          output: obs.output as string,
-          metadata: obs.metadata != null ? JSON.stringify(obs.metadata) : null,
-          internalModel: obs?.internalModelId,
-        };
-      } catch (e) {
-        if (e instanceof LangfuseNotFoundError) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Observation not found within authorized project",
-          });
-        }
-        throw e;
+      const queryOpts = {
+        id: input.observationId,
+        projectId: input.projectId,
+        fetchWithInputOutput: true,
+        traceId: input.traceId,
+        startTime: input.startTime ?? undefined,
+        renderingProps: {
+          truncated: input.verbosity === "truncated",
+          shouldJsonParse: false,
+        },
+      };
+      const obs =
+        env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+          ? await getObservationByIdFromEventsTable(queryOpts)
+          : await getObservationById(queryOpts);
+      if (!obs) {
+        throw new LangfuseNotFoundError(
+          "Observation not found within authorized project",
+        );
       }
+      return {
+        ...toDomainWithStringifiedMetadata(obs),
+        input: parseIO(obs.input, input.verbosity) as string,
+        output: parseIO(obs.output, input.verbosity) as string,
+        internalModel: obs?.internalModelId,
+      };
     }),
 });

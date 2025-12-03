@@ -16,7 +16,7 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
-  Filter,
+  FilterIcon,
   Info,
   Plus,
   WandSparkles,
@@ -63,7 +63,8 @@ export function PopoverFilterBuilder({
   filterState,
   onChange,
   columnsWithCustomSelect = [],
-  variant = "default",
+  filterWithAI = false,
+  buttonType = "default",
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
@@ -71,7 +72,8 @@ export function PopoverFilterBuilder({
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
-  variant?: "default" | "icon";
+  filterWithAI?: boolean;
+  buttonType?: "default" | "icon";
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -126,7 +128,7 @@ export function PopoverFilterBuilder({
         }}
       >
         <PopoverTrigger asChild>
-          {variant === "default" ? (
+          {buttonType === "default" ? (
             <Button variant="outline" type="button">
               <span>Filters</span>
               {filterState.length > 0 && filterState.length < 3 ? (
@@ -150,14 +152,18 @@ export function PopoverFilterBuilder({
             </Button>
           ) : (
             <Button
-              variant="outline"
-              type="button"
               size="icon"
+              type="button"
+              variant="ghost"
               className="relative"
             >
-              <Filter className="h-4 w-4" />
+              <FilterIcon className="h-4 w-4" />
               {filterState.length > 0 && (
-                <span className="absolute right-0.5 top-0.5 flex h-3 w-3 items-center justify-center rounded-sm bg-input text-xs shadow-sm">
+                <span
+                  className={cn(
+                    "absolute -right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-sm bg-input px-1 text-xs shadow-sm",
+                  )}
+                >
                   {filterState.length}
                 </span>
               )}
@@ -173,19 +179,32 @@ export function PopoverFilterBuilder({
             filterState={wipFilterState}
             onChange={setWipFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
+            filterWithAI={filterWithAI}
           />
         </PopoverContent>
       </Popover>
       {filterState.length > 0 ? (
-        <Button
-          onClick={() => setWipFilterState([])}
-          variant="ghost"
-          type="button"
-          size="icon"
-          className="ml-0.5"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        buttonType === "default" ? (
+          <Button
+            onClick={() => setWipFilterState([])}
+            variant="ghost"
+            type="button"
+            size="icon"
+            className="ml-0.5"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={() => setWipFilterState([])}
+            variant="ghost"
+            type="button"
+            size="icon-xs"
+            className="ml-0.5 hover:bg-background"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )
       ) : null}
     </div>
   );
@@ -234,6 +253,7 @@ export function InlineFilterBuilder({
   onChange,
   disabled,
   columnsWithCustomSelect,
+  filterWithAI = false,
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
@@ -242,6 +262,7 @@ export function InlineFilterBuilder({
     | ((newState: FilterState) => void);
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  filterWithAI?: boolean;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -267,6 +288,7 @@ export function InlineFilterBuilder({
         onChange={setWipFilterState}
         disabled={disabled}
         columnsWithCustomSelect={columnsWithCustomSelect}
+        filterWithAI={filterWithAI}
       />
     </div>
   );
@@ -286,12 +308,14 @@ function FilterBuilderForm({
   onChange,
   disabled,
   columnsWithCustomSelect = [],
+  filterWithAI = false,
 }: {
   columns: ColumnDefinition[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  filterWithAI?: boolean;
 }) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [showAiFilter, setShowAiFilter] = useState(false);
@@ -366,7 +390,7 @@ function FilterBuilderForm({
   return (
     <>
       {/* AI Filter Section at the top */}
-      {!disabled && isLangfuseCloud && (
+      {!disabled && isLangfuseCloud && filterWithAI && (
         <div className="flex flex-col gap-2">
           <Button
             onClick={() => {
@@ -500,7 +524,7 @@ function FilterBuilderForm({
                           <InputCommand>
                             <InputCommandInput
                               placeholder="Search for column"
-                              onFocus={(e) => (e.target.style.border = "none")}
+                              variant="bottom"
                             />
                             <InputCommandList>
                               <InputCommandEmpty>

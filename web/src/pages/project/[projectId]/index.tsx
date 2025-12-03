@@ -98,7 +98,11 @@ export default function Dashboard() {
   const { selectedEnvironments, setSelectedEnvironments } =
     useEnvironmentFilter(environmentOptions, projectId);
 
-  const nameOptions = traceFilterOptions.data?.name || [];
+  const nameOptions =
+    traceFilterOptions.data?.name?.map((n) => ({
+      value: n.value,
+      count: Number(n.count),
+    })) || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
 
   const filterColumns: ColumnDefinition[] = [
@@ -182,65 +186,69 @@ export default function Dashboard() {
       scrollable
       headerProps={{
         title: "Home",
-        actionButtonsRight: <SetupTracingButton />,
+        actionButtonsLeft: (
+          <>
+            <TimeRangePicker
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              timeRangePresets={dashboardTimeRangePresets}
+              className="my-0 max-w-full overflow-x-auto"
+              disabled={
+                lookbackLimit
+                  ? {
+                      before: new Date(
+                        new Date().getTime() -
+                          lookbackLimit * 24 * 60 * 60 * 1000,
+                      ),
+                    }
+                  : undefined
+              }
+            />
+            <MultiSelect
+              title="Environment"
+              label="Env"
+              values={selectedEnvironments}
+              onValueChange={useDebounce(setSelectedEnvironments)}
+              options={environmentOptions.map((env) => ({
+                value: env,
+              }))}
+              className="my-0 w-auto overflow-hidden"
+            />
+            <PopoverFilterBuilder
+              columns={filterColumns}
+              filterState={userFilterState}
+              onChange={useDebounce(setUserFilterState)}
+            />
+          </>
+        ),
+        actionButtonsRight: (
+          <>
+            {uiCustomization?.feedbackHref === undefined && (
+              <FeedbackButtonWrapper
+                title="Request Chart"
+                description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
+                className="hidden lg:flex"
+              >
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={
+                    "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
+                  }
+                >
+                  <BarChart2
+                    className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
+                    aria-hidden="true"
+                  />
+                  Request Chart
+                </Button>
+              </FeedbackButtonWrapper>
+            )}
+            <SetupTracingButton />
+          </>
+        ),
       }}
     >
-      <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-          <TimeRangePicker
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            timeRangePresets={dashboardTimeRangePresets}
-            className="my-0 max-w-full overflow-x-auto"
-            disabled={
-              lookbackLimit
-                ? {
-                    before: new Date(
-                      new Date().getTime() -
-                        lookbackLimit * 24 * 60 * 60 * 1000,
-                    ),
-                  }
-                : undefined
-            }
-          />
-          <MultiSelect
-            title="Environment"
-            label="Env"
-            values={selectedEnvironments}
-            onValueChange={useDebounce(setSelectedEnvironments)}
-            options={environmentOptions.map((env) => ({
-              value: env,
-            }))}
-            className="my-0 w-auto overflow-hidden"
-          />
-          <PopoverFilterBuilder
-            columns={filterColumns}
-            filterState={userFilterState}
-            onChange={useDebounce(setUserFilterState)}
-          />
-        </div>
-        {uiCustomization?.feedbackHref === undefined && (
-          <FeedbackButtonWrapper
-            title="Request Chart"
-            description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
-            className="hidden lg:flex"
-          >
-            <Button
-              id="date"
-              variant={"outline"}
-              className={
-                "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
-              }
-            >
-              <BarChart2
-                className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
-                aria-hidden="true"
-              />
-              Request Chart
-            </Button>
-          </FeedbackButtonWrapper>
-        )}
-      </div>
       <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
         <TracesBarListChart
           className="col-span-1 xl:col-span-2"

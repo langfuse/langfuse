@@ -79,6 +79,16 @@ export const CommentObjectType = {
 } as const;
 export type CommentObjectType =
   (typeof CommentObjectType)[keyof typeof CommentObjectType];
+export const NotificationChannel = {
+  EMAIL: "EMAIL",
+} as const;
+export type NotificationChannel =
+  (typeof NotificationChannel)[keyof typeof NotificationChannel];
+export const NotificationType = {
+  COMMENT_MENTION: "COMMENT_MENTION",
+} as const;
+export type NotificationType =
+  (typeof NotificationType)[keyof typeof NotificationType];
 export const AuditLogRecordType = {
   USER: "USER",
   API_KEY: "API_KEY",
@@ -100,6 +110,7 @@ export const JobExecutionStatus = {
   ERROR: "ERROR",
   PENDING: "PENDING",
   CANCELLED: "CANCELLED",
+  DELAYED: "DELAYED",
 } as const;
 export type JobExecutionStatus =
   (typeof JobExecutionStatus)[keyof typeof JobExecutionStatus];
@@ -332,6 +343,15 @@ export type BlobStorageIntegration = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type CloudSpendAlert = {
+  id: string;
+  org_id: string;
+  title: string;
+  threshold: string;
+  triggered_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+};
 export type Comment = {
   id: string;
   project_id: string;
@@ -341,6 +361,14 @@ export type Comment = {
   updated_at: Generated<Timestamp>;
   content: string;
   author_user_id: string | null;
+};
+export type CommentReaction = {
+  id: string;
+  project_id: string;
+  comment_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: Generated<Timestamp>;
 };
 export type CronJobs = {
   name: string;
@@ -384,6 +412,8 @@ export type Dataset = {
   metadata: unknown | null;
   remote_experiment_url: string | null;
   remote_experiment_payload: unknown | null;
+  input_schema: unknown | null;
+  expected_output_schema: unknown | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -399,6 +429,20 @@ export type DatasetItem = {
   dataset_id: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
+};
+export type DatasetItemEvent = {
+  id: string;
+  item_id: string;
+  project_id: string;
+  dataset_id: string;
+  status: DatasetStatus | null;
+  input: unknown | null;
+  expected_output: unknown | null;
+  metadata: unknown | null;
+  source_trace_id: string | null;
+  source_observation_id: string | null;
+  created_at: Timestamp | null;
+  deleted_at: Timestamp | null;
 };
 export type DatasetRunItems = {
   id: string;
@@ -478,6 +522,7 @@ export type JobExecution = {
   job_input_observation_id: string | null;
   job_input_dataset_item_id: string | null;
   job_output_score_id: string | null;
+  execution_trace_id: string | null;
 };
 export type LegacyPrismaObservation = {
   id: string;
@@ -609,6 +654,14 @@ export type MembershipInvitation = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
+export type MixpanelIntegration = {
+  project_id: string;
+  encrypted_mixpanel_project_token: string;
+  mixpanel_region: string;
+  last_sync_at: Timestamp | null;
+  enabled: boolean;
+  created_at: Generated<Timestamp>;
+};
 export type Model = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -623,6 +676,16 @@ export type Model = {
   unit: string | null;
   tokenizer_id: string | null;
   tokenizer_config: unknown | null;
+};
+export type NotificationPreference = {
+  id: string;
+  user_id: string;
+  project_id: string;
+  channel: NotificationChannel;
+  type: NotificationType;
+  enabled: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 };
 export type ObservationMedia = {
   id: string;
@@ -641,6 +704,10 @@ export type Organization = {
   updated_at: Generated<Timestamp>;
   cloud_config: unknown | null;
   metadata: unknown | null;
+  cloud_billing_cycle_anchor: Generated<Timestamp | null>;
+  cloud_billing_cycle_updated_at: Timestamp | null;
+  cloud_current_cycle_usage: number | null;
+  cloud_free_tier_usage_threshold_state: string | null;
   ai_features_enabled: Generated<boolean>;
 };
 export type OrganizationMembership = {
@@ -674,8 +741,19 @@ export type Price = {
   updated_at: Generated<Timestamp>;
   model_id: string;
   project_id: string | null;
+  pricing_tier_id: string;
   usage_type: string;
   price: string;
+};
+export type PricingTier = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  model_id: string;
+  name: string;
+  is_default: Generated<boolean>;
+  priority: number;
+  conditions: unknown;
 };
 export type Project = {
   id: string;
@@ -847,10 +925,13 @@ export type DB = {
   batch_exports: BatchExport;
   billing_meter_backups: BillingMeterBackup;
   blob_storage_integrations: BlobStorageIntegration;
+  cloud_spend_alerts: CloudSpendAlert;
+  comment_reactions: CommentReaction;
   comments: Comment;
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
   dashboards: Dashboard;
+  dataset_item_events: DatasetItemEvent;
   dataset_items: DatasetItem;
   dataset_run_items: DatasetRunItems;
   dataset_runs: DatasetRuns;
@@ -864,7 +945,9 @@ export type DB = {
   llm_tools: LlmTool;
   media: Media;
   membership_invitations: MembershipInvitation;
+  mixpanel_integrations: MixpanelIntegration;
   models: Model;
+  notification_preferences: NotificationPreference;
   observation_media: ObservationMedia;
   observations: LegacyPrismaObservation;
   organization_memberships: OrganizationMembership;
@@ -872,6 +955,7 @@ export type DB = {
   pending_deletions: PendingDeletion;
   posthog_integrations: PosthogIntegration;
   prices: Price;
+  pricing_tiers: PricingTier;
   project_memberships: ProjectMembership;
   projects: Project;
   prompt_dependencies: PromptDependency;

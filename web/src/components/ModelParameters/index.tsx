@@ -17,7 +17,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   type JSONObject,
   JSONObjectSchema,
-  LLMAdapter,
+  type LLMAdapter,
   type supportedModels,
   type UIModelParams,
 } from "@langfuse/shared";
@@ -51,6 +51,7 @@ export type ModelParamsContext = {
   modelParamsDescription?: string;
   customHeader?: React.ReactNode;
   layout?: "compact" | "vertical";
+  isEmbedded?: boolean;
 };
 
 export const ModelParameters: React.FC<ModelParamsContext> = ({
@@ -64,6 +65,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
   modelParamsDescription,
   customHeader,
   layout = "vertical",
+  isEmbedded = false,
 }) => {
   const projectId = useProjectIdFromURL();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
@@ -106,11 +108,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
       </div>
     );
   }
-
-  const isProviderOptionsSupported = ![
-    LLMAdapter.GoogleAIStudio,
-    LLMAdapter.VertexAI,
-  ].includes(modelParams.adapter.value);
 
   // Settings button component for reuse
   const SettingsButton = (
@@ -179,15 +176,13 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
             updateModelParam={updateModelParamValue}
           />
-          {isProviderOptionsSupported ? (
-            <ProviderOptionsInput
-              value={modelParams.providerOptions.value}
-              formDisabled={formDisabled}
-              enabled={modelParams.providerOptions.enabled}
-              setModelParamEnabled={setModelParamEnabled}
-              updateModelParam={updateModelParamValue}
-            />
-          ) : null}
+          <ProviderOptionsInput
+            value={modelParams.providerOptions.value}
+            formDisabled={formDisabled}
+            enabled={modelParams.providerOptions.enabled}
+            setModelParamEnabled={setModelParamEnabled}
+            updateModelParam={updateModelParamValue}
+          />
           <LLMApiKeyComponent {...{ projectId, modelParams }} />
         </div>
       </PopoverContent>
@@ -267,11 +262,17 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
 
   // Vertical layout (default) - existing behavior
   return (
-    <div className="flex flex-col space-y-2 pb-1 pr-1 pt-2">
-      <div className="flex items-center justify-between">
-        {customHeader ? customHeader : <p className="font-semibold">Model</p>}
-        {SettingsButton}
-      </div>
+    <div
+      className={cn("flex flex-col", !isEmbedded && "space-y-2 pb-1 pr-1 pt-2")}
+    >
+      {!isEmbedded ? (
+        <div className="flex items-center justify-between">
+          {customHeader ? customHeader : <p className="font-semibold">Model</p>}
+          {SettingsButton}
+        </div>
+      ) : (
+        <div className="mb-2 flex justify-end">{SettingsButton}</div>
+      )}
 
       <div className="space-y-4">
         <div className="space-y-3">

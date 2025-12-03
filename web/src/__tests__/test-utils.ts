@@ -36,7 +36,7 @@ export const ensureTestDatabaseExists = async () => {
       stdio: "inherit",
     });
     console.log("Test database schema verified/updated");
-  } catch (error) {
+  } catch (_error) {
     console.log("Test database not accessible, creating...");
 
     const url = new URL(env.DATABASE_URL);
@@ -90,6 +90,7 @@ export const pruneDatabase = async () => {
   await prisma.scoreConfig.deleteMany();
   await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
+  await prisma.datasetItemEvent.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();
@@ -113,6 +114,7 @@ export const getQueues = () => {
     QueueName.BlobStorageIntegrationQueue,
     QueueName.DeadLetterRetryQueue,
     QueueName.PostHogIntegrationQueue,
+    QueueName.CloudFreeTierUsageThresholdQueue,
   ];
 
   return queues
@@ -202,6 +204,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   url: string,
   body?: unknown,
   auth?: string,
+  customHeaders?: Record<string, string>,
 ): Promise<{ body: T; status: number }> {
   const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
@@ -212,6 +215,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
       Accept: "application/json",
       "Content-Type": "application/json;charset=UTF-8",
       Authorization: authorization,
+      ...customHeaders,
     },
     ...(method !== "GET" &&
       body !== undefined && { body: JSON.stringify(body) }),

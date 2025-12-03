@@ -70,14 +70,14 @@ const nextConfig = {
       // the dev server. The CSS is included in the non-turbopack based prod build anyways.
       // Also not needed for the non-turbopack based dev server.
       "react-resizable/css/styles.css":
-        "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.1.1_react@19.1.1__react@19.1.1/node_modules/react-resizable/css/styles.css",
+        "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.2.1_react@19.2.1__react@19.2.1/node_modules/react-resizable/css/styles.css",
     },
   },
   experimental: {
     browserDebugInfoInTerminal: true, // Logs browser logs to terminal
     // TODO: enable with new next version! 15.6
     // see: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackPersistentCaching
-    //  turbopackPersistentCaching: true,
+    // turbopackPersistentCaching: true,
   },
 
   /**

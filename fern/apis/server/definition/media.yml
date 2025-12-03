@@ -116,6 +116,10 @@ types:
         name: IMAGE_TIFF
       - value: image/bmp
         name: IMAGE_BMP
+      - value: image/avif
+        name: IMAGE_AVIF
+      - value: image/heic
+        name: IMAGE_HEIC
       - value: audio/mpeg
         name: AUDIO_MPEG
       - value: audio/mp3
@@ -132,10 +136,24 @@ types:
         name: AUDIO_MP4
       - value: audio/flac
         name: AUDIO_FLAC
+      - value: audio/opus
+        name: AUDIO_OPUS
+      - value: audio/webm
+        name: AUDIO_WEBM
       - value: video/mp4
         name: VIDEO_MP4
       - value: video/webm
         name: VIDEO_WEBM
+      - value: video/ogg
+        name: VIDEO_OGG
+      - value: video/mpeg
+        name: VIDEO_MPEG
+      - value: video/quicktime
+        name: VIDEO_QUICKTIME
+      - value: video/x-msvideo
+        name: VIDEO_X_MSVIDEO
+      - value: video/x-matroska
+        name: VIDEO_X_MATROSKA
       - value: text/plain
         name: TEXT_PLAIN
       - value: text/html
@@ -144,12 +162,24 @@ types:
         name: TEXT_CSS
       - value: text/csv
         name: TEXT_CSV
+      - value: text/markdown
+        name: TEXT_MARKDOWN
+      - value: text/x-python
+        name: TEXT_X_PYTHON
+      - value: application/javascript
+        name: APPLICATION_JAVASCRIPT
+      - value: text/x-typescript
+        name: TEXT_X_TYPESCRIPT
+      - value: application/x-yaml
+        name: APPLICATION_X_YAML
       - value: application/pdf
         name: APPLICATION_PDF
       - value: application/msword
         name: APPLICATION_MSWORD
       - value: application/vnd.ms-excel
         name: APPLICATION_MS_EXCEL
+      - value: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+        name: APPLICATION_OPENXML_SPREADSHEET
       - value: application/zip
         name: APPLICATION_ZIP
       - value: application/json
@@ -158,4 +188,20 @@ types:
         name: APPLICATION_XML
       - value: application/octet-stream
         name: APPLICATION_OCTET_STREAM
+      - value: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        name: APPLICATION_OPENXML_WORD
+      - value: application/vnd.openxmlformats-officedocument.presentationml.presentation
+        name: APPLICATION_OPENXML_PRESENTATION
+      - value: application/rtf
+        name: APPLICATION_RTF
+      - value: application/x-ndjson
+        name: APPLICATION_X_NDJSON
+      - value: application/vnd.apache.parquet
+        name: APPLICATION_PARQUET
+      - value: application/gzip
+        name: APPLICATION_GZIP
+      - value: application/x-tar
+        name: APPLICATION_X_TAR
+      - value: application/x-7z-compressed
+        name: APPLICATION_X_7Z_COMPRESSED
     docs: The MIME type of the media record

@@ -29,6 +29,7 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
+import { seedDatasetVersions } from "./seed-dataset-versions";
 
 const options = {
   environment: { type: "string" },
@@ -346,6 +347,7 @@ async function main() {
     );
 
     await createDashboardsAndWidgets([project1, project2]);
+    await seedDatasetVersions(prisma, [project1.id, project2.id]);
 
     await prisma.llmSchema.createMany({
       data: [
@@ -552,6 +554,8 @@ export async function createDatasets(
       }
 
       for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
+        if (!data.shouldRunExperiment) continue;
+
         await prisma.datasetRuns.upsert({
           where: {
             id_projectId: {
@@ -722,6 +726,7 @@ async function generatePrompts(project: Project) {
         createdBy: version.createdBy,
         prompt: version.prompt,
         name: version.name,
+        type: version.type ?? "text",
         config: version.config,
         version: version.version,
         labels: version.labels,

@@ -14,6 +14,8 @@ import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
+import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
+
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
@@ -121,14 +123,22 @@ export const organizationsRouter = createTRPCRouter({
         scope: "organization:delete",
       });
 
-      // count soft and hard deleted projects
-      const countProjects = await ctx.prisma.project.count({
+      // count non-deleted projects
+      const countNonDeletedProjects = await ctx.prisma.project.count({
+        where: {
+          orgId: input.orgId,
+          deletedAt: null,
+        },
+      });
+
+      // count all projects (including soft-deleted)
+      const countAllProjects = await ctx.prisma.project.count({
         where: {
           orgId: input.orgId,
         },
       });
 
-      if (countProjects > 0) {
+      if (countNonDeletedProjects > 0) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
@@ -136,18 +146,28 @@ export const organizationsRouter = createTRPCRouter({
         });
       }
 
-      // Attempt to cancel Stripe subscription immediately (Cloud only) before deleting org
-      try {
-        const stripeBillingService = createBillingServiceFromContext(ctx);
-        await stripeBillingService.cancelImmediatelyAndInvoice(input.orgId);
-      } catch (e) {
-        // If billing cancellation fails for reasons other than no subscription, abort deletion
+      if (countAllProjects > 0) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
+          code: "FORBIDDEN",
           message:
-            "Failed to cancel Stripe subscription prior to organization deletion",
-          cause: e as Error,
+            "Deletion of your projects is still being processed, please try deleting the organization later",
         });
+      }
+
+      // Attempt to cancel Stripe subscription immediately (Cloud only) before deleting org
+      if (isCloudBillingEnabled()) {
+        try {
+          const stripeBillingService = createBillingServiceFromContext(ctx);
+          await stripeBillingService.cancelImmediatelyAndInvoice(input.orgId);
+        } catch (e) {
+          // If billing cancellation fails for reasons other than no subscription, abort deletion
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message:
+              "Failed to cancel Stripe subscription prior to organization deletion",
+            cause: e as Error,
+          });
+        }
       }
 
       const organization = await ctx.prisma.organization.delete({
@@ -157,7 +177,7 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       // the api keys contain which org they belong to, so we need to remove them from Redis
-      await new ApiAuthService(ctx.prisma, redis).invalidateOrgApiKeys(
+      await new ApiAuthService(ctx.prisma, redis).invalidateCachedOrgApiKeys(
         input.orgId,
       );
 

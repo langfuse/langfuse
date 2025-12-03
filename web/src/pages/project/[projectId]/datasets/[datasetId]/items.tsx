@@ -20,6 +20,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
+import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
 
 export default function DatasetItems() {
   const router = useRouter();
@@ -30,6 +31,14 @@ export default function DatasetItems() {
     datasetId,
     projectId,
   });
+
+  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
+    projectId,
+    datasetId,
+  });
+
+  const showOnboarding =
+    totalDatasetItemCount.isSuccess && totalDatasetItemCount.data === 0;
 
   return (
     <Page
@@ -50,11 +59,18 @@ export default function DatasetItems() {
         },
         actionButtonsRight: (
           <>
-            <NewDatasetItemButton projectId={projectId} datasetId={datasetId} />
-            <UploadDatasetCsvButton
-              projectId={projectId}
-              datasetId={datasetId}
-            />
+            {!showOnboarding && (
+              <>
+                <NewDatasetItemButton
+                  projectId={projectId}
+                  datasetId={datasetId}
+                />
+                <UploadDatasetCsvButton
+                  projectId={projectId}
+                  datasetId={datasetId}
+                />
+              </>
+            )}
             <DetailPageNav
               currentId={datasetId}
               path={(entry) =>
@@ -77,6 +93,10 @@ export default function DatasetItems() {
                     datasetName={dataset.data?.name ?? ""}
                     datasetDescription={dataset.data?.description ?? undefined}
                     datasetMetadata={dataset.data?.metadata}
+                    datasetInputSchema={dataset.data?.inputSchema ?? undefined}
+                    datasetExpectedOutputSchema={
+                      dataset.data?.expectedOutputSchema ?? undefined
+                    }
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -105,7 +125,11 @@ export default function DatasetItems() {
         ),
       }}
     >
-      <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
+      {showOnboarding ? (
+        <DatasetItemsOnboarding projectId={projectId} datasetId={datasetId} />
+      ) : (
+        <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
+      )}
     </Page>
   );
 }

@@ -248,10 +248,11 @@ describe("/api/public/scores API Endpoint", () => {
       });
     });
 
-    it("should post score with score config if in valid range", async () => {
+    it("should post score with score config and queue id if in valid range", async () => {
       const configId = v4();
       const traceId = v4();
       const scoreId = v4();
+      const queueId = v4();
 
       const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
 
@@ -283,6 +284,7 @@ describe("/api/public/scores API Endpoint", () => {
         observation_id: null,
         environment: "production",
         config_id: config.id,
+        queue_id: queueId,
       });
       await createScoresCh([score]);
 
@@ -304,6 +306,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.source).toBe("API");
       expect(fetchedScore.body?.projectId).toBe(projectId);
       expect(fetchedScore.body?.environment).toBe("production");
+      expect(fetchedScore.body?.queueId).toBe(queueId);
       expect(fetchedScore.body?.metadata).toEqual({
         "test-key": "test-value",
       });
@@ -411,6 +414,7 @@ describe("/api/public/scores API Endpoint", () => {
       const traceId_3 = v4();
       const generationId = v4();
       const sessionId = v4();
+      const datasetRunId = v4();
       const scoreId_1 = v4();
       const scoreId_2 = v4();
       const scoreId_3 = v4();
@@ -1040,6 +1044,36 @@ describe("/api/public/scores API Endpoint", () => {
           await makeAPICall(
             "GET",
             `/api/public/scores?sessionId=${sessionId}`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toContain(
+            "API call did not return 200, returned status 400",
+          );
+        }
+      });
+
+      it("should reject dataset run ID filtering", async () => {
+        try {
+          await makeAPICall(
+            "GET",
+            `/api/public/scores?datasetRunId=${datasetRunId}`,
+            undefined,
+            authentication,
+          );
+        } catch (error) {
+          expect((error as Error).message).toContain(
+            "API call did not return 200, returned status 400",
+          );
+        }
+      });
+
+      it("should reject trace ID filtering", async () => {
+        try {
+          await makeAPICall(
+            "GET",
+            `/api/public/scores?traceId=${traceId}`,
             undefined,
             authentication,
           );

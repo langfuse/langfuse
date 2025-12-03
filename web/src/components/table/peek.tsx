@@ -44,8 +44,8 @@ export type DataTablePeekViewProps = {
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
 
   // Event handlers
-  /** Called to open the peek view*/
-  openPeek: (id?: string, row?: any) => void;
+  /** Called to open the peek view. If undefined, row clicks won't trigger peek view opening */
+  openPeek?: (id?: string, row?: any) => void;
   /** Called to close the peek view*/
   closePeek: () => void;
   /** Called when the peek view is expanded to full view */
@@ -106,9 +106,9 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           e.preventDefault();
         }}
         side="right"
-        className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden rounded-l-xl p-0"
+        className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden p-0"
       >
-        <SheetHeader className="flex min-h-12 flex-row flex-nowrap items-center justify-between rounded-t-xl bg-header px-2">
+        <SheetHeader className="flex min-h-11 flex-row flex-nowrap items-center justify-between bg-header px-2 py-1">
           <SheetTitle className="!mt-0 ml-2 flex min-w-0 flex-row items-center gap-2">
             <ItemBadge type={peekView.itemType} showLabel />
             <span

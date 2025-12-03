@@ -19,10 +19,10 @@ services:
     ports:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
-      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
       SALT: ${SALT:-mysalt} # CHANGEME
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-"0000000000000000000000000000000000000000000000000000000000000000"} # CHANGEME: generate via `openssl rand -hex 32`
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000} # CHANGEME: generate via `openssl rand -hex 32`
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: ${LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:-true}
       CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}
@@ -91,7 +91,7 @@ services:
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
-      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse} # CHANGEME
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
@@ -107,7 +107,7 @@ services:
       start_period: 1s
 
   minio:
-    image: docker.io/minio/minio
+    image: cgr.dev/chainguard/minio
     restart: always
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service

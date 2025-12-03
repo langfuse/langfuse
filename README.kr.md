@@ -197,8 +197,8 @@ pip install langfuse openai
 ```bash filename=".env"
 LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EU region
-# LANGFUSE_HOST="https://us.cloud.langfuse.com" # 🇺🇸 US region
+LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 EU region
+# LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 US region
 ```
 
 ```python:main.py
@@ -233,7 +233,7 @@ _[Langfuse의 공개 예제 trace](https://cloud.langfuse.com/project/cloramnkj0
 
 ## ⭐️ 별을 눌러주세요
 
-![Star Langfuse](https://langfuse.com/images/docs/github-readme/github-star-howto.gif)
+![star-langfuse-on-github](https://github.com/user-attachments/assets/79a1d816-d229-4526-aecc-097d4a19f1ad)
 
 ## 💭 지원
 

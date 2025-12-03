@@ -1,16 +1,25 @@
 import {
   type Observation,
+  type EventsObservation,
   ObservationLevel,
   paginationMetaResponseZod,
   publicApiPaginationZod,
+  singleFilter,
+  InvalidRequestError,
 } from "@langfuse/shared";
 
 import {
   reduceUsageOrCostDetails,
   stringDateTime,
+  type ObservationPriceFields,
+  OBSERVATION_FIELD_GROUPS,
+  type ObservationFieldGroup,
 } from "@langfuse/shared/src/server";
-import type Decimal from "decimal.js";
 import { z } from "zod/v4";
+import { useEventsTableSchema } from "../../query/types";
+
+// Re-export for convenience
+export { OBSERVATION_FIELD_GROUPS, type ObservationFieldGroup };
 
 /**
  * Objects
@@ -71,6 +80,8 @@ export const APIObservation = z
     promptTokens: z.number(), // backwards compatibility
     completionTokens: z.number(), // backwards compatibility
     totalTokens: z.number(), // backwards compatibility
+    usagePricingTierName: z.string().nullable(),
+    usagePricingTierId: z.string().nullable(),
 
     // matched model
     modelId: z.string().nullable(),
@@ -97,15 +108,11 @@ export const APIObservation = z
 
 /**
  *
- * @param observation - DB Observation
+ * @param observation - DB Observation (may include EventsObservation with userId/sessionId, which are excluded from public API)
  * @returns API Observation as defined in the public API
  */
 export const transformDbToApiObservation = (
-  observation: Observation & {
-    inputPrice: Decimal | null;
-    outputPrice: Decimal | null;
-    totalPrice: Decimal | null;
-  },
+  observation: (Observation | EventsObservation) & ObservationPriceFields,
 ): z.infer<typeof APIObservation> => {
   const reducedUsageDetails = reduceUsageOrCostDetails(
     observation.usageDetails,
@@ -135,8 +142,13 @@ export const transformDbToApiObservation = (
     outputUsage,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     totalUsage,
+    // Exclude userId and sessionId from public API (security/privacy)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    userId,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    sessionId,
     ...rest
-  } = observation;
+  } = observation as EventsObservation & ObservationPriceFields;
 
   return {
     ...rest,
@@ -177,6 +189,21 @@ export const GetObservationsV1Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
+  useEventsTable: useEventsTableSchema,
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
 });
 export const GetObservationsV1Response = z
   .object({
@@ -188,5 +215,122 @@ export const GetObservationsV1Response = z
 // GET /observations/{observationId}
 export const GetObservationV1Query = z.object({
   observationId: z.string(),
+  useEventsTable: useEventsTableSchema,
 });
 export const GetObservationV1Response = APIObservation;
+
+/**
+ * Cursor schema for v2 observations pagination
+ * Encodes the position in the result set using the table's ordering:
+ * (start_time, xxHash32(trace_id), span_id)
+ */
+export const ObservationsCursorV2 = z.object({
+  lastStartTimeTo: z.coerce.date(),
+  lastTraceId: z.string(),
+  lastId: z.string(),
+});
+
+export type ObservationsCursorV2Type = z.infer<typeof ObservationsCursorV2>;
+
+/**
+ * Schema for base64-encoded cursor string
+ * Used in API responses - just a plain string, no transformation
+ */
+export const EncodedObservationsCursorV2String = z
+  .string()
+  .describe("Base64-encoded cursor for pagination");
+
+/**
+ * Schema for base64-encoded cursor in API requests
+ * Decodes and validates the cursor structure
+ */
+export const EncodedObservationsCursorV2 = z
+  .string()
+  .transform((val) => {
+    try {
+      const decoded = Buffer.from(val, "base64").toString("utf-8");
+      const parsed = JSON.parse(decoded);
+      return parsed;
+    } catch (_e) {
+      throw new InvalidRequestError("Invalid cursor format");
+    }
+  })
+  .pipe(ObservationsCursorV2);
+
+/**
+ * Encodes a cursor object to base64 string for API response
+ */
+export const encodeCursor = (
+  cursor: ObservationsCursorV2Type,
+): z.infer<typeof EncodedObservationsCursorV2String> => {
+  return Buffer.from(
+    JSON.stringify({
+      lastStartTimeTo:
+        cursor.lastStartTimeTo instanceof Date
+          ? cursor.lastStartTimeTo.toISOString()
+          : cursor.lastStartTimeTo,
+      lastTraceId: cursor.lastTraceId,
+      lastId: cursor.lastId,
+    }),
+  ).toString("base64");
+};
+
+// GET /v2/observations
+export const GetObservationsV2Query = z.object({
+  // Field groups parameter (optional - defaults to all groups)
+  fields: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      return v
+        .split(",")
+        .map((f) => f.trim())
+        .filter((f) =>
+          OBSERVATION_FIELD_GROUPS.includes(f as ObservationFieldGroup),
+        );
+    })
+    .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
+  // Pagination
+  limit: z.coerce.number().nonnegative().lte(1000).default(50),
+  cursor: EncodedObservationsCursorV2.optional(),
+  // Parsing behavior
+  parseIoAsJson: z
+    .union([z.literal("true"), z.literal("false")])
+    .transform((val) => val === "true")
+    .default(false),
+  // Filters
+  type: ObservationType.nullish(),
+  name: z.string().nullish(),
+  userId: z.string().nullish(),
+  level: z.enum(ObservationLevel).nullish(),
+  traceId: z.string().nullish(),
+  version: z.string().nullish(),
+  parentObservationId: z.string().nullish(),
+  environment: z.union([z.array(z.string()), z.string()]).nullish(),
+  fromStartTime: stringDateTime.optional(),
+  toStartTime: stringDateTime.optional(),
+  filter: z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        const parsed = JSON.parse(str);
+        return parsed;
+      } catch (e) {
+        if (e instanceof InvalidRequestError) throw e;
+        throw new InvalidRequestError("Invalid JSON in filter parameter");
+      }
+    })
+    .pipe(z.array(singleFilter).optional()),
+});
+
+export const GetObservationsV2Response = z
+  .object({
+    data: z.array(z.record(z.string(), z.any())), // Field-group-filtered observations
+    meta: z.object({
+      cursor: EncodedObservationsCursorV2String.optional(),
+    }),
+  })
+  .strict();

@@ -140,7 +140,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
       const parsedJson = JSON.parse(currentValue);
       const prettified = JSON.stringify(parsedJson, null, 2);
       form.setValue("schema", prettified);
-    } catch (error) {
+    } catch (_error) {
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
@@ -164,7 +164,12 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+
+              form.handleSubmit(onSubmit)();
+            }}
             className="grid max-h-full min-h-0 overflow-hidden"
           >
             <DialogBody>

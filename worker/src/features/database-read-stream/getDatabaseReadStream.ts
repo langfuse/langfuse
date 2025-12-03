@@ -3,10 +3,11 @@ import {
   FilterCondition,
   TimeFilter,
   BatchExportQueryType,
-  ScoreDomain,
   evalDatasetFormFilterCols,
   OrderByState,
   TracingSearchType,
+  ScoreDataType,
+  isPresent,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -20,15 +21,16 @@ import {
   getScoresForObservations,
   getTracesTable,
   getTracesTableMetrics,
-  getTracesByIds,
-  getScoresForTraces,
   tableColumnsToSqlFilterAndPrefix,
   getTraceIdentifiers,
   getDatasetRunItemsCh,
+  getTracesByIds,
+  getScoresForTraces,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
 import { BatchExportTracesRow, BatchExportSessionsRow } from "./types";
+import { fetchCommentsForExport } from "./fetchCommentsForExport";
 
 const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   scores: "timestamp",
@@ -53,12 +55,12 @@ const isGenerationTimestampFilter = (
 ): filter is TimeFilter => {
   return filter.column === "Start Time" && filter.type === "datetime";
 };
-const isTraceTimestampFilter = (
+export const isTraceTimestampFilter = (
   filter: FilterCondition,
 ): filter is TimeFilter => {
   return filter.column === "Timestamp" && filter.type === "datetime";
 };
-const getChunkWithFlattenedScores = <
+export const getChunkWithFlattenedScores = <
   T extends BatchExportTracesRow[] | FullObservationsWithScores,
 >(
   chunk: T,
@@ -86,7 +88,7 @@ const getChunkWithFlattenedScores = <
   });
 };
 
-export const getDatabaseReadStream = async ({
+export const getDatabaseReadStreamPaginated = async ({
   projectId,
   tableName,
   filter,
@@ -118,7 +120,7 @@ export const getDatabaseReadStream = async ({
   };
 
   const clickhouseConfigs = {
-    request_timeout: 120_000,
+    request_timeout: 180_000,
   };
 
   switch (tableName) {
@@ -215,7 +217,7 @@ export const getDatabaseReadStream = async ({
               public: true,
             },
           });
-          return sessions.map((s) => {
+          const rows = sessions.map((s) => {
             const row: BatchExportSessionsRow = {
               id: s.session_id,
               userIds: s.user_ids,
@@ -237,6 +239,19 @@ export const getDatabaseReadStream = async ({
             };
             return row;
           });
+
+          // Fetch comments for all sessions in this page
+          const sessionComments = await fetchCommentsForExport(
+            projectId,
+            "SESSION",
+            sessions.map((s) => s.session_id),
+          );
+
+          // Add comments to each session
+          return rows.map((row) => ({
+            ...row,
+            comments: sessionComments.get(row.id) ?? [],
+          }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
@@ -294,7 +309,23 @@ export const getDatabaseReadStream = async ({
             };
           });
 
-          return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
+          // Fetch comments for all observations in this page
+          const observationComments = await fetchCommentsForExport(
+            projectId,
+            "OBSERVATION",
+            generations.map((g) => g.id),
+          );
+
+          // Add comments to flattened chunk
+          const flattenedChunk = getChunkWithFlattenedScores(
+            chunk,
+            emptyScoreColumns,
+          );
+
+          return flattenedChunk.map((obs: any) => ({
+            ...obs,
+            comments: observationComments.get(obs.id) ?? [],
+          }));
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
@@ -354,7 +385,7 @@ export const getDatabaseReadStream = async ({
                 undefined as Date | undefined,
               ),
               {
-                request_timeout: 120_000,
+                request_timeout: 180_000,
               },
             ),
           ]);
@@ -403,7 +434,23 @@ export const getDatabaseReadStream = async ({
             };
           });
 
-          return getChunkWithFlattenedScores(chunk, emptyScoreColumns);
+          // Fetch comments for all traces in this page
+          const traceComments = await fetchCommentsForExport(
+            projectId,
+            "TRACE",
+            traces.map((t) => t.id),
+          );
+
+          // Add comments to each trace
+          const chunkWithComments = chunk.map((trace) => ({
+            ...trace,
+            comments: traceComments.get(trace.id) ?? [],
+          }));
+
+          return getChunkWithFlattenedScores(
+            chunkWithComments,
+            emptyScoreColumns,
+          );
         },
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
@@ -485,7 +532,7 @@ export const getDatabaseReadStream = async ({
               updated_at: Date;
             }>
           >`
-            SELECT 
+            SELECT
               di.id,
               di.project_id,
               di.dataset_id,
@@ -498,7 +545,7 @@ export const getDatabaseReadStream = async ({
               di.source_observation_id,
               di.created_at,
               di.updated_at
-            FROM dataset_items di 
+            FROM dataset_items di
               JOIN datasets d ON di.dataset_id = d.id AND di.project_id = d.project_id
             WHERE di.project_id = ${projectId}
             AND di.created_at < ${cutoffCreatedAt}
@@ -580,15 +627,22 @@ export const getDatabaseReadStream = async ({
 };
 
 export function prepareScoresForOutput(
-  filteredScores: ScoreDomain[],
+  scores: {
+    name: string;
+    stringValue?: string | null;
+    dataType: ScoreDataType;
+    value: number;
+  }[],
 ): Record<string, string[] | number[]> {
-  return filteredScores.reduce(
+  return scores.reduce(
     (acc, score) => {
       // If this score name already exists in acc, use its existing type
       const existingValues = acc[score.name];
       const newValue =
-        score.dataType === "NUMERIC" ? score.value : score.stringValue;
-      if (!newValue) return acc;
+        score.dataType === "NUMERIC" || score.dataType === "BOOLEAN"
+          ? score.value
+          : score.stringValue;
+      if (!isPresent(newValue)) return acc;
 
       if (!existingValues) {
         // First value determines the type
@@ -644,7 +698,7 @@ export const getTraceIdentifierStream = async (props: {
   };
 
   const clickhouseConfigs = {
-    request_timeout: 120_000,
+    request_timeout: 180_000,
   };
 
   return new DatabaseReadStream<TraceIdentifiers>(

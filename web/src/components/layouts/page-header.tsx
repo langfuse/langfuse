@@ -3,13 +3,25 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
+import { useRouter } from "next/router";
+import { type ParsedUrlQuery } from "querystring";
+import { type ReactNode } from "react";
 
 type TabDefinition = {
   value: string;
   label: string;
   href: string;
+  querySelector?: (
+    query: ParsedUrlQuery,
+  ) => Record<string, string | string[] | undefined>;
   disabled?: boolean;
   className?: string;
 };
@@ -27,9 +39,15 @@ export type PageHeaderProps = {
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
   help?: { description: string; href?: string; className?: string };
+  titleTooltip?: string;
   itemType?: LangfuseItemType;
   container?: boolean;
   tabsProps?: PageTabsProps;
+  className?: string;
+  showSidebarTrigger?: boolean;
+  leadingControl?: ReactNode;
+  titleBadges?: ReactNode;
+  breadcrumbBadges?: ReactNode;
 };
 
 const PageHeader = ({
@@ -39,25 +57,47 @@ const PageHeader = ({
   actionButtonsRight,
   breadcrumb,
   help,
+  titleTooltip,
   tabsProps,
   container = false,
+  className,
+  showSidebarTrigger = true,
+  leadingControl,
+  titleBadges,
+  breadcrumbBadges,
 }: PageHeaderProps) => {
+  const router = useRouter();
   return (
-    <div className="sticky top-0 z-30 w-full border-b bg-background shadow-sm">
+    <div
+      className={cn([
+        "sticky top-banner-offset z-30 w-full border-b bg-background shadow-sm",
+        className,
+      ])}
+      id="page-header"
+    >
       <div className="flex flex-col justify-center">
         {/* Top Row */}
         <div className="border-b">
           <div
             className={cn(
-              "flex min-h-12 items-center gap-3 px-3 py-2",
+              "flex min-h-11 items-center gap-3 px-3 py-2",
               container && "lg:container",
             )}
           >
-            <SidebarTrigger />
+            {showSidebarTrigger ? (
+              <SidebarTrigger />
+            ) : (
+              leadingControl && (
+                <div className="flex items-center">{leadingControl}</div>
+              )
+            )}
             <div>
               <EnvLabel />
             </div>
-            <BreadcrumbComponent items={breadcrumb} />
+            <div className="flex items-center gap-2">
+              <BreadcrumbComponent items={breadcrumb} />
+              {breadcrumbBadges}
+            </div>
           </div>
         </div>
 
@@ -65,7 +105,7 @@ const PageHeader = ({
         <div className="bg-header">
           <div
             className={cn(
-              "flex min-h-12 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
+              "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
               container && "lg:container",
             )}
           >
@@ -79,25 +119,58 @@ const PageHeader = ({
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   <h2 className="line-clamp-1 text-lg font-semibold leading-7">
-                    <span
-                      className="break-words"
-                      title={title}
-                      data-testid="page-header-title"
-                    >
-                      {title}
-                      {help && (
-                        <span className="whitespace-nowrap">
-                          &nbsp;
-                          <DocPopup
-                            description={help.description}
-                            href={help.href}
-                            className={help.className}
-                          />
-                        </span>
-                      )}
-                    </span>
+                    {titleTooltip ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="cursor-help break-words"
+                              data-testid="page-header-title"
+                            >
+                              {title}
+                              {help && (
+                                <span className="whitespace-nowrap">
+                                  &nbsp;
+                                  <DocPopup
+                                    description={help.description}
+                                    href={help.href}
+                                    className={help.className}
+                                  />
+                                </span>
+                              )}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs">
+                            {titleTooltip}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span
+                        className="break-words"
+                        title={title}
+                        data-testid="page-header-title"
+                      >
+                        {title}
+                        {help && (
+                          <span className="whitespace-nowrap">
+                            &nbsp;
+                            <DocPopup
+                              description={help.description}
+                              href={help.href}
+                              className={help.className}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </h2>
                 </div>
+                {titleBadges && (
+                  <div className="ml-1 flex items-center gap-1">
+                    {titleBadges}
+                  </div>
+                )}
               </div>
               {actionButtonsLeft && (
                 <div className="flex flex-wrap items-center gap-1 self-center">
@@ -123,7 +196,10 @@ const PageHeader = ({
                 {tabsProps.tabs.map((tab) => (
                   <Link
                     key={tab.value}
-                    href={tab.href}
+                    href={{
+                      pathname: tab.href,
+                      query: tab.querySelector?.(router.query),
+                    }}
                     className={cn(
                       "inline-flex h-full items-center justify-center whitespace-nowrap rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       tab.value === tabsProps.activeTab

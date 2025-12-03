@@ -6,10 +6,11 @@ import {
   GetDatasetItemV1Response,
   DeleteDatasetItemV1Query,
   DeleteDatasetItemV1Response,
-  transformDbDatasetItemToAPIDatasetItem,
+  transformDbDatasetItemDomainToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteDatasetItem } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -39,10 +40,20 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Dataset item not found");
       }
 
-      const { dataset, ...datasetItemBody } = datasetItem;
+      const { dataset } = datasetItem;
 
-      return transformDbDatasetItemToAPIDatasetItem({
-        ...datasetItemBody,
+      return transformDbDatasetItemDomainToAPIDatasetItem({
+        id: datasetItem.id,
+        projectId: datasetItem.projectId,
+        datasetId: datasetItem.datasetId,
+        status: datasetItem.status ?? "ACTIVE",
+        input: datasetItem.input,
+        expectedOutput: datasetItem.expectedOutput,
+        metadata: datasetItem.metadata,
+        sourceTraceId: datasetItem.sourceTraceId,
+        sourceObservationId: datasetItem.sourceObservationId,
+        createdAt: datasetItem.createdAt,
+        updatedAt: datasetItem.updatedAt,
         datasetName: dataset.name,
       });
     },
@@ -55,28 +66,9 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 
-      // First get the item to check if it exists
-      const datasetItem = await prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: datasetItemId,
-          },
-        },
-      });
-
-      if (!datasetItem) {
-        throw new LangfuseNotFoundError("Dataset item not found");
-      }
-
-      // Delete the dataset item
-      await prisma.datasetItem.delete({
-        where: {
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: datasetItemId,
-          },
-        },
+      const result = await deleteDatasetItem({
+        projectId: auth.scope.projectId,
+        datasetItemId: datasetItemId,
       });
 
       await auditLog({
@@ -86,7 +78,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         orgId: auth.scope.orgId,
         apiKeyId: auth.scope.apiKeyId,
-        before: datasetItem,
+        before: result.deletedItem,
       });
 
       return {

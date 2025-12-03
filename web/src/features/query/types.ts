@@ -57,6 +57,8 @@ export const views = z.enum([
   // "users",
 ]);
 
+export const privateViews = views.or(z.literal("events-observations"));
+
 export const dimension = z.object({
   field: z.string(),
 });
@@ -93,7 +95,7 @@ export type QueryType = z.infer<typeof query>;
 
 export const query = z
   .object({
-    view: views,
+    view: privateViews,
     dimensions: z.array(dimension),
     metrics: z.array(metric),
     filters: z.array(singleFilter),
@@ -128,3 +130,8 @@ export const query = z
       // Ensure fromTimestamp is before toTimestamp
       new Date(query.fromTimestamp) < new Date(query.toTimestamp),
   );
+
+export const useEventsTableSchema = z
+  .union([z.literal("true"), z.literal("false"), z.boolean()])
+  .optional()
+  .transform((val) => val === "true" || val === true);

@@ -1,0 +1,45 @@
+---
+description: Guidelines for positioning elements with banner awareness
+globs:
+  - "**/*.tsx"
+  - "**/*.jsx"
+alwaysApply: true
+---
+
+## Banner Height System
+
+When positioning elements with `sticky`, `fixed`, or `absolute` that have a global reference point (like `top-0`), **always use `top-banner-offset` instead of `top-0`**.
+
+### Why?
+The application can display system banners (payment issues, maintenance notices, etc.) that push content down. Using `top-banner-offset` ensures your positioned elements appear below the banner rather than being covered by it.
+
+### Usage
+
+**Bad:**
+```tsx
+<div className="fixed top-0 left-0 right-0">...</div>
+<div className="sticky top-0">...</div>
+<div className="absolute top-0">...</div>
+<div className="pt-0">...</div>
+```
+
+**Good:**
+```tsx
+<div className="fixed top-banner-offset left-0 right-0">...</div>
+<div className="sticky top-banner-offset">...</div>
+<div className="absolute top-banner-offset">...</div>
+<div className="pt-banner-offset">...</div>
+```
+
+### Additional Utilities
+
+- `h-screen-with-banner` / `min-h-screen-with-banner` - Use these for full-height containers that should account for banner space
+- `pt-banner-offset` - Use for padding-top to offset content below the banner
+- The system uses CSS variables `--banner-height` and `--banner-offset` defined in `web/src/styles/globals.css`
+- Banner components dynamically update `--banner-height` using ResizeObserver to track their actual rendered height, ensuring accuracy across all screen sizes
+
+### When NOT to use `top-banner-offset`
+
+- Elements positioned relative to their parent container (not globally)
+- Elements that should intentionally appear at the very top of the viewport
+- Elements inside modals/dialogs that are already z-indexed above banners

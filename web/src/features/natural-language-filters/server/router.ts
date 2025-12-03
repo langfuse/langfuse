@@ -8,7 +8,7 @@ import {
   ChatMessageType,
   fetchLLMCompletion,
   logger,
-  type TraceParams,
+  type TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
@@ -20,6 +20,7 @@ import {
 import { randomBytes } from "crypto";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
@@ -72,20 +73,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           }
         };
 
-        const traceParams: TraceParams = {
-          environment: getEnvironment(),
-          traceName: "natural-language-filter",
-          traceId: randomBytes(16).toString("hex"),
-          projectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID as string,
-          authCheck: {
-            validKey: true as const,
-            scope: {
-              projectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
-              accessLevel: "project",
-            } as any,
-          },
-        };
-
         const client = getLangfuseClient(
           env.LANGFUSE_AI_FEATURES_PUBLIC_KEY as string,
           env.LANGFUSE_AI_FEATURES_SECRET_KEY as string,
@@ -98,7 +85,35 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           { type: "chat" },
         );
 
-        const messages = promptResponse.compile({ userPrompt: input.prompt });
+        if (!env.LANGFUSE_AI_FEATURES_PROJECT_ID) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Langfuse AI Features not configured.",
+          });
+        }
+
+        const traceSinkParams: TraceSinkParams = {
+          environment: getEnvironment(),
+          traceName: "natural-language-filter",
+          traceId: randomBytes(16).toString("hex"),
+          targetProjectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
+          userId: ctx.session.user.id,
+          metadata: {
+            langfuse_user_id: ctx.session.user.id,
+            langfuse_project_id: ctx.session.projectId,
+          },
+          prompt: promptResponse,
+        };
+
+        // Get current datetime in ISO format with day of week for AI context
+        const now = new Date();
+        const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
+        const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
+
+        const messages = promptResponse.compile({
+          userPrompt: input.prompt,
+          currentDatetime,
+        });
         const modelParams = getDefaultModelParams();
 
         const llmCompletion = await fetchLLMCompletion({
@@ -107,23 +122,20 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
             type: ChatMessageType.PublicAPICreated,
           })),
           modelParams,
-          apiKey: BEDROCK_USE_DEFAULT_CREDENTIALS,
-          streaming: false,
-          traceParams,
-          context: {
-            tracing: "langfuse",
-            credentials: "langfuse",
+          llmConnection: {
+            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
           },
+          streaming: false,
+          traceSinkParams,
+          shouldUseLangfuseAPIKey: true,
         });
 
-        await llmCompletion.processTracedEvents();
-
         logger.info(
-          `LLM completion received: ${JSON.stringify(llmCompletion.completion, null, 2)}`,
+          `LLM completion received: ${JSON.stringify(llmCompletion, null, 2)}`,
         );
 
         const parsedFilters = parseFiltersFromCompletion(
-          llmCompletion.completion as string,
+          llmCompletion as string,
         );
 
         return {

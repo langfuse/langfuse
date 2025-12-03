@@ -22,10 +22,22 @@ const EnvSchema = z.object({
   REDIS_TLS_CA_PATH: z.string().optional(),
   REDIS_TLS_CERT_PATH: z.string().optional(),
   REDIS_TLS_KEY_PATH: z.string().optional(),
+  REDIS_TLS_SERVERNAME: z.string().optional(),
+  REDIS_TLS_REJECT_UNAUTHORIZED: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_CHECK_SERVER_IDENTITY: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_SECURE_PROTOCOL: z.string().optional(),
+  REDIS_TLS_CIPHERS: z.string().optional(),
+  REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
+  REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_SENTINEL_NODES: z.string().optional(),
+  REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
+  REDIS_SENTINEL_USERNAME: z.string().optional(),
+  REDIS_SENTINEL_PASSWORD: z.string().optional(),
   ENCRYPTION_KEY: z
     .string()
     .length(
@@ -45,6 +57,12 @@ const EnvSchema = z.object({
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  // Optional to allow for server-setting fallbacks
+  CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
+  CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
+  CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
+    .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
+    .default("alter_update"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -59,10 +77,15 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS: z.coerce.number().positive().default(2),
   LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -113,6 +136,13 @@ const EnvSchema = z.object({
     .default("true"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(3600), // 1 hour
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -131,38 +161,6 @@ const EnvSchema = z.object({
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
   LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS: z.string().optional(),
-  LANGFUSE_EXPERIMENT_COMPARE_READ_FROM_AGGREGATING_MERGE_TREES: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_ADD_QUERY_RESULT_TO_SPAN_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) =>
-      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
-    ),
-  LANGFUSE_EXPERIMENT_SAMPLING_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0.1),
-  LANGFUSE_EXPERIMENT_WHITELISTED_PROJECT_IDS: z
-    .string()
-    .optional()
-    .transform((s) =>
-      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
-    ),
-  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT_SHORT_TERM: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_WHITELISTED_AMT_TABLES: z
-    .string()
-    .optional()
-    .transform((s) =>
-      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
-    ),
   LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: z
     .string()
     .optional()
@@ -201,6 +199,18 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_WEBHOOK_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -208,7 +218,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .optional()
-    .default(1_000)
+    .default(5_000)
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
@@ -226,6 +236,11 @@ const EnvSchema = z.object({
     .positive()
     .default(600_000), // 10 minutes
 
+  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
+
   LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
     .number()
     .int()
@@ -234,11 +249,31 @@ const EnvSchema = z.object({
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
 
+  // API Performance Flags
+  // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
+  // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
+  LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
+    .enum(["true", "false"])
+    .default("false"),
+  // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
+  // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
+  LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Langfuse AI Features
   LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),
   LANGFUSE_AI_FEATURES_SECRET_KEY: z.string().optional(),
   LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
   LANGFUSE_AI_FEATURES_PROJECT_ID: z.string().optional(),
+
+  // Dataset Service
+  LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
+    .enum(["true", "false"])
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

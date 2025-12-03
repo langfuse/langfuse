@@ -106,7 +106,7 @@ describe("Create and get comments", () => {
     }
   });
 
-  it("should fail to create comment if content is larger than 3000 characters", async () => {
+  it("should fail to create comment if content is larger than 5000 characters", async () => {
     try {
       await makeZodVerifiedAPICall(
         z.object({
@@ -116,7 +116,7 @@ describe("Create and get comments", () => {
         "POST",
         "/api/public/comments",
         {
-          content: "a".repeat(3001),
+          content: "a".repeat(5001),
           objectId: "1234",
           objectType: "TRACE",
           projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
@@ -124,7 +124,7 @@ describe("Create and get comments", () => {
       );
     } catch (error) {
       expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_big\",\"maximum\":3000,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too big: expected string to have <=3000 characters\"}]}`,
+        `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"origin\":\"string\",\"code\":\"too_big\",\"maximum\":5000,\"inclusive\":true,\"path\":[\"content\"],\"message\":\"Too big: expected string to have <=5000 characters\"}]}`,
       );
     }
   });
@@ -209,6 +209,12 @@ describe("GET /api/public/comments API Endpoint", () => {
       "/api/public/comments",
     );
     expect(comments.body.data).toHaveLength(5);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 5,
+      totalPages: 1,
+    });
   });
 
   it("should return comments for a specific objectId and objectType", async () => {
@@ -222,6 +228,12 @@ describe("GET /api/public/comments API Endpoint", () => {
     );
 
     expect(comments.body.data).toHaveLength(4);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 4,
+      totalPages: 1,
+    });
     expect(comments.body.data.map((comment) => comment.id)).toEqual([
       "comment-2021-01-01",
       "comment-2021-03-01",
@@ -242,6 +254,12 @@ describe("GET /api/public/comments API Endpoint", () => {
     );
 
     expect(comments.body.data).toHaveLength(2);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 2,
+      totalPages: 1,
+    });
     expect(comments.body.data.map((comment) => comment.id)).toEqual([
       "comment-2021-01-01",
       "comment-2021-03-01",
@@ -256,6 +274,12 @@ describe("GET /api/public/comments API Endpoint", () => {
     );
 
     expect(comments.body.data).toHaveLength(0);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 0,
+      totalPages: 0,
+    });
   });
 
   it("should throw 400 error with descriptive error message if objectType is provided but invalid", async () => {
@@ -282,6 +306,12 @@ describe("GET /api/public/comments API Endpoint", () => {
       "/api/public/comments?objectType=TRACE",
     );
     expect(comments.body.data).toHaveLength(4);
+    expect(comments.body.meta).toMatchObject({
+      page: 1,
+      limit: 50,
+      totalItems: 4,
+      totalPages: 1,
+    });
     expect(comments.body.data.map((comment) => comment.id)).toEqual([
       "comment-2021-01-01",
       "comment-2021-03-01",
@@ -305,5 +335,49 @@ describe("GET /api/public/comments API Endpoint", () => {
         `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"custom\",\"path\":[\"objectType\"],\"message\":\"objectType is required when objectId is provided\"}]}`,
       );
     }
+  });
+});
+
+describe("Public API does NOT process mentions", () => {
+  beforeAll(async () => {
+    const traces = [
+      createTrace({
+        name: "trace-for-no-mention-processing",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: "no-mention-processing-trace",
+      }),
+    ];
+
+    await createTracesCh(traces);
+  });
+
+  it("should preserve mention markdown as-is without processing", async () => {
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content:
+          "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
+        objectId: "no-mention-processing-trace",
+        objectType: "TRACE",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        authorUserId: "user-1",
+      },
+    );
+
+    const { id: commentId } = commentResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(response.status).toBe(200);
+    // Content should be stored exactly as provided - NO sanitization or normalization
+    expect(response.body.content).toBe(
+      "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
+    );
   });
 });

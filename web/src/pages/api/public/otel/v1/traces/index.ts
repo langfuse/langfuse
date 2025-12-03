@@ -1,9 +1,14 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { logger, OtelIngestionProcessor } from "@langfuse/shared/src/server";
+import {
+  logger,
+  OtelIngestionProcessor,
+  markProjectAsOtelUser,
+} from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
+import { ForbiddenError } from "@langfuse/shared";
 
 export const config = {
   api: {
@@ -18,6 +23,16 @@ export default withMiddlewares({
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
     fn: async ({ req, res, auth }) => {
+      // Check if ingestion is suspended due to usage threshold
+      if (auth.scope.isIngestionSuspended) {
+        throw new ForbiddenError(
+          "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+        );
+      }
+
+      // Mark project as using OTEL API
+      await markProjectAsOtelUser(auth.scope.projectId);
+
       let body: Buffer;
       try {
         body = await new Promise((resolve, reject) => {
@@ -28,7 +43,8 @@ export default withMiddlewares({
         });
       } catch (e) {
         logger.error(`Failed to read request body`, e);
-        return res.status(400).json({ error: "Failed to read request body" });
+        res.status(400);
+        return { error: "Failed to read request body" };
       }
 
       if (req.headers["content-encoding"]?.includes("gzip")) {
@@ -40,9 +56,8 @@ export default withMiddlewares({
           });
         } catch (e) {
           logger.error(`Failed to decompress request body`, e);
-          return res
-            .status(400)
-            .json({ error: "Failed to decompress request body" });
+          res.status(400);
+          return { error: "Failed to decompress request body" };
         }
       }
 
@@ -54,7 +69,9 @@ export default withMiddlewares({
         (!contentType.includes("application/json") &&
           !contentType.includes("application/x-protobuf"))
       ) {
-        return res.status(400).json({ error: "Invalid content type" });
+        logger.error(`Invalid content type: ${contentType}`);
+        res.status(400);
+        return { error: "Invalid content type" };
       }
       if (contentType.includes("application/x-protobuf")) {
         try {
@@ -68,9 +85,8 @@ export default withMiddlewares({
             ).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel Protobuf`, e);
-          return res
-            .status(400)
-            .json({ error: "Failed to parse OTel Protobuf Trace" });
+          res.status(400);
+          return { error: "Failed to parse OTel Protobuf Trace" };
         }
       }
       if (contentType.includes("application/json")) {
@@ -78,14 +94,13 @@ export default withMiddlewares({
           resourceSpans = JSON.parse(body.toString()).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel JSON`, e);
-          return res
-            .status(400)
-            .json({ error: "Failed to parse OTel JSON Trace" });
+          res.status(400);
+          return { error: "Failed to parse OTel JSON Trace" };
         }
       }
 
       if (!resourceSpans || resourceSpans.length === 0) {
-        return res.status(200).json({});
+        return {};
       }
 
       const processor = new OtelIngestionProcessor({

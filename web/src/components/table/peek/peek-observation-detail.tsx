@@ -28,7 +28,7 @@ export const PeekViewObservationDetail = ({
   );
 
   if (!peekId || !trace.data) {
-    return <Skeleton className="h-full w-full" />;
+    return <Skeleton className="h-full w-full rounded-none" />;
   }
 
   return (
@@ -40,6 +40,7 @@ export const PeekViewObservationDetail = ({
       observations={trace.data.observations}
       selectedTab={selectedTab}
       setSelectedTab={setSelectedTab}
+      context="peek"
     />
   );
 };

@@ -492,102 +492,6 @@ describe("OTel Resource Span Mapping", () => {
         environment: "production",
       });
     });
-
-    it("should throw an error if langfuse scope spans have wrong project ID", async () => {
-      const langfuseOtelSpans = [
-        {
-          resource: {
-            attributes: [
-              {
-                key: "telemetry.sdk.language",
-                value: {
-                  stringValue: "python",
-                },
-              },
-              {
-                key: "telemetry.sdk.name",
-                value: {
-                  stringValue: "opentelemetry",
-                },
-              },
-              {
-                key: "telemetry.sdk.version",
-                value: {
-                  stringValue: "1.32.0",
-                },
-              },
-              {
-                key: "service.name",
-                value: {
-                  stringValue: "unknown_service",
-                },
-              },
-            ],
-          },
-          scopeSpans: [
-            {
-              scope: {
-                name: "langfuse-sdk",
-                version: "2.60.3",
-                attributes: [
-                  {
-                    key: "public_key",
-                    value: {
-                      stringValue: "pk-lf-another",
-                    },
-                  },
-                ],
-              },
-              spans: [
-                {
-                  traceId: {
-                    type: "Buffer",
-                    data: [
-                      219, 242, 249, 255, 154, 168, 21, 165, 233, 52, 222, 186,
-                      28, 97, 54, 95,
-                    ],
-                  },
-                  spanId: {
-                    type: "Buffer",
-                    data: [128, 191, 93, 22, 69, 180, 81, 135],
-                  },
-                  name: "t1",
-                  kind: 1,
-                  startTimeUnixNano: {
-                    low: -1422874264,
-                    high: 406650983,
-                    unsigned: true,
-                  },
-                  endTimeUnixNano: {
-                    low: -904695264,
-                    high: 406650983,
-                    unsigned: true,
-                  },
-                  attributes: [
-                    {
-                      key: "langfuse.observation.type",
-                      value: {
-                        stringValue: "span",
-                      },
-                    },
-                  ],
-                  status: {},
-                },
-              ],
-            },
-          ],
-        },
-      ];
-
-      await expect(
-        Promise.all(
-          langfuseOtelSpans.map(
-            async (span) =>
-              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
-          ),
-        ),
-      ).rejects.toThrowError("Langfuse OTEL SDK span has different public key");
-    });
   });
 
   describe("Vendor Spans", () => {
@@ -1041,6 +945,72 @@ describe("OTel Resource Span Mapping", () => {
         }),
       });
     });
+
+    it("should convert a Vercel AI SDK embedding span to Langfuse embedding-create event", async () => {
+      const resourceSpan = {
+        scopeSpans: [
+          {
+            scope: { name: "ai" },
+            spans: [
+              {
+                traceId: {
+                  type: "Buffer",
+                  data: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+                },
+                spanId: {
+                  type: "Buffer",
+                  data: [1, 2, 3, 4, 5, 6, 7, 8],
+                },
+                name: "generate-document-embedding",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 153687506,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 1327836088,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "operation.name",
+                    value: {
+                      stringValue:
+                        "ai.embed.doEmbed generate-document-embedding",
+                    },
+                  },
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "gemini-embedding-001" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      // Then
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
+      expect(parsedEvents).toHaveLength(2); // trace + embedding
+
+      // Should create embedding-create event, not span-create
+      const embeddingEvent = parsedEvents.find(
+        (event) => event.type === "embedding-create",
+      );
+      expect(embeddingEvent).toBeDefined();
+      expect(embeddingEvent?.body.model).toBe("gemini-embedding-001");
+    });
   });
 
   describe("Property Mapping", () => {
@@ -1205,18 +1175,14 @@ describe("OTel Resource Span Mapping", () => {
     );
 
     it.each([
-      ["ai.generateText", "generation-create"],
       ["ai.generateText.doGenerate", "generation-create"],
-      ["ai.streamText", "generation-create"],
       ["ai.streamText.doStream", "generation-create"],
       ["ai.generateObject", "generation-create"],
       ["ai.generateObject.doGenerate", "generation-create"],
-      ["ai.streamObject", "generation-create"],
       ["ai.streamObject.doStream", "generation-create"],
-      ["ai.embed", "embedding-create"],
       ["ai.embed.doEmbed", "embedding-create"],
-      ["ai.embedMany", "embedding-create"],
       ["ai.embedMany.doEmbed", "embedding-create"],
+      ["ai.embed.doEmbed generate-document-embedding", "embedding-create"],
       ["ai.toolCall", "tool-create"],
     ])(
       "should map AI SDK %s operation to %s event",
@@ -1231,6 +1197,10 @@ describe("OTel Resource Span Mapping", () => {
                     {
                       key: "operation.name",
                       value: { stringValue: operationName },
+                    },
+                    {
+                      key: "gen_ai.response.model",
+                      value: { stringValue: "gpt-4o" },
                     },
                   ],
                 },
@@ -1538,6 +1508,30 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should handle non-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: "2025-10-01T08:45:26.112648Z",
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
+      [
+        "should handle double-stringified completion start time correctly",
+        {
+          entity: "observation",
+          otelAttributeKey: "langfuse.observation.completion_start_time",
+          otelAttributeValue: {
+            stringValue: '"2025-10-01T08:45:26.112648Z"',
+          },
+          entityAttributeKey: "completionStartTime",
+          entityAttributeValue: "2025-10-01T08:45:26.112648Z",
+        },
+      ],
+      [
         "should cast input_tokens from string to number",
         {
           entity: "observation",
@@ -1665,6 +1659,16 @@ describe("OTel Resource Span Mapping", () => {
           otelAttributeValue: { stringValue: "gpt-4" },
           entityAttributeKey: "model",
           entityAttributeValue: "gpt-4",
+        },
+      ],
+      [
+        "should extract providedModelName from ai.model.id",
+        {
+          entity: "observation",
+          otelAttributeKey: "ai.model.id",
+          otelAttributeValue: { stringValue: "gemini-embedding-001" },
+          entityAttributeKey: "model",
+          entityAttributeValue: "gemini-embedding-001",
         },
       ],
       [
@@ -1944,6 +1948,85 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract Bedrock cache read tokens from ai.response.providerMetadata",
+        {
+          entity: "observation",
+          otelAttributeKey: "ai.response.providerMetadata",
+          otelAttributeValue: {
+            stringValue:
+              '{"bedrock":{"usage":{"cacheReadInputTokens":4482,"cacheWriteInputTokens":0,"cacheCreationInputTokens":100}}}',
+          },
+          entityAttributeKey: "usageDetails.input_cache_read",
+          entityAttributeValue: 4482,
+        },
+      ],
+      [
+        "should extract Bedrock cache write tokens from ai.response.providerMetadata",
+        {
+          entity: "observation",
+          otelAttributeKey: "ai.response.providerMetadata",
+          otelAttributeValue: {
+            stringValue:
+              '{"bedrock":{"usage":{"cacheReadInputTokens":4482,"cacheWriteInputTokens":50,"cacheCreationInputTokens":100}}}',
+          },
+          entityAttributeKey: "usageDetails.input_cache_write",
+          entityAttributeValue: 50,
+        },
+      ],
+      [
+        "should extract Bedrock cache creation tokens from ai.response.providerMetadata",
+        {
+          entity: "observation",
+          otelAttributeKey: "ai.response.providerMetadata",
+          otelAttributeValue: {
+            stringValue:
+              '{"bedrock":{"usage":{"cacheReadInputTokens":4482,"cacheWriteInputTokens":0,"cacheCreationInputTokens":100}}}',
+          },
+          entityAttributeKey: "usageDetails.input_cache_creation",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should extract llm.input_messages.message.content to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.input_messages.0.message.content",
+          otelAttributeValue: {
+            stringValue: "Hello, how are you?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [
+            { message: { content: "Hello, how are you?" } },
+          ],
+        },
+      ],
+      [
+        "should extract llm.input_messages.message.role to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.input_messages.0.message.role",
+          otelAttributeValue: {
+            stringValue: "system",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: [{ message: { role: "system" } }],
+        },
+      ],
+      [
+        "should extract llm.output_messages.message.content to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.output_messages.0.message.content",
+          otelAttributeValue: {
+            stringValue: "Hello, how are you?",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: [
+            { message: { content: "Hello, how are you?" } },
+          ],
+        },
+      ],
+      [
         "#5457: should map traceloop.entity.input to input",
         {
           entity: "trace",
@@ -2058,6 +2141,63 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract tags from tag.tags single string to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            stringValue: "llamaindex",
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex"],
+        },
+      ],
+      [
+        "should extract tags from tag.tags array value to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            arrayValue: {
+              values: [
+                {
+                  stringValue: "llamaindex",
+                },
+                {
+                  stringValue: "rag",
+                },
+              ],
+            },
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex", "rag"],
+        },
+      ],
+      [
+        "should extract tags from tag.tags JSON string array to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            stringValue: '["llamaindex", "rag", "production"]',
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex", "rag", "production"],
+        },
+      ],
+      [
+        "should extract tags from tag.tags comma-separated string to trace",
+        {
+          entity: "trace",
+          otelAttributeKey: "tag.tags",
+          otelAttributeValue: {
+            stringValue: "llamaindex, rag, production",
+          },
+          entityAttributeKey: "tags",
+          entityAttributeValue: ["llamaindex", "rag", "production"],
+        },
+      ],
+      [
         "should map gen_ai.input.messages to input",
         {
           entity: "observation",
@@ -2074,6 +2214,30 @@ describe("OTel Resource Span Mapping", () => {
         {
           entity: "observation",
           otelAttributeKey: "gen_ai.output.messages",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gen_ai.tool.call.arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.arguments",
+          otelAttributeValue: {
+            stringValue: '{"foo": "bar"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: '{"foo": "bar"}',
+        },
+      ],
+      [
+        "should map gen_ai.tool.call.result to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.tool.call.result",
           otelAttributeValue: {
             stringValue: '{"foo": "bar"}',
           },
@@ -2105,6 +2269,68 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: '{"foo": "bar"}',
         },
       ],
+      [
+        "should map pydantic-ai tool_arguments to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "tool_arguments",
+          otelAttributeValue: {
+            stringValue:
+              '{"query": "What is the weather like?", "location": "New York"}',
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue:
+            '{"query": "What is the weather like?", "location": "New York"}',
+        },
+      ],
+      [
+        "should map pydantic-ai tool_response to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "tool_response",
+          otelAttributeValue: {
+            stringValue: '{"result": "Sunny, 22°C"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"result": "Sunny, 22°C"}',
+        },
+      ],
+      [
+        "should map lk.input_text to input",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.input_text",
+          otelAttributeValue: {
+            stringValue: "What is the weather today?",
+          },
+          entityAttributeKey: "input",
+          entityAttributeValue: "What is the weather today?",
+        },
+      ],
+      [
+        "should map lk.response.text to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.response.text",
+          otelAttributeValue: {
+            stringValue: "The weather is sunny with a high of 75°F.",
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: "The weather is sunny with a high of 75°F.",
+        },
+      ],
+      [
+        "should map lk.function_tool.output to output",
+        {
+          entity: "observation",
+          otelAttributeKey: "lk.function_tool.output",
+          otelAttributeValue: {
+            stringValue: '{"temperature": 75, "condition": "sunny"}',
+          },
+          entityAttributeKey: "output",
+          entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
+        },
+      ],
     ])(
       "Attributes: %s",
       async (
@@ -2118,9 +2344,20 @@ describe("OTel Resource Span Mapping", () => {
         },
       ) => {
         // Setup
+        // Check if this test needs the "ai" scope (Vercel AI SDK attributes)
+        const needsAiScope =
+          spec.otelAttributeKey.startsWith("ai.") ||
+          spec.otelAttributeKey.startsWith("pydantic-ai.");
+
         const resourceSpan = {
           scopeSpans: [
             {
+              ...(needsAiScope && {
+                scope: {
+                  name: "ai",
+                  version: "4.0.0",
+                },
+              }),
               spans: [
                 {
                   ...defaultSpanProps,
@@ -2564,6 +2801,284 @@ describe("OTel Resource Span Mapping", () => {
         );
       },
     );
+
+    it("should map llm.input_messages and llm.output_messages to input/output and filter from metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const openInferenceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "agno-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "llm-call",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // OpenInference llm.input_messages format (used by Agno, BeeAI, etc.)
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "system" },
+                  },
+                  {
+                    key: "llm.input_messages.0.message.content",
+                    value: { stringValue: "You are a helpful assistant." },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.role",
+                    value: { stringValue: "user" },
+                  },
+                  {
+                    key: "llm.input_messages.1.message.content",
+                    value: { stringValue: "What is the weather today?" },
+                  },
+                  // OpenInference llm.output_messages format
+                  {
+                    key: "llm.output_messages.0.message.role",
+                    value: { stringValue: "assistant" },
+                  },
+                  {
+                    key: "llm.output_messages.0.message.content",
+                    value: {
+                      stringValue:
+                        "I don't have access to real-time weather data.",
+                    },
+                  },
+                  // Custom attributes (should remain in metadata.attributes)
+                  {
+                    key: "custom_attribute",
+                    value: { stringValue: "should_be_preserved" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openInferenceSpan,
+        new Set(),
+      );
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Verify input is extracted and structured as a nested array
+      expect(observation?.body.input).toBeDefined();
+      const inputParsed =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+      expect(Array.isArray(inputParsed)).toBe(true);
+      expect(inputParsed[0].message.role).toBe("system");
+      expect(inputParsed[0].message.content).toBe(
+        "You are a helpful assistant.",
+      );
+      expect(inputParsed[1].message.role).toBe("user");
+      expect(inputParsed[1].message.content).toBe("What is the weather today?");
+
+      // Verify output is extracted and structured as a nested array
+      expect(observation?.body.output).toBeDefined();
+      const outputParsed =
+        typeof observation?.body.output === "string"
+          ? JSON.parse(observation.body.output)
+          : observation?.body.output;
+      expect(Array.isArray(outputParsed)).toBe(true);
+      expect(outputParsed[0].message.role).toBe("assistant");
+      expect(outputParsed[0].message.content).toBe(
+        "I don't have access to real-time weather data.",
+      );
+
+      // Verify llm.input_messages.* and llm.output_messages.* are NOT in metadata.attributes
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.1.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.1.message.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.content"
+        ],
+      ).toBeUndefined();
+
+      // Verify custom attributes ARE in metadata.attributes
+      expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
+        "should_be_preserved",
+      );
+    });
+
+    it("should filter all input/output attribute patterns from metadata.attributes while preserving custom attributes", async () => {
+      // This test verifies that extractInputAndOutput's filteredAttributes correctly removes
+      // all known input/output attribute patterns from multiple frameworks
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const multiFrameworkSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "multi-framework-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Input attribute that will be mapped
+                  {
+                    key: "input",
+                    value: { stringValue: '{"query": "test input"}' },
+                  },
+                  // gen_ai.prompt.* pattern (should be filtered)
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "prompt content" },
+                  },
+                  // gen_ai.completion.* pattern (should be filtered)
+                  {
+                    key: "gen_ai.completion.0.content",
+                    value: { stringValue: "completion content" },
+                  },
+                  // llm.input_messages.* pattern (should be filtered)
+                  {
+                    key: "llm.input_messages.0.message.role",
+                    value: { stringValue: "user" },
+                  },
+                  // llm.output_messages.* pattern (should be filtered)
+                  {
+                    key: "llm.output_messages.0.message.role",
+                    value: { stringValue: "assistant" },
+                  },
+                  // Custom attributes (should be preserved)
+                  {
+                    key: "custom.request_id",
+                    value: { stringValue: "req-12345" },
+                  },
+                  {
+                    key: "deployment.region",
+                    value: { stringValue: "us-west-2" },
+                  },
+                  {
+                    key: "model.version",
+                    value: { stringValue: "v2.0" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        multiFrameworkSpan,
+        new Set(),
+      );
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      // Verify input was extracted
+      expect(observation?.body.input).toBe('{"query": "test input"}');
+
+      // Verify input attribute is filtered from metadata
+      expect(observation?.body.metadata?.attributes?.input).toBeUndefined();
+
+      // Verify gen_ai.prompt.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.prompt.0.content"],
+      ).toBeUndefined();
+
+      // Verify gen_ai.completion.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.completion.0.content"],
+      ).toBeUndefined();
+
+      // Verify llm.input_messages.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.input_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+
+      // Verify llm.output_messages.* attributes are filtered
+      expect(
+        observation?.body.metadata?.attributes?.[
+          "llm.output_messages.0.message.role"
+        ],
+      ).toBeUndefined();
+
+      // Verify custom attributes ARE preserved in metadata.attributes
+      expect(
+        observation?.body.metadata?.attributes?.["custom.request_id"],
+      ).toBe("req-12345");
+      expect(
+        observation?.body.metadata?.attributes?.["deployment.region"],
+      ).toBe("us-west-2");
+      expect(observation?.body.metadata?.attributes?.["model.version"]).toBe(
+        "v2.0",
+      );
+    });
   });
 
   describe("Span Counting", () => {
@@ -3964,6 +4479,202 @@ describe("OTel Resource Span Mapping", () => {
       expect(traceEvents.length).toBe(1);
     });
 
+    it("should map Vercel AI SDK toolCall to tool-create", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "ai.toolCall",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: {
+                        stringValue: "ai.toolCall MyAgent.MyLLM.myFunction",
+                      },
+                    },
+                    {
+                      key: "resource.name",
+                      value: { stringValue: "MyAgent.MyLLM.myFunction" },
+                    },
+                    {
+                      key: "ai.operationId",
+                      value: { stringValue: "ai.toolCall" },
+                    },
+                    {
+                      key: "ai.toolCall.name",
+                      value: { stringValue: "myTool" },
+                    },
+                    {
+                      key: "ai.toolCall.id",
+                      value: { stringValue: "call_abc123" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const toolEvents = events.filter((e) => e.type === "tool-create");
+      expect(toolEvents.length).toBe(1);
+    });
+
+    it("should map Vercel AI SDK toolCall using ai.operationId alone (without operation.name)", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "tool-execution",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "ai.operationId",
+                      value: { stringValue: "ai.toolCall" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const toolEvents = events.filter((e) => e.type === "tool-create");
+      expect(toolEvents.length).toBe(1);
+    });
+
+    it("should map Vercel AI SDK generation WITH model to generation-create", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "text-generation",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "ai.generateText" },
+                    },
+                    {
+                      key: "gen_ai.response.model",
+                      value: { stringValue: "gpt-4" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const generationEvents = events.filter(
+        (e) => e.type === "generation-create",
+      );
+      expect(generationEvents.length).toBe(1);
+    });
+
+    it("should fallback to span-create for AI SDK generation WITHOUT model", async () => {
+      const otelSpans = [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: { name: "ai" },
+              spans: [
+                {
+                  traceId: {
+                    data: [
+                      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                    ],
+                  },
+                  spanId: { data: [1, 2, 3, 4, 5, 6, 7, 8] },
+                  name: "text-generation",
+                  startTimeUnixNano: 1000000000,
+                  endTimeUnixNano: 2000000000,
+                  attributes: [
+                    {
+                      key: "operation.name",
+                      value: { stringValue: "ai.generateText" },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      const events = await convertOtelSpanToIngestionEvent(
+        otelSpans[0],
+        new Set(),
+        publicKey,
+      );
+
+      const spanEvents = events.filter((e) => e.type === "span-create");
+      const generationEvents = events.filter(
+        (e) => e.type === "generation-create",
+      );
+      expect(spanEvents.length).toBe(1);
+      expect(generationEvents.length).toBe(0);
+    });
+
     it("should override the observation type if it is declared as 'span' but holds generation-like attributes for python-sdk <= 3.3.0", async () => {
       // Issue: https://github.com/langfuse/langfuse/issues/8682
       const otelSpans = [
@@ -4162,6 +4873,756 @@ describe("OTel Resource Span Mapping", () => {
 
       // The sessionId should be updated
       expect(updatedTraceEvent.body.sessionId).toBe("new-session");
+    });
+  });
+
+  describe("Vercel AI SDK Bedrock Provider Cache Tokens", () => {
+    it("should extract all Bedrock cache token types from Vercel AI SDK provider metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "1234567890abcdef";
+
+      const vercelAIBedrockSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai", // Vercel AI SDK scope
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "bedrock-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Basic usage tokens
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 5734, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 178, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "ai.usage.tokens",
+                    value: { stringValue: "10394" },
+                  },
+                  // Bedrock provider metadata with cache tokens
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        bedrock: {
+                          usage: {
+                            inputTokens: 5734,
+                            outputTokens: 178,
+                            totalTokens: 10394,
+                            cacheReadInputTokens: 4482,
+                            cacheWriteInputTokens: 0,
+                            cacheCreationInputTokens: 100,
+                          },
+                        },
+                      }),
+                    },
+                  },
+                  // Model info
+                  {
+                    key: "gen_ai.request.model",
+                    value: {
+                      stringValue: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIBedrockSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // Verify basic token usage
+      expect(observationEvent?.body.usageDetails.input).toBe(5734);
+      expect(observationEvent?.body.usageDetails.output).toBe(178);
+      expect(observationEvent?.body.usageDetails.total).toBe(10394);
+
+      // Verify Bedrock cache tokens are extracted
+      expect(observationEvent?.body.usageDetails.input_cache_read).toBe(4482);
+      expect(observationEvent?.body.usageDetails.input_cache_write).toBe(0);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        100,
+      );
+
+      // Verify model is extracted
+      expect(observationEvent?.body.model).toBe(
+        "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      );
+    });
+
+    it("should handle Bedrock provider metadata with only cache read tokens", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "1234567890abcdef";
+
+      const vercelAIBedrockSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai",
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "bedrock-cached-generation",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        bedrock: {
+                          usage: {
+                            cacheReadInputTokens: 5000,
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIBedrockSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(100);
+      expect(observationEvent?.body.usageDetails.input_cache_read).toBe(5000);
+      // Other cache tokens should not be set
+      expect(
+        observationEvent?.body.usageDetails.input_cache_write,
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails.input_cache_creation,
+      ).toBeUndefined();
+    });
+  });
+
+  describe("Input/Output attribute filtering from metadata", () => {
+    it("should filter Langfuse SDK trace input/output attributes from trace metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const rootSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "root-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Trace-level input/output (should be filtered from trace metadata.attributes)
+                  {
+                    key: "langfuse.trace.input",
+                    value: { stringValue: '{"query": "hello"}' },
+                  },
+                  {
+                    key: "langfuse.trace.output",
+                    value: { stringValue: '{"response": "hi"}' },
+                  },
+                  // Custom attributes (should remain in metadata.attributes)
+                  {
+                    key: "custom_trace_attribute",
+                    value: { stringValue: "should_be_in_metadata" },
+                  },
+                  {
+                    key: "trace_metadata_field",
+                    value: { stringValue: "preserved_value" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const rootEvents = await convertOtelSpanToIngestionEvent(
+        rootSpan,
+        new Set(),
+      );
+
+      const traceEvent = rootEvents.find((e) => e.type === "trace-create");
+
+      // Verify trace input/output are extracted (as JSON strings)
+      expect(traceEvent?.body.input).toEqual('{"query": "hello"}');
+      expect(traceEvent?.body.output).toEqual('{"response": "hi"}');
+
+      // Verify trace input/output keys are NOT in metadata.attributes
+      expect(
+        traceEvent?.body.metadata?.attributes?.["langfuse.trace.input"],
+      ).toBeUndefined();
+      expect(
+        traceEvent?.body.metadata?.attributes?.["langfuse.trace.output"],
+      ).toBeUndefined();
+
+      // Verify custom trace attributes ARE in metadata.attributes
+      expect(
+        traceEvent?.body.metadata?.attributes?.custom_trace_attribute,
+      ).toBe("should_be_in_metadata");
+      expect(traceEvent?.body.metadata?.attributes?.trace_metadata_field).toBe(
+        "preserved_value",
+      );
+    });
+
+    it("should filter Vercel AI SDK input/output attributes from observation metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+      const childSpanId = "abcdef1234567890";
+
+      const vercelAISpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai", // Vercel AI SDK scope name
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(childSpanId, "hex"),
+                parentSpanId: Buffer.from(rootSpanId, "hex"),
+                name: "vercel-ai-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Vercel AI SDK input/output (should be filtered)
+                  {
+                    key: "ai.prompt.messages",
+                    value: {
+                      stringValue: '[{"role":"user","content":"test"}]',
+                    },
+                  },
+                  {
+                    key: "ai.response.text",
+                    value: { stringValue: "AI response text" },
+                  },
+                  // Custom attributes (should remain in metadata.attributes)
+                  {
+                    key: "custom_observation_attribute",
+                    value: { stringValue: "should_remain" },
+                  },
+                  {
+                    key: "request_id",
+                    value: { stringValue: "req-123" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const vercelEvents = await convertOtelSpanToIngestionEvent(
+        vercelAISpan,
+        new Set([traceId]),
+      );
+
+      const vercelObservation = vercelEvents.find(
+        (e) => e.type === "span-create",
+      );
+
+      // Verify Vercel AI SDK input/output are extracted
+      expect(vercelObservation?.body.input).toEqual(
+        JSON.stringify([{ role: "user", content: "test" }]),
+      );
+      expect(vercelObservation?.body.output).toBe("AI response text");
+
+      // Verify Vercel AI SDK keys are NOT in metadata.attributes
+      expect(
+        vercelObservation?.body.metadata?.attributes?.["ai.prompt.messages"],
+      ).toBeUndefined();
+      expect(
+        vercelObservation?.body.metadata?.attributes?.["ai.response.text"],
+      ).toBeUndefined();
+
+      // Verify custom observation attributes ARE in metadata.attributes
+      expect(
+        vercelObservation?.body.metadata?.attributes
+          ?.custom_observation_attribute,
+      ).toBe("should_remain");
+      expect(vercelObservation?.body.metadata?.attributes?.request_id).toBe(
+        "req-123",
+      );
+    });
+
+    it("should filter TraceLoop and MLFlow input/output attributes from observation metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const rootSpanId = "1234567890abcdef";
+
+      const traceLoopSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "traceloop-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("fedcba0987654321", "hex"),
+                parentSpanId: Buffer.from(rootSpanId, "hex"),
+                name: "traceloop-span",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 3000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // TraceLoop gen_ai attributes (should be filtered)
+                  {
+                    key: "gen_ai.prompt.0.content",
+                    value: { stringValue: "What is AI?" },
+                  },
+                  {
+                    key: "gen_ai.completion.0.content",
+                    value: { stringValue: "AI is..." },
+                  },
+                  // MLFlow attributes (should be filtered)
+                  {
+                    key: "mlflow.spanInputs",
+                    value: { stringValue: '{"question": "test"}' },
+                  },
+                  {
+                    key: "mlflow.spanOutputs",
+                    value: { stringValue: '{"answer": "response"}' },
+                  },
+                  // Custom attributes (should remain)
+                  {
+                    key: "span_custom_field",
+                    value: { stringValue: "custom_value" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const traceLoopEvents = await convertOtelSpanToIngestionEvent(
+        traceLoopSpan,
+        new Set([traceId]),
+      );
+
+      const traceLoopObservation = traceLoopEvents.find(
+        (e) => e.type === "span-create",
+      );
+
+      // Verify TraceLoop input/output are extracted
+      expect(traceLoopObservation?.body.input).toBeDefined();
+      expect(traceLoopObservation?.body.output).toBeDefined();
+
+      // Verify TraceLoop gen_ai keys are NOT in metadata.attributes
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.[
+          "gen_ai.prompt.0.content"
+        ],
+      ).toBeUndefined();
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.[
+          "gen_ai.completion.0.content"
+        ],
+      ).toBeUndefined();
+
+      // Verify MLFlow keys are NOT in metadata.attributes
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.["mlflow.spanInputs"],
+      ).toBeUndefined();
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.["mlflow.spanOutputs"],
+      ).toBeUndefined();
+
+      // Verify custom span attribute IS in metadata.attributes
+      expect(
+        traceLoopObservation?.body.metadata?.attributes?.span_custom_field,
+      ).toBe("custom_value");
+    });
+
+    it("should extract Google ADK tool call I/O from tool_call_args/tool_response when llm_request/llm_response are empty", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const googleADKToolSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.33.1" },
+            },
+            {
+              key: "langfuse.environment",
+              value: { stringValue: "production" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "unknown_service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.google_adk",
+              version: "0.1.6",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("89a16f45ba5e6d36", "hex"),
+                parentSpanId: Buffer.from("f55a0bb51dc69634", "hex"),
+                name: "execute_tool_bake_cake",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 310920000,
+                  high: 406677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 858579000,
+                  high: 406677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "session.id",
+                    value: {
+                      stringValue: "test-session-333bff8e",
+                    },
+                  },
+                  {
+                    key: "user.id",
+                    value: { stringValue: "test-user" },
+                  },
+                  {
+                    key: "gen_ai.system",
+                    value: { stringValue: "gcp.vertex.agent" },
+                  },
+                  {
+                    key: "gen_ai.operation.name",
+                    value: { stringValue: "execute_tool" },
+                  },
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "bake_cake" },
+                  },
+                  {
+                    key: "gen_ai.tool.description",
+                    value: {
+                      stringValue:
+                        "a tool that bakes a cake for you, with a lot of chocolate if you ask nicely",
+                    },
+                  },
+                  {
+                    key: "gen_ai.tool.call.id",
+                    value: {
+                      stringValue: "adk-chocolate-caked",
+                    },
+                  },
+                  {
+                    key: "gcp.vertex.agent.tool_call_args",
+                    value: {
+                      stringValue: '{"query": "much duplo"}',
+                    },
+                  },
+                  {
+                    key: "gcp.vertex.agent.event_id",
+                    value: {
+                      stringValue: "some-id",
+                    },
+                  },
+                  {
+                    key: "gcp.vertex.agent.tool_response",
+                    value: {
+                      stringValue: '{"result": "particularly juicy cake"}',
+                    },
+                  },
+                  // These are empty for tool calls in Google ADK - bug trigger
+                  {
+                    key: "gcp.vertex.agent.llm_request",
+                    value: { stringValue: "{}" },
+                  },
+                  {
+                    key: "gcp.vertex.agent.llm_response",
+                    value: { stringValue: "{}" },
+                  },
+                  {
+                    key: "tool.name",
+                    value: { stringValue: "bake_cake" },
+                  },
+                  {
+                    key: "tool.description",
+                    value: {
+                      stringValue:
+                        "a tool that bakes a cake for you, with a lot of chocolate if you ask nicely",
+                    },
+                  },
+                  {
+                    key: "tool.parameters",
+                    value: {
+                      stringValue: '{"query": "cake type"}',
+                    },
+                  },
+                  {
+                    key: "input.value",
+                    value: {
+                      stringValue: '{"query": "juicy chocolate"}',
+                    },
+                  },
+                  {
+                    key: "input.mime_type",
+                    value: { stringValue: "application/json" },
+                  },
+                  {
+                    key: "output.value",
+                    value: {
+                      stringValue:
+                        '{"id":"adk-chocolate-caked","name":"bake_cake","response":{"result":"duplo cake"}}',
+                    },
+                  },
+                  {
+                    key: "output.mime_type",
+                    value: { stringValue: "application/json" },
+                  },
+                  {
+                    key: "openinference.span.kind",
+                    value: { stringValue: "TOOL" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const googleADKEvents = await convertOtelSpanToIngestionEvent(
+        googleADKToolSpan,
+        new Set([traceId]),
+      );
+
+      const toolObservation = googleADKEvents.find(
+        (e) => e.type === "tool-create",
+      );
+
+      // Bug: input/output should NOT be "{}" from empty llm_request/llm_response
+      // Instead, they should come from tool_call_args and tool_response
+      expect(toolObservation?.body.input).not.toBe("{}");
+      expect(toolObservation?.body.output).not.toBe("{}");
+
+      // Verify input is correctly extracted from tool_call_args
+      expect(toolObservation?.body.input).toBe('{"query": "much duplo"}');
+
+      // Verify output is correctly extracted from tool_response
+      expect(toolObservation?.body.output).toBe(
+        '{"result": "particularly juicy cake"}',
+      );
+
+      // Verify Google ADK attributes are NOT in metadata.attributes
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.tool_call_args"
+        ],
+      ).toBeUndefined();
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.tool_response"
+        ],
+      ).toBeUndefined();
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.llm_request"
+        ],
+      ).toBeUndefined();
+      expect(
+        toolObservation?.body.metadata?.attributes?.[
+          "gcp.vertex.agent.llm_response"
+        ],
+      ).toBeUndefined();
+
+      // Verify trace-level attributes
+      expect(toolObservation?.body.traceId).toBe(traceId);
+    });
+
+    it("should stringify non-string attributes in observation metadata", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const spanWithNonStringAttrs = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "test-scope", version: "1.0.0" },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "test-span",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  // Add input to trigger extraction logic
+                  { key: "input", value: { stringValue: "test input" } },
+                  // Non-string attributes that should be stringified
+                  { key: "count", value: { intValue: { low: 42, high: 0 } } },
+                  { key: "temperature", value: { doubleValue: 0.7 } },
+                  { key: "is_streaming", value: { boolValue: true } },
+                  // String attribute should remain as-is
+                  {
+                    key: "custom_field",
+                    value: { stringValue: "custom-value" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        spanWithNonStringAttrs,
+        new Set([traceId]),
+      );
+
+      const observation = events.find((e) => e.type === "span-create");
+
+      // Verify input is extracted
+      expect(observation?.body.input).toBe("test input");
+
+      // Verify non-string values are stringified in metadata.attributes
+      expect(observation?.body.metadata?.attributes?.count).toBe("42");
+      expect(observation?.body.metadata?.attributes?.temperature).toBe("0.7");
+      expect(observation?.body.metadata?.attributes?.is_streaming).toBe("true");
+      // Verify string values remain strings
+      expect(observation?.body.metadata?.attributes?.custom_field).toBe(
+        "custom-value",
+      );
     });
   });
 });

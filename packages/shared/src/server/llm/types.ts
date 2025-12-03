@@ -4,13 +4,12 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { AuthHeaderValidVerificationResult } from "../auth/types";
 import { JSONObjectSchema } from "../../utils/zod";
 
 /* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
-export const LLMJSONSchema = z.record(z.string(), z.unknown());
+export const LLMJSONSchema = z.record(z.string(), z.any());
 export type LLMJSONSchema = z.infer<typeof LLMJSONSchema>;
 
 export const JSONSchemaFormSchema = z
@@ -59,10 +58,20 @@ const AnthropicMessageContentWithToolUse = z.union([
   }),
 ]);
 
+const GoogleAIStudioMessageContentWithToolUse = z.object({
+  functionCall: z.object({
+    name: z.string(),
+    args: z.unknown(),
+  }),
+});
+
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
-  args: z.record(z.string(), z.unknown()),
+  args: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .transform((val) => val ?? {}),
 });
 export type LLMToolCall = z.infer<typeof LLMToolCallSchema>;
 
@@ -103,7 +112,11 @@ export const OpenAIResponseFormatSchema = z.object({
 });
 
 export const ToolCallResponseSchema = z.object({
-  content: z.union([z.string(), z.array(AnthropicMessageContentWithToolUse)]),
+  content: z.union([
+    z.string(),
+    z.array(AnthropicMessageContentWithToolUse),
+    z.array(GoogleAIStudioMessageContentWithToolUse),
+  ]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
@@ -281,6 +294,9 @@ export const ExperimentMetadataSchema = z
     provider: z.string(),
     model: z.string(),
     model_params: ZodModelConfig,
+    structured_output_schema: LLMJSONSchema.optional(),
+    experiment_name: z.string().optional(),
+    experiment_run_name: z.string().optional(),
     error: z.string().optional(),
   })
   .strict();
@@ -295,6 +311,8 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.1",
+  "gpt-5.1-2025-11-13",
   "gpt-5",
   "gpt-5-2025-08-07",
   "gpt-5-mini",
@@ -335,6 +353,8 @@ export const openAIModels = [
 type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
 export const openAIModelToReasoning: OpenAIReasoningMap = {
   // reasoning models
+  "gpt-5.1": true,
+  "gpt-5.1-2025-11-13": true,
   "gpt-5": true,
   "gpt-5-2025-08-07": true,
   "gpt-5-mini": true,
@@ -389,6 +409,8 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
+  "claude-haiku-4-5-20251001",
+  "claude-opus-4-5-20251101",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
@@ -406,15 +428,15 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
-  "gemini-2.5-pro",
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-2.5-pro",
+  "gemini-3-pro-preview",
+  "gemini-2.5-flash-preview-09-2025",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-exp",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
@@ -425,12 +447,10 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-3-pro-preview",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",
-  "gemini-2.0-flash-lite-preview",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
@@ -480,17 +500,24 @@ export type LLMApiKey =
     ? z.infer<typeof LLMApiKeySchema>
     : never;
 
-// NOTE: This string is whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
-export const PROMPT_EXPERIMENT_ENVIRONMENT =
-  "langfuse-prompt-experiment" as const;
+export enum LangfuseInternalTraceEnvironment {
+  PromptExperiments = "langfuse-prompt-experiment",
+  LLMJudge = "langfuse-llm-as-a-judge",
+}
 
-type PromptExperimentEnvironment = typeof PROMPT_EXPERIMENT_ENVIRONMENT;
-
-export type TraceParams = {
-  traceName: string;
+export type TraceSinkParams = {
+  /**
+   * IMPORTANT: This controls into what project the resulting traces are ingested.
+   */
+  targetProjectId: string;
   traceId: string;
-  projectId: string;
-  // TODO: add more possibilities for environment re: langfuse AI features
-  environment: PromptExperimentEnvironment | string;
-  authCheck: AuthHeaderValidVerificationResult;
+  traceName: string;
+  // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
+  environment: string;
+  userId?: string;
+  metadata?: Record<string, unknown>;
+  prompt?: {
+    name: string;
+    version: number;
+  };
 };

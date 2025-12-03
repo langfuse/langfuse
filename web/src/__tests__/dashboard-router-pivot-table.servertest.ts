@@ -210,12 +210,11 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       result.forEach((row) => {
         expect(row).toHaveProperty("time_dimension");
         expect(row).toHaveProperty("count_count");
-        expect(typeof row.count_count).toBe("string"); // ClickHouse returns numbers as strings
       });
 
       // Sum all counts to verify total
       const totalCount = result.reduce(
-        (sum, row) => sum + parseInt(row.count_count as string),
+        (sum, row) => sum + Number(row.count_count),
         0,
       );
       expect(totalCount).toBe(testDataStats.totalTraces);
@@ -254,15 +253,13 @@ describe("Dashboard Router - Pivot Table Integration", () => {
         expect(row).toHaveProperty("time_dimension");
         expect(row).toHaveProperty("count_count");
         expect(typeof row.environment).toBe("string");
-        expect(typeof row.count_count).toBe("string"); // ClickHouse returns numbers as strings
       });
 
       // Verify data accuracy by checking environment counts
       const environmentTotals = result.reduce(
         (acc, row) => {
           const env = row.environment as string;
-          acc[env] =
-            ((acc[env] as number) || 0) + parseInt(row.count_count as string);
+          acc[env] = ((acc[env] as number) || 0) + Number(row.count_count);
           return acc;
         },
         {} as Record<string, number>,
@@ -320,13 +317,11 @@ describe("Dashboard Router - Pivot Table Integration", () => {
 
         expect(typeof row.environment).toBe("string");
         expect(typeof row.providedModelName).toBe("string");
-        expect(typeof row.count_count).toBe("string");
-        expect(typeof row.sum_totalTokens).toBe("string");
       });
 
       // Verify total observation count matches test data
       const totalObservations = result.reduce(
-        (sum, row) => sum + parseInt(row.count_count as string),
+        (sum, row) => sum + Number(row.count_count),
         0,
       );
       expect(totalObservations).toBe(testDataStats.totalObservations);
@@ -364,7 +359,7 @@ describe("Dashboard Router - Pivot Table Integration", () => {
   });
 
   describe("Query Builder integration with pivot table configurations", () => {
-    it("should generate correct SQL for zero-dimension pivot table", () => {
+    it("should generate correct SQL for zero-dimension pivot table", async () => {
       const query: QueryType = {
         view: "traces",
         dimensions: [],
@@ -383,7 +378,10 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       };
 
       const queryBuilder = new QueryBuilder(query.chartConfig);
-      const { query: sql, parameters } = queryBuilder.build(query, projectId);
+      const { query: sql, parameters } = await queryBuilder.build(
+        query,
+        projectId,
+      );
 
       // Verify SQL generation
       expect(sql).toBeDefined();
@@ -398,7 +396,7 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       expect(sql.toLowerCase()).toContain("count(");
     });
 
-    it("should generate correct SQL for single-dimension pivot table", () => {
+    it("should generate correct SQL for single-dimension pivot table", async () => {
       const query: QueryType = {
         view: "traces",
         dimensions: [{ field: "environment" }],
@@ -417,7 +415,10 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       };
 
       const queryBuilder = new QueryBuilder(query.chartConfig);
-      const { query: sql, parameters } = queryBuilder.build(query, projectId);
+      const { query: sql, parameters } = await queryBuilder.build(
+        query,
+        projectId,
+      );
 
       // Verify SQL generation
       expect(sql).toBeDefined();
@@ -432,7 +433,7 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       expect(sql.toLowerCase()).toContain("order by");
     });
 
-    it("should generate correct SQL for two-dimension pivot table", () => {
+    it("should generate correct SQL for two-dimension pivot table", async () => {
       const query: QueryType = {
         view: "observations",
         dimensions: [{ field: "environment" }, { field: "providedModelName" }],
@@ -457,7 +458,10 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       };
 
       const queryBuilder = new QueryBuilder(query.chartConfig);
-      const { query: sql, parameters } = queryBuilder.build(query, projectId);
+      const { query: sql, parameters } = await queryBuilder.build(
+        query,
+        projectId,
+      );
 
       // Verify SQL generation
       expect(sql).toBeDefined();

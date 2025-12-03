@@ -1,30 +1,34 @@
-import { DatasetStatus, Prisma } from "@langfuse/shared";
+import { DatasetItemDomain, DatasetStatus, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessage,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
+  fetchLLMCompletion,
   IngestionEventType,
+  LangfuseInternalTraceEnvironment,
   logger,
   processEventBatch,
-  PROMPT_EXPERIMENT_ENVIRONMENT,
   queryClickhouse,
   QueueJobs,
   redis,
+  TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import z from "zod/v4";
 import {
-  generateUnifiedTraceId,
   parseDatasetItemInput,
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
-  validateDatasetItem,
+  type PromptExperimentConfig,
 } from "./utils";
-import { backOff } from "exponential-backoff";
-import { callLLM } from "../utils";
+import {
+  validateDatasetItem,
+  normalizeDatasetItemInput,
+} from "@langfuse/shared";
 import { randomUUID } from "crypto";
+import { createW3CTraceId } from "../utils";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -59,11 +63,11 @@ async function getExistingRunItemDatasetItemIds(
 
 async function processItem(
   projectId: string,
-  datasetItem: any,
-  config: any,
+  datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
+  config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
-  const newTraceId = generateUnifiedTraceId(config.runId, datasetItem.id);
+  const newTraceId = createW3CTraceId(`${config.runId}-${datasetItem.id}`);
   const runItemId = v4();
   const timestamp = new Date().toISOString();
 
@@ -76,8 +80,6 @@ async function processItem(
       traceId: newTraceId,
       observationId: null,
       error: null,
-      input: datasetItem.input,
-      expectedOutput: datasetItem.expectedOutput,
       createdAt: timestamp,
       datasetId: datasetItem.datasetId,
       runId: config.runId,
@@ -146,8 +148,8 @@ async function processItem(
 async function processLLMCall(
   runItemId: string,
   traceId: string,
-  datasetItem: any,
-  config: any,
+  datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
+  config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   let messages: ChatMessage[] = [];
   // Extract and replace variables in prompt
@@ -166,34 +168,35 @@ async function processLLMCall(
     return { success: false };
   }
 
-  const traceParams = {
-    environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+  const traceSinkParams: TraceSinkParams = {
+    environment: LangfuseInternalTraceEnvironment.PromptExperiments,
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
     traceId,
-    projectId: config.projectId,
-    authCheck: {
-      validKey: true as const,
-      scope: {
-        projectId: config.projectId,
-        accessLevel: "project",
-      } as any,
+    targetProjectId: config.projectId, // ingest to user project
+    metadata: {
+      dataset_id: datasetItem.datasetId,
+      dataset_item_id: datasetItem.id,
+      structured_output_schema: config.structuredOutputSchema,
+      experiment_name: config.experimentName,
+      experiment_run_name: config.experimentRunName,
     },
+    prompt: config.prompt,
   };
 
-  await backOff(
-    async () =>
-      await callLLM(
-        config.validatedApiKey,
-        messages,
-        config.model_params,
-        config.provider,
-        config.model,
-        traceParams,
-      ),
-    {
-      numOfAttempts: 1, // Turn off retries as Langchain handles this
+  await fetchLLMCompletion({
+    streaming: false,
+    llmConnection: config.validatedApiKey,
+    maxRetries: 1,
+    messages,
+    modelParams: {
+      provider: config.provider,
+      model: config.model,
+      adapter: config.validatedApiKey.adapter,
+      ...config.model_params,
     },
-  );
+    structuredOutputSchema: config.structuredOutputSchema,
+    traceSinkParams,
+  }).catch(); // catch errors and do not retry
 
   return { success: true };
 }
@@ -202,7 +205,7 @@ async function getItemsToProcess(
   projectId: string,
   datasetId: string,
   runId: string,
-  config: any,
+  config: PromptExperimentConfig,
 ) {
   // Fetch all dataset items
   const datasetItems = await prisma.datasetItem.findMany({
@@ -211,19 +214,38 @@ async function getItemsToProcess(
       projectId,
       status: DatasetStatus.ACTIVE,
     },
+    select: {
+      id: true,
+      projectId: true,
+      datasetId: true,
+      status: true,
+      input: true,
+      expectedOutput: true,
+      metadata: true,
+      sourceTraceId: true,
+      sourceObservationId: true,
+      createdAt: true,
+      updatedAt: true,
+    },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
 
   // Filter and validate dataset items
   const validatedDatasetItems = datasetItems
     .filter(({ input }) => validateDatasetItem(input, config.allVariables))
-    .map((datasetItem) => ({
-      ...datasetItem,
-      input: parseDatasetItemInput(
-        datasetItem.input as Prisma.JsonObject,
+    .map((datasetItem) => {
+      // Normalize string inputs to object format for single-variable prompts
+      const normalizedInput = normalizeDatasetItemInput(
+        datasetItem.input,
         config.allVariables,
-      ),
-    }));
+      );
+
+      return {
+        ...datasetItem,
+        status: datasetItem.status ?? "ACTIVE",
+        input: parseDatasetItemInput(normalizedInput, config.allVariables),
+      };
+    });
 
   if (!validatedDatasetItems.length) {
     logger.info(
@@ -268,7 +290,7 @@ export const createExperimentJobClickhouse = async ({
    * INPUT VALIDATION *
    ********************/
 
-  let experimentConfig;
+  let experimentConfig: PromptExperimentConfig;
   try {
     experimentConfig = await validateAndSetupExperiment(event);
   } catch (error) {
@@ -344,6 +366,19 @@ async function createAllDatasetRunItemsWithConfigError(
       projectId,
       status: DatasetStatus.ACTIVE,
     },
+    select: {
+      id: true,
+      projectId: true,
+      datasetId: true,
+      status: true,
+      input: true,
+      expectedOutput: true,
+      metadata: true,
+      sourceTraceId: true,
+      sourceObservationId: true,
+      createdAt: true,
+      updatedAt: true,
+    },
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
 
@@ -398,7 +433,7 @@ async function createAllDatasetRunItemsWithConfigError(
         timestamp,
         body: {
           id: traceId,
-          environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+          environment: LangfuseInternalTraceEnvironment.PromptExperiments,
           name: `dataset-run-item-${runItemId.slice(0, 5)}`,
           input: stringInput,
         },
@@ -410,7 +445,7 @@ async function createAllDatasetRunItemsWithConfigError(
         timestamp,
         body: {
           id: generationId,
-          environment: PROMPT_EXPERIMENT_ENVIRONMENT,
+          environment: LangfuseInternalTraceEnvironment.PromptExperiments,
           traceId,
           input: stringInput,
           level: "ERROR" as const,

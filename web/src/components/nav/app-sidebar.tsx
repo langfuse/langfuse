@@ -24,7 +24,6 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
-import { UsageTracker } from "@/src/ee/features/billing/components/UsageTracker";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -50,7 +49,7 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
-        <div className="flex min-h-10 items-center gap-2 px-3 py-2">
+        <div className="flex min-h-9 items-center gap-2 py-2 pl-2 pr-0 group-data-[collapsible=icon]:p-3">
           <LangfuseLogo version />
         </div>
         <div className="h-1 flex-1 border-b" />
@@ -60,7 +59,6 @@ export function AppSidebar({
         <NavMain items={navItems} />
         <div className="flex-1" />
         <div className="flex flex-col gap-2 p-2">
-          <UsageTracker />
           <SidebarNotifications />
         </div>
         <NavMain items={secondaryNavItems} />
@@ -89,7 +87,7 @@ const DemoBadge = () => {
     return null;
 
   return (
-    <SidebarGroup className="mb-1 border-b">
+    <SidebarGroup className="border-b">
       <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>

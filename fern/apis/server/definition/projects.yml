@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     get:
-      docs: Get Project associated with API key
+      docs: Get Project associated with API key (requires project-scoped API key). You can use GET /api/public/organizations/projects to get all projects with an organization-scoped key.
       method: GET
       path: /projects
       response: Projects
@@ -80,6 +80,12 @@ service:
             note:
               type: optional<string>
               docs: Optional note for the API key
+            publicKey:
+              type: optional<string>
+              docs: Optional predefined public key. Must start with 'pk-lf-'. If provided, secretKey must also be provided.
+            secretKey:
+              type: optional<string>
+              docs: Optional predefined secret key. Must start with 'sk-lf-'. If provided, publicKey must also be provided.
       response: ApiKeyResponse
 
     deleteApiKey:

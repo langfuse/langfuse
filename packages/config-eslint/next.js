@@ -2,6 +2,9 @@ const { resolve } = require("node:path");
 
 const project = resolve(process.cwd(), "tsconfig.json");
 
+const turboConfig = require("eslint-config-turbo");
+const turboConfigToUse = turboConfig.default || turboConfig;
+
 /*
  * This is a custom ESLint configuration for use with
  * Next.js apps.
@@ -16,7 +19,6 @@ module.exports = {
   extends: [
     "plugin:@typescript-eslint/recommended",
     "plugin:@typescript-eslint/strict-type-checked",
-    "eslint-config-turbo",
   ],
   rules: {
     "@typescript-eslint/no-non-null-assertion": "off",
@@ -47,6 +49,7 @@ module.exports = {
   ignorePatterns: ["node_modules/", "dist/"],
   // add rules configurations here
   rules: {
+    ...(turboConfigToUse.rules || {}),
     "@typescript-eslint/consistent-type-imports": [
       "warn",
       {
@@ -54,7 +57,18 @@ module.exports = {
         fixStyle: "inline-type-imports",
       },
     ],
-    "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    "@typescript-eslint/no-unused-vars": [
+      // see: https://typescript-eslint.io/rules/no-unused-vars/#why-does-this-rule-report-variables-used-only-for-types
+      // since v8, vars only used for types are unused at runtime and therefore throw a warning.
+      // we fix those with workarounds (mostly just export the variables, as they are used as part of an API anyways)
+      // see: https://github.com/typescript-eslint/typescript-eslint/issues/10266
+      "warn",
+      {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+      },
+    ],
     "react/jsx-key": [
       "error",
       {

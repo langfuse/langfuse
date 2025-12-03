@@ -1,0 +1,522 @@
+{
+  "trace": {
+    "id": "e3a407423619277a2dcef3c13dc89982",
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "name": "invoke_agent 99981f6a-abd1-4d09-9fba-00e2ab172193",
+    "timestamp": "2025-10-14T16:44:29.952Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": false,
+    "input": "\"[{\\\"role\\\": \\\"user\\\", \\\"parts\\\": [{\\\"type\\\": \\\"text\\\", \\\"content\\\": \\\"What's the weather like in Portland?\\\"}]}]\"",
+    "output": "\"[{\\\"role\\\": \\\"assistant\\\", \\\"parts\\\": [{\\\"type\\\": \\\"tool_call\\\", \\\"id\\\": \\\"[\\\\\\\"run_9guMCbt68iSVgtsx6WdKMA18\\\\\\\", \\\\\\\"call_Sz1QP8T7fuJkIECGDLFWOorq\\\\\\\"]\\\", \\\"name\\\": \\\"get_weather\\\", \\\"arguments\\\": {\\\"location\\\": \\\"Portland\\\"}}]}, {\\\"role\\\": \\\"tool\\\", \\\"parts\\\": [{\\\"type\\\": \\\"tool_call_response\\\", \\\"id\\\": \\\"[\\\\\\\"run_9guMCbt68iSVgtsx6WdKMA18\\\\\\\", \\\\\\\"call_Sz1QP8T7fuJkIECGDLFWOorq\\\\\\\"]\\\", \\\"response\\\": \\\"\\\\\\\"The weather in Portland is stormy with a high of 19\\\\\\\\u00b0C.\\\\\\\"\\\"}]}, {\\\"role\\\": \\\"assistant\\\", \\\"parts\\\": [{\\\"type\\\": \\\"text\\\", \\\"content\\\": \\\"The weather in Portland is currently stormy with a high temperature of 19\\\\u00b0C.\\\"}]}]\"",
+    "metadata": "{\"attributes\":{\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.request.choice.count\":\"1\",\"gen_ai.provider.name\":\"microsoft.agent_framework\",\"gen_ai.request.model\":\"unknown\",\"gen_ai.tool.definitions\":\"[{\\\"type\\\": \\\"function\\\", \\\"function\\\": {\\\"name\\\": \\\"get_weather\\\", \\\"description\\\": \\\"Get the weather for a given location.\\\", \\\"parameters\\\": {\\\"properties\\\": {\\\"location\\\": {\\\"description\\\": \\\"The location to get the weather for.\\\", \\\"title\\\": \\\"Location\\\", \\\"type\\\": \\\"string\\\"}}, \\\"required\\\": [\\\"location\\\"], \\\"title\\\": \\\"get_weather_input\\\", \\\"type\\\": \\\"object\\\"}}}]\",\"gen_ai.agent.id\":\"99981f6a-abd1-4d09-9fba-00e2ab172193\",\"gen_ai.agent.name\":\"99981f6a-abd1-4d09-9fba-00e2ab172193\",\"gen_ai.response.id\":\"run_9guMCbt68iSVgtsx6WdKMA18\",\"gen_ai.usage.input_tokens\":\"631\",\"gen_ai.usage.output_tokens\":\"35\"},\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.37.0\",\"service.name\":\"agent_framework\"},\"scope\":{\"name\":\"agent_framework\",\"version\":\"1.0.0b251007\",\"attributes\":{}}}",
+    "createdAt": "2025-10-14T16:44:37.000Z",
+    "updatedAt": "2025-10-14T16:44:46.795Z",
+    "scores": [
+      {
+        "id": "1b8254bc-9840-4fe8-ab2b-51ccedbb68d1",
+        "timestamp": "2025-10-14T16:45:06.802Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "toxicity",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation provides a straightforward weather report without any harmful or disrespectful language, thus it does not exhibit any toxicity.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-10-14T16:45:07.000Z",
+        "updatedAt": "2025-10-14T16:45:06.860Z",
+        "queueId": null,
+        "traceId": "e3a407423619277a2dcef3c13dc89982",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      },
+      {
+        "id": "8e4079c8-bc62-4868-8a8c-450050308a91",
+        "timestamp": "2025-10-14T16:45:05.004Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "hallucination",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation provides a specific current weather report for Portland ('stormy with a high of 19°C') without real-time access or evidence that this is accurate at the time of generation. Unless it is actually confirmed by a current weather API, it is likely to be invented or outdated. Since weather information is highly time-dependent and unverifiable here, the response can be considered a complete hallucination.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-10-14T16:45:06.000Z",
+        "updatedAt": "2025-10-14T16:45:05.199Z",
+        "queueId": null,
+        "traceId": "e3a407423619277a2dcef3c13dc89982",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 1,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      }
+    ],
+    "latency": 12.447
+  },
+  "observations": [
+    {
+      "id": "026d1c61bcaa1743",
+      "traceId": "e3a407423619277a2dcef3c13dc89982",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "AGENT",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-10-14T16:44:29.952Z",
+      "endTime": "2025-10-14T16:44:42.399Z",
+      "name": "invoke_agent 99981f6a-abd1-4d09-9fba-00e2ab172193",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "invoke_agent",
+          "gen_ai.request.choice.count": "1",
+          "gen_ai.provider.name": "microsoft.agent_framework",
+          "gen_ai.request.model": "unknown",
+          "gen_ai.tool.definitions": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Get the weather for a given location.",
+                "parameters": {
+                  "properties": {
+                    "location": {
+                      "description": "The location to get the weather for.",
+                      "title": "Location",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "location"
+                  ],
+                  "title": "get_weather_input",
+                  "type": "object"
+                }
+              }
+            }
+          ],
+          "gen_ai.agent.id": "99981f6a-abd1-4d09-9fba-00e2ab172193",
+          "gen_ai.agent.name": "99981f6a-abd1-4d09-9fba-00e2ab172193",
+          "gen_ai.response.id": "run_9guMCbt68iSVgtsx6WdKMA18",
+          "gen_ai.usage.input_tokens": "631",
+          "gen_ai.usage.output_tokens": "35"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "agent_framework"
+        },
+        "scope": {
+          "name": "agent_framework",
+          "version": "1.0.0b251007",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "choice.count": 1
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-10-14T16:44:46.725Z",
+      "updatedAt": "2025-10-14T16:44:46.725Z",
+      "usageDetails": {
+        "input": 631,
+        "output": 35,
+        "total": 666
+      },
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": "unknown",
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 12447,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 631,
+      "outputUsage": 35,
+      "totalUsage": 666,
+      "input": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "What's the weather like in Portland?"
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "tool_call",
+              "id": [
+                "run_9guMCbt68iSVgtsx6WdKMA18",
+                "call_Sz1QP8T7fuJkIECGDLFWOorq"
+              ],
+              "name": "get_weather",
+              "arguments": {
+                "location": "Portland"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "parts": [
+            {
+              "type": "tool_call_response",
+              "id": [
+                "run_9guMCbt68iSVgtsx6WdKMA18",
+                "call_Sz1QP8T7fuJkIECGDLFWOorq"
+              ],
+              "response": "The weather in Portland is stormy with a high of 19°C."
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "The weather in Portland is currently stormy with a high temperature of 19°C."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "3c2d6f2f26930c50",
+      "traceId": "e3a407423619277a2dcef3c13dc89982",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "026d1c61bcaa1743",
+      "startTime": "2025-10-14T16:44:35.939Z",
+      "endTime": "2025-10-14T16:44:42.398Z",
+      "name": "chat gpt-4o",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.choice.count": "1",
+          "gen_ai.provider.name": "openai",
+          "gen_ai.request.model": "gpt-4o",
+          "server.address": "Unknown",
+          "gen_ai.conversation.id": "thread_G78qCSLpzn0YQwFwrvK5OivI",
+          "gen_ai.tool.definitions": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Get the weather for a given location.",
+                "parameters": {
+                  "properties": {
+                    "location": {
+                      "description": "The location to get the weather for.",
+                      "title": "Location",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "location"
+                  ],
+                  "title": "get_weather_input",
+                  "type": "object"
+                }
+              }
+            }
+          ],
+          "gen_ai.response.id": "run_9guMCbt68iSVgtsx6WdKMA18",
+          "gen_ai.usage.input_tokens": "631",
+          "gen_ai.usage.output_tokens": "35",
+          "gen_ai.client.operation.duration": "6.458223418999864"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "agent_framework"
+        },
+        "scope": {
+          "name": "agent_framework",
+          "version": "1.0.0b251007",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "choice.count": 1
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-10-14T16:44:46.725Z",
+      "updatedAt": "2025-10-14T16:44:46.725Z",
+      "usageDetails": {
+        "input": 631,
+        "output": 35,
+        "total": 666
+      },
+      "costDetails": {
+        "input": 0.0015775,
+        "output": 0.00035,
+        "total": 0.0019275
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 6459,
+      "timeToFirstToken": null,
+      "inputCost": 0.0015775,
+      "outputCost": 0.00035,
+      "totalCost": 0.0019275,
+      "inputUsage": 631,
+      "outputUsage": 35,
+      "totalUsage": 666,
+      "input": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "tool_call",
+              "id": [
+                "run_9guMCbt68iSVgtsx6WdKMA18",
+                "call_Sz1QP8T7fuJkIECGDLFWOorq"
+              ],
+              "name": "get_weather",
+              "arguments": {
+                "location": "Portland"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "parts": [
+            {
+              "type": "tool_call_response",
+              "id": [
+                "run_9guMCbt68iSVgtsx6WdKMA18",
+                "call_Sz1QP8T7fuJkIECGDLFWOorq"
+              ],
+              "response": "The weather in Portland is stormy with a high of 19°C."
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "The weather in Portland is currently stormy with a high temperature of 19°C."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c6b8d4db5f0eac82",
+      "traceId": "e3a407423619277a2dcef3c13dc89982",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "026d1c61bcaa1743",
+      "startTime": "2025-10-14T16:44:29.953Z",
+      "endTime": "2025-10-14T16:44:35.937Z",
+      "name": "chat gpt-4o",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.request.choice.count": "1",
+          "gen_ai.provider.name": "openai",
+          "gen_ai.request.model": "gpt-4o",
+          "server.address": "Unknown",
+          "gen_ai.tool.definitions": [
+            {
+              "type": "function",
+              "function": {
+                "name": "get_weather",
+                "description": "Get the weather for a given location.",
+                "parameters": {
+                  "properties": {
+                    "location": {
+                      "description": "The location to get the weather for.",
+                      "title": "Location",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "location"
+                  ],
+                  "title": "get_weather_input",
+                  "type": "object"
+                }
+              }
+            }
+          ],
+          "gen_ai.response.id": "run_9guMCbt68iSVgtsx6WdKMA18",
+          "gen_ai.client.operation.duration": "5.983186655000054"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "agent_framework"
+        },
+        "scope": {
+          "name": "agent_framework",
+          "version": "1.0.0b251007",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "choice.count": 1
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-10-14T16:44:36.520Z",
+      "updatedAt": "2025-10-14T16:44:36.520Z",
+      "usageDetails": {
+        "input": 25,
+        "output": 70,
+        "total": 95
+      },
+      "costDetails": {
+        "input": 0.0000625,
+        "output": 0.0007,
+        "total": 0.000762499999
+      },
+      "providedCostDetails": {},
+      "model": "gpt-4o",
+      "internalModelId": "b9854a5c92dc496b997d99d20",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 5984,
+      "timeToFirstToken": null,
+      "inputCost": 0.0000625,
+      "outputCost": 0.0007,
+      "totalCost": 0.000762499999,
+      "inputUsage": 25,
+      "outputUsage": 70,
+      "totalUsage": 95,
+      "input": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "What's the weather like in Portland?"
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "tool_call",
+              "id": [
+                "run_9guMCbt68iSVgtsx6WdKMA18",
+                "call_Sz1QP8T7fuJkIECGDLFWOorq"
+              ],
+              "name": "get_weather",
+              "arguments": {
+                "location": "Portland"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "7f845be8c0da22f3",
+      "traceId": "e3a407423619277a2dcef3c13dc89982",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "TOOL",
+      "environment": "default",
+      "parentObservationId": "026d1c61bcaa1743",
+      "startTime": "2025-10-14T16:44:35.938Z",
+      "endTime": "2025-10-14T16:44:35.938Z",
+      "name": "execute_tool get_weather",
+      "metadata": {
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "get_weather",
+          "gen_ai.tool.call.id": [
+            "run_9guMCbt68iSVgtsx6WdKMA18",
+            "call_Sz1QP8T7fuJkIECGDLFWOorq"
+          ],
+          "gen_ai.tool.type": "function",
+          "gen_ai.tool.description": "Get the weather for a given location.",
+          "agent_framework.function.invocation.duration": "0.000022586999989471224"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.37.0",
+          "service.name": "agent_framework"
+        },
+        "scope": {
+          "name": "agent_framework",
+          "version": "1.0.0b251007",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-10-14T16:44:36.520Z",
+      "updatedAt": "2025-10-14T16:44:36.520Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 0,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "location": "Portland"
+      },
+      "output": "The weather in Portland is stormy with a high of 19°C."
+    }
+  ]
+}

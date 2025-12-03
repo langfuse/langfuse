@@ -25,10 +25,7 @@ import GCPServiceAccountKeySchema, {
   BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
-  BedrockCredential,
 } from "../../interfaces/customLLMProviderConfigSchemas";
-import { processEventBatch } from "../ingestion/processEventBatch";
-import { logger } from "../logger";
 import {
   ChatMessage,
   ChatMessageRole,
@@ -41,41 +38,24 @@ import {
   OpenAIModel,
   ToolCallResponse,
   ToolCallResponseSchema,
-  TraceParams,
+  TraceSinkParams,
 } from "./types";
-import { CallbackHandler } from "langfuse-langchain";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { HttpsProxyAgent } from "https-proxy-agent";
+import { getInternalTracingHandler } from "./getInternalTracingHandler";
+import { decrypt } from "../../encryption";
+import { decryptAndParseExtraHeaders } from "./utils";
+import { logger } from "../logger";
+import { LLMCompletionError } from "./errors";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
   LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
 ];
-
-const resolveBedrockCredentials = (
-  apiKey: string,
-  context: LLMCompletionContext,
-): BedrockCredential | undefined => {
-  // Default credentials can only be used in self-hosted deployments or when credentials are managed by langfuse
-  const canUseDefaultCredentials =
-    !isLangfuseCloud || context.credentials === "langfuse";
-  return apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS && canUseDefaultCredentials
-    ? undefined // undefined = use AWS SDK default credential provider chain
-    : BedrockCredentialSchema.parse(JSON.parse(apiKey));
-};
-
-const resolveBedrockRegion = (
-  context: LLMCompletionContext,
-  config?: Record<string, string> | null,
-): string | undefined => {
-  if (context.credentials === "langfuse") {
-    return env.LANGFUSE_AWS_BEDROCK_REGION ?? undefined;
-  }
-  const { region } = BedrockConfigSchema.parse(config);
-  return region;
-};
 
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
@@ -89,29 +69,20 @@ const transformSystemMessageToUserMessage = (
 
 type ProcessTracedEvents = () => Promise<void>;
 
-type LLMCompletionContext = {
-  tracing: "langfuse";
-  credentials: "user" | "langfuse";
-};
-
-const DEFAULT_LLM_COMPLETION_CONTEXT: LLMCompletionContext = {
-  tracing: "langfuse",
-  credentials: "user",
-};
-
 type LLMCompletionParams = {
   messages: ChatMessage[];
   modelParams: ModelParams;
+  llmConnection: {
+    secretKey: string;
+    extraHeaders?: string | null;
+    baseURL?: string | null;
+    config?: Record<string, string> | null;
+  };
   structuredOutputSchema?: ZodSchema | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
-  baseURL?: string;
-  apiKey: string;
-  extraHeaders?: Record<string, string>;
   maxRetries?: number;
-  config?: Record<string, string> | null;
-  traceParams?: TraceParams;
-  throwOnError?: boolean; // default is true
-  context?: LLMCompletionContext;
+  traceSinkParams?: TraceSinkParams;
+  shouldUseLangfuseAPIKey?: boolean;
 };
 
 type FetchLLMCompletionParams = LLMCompletionParams & {
@@ -124,20 +95,14 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
   },
-): Promise<{
-  completion: IterableReadableStream<Uint8Array>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<{
-  completion: string;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<string>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
@@ -145,97 +110,61 @@ export async function fetchLLMCompletion(
     streaming: false;
     structuredOutputSchema: ZodSchema;
   },
-): Promise<{
-  completion: Record<string, unknown>;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
   // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
-    tools: LLMToolDefinition[];
     streaming: false;
+    tools: LLMToolDefinition[];
   },
-): Promise<{
-  completion: ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}>;
+): Promise<ToolCallResponse>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
-): Promise<{
-  completion:
-    | string
-    | IterableReadableStream<Uint8Array>
-    | Record<string, unknown>
-    | ToolCallResponse;
-  processTracedEvents: ProcessTracedEvents;
-}> {
-  // the apiKey must never be printed to the console
+): Promise<
+  | string
+  | IterableReadableStream<Uint8Array>
+  | Record<string, unknown>
+  | ToolCallResponse
+> {
   const {
     messages,
     tools,
     modelParams,
     streaming,
     callbacks,
-    apiKey,
-    baseURL,
+    llmConnection,
     maxRetries,
-    config,
-    traceParams,
-    extraHeaders,
-    throwOnError = true,
-    context = DEFAULT_LLM_COMPLETION_CONTEXT,
+    traceSinkParams,
+    shouldUseLangfuseAPIKey = false,
   } = params;
+
+  const { baseURL, config } = llmConnection;
+  const apiKey = decrypt(llmConnection.secretKey); // the apiKey must never be printed to the console
+  const extraHeaders = decryptAndParseExtraHeaders(llmConnection.extraHeaders);
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
 
-  if (traceParams) {
-    let handler: CallbackHandler;
-
-    if (
-      context.credentials === "langfuse" &&
-      env.LANGFUSE_AI_FEATURES_PUBLIC_KEY &&
-      env.LANGFUSE_AI_FEATURES_SECRET_KEY &&
-      env.LANGFUSE_AI_FEATURES_HOST
-    ) {
-      // send to configured cloud Langfuse instance
-      handler = new CallbackHandler({
-        publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
-        secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
-        baseUrl: env.LANGFUSE_AI_FEATURES_HOST,
-        environment: traceParams.environment,
-      });
-
-      processTracedEvents = () => Promise.resolve();
+  if (traceSinkParams) {
+    // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
+    // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
+    // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
+    if (!traceSinkParams.environment?.startsWith("langfuse")) {
+      logger.warn(
+        "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
+        {
+          environment: traceSinkParams.environment,
+          traceId: traceSinkParams.traceId,
+        },
+      );
     } else {
-      // use local trace export
-      handler = new CallbackHandler({
-        _projectId: traceParams.projectId,
-        _isLocalEventExportEnabled: true,
-        environment: traceParams.environment,
-      });
+      const internalTracingHandler = getInternalTracingHandler(traceSinkParams);
+      processTracedEvents = internalTracingHandler.processTracedEvents;
 
-      processTracedEvents = async () => {
-        try {
-          const events = await handler.langfuse._exportLocalEvents(
-            traceParams.projectId,
-          );
-          await processEventBatch(
-            JSON.parse(JSON.stringify(events)), // stringify to emulate network event batch from network call
-            traceParams.authCheck,
-            {
-              isLangfuseInternal: context.tracing === "langfuse",
-            },
-          );
-        } catch (e) {
-          logger.error("Failed to process traced events", { error: e });
-        }
-      };
+      finalCallbacks.push(internalTracingHandler.handler);
     }
-
-    finalCallbacks.push(handler);
   }
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
@@ -258,7 +187,7 @@ export async function fetchLLMCompletion(
     // Ensure provider schema compliance
     finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
-    finalMessages = messages.map((message) => {
+    finalMessages = messages.map((message, idx) => {
       // For arbitrary content types, convert to string safely
       const safeContent =
         typeof message.content === "string"
@@ -271,7 +200,9 @@ export async function fetchLLMCompletion(
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
       )
-        return new SystemMessage(safeContent);
+        return idx === 0
+          ? new SystemMessage(safeContent)
+          : new HumanMessage(safeContent);
 
       if (message.type === ChatMessageType.ToolResult) {
         return new ToolMessage({
@@ -306,22 +237,57 @@ export async function fetchLLMCompletion(
     | ChatVertexAI
     | ChatGoogleGenerativeAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    chatModel = new ChatAnthropic({
+    const isClaude45Family =
+      modelParams.model?.includes("claude-sonnet-4-5") ||
+      modelParams.model?.includes("claude-opus-4-1") ||
+      modelParams.model?.includes("claude-opus-4-5") ||
+      modelParams.model?.includes("claude-haiku-4-5");
+
+    const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
-      anthropicApiUrl: baseURL,
+      anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
-      temperature: modelParams.temperature,
       maxTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
         timeout: timeoutMs,
         ...(proxyAgent && { httpAgent: proxyAgent }),
       },
+      temperature: modelParams.temperature,
+      topP: modelParams.top_p,
       invocationKwargs: modelParams.providerOptions,
-    });
+    };
+
+    chatModel = new ChatAnthropic(chatOptions);
+
+    if (isClaude45Family) {
+      if (chatModel.topP === -1) {
+        chatModel.topP = undefined;
+      }
+
+      // TopP and temperature cannot be specified both,
+      // but Langchain is setting placeholder values despite that
+      if (
+        modelParams.temperature !== undefined &&
+        modelParams.top_p === undefined
+      ) {
+        chatModel.topP = undefined;
+      }
+
+      if (
+        modelParams.top_p !== undefined &&
+        modelParams.temperature === undefined
+      ) {
+        chatModel.temperature = undefined;
+      }
+    }
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
+    const processedBaseURL = processOpenAIBaseURL({
+      url: baseURL,
+      modelName: modelParams.model,
+    });
+
     chatModel = new ChatOpenAI({
       openAIApiKey: apiKey,
       modelName: modelParams.model,
@@ -334,7 +300,7 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       configuration: {
-        baseURL,
+        baseURL: processedBaseURL,
         defaultHeaders: extraHeaders,
         ...(proxyAgent && { httpAgent: proxyAgent }),
       },
@@ -344,7 +310,7 @@ export async function fetchLLMCompletion(
   } else if (modelParams.adapter === LLMAdapter.Azure) {
     chatModel = new AzureChatOpenAI({
       azureOpenAIApiKey: apiKey,
-      azureOpenAIBasePath: baseURL,
+      azureOpenAIBasePath: baseURL ?? undefined,
       azureOpenAIApiDeploymentName: modelParams.model,
       azureOpenAIApiVersion: "2025-02-01-preview",
       temperature: modelParams.temperature,
@@ -360,9 +326,18 @@ export async function fetchLLMCompletion(
       modelKwargs: modelParams.providerOptions,
     });
   } else if (modelParams.adapter === LLMAdapter.Bedrock) {
+    const { region } = shouldUseLangfuseAPIKey
+      ? { region: env.LANGFUSE_AWS_BEDROCK_REGION }
+      : BedrockConfigSchema.parse(config);
+
     // Handle both explicit credentials and default provider chain
-    const credentials = resolveBedrockCredentials(apiKey, context);
-    const region = resolveBedrockRegion(context, config);
+    // Only allow default provider chain in self-hosted or internal AI features
+    const isSelfHosted = !isLangfuseCloud;
+    const credentials =
+      apiKey === BEDROCK_USE_DEFAULT_CREDENTIALS &&
+      (isSelfHosted || shouldUseLangfuseAPIKey)
+        ? undefined // undefined = use AWS SDK default credential provider chain
+        : BedrockCredentialSchema.parse(JSON.parse(apiKey));
 
     chatModel = new ChatBedrockConverse({
       model: modelParams.model,
@@ -396,16 +371,23 @@ export async function fetchLLMCompletion(
         projectId: credentials.project_id,
         credentials,
       },
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
       model: modelParams.model,
+      baseUrl: baseURL ?? undefined,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
+      ...(modelParams.providerOptions && {
+        additionalModelRequestFields: modelParams.providerOptions,
+      }),
     });
   } else {
     // eslint-disable-next-line no-unused-vars
@@ -417,18 +399,19 @@ export async function fetchLLMCompletion(
 
   const runConfig = {
     callbacks: finalCallbacks,
-    runId: traceParams?.traceId,
-    runName: traceParams?.traceName,
+    runId: traceSinkParams?.traceId,
+    runName: traceSinkParams?.traceName,
+    metadata: traceSinkParams?.metadata,
   };
 
   try {
+    // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      return {
-        completion: await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
-          .withStructuredOutput(params.structuredOutputSchema)
-          .invoke(finalMessages, runConfig),
-        processTracedEvents,
-      };
+      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+        .withStructuredOutput(params.structuredOutputSchema)
+        .invoke(finalMessages, runConfig);
+
+      return structuredOutput;
     }
 
     if (tools && tools.length > 0) {
@@ -444,32 +427,87 @@ export async function fetchLLMCompletion(
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return {
-        completion: parsed.data,
-        processTracedEvents,
-      };
+      return parsed.data;
     }
 
-    if (streaming) {
-      return {
-        completion: await chatModel
-          .pipe(new BytesOutputParser())
-          .stream(finalMessages, runConfig),
-        processTracedEvents,
-      };
+    if (streaming)
+      return chatModel
+        .pipe(new BytesOutputParser())
+        .stream(finalMessages, runConfig);
+
+    const completion = await chatModel
+      .pipe(new StringOutputParser())
+      .invoke(finalMessages, runConfig);
+
+    return completion;
+  } catch (e) {
+    const responseStatusCode =
+      (e as any)?.response?.status ?? (e as any)?.status ?? 500;
+    const message = e instanceof Error ? e.message : String(e);
+
+    // Check for non-retryable error patterns in message
+    const nonRetryablePatterns = [
+      "Request timed out",
+      "is not valid JSON",
+      "Unterminated string in JSON at position",
+      "TypeError",
+    ];
+
+    const hasNonRetryablePattern = nonRetryablePatterns.some((pattern) =>
+      message.includes(pattern),
+    );
+
+    // Determine retryability:
+    // - 429 (rate limit): retryable with custom delay
+    // - 5xx (server errors): retryable with custom delay
+    // - 4xx (client errors): not retryable
+    // - Non-retryable patterns: not retryable
+    let isRetryable = false;
+
+    if (
+      e instanceof Error &&
+      (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
+    ) {
+      // Explicit 429 handling
+      isRetryable = true;
+    } else if (responseStatusCode >= 500) {
+      // 5xx errors are retryable (server issues)
+      isRetryable = true;
+    } else if (responseStatusCode === 429) {
+      // Rate limit is retryable
+      isRetryable = true;
     }
 
-    return {
-      completion: await chatModel
-        .pipe(new StringOutputParser())
-        .invoke(finalMessages, runConfig),
-      processTracedEvents,
-    };
-  } catch (error) {
-    if (throwOnError) {
-      throw error;
+    // Override if error message indicates non-retryable issue
+    if (hasNonRetryablePattern) {
+      isRetryable = false;
     }
 
-    return { completion: "", processTracedEvents };
+    throw new LLMCompletionError({
+      message,
+      responseStatusCode,
+      isRetryable,
+    });
+  } finally {
+    await processTracedEvents();
   }
+}
+
+/**
+ * Process baseURL template for OpenAI adapter only.
+ * Replaces {model} placeholder with actual model name.
+ * This is a workaround for proxies that require the model name in the URL azureOpenAIBasePath
+ * while having OpenAI compliance otherwise
+ */
+function processOpenAIBaseURL(params: {
+  url: string | null | undefined;
+  modelName: string;
+}): string | null | undefined {
+  const { url, modelName } = params;
+
+  if (!url || !url.includes("{model}")) {
+    return url;
+  }
+
+  return url.replace("{model}", modelName);
 }

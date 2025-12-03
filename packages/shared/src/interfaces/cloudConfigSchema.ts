@@ -10,36 +10,21 @@ export const CloudConfigSchema = z.object({
   // need to update stripe webhook if you change this, it fetches from db via these fields
   stripe: z
     .object({
-      customerId: z.string().optional(),
-      activeSubscriptionId: z.string().optional(),
-      activeProductId: z.string().optional(),
-      activeUsageProductId: z.string().optional(),
+      customerId: z.string().nullish(),
+      activeSubscriptionId: z.string().nullish(),
+      activeProductId: z.string().nullish(),
+      activeUsageProductId: z.string().nullish(),
+      subscriptionStatus: z.string().nullish(), // should be one of ["active","past_due", "unpaid", "canceled", "incomplete", "incomplete_expired", "paused"]; we don't enforce to have a backwards compatibility for this field
     })
     .transform((data) => ({
       ...data,
       isLegacySubscription:
-        data?.activeProductId !== undefined &&
-        data?.activeUsageProductId === undefined,
+        data?.activeProductId != null && data?.activeUsageProductId == null,
     }))
-    .optional(),
+    .nullish(),
 
   // custom rate limits for an organization
   rateLimitOverrides: CloudConfigRateLimit.optional(),
-
-  // billing alert configuration
-  usageAlerts: z
-    .object({
-      enabled: z.boolean().default(true),
-      type: z.enum(["STRIPE"]).default("STRIPE"),
-      threshold: z.number().int().positive(),
-      alertId: z.string(), // Alert ID for tracking
-      meterId: z.string(), // Meter ID for usage tracking
-      notifications: z.object({
-        email: z.boolean().default(true),
-        recipients: z.array(z.string().email()).default([]),
-      }),
-    })
-    .optional(),
 });
 
 export type CloudConfigSchema = z.infer<typeof CloudConfigSchema>;

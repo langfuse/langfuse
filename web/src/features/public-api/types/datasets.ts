@@ -5,11 +5,12 @@ import {
   paginationMetaResponseZod,
   queryStringZod,
   type DatasetRuns as DbDatasetRuns,
-  type DatasetItem as DbDatasetItems,
   type Dataset as DbDataset,
   removeObjectKeys,
   type DatasetRunItemDomain,
+  type DatasetItemDomain,
 } from "@langfuse/shared";
+import { DatasetJSONSchema } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
 
 /**
@@ -23,6 +24,8 @@ const APIDataset = z
     name: z.string(),
     description: z.string().nullable(),
     metadata: z.any(),
+    inputSchema: z.any().nullable(),
+    expectedOutputSchema: z.any().nullable(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
@@ -81,8 +84,10 @@ export const transformDbDatasetRunToAPIDatasetRun = (
 ): z.infer<typeof APIDatasetRun> =>
   removeObjectKeys(dbDatasetRun, ["projectId"]);
 
-export const transformDbDatasetItemToAPIDatasetItem = (
-  dbDatasetItem: DbDatasetItems & { datasetName: string },
+export const transformDbDatasetItemDomainToAPIDatasetItem = (
+  dbDatasetItem: DatasetItemDomain & {
+    datasetName: string;
+  },
 ): z.infer<typeof APIDatasetItem> =>
   removeObjectKeys(dbDatasetItem, ["projectId"]);
 
@@ -115,6 +120,8 @@ export const PostDatasetsV2Body = z.object({
   name: z.string(),
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
+  inputSchema: DatasetJSONSchema.nullish(),
+  expectedOutputSchema: DatasetJSONSchema.nullish(),
 });
 export const PostDatasetsV2Response = APIDataset.strict();
 
@@ -238,6 +245,8 @@ export const PostDatasetsV1Body = z.object({
   name: z.string(),
   description: z.string().nullish(),
   metadata: jsonSchema.nullish(),
+  inputSchema: DatasetJSONSchema.nullish(),
+  expectedOutputSchema: DatasetJSONSchema.nullish(),
 });
 export const PostDatasetsV1Response = APIDataset.extend({
   items: z.array(APIDatasetItem),

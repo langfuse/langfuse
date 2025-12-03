@@ -14,12 +14,14 @@ import { env } from "@/src/env.mjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   SiOkta,
+  SiAuthentik,
   SiAuth0,
   SiAmazoncognito,
   SiKeycloak,
   SiGoogle,
   SiGitlab,
   SiGithub,
+  SiWordpress,
 } from "react-icons/si";
 import { TbBrandAzure, TbBrandOauth } from "react-icons/tb";
 import { signIn } from "next-auth/react";
@@ -28,13 +30,11 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod/v4";
-import { Divider } from "@tremor/react";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
-import { Turnstile } from "@marsidev/react-turnstile";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
-import { Code } from "lucide-react";
+import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -42,6 +42,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 const credentialAuthForm = z.object({
   email: z.string().email(),
@@ -59,10 +60,16 @@ export type PageProps = {
     githubEnterprise: boolean;
     gitlab: boolean;
     okta: boolean;
+    authentik: boolean;
+    onelogin: boolean;
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
-    keycloak: boolean;
+    keycloak:
+      | {
+          name: string;
+        }
+      | boolean;
     workos:
       | {
           organizationId: string;
@@ -71,6 +78,7 @@ export type PageProps = {
           connectionId: string;
         }
       | boolean;
+    wordpress: boolean;
     custom:
       | {
           name: string;
@@ -106,6 +114,14 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_OKTA_CLIENT_ID !== undefined &&
           env.AUTH_OKTA_CLIENT_SECRET !== undefined &&
           env.AUTH_OKTA_ISSUER !== undefined,
+        authentik:
+          env.AUTH_AUTHENTIK_CLIENT_ID !== undefined &&
+          env.AUTH_AUTHENTIK_CLIENT_SECRET !== undefined &&
+          env.AUTH_AUTHENTIK_ISSUER !== undefined,
+        onelogin:
+          env.AUTH_ONELOGIN_CLIENT_ID !== undefined &&
+          env.AUTH_ONELOGIN_CLIENT_SECRET !== undefined &&
+          env.AUTH_ONELOGIN_ISSUER !== undefined,
         credentials: env.AUTH_DISABLE_USERNAME_PASSWORD !== "true",
         azureAd:
           env.AUTH_AZURE_AD_CLIENT_ID !== undefined &&
@@ -122,7 +138,11 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         keycloak:
           env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
           env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
-          env.AUTH_KEYCLOAK_ISSUER !== undefined,
+          env.AUTH_KEYCLOAK_ISSUER !== undefined
+            ? env.AUTH_KEYCLOAK_NAME !== undefined
+              ? { name: env.AUTH_KEYCLOAK_NAME }
+              : true
+            : false,
         workos:
           env.AUTH_WORKOS_CLIENT_ID !== undefined &&
           env.AUTH_WORKOS_CLIENT_SECRET !== undefined
@@ -132,6 +152,9 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
                 ? { connectionId: env.AUTH_WORKOS_CONNECTION_ID }
                 : true
             : false,
+        wordpress:
+          env.AUTH_WORDPRESS_CLIENT_ID !== undefined &&
+          env.AUTH_WORDPRESS_CLIENT_SECRET !== undefined,
         custom:
           env.AUTH_CUSTOM_CLIENT_ID !== undefined &&
           env.AUTH_CUSTOM_CLIENT_SECRET !== undefined &&
@@ -191,19 +214,24 @@ export function SSOButtons({
       });
   };
 
+  // Only show separator if credentials are enabled (for sign-in) or if action is sign-up (which always has the form)
+  const showSeparator = authProviders.credentials || action !== "sign in";
+
   return (
     // any authprovider from props is enabled
     Object.entries(authProviders).some(
       ([name, enabled]) => enabled && name !== "credentials",
     ) ? (
       <div>
-        {action === "sign in" ? (
-          <div className="my-6 border-t border-border"></div>
-        ) : (
-          <div className="my-6 text-center text-xs text-muted-foreground">
-            or {action} with
-          </div>
-        )}
+        {showSeparator ? (
+          action === "sign in" ? (
+            <div className="my-6 border-t border-border"></div>
+          ) : (
+            <div className="my-6 text-center text-xs text-muted-foreground">
+              or {action} with
+            </div>
+          )
+        ) : null}
         <div className="flex flex-row flex-wrap items-center justify-center gap-2">
           {authProviders.google && (
             <AuthProviderButton
@@ -271,6 +299,28 @@ export function SSOButtons({
               }
             />
           )}
+          {authProviders.authentik && (
+            <AuthProviderButton
+              icon={<SiAuthentik className="mr-3" size={18} />}
+              label="Authentik"
+              onClick={() => handleSignIn("authentik")}
+              loading={providerSigningIn === "authentik"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "authentik"
+              }
+            />
+          )}
+          {authProviders.onelogin && (
+            <AuthProviderButton
+              icon={<Key className="mr-3" size={18} />}
+              label="OneLogin"
+              onClick={() => handleSignIn("onelogin")}
+              loading={providerSigningIn === "onelogin"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "onelogin"
+              }
+            />
+          )}
           {authProviders.auth0 && (
             <AuthProviderButton
               icon={<SiAuth0 className="mr-3" size={18} />}
@@ -296,7 +346,11 @@ export function SSOButtons({
           {authProviders.keycloak && (
             <AuthProviderButton
               icon={<SiKeycloak className="mr-3" size={18} />}
-              label="Keycloak"
+              label={
+                typeof authProviders.keycloak === "object"
+                  ? authProviders.keycloak.name
+                  : "Keycloak"
+              }
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
                 onProviderSelect?.("keycloak");
@@ -392,6 +446,17 @@ export function SSOButtons({
               />
             </>
           )}
+          {authProviders.wordpress && (
+            <AuthProviderButton
+              icon={<SiWordpress className="mr-3" size={18} />}
+              label="WordPress"
+              onClick={() => handleSignIn("wordpress")}
+              loading={providerSigningIn === "wordpress"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "wordpress"
+              }
+            />
+          )}
           {authProviders.custom && (
             <AuthProviderButton
               icon={<TbBrandOauth className="mr-3" size={18} />}
@@ -421,7 +486,7 @@ export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
     const isInIframe = () => {
       try {
         return window.self !== window.top;
-      } catch (e) {
+      } catch (_e) {
         return true;
       }
     };
@@ -457,19 +522,32 @@ export default function SignIn({
     typeof router.query.error === "string"
       ? decodeURIComponent(router.query.error)
       : null;
-  const nextAuthErrorDescription = signInErrors.find(
-    (e) => e.code === nextAuthError,
-  )?.description;
+  const nextAuthErrorDescription =
+    typeof router.query.error_description === "string"
+      ? decodeURIComponent(router.query.error_description)
+      : null;
+
+  // Use error_description from IdP if available, otherwise use mapped error or error code
+  const errorMessage = nextAuthErrorDescription
+    ? nextAuthErrorDescription
+    : (signInErrors.find((e) => e.code === nextAuthError)?.description ??
+      nextAuthError);
+
   useEffect(() => {
     // log unexpected sign in errors to Sentry
-    if (nextAuthError && !nextAuthErrorDescription) {
+    // An error is unexpected if it's not in our mapped errors and has no IdP error_description
+    if (
+      nextAuthError &&
+      !nextAuthErrorDescription &&
+      !signInErrors.find((e) => e.code === nextAuthError)
+    ) {
       captureException(new Error(`Sign in error: ${nextAuthError}`));
     }
   }, [nextAuthError, nextAuthErrorDescription]);
 
   const [credentialsFormError, setCredentialsFormError] = useState<
     string | null
-  >(nextAuthErrorDescription ?? nextAuthError);
+  >(errorMessage);
   // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
   // Skip this flow when no SSO is configured - show password field immediately
   const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
@@ -484,11 +562,6 @@ export default function SignIn({
 
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const [turnstileToken, setTurnstileToken] = useState<string>();
-  // Used to refresh turnstile as the token can only be used once
-  const [turnstileCData, setTurnstileCData] = useState<string>(
-    new Date().getTime().toString(),
-  );
 
   // Count available auth methods to determine if we should show "Last used" badge
   const availableProviders = Object.entries(authProviders).filter(
@@ -496,11 +569,20 @@ export default function SignIn({
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
 
+  // Read query params for targetPath and email pre-population
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const emailParam = router.query.email as string | undefined;
+
+  // Validate targetPath to prevent open redirect attacks
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
+
   // Credentials
   const credentialsForm = useForm({
     resolver: zodResolver(credentialAuthForm),
     defaultValues: {
-      email: "",
+      email: emailParam ?? "",
       password: "",
     },
   });
@@ -517,9 +599,8 @@ export default function SignIn({
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl: "/",
+        callbackUrl: targetPath ?? "/",
         redirect: false,
-        turnstileToken,
       });
       if (result === undefined) {
         setCredentialsFormError("An unexpected error occurred.");
@@ -540,12 +621,6 @@ export default function SignIn({
       captureException(error);
       console.error(error);
       setCredentialsFormError("An unexpected error occurred.");
-    } finally {
-      // Refresh turnstile as the token can only be used once
-      if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
-        setTurnstileCData(new Date().getTime().toString());
-        setTurnstileToken(undefined);
-      }
     }
   }
 
@@ -638,8 +713,7 @@ export default function SignIn({
         {isLangfuseCloud && (
           <div className="-mb-4 mt-4 rounded-lg bg-card p-3 text-center text-sm sm:mx-auto sm:w-full sm:max-w-[480px] sm:rounded-lg sm:px-6">
             If you are experiencing issues signing in, please force refresh this
-            page (CMD + SHIFT + R) or clear your browser cache. We are working
-            on a solution.{" "}
+            page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
               href="mailto:support@langfuse.com"
               className="cursor-pointer whitespace-nowrap text-xs font-medium text-primary-accent hover:text-hover-primary-accent"
@@ -721,9 +795,6 @@ export default function SignIn({
                           : continueLoading
                       }
                       disabled={
-                        (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
-                          showPasswordStep &&
-                          turnstileToken === undefined) ||
                         credentialsForm.watch("email") === "" ||
                         (showPasswordStep &&
                           credentialsForm.watch("password") === "")
@@ -762,24 +833,6 @@ export default function SignIn({
               onProviderSelect={setLastUsedAuthMethod}
             />
           </div>
-          {
-            // Turnstile exists copy-paste also on sign-up.tsx
-            env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined && (
-              <>
-                <Divider className="text-muted-foreground" />
-                <Turnstile
-                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                  options={{
-                    theme: "light",
-                    action: "sign-in",
-                    cData: turnstileCData,
-                  }}
-                  className="mx-auto"
-                  onSuccess={setTurnstileToken}
-                />
-              </>
-            )
-          }
 
           {!signUpDisabled &&
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
@@ -787,7 +840,7 @@ export default function SignIn({
             <p className="mt-10 text-center text-sm text-muted-foreground">
               No account yet?{" "}
               <Link
-                href="/auth/sign-up"
+                href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
                 className="font-semibold leading-6 text-primary-accent hover:text-hover-primary-accent"
               >
                 Sign up

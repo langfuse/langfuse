@@ -1,6 +1,5 @@
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -16,6 +15,7 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
+import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
@@ -30,7 +30,6 @@ export const AnnotationQueueItemPage: React.FC<{
   >(null);
   const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
   const [progressIndex, setProgressIndex] = useState(0);
-  const [hasCommentDraft, setHasCommentDraft] = useState(false);
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -78,10 +77,6 @@ export const AnnotationQueueItemPage: React.FC<{
   const completeMutation = api.annotationQueueItems.complete.useMutation({
     onSuccess: async () => {
       utils.annotationQueueItems.invalidate();
-      showSuccessToast({
-        title: "Item marked as complete",
-        description: "The item is successfully marked as complete.",
-      });
       if (isSingleItem) {
         return;
       }
@@ -163,12 +158,6 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   const handleNavigateNext = async () => {
-    if (hasCommentDraft) {
-      const proceed = confirm(
-        "You have an unsaved comment. Do you want to go to the next item and discard this draft?",
-      );
-      if (!proceed) return;
-    }
     if (progressIndex >= seenItemIds.length - 1) {
       const nextItem = await fetchAndLockNextMutation.mutateAsync({
         queueId: annotationQueueId,
@@ -182,13 +171,6 @@ export const AnnotationQueueItemPage: React.FC<{
 
   const handleComplete = async () => {
     if (!relevantItem) return;
-    const willNavigate = !isSingleItem && progressIndex + 1 < totalItems;
-    if (hasCommentDraft && willNavigate) {
-      const proceed = confirm(
-        "You have an unsaved comment. Do you want to complete and move to the next item, discarding the draft?",
-      );
-      if (!proceed) return;
-    }
     await completeMutation.mutateAsync({
       itemId: relevantItem.id,
       projectId,
@@ -196,6 +178,16 @@ export const AnnotationQueueItemPage: React.FC<{
   };
 
   const renderContent = () => {
+    // Handle deleted object (trace/observation/session not found)
+    if (objectData.isError && objectData.errorCode === "NOT_FOUND") {
+      return (
+        <ObjectNotFoundCard
+          type={relevantItem?.objectType ?? AnnotationQueueObjectType.TRACE}
+        />
+      );
+    }
+
+    // Handle deleted queue item
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden">
@@ -219,7 +211,6 @@ export const AnnotationQueueItemPage: React.FC<{
             view={view}
             configs={configs}
             projectId={projectId}
-            onHasCommentDraftChange={setHasCommentDraft}
           />
         );
       case AnnotationQueueObjectType.SESSION:
@@ -229,7 +220,6 @@ export const AnnotationQueueItemPage: React.FC<{
             data={objectData.data}
             configs={configs}
             projectId={projectId}
-            onHasCommentDraftChange={setHasCommentDraft}
           />
         );
       default:
@@ -279,7 +269,9 @@ export const AnnotationQueueItemPage: React.FC<{
                 onClick={handleComplete}
                 size="lg"
                 className="w-full"
-                disabled={completeMutation.isPending || !hasAccess}
+                disabled={
+                  completeMutation.isPending || !hasAccess || objectData.isError
+                }
               >
                 {isSingleItem || progressIndex + 1 === totalItems
                   ? "Complete"

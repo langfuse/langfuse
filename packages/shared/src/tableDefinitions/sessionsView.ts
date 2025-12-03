@@ -22,6 +22,14 @@ export const sessionsViewCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: 't."environment"',
+    options: [], // to be filled in at runtime
+    nullable: true,
+  },
+  {
     name: "Session Duration (s)",
     id: "sessionDuration",
     type: "number",
@@ -102,10 +110,23 @@ export const sessionsViewCols: ColumnDefinition[] = [
     options: [], // to be added at runtime
     nullable: true,
   },
+  {
+    name: "Comment Count",
+    id: "commentCount",
+    type: "number",
+    internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Comment Content",
+    id: "commentContent",
+    type: "string",
+    internal: "", // handled by comment filter helpers
+  },
 ];
 
 export type SessionOptions = {
   userIds: Array<SingleValueOption>;
+  environment: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
@@ -117,6 +138,9 @@ export function sessionsTableColsWithOptions(
   return sessionsViewCols.map((col) => {
     if (col.id === "userIds") {
       return formatColumnOptions(col, options?.userIds ?? []);
+    }
+    if (col.id === "environment") {
+      return formatColumnOptions(col, options?.environment ?? []);
     }
     if (col.id === "tags") {
       return formatColumnOptions(col, options?.tags ?? []);

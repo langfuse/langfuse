@@ -2,13 +2,18 @@ import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import {
+  DataTableControlsProvider,
+  DataTableControls,
+} from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared";
@@ -24,6 +29,8 @@ export type JobExecutionRow = {
   startTime?: string;
   endTime?: string;
   traceId?: string;
+  sessionId?: string;
+  executionTraceId?: string;
   templateId: string;
   evaluatorId: string;
   error?: string;
@@ -42,16 +49,17 @@ export default function EvalLogTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [filterState, setFilterState] = useQueryFilterState(
-    [],
-    "job_executions",
+  const queryFilter = useSidebarFilterState(
+    evalLogFilterConfig,
+    {}, // No dynamic options needed - status options are in column definition
     projectId,
+    false,
   );
 
   const logs = api.evals.getLogs.useQuery({
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
-    filter: filterState,
+    filter: queryFilter.filterState,
     jobConfigurationId,
     projectId,
   });
@@ -122,7 +130,35 @@ export default function EvalLogTable({
     }),
     columnHelper.accessor("traceId", {
       id: "traceId",
-      header: "Trace",
+      header: "Target Trace",
+      cell: (row) => {
+        const traceId = row.getValue();
+        return traceId ? (
+          <TableLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
+            value={traceId}
+          />
+        ) : undefined;
+      },
+    }),
+    columnHelper.accessor("sessionId", {
+      id: "sessionId",
+      header: "Session",
+      enableHiding: true,
+      cell: (row) => {
+        const sessionId = row.getValue();
+        return sessionId ? (
+          <TableLink
+            path={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
+            value={sessionId}
+          />
+        ) : undefined;
+      },
+    }),
+    columnHelper.accessor("executionTraceId", {
+      id: "executionTraceId",
+      header: "Execution Trace",
+      enableHiding: true,
       cell: (row) => {
         const traceId = row.getValue();
         return traceId ? (
@@ -186,6 +222,8 @@ export default function EvalLogTable({
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
+      sessionId: jobConfig.sessionId ?? undefined,
+      executionTraceId: jobConfig.executionTraceId ?? undefined,
       templateId: jobConfig.jobTemplateId ?? "",
       evaluatorId: jobConfig.jobConfigurationId,
       error: jobConfig.error ?? undefined,
@@ -193,49 +231,59 @@ export default function EvalLogTable({
   };
 
   return (
-    <>
-      <DataTableToolbar
-        columns={columns}
-        columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        rowHeight={rowHeight}
-        setRowHeight={setRowHeight}
-        filterState={filterState}
-        setFilterState={setFilterState}
-        filterColumnDefinition={evalExecutionsFilterCols}
-      />
-      <DataTable
-        tableName={"evalLogs"}
-        columns={columns}
-        data={
-          logs.isLoading
-            ? { isLoading: true, isError: false }
-            : logs.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: logs.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(logs.data, "data", []).map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
-        pagination={{
-          totalCount,
-          onChange: setPaginationState,
-          state: paginationState,
-        }}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
-      />
-    </>
+    <DataTableControlsProvider
+      tableName={evalLogFilterConfig.tableName}
+      defaultSidebarCollapsed={evalLogFilterConfig.defaultSidebarCollapsed}
+    >
+      <div className="flex h-full w-full flex-col">
+        <DataTableToolbar
+          columns={columns}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibility}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          filterState={queryFilter.filterState}
+        />
+
+        <ResizableFilterLayout>
+          <DataTableControls queryFilter={queryFilter} />
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DataTable
+              tableName={"evalLogs"}
+              columns={columns}
+              data={
+                logs.isLoading
+                  ? { isLoading: true, isError: false }
+                  : logs.isError
+                    ? {
+                        isLoading: false,
+                        isError: true,
+                        error: logs.error.message,
+                      }
+                    : {
+                        isLoading: false,
+                        isError: false,
+                        data: safeExtract(logs.data, "data", []).map((t) =>
+                          convertToTableRow(t),
+                        ),
+                      }
+              }
+              pagination={{
+                totalCount,
+                onChange: setPaginationState,
+                state: paginationState,
+              }}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={setColumnVisibility}
+              columnOrder={columnOrder}
+              onColumnOrderChange={setColumnOrder}
+            />
+          </div>
+        </ResizableFilterLayout>
+      </div>
+    </DataTableControlsProvider>
   );
 }

@@ -23,6 +23,8 @@ import GoogleProvider, { type GoogleProfile } from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import GitLabProvider from "next-auth/providers/gitlab";
 import OktaProvider from "next-auth/providers/okta";
+import AuthentikProvider from "next-auth/providers/authentik";
+import OneLoginProvider from "next-auth/providers/onelogin";
 import EmailProvider from "next-auth/providers/email";
 import { randomInt } from "crypto";
 import Auth0Provider from "next-auth/providers/auth0";
@@ -30,6 +32,7 @@ import CognitoProvider from "next-auth/providers/cognito";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import WorkOSProvider from "next-auth/providers/workos";
+import WordPressProvider from "next-auth/providers/wordpress";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
 import {
@@ -37,15 +40,18 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
+import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import { z } from "zod/v4";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
+  JumpCloudProvider,
   traceException,
   sendResetPasswordVerificationRequest,
   instrumentAsync,
   logger,
+  resolveProjectRole,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -55,7 +61,6 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { resolveProjectRole } from "@/src/features/rbac/utils/userProjectRole";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -87,11 +92,6 @@ const staticProviders: Provider[] = [
         placeholder: "jsmith@example.com",
       },
       password: { label: "Password", type: "password" },
-      turnstileToken: {
-        label: "Turnstile Token (Captcha)",
-        type: "text",
-        value: "dummy",
-      },
     },
     async authorize(credentials, _req) {
       if (!credentials) throw new Error("No credentials");
@@ -99,23 +99,6 @@ const staticProviders: Provider[] = [
         throw new Error(
           "Sign in with email and password is disabled for this instance. Please use SSO.",
         );
-
-      if (env.TURNSTILE_SECRET_KEY && env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-        const res = await fetch(
-          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-          {
-            method: "POST",
-            body: `secret=${encodeURIComponent(env.TURNSTILE_SECRET_KEY)}&response=${encodeURIComponent(credentials.turnstileToken)}`,
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-            },
-          },
-        );
-        const data = await res.json();
-        if (data.success === false) {
-          throw new Error("Invalid captcha token");
-        }
-      }
 
       const blockedDomains = getSSOBlockedDomains();
       const domain = credentials.email.split("@")[1]?.toLowerCase();
@@ -129,9 +112,7 @@ const staticProviders: Provider[] = [
       const multiTenantSsoProvider =
         await getSsoAuthProviderIdForDomain(domain);
       if (multiTenantSsoProvider) {
-        throw new Error(
-          `Sign in with SSO is required for this domain. Please enter your email address and click continue to proceed.`,
-        );
+        throw new Error(ENTERPRISE_SSO_REQUIRED_MESSAGE);
       }
 
       const dbUser = await prisma.user.findUnique({
@@ -203,7 +184,7 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_CUSTOM_CHECKS,
+      ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
   );
 
@@ -217,7 +198,7 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_GOOGLE_CHECKS,
+      ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
   );
 
@@ -236,7 +217,47 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_OKTA_CHECKS,
+      ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
+    }),
+  );
+
+if (
+  env.AUTH_AUTHENTIK_CLIENT_ID &&
+  env.AUTH_AUTHENTIK_CLIENT_SECRET &&
+  env.AUTH_AUTHENTIK_ISSUER
+)
+  staticProviders.push(
+    AuthentikProvider({
+      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+      issuer: env.AUTH_AUTHENTIK_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_AUTHENTIK_CHECKS
+        ? { checks: env.AUTH_AUTHENTIK_CHECKS }
+        : {}),
+    }),
+  );
+
+if (
+  env.AUTH_ONELOGIN_CLIENT_ID &&
+  env.AUTH_ONELOGIN_CLIENT_SECRET &&
+  env.AUTH_ONELOGIN_ISSUER
+)
+  staticProviders.push(
+    OneLoginProvider({
+      clientId: env.AUTH_ONELOGIN_CLIENT_ID,
+      clientSecret: env.AUTH_ONELOGIN_CLIENT_SECRET,
+      issuer: env.AUTH_ONELOGIN_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
   );
 
@@ -255,7 +276,7 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_AUTH0_CHECKS,
+      ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
     }),
   );
 
@@ -269,7 +290,7 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_GITHUB_CHECKS,
+      ...(env.AUTH_GITHUB_CHECKS ? { checks: env.AUTH_GITHUB_CHECKS } : {}),
     }),
   );
 
@@ -289,7 +310,9 @@ if (
         token_endpoint_auth_method:
           env.AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS,
+      ...(env.AUTH_GITHUB_ENTERPRISE_CHECKS
+        ? { checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS }
+        : {}),
     }),
   );
 }
@@ -311,7 +334,7 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       },
       token: `${env.AUTH_GITLAB_URL}/oauth/token`,
       userinfo: `${env.AUTH_GITLAB_URL}/api/v4/user`,
-      checks: env.AUTH_GITLAB_CHECKS,
+      ...(env.AUTH_GITLAB_CHECKS ? { checks: env.AUTH_GITLAB_CHECKS } : {}),
     }),
   );
 
@@ -330,7 +353,7 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_AZURE_AD_CHECKS,
+      ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
   );
 
@@ -344,12 +367,14 @@ if (
       clientId: env.AUTH_COGNITO_CLIENT_ID,
       clientSecret: env.AUTH_COGNITO_CLIENT_SECRET,
       issuer: env.AUTH_COGNITO_ISSUER,
-      checks: env.AUTH_COGNITO_CHECKS ?? "nonce",
       allowDangerousEmailAccountLinking:
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
       },
+      ...(env.AUTH_COGNITO_CHECKS
+        ? { checks: env.AUTH_COGNITO_CHECKS }
+        : { checks: "nonce" }),
     }),
   );
 
@@ -372,7 +397,31 @@ if (
       client: {
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
       },
-      checks: env.AUTH_KEYCLOAK_CHECKS,
+      ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
+    }),
+  );
+
+if (
+  env.AUTH_JUMPCLOUD_CLIENT_ID &&
+  env.AUTH_JUMPCLOUD_CLIENT_SECRET &&
+  env.AUTH_JUMPCLOUD_ISSUER
+)
+  staticProviders.push(
+    JumpCloudProvider({
+      clientId: env.AUTH_JUMPCLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_JUMPCLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_JUMPCLOUD_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      authorization: {
+        params: { scope: env.AUTH_JUMPCLOUD_SCOPE ?? "openid profile email" },
+      },
+      client: {
+        token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_JUMPCLOUD_CHECKS
+        ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
+        : {}),
     }),
   );
 
@@ -386,6 +435,22 @@ if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
       client: {
         token_endpoint_auth_method: "client_secret_post",
       },
+    }),
+  );
+
+if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
+  staticProviders.push(
+    WordPressProvider({
+      clientId: env.AUTH_WORDPRESS_CLIENT_ID,
+      clientSecret: env.AUTH_WORDPRESS_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_WORDPRESS_CHECKS
+        ? { checks: env.AUTH_WORDPRESS_CHECKS }
+        : {}),
     }),
   );
 
@@ -425,13 +490,15 @@ const extendedPrismaAdapter: Adapter = {
     // (refresh_expires_in and not-before-policy in).
     // So, we need to remove this data from the payload before linking an account.
     // https://github.com/nextauthjs/next-auth/issues/7655
-    if (data.provider === "keycloak") {
+    if (data.provider.endsWith("keycloak")) {
+      // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
       delete data["refresh_expires_in"];
       delete data["not-before-policy"];
     }
 
     // WorkOS returns profile data that doesn't match the schema
-    if (data.provider === "workos") {
+    if (data.provider.endsWith("workos")) {
+      // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
       delete data["profile"];
     }
 
@@ -680,10 +747,17 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             multiTenantSsoProvider &&
             account?.provider !== multiTenantSsoProvider
           ) {
-            console.log(
+            logger.info(
               "Custom SSO provider enforced for domain, user signed in with other provider",
+              { email, attemptedProvider: account?.provider },
             );
-            throw new Error(`You must sign in via SSO for this domain.`);
+            const params = new URLSearchParams({
+              reason: "sso_enforced_domain",
+            });
+            if (email) params.set("email", email);
+            if (account?.provider)
+              params.set("attemptedProvider", account.provider);
+            return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
           }
 
           // EE: Check that provider is only used for the associated domain

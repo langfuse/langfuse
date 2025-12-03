@@ -86,7 +86,7 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "flex gap-2 whitespace-pre-wrap break-words p-3 text-xs",
+          "io-message-content flex gap-2 whitespace-pre-wrap break-words p-2 text-xs",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
             : "",
@@ -111,6 +111,7 @@ export function JSONView(props: {
             src={parsedJson}
             theme="github"
             dark={resolvedTheme === "dark"}
+            collapsed={isCollapsed ? 1 : false}
             collapseObjectsAfterLength={isCollapsed ? 0 : 20}
             collapseStringsAfterLength={collapseStringsAfterLength}
             collapseStringMode="word"

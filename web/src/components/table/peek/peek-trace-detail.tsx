@@ -22,7 +22,7 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
   );
 
   return !peekId || !trace.data ? (
-    <Skeleton className="h-full w-full" />
+    <Skeleton className="h-full w-full rounded-none" />
   ) : (
     <Trace
       key={trace.data.id}
@@ -32,6 +32,7 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
       observations={trace.data.observations}
       selectedTab={selectedTab}
       setSelectedTab={setSelectedTab}
+      context="peek"
     />
   );
 };

@@ -1,7 +1,6 @@
 import { Terminal, ChevronDown } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
-import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
@@ -10,8 +9,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { Switch } from "@/src/components/ui/switch";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -28,25 +29,23 @@ import {
   type UIModelParams,
   ZodModelConfig,
   ChatMessageType,
-  LLMToolCallSchema,
-  OpenAIToolCallSchema,
-  OpenAIToolSchema,
   type ChatMessage,
   OpenAIResponseFormatSchema,
   type Prisma,
-  PlaceholderMessageSchema,
   type PlaceholderMessage,
-  isPlaceholder,
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
-import {
-  LANGGRAPH_NODE_TAG,
-  LANGGRAPH_STEP_TAG,
-} from "@/src/features/trace-graph-view/types";
+import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
+import { extractTools } from "@/src/utils/chatml/extractTools";
+import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import {
+  type MetadataDomainClient,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -56,16 +55,19 @@ type JumpToPlaygroundButtonProps = (
     }
   | {
       source: "generation";
-      generation: Omit<Observation, "input" | "output" | "metadata"> & {
+      generation: Omit<
+        WithStringifiedMetadata<Observation>,
+        "input" | "output"
+      > & {
         input: string | null;
         output: string | null;
-        metadata: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
   variant?: "outline" | "secondary";
   className?: string;
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -77,6 +79,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const [includeOutput, setIncludeOutput] = useState<boolean>(false);
 
   // Generate a stable window ID based on the source data
   const stableWindowId = useMemo(() => {
@@ -124,9 +127,11 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     if (promptData) {
       setCapturedState(parsePrompt(promptData));
     } else if (generationData) {
-      setCapturedState(parseGeneration(generationData, modelToProviderMap));
+      setCapturedState(
+        parseGeneration(generationData, modelToProviderMap, includeOutput),
+      );
     }
-  }, [promptData, generationData, modelToProviderMap]);
+  }, [promptData, generationData, modelToProviderMap, includeOutput]);
 
   useEffect(() => {
     if (capturedState) {
@@ -189,6 +194,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       <DropdownMenuTrigger asChild>
         <Button
           variant={props.variant ?? "secondary"}
+          size={props.size ?? "default"}
           disabled={!isAvailable}
           title={tooltipMessage}
           className={cn(
@@ -196,7 +202,9 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
             !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           )}
         >
-          <Terminal className="h-4 w-4" />
+          <Terminal
+            className={props.size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+          />
           <span className={cn("hidden md:inline", props.className)}>
             Playground
           </span>
@@ -212,255 +220,46 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
           <Terminal className="mr-2 h-4 w-4" />
           Add to existing
         </DropdownMenuItem>
+        {props.source === "generation" && (
+          <>
+            <DropdownMenuSeparator />
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className="text-sm">Include output</span>
+              <Switch
+                checked={includeOutput}
+                onCheckedChange={setIncludeOutput}
+              />
+            </div>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
-};
-
-// Is LangGraph Trace? Decide from metadata. If so, we might need to recognise roles as tool names
-const isLangGraphTrace = (generation: { metadata: string | null }): boolean => {
-  if (!generation.metadata) return false;
-
-  try {
-    let metadata = generation.metadata;
-    if (typeof metadata === "string") {
-      metadata = JSON.parse(metadata);
-    }
-
-    if (typeof metadata === "object" && metadata !== null) {
-      return LANGGRAPH_NODE_TAG in metadata || LANGGRAPH_STEP_TAG in metadata;
-    }
-  } catch {
-    // Ignore JSON parsing errors
-  }
-
-  return false;
-};
-
-// Normalize LangGraph tool messages by converting tool-name roles to "tool"
-// And normalize Google/Gemini format (model role + parts field)
-const normalizeLangGraphMessage = (
-  message: unknown,
-  isLangGraph: boolean = false,
-): unknown => {
-  if (!message || typeof message !== "object" || !("role" in message)) {
-    return message;
-  }
-
-  const msg = message as any;
-  const validRoles = Object.values(ChatMessageRole);
-  let normalizedMessage = { ...msg };
-
-  // convert google format: "model" role -> "assistant"
-  if (msg.role === "model") {
-    normalizedMessage.role = ChatMessageRole.Assistant;
-  }
-
-  // convert google format: "parts" field -> "content" field
-  if (msg.parts && Array.isArray(msg.parts)) {
-    const content = msg.parts
-      .map((part: any) =>
-        typeof part === "object" && part.text ? part.text : String(part),
-      )
-      .join("");
-    normalizedMessage.content = content;
-    delete normalizedMessage.parts;
-  }
-
-  // convert LangGraph: invalid roles -> "tool" role
-  if (
-    isLangGraph &&
-    !validRoles.includes(normalizedMessage.role as ChatMessageRole)
-  ) {
-    return {
-      ...normalizedMessage,
-      role: ChatMessageRole.Tool,
-      _originalRole: msg.role,
-    };
-  }
-
-  return normalizedMessage;
-};
-
-const ParsedChatMessageListSchema = z.array(
-  z.union([
-    // Regular chat message
-    z.object({
-      role: z.enum(ChatMessageRole),
-      content: z.union([
-        z.string(),
-        z
-          .array(
-            z
-              .object({
-                text: z.string(),
-              })
-              .transform((v) => v.text),
-          )
-          .transform((v) => v.join("")),
-        z.union([z.null(), z.undefined()]).transform((_) => ""),
-        z.any().transform((v) => JSON.stringify(v, null, 2)),
-      ]),
-      tool_calls: z
-        .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
-        .optional(),
-      tool_call_id: z.string().optional(),
-      additional_kwargs: z
-        .object({
-          tool_calls: z
-            .union([z.array(LLMToolCallSchema), z.array(OpenAIToolCallSchema)])
-            .optional(),
-        })
-        .optional(),
-      _originalRole: z.string().optional(), // original LangGraph role
-    }),
-    PlaceholderMessageSchema,
-  ]),
-);
-
-// Langchain integration has the tool definition in a tool message
-// Those need to be filtered out in the chat messages and parsed when looking for tools
-const isLangchainToolDefinitionMessage = (
-  message: z.infer<typeof ParsedChatMessageListSchema>[0],
-): message is { content: string; role: ChatMessageRole } => {
-  if (!("content" in message) || typeof message.content !== "string") {
-    return false;
-  }
-  try {
-    return OpenAIToolSchema.safeParse(JSON.parse(message.content)).success;
-  } catch {
-    return false;
-  }
-};
-
-const transformToPlaygroundMessage = (
-  message: z.infer<typeof ParsedChatMessageListSchema>[0],
-  allMessages?: z.infer<typeof ParsedChatMessageListSchema>,
-): ChatMessage | PlaceholderMessage | null => {
-  // Return placeholder messages as-is
-  if (isPlaceholder(message)) {
-    return message;
-  }
-
-  // Handle regular chat messages - remove the placeholder type
-  const regularMessage = message as Exclude<typeof message, PlaceholderMessage>;
-  const { role, content } = regularMessage;
-
-  if (
-    regularMessage.role === "assistant" &&
-    (regularMessage.tool_calls || regularMessage.additional_kwargs?.tool_calls)
-  ) {
-    const toolCalls =
-      regularMessage.tool_calls ??
-      regularMessage.additional_kwargs?.tool_calls ??
-      [];
-
-    const playgroundMessage: ChatMessage = {
-      role: ChatMessageRole.Assistant,
-      content,
-      type: ChatMessageType.AssistantToolCall,
-      toolCalls: toolCalls.map((tc) => {
-        if ("function" in tc) {
-          return {
-            name: tc.function.name,
-            id: tc.id,
-            args: tc.function.arguments,
-          };
-        }
-
-        return tc;
-      }),
-    };
-
-    return playgroundMessage;
-  } else if (regularMessage.role === "tool") {
-    let toolCallId = (regularMessage as any).tool_call_id;
-
-    // Try to infer if tool_call_id is missing or empty (eg langgraph case)
-    if (!toolCallId && allMessages && regularMessage._originalRole) {
-      // Find all assistant messages with tool calls, most recent first
-      const assistantMessages = allMessages
-        .filter(
-          (msg): msg is Exclude<typeof msg, PlaceholderMessage> =>
-            !isPlaceholder(msg) &&
-            msg.role === "assistant" &&
-            !!(msg.tool_calls || msg.additional_kwargs?.tool_calls),
-        )
-        .reverse();
-
-      // Look for the first matching tool call by name
-      for (const prevMessage of assistantMessages) {
-        const toolCalls =
-          prevMessage.tool_calls ??
-          prevMessage.additional_kwargs?.tool_calls ??
-          [];
-
-        const matchingCall = toolCalls.find((tc) => {
-          if ("function" in tc) {
-            return tc.function.name === regularMessage._originalRole;
-          }
-          return tc.name === regularMessage._originalRole;
-        });
-
-        if (matchingCall && matchingCall.id) {
-          toolCallId = matchingCall.id;
-          break;
-        }
-      }
-    }
-
-    const playgroundMessage: ChatMessage = {
-      role: ChatMessageRole.Tool,
-      content,
-      type: ChatMessageType.ToolResult,
-      toolCallId: toolCallId || "",
-    };
-
-    return playgroundMessage;
-  } else {
-    return {
-      role,
-      content,
-      type: ChatMessageType.PublicAPICreated,
-    };
-  }
 };
 
 const parsePrompt = (
   prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
 ): PlaygroundCache => {
   if (prompt.type === PromptType.Chat) {
-    // For prompts, we can't detect LangGraph from metadata, so we check for invalid roles
-    // If any msg has an invalid role, we assume it might be LangGraph format
-    const isLangGraph =
-      Array.isArray(prompt.resolvedPrompt) &&
-      (prompt.resolvedPrompt as any[]).some(
-        (msg) =>
-          msg &&
-          typeof msg === "object" &&
-          "role" in msg &&
-          !Object.values(ChatMessageRole).includes(msg.role as ChatMessageRole),
-      );
+    try {
+      const inResult = normalizeInput(prompt.resolvedPrompt);
 
-    const normalizedMessages = Array.isArray(prompt.resolvedPrompt)
-      ? (prompt.resolvedPrompt as any[]).map((msg) =>
-          normalizeLangGraphMessage(msg, isLangGraph),
-        )
-      : prompt.resolvedPrompt;
+      const messages = inResult.success
+        ? inResult.data
+            .map(convertChatMlToPlayground)
+            .filter(
+              (msg): msg is ChatMessage | PlaceholderMessage => msg !== null,
+            )
+        : [];
 
-    const parsedMessages =
-      ParsedChatMessageListSchema.safeParse(normalizedMessages);
+      if (messages.length === 0) return null;
 
-    if (!parsedMessages.success) {
+      return { messages };
+    } catch {
       return null;
     }
-
-    return {
-      messages: parsedMessages.data
-        .map((msg) => transformToPlaygroundMessage(msg, parsedMessages.data))
-        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
-    };
   } else {
+    // Text prompt
     const promptString = prompt.resolvedPrompt;
 
     return {
@@ -476,41 +275,54 @@ const parsePrompt = (
 };
 
 const parseGeneration = (
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
   modelToProviderMap: Record<string, string>,
+  includeOutput: boolean = false,
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
-  const isLangGraph = isLangGraphTrace(generation);
-  const modelParams = parseModelParams(generation, modelToProviderMap);
-  const tools = parseTools(generation, isLangGraph);
+  let modelParams = parseModelParams(generation, modelToProviderMap);
+  const tools = parseTools(
+    generation.input,
+    generation.output,
+    generation.metadata,
+  );
+
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
+  const providerOptions = parseLitellmMetadataFromGeneration(generation);
+
+  if (modelParams && providerOptions) {
+    const existingProviderOptions =
+      modelParams.providerOptions?.value ??
+      ({} as UIModelParams["providerOptions"]["value"]);
+
+    const mergedProviderOptions = {
+      ...existingProviderOptions,
+      ...providerOptions,
+    } as UIModelParams["providerOptions"]["value"];
+
+    modelParams = {
+      ...modelParams,
+      providerOptions: {
+        value: mergedProviderOptions,
+        enabled: true,
+      },
+    };
+  }
 
   let input = generation.input?.valueOf();
 
-  if (!!input && typeof input === "string") {
+  if (!input) return null;
+
+  // parse string inputs as JSON or treat as text prompt
+  if (typeof input === "string") {
     try {
       input = JSON.parse(input);
-
-      if (typeof input === "string") {
-        return {
-          messages: [
-            createEmptyMessage({
-              type: ChatMessageType.System,
-              role: ChatMessageRole.System,
-              content: input,
-            }),
-          ],
-          modelParams,
-          tools,
-          structuredOutputSchema,
-        };
-      }
-    } catch (err) {
+    } catch {
+      // Parse failed, treat as text prompt
       return {
         messages: [
           createEmptyMessage({
@@ -524,62 +336,106 @@ const parseGeneration = (
         structuredOutputSchema,
       };
     }
+
+    // After parsing, if still string, it's a text prompt
+    if (typeof input === "string") {
+      return {
+        messages: [
+          createEmptyMessage({
+            type: ChatMessageType.System,
+            role: ChatMessageRole.System,
+            content: input,
+          }),
+        ],
+        modelParams,
+        tools,
+        structuredOutputSchema,
+      };
+    }
   }
 
-  if (!!input && typeof input === "object") {
-    const messageData = "messages" in input ? input["messages"] : input;
+  if (typeof input === "object") {
+    try {
+      const ctx = {
+        metadata:
+          typeof generation.metadata === "string"
+            ? JSON.parse(generation.metadata)
+            : generation.metadata,
+        observationName: generation.name ?? undefined,
+      };
 
-    const normalizedMessages = Array.isArray(messageData)
-      ? (messageData as any[]).map((msg) =>
-          normalizeLangGraphMessage(msg, isLangGraph),
-        )
-      : messageData;
+      const inResult = normalizeInput(input, ctx);
 
-    const parsedMessages =
-      ParsedChatMessageListSchema.safeParse(normalizedMessages);
+      let messages = inResult.success
+        ? inResult.data
+            .map(convertChatMlToPlayground)
+            .filter(
+              (msg): msg is ChatMessage | PlaceholderMessage => msg !== null,
+            )
+        : [];
 
-    if (!parsedMessages.success) {
+      if (includeOutput) {
+        // process output for final assistant message
+        // this doesn't make that much sense, because the output is already the LLM result
+        // but some people wanted to have the entire thing, so that they can then iterate
+        // on the final result (e.g. ask it questions).
+        // NOTE: will probably remove later at some point on next playground release
+        let output = generation.output?.valueOf();
+        if (output && typeof output === "string") {
+          try {
+            output = JSON.parse(output);
+          } catch {
+            // ignore parse errors
+          }
+        }
+
+        if (output && typeof output === "object") {
+          try {
+            const outResult = normalizeOutput(output, ctx);
+            const outputMessages = outResult.success
+              ? outResult.data
+                  .map(convertChatMlToPlayground)
+                  .filter(
+                    (msg): msg is ChatMessage | PlaceholderMessage =>
+                      msg !== null,
+                  )
+                  // Filter tool calls without results (i.e. assistant messages with tool_calls but no results)
+                  // here, a tool was just selected by an LLM but not called yet.
+                  // we don't want this in the playground, because we a) cannot run the playground
+                  // and b) if we jump to the playground, we exactly want to test if the LLM selects the tool
+                  .filter(
+                    (msg) => msg.type !== ChatMessageType.AssistantToolCall,
+                  )
+              : [];
+
+            // Append output messages to input messages
+            messages = [...messages, ...outputMessages];
+          } catch {
+            // ignore output processing errors
+          }
+        }
+      }
+
+      if (messages.length === 0) return null;
+
+      // Extract tools from normalized ChatML messages (they may have tools attached)
+      const normalizedTools =
+        inResult.success && inResult.data
+          ? extractTools(inResult.data, ctx.metadata)
+          : [];
+
+      // Merge with tools from input/metadata, prefer normalized tools
+      const mergedTools = normalizedTools.length > 0 ? normalizedTools : tools;
+
+      return {
+        messages,
+        modelParams,
+        tools: mergedTools,
+        structuredOutputSchema,
+      };
+    } catch {
       return null;
     }
-
-    const filteredMessages = parsedMessages.data.filter(
-      (m) => !isLangchainToolDefinitionMessage(m),
-    );
-    return {
-      messages: filteredMessages
-        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
-        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
-      modelParams,
-      tools,
-      structuredOutputSchema,
-    };
-  }
-
-  if (!!input && typeof input === "object" && "messages" in input) {
-    const normalizedMessages = Array.isArray(input["messages"])
-      ? (input["messages"] as any[]).map((msg) =>
-          normalizeLangGraphMessage(msg, isLangGraph),
-        )
-      : input["messages"];
-
-    const parsedMessages =
-      ParsedChatMessageListSchema.safeParse(normalizedMessages);
-
-    if (!parsedMessages.success) {
-      return null;
-    }
-
-    const filteredMessages = parsedMessages.data.filter(
-      (m) => !isLangchainToolDefinitionMessage(m),
-    );
-    return {
-      messages: filteredMessages
-        .map((msg) => transformToPlaygroundMessage(msg, filteredMessages))
-        .filter((msg): msg is ChatMessage | PlaceholderMessage => msg !== null),
-      modelParams,
-      tools,
-      structuredOutputSchema,
-    };
   }
 
   return null;
@@ -628,60 +484,35 @@ function parseModelParams(
 }
 
 function parseTools(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
-    input: string | null;
-    output: string | null;
-    metadata: string | null;
-  },
-  isLangGraph: boolean = false,
+  inputString: string | null,
+  outputString: string | null,
+  metadataString: MetadataDomainClient,
 ): PlaygroundTool[] {
-  // OpenAI Schema
+  if (!inputString && !outputString && !metadataString) return [];
+
   try {
-    const input = JSON.parse(generation.input as string);
-    if (typeof input === "object" && input !== null && "tools" in input) {
-      const parsedTools = z.array(OpenAIToolSchema).safeParse(input["tools"]);
+    const input = inputString ? JSON.parse(inputString) : null;
+    const output = outputString ? JSON.parse(outputString) : null;
+    const metadata = metadataString ? JSON.parse(metadataString) : null;
 
-      if (parsedTools.success)
-        return parsedTools.data.map((tool) => ({
-          id: Math.random().toString(36).substring(2),
-          ...tool.function,
-        }));
+    const inputTools = extractTools(input, metadata);
+    if (inputTools.length > 0) return inputTools;
+
+    // also check the output for tools, e.g. if a user jumps from the last generation
+    if (output) {
+      return extractTools(output, metadata);
     }
-  } catch {}
 
-  // Langchain Schema
-  try {
-    const input = JSON.parse(generation.input as string);
-
-    if (typeof input === "object" && input !== null) {
-      const messageData = "messages" in input ? input["messages"] : input;
-      const normalizedMessages = Array.isArray(messageData)
-        ? (messageData as any[]).map((msg) =>
-            normalizeLangGraphMessage(msg, isLangGraph),
-          )
-        : messageData;
-
-      const parsedMessages =
-        ParsedChatMessageListSchema.safeParse(normalizedMessages);
-
-      if (parsedMessages.success)
-        return parsedMessages.data
-          .filter(isLangchainToolDefinitionMessage)
-          .map((tool) => ({
-            id: Math.random().toString(36).substring(2),
-            ...JSON.parse(tool.content).function,
-          }));
-    }
-  } catch {}
-
-  return [];
+    return [];
+  } catch {
+    return [];
+  }
 }
 
 function parseStructuredOutputSchema(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
 ): PlaygroundSchema | null {
   try {
@@ -735,4 +566,59 @@ function parseStructuredOutputSchema(
     }
   } catch {}
   return null;
+}
+
+/**
+ * LiteLLM supports custom providers such as with its CustomLLM interface. Clients may
+ * send provider‑specific options in addition to standard parameters (e.g., temperature, top_p, max_tokens).
+ * LiteLLM records those extras on the generation as metadata.requester_metadata. When a user clicks
+ * “Open in Playground,” we lift requester_metadata into providerOptions so those custom options carry
+ * over for re‑run/compare/edit. This lets the Playground faithfully replay LiteLLM CustomLLM‑based
+ * workflows and preserves the original call’s intent.
+ *
+ * References:
+ * - https://docs.litellm.ai/docs/providers/custom_llm_server
+ * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
+ */
+function parseLitellmMetadataFromGeneration(
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
+    input: string | null;
+    output: string | null;
+  },
+): UIModelParams["providerOptions"]["value"] | undefined {
+  let metadata: unknown = generation.metadata;
+
+  if (metadata === null || metadata === undefined) {
+    return undefined;
+  }
+
+  if (typeof metadata === "string") {
+    const trimmedMetadata = metadata.trim();
+
+    if (!trimmedMetadata) {
+      return undefined;
+    }
+
+    try {
+      metadata = JSON.parse(trimmedMetadata);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (typeof metadata !== "object" || metadata === null) {
+    return undefined;
+  }
+
+  const requesterMetadata = (metadata as Record<string, unknown>)[
+    "requester_metadata"
+  ];
+
+  if (typeof requesterMetadata !== "object" || requesterMetadata === null) {
+    return undefined;
+  }
+
+  return {
+    metadata: requesterMetadata,
+  } as UIModelParams["providerOptions"]["value"];
 }

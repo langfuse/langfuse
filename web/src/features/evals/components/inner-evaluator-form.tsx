@@ -48,6 +48,7 @@ import {
   isTraceOrDatasetObject,
   isTraceTarget,
   type LangfuseObject,
+  type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import {
@@ -80,6 +81,25 @@ import { InfoIcon } from "lucide-react";
 const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
 );
+
+const OUTPUT_MAPPING = [
+  "generation",
+  "output",
+  "response",
+  "answer",
+  "completion",
+];
+
+const inferDefaultMapping = (
+  variable: string,
+): Pick<VariableMapping, "langfuseObject" | "selectedColumnId"> => {
+  return {
+    langfuseObject: "trace" as const,
+    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
+      ? "output"
+      : "input",
+  };
+};
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -116,7 +136,7 @@ const TracesPreview = memo(
             Sample over the last 24 hours that match these filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             <TracesTable
               projectId={projectId}
@@ -215,8 +235,23 @@ export const InnerEvaluatorForm = (props: {
     );
 
   const traceFilterOptions = useMemo(() => {
+    // Normalize API response to match TraceOptions type (count should be number, not string)
+    const normalized = traceFilterOptionsResponse.data
+      ? {
+          name: traceFilterOptionsResponse.data.name?.map((n) => ({
+            value: n.value,
+            count: Number(n.count),
+          })),
+          scores_avg: traceFilterOptionsResponse.data.scores_avg,
+          score_categories: traceFilterOptionsResponse.data.score_categories,
+          tags: traceFilterOptionsResponse.data.tags?.map((t) => ({
+            value: t.value,
+          })),
+        }
+      : {};
+
     return {
-      ...(traceFilterOptionsResponse.data ?? {}),
+      ...normalized,
       environment: environmentFilterOptionsResponse.data?.map((e) => ({
         value: e.environment,
       })),
@@ -269,8 +304,7 @@ export const InnerEvaluatorForm = (props: {
         "mapping",
         props.evalTemplate.vars.map((v) => ({
           templateVariable: v,
-          langfuseObject: "trace" as const,
-          selectedColumnId: "input",
+          ...inferDefaultMapping(v),
         })),
       );
       form.setValue("scoreName", `${props.evalTemplate.name}`);

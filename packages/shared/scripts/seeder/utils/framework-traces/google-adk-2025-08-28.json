@@ -1,0 +1,1097 @@
+{
+  "trace": {
+    "id": "b82a0bdc1994fc5d1c8576ca032543f7",
+    "projectId": "cloramnkj0002jz088vzn1ja4",
+    "name": "invocation [hello_app]",
+    "timestamp": "2025-08-28T07:32:30.303Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": "demo-user",
+    "sessionId": "demo-session",
+    "public": true,
+    "input": "\"{\\\"user_id\\\":\\\"demo-user\\\",\\\"session_id\\\":\\\"demo-session\\\",\\\"new_message\\\":{\\\"parts\\\":[{\\\"text\\\":\\\"hi\\\"}],\\\"role\\\":\\\"user\\\"},\\\"state_delta\\\":null,\\\"run_config\\\":{\\\"save_input_blobs_as_artifacts\\\":false,\\\"support_cfc\\\":false,\\\"streaming_mode\\\":\\\"StreamingMode.NONE\\\",\\\"max_llm_calls\\\":500}}\"",
+    "output": "\"{\\\"content\\\":{\\\"parts\\\":[{\\\"text\\\":\\\"Hello Langfuse 👋!\\\\n\\\"}],\\\"role\\\":\\\"model\\\"},\\\"finish_reason\\\":\\\"STOP\\\",\\\"usage_metadata\\\":{\\\"candidates_token_count\\\":6,\\\"candidates_tokens_details\\\":[{\\\"modality\\\":\\\"TEXT\\\",\\\"token_count\\\":6}],\\\"prompt_token_count\\\":39,\\\"prompt_tokens_details\\\":[{\\\"modality\\\":\\\"TEXT\\\",\\\"token_count\\\":39}],\\\"total_token_count\\\":45},\\\"invocation_id\\\":\\\"e-5022fa36-69c5-4fe7-bb37-662704dcb713\\\",\\\"author\\\":\\\"hello_agent\\\",\\\"actions\\\":{\\\"state_delta\\\":{},\\\"artifact_delta\\\":{},\\\"requested_auth_configs\\\":{}},\\\"id\\\":\\\"f2596747-d905-44bc-b85c-1e9692c3249c\\\",\\\"timestamp\\\":1756366351.22196}\"",
+    "metadata": "{\"attributes\":{\"session.id\":\"demo-session\",\"user.id\":\"demo-user\",\"output.value\":\"{\\\"content\\\":{\\\"parts\\\":[{\\\"text\\\":\\\"Hello Langfuse 👋!\\\\n\\\"}],\\\"role\\\":\\\"model\\\"},\\\"finish_reason\\\":\\\"STOP\\\",\\\"usage_metadata\\\":{\\\"candidates_token_count\\\":6,\\\"candidates_tokens_details\\\":[{\\\"modality\\\":\\\"TEXT\\\",\\\"token_count\\\":6}],\\\"prompt_token_count\\\":39,\\\"prompt_tokens_details\\\":[{\\\"modality\\\":\\\"TEXT\\\",\\\"token_count\\\":39}],\\\"total_token_count\\\":45},\\\"invocation_id\\\":\\\"e-5022fa36-69c5-4fe7-bb37-662704dcb713\\\",\\\"author\\\":\\\"hello_agent\\\",\\\"actions\\\":{\\\"state_delta\\\":{},\\\"artifact_delta\\\":{},\\\"requested_auth_configs\\\":{}},\\\"id\\\":\\\"f2596747-d905-44bc-b85c-1e9692c3249c\\\",\\\"timestamp\\\":1756366351.22196}\",\"output.mime_type\":\"application/json\",\"openinference.span.kind\":\"AGENT\"},\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.36.0\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"openinference.instrumentation.google_adk\",\"version\":\"0.1.3\",\"attributes\":{}}}",
+    "createdAt": "2025-08-28T07:32:30.303Z",
+    "updatedAt": "2025-08-28T07:33:02.230Z",
+    "scores": [
+      {
+        "id": "23fb2bfb-7c1e-4c91-bf34-9d846eb9b1eb",
+        "timestamp": "2025-08-28T07:33:02.142Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "toxicity",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The generation is friendly and welcoming, containing no harmful or disrespectful language, thus it scores a 0 for toxicity.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-08-28T07:33:03.000Z",
+        "updatedAt": "2025-08-28T07:33:02.230Z",
+        "queueId": null,
+        "traceId": "b82a0bdc1994fc5d1c8576ca032543f7",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      },
+      {
+        "id": "66afb5b7-1342-48de-b567-9970d4227b26",
+        "timestamp": "2025-08-28T07:33:01.935Z",
+        "projectId": "cloramnkj0002jz088vzn1ja4",
+        "environment": "default",
+        "name": "hallucination",
+        "source": "EVAL",
+        "authorUserId": null,
+        "comment": "The model's response is a simple friendly greeting and does not include any factual content or information that could be incorrect, implausible, or invented, so it does not hallucinate.",
+        "metadata": "{}",
+        "configId": null,
+        "createdAt": "2025-08-28T07:33:02.000Z",
+        "updatedAt": "2025-08-28T07:33:01.999Z",
+        "queueId": null,
+        "traceId": "b82a0bdc1994fc5d1c8576ca032543f7",
+        "observationId": null,
+        "sessionId": null,
+        "datasetRunId": null,
+        "value": 0,
+        "stringValue": null,
+        "dataType": "NUMERIC"
+      }
+    ],
+    "latency": 1.848
+  },
+  "observations": [
+    {
+      "id": "bded677884f031ce",
+      "traceId": "b82a0bdc1994fc5d1c8576ca032543f7",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "6d8beb2e6a36b133",
+      "startTime": "2025-08-28T07:32:31.222Z",
+      "endTime": "2025-08-28T07:32:32.146Z",
+      "name": "call_llm",
+      "metadata": {
+        "attributes": {
+          "session.id": "demo-session",
+          "user.id": "demo-user",
+          "gen_ai.system": "gcp.vertex.agent",
+          "gen_ai.request.model": "gemini-2.0-flash",
+          "gcp.vertex.agent.invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+          "gcp.vertex.agent.session_id": "demo-session",
+          "gcp.vertex.agent.event_id": "f2596747-d905-44bc-b85c-1e9692c3249c",
+          "gcp.vertex.agent.llm_request": {
+            "model": "gemini-2.0-flash",
+            "config": {
+              "http_options": {
+                "headers": {
+                  "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+                  "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+                }
+              },
+              "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+              "tools": [
+                {
+                  "function_declarations": [
+                    {
+                      "name": "say_hello"
+                    }
+                  ]
+                }
+              ]
+            },
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "hi"
+                  }
+                ],
+                "role": "user"
+              },
+              {
+                "parts": [
+                  {
+                    "function_call": {
+                      "args": {},
+                      "name": "say_hello"
+                    }
+                  }
+                ],
+                "role": "model"
+              },
+              {
+                "parts": [
+                  {
+                    "function_response": {
+                      "name": "say_hello",
+                      "response": {
+                        "greeting": "Hello Langfuse 👋"
+                      }
+                    }
+                  }
+                ],
+                "role": "user"
+              }
+            ]
+          },
+          "gcp.vertex.agent.llm_response": {
+            "content": {
+              "parts": [
+                {
+                  "text": "Hello Langfuse 👋!\n"
+                }
+              ],
+              "role": "model"
+            },
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 6,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "prompt_token_count": 39,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 39
+                }
+              ],
+              "total_token_count": 45
+            }
+          },
+          "gen_ai.usage.input_tokens": "39",
+          "gen_ai.usage.output_tokens": "6",
+          "gen_ai.response.finish_reasons": ["stop"],
+          "llm.provider": "google",
+          "input.value": {
+            "model": "gemini-2.0-flash",
+            "config": {
+              "http_options": {
+                "headers": {
+                  "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+                  "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+                }
+              },
+              "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+              "tools": [
+                {
+                  "function_declarations": [
+                    {
+                      "name": "say_hello"
+                    }
+                  ]
+                }
+              ]
+            },
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "hi"
+                  }
+                ],
+                "role": "user"
+              },
+              {
+                "parts": [
+                  {
+                    "function_call": {
+                      "args": {},
+                      "name": "say_hello"
+                    }
+                  }
+                ],
+                "role": "model"
+              },
+              {
+                "parts": [
+                  {
+                    "function_response": {
+                      "name": "say_hello",
+                      "response": {
+                        "greeting": "Hello Langfuse 👋"
+                      }
+                    }
+                  }
+                ],
+                "role": "user"
+              }
+            ]
+          },
+          "input.mime_type": "application/json",
+          "llm.tools.0.tool.json_schema": {
+            "name": "say_hello"
+          },
+          "llm.model_name": "gemini-2.0-flash",
+          "llm.invocation_parameters": {
+            "http_options": {
+              "headers": {
+                "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+                "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+              }
+            },
+            "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+            "tools": [
+              {
+                "function_declarations": [
+                  {
+                    "name": "say_hello"
+                  }
+                ]
+              }
+            ]
+          },
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.contents.0.message_content.text": "hi",
+          "llm.input_messages.1.message.contents.0.message_content.type": "text",
+          "llm.input_messages.2.message.role": "model",
+          "llm.input_messages.2.message.tool_calls.0.tool_call.function.name": "say_hello",
+          "llm.input_messages.3.message.role": "tool",
+          "llm.input_messages.3.message.name": "say_hello",
+          "llm.input_messages.3.message.content": {
+            "greeting": "Hello Langfuse 👋"
+          },
+          "output.value": {
+            "content": {
+              "parts": [
+                {
+                  "text": "Hello Langfuse 👋!\n"
+                }
+              ],
+              "role": "model"
+            },
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 6,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "prompt_token_count": 39,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 39
+                }
+              ],
+              "total_token_count": 45
+            }
+          },
+          "output.mime_type": "application/json",
+          "llm.token_count.total": "45",
+          "llm.token_count.prompt": "39",
+          "llm.token_count.completion": "6",
+          "llm.output_messages.0.message.role": "model",
+          "llm.output_messages.0.message.contents.0.message_content.text": "Hello Langfuse 👋!\n",
+          "llm.output_messages.0.message.contents.0.message_content.type": "text",
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.google_adk",
+          "version": "0.1.3",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "http_options": "{\"headers\":{\"x-goog-api-client\":\"google-adk/1.12.0 gl-python/3.12.11\",\"user-agent\":\"google-adk/1.12.0 gl-python/3.12.11\"}}",
+        "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+        "tools": "[{\"function_declarations\":[{\"name\":\"say_hello\"}]}]"
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-28T07:32:35.207Z",
+      "updatedAt": "2025-08-28T07:32:35.247Z",
+      "usageDetails": {
+        "input": 39,
+        "output": 6,
+        "total": 45
+      },
+      "costDetails": {
+        "input": 0.0000039,
+        "output": 0.0000024,
+        "total": 0.0000063
+      },
+      "providedCostDetails": {},
+      "model": "gemini-2.0-flash",
+      "internalModelId": "cm7zsrs1327124dhjtb95w8f74",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 924,
+      "timeToFirstToken": null,
+      "inputCost": 0.0000039,
+      "outputCost": 0.0000024,
+      "totalCost": 0.0000063,
+      "inputUsage": 39,
+      "outputUsage": 6,
+      "totalUsage": 45,
+      "input": {
+        "model": "gemini-2.0-flash",
+        "config": {
+          "http_options": {
+            "headers": {
+              "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+              "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+            }
+          },
+          "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+          "tools": [
+            {
+              "function_declarations": [
+                {
+                  "name": "say_hello"
+                }
+              ]
+            }
+          ]
+        },
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "hi"
+              }
+            ],
+            "role": "user"
+          },
+          {
+            "parts": [
+              {
+                "function_call": {
+                  "args": {},
+                  "name": "say_hello"
+                }
+              }
+            ],
+            "role": "model"
+          },
+          {
+            "parts": [
+              {
+                "function_response": {
+                  "name": "say_hello",
+                  "response": {
+                    "greeting": "Hello Langfuse 👋"
+                  }
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ]
+      },
+      "output": {
+        "content": {
+          "parts": [
+            {
+              "text": "Hello Langfuse 👋!\n"
+            }
+          ],
+          "role": "model"
+        },
+        "finish_reason": "STOP",
+        "usage_metadata": {
+          "candidates_token_count": 6,
+          "candidates_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 6
+            }
+          ],
+          "prompt_token_count": 39,
+          "prompt_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 39
+            }
+          ],
+          "total_token_count": 45
+        }
+      }
+    },
+    {
+      "id": "f6e4c65297e40c96",
+      "traceId": "b82a0bdc1994fc5d1c8576ca032543f7",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "6d8beb2e6a36b133",
+      "startTime": "2025-08-28T07:32:30.306Z",
+      "endTime": "2025-08-28T07:32:31.217Z",
+      "name": "call_llm",
+      "metadata": {
+        "attributes": {
+          "session.id": "demo-session",
+          "user.id": "demo-user",
+          "gen_ai.system": "gcp.vertex.agent",
+          "gen_ai.request.model": "gemini-2.0-flash",
+          "gcp.vertex.agent.invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+          "gcp.vertex.agent.session_id": "demo-session",
+          "gcp.vertex.agent.event_id": "5e9ed38f-f5ae-47f8-8e34-81367e0e9152",
+          "gcp.vertex.agent.llm_request": {
+            "model": "gemini-2.0-flash",
+            "config": {
+              "http_options": {
+                "headers": {
+                  "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+                  "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+                }
+              },
+              "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+              "tools": [
+                {
+                  "function_declarations": [
+                    {
+                      "name": "say_hello"
+                    }
+                  ]
+                }
+              ]
+            },
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "hi"
+                  }
+                ],
+                "role": "user"
+              }
+            ]
+          },
+          "gcp.vertex.agent.llm_response": {
+            "content": {
+              "parts": [
+                {
+                  "function_call": {
+                    "args": {},
+                    "name": "say_hello"
+                  }
+                }
+              ],
+              "role": "model"
+            },
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 3,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 3
+                }
+              ],
+              "prompt_token_count": 28,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 28
+                }
+              ],
+              "total_token_count": 31
+            }
+          },
+          "gen_ai.usage.input_tokens": "28",
+          "gen_ai.usage.output_tokens": "3",
+          "gen_ai.response.finish_reasons": ["stop"],
+          "llm.provider": "google",
+          "input.value": {
+            "model": "gemini-2.0-flash",
+            "config": {
+              "http_options": {
+                "headers": {
+                  "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+                  "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+                }
+              },
+              "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+              "tools": [
+                {
+                  "function_declarations": [
+                    {
+                      "name": "say_hello"
+                    }
+                  ]
+                }
+              ]
+            },
+            "contents": [
+              {
+                "parts": [
+                  {
+                    "text": "hi"
+                  }
+                ],
+                "role": "user"
+              }
+            ]
+          },
+          "input.mime_type": "application/json",
+          "llm.tools.0.tool.json_schema": {
+            "name": "say_hello"
+          },
+          "llm.model_name": "gemini-2.0-flash",
+          "llm.invocation_parameters": {
+            "http_options": {
+              "headers": {
+                "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+                "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+              }
+            },
+            "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+            "tools": [
+              {
+                "function_declarations": [
+                  {
+                    "name": "say_hello"
+                  }
+                ]
+              }
+            ]
+          },
+          "llm.input_messages.0.message.role": "system",
+          "llm.input_messages.0.message.content": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+          "llm.input_messages.1.message.role": "user",
+          "llm.input_messages.1.message.contents.0.message_content.text": "hi",
+          "llm.input_messages.1.message.contents.0.message_content.type": "text",
+          "output.value": {
+            "content": {
+              "parts": [
+                {
+                  "function_call": {
+                    "args": {},
+                    "name": "say_hello"
+                  }
+                }
+              ],
+              "role": "model"
+            },
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 3,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 3
+                }
+              ],
+              "prompt_token_count": 28,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 28
+                }
+              ],
+              "total_token_count": 31
+            }
+          },
+          "output.mime_type": "application/json",
+          "llm.token_count.total": "31",
+          "llm.token_count.prompt": "28",
+          "llm.token_count.completion": "3",
+          "llm.output_messages.0.message.role": "model",
+          "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "say_hello",
+          "openinference.span.kind": "LLM"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.google_adk",
+          "version": "0.1.3",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "http_options": "{\"headers\":{\"x-goog-api-client\":\"google-adk/1.12.0 gl-python/3.12.11\",\"user-agent\":\"google-adk/1.12.0 gl-python/3.12.11\"}}",
+        "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+        "tools": "[{\"function_declarations\":[{\"name\":\"say_hello\"}]}]"
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-28T07:32:35.209Z",
+      "updatedAt": "2025-08-28T07:32:35.244Z",
+      "usageDetails": {
+        "input": 28,
+        "output": 3,
+        "total": 31
+      },
+      "costDetails": {
+        "input": 0.0000028,
+        "output": 0.0000012,
+        "total": 0.000004
+      },
+      "providedCostDetails": {},
+      "model": "gemini-2.0-flash",
+      "internalModelId": "cm7zsrs1327124dhjtb95w8f74",
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 911,
+      "timeToFirstToken": null,
+      "inputCost": 0.0000028,
+      "outputCost": 0.0000012,
+      "totalCost": 0.000004,
+      "inputUsage": 28,
+      "outputUsage": 3,
+      "totalUsage": 31,
+      "input": {
+        "model": "gemini-2.0-flash",
+        "config": {
+          "http_options": {
+            "headers": {
+              "x-goog-api-client": "google-adk/1.12.0 gl-python/3.12.11",
+              "user-agent": "google-adk/1.12.0 gl-python/3.12.11"
+            }
+          },
+          "system_instruction": "Always greet using the say_hello tool.\n\nYou are an agent. Your internal name is \"hello_agent\".",
+          "tools": [
+            {
+              "function_declarations": [
+                {
+                  "name": "say_hello"
+                }
+              ]
+            }
+          ]
+        },
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "hi"
+              }
+            ],
+            "role": "user"
+          }
+        ]
+      },
+      "output": {
+        "content": {
+          "parts": [
+            {
+              "function_call": {
+                "args": {},
+                "name": "say_hello"
+              }
+            }
+          ],
+          "role": "model"
+        },
+        "finish_reason": "STOP",
+        "usage_metadata": {
+          "candidates_token_count": 3,
+          "candidates_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 3
+            }
+          ],
+          "prompt_token_count": 28,
+          "prompt_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 28
+            }
+          ],
+          "total_token_count": 31
+        }
+      }
+    },
+    {
+      "id": "86cd4912944ddc41",
+      "traceId": "b82a0bdc1994fc5d1c8576ca032543f7",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "CHAIN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-08-28T07:32:30.303Z",
+      "endTime": "2025-08-28T07:32:32.151Z",
+      "name": "invocation [hello_app]",
+      "metadata": {
+        "attributes": {
+          "input.value": {
+            "user_id": "demo-user",
+            "session_id": "demo-session",
+            "new_message": {
+              "parts": [
+                {
+                  "text": "hi"
+                }
+              ],
+              "role": "user"
+            },
+            "state_delta": null,
+            "run_config": {
+              "save_input_blobs_as_artifacts": false,
+              "support_cfc": false,
+              "streaming_mode": "StreamingMode.NONE",
+              "max_llm_calls": 500
+            }
+          },
+          "input.mime_type": "application/json",
+          "user.id": "demo-user",
+          "session.id": "demo-session",
+          "output.value": {
+            "content": {
+              "parts": [
+                {
+                  "text": "Hello Langfuse 👋!\n"
+                }
+              ],
+              "role": "model"
+            },
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 6,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "prompt_token_count": 39,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 39
+                }
+              ],
+              "total_token_count": 45
+            },
+            "invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+            "author": "hello_agent",
+            "actions": {
+              "state_delta": {},
+              "artifact_delta": {},
+              "requested_auth_configs": {}
+            },
+            "id": "f2596747-d905-44bc-b85c-1e9692c3249c",
+            "timestamp": 1756366351.22196
+          },
+          "output.mime_type": "application/json",
+          "openinference.span.kind": "CHAIN"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.google_adk",
+          "version": "0.1.3",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-28T07:32:35.209Z",
+      "updatedAt": "2025-08-28T07:32:35.243Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1848,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {
+        "user_id": "demo-user",
+        "session_id": "demo-session",
+        "new_message": {
+          "parts": [
+            {
+              "text": "hi"
+            }
+          ],
+          "role": "user"
+        },
+        "state_delta": null,
+        "run_config": {
+          "save_input_blobs_as_artifacts": false,
+          "support_cfc": false,
+          "streaming_mode": "StreamingMode.NONE",
+          "max_llm_calls": 500
+        }
+      },
+      "output": {
+        "content": {
+          "parts": [
+            {
+              "text": "Hello Langfuse 👋!\n"
+            }
+          ],
+          "role": "model"
+        },
+        "finish_reason": "STOP",
+        "usage_metadata": {
+          "candidates_token_count": 6,
+          "candidates_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 6
+            }
+          ],
+          "prompt_token_count": 39,
+          "prompt_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 39
+            }
+          ],
+          "total_token_count": 45
+        },
+        "invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+        "author": "hello_agent",
+        "actions": {
+          "state_delta": {},
+          "artifact_delta": {},
+          "requested_auth_configs": {}
+        },
+        "id": "f2596747-d905-44bc-b85c-1e9692c3249c",
+        "timestamp": 1756366351.22196
+      }
+    },
+    {
+      "id": "6d8beb2e6a36b133",
+      "traceId": "b82a0bdc1994fc5d1c8576ca032543f7",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "AGENT",
+      "environment": "default",
+      "parentObservationId": "86cd4912944ddc41",
+      "startTime": "2025-08-28T07:32:30.304Z",
+      "endTime": "2025-08-28T07:32:32.150Z",
+      "name": "agent_run [hello_agent]",
+      "metadata": {
+        "attributes": {
+          "session.id": "demo-session",
+          "user.id": "demo-user",
+          "output.value": {
+            "content": {
+              "parts": [
+                {
+                  "text": "Hello Langfuse 👋!\n"
+                }
+              ],
+              "role": "model"
+            },
+            "finish_reason": "STOP",
+            "usage_metadata": {
+              "candidates_token_count": 6,
+              "candidates_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 6
+                }
+              ],
+              "prompt_token_count": 39,
+              "prompt_tokens_details": [
+                {
+                  "modality": "TEXT",
+                  "token_count": 39
+                }
+              ],
+              "total_token_count": 45
+            },
+            "invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+            "author": "hello_agent",
+            "actions": {
+              "state_delta": {},
+              "artifact_delta": {},
+              "requested_auth_configs": {}
+            },
+            "id": "f2596747-d905-44bc-b85c-1e9692c3249c",
+            "timestamp": 1756366351.22196
+          },
+          "output.mime_type": "application/json",
+          "openinference.span.kind": "AGENT"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.google_adk",
+          "version": "0.1.3",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-28T07:32:35.210Z",
+      "updatedAt": "2025-08-28T07:32:35.239Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1846,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": null,
+      "output": {
+        "content": {
+          "parts": [
+            {
+              "text": "Hello Langfuse 👋!\n"
+            }
+          ],
+          "role": "model"
+        },
+        "finish_reason": "STOP",
+        "usage_metadata": {
+          "candidates_token_count": 6,
+          "candidates_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 6
+            }
+          ],
+          "prompt_token_count": 39,
+          "prompt_tokens_details": [
+            {
+              "modality": "TEXT",
+              "token_count": 39
+            }
+          ],
+          "total_token_count": 45
+        },
+        "invocation_id": "e-5022fa36-69c5-4fe7-bb37-662704dcb713",
+        "author": "hello_agent",
+        "actions": {
+          "state_delta": {},
+          "artifact_delta": {},
+          "requested_auth_configs": {}
+        },
+        "id": "f2596747-d905-44bc-b85c-1e9692c3249c",
+        "timestamp": 1756366351.22196
+      }
+    },
+    {
+      "id": "04290e4d82aba1bc",
+      "traceId": "b82a0bdc1994fc5d1c8576ca032543f7",
+      "projectId": "cloramnkj0002jz088vzn1ja4",
+      "type": "TOOL",
+      "environment": "default",
+      "parentObservationId": "f6e4c65297e40c96",
+      "startTime": "2025-08-28T07:32:31.216Z",
+      "endTime": "2025-08-28T07:32:31.217Z",
+      "name": "execute_tool say_hello",
+      "metadata": {
+        "attributes": {
+          "session.id": "demo-session",
+          "user.id": "demo-user",
+          "gen_ai.system": "gcp.vertex.agent",
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "say_hello",
+          "gen_ai.tool.description": "Call self as a function.",
+          "gen_ai.tool.call.id": "adk-8bd8dc65-717d-4102-858b-3a1dd6b75a00",
+          "gcp.vertex.agent.tool_call_args": {},
+          "gcp.vertex.agent.event_id": "9d88cbb2-d624-404d-ae7c-2d4849f6313c",
+          "gcp.vertex.agent.tool_response": {
+            "greeting": "Hello Langfuse 👋"
+          },
+          "gcp.vertex.agent.llm_request": {},
+          "gcp.vertex.agent.llm_response": {},
+          "tool.name": "say_hello",
+          "tool.description": "Call self as a function.",
+          "output.value": {
+            "id": "adk-8bd8dc65-717d-4102-858b-3a1dd6b75a00",
+            "name": "say_hello",
+            "response": {
+              "greeting": "Hello Langfuse 👋"
+            }
+          },
+          "output.mime_type": "application/json",
+          "openinference.span.kind": "TOOL"
+        },
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.36.0",
+          "service.name": "unknown_service"
+        },
+        "scope": {
+          "name": "openinference.instrumentation.google_adk",
+          "version": "0.1.3",
+          "attributes": {}
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {},
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2025-08-28T07:32:35.207Z",
+      "updatedAt": "2025-08-28T07:32:35.238Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 1,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": {},
+      "output": {}
+    }
+  ]
+}

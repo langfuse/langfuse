@@ -16,6 +16,10 @@ type StripeProduct = {
     price: string;
     usagePrice: string;
     mainFeatures: string[];
+    cta?: {
+      label: string;
+      href: string;
+    };
   } | null;
 };
 
@@ -57,6 +61,7 @@ export const stripeProducts: StripeProduct[] = [
         "Everything in Core",
         "Unlimited data access",
         "Unlimited annotation queues",
+        "Data retention management",
         "High rate limits",
         "SOC2, ISO27001 reports",
       ],
@@ -78,7 +83,6 @@ export const stripeProducts: StripeProduct[] = [
         "Enterprise SSO (e.g. Okta)",
         "SSO enforcement",
         "Fine-grained RBAC",
-        "Data retention management",
         "Support via Slack",
       ],
     },
@@ -88,7 +92,27 @@ export const stripeProducts: StripeProduct[] = [
       ? "prod_STnXok7GSSDmyF" // sandbox
       : "prod_STnXok7GSSDmyF", // live
     mappedPlan: "cloud:enterprise",
-    checkout: null,
+    orderKey: 2499,
+    checkout: {
+      title: "Enterprise",
+      description:
+        "For large scale teams. Enterprise-grade support and security.",
+      price: "$2499 / month",
+      usagePrice: "$8-6/100k units (100k included, graduated pricing)",
+      mainFeatures: [
+        "Everything in Pro + Teams",
+        "Audit Logs",
+        "SCIM API",
+        "Custom rate limits",
+        "Uptime SLA",
+        "Support SLA",
+        "Dedicated support engineer",
+      ],
+      cta: {
+        label: "Contact Sales",
+        href: "https://langfuse.com/talk-to-us",
+      },
+    },
   },
 ];
 
