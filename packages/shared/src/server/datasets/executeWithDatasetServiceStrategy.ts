@@ -1,5 +1,4 @@
 import { env } from "../../env";
-import { logger } from "../logger";
 
 /* eslint-disable no-unused-vars */
 
