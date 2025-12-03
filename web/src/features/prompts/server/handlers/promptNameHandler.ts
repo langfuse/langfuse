@@ -69,7 +69,7 @@ const deletePromptNameHandler = async (
 
   const { promptName, version, label } = GetPromptByNameSchema.parse(req.query);
 
-  // Fetch prompts before deletion for audit logging
+  // Fetch prompts for audit logging
   const where = {
     projectId: authCheck.scope.projectId,
     name: promptName,
@@ -79,14 +79,7 @@ const deletePromptNameHandler = async (
 
   const prompts = await prisma.prompt.findMany({ where });
 
-  await deletePrompt({
-    promptName,
-    projectId: authCheck.scope.projectId,
-    version,
-    label,
-  });
-
-  // Audit log each deleted prompt
+  // Audit log before deletion
   for (const prompt of prompts) {
     await auditLog({
       action: "delete",
@@ -98,6 +91,15 @@ const deletePromptNameHandler = async (
       before: prompt,
     });
   }
+
+  // Delete prompts (pass fetched prompts to avoid duplicate query)
+  await deletePrompt({
+    promptName,
+    projectId: authCheck.scope.projectId,
+    version,
+    label,
+    prompts, // Pass prompts to avoid duplicate query
+  });
 
   return res.status(204).end();
 };

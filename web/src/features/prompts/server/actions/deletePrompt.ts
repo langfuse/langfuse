@@ -1,5 +1,5 @@
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prompt } from "@langfuse/shared/src/db";
 import { PromptService, redis, logger } from "@langfuse/shared/src/server";
 
 export type DeletePromptParams = {
@@ -7,23 +7,33 @@ export type DeletePromptParams = {
   projectId: string;
   version?: number | null;
   label?: string;
+  prompts?: Prompt[]; // Optional: if already fetched, avoid duplicate query
 };
 
 export const deletePrompt = async (params: DeletePromptParams) => {
-  const { promptName, projectId, version, label } = params;
+  const {
+    promptName,
+    projectId,
+    version,
+    label,
+    prompts: providedPrompts,
+  } = params;
 
   if (version && label) {
     throw new InvalidRequestError("Cannot specify both version and label");
   }
 
-  const where = {
-    projectId,
-    name: promptName,
-    ...(version ? { version } : {}),
-    ...(label ? { labels: { has: label } } : {}),
-  };
+  let prompts = providedPrompts;
+  if (!prompts) {
+    const where = {
+      projectId,
+      name: promptName,
+      ...(version ? { version } : {}),
+      ...(label ? { labels: { has: label } } : {}),
+    };
 
-  const prompts = await prisma.prompt.findMany({ where });
+    prompts = await prisma.prompt.findMany({ where });
+  }
 
   if (prompts.length === 0) {
     throw new LangfuseNotFoundError("Prompt not found");
