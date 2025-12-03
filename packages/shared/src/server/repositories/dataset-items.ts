@@ -656,7 +656,7 @@ export function createDatasetItemFilterState(options: {
   if (options.datasetIds && options.datasetIds.length > 0) {
     filterState.push({
       type: "stringOptions",
-      column: "datasetIds",
+      column: "datasetId",
       operator: "any of",
       value: options.datasetIds,
     });
@@ -729,7 +729,7 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
 
   for (const filter of filterState) {
     switch (filter.column) {
-      case "datasetIds":
+      case "datasetId":
         if (filter.type === "stringOptions" && filter.value.length > 0) {
           where.datasetId = { in: filter.value };
         }

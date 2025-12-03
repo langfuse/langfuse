@@ -3,8 +3,8 @@ import { ColumnDefinition } from "../../tableDefinitions";
 
 export const datasetItemsFilterCols: ColumnDefinition[] = [
   {
-    name: "Dataset IDs",
-    id: "datasetIds",
+    name: "Dataset ID",
+    id: "datasetId",
     type: "stringOptions",
     internal: "di.dataset_id",
     options: [],
