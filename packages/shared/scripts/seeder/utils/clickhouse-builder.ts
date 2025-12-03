@@ -194,7 +194,7 @@ export class ClickHouseQueryBuilder {
         start_time AS updated_at,
         start_time AS event_ts,
         0 AS is_deleted,
-        '' as usage_pricing_tier_id,
+        '' AS usage_pricing_tier_id,
         '' as usage_pricing_tier_name
       FROM numbers(${totalObservations});
     `;
