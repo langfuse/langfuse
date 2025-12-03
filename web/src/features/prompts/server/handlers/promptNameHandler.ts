@@ -49,7 +49,7 @@ const getPromptNameHandler = async (
     throw new LangfuseNotFoundError(errorMessage);
   }
 
-  return res.status(200).json(prompt);
+  res.status(200).json(prompt);
 };
 
 const deletePromptNameHandler = async (
@@ -101,7 +101,7 @@ const deletePromptNameHandler = async (
     prompts, // Pass prompts to avoid duplicate query
   });
 
-  return res.status(204).end();
+  res.status(204).end();
 };
 
 export const promptNameHandler = withMiddlewares({
