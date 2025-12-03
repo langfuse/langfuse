@@ -2,7 +2,9 @@ import { z } from "zod/v4";
 import { dashboardColumnDefinitions, singleFilter } from "@langfuse/shared";
 import { type views } from "@/src/features/query/types";
 
-const FilterArray = z.array(singleFilter);
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const FilterArray = z.array(singleFilter);
 
 const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
   traces: [
@@ -95,6 +97,53 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
     {
       uiTableName: "Version",
       viewName: "traceVersion",
+    },
+  ],
+  "events-observations": [
+    // Similar to observations but without trace-JOIN fields (traceName, traceRelease, traceVersion)
+    {
+      uiTableName: "Observation Name",
+      viewName: "name",
+    },
+    {
+      uiTableName: "Score Name",
+      viewName: "scoreName",
+    },
+    {
+      uiTableName: "User",
+      viewName: "userId",
+    },
+    {
+      uiTableName: "Session",
+      viewName: "sessionId",
+    },
+    {
+      uiTableName: "Metadata",
+      viewName: "metadata",
+    },
+    {
+      uiTableName: "Type",
+      viewName: "type",
+    },
+    {
+      uiTableName: "Tags",
+      viewName: "tags",
+    },
+    {
+      uiTableName: "Model",
+      viewName: "providedModelName",
+    },
+    {
+      uiTableName: "Environment",
+      viewName: "environment",
+    },
+    {
+      uiTableName: "Release",
+      viewName: "release",
+    },
+    {
+      uiTableName: "Version",
+      viewName: "version",
     },
   ],
   "scores-numeric": [

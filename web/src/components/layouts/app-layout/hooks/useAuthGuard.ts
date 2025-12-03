@@ -5,10 +5,9 @@
 
 import { useRouter } from "next/router";
 import { useMemo } from "react";
-import { env } from "@/src/env.mjs";
 import { PATH_CONSTANTS } from "../utils/pathClassification";
-import { getSafeRedirectPath } from "@/src/utils/redirect";
-import type { useSession } from "next-auth/react";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
+import type { SessionContextValue } from "next-auth/react";
 
 /** Actions the auth guard can request */
 export type AuthGuardAction = "allow" | "loading" | "redirect" | "sign-out";
@@ -32,14 +31,13 @@ export type AuthGuardResult =
  * @returns Guard state indicating what action to take
  */
 export function useAuthGuard(
-  session: ReturnType<typeof useSession>,
+  session: SessionContextValue,
   _hideNavigation: boolean,
 ): AuthGuardResult {
   const router = useRouter();
 
   return useMemo(() => {
     const { pathname, query, asPath } = router;
-    const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
 
     // Loading state
     if (session.status === "loading") {
@@ -89,9 +87,11 @@ export function useAuthGuard(
       !isPublishable &&
       !isPublicPath
     ) {
-      const targetPath = encodeURIComponent(
-        basePath + (pathname === "/" ? pathname : asPath),
-      );
+      // asPath already includes the base path when accessed via browser
+      // Strip the base path if present to avoid double-prepending
+      const rawPath = asPath || pathname || "/";
+      const pathToStore = stripBasePath(rawPath);
+      const targetPath = encodeURIComponent(pathToStore);
       return {
         action: "redirect",
         url: `/auth/sign-in?targetPath=${targetPath}`,
@@ -103,7 +103,12 @@ export function useAuthGuard(
     if (session.status === "authenticated" && isUnauthPath) {
       const queryTargetPath = query.targetPath as string | undefined;
       const redirectUrl = getSafeRedirectPath(queryTargetPath);
-      return { action: "redirect", url: redirectUrl, message: "Redirecting" };
+      const routerRedirectUrl = stripBasePath(redirectUrl);
+      return {
+        action: "redirect",
+        url: routerRedirectUrl,
+        message: "Redirecting",
+      };
     }
 
     // All checks passed - allow access

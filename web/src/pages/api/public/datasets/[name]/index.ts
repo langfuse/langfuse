@@ -4,7 +4,7 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   GetDatasetV1Query,
   GetDatasetV1Response,
-  transformDbDatasetItemToAPIDatasetItem,
+  transformDbDatasetItemDomainToAPIDatasetItem,
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
@@ -48,10 +48,20 @@ export default withMiddlewares({
         ...transformDbDatasetToAPIDataset(params),
         items: datasetItems
           .map((item) => ({
-            ...item,
+            id: item.id,
+            projectId: item.projectId,
+            datasetId: item.datasetId,
+            input: item.input,
+            expectedOutput: item.expectedOutput,
+            metadata: item.metadata,
+            sourceTraceId: item.sourceTraceId,
+            sourceObservationId: item.sourceObservationId,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            status: item.status ?? "ACTIVE",
             datasetName: dataset.name,
           }))
-          .map(transformDbDatasetItemToAPIDatasetItem),
+          .map(transformDbDatasetItemDomainToAPIDatasetItem),
         runs: datasetRuns.map((run) => run.name),
       };
     },

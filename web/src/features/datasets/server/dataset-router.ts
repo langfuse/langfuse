@@ -52,10 +52,7 @@ import {
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
-  executeWithDatasetServiceStrategy,
   toPostgresDatasetItem,
-  OperationType,
-  Implementation,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -644,6 +641,19 @@ export const datasetRouter = createTRPCRouter({
           id_projectId: { id: input.datasetItemId, projectId: input.projectId },
           datasetId: input.datasetId,
         },
+        select: {
+          id: true,
+          projectId: true,
+          datasetId: true,
+          status: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
+          sourceTraceId: true,
+          sourceObservationId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
     }),
   countItemsByDatasetId: protectedProjectProcedure
@@ -775,7 +785,7 @@ export const datasetRouter = createTRPCRouter({
             try {
               const validationErrors = JSON.parse(match[1]);
               return { success: false, validationErrors };
-            } catch (e) {
+            } catch (_e) {
               // Failed to parse, rethrow original error
               throw error;
             }
@@ -1032,6 +1042,15 @@ export const datasetRouter = createTRPCRouter({
             datasetId: input.datasetId,
             projectId: input.projectId,
           },
+          select: {
+            id: true,
+            status: true,
+            input: true,
+            expectedOutput: true,
+            metadata: true,
+            sourceTraceId: true,
+            sourceObservationId: true,
+          },
           orderBy: [
             { createdAt: "asc" },
             // ensure consistent ordering for pagination; via bulk upload many items might have the same createdAt
@@ -1056,17 +1075,8 @@ export const datasetRouter = createTRPCRouter({
           createdAt: createdAt,
         }));
 
-        await executeWithDatasetServiceStrategy(OperationType.WRITE, {
-          [Implementation.STATEFUL]: async () => {
-            await ctx.prisma.datasetItem.createMany({
-              data: preparedItems.map((item) => toPostgresDatasetItem(item)),
-            });
-          },
-          [Implementation.VERSIONED]: async () => {
-            await ctx.prisma.datasetItemEvent.createMany({
-              data: preparedItems,
-            });
-          },
+        await ctx.prisma.datasetItem.createMany({
+          data: preparedItems.map((item) => toPostgresDatasetItem(item)),
         });
 
         if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch
@@ -1229,6 +1239,19 @@ export const datasetRouter = createTRPCRouter({
         where: {
           id: datasetItemId,
           projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          projectId: true,
+          datasetId: true,
+          status: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
+          sourceTraceId: true,
+          sourceObservationId: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
       if (!datasetItem) {

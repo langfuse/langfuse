@@ -161,6 +161,11 @@ if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
     concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
+    // Same configuration as EvaluationExecution or
+    // BlobStorageIntegrationProcessingQueue queue, see detailed comment there
+    maxStalledCount: 3,
+    lockDuration: 60000, // 60 seconds
+    stalledInterval: 120000, // 120 seconds
     limiter: {
       // Process at most `max` delete jobs per 2 min
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
