@@ -9,7 +9,7 @@ export function formatAuthProviderName(provider: string): string {
   // Multi-tenant SSO format: "domain.provider"
   // SECURITY: Strip domain to prevent leaking customer information
   if (provider.includes(".")) {
-    const providerType = provider.split(".")[1];
+    const providerType = provider.split(".").pop() ?? "";
 
     switch (providerType) {
       case "azure-ad":
