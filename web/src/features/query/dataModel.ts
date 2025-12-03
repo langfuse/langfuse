@@ -1,6 +1,6 @@
-import { type z } from "zod/v4";
+import type z from "zod/v4";
 import {
-  type views,
+  type privateViews,
   type ViewDeclarationType,
   type DimensionsDeclarationType,
 } from "@/src/features/query/types";
@@ -917,7 +917,7 @@ export const eventsObservationsView: ViewDeclarationType = {
 };
 
 export const viewDeclarations: Record<
-  z.infer<typeof views>,
+  z.infer<typeof privateViews>,
   ViewDeclarationType
 > = {
   traces: traceView,
