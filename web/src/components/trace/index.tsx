@@ -467,11 +467,12 @@ export function Trace(props: {
               <Info className="h-4 w-4 text-muted-foreground" />
             </div>
             <h3 className="text-sm font-semibold">
-              You're only using spans here.
+              You&apos;re only using spans here.
             </h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            You'll get much richer insights by using specific observation types.
+            You&apos;ll get much richer insights by using specific observation
+            types.
           </p>
           <Button
             variant="outline"
