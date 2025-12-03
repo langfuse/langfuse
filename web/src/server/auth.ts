@@ -808,11 +808,80 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               ) ?? [];
 
             if (allowedDomains.length > 0) {
-              return await Promise.resolve(
-                allowedDomains.includes(
-                  (profile as GoogleProfile).hd?.toLowerCase(),
-                ),
+              const isAllowed = allowedDomains.includes(
+                (profile as GoogleProfile).hd?.toLowerCase(),
               );
+              if (!isAllowed) {
+                return await Promise.resolve(false);
+              }
+            }
+          }
+
+          // Optional: Update user email on SSO login if it has changed
+          // This supports cases where an identity provider changes email addresses (e.g., corporate email migrations)
+          if (
+            env.AUTH_SSO_UPDATE_USER_EMAIL_ON_LOGIN === "true" &&
+            account?.provider &&
+            account.provider !== "credentials" &&
+            account.provider !== "email" &&
+            account.providerAccountId
+          ) {
+            try {
+              // Find the existing user via their linked SSO account
+              const linkedAccount = await prisma.account.findUnique({
+                where: {
+                  provider_providerAccountId: {
+                    provider: account.provider,
+                    providerAccountId: account.providerAccountId,
+                  },
+                },
+                select: { user: { select: { id: true, email: true } } },
+              });
+
+              // If user exists and email has changed, update it
+              if (
+                linkedAccount?.user &&
+                linkedAccount.user.email !== email &&
+                email
+              ) {
+                // Check if the new email is already in use by another user
+                const existingUserWithEmail = await prisma.user.findUnique({
+                  where: { email },
+                  select: { id: true },
+                });
+
+                if (
+                  existingUserWithEmail &&
+                  existingUserWithEmail.id !== linkedAccount.user.id
+                ) {
+                  logger.warn(
+                    "SSO email update blocked: new email already in use by another user",
+                    {
+                      oldEmail: linkedAccount.user.email,
+                      newEmail: email,
+                      userId: linkedAccount.user.id,
+                    },
+                  );
+                } else {
+                  await prisma.user.update({
+                    where: { id: linkedAccount.user.id },
+                    data: { email },
+                  });
+                  logger.info("Updated user email on SSO login", {
+                    userId: linkedAccount.user.id,
+                    oldEmail: linkedAccount.user.email,
+                    newEmail: email,
+                  });
+                }
+              }
+            } catch (error) {
+              // Log error but don't block sign in - email update is non-critical
+              logger.error("Failed to update user email on SSO login", {
+                error: error instanceof Error ? error.message : String(error),
+                email,
+                provider: account.provider,
+              });
+              traceException(error);
             }
           }
 
