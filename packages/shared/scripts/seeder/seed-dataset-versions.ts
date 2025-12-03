@@ -6,8 +6,8 @@ import { logger } from "../../src/server";
 const ITEM_COUNT = 500;
 const BULK_VERSIONS = 5;
 const ITEMS_PER_BULK_VERSION = 100;
-const ADDITIONAL_VERSIONS = 25;
-const TOTAL_VERSIONS = 50;
+const ADDITIONAL_VERSIONS = 5;
+const TOTAL_VERSIONS = 10;
 
 const TEST_DATASET_NAME = "version-perf-test";
 
@@ -77,7 +77,7 @@ export async function seedDatasetVersions(
       `Created ${BULK_VERSIONS} bulk versions with ${ITEMS_PER_BULK_VERSION} items each`,
     );
 
-    // Create 95 additional versions with mixed operations
+    // Create additional versions with mixed operations
     const existingItemIds = Array.from(
       { length: BULK_VERSIONS * ITEMS_PER_BULK_VERSION },
       (_, i) => `item-${i}`,
@@ -88,15 +88,15 @@ export async function seedDatasetVersions(
         baseTime.getTime() + (BULK_VERSIONS + v) * 60 * 60 * 1000,
       );
       const operations = [];
-      const operationCount = Math.floor(Math.random() * 100) + 50; // 50-150 operations per version
+      const operationCount = 50; // Fixed 50 operations per version for consistency
 
       for (let i = 0; i < operationCount; i++) {
         const rand = Math.random();
         const itemId =
           existingItemIds[Math.floor(Math.random() * existingItemIds.length)];
 
-        if (rand < 0.6) {
-          // 60% updates
+        if (rand < 0.7) {
+          // 70% updates
           operations.push({
             itemId,
             operation: "update" as const,
@@ -107,20 +107,8 @@ export async function seedDatasetVersions(
             status: "ACTIVE" as const,
             metadata: { version: v + BULK_VERSIONS, updated: true },
           });
-        } else if (rand < 0.9) {
-          // 30% creates (new items)
-          const newItemId = `item-${BULK_VERSIONS * ITEMS_PER_BULK_VERSION + v * 1000 + i}`;
-          existingItemIds.push(newItemId);
-          operations.push({
-            itemId: newItemId,
-            operation: "create" as const,
-            input: { prompt: `New prompt v${v} for ${newItemId}` },
-            expectedOutput: { response: `New response v${v} for ${newItemId}` },
-            status: "ACTIVE" as const,
-            metadata: { version: v + BULK_VERSIONS, new: true },
-          });
-        } else {
-          // 10% deletes
+        } else if (rand < 0.85) {
+          // 15% deletes
           operations.push({
             itemId,
             operation: "delete" as const,
@@ -129,6 +117,18 @@ export async function seedDatasetVersions(
             metadata: null,
             status: null,
             validFrom: timestamp,
+          });
+        } else {
+          // 15% creates (new items)
+          const newItemId = `item-${BULK_VERSIONS * ITEMS_PER_BULK_VERSION + v * 100 + i}`;
+          existingItemIds.push(newItemId);
+          operations.push({
+            itemId: newItemId,
+            operation: "create" as const,
+            input: { prompt: `New prompt v${v} for ${newItemId}` },
+            expectedOutput: { response: `New response v${v} for ${newItemId}` },
+            status: "ACTIVE" as const,
+            metadata: { version: v + BULK_VERSIONS, new: true },
           });
         }
       }
