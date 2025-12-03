@@ -486,7 +486,7 @@ export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
     const isInIframe = () => {
       try {
         return window.self !== window.top;
-      } catch (e) {
+      } catch (_e) {
         return true;
       }
     };

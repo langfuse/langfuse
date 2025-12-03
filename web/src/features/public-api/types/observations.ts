@@ -251,7 +251,7 @@ export const EncodedObservationsCursorV2 = z
       const decoded = Buffer.from(val, "base64").toString("utf-8");
       const parsed = JSON.parse(decoded);
       return parsed;
-    } catch (e) {
+    } catch (_e) {
       throw new InvalidRequestError("Invalid cursor format");
     }
   })

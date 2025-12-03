@@ -2,7 +2,9 @@ import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 
 // resource:action, only use snake_case
-const events = {
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const events = {
   table: [
     "filter_builder_open",
     "filter_builder_close",

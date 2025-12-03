@@ -1648,3 +1648,90 @@ export const getEventsGroupedByEnvironment = async (
   });
   return res;
 };
+
+/**
+ * Delete events by trace IDs
+ * Used when traces are deleted to cascade the deletion to the events table
+ */
+export const deleteEventsByTraceIds = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  const query = `
+    DELETE FROM events
+    WHERE project_id = {projectId: String}
+    AND trace_id IN ({traceIds: Array(String)})
+    AND (project_id, start_time, xxHash32(trace_id), span_id) IN
+    (
+      SELECT project_id, start_time, xxHash32(trace_id), span_id
+      FROM events
+      WHERE project_id = {projectId: String}
+      AND trace_id IN ({traceIds: Array(String)})
+    );
+  `;
+  await commandClickhouse({
+    query,
+    params: { projectId, traceIds },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "delete",
+      projectId,
+    },
+  });
+};
+
+/**
+ * Delete all events for a project
+ * Used when an entire project is deleted
+ */
+export const deleteEventsByProjectId = async (projectId: string) => {
+  const query = `
+    DELETE FROM events
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query,
+    params: { projectId },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "delete",
+      projectId,
+    },
+  });
+};
+
+/**
+ * Delete events older than a cutoff date
+ * Used for data retention cleanup
+ */
+export const deleteEventsOlderThanDays = async (
+  projectId: string,
+  beforeDate: Date,
+) => {
+  const query = `
+    DELETE FROM events
+    WHERE project_id = {projectId: String}
+    AND start_time < {cutoffDate: DateTime64(3)};
+  `;
+  await commandClickhouse({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "delete",
+      projectId,
+    },
+  });
+};

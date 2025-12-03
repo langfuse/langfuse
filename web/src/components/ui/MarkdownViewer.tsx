@@ -71,7 +71,7 @@ const getSafeUrl = (href: string | undefined | null): string | null => {
     });
 
     return sanitized || null;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 };
@@ -282,7 +282,7 @@ function MarkdownRenderer({
         </MemoizedReactMarkdown>
       </div>
     );
-  } catch (error) {
+  } catch (_error) {
     // fallback to JSON view if markdown parsing fails
 
     return (

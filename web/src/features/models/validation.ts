@@ -56,7 +56,6 @@ export const GetModelResultSchema = z.object({
   ]),
   tokenizerId: TokenizerSchema,
   pricingTiers: z.array(PricingTierSchema),
-  lastUsed: z.date().nullish(),
 });
 
 export type GetModelResult = z.infer<typeof GetModelResultSchema>;

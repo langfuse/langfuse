@@ -1,4 +1,5 @@
 import {
+  deleteEventsOlderThanDays,
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
@@ -78,6 +79,9 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     deleteTracesOlderThanDays(projectId, cutoffDate),
     deleteObservationsOlderThanDays(projectId, cutoffDate),
     deleteScoresOlderThanDays(projectId, cutoffDate),
+    env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+      ? deleteEventsOlderThanDays(projectId, cutoffDate)
+      : Promise.resolve(),
   ]);
   logger.info(
     `[Data Retention] Deleted ClickHouse and S3 data older than ${retention} days for project ${projectId}`,
