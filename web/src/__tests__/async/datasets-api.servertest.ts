@@ -1,4 +1,8 @@
 /** @jest-environment node */
+// Set environment variable before any imports to ensure it's picked up by env module
+process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+  "true";
+
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
