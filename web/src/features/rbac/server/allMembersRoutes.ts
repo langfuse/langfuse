@@ -85,6 +85,11 @@ async function getMembers(
           id: true,
           name: true,
           email: true,
+          accounts: {
+            select: {
+              provider: true,
+            },
+          },
         },
       },
     },

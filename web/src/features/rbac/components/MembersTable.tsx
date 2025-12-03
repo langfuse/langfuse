@@ -27,6 +27,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import { formatAuthProviderName } from "@/src/features/rbac/utils/formatAuthProvider";
 import {
   HoverCard,
   HoverCardContent,
@@ -46,6 +47,7 @@ export type MembersTableRow = {
     name: string | null;
   };
   email: string | null;
+  providers: string[];
   createdAt: Date;
   orgRole: Role;
   projectRole?: Role;
@@ -179,6 +181,20 @@ export function MembersTable({
       accessorKey: "email",
       id: "email",
       header: "Email",
+    },
+    {
+      accessorKey: "providers",
+      id: "providers",
+      header: "SSO Provider",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const providers = row.getValue("providers") as string[];
+        if (providers.length === 0) return "-";
+
+        return providers
+          .map((provider) => formatAuthProviderName(provider))
+          .join(", ");
+      },
     },
     {
       accessorKey: "orgRole",
@@ -349,6 +365,7 @@ export function MembersTable({
         image: orgMembership.user.image,
         name: orgMembership.user.name,
       },
+      providers: orgMembership.user.accounts?.map((a) => a.provider) ?? [],
       createdAt: orgMembership.createdAt,
       orgRole: orgMembership.role,
       projectRole: orgMembership.projectRole,
