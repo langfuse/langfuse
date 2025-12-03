@@ -27,7 +27,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (error) {
+      } catch (_error) {
         return false;
       }
     },
@@ -42,7 +42,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (error) {
+      } catch (_error) {
         return false;
       }
     },
@@ -57,7 +57,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (error) {
+      } catch (_error) {
         return false;
       }
     },

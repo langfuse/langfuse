@@ -161,6 +161,36 @@ describe("OpenAI Adapter", () => {
     expect(toolCalls?.[0].arguments).toBe('{"city":"NYC","units":"celsius"}');
   });
 
+  it("should skip null entries in tool_calls arrays", () => {
+    const input = {
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            null,
+            {
+              id: "call_valid",
+              type: "function",
+              function: {
+                name: "get_balance",
+                arguments: { account: "123" },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "openai" });
+    expect(result.success).toBe(true);
+
+    const toolCalls = result.data?.[0].tool_calls;
+    expect(toolCalls?.length).toBe(1);
+    expect(toolCalls?.[0].name).toBe("get_balance");
+    expect(toolCalls?.[0].arguments).toBe('{"account":"123"}');
+  });
+
   it("should handle multimodal content (array of parts)", () => {
     const input = {
       messages: [

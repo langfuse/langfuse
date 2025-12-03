@@ -69,7 +69,7 @@ export const GetMetricsV1Query = z.object({
     .transform((str) => {
       try {
         return JSON.parse(str);
-      } catch (e) {
+      } catch (_e) {
         throw new InvalidRequestError("Invalid JSON in query parameter");
       }
     })

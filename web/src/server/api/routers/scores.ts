@@ -609,7 +609,7 @@ export const scoresRouter = createTRPCRouter({
               config: config as ScoreConfigDomain,
               context: "ANNOTATION",
             });
-          } catch (error) {
+          } catch (_error) {
             throw new TRPCError({
               code: "PRECONDITION_FAILED",
               message:

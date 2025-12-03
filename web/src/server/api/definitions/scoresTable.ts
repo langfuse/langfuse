@@ -14,6 +14,12 @@ export const scoresTableCols: ColumnDefinition[] = [
     internal: 's."trace_id"',
   },
   {
+    name: "Session ID",
+    id: "sessionId",
+    type: "string",
+    internal: 's."session_id"',
+  },
+  {
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",

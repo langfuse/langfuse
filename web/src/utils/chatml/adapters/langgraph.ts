@@ -154,9 +154,12 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   // LangGraph can have OpenAI-style nested format: {id, type, function: {name, arguments}}
   // Convert to flat format: {id, name, arguments, type}
   if (normalized.tool_calls && Array.isArray(normalized.tool_calls)) {
-    normalized.tool_calls = (
-      normalized.tool_calls as Record<string, unknown>[]
-    ).map((tc) => {
+    const sanitizedToolCalls = (normalized.tool_calls as unknown[]).filter(
+      (tc): tc is Record<string, unknown> =>
+        Boolean(tc) && typeof tc === "object",
+    );
+
+    normalized.tool_calls = sanitizedToolCalls.map((tc) => {
       // If nested format (has function.name), flatten it
       if (tc.function && typeof tc.function === "object") {
         const func = tc.function as Record<string, unknown>;
