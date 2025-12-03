@@ -10,6 +10,8 @@ import {
   PRODUCTION_LABEL,
 } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { prisma } from "@langfuse/shared/src/db";
 
 const getPromptNameHandler = async (
   req: NextApiRequest,
@@ -67,12 +69,35 @@ const deletePromptNameHandler = async (
 
   const { promptName, version, label } = GetPromptByNameSchema.parse(req.query);
 
+  // Fetch prompts before deletion for audit logging
+  const where = {
+    projectId: authCheck.scope.projectId,
+    name: promptName,
+    ...(version ? { version } : {}),
+    ...(label ? { labels: { has: label } } : {}),
+  };
+
+  const prompts = await prisma.prompt.findMany({ where });
+
   await deletePrompt({
     promptName,
     projectId: authCheck.scope.projectId,
     version,
     label,
   });
+
+  // Audit log each deleted prompt
+  for (const prompt of prompts) {
+    await auditLog({
+      action: "delete",
+      resourceType: "prompt",
+      resourceId: prompt.id,
+      projectId: authCheck.scope.projectId,
+      orgId: authCheck.scope.orgId,
+      apiKeyId: authCheck.scope.apiKeyId,
+      before: prompt,
+    });
+  }
 
   return res.status(204).end();
 };
