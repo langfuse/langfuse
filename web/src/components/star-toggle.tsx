@@ -143,7 +143,7 @@ export function StarTraceDetailsToggle({
   const [isLoading, setIsLoading] = useState(false);
 
   const mutBookmarkTrace = api.traces.bookmark.useMutation({
-    onMutate: async () => {
+    onMutate: async (newBookmarkState) => {
       // Cancel any outgoing refetches
       // (so they don't overwrite our optimistic update)
       await utils.traces.byIdWithObservationsAndScores.cancel();
@@ -156,6 +156,19 @@ export function StarTraceDetailsToggle({
         projectId,
         timestamp,
       });
+
+      // Optimistically update to the new value
+      utils.traces.byIdWithObservationsAndScores.setData(
+        { traceId, projectId, timestamp },
+        (oldQueryData) => {
+          return oldQueryData
+            ? {
+                ...oldQueryData,
+                bookmarked: newBookmarkState.bookmarked,
+              }
+            : undefined;
+        },
+      );
 
       return { prevData };
     },
@@ -170,22 +183,7 @@ export function StarTraceDetailsToggle({
     },
     onSettled: () => {
       setIsLoading(false);
-
-      utils.traces.byIdWithObservationsAndScores.setData(
-        { traceId, projectId, timestamp },
-        (
-          oldQueryData:
-            | RouterOutput["traces"]["byIdWithObservationsAndScores"]
-            | undefined,
-        ) => {
-          return oldQueryData
-            ? {
-                ...oldQueryData,
-                bookmarked: !oldQueryData.bookmarked,
-              }
-            : undefined;
-        },
-      );
+      // Refetch to ensure we have the latest data from the server
       void utils.traces.byIdWithObservationsAndScores.invalidate();
       void utils.traces.all.invalidate();
     },
