@@ -364,12 +364,12 @@ export async function fetchLLMCompletion(
       apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS &&
       (isSelfHosted || shouldUseLangfuseAPIKey);
 
-    // When using ADC, authOptions can be undefined to use google-auth-library's default credential chain
+    // When using ADC, authOptions must be undefined to use google-auth-library's default credential chain
     // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
+    // Security: We intentionally ignore user-provided projectId when using ADC to prevent
+    // privilege escalation attacks where users could access other GCP projects via the server's credentials
     const authOptions = useADC
-      ? projectId
-        ? { projectId } // Allow explicit projectId even with ADC
-        : undefined
+      ? undefined // Always use ADC auto-detection, never allow user-specified projectId
       : (() => {
           const credentials = GCPServiceAccountKeySchema.parse(
             JSON.parse(apiKey),

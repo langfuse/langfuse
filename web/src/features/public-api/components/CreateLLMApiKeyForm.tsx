@@ -496,13 +496,10 @@ export function CreateLLMApiKeyForm({
         // else secretKey is already set from values.secretKey
       }
 
-      // Build config with location and optional projectId
+      // Build config with location only (projectId removed for security - ADC auto-detects)
       config = {};
       if (values.vertexAILocation?.trim()) {
         config.location = values.vertexAILocation.trim();
-      }
-      if (values.vertexAIProjectId?.trim()) {
-        config.projectId = values.vertexAIProjectId.trim();
       }
       // If config is empty, set to undefined
       if (Object.keys(config).length === 0) {
@@ -884,36 +881,7 @@ export function CreateLLMApiKeyForm({
                 </div>
               )}
 
-              {/* Optional Project ID for ADC */}
-              {!isLangfuseCloud && form.watch("vertexAIUseADC") && (
-                <FormField
-                  control={form.control}
-                  name="vertexAIProjectId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        GCP Project ID
-                        <span className="font-normal text-muted-foreground">
-                          {" "}
-                          (optional)
-                        </span>
-                      </FormLabel>
-                      <FormDescription>
-                        Specify the GCP project ID explicitly. If not provided,
-                        it will be auto-detected from the environment.
-                      </FormDescription>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="e.g., my-gcp-project"
-                          data-1p-ignore
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              {/* Note: Project ID input removed for security - ADC always auto-detects project */}
             </>
           ) : (
             <FormField
