@@ -25,9 +25,16 @@ export default class BackfillSysIdForDatasetItems
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     // validate that the background migration record exists
-    await prisma.backgroundMigration.findUniqueOrThrow({
+    const migration = await prisma.backgroundMigration.findUnique({
       where: { id: backgroundMigrationId },
     });
+
+    if (!migration) {
+      return {
+        valid: false,
+        invalidReason: "Background migration record does not exist",
+      };
+    }
 
     // Check that sys_id column exists
     const columnExists = await prisma.$queryRaw<{ exists: boolean }[]>(
