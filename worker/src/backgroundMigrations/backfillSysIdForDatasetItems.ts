@@ -81,7 +81,6 @@ export default class BackfillSysIdForDatasetItems
           SELECT id, project_id
           FROM dataset_items
           WHERE sys_id IS NULL
-          ORDER BY created_at DESC, id DESC
           LIMIT ${batchSize}
         );
       `;
