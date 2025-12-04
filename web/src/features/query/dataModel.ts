@@ -1,9 +1,11 @@
 import type z from "zod/v4";
-import {
-  type privateViews,
-  type ViewDeclarationType,
-  type DimensionsDeclarationType,
+import type {
+  ViewVersion,
+  ViewDeclarationType,
+  DimensionsDeclarationType,
+  views,
 } from "@/src/features/query/types";
+import { InvalidRequestError } from "@langfuse/shared";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update ./dashboardUiTableToViewMapping.ts if you make changes
@@ -916,13 +918,39 @@ export const eventsObservationsView: ViewDeclarationType = {
   baseCte: "events events_observations", // No FINAL modifier needed for events table
 };
 
-export const viewDeclarations: Record<
-  z.infer<typeof privateViews>,
-  ViewDeclarationType
-> = {
-  traces: traceView,
-  observations: observationsView,
-  "events-observations": eventsObservationsView,
-  "scores-numeric": scoresNumericView,
-  "scores-categorical": scoresCategoricalView,
+// Define versioned structure type
+type VersionedViewDeclarations = {
+  readonly [version in ViewVersion]: {
+    readonly [K in z.infer<typeof views>]: ViewDeclarationType;
+  };
 };
+
+// Versioned view declarations
+export const viewDeclarations: VersionedViewDeclarations = {
+  v1: {
+    traces: traceView,
+    observations: observationsView, // Old: observations table
+    "scores-numeric": scoresNumericView,
+    "scores-categorical": scoresCategoricalView,
+  },
+  v2: {
+    traces: traceView,
+    observations: eventsObservationsView, // New: events table
+    "scores-numeric": scoresNumericView,
+    "scores-categorical": scoresCategoricalView,
+  },
+} as const;
+
+// Helper function for view resolution
+export function getViewDeclaration(
+  viewName: z.infer<typeof views>,
+  version: ViewVersion = "v1",
+): ViewDeclarationType {
+  const viewDecl = viewDeclarations[version]?.[viewName];
+  if (!viewDecl) {
+    throw new InvalidRequestError(
+      `Invalid view '${viewName}' for version '${version}'. Must be one of ${Object.keys(viewDeclarations[version])}`,
+    );
+  }
+  return viewDecl;
+}
