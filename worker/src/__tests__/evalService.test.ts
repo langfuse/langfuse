@@ -667,6 +667,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -743,6 +744,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -820,6 +822,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
         })
@@ -980,6 +983,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -1594,6 +1598,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           id: datasetItemId,
           project_id: projectId,
           dataset_id: datasetId2,
+          sys_id: randomUUID(),
           source_trace_id: traceId,
         })
         .execute();
@@ -1749,6 +1754,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .values({
           id: datasetItemId,
           project_id: projectId,
+          sys_id: randomUUID(),
           dataset_id: datasetId1,
           source_trace_id: traceId,
         })
@@ -2441,6 +2447,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           expected_output: { expected_output: "This is a great response" },
           project_id: projectId,
           dataset_id: datasetId,
+          sys_id: randomUUID(),
         })
         .execute();
 
@@ -3114,6 +3121,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .values({
           id: datasetItemId,
           project_id: projectId,
+          sys_id: randomUUID(),
           dataset_id: datasetId,
         })
         .execute();

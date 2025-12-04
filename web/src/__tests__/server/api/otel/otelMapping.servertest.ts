@@ -1227,6 +1227,159 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    it("should map Pydantic AI tool call to TOOL observation type via gen_ai.tool.* attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const pydanticAiToolSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.36.0" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "0.7.4",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                parentSpanId: Buffer.from("fedcba0987654321", "hex"),
+                name: "tool-call",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "roulette_wheel" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.id",
+                    value: { stringValue: "call_idvalue" },
+                  },
+                  {
+                    key: "tool_arguments",
+                    value: { stringValue: '{"square": 18}' },
+                  },
+                  {
+                    key: "tool_response",
+                    value: { stringValue: "winner" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "running tool: roulette_wheel" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiToolSpan,
+        new Set([traceId]),
+      );
+
+      const toolObservation = events.find((e) => e.type === "tool-create");
+
+      // Should map to TOOL observation type
+      expect(toolObservation).toBeDefined();
+      expect(toolObservation?.type).toBe("tool-create");
+
+      // Tool name should come from gen_ai.tool.name
+      expect(toolObservation?.body.name).toBe("roulette_wheel");
+
+      // Verify trace structure
+      expect(toolObservation?.body.traceId).toBe(traceId);
+    });
+
+    it("should prioritize gen_ai.tool.name over logfire.msg for tool observation name", async () => {
+      // why? because the logfire.msg value usually has: "running tool: roulette_wheel" whereas the gen_ai.tool.name value is "roulette_wheel"
+      // that is cleaner!
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const toolSpanWithBothNames = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "0.7.4",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "span-name",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "correct_tool_name" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.id",
+                    value: { stringValue: "call_123" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "wrong name from logfire" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        toolSpanWithBothNames,
+        new Set([traceId]),
+      );
+
+      const toolObservation = events.find((e) => e.type === "tool-create");
+
+      // Should use gen_ai.tool.name, NOT logfire.msg
+      expect(toolObservation?.body.name).toBe("correct_tool_name");
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
