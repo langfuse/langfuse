@@ -92,13 +92,13 @@ const deletePromptNameHandler = async (
     });
   }
 
-  // Delete prompts (pass fetched prompts to avoid duplicate query)
+  // Delete prompt versions
   await deletePrompt({
     promptName,
     projectId: authCheck.scope.projectId,
     version,
     label,
-    prompts, // Pass prompts to avoid duplicate query
+    promptVersions: prompts,
   });
 
   res.status(204).end();

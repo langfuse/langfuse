@@ -7,67 +7,83 @@ export type DeletePromptParams = {
   projectId: string;
   version?: number | null;
   label?: string;
-  prompts?: Prompt[]; // Optional: if already fetched, avoid duplicate query
+  promptVersions: Prompt[];
 };
 
 export const deletePrompt = async (params: DeletePromptParams) => {
-  const {
-    promptName,
-    projectId,
-    version,
-    label,
-    prompts: providedPrompts,
-  } = params;
+  const { promptName, projectId, version, label, promptVersions } = params;
 
   if (version && label) {
     throw new InvalidRequestError("Cannot specify both version and label");
   }
 
-  let prompts = providedPrompts;
-  if (!prompts) {
-    const where = {
-      projectId,
-      name: promptName,
-      ...(version ? { version } : {}),
-      ...(label ? { labels: { has: label } } : {}),
-    };
-
-    prompts = await prisma.prompt.findMany({ where });
-  }
-
-  if (prompts.length === 0) {
+  if (promptVersions.length === 0) {
     throw new LangfuseNotFoundError("Prompt not found");
   }
 
-  // Check if other prompts depend on the prompt(s) being deleted
+  // Check if other prompts depend on the specific prompt versions being deleted
   const dependents = await prisma.$queryRaw<
     {
-      parent_name: string;
-      parent_version: number;
+      parent_id: string;
       child_version: number;
       child_label: string;
     }[]
   >`
     SELECT
-      p."name" AS "parent_name",
-      p."version" AS "parent_version",
+      pd.parent_id,
       pd."child_version" AS "child_version",
       pd."child_label" AS "child_label"
     FROM
       prompt_dependencies pd
-      INNER JOIN prompts p ON p.id = pd.parent_id
     WHERE
-      p.project_id = ${projectId}
-      AND pd.project_id = ${projectId}
+      pd.project_id = ${projectId}
       AND pd.child_name = ${promptName}
   `;
 
-  if (dependents.length > 0) {
-    const dependencyMessages = dependents
-      .map(
-        (d) =>
-          `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
-      )
+  // Get all existing versions to check which labels will cease to exist
+  const allVersions = await prisma.prompt.findMany({
+    where: { projectId, name: promptName },
+    select: { id: true, version: true, labels: true },
+  });
+
+  const versionIdsBeingDeleted = new Set(promptVersions.map((p) => p.id));
+  const versionsBeingDeleted = new Set(promptVersions.map((p) => p.version));
+
+  const remainingVersions = allVersions.filter(
+    (v) => !versionIdsBeingDeleted.has(v.id),
+  );
+
+  // only get dependencies that will actually break
+  const blockingDependents = dependents.filter((dep) => {
+    // block if we're deleting this specific version
+    if (dep.child_version && versionsBeingDeleted.has(dep.child_version)) {
+      return true;
+    }
+    // block only if no remaining version has this label
+    if (dep.child_label) {
+      const labelWillExist = remainingVersions.some((v) =>
+        v.labels.includes(dep.child_label),
+      );
+      return !labelWillExist;
+    }
+    return false;
+  });
+
+  if (blockingDependents.length > 0) {
+    // we want the parent prompt names to display understandable error messages
+    const parentPrompts = await prisma.prompt.findMany({
+      where: { id: { in: blockingDependents.map((d) => d.parent_id) } },
+      select: { id: true, name: true, version: true },
+    });
+
+    const dependencyMessages = blockingDependents
+      .map((d) => {
+        const parent = parentPrompts.find((p) => p.id === d.parent_id);
+        const parentInfo = parent
+          ? `${parent.name} v${parent.version}`
+          : d.parent_id;
+        return `${parentInfo} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`;
+      })
       .join("\n");
 
     throw new InvalidRequestError(
@@ -81,8 +97,33 @@ export const deletePrompt = async (params: DeletePromptParams) => {
     await promptService.lockCache({ projectId, promptName });
     await promptService.invalidateCache({ projectId, promptName });
 
+    const deletingLatest = promptVersions.some((p) =>
+      p.labels.includes("latest"),
+    );
+    const latestRemainsAfterDeletion = remainingVersions.some((v) =>
+      v.labels.includes("latest"),
+    );
+
+    // reattach "latest" to highest remaining version
+    if (
+      deletingLatest &&
+      !latestRemainsAfterDeletion &&
+      remainingVersions.length > 0
+    ) {
+      const highestRemainingVersion = remainingVersions.reduce((max, v) =>
+        v.version > max.version ? v : max,
+      );
+
+      await prisma.prompt.update({
+        where: { id: highestRemainingVersion.id },
+        data: {
+          labels: [...new Set([...highestRemainingVersion.labels, "latest"])],
+        },
+      });
+    }
+
     await prisma.prompt.deleteMany({
-      where: { projectId, id: { in: prompts.map((p) => p.id) } },
+      where: { projectId, id: { in: promptVersions.map((p) => p.id) } },
     });
   } catch (err) {
     logger.error("Failed to delete prompt", err);
