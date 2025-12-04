@@ -356,26 +356,91 @@ export function convertEventsObservation(
   };
 }
 
+const sumValuesByPrefix = (
+  details: Record<string, number> | null | undefined,
+  prefix: string,
+  { excludeExactKey = false }: { excludeExactKey?: boolean } = {},
+): {
+  value: number;
+  hasMatches: boolean;
+} => {
+  const normalizedPrefix = prefix.toLowerCase();
+  let value = 0;
+  let hasMatches = false;
+
+  for (const [key, rawValue] of Object.entries(details ?? {})) {
+    if (rawValue == null) continue;
+
+    const normalizedKey = key.toLowerCase();
+    if (!normalizedKey.startsWith(normalizedPrefix)) continue;
+    if (excludeExactKey && normalizedKey === normalizedPrefix) continue;
+
+    value += Number(rawValue);
+    hasMatches = true;
+  }
+
+  return { value, hasMatches };
+};
+
+const getCanonicalEntryValue = (
+  details: Record<string, number> | null | undefined,
+  key: string,
+): number | null => {
+  const normalizedKey = key.toLowerCase();
+  for (const [entryKey, rawValue] of Object.entries(details ?? {})) {
+    if (rawValue == null) continue;
+    if (entryKey.toLowerCase() !== normalizedKey) continue;
+
+    const numericValue = Number(rawValue);
+    if (Number.isNaN(numericValue)) return null;
+    return numericValue;
+  }
+
+  return null;
+};
+
+const aggregateMetricByPrefix = (
+  details: Record<string, number> | null | undefined,
+  prefix: string,
+): number | null => {
+  const canonicalValue = getCanonicalEntryValue(details, prefix);
+  const { value: breakdownValue, hasMatches } = sumValuesByPrefix(
+    details,
+    prefix,
+    { excludeExactKey: true },
+  );
+
+  if (canonicalValue != null && hasMatches) {
+    return Math.max(canonicalValue, breakdownValue);
+  }
+
+  if (canonicalValue != null) {
+    return canonicalValue;
+  }
+
+  if (hasMatches) {
+    return breakdownValue;
+  }
+
+  return null;
+};
+
 export const reduceUsageOrCostDetails = (
   details: Record<string, number> | null | undefined,
 ): {
-  input: number | null;
-  output: number | null;
-  total: number | null;
+  input: number;
+  output: number;
+  total: number;
 } => {
+  const input = aggregateMetricByPrefix(details, "input") ?? 0;
+  const output = aggregateMetricByPrefix(details, "output") ?? 0;
+  const total =
+    getCanonicalEntryValue(details, "total") ??
+    (input || output ? input + output : 0);
+
   return {
-    input: Object.entries(details ?? {})
-      .filter(([usageType]) => usageType.startsWith("input"))
-      .reduce(
-        (acc, [, value]) => (acc ?? 0) + Number(value),
-        null as number | null, // default to null if no input usage is found
-      ),
-    output: Object.entries(details ?? {})
-      .filter(([usageType]) => usageType.startsWith("output"))
-      .reduce(
-        (acc, [, value]) => (acc ?? 0) + Number(value),
-        null as number | null, // default to null if no output usage is found
-      ),
-    total: Number(details?.total ?? 0),
+    input,
+    output,
+    total,
   };
 };

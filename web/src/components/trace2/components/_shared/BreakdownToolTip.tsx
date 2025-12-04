@@ -7,6 +7,10 @@ import {
 import { useState } from "react";
 import Decimal from "decimal.js";
 import { getMaxDecimals } from "@/src/features/models/utils";
+import {
+  aggregateUsageDetails,
+  calculateAggregatedUsage as computeAggregatedUsage,
+} from "@/src/utils/usage-details";
 
 interface Details {
   [key: string]: number | undefined;
@@ -25,17 +29,8 @@ export const BreakdownTooltip = ({
 }: BreakdownTooltipProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Aggregate details if array is provided
-  const aggregatedDetails = Array.isArray(details)
-    ? details.reduce<Details>((acc, curr) => {
-        Object.entries(curr).forEach(([key, value]) => {
-          acc[key] = new Decimal(acc[key] || 0)
-            .plus(new Decimal(value || 0))
-            .toNumber();
-        });
-        return acc;
-      }, {})
-    : details;
+  const aggregatedDetails = aggregateUsageDetails(details);
+  const aggregatedTotals = computeAggregatedUsage(aggregatedDetails);
 
   const formatValueWithPadding = (value: number, maxDecimals: number) => {
     return !value
@@ -80,6 +75,7 @@ export const BreakdownTooltip = ({
               details={aggregatedDetails}
               filterFn={(key) => key.includes("input")}
               formatValue={(v) => formatValueWithPadding(v, maxDecimals)}
+              sectionTotal={aggregatedTotals.input}
             />
 
             {/* Output Section */}
@@ -88,6 +84,7 @@ export const BreakdownTooltip = ({
               details={aggregatedDetails}
               filterFn={(key) => key.includes("output")}
               formatValue={(v) => formatValueWithPadding(v, maxDecimals)}
+              sectionTotal={aggregatedTotals.output}
             />
 
             {/* Other Section */}
@@ -103,10 +100,7 @@ export const BreakdownTooltip = ({
                 {isCost ? "Total cost" : "Total usage"}
               </span>
               <span className="font-mono text-xs font-semibold">
-                {formatValueWithPadding(
-                  aggregatedDetails.total ?? 0,
-                  maxDecimals,
-                )}
+                {formatValueWithPadding(aggregatedTotals.total, maxDecimals)}
               </span>
             </div>
           </div>
@@ -121,25 +115,34 @@ interface SectionProps {
   details: Details;
   filterFn: (key: string) => boolean;
   formatValue: (value: number) => string;
+  sectionTotal?: number;
 }
 
-const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
+const Section = ({
+  title,
+  details,
+  filterFn,
+  formatValue,
+  sectionTotal,
+}: SectionProps) => {
   const filteredEntries = Object.entries(details)
     .filter(([key]) => filterFn(key))
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
 
-  const sectionTotal = filteredEntries.reduce(
-    (sum, [_, value]) =>
-      new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
-    0,
-  );
+  const computedTotal =
+    sectionTotal ??
+    filteredEntries.reduce(
+      (sum, [_, value]) =>
+        new Decimal(sum).plus(new Decimal(value ?? 0)).toNumber(),
+      0,
+    );
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-between border-b pb-1">
         <span className="text-xs font-semibold">{title}</span>
         <span className="text-right font-mono text-xs font-semibold">
-          {formatValue(sectionTotal)}
+          {formatValue(computedTotal)}
         </span>
       </div>
       {filteredEntries.map(([key, value]) => (
