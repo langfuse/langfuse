@@ -529,7 +529,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.cost_details,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
-        metadata::JSON AS metadata,
+        toJsonString(o.metadata) AS metadata,
         mapKeys(o.metadata) AS metadata_names,
         mapValues(o.metadata) AS metadata_raw_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
