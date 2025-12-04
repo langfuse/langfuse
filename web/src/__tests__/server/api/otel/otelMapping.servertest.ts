@@ -1312,13 +1312,72 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolObservation).toBeDefined();
       expect(toolObservation?.type).toBe("tool-create");
 
-      // currently, the tool name is extracted from logfire.msg
-      // but, it SHOULD be extracted from gen_ai.too.name
-      // TODO: this test should be correct
-      // expect(toolObservation?.body.name).toBe("roulette_wheel");
+      // Tool name should come from gen_ai.tool.name
+      expect(toolObservation?.body.name).toBe("roulette_wheel");
 
       // Verify trace structure
       expect(toolObservation?.body.traceId).toBe(traceId);
+    });
+
+    it("should prioritize gen_ai.tool.name over logfire.msg for tool observation name", async () => {
+      // why? because the logfire.msg value usually has: "running tool: roulette_wheel" whereas the gen_ai.tool.name value is "roulette_wheel"
+      // that is cleaner!
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const toolSpanWithBothNames = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "0.7.4",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "span-name",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "correct_tool_name" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.id",
+                    value: { stringValue: "call_123" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "wrong name from logfire" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        toolSpanWithBothNames,
+        new Set([traceId]),
+      );
+
+      const toolObservation = events.find((e) => e.type === "tool-create");
+
+      // Should use gen_ai.tool.name, NOT logfire.msg
+      expect(toolObservation?.body.name).toBe("correct_tool_name");
     });
 
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {

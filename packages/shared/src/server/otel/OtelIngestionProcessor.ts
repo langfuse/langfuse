@@ -1534,6 +1534,14 @@ export class OtelIngestionProcessor {
     spanName: string,
     attributes: Record<string, unknown>,
   ): string {
+    // GenAI tool name (standard OTel GenAI attribute)
+    if ("gen_ai.tool.name" in attributes && attributes["gen_ai.tool.name"]) {
+      return typeof attributes["gen_ai.tool.name"] === "string"
+        ? (attributes["gen_ai.tool.name"] as string)
+        : JSON.stringify(attributes["gen_ai.tool.name"]);
+    }
+
+    // Logfire message for pydantic AI
     const nameKeys = ["logfire.msg"];
     for (const key of nameKeys) {
       if (attributes[key]) {
