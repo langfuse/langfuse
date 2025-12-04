@@ -34,7 +34,6 @@ interface MigrationArgs {
   concurrency?: number; // Default: 4
   pollIntervalMs?: number; // Default: 30_000
   maxRetries?: number; // Default: 3
-  batchTimeoutMs?: number; // Default: 7_200_000 (2h)
   retryFailed?: boolean; // Reset failed chunks to pending
 }
 
@@ -50,7 +49,6 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
   concurrency: 4,
   pollIntervalMs: 30_000,
   maxRetries: 3,
-  batchTimeoutMs: 7_200_000,
 };
 
 type OnQueryCompleteCallback = (
@@ -562,7 +560,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
   private async fireQuery(
     query: string,
     queryId: string,
-    timeoutMs: number,
     retryCount: number = 0,
   ): Promise<void> {
     logger.info(`[Backfill Events] Firing query ${queryId}`);
@@ -596,9 +593,9 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         operation: "fireQuery",
         queryId,
       },
-      clickhouseConfigs: {
-        request_timeout: timeoutMs,
-      },
+      // clickhouseConfigs: {
+      //   request_timeout: timeoutMs,
+      // },
       clickhouseSettings: {
         // send_progress_in_http_headers: 1,
         // http_headers_progress_interval_ms: "30000",
@@ -732,8 +729,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       pollIntervalMs:
         migrationArgs.pollIntervalMs ?? DEFAULT_CONFIG.pollIntervalMs,
       maxRetries: migrationArgs.maxRetries ?? DEFAULT_CONFIG.maxRetries,
-      batchTimeoutMs:
-        migrationArgs.batchTimeoutMs ?? DEFAULT_CONFIG.batchTimeoutMs,
     };
 
     logger.info(
@@ -817,7 +812,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         await this.fireQuery(
           query,
           state.todos[todoIndex].queryId!,
-          config.batchTimeoutMs!,
           state.todos[todoIndex].retryCount || 0,
         );
         manager.addQuery(
@@ -940,7 +934,6 @@ async function main() {
       concurrency: { type: "string", short: "c", default: "4" },
       pollIntervalMs: { type: "string", short: "p", default: "30000" },
       maxRetries: { type: "string", short: "r", default: "3" },
-      batchTimeoutMs: { type: "string", short: "t", default: "7200000" },
       retryFailed: { type: "boolean", short: "f", default: false },
     },
   });
@@ -951,7 +944,6 @@ async function main() {
     concurrency: parseInt(args.values.concurrency as string, 10),
     pollIntervalMs: parseInt(args.values.pollIntervalMs as string, 10),
     maxRetries: parseInt(args.values.maxRetries as string, 10),
-    batchTimeoutMs: parseInt(args.values.batchTimeoutMs as string, 10),
     retryFailed: args.values.retryFailed as boolean,
   };
 
