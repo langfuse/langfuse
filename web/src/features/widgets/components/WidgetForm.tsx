@@ -630,7 +630,7 @@ export function WidgetForm({
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
-    const viewDeclaration = viewDeclarations[selectedView];
+    const viewDeclaration = viewDeclarations.v1[selectedView];
 
     // For pivot tables, only show measures that still have available aggregations
     if (selectedChartType === "PIVOT_TABLE") {
@@ -697,7 +697,7 @@ export function WidgetForm({
   // Get available metrics for a specific metric index in pivot tables
   const getAvailableMetrics = (metricIndex: number) => {
     if (selectedChartType === "PIVOT_TABLE") {
-      const viewDeclaration = viewDeclarations[selectedView];
+      const viewDeclaration = viewDeclarations.v1[selectedView];
       return Object.entries(viewDeclaration.measures)
         .filter(([measureKey]) => {
           // For count, there's only one aggregation option
@@ -734,7 +734,7 @@ export function WidgetForm({
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
-    const viewDeclaration = viewDeclarations[selectedView];
+    const viewDeclaration = viewDeclarations.v1[selectedView];
     return Object.entries(viewDeclaration.dimensions)
       .map(([key]) => ({
         value: key,
@@ -1075,7 +1075,7 @@ export function WidgetForm({
                   onValueChange={(value) => {
                     if (value !== selectedView) {
                       const newView = value as z.infer<typeof views>;
-                      const newViewDeclaration = viewDeclarations[newView];
+                      const newViewDeclaration = viewDeclarations.v1[newView];
 
                       // Reset regular chart fields
                       setSelectedMeasure("count");
@@ -1137,7 +1137,7 @@ export function WidgetForm({
                         key={view}
                         value={view}
                         label={startCase(view)}
-                        description={viewDeclarations[view].description}
+                        description={viewDeclarations.v1[view].description}
                       />
                     ))}
                   </SelectContent>
@@ -1222,7 +1222,7 @@ export function WidgetForm({
                                   <SelectContent>
                                     {metricsForIndex.map((metric) => {
                                       const meta =
-                                        viewDeclarations[selectedView]
+                                        viewDeclarations.v1[selectedView]
                                           ?.measures?.[metric.value];
                                       return (
                                         <WidgetPropertySelectItem
@@ -1306,7 +1306,7 @@ export function WidgetForm({
                       <SelectContent>
                         {availableMetrics.map((metric) => {
                           const meta =
-                            viewDeclarations[selectedView]?.measures?.[
+                            viewDeclarations.v1[selectedView]?.measures?.[
                               metric.value
                             ];
                           return (
@@ -1392,7 +1392,7 @@ export function WidgetForm({
                         <SelectItem value="none">None</SelectItem>
                         {availableDimensions.map((dimension) => {
                           const meta =
-                            viewDeclarations[selectedView]?.dimensions?.[
+                            viewDeclarations.v1[selectedView]?.dimensions?.[
                               dimension.value
                             ];
                           return (
@@ -1467,7 +1467,7 @@ export function WidgetForm({
                                 )
                                 .map((dimension) => {
                                   const meta =
-                                    viewDeclarations[selectedView]
+                                    viewDeclarations.v1[selectedView]
                                       ?.dimensions?.[dimension.value];
                                   return (
                                     <WidgetPropertySelectItem

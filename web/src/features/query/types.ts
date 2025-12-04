@@ -57,7 +57,8 @@ export const views = z.enum([
   // "users",
 ]);
 
-export const privateViews = views.or(z.literal("events-observations"));
+export const viewVersions = z.enum(["v1", "v2"]);
+export type ViewVersion = z.infer<typeof viewVersions>;
 
 export const dimension = z.object({
   field: z.string(),
@@ -95,7 +96,7 @@ export type QueryType = z.infer<typeof query>;
 
 export const query = z
   .object({
-    view: privateViews,
+    view: views,
     dimensions: z.array(dimension),
     metrics: z.array(metric),
     filters: z.array(singleFilter),
