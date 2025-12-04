@@ -1408,7 +1408,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    }\n}",
+              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    },\n    \"config\": {\n        \"example\": \"UNKNOWN\"\n    }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2210,7 +2210,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get Project associated with API key",
+            "description": "Get Project associated with API key (requires project-scoped API key). You can use GET /api/public/organizations/projects to get all projects with an organization-scoped key.",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects",
               "host": [

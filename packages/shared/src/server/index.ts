@@ -110,5 +110,6 @@ export * from "./dataset-run-items/addToDeleteQueue";
 // test utils
 export * from "./test-utils";
 export * from "./utils/headerUtils";
+export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./analytics-integrations/types";

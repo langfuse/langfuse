@@ -22,14 +22,13 @@ type JsonExpansionState = {
   output: ExpandedState;
   metadata: ExpandedState;
   log: ExpandedState;
+  // Dynamic keys for per-observation log view expansion (e.g., "log:observationId")
+  [key: string]: ExpandedState;
 };
 
 interface JsonExpansionContextValue {
   expansionState: JsonExpansionState;
-  setFieldExpansion: (
-    field: keyof JsonExpansionState,
-    expansion: ExpandedState,
-  ) => void;
+  setFieldExpansion: (field: string, expansion: ExpandedState) => void;
 }
 
 const JsonExpansionContext = createContext<JsonExpansionContextValue>({
@@ -49,7 +48,7 @@ export function JsonExpansionProvider({ children }: { children: ReactNode }) {
     });
 
   const setFieldExpansion = useCallback(
-    (field: keyof JsonExpansionState, expansion: ExpandedState) => {
+    (field: string, expansion: ExpandedState) => {
       setExpansionState((prev) => ({
         ...prev,
         [field]: expansion,
@@ -60,7 +59,10 @@ export function JsonExpansionProvider({ children }: { children: ReactNode }) {
 
   return (
     <JsonExpansionContext.Provider
-      value={{ expansionState, setFieldExpansion }}
+      value={{
+        expansionState,
+        setFieldExpansion,
+      }}
     >
       {children}
     </JsonExpansionContext.Provider>
