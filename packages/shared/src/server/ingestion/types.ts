@@ -86,7 +86,7 @@ const CostDetails = z
   .nullish();
 
 const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
-  if (!val) return val;
+  if (!val) return;
 
   const result: Record<string, number> = {};
 
@@ -96,7 +96,7 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
     }
   }
 
-  return result;
+  return Object.keys(result).length > 0 ? result : undefined;
 });
 
 const OpenAICompletionUsageSchema = z
