@@ -467,6 +467,19 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
           name: "dataset-name",
         },
       },
+      select: {
+        id: true,
+        projectId: true,
+        datasetId: true,
+        status: true,
+        input: true,
+        expectedOutput: true,
+        metadata: true,
+        sourceTraceId: true,
+        sourceObservationId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       orderBy: {
         createdAt: "desc",
       },
@@ -509,6 +522,19 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         dataset: {
           name: "dataset-name-other",
         },
+      },
+      select: {
+        id: true,
+        projectId: true,
+        datasetId: true,
+        status: true,
+        input: true,
+        expectedOutput: true,
+        metadata: true,
+        sourceTraceId: true,
+        sourceObservationId: true,
+        createdAt: true,
+        updatedAt: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -1235,6 +1261,19 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getApiDatasetItem.body.metadata).toBe("api-item");
     const dbItems = await prisma.datasetItem.findMany({
       where: { id: datasetItemBody.id },
+      select: {
+        id: true,
+        projectId: true,
+        datasetId: true,
+        status: true,
+        input: true,
+        expectedOutput: true,
+        metadata: true,
+        sourceTraceId: true,
+        sourceObservationId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     expect(dbItems.length).toBe(2);
     expect(dbItems).toHaveLength(2);

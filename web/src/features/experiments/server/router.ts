@@ -14,7 +14,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type DatasetItem,
   DatasetStatus,
   extractVariables,
   validateDatasetItem,
@@ -23,6 +22,7 @@ import {
   extractPlaceholderNames,
   type PromptMessage,
   isPresent,
+  type DatasetItemDomain,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -43,7 +43,7 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
 ]);
 
 const countValidDatasetItems = (
-  datasetItems: DatasetItem[],
+  datasetItems: Omit<DatasetItemDomain, "status">[],
   variables: string[],
 ): Record<string, number> => {
   const variableMap: Record<string, number> = {};
@@ -145,6 +145,18 @@ export const experimentsRouter = createTRPCRouter({
           datasetId: input.datasetId,
           projectId: input.projectId,
           status: DatasetStatus.ACTIVE,
+        },
+        select: {
+          id: true,
+          projectId: true,
+          datasetId: true,
+          input: true,
+          expectedOutput: true,
+          metadata: true,
+          sourceTraceId: true,
+          sourceObservationId: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
 

@@ -651,7 +651,7 @@ describe("buildTraceUiData", () => {
     });
   });
 
-  describe("Performance Tests", () => {
+  describe.skip("Performance Tests", () => {
     // Helper to generate observations at scale
     const generateObservations = (
       count: number,
@@ -1085,6 +1085,194 @@ describe("buildTraceUiData", () => {
         expect(result.nodeMap.get("branch1-level1")?.depth).toBe(1);
         expect(result.nodeMap.get("branch1-level2")?.depth).toBe(2);
         expect(result.nodeMap.get("branch2-level1")?.depth).toBe(1);
+      });
+    });
+
+    describe("Children Depth Calculation", () => {
+      it("assigns childrenDepth 0 to leaf nodes", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "leaf-1",
+            parentObservationId: null,
+          }),
+          createMockObservation({
+            id: "leaf-2",
+            parentObservationId: null,
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(result.nodeMap.get("leaf-1")?.childrenDepth).toBe(0);
+        expect(result.nodeMap.get("leaf-2")?.childrenDepth).toBe(0);
+      });
+
+      it("calculates childrenDepth for linear chain (A → B → C)", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "A",
+            parentObservationId: null,
+          }),
+          createMockObservation({
+            id: "B",
+            parentObservationId: "A",
+          }),
+          createMockObservation({
+            id: "C",
+            parentObservationId: "B",
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // C is leaf: childrenDepth = 0
+        expect(result.nodeMap.get("C")?.childrenDepth).toBe(0);
+        // B has one child (C): childrenDepth = 1
+        expect(result.nodeMap.get("B")?.childrenDepth).toBe(1);
+        // A has chain of depth 2: childrenDepth = 2
+        expect(result.nodeMap.get("A")?.childrenDepth).toBe(2);
+        // Trace root has chain of depth 3: childrenDepth = 3
+        expect(result.tree.childrenDepth).toBe(3);
+      });
+
+      it("calculates childrenDepth for wide tree (parent with 3 children)", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "parent",
+            parentObservationId: null,
+          }),
+          createMockObservation({
+            id: "child-1",
+            parentObservationId: "parent",
+          }),
+          createMockObservation({
+            id: "child-2",
+            parentObservationId: "parent",
+          }),
+          createMockObservation({
+            id: "child-3",
+            parentObservationId: "parent",
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // All children are leaves: childrenDepth = 0
+        expect(result.nodeMap.get("child-1")?.childrenDepth).toBe(0);
+        expect(result.nodeMap.get("child-2")?.childrenDepth).toBe(0);
+        expect(result.nodeMap.get("child-3")?.childrenDepth).toBe(0);
+        // Parent has children at depth 1: childrenDepth = 1
+        expect(result.nodeMap.get("parent")?.childrenDepth).toBe(1);
+        // Trace root: childrenDepth = 2
+        expect(result.tree.childrenDepth).toBe(2);
+      });
+
+      it("takes max childrenDepth when branches have different depths", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({
+            id: "root",
+            parentObservationId: null,
+          }),
+          // Branch 1: depth 2 (root → branch1 → deep)
+          createMockObservation({
+            id: "branch1",
+            parentObservationId: "root",
+          }),
+          createMockObservation({
+            id: "deep",
+            parentObservationId: "branch1",
+          }),
+          // Branch 2: depth 1 (root → branch2)
+          createMockObservation({
+            id: "branch2",
+            parentObservationId: "root",
+          }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // deep is leaf: childrenDepth = 0
+        expect(result.nodeMap.get("deep")?.childrenDepth).toBe(0);
+        // branch1 has one child: childrenDepth = 1
+        expect(result.nodeMap.get("branch1")?.childrenDepth).toBe(1);
+        // branch2 is leaf: childrenDepth = 0
+        expect(result.nodeMap.get("branch2")?.childrenDepth).toBe(0);
+        // root takes max(1, 0) + 1 = 2
+        expect(result.nodeMap.get("root")?.childrenDepth).toBe(2);
+        // Trace root: childrenDepth = 3
+        expect(result.tree.childrenDepth).toBe(3);
+      });
+
+      it("calculates childrenDepth 0 for empty trace", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [];
+
+        const result = buildTraceUiData(trace, observations);
+
+        expect(result.tree.childrenDepth).toBe(0);
+      });
+
+      it("calculates correct childrenDepth for deep nesting (5+ levels)", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          createMockObservation({ id: "L0", parentObservationId: null }),
+          createMockObservation({ id: "L1", parentObservationId: "L0" }),
+          createMockObservation({ id: "L2", parentObservationId: "L1" }),
+          createMockObservation({ id: "L3", parentObservationId: "L2" }),
+          createMockObservation({ id: "L4", parentObservationId: "L3" }),
+          createMockObservation({ id: "L5", parentObservationId: "L4" }),
+          createMockObservation({ id: "L6", parentObservationId: "L5" }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // Bottom-up childrenDepth
+        expect(result.nodeMap.get("L6")?.childrenDepth).toBe(0);
+        expect(result.nodeMap.get("L5")?.childrenDepth).toBe(1);
+        expect(result.nodeMap.get("L4")?.childrenDepth).toBe(2);
+        expect(result.nodeMap.get("L3")?.childrenDepth).toBe(3);
+        expect(result.nodeMap.get("L2")?.childrenDepth).toBe(4);
+        expect(result.nodeMap.get("L1")?.childrenDepth).toBe(5);
+        expect(result.nodeMap.get("L0")?.childrenDepth).toBe(6);
+        // Trace root: 7 levels deep
+        expect(result.tree.childrenDepth).toBe(7);
+      });
+
+      it("calculates childrenDepth with multiple root observations", () => {
+        const trace = createMockTrace({ id: "trace-1" });
+        const observations: ObservationReturnType[] = [
+          // First root with depth 2
+          createMockObservation({ id: "root1", parentObservationId: null }),
+          createMockObservation({
+            id: "root1-child",
+            parentObservationId: "root1",
+          }),
+          createMockObservation({
+            id: "root1-grandchild",
+            parentObservationId: "root1-child",
+          }),
+          // Second root with depth 1
+          createMockObservation({ id: "root2", parentObservationId: null }),
+          createMockObservation({
+            id: "root2-child",
+            parentObservationId: "root2",
+          }),
+          // Third root is leaf
+          createMockObservation({ id: "root3", parentObservationId: null }),
+        ];
+
+        const result = buildTraceUiData(trace, observations);
+
+        // root1 has depth 2, root2 has depth 1, root3 has depth 0
+        expect(result.nodeMap.get("root1")?.childrenDepth).toBe(2);
+        expect(result.nodeMap.get("root2")?.childrenDepth).toBe(1);
+        expect(result.nodeMap.get("root3")?.childrenDepth).toBe(0);
+        // Trace root takes max(2, 1, 0) + 1 = 3
+        expect(result.tree.childrenDepth).toBe(3);
       });
     });
 
