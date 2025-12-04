@@ -3079,7 +3079,10 @@ paths:
         - BasicAuth: []
   /api/public/projects:
     get:
-      description: Get Project associated with API key
+      description: >-
+        Get Project associated with API key (requires project-scoped API key).
+        You can use GET /api/public/organizations/projects to get all projects
+        with an organization-scoped key.
       operationId: projects_get
       tags:
         - Projects

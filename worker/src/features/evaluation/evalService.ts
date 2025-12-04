@@ -52,7 +52,7 @@ import {
   DatasetItem,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { compileHandlebarString, createW3CTraceId } from "../utils";
+import { compileTemplateString, createW3CTraceId } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
@@ -709,7 +709,7 @@ export const evaluate = async ({
   // compile the prompt and send out the LLM request
   let prompt;
   try {
-    prompt = compileHandlebarString(template.prompt, {
+    prompt = compileTemplateString(template.prompt, {
       ...Object.fromEntries(
         mappingResult.map(({ var: key, value }) => [key, value]),
       ),

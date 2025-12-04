@@ -2210,7 +2210,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get Project associated with API key",
+            "description": "Get Project associated with API key (requires project-scoped API key). You can use GET /api/public/organizations/projects to get all projects with an organization-scoped key.",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects",
               "host": [

@@ -70,7 +70,7 @@ const nextConfig = {
       // the dev server. The CSS is included in the non-turbopack based prod build anyways.
       // Also not needed for the non-turbopack based dev server.
       "react-resizable/css/styles.css":
-        "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.2.0_react@19.2.0__react@19.2.0/node_modules/react-resizable/css/styles.css",
+        "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.2.1_react@19.2.1__react@19.2.1/node_modules/react-resizable/css/styles.css",
     },
   },
   experimental: {
