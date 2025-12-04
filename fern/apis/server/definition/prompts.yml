@@ -61,7 +61,7 @@ service:
       response: Prompt
 
     delete:
-      docs: Delete a prompt or specific versions
+      docs: Delete prompt versions. If neither version nor label is specified, all versions of the prompt are deleted.
       method: DELETE
       path: /prompts/{promptName}
       path-parameters:
@@ -73,11 +73,10 @@ service:
         query-parameters:
           label:
             type: optional<string>
-            docs: Optional label of the prompt to delete
+            docs: Optional label to filter deletion. If specified, deletes all prompt versions that have this label.
           version:
             type: optional<integer>
-            docs: Optional version of the prompt to delete
-      response: scim.EmptyResponse
+            docs: Optional version to filter deletion. If specified, deletes only this specific version of the prompt.
 
 types:
   PromptMetaListResponse:

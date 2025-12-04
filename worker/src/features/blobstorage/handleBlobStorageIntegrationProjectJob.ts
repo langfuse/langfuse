@@ -123,17 +123,17 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
   switch (fileType) {
     case BlobStorageIntegrationFileType.JSON:
       return {
-        contentType: "application/json",
+        contentType: "application/json; charset=utf-8",
         extension: "json",
       };
     case BlobStorageIntegrationFileType.CSV:
       return {
-        contentType: "text/csv",
+        contentType: "text/csv; charset=utf-8",
         extension: "csv",
       };
     case BlobStorageIntegrationFileType.JSONL:
       return {
-        contentType: "application/x-ndjson",
+        contentType: "application/x-ndjson; charset=utf-8",
         extension: "jsonl",
       };
     default:
