@@ -24,19 +24,6 @@ export default class BackfillSysIdForDatasetItems
     // eslint-disable-next-line no-unused-vars
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
-    // Ensure the background migration record exists
-    await prisma.backgroundMigration.upsert({
-      where: { id: backgroundMigrationId },
-      create: {
-        id: backgroundMigrationId,
-        name: "20241204_1200_backfill_dataset_items_sys_id",
-        script: "backfillSysIdForDatasetItems",
-        args: {},
-        state: {},
-      },
-      update: {},
-    });
-
     // Check that sys_id column exists
     const columnExists = await prisma.$queryRaw<{ exists: boolean }[]>(
       Prisma.sql`
