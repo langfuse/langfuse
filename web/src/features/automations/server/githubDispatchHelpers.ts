@@ -1,4 +1,4 @@
-import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
+import { encrypt } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
   type ActionConfig,
@@ -6,10 +6,7 @@ import {
   type GitHubDispatchActionCreate,
   isGitHubDispatchActionConfig,
 } from "@langfuse/shared";
-import {
-  getActionByIdWithSecrets,
-  validateWebhookURL,
-} from "@langfuse/shared/src/server";
+import { getActionByIdWithSecrets } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 interface GitHubDispatchConfigOptions {
