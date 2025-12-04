@@ -3010,6 +3010,135 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       });
       expect(remaining.length).toBe(1);
     });
+
+    it("handles mixed version and label dependencies correctly", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const childName = "childPrompt" + uuidv4();
+      const parent1Name = "parent1" + uuidv4();
+      const parent2Name = "parent2" + uuidv4();
+      const parent3Name = "parent3" + uuidv4();
+
+      // Create child prompt with 2 versions
+      // v1: labels ["production", "latest"]
+      // v2: labels ["production"]
+      const childV1 = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: childName,
+          prompt: "child v1",
+          labels: ["production", "latest"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: childName,
+          prompt: "child v2",
+          labels: ["production"],
+          version: 2,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // parent1: depends on childPrompt v1 (version-based - SHOULD BLOCK)
+      const parent1 = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parent1Name,
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|version=1@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parent1.id,
+          childName,
+          childVersion: 1,
+          projectId,
+        },
+      });
+
+      // parent2: depends on childPrompt|label=production (label-based - should NOT block, v2 has it)
+      const parent2 = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parent2Name,
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|label=production@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parent2.id,
+          childName,
+          childLabel: "production",
+          projectId,
+        },
+      });
+
+      // parent3: depends on childPrompt|label=latest (label-based - SHOULD BLOCK, only v1 has it)
+      const parent3 = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parent3Name,
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|label=latest@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parent3.id,
+          childName,
+          childLabel: "latest",
+          projectId,
+        },
+      });
+
+      // Try to delete v1 - should fail because:
+      // - parent1 depends on v1 specifically (version-based) ✓ BLOCKS
+      // - parent3 depends on "latest" label (only v1 has it) ✓ BLOCKS
+      // - parent2 depends on "production" label (v2 also has it) ✓ DOES NOT BLOCK
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(childName)}?version=1`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      // @ts-expect-error
+      expect(res.body.message).toContain("depending on");
+      // @ts-expect-error - Should mention blocking parents
+      expect(res.body.message).toContain(parent1Name);
+      // @ts-expect-error
+      expect(res.body.message).toContain(parent3Name);
+      // @ts-expect-error - Should NOT mention parent2 (its dependency still satisfied)
+      expect(res.body.message).not.toContain(parent2Name);
+    });
   });
 
   describe("Parsing prompt dependency tags", () => {
