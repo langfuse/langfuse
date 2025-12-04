@@ -576,7 +576,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const retrySettings =
       retryCount > 0
         ? {
-            max_threads: 1,
+            // max_threads: 1,
             max_block_size: "32768",
           }
         : {};
@@ -600,8 +600,8 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         request_timeout: timeoutMs,
       },
       clickhouseSettings: {
-        send_progress_in_http_headers: 1,
-        http_headers_progress_interval_ms: "30000",
+        // send_progress_in_http_headers: 1,
+        // http_headers_progress_interval_ms: "30000",
         ...retrySettings,
       },
       abortSignal: abortController.signal,
