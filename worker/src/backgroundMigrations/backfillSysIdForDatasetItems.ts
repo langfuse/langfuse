@@ -52,6 +52,11 @@ export default class BackfillSysIdForDatasetItems
       `Backfilling sys_id for dataset_items with ${JSON.stringify(args)}`,
     );
 
+    // validate that the background migration record exists
+    await prisma.backgroundMigration.findUniqueOrThrow({
+      where: { id: backgroundMigrationId },
+    });
+
     const batchSize = Number(args.batchSize ?? 500);
     const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 500);
 
