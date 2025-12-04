@@ -746,6 +746,7 @@ export function PrettyJsonView(props: {
   titleIcon?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
+  isParsing?: boolean;
   codeClassName?: string;
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
@@ -769,6 +770,14 @@ export function PrettyJsonView(props: {
         `[PrettyJsonView:${props.title || "untitled"}] Using pre-parsed data`,
       );
       return props.parsedJson;
+    }
+
+    // If still parsing in Web Worker, return null (will show loading state)
+    if (props.isParsing) {
+      console.log(
+        `[PrettyJsonView:${props.title || "untitled"}] Parsing in progress...`,
+      );
+      return null;
     }
 
     const startTime = performance.now();
@@ -796,7 +805,7 @@ export function PrettyJsonView(props: {
     }
 
     return result;
-  }, [props.json, props.parsedJson, props.title]);
+  }, [props.json, props.parsedJson, props.isParsing, props.title]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -1182,7 +1191,30 @@ export function PrettyJsonView(props: {
 
   const body = (
     <>
-      {emptyValueDisplay && isPrettyView ? (
+      {props.isLoading || props.isParsing ? (
+        <div className="io-message-content">
+          <div
+            className={cn(
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+              ),
+            )}
+          >
+            <div className="space-y-2 p-3">
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-2/3" />
+              {props.isParsing && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Parsing in background...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : emptyValueDisplay && isPrettyView ? (
         <div className="io-message-content">
           <div
             className={cn(
@@ -1194,22 +1226,14 @@ export function PrettyJsonView(props: {
               ),
             )}
           >
-            {props.isLoading ? (
-              <Skeleton className="h-3 w-3/4" />
-            ) : (
-              <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
-                {emptyValueDisplay}
-              </span>
-            )}
+            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
+              {emptyValueDisplay}
+            </span>
           </div>
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          {props.isLoading ? (
-            <Skeleton className="h-3 w-3/4" />
-          ) : (
-            <MarkdownView markdown={markdownContent || ""} />
-          )}
+          <MarkdownView markdown={markdownContent || ""} />
         </div>
       ) : (
         <>

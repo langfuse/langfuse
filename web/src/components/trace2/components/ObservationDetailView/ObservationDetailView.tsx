@@ -316,7 +316,8 @@ export function ObservationDetailView({
               metadata={observationWithIOCompat.data?.metadata ?? undefined}
               parsedInput={parsedInput}
               parsedOutput={parsedOutput}
-              isLoading={observationWithIOCompat.isLoading || isParsing}
+              isLoading={observationWithIOCompat.isLoading}
+              isParsing={isParsing}
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -334,6 +335,8 @@ export function ObservationDetailView({
                   title="Metadata"
                   json={observationWithIOCompat.data.metadata}
                   parsedJson={parsedMetadata}
+                  isLoading={observationWithIOCompat.isLoading}
+                  isParsing={isParsing}
                   media={observationMedia.data?.filter(
                     (m) => m.field === "metadata",
                   )}

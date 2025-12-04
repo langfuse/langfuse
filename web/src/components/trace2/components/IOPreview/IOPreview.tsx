@@ -11,7 +11,6 @@ import { useChatMLParser } from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
-import { OptimizedJSONView } from "./components/OptimizedJSONView";
 
 export type { ViewMode };
 
@@ -35,6 +34,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedOutput?: unknown;
   observationName?: string;
   isLoading?: boolean;
+  isParsing?: boolean;
   hideIfNull?: boolean;
   media?: MediaReturnType[];
   hideOutput?: boolean;
@@ -47,6 +47,7 @@ interface JsonInputOutputViewProps {
   parsedInput: unknown;
   parsedOutput: unknown;
   isLoading: boolean;
+  isParsing?: boolean;
   media?: MediaReturnType[];
   selectedView: ViewMode;
   hideIfNull: boolean;
@@ -66,6 +67,7 @@ function JsonInputOutputView({
   parsedInput,
   parsedOutput,
   isLoading,
+  isParsing,
   media,
   selectedView,
   hideIfNull,
@@ -86,6 +88,7 @@ function JsonInputOutputView({
           title="Input"
           json={parsedInput ?? null}
           isLoading={isLoading}
+          isParsing={isParsing}
           media={media?.filter((m) => m.field === "input") ?? []}
           currentView={selectedView}
           externalExpansionState={inputExpansionState}
@@ -97,6 +100,7 @@ function JsonInputOutputView({
           title="Output"
           json={parsedOutput}
           isLoading={isLoading}
+          isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView={selectedView}
           externalExpansionState={outputExpansionState}
@@ -125,6 +129,7 @@ export function IOPreview({
   parsedOutput: preParsedOutput,
   observationName,
   isLoading = false,
+  isParsing = false,
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
@@ -245,6 +250,7 @@ export function IOPreview({
     parsedInput,
     parsedOutput,
     isLoading,
+    isParsing,
     media,
     selectedView,
     hideIfNull,
@@ -278,7 +284,9 @@ export function IOPreview({
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates 1500ms+ UI freeze with large observations.
        *
-       * JSON view uses OptimizedJSONView for virtualization and performance.
+       * Both views use PrettyJsonView which intelligently renders:
+       * - currentView="pretty": JsonPrettyTable (expandable table)
+       * - currentView="json": JSONView (syntax-highlighted JSON)
        */}
       {selectedView === "pretty" ? (
         canDisplayAsChat ? (
@@ -296,13 +304,7 @@ export function IOPreview({
           <JsonInputOutputView {...jsonViewProps} />
         )
       ) : (
-        <OptimizedJSONView
-          input={input}
-          output={output}
-          metadata={metadata}
-          hideInput={hideInput}
-          hideOutput={hideOutput}
-        />
+        <JsonInputOutputView {...jsonViewProps} />
       )}
     </>
   );
