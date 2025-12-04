@@ -715,9 +715,6 @@ importers:
       react-responsive:
         specifier: ^10.0.1
         version: 10.0.1(react@19.2.1)
-      react-virtuoso:
-        specifier: ^4.16.1
-        version: 4.16.1(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       react18-json-view:
         specifier: ^0.2.8-canary.6
         version: 0.2.8-canary.6(react@19.2.1)
@@ -12207,12 +12204,6 @@ packages:
     peerDependencies:
       react: '>=16.6.0'
       react-dom: '>=16.6.0'
-
-  react-virtuoso@4.16.1:
-    resolution: {integrity: sha512-V9ZDw7TFspJb02gNWqHyVZvaMaCFaoL30F/tOVepCI12kdLjA2oxFfWvNC66AVJdOH5cwiq8317p2Q9OpG+TDw==}
-    peerDependencies:
-      react: '>=16 || >=17 || >= 18 || >= 19'
-      react-dom: '>=16 || >=17 || >= 18 || >=19'
 
   react18-json-view@0.2.8-canary.6:
     resolution: {integrity: sha512-8/TFnfx9uedfKEl0fIQhVsKxYtKgxxnrn96Z1BrhTqm4RhrmeGrQIheviCO5+neEzJ0ysBxSzeBJpM2BYaor8w==}
@@ -29095,11 +29086,6 @@ snapshots:
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
-      react: 19.2.1
-      react-dom: 19.2.1(react@19.2.1)
-
-  react-virtuoso@4.16.1(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
-    dependencies:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
 

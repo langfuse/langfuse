@@ -97,7 +97,7 @@ export const JSONSection = memo(function JSONSection({
           {shouldVirtualize ? (
             <VirtualizedCodeBlock content={content} language="json" />
           ) : (
-            <CodeView code={content} className="text-xs" />
+            <CodeView content={content} className="text-xs" />
           )}
         </div>
       )}

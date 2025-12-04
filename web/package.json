@@ -148,7 +148,6 @@
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^3.0.6",
     "react-responsive": "^10.0.1",
-    "react-virtuoso": "^4.16.1",
     "react18-json-view": "^0.2.8-canary.6",
     "recharts": "^2.15.2",
     "remark-gfm": "^4.0.0",
