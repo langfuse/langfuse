@@ -1,7 +1,6 @@
 import {
   InternalServerError,
   PromptWebhookOutboundSchema,
-  GitHubDispatchWebhookOutboundSchema,
   WebhookDefaultHeaders,
   ActionExecutionStatus,
   LangfuseNotFoundError,
@@ -9,6 +8,8 @@ import {
   isSlackActionConfig,
   isWebhookAction,
   isGitHubDispatchAction,
+  type AutomationDomain,
+  type ActionDomainWithSecrets,
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
@@ -116,10 +117,10 @@ async function executeHttpAction({
   headers: Record<string, string>;
   projectId: string;
   skipValidation?: boolean;
-  automation: Awaited<ReturnType<typeof getAutomationById>>;
+  automation: AutomationDomain;
   executionId: string;
   executionStart: Date;
-  actionConfig: Awaited<ReturnType<typeof getActionByIdWithSecrets>>;
+  actionConfig: ActionDomainWithSecrets;
 }): Promise<{ httpStatus: number; responseBody: string }> {
   let httpStatus: number | undefined;
   let responseBody: string | undefined;
@@ -128,7 +129,7 @@ async function executeHttpAction({
     // Execute HTTP request with retries
     await backOff(
       async () => {
-        logger.debug(
+        logger.info(
           `Sending HTTP request to ${url} for action ${automation.action.id}`,
         );
 
@@ -258,15 +259,21 @@ async function executeHttpAction({
         });
 
         // Update action config to store the failing execution ID
-        await tx.action.update({
-          where: { id: automation.action.id, projectId },
-          data: {
-            config: {
-              ...actionConfig.config,
-              lastFailingExecutionId: executionId,
+        // Type guard to ensure we only update webhook or GitHub dispatch configs
+        if (
+          isWebhookAction(actionConfig) ||
+          isGitHubDispatchAction(actionConfig)
+        ) {
+          await tx.action.update({
+            where: { id: automation.action.id, projectId },
+            data: {
+              config: {
+                ...actionConfig.config,
+                lastFailingExecutionId: executionId,
+              } as any, // Cast needed for Prisma Json type
             },
-          },
-        });
+          });
+        }
 
         logger.warn(
           `Automation ${automation.trigger.id} disabled after ${consecutiveFailures} consecutive failures in project ${projectId}`,
@@ -430,9 +437,8 @@ async function executeGitHubDispatchAction({
     );
   }
 
-  // Determine event_type: use configured value or derive from action
-  const eventType =
-    githubConfig.eventType || `langfuse-prompt-${input.payload.action}`;
+  // Use configured event_type (required field)
+  const eventType = githubConfig.eventType;
 
   // Transform to GitHub dispatch format
   const { prompt, ...otherFields } = validatedPayload.data;

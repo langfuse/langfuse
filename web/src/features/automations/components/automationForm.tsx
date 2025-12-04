@@ -193,6 +193,20 @@ export const AutomationForm = ({
           messageTemplate: slackDefaults.slack.messageTemplate || "",
         },
       };
+    } else if (actionType === "GITHUB_DISPATCH") {
+      // Use action handler to get default values with proper typing
+      const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
+      const githubDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "GITHUB_DISPATCH" as const,
+        eventSource: TriggerEventSource.Prompt,
+        githubDispatch: {
+          url: githubDefaults.githubDispatch.url || "",
+          eventType: githubDefaults.githubDispatch.eventType || "",
+          githubToken: githubDefaults.githubDispatch.githubToken || "",
+        },
+      };
     } else {
       throw new Error("Invalid action type");
     }

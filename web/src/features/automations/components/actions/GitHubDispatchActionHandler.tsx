@@ -27,8 +27,8 @@ export const GitHubDispatchActionFormSchema = z.object({
           message: "Must be a valid GitHub repository dispatch endpoint",
         },
       ),
-    eventType: z.string().max(100).optional(),
-    githubToken: z.string().min(1, "GitHub token is required"),
+    eventType: z.string().min(1, "Event type is required").max(100),
+    githubToken: z.string().optional(), // Optional for updates, validated in backend
   }),
 });
 

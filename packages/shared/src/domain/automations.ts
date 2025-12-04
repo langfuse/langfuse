@@ -90,7 +90,7 @@ export type SlackActionConfig = z.infer<typeof SlackActionConfigSchema>;
 export const GitHubDispatchActionConfigSchema = z.object({
   type: z.literal("GITHUB_DISPATCH"),
   url: z.url(),
-  eventType: z.string().min(1).max(100).optional(),
+  eventType: z.string().min(1).max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string(),
   lastFailingExecutionId: z.string().nullish(),
@@ -108,7 +108,7 @@ export type SafeGitHubDispatchActionConfig = z.infer<
 export const GitHubDispatchActionCreateSchema = z.object({
   type: z.literal("GITHUB_DISPATCH"),
   url: z.url(),
-  eventType: z.string().min(1).max(100).optional(),
+  eventType: z.string().min(1).max(100),
   githubToken: z.string().optional(), // Optional for updates, validated in helper
 });
 

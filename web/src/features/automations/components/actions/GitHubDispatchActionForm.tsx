@@ -58,18 +58,19 @@ export const GitHubDispatchActionForm: React.FC<
         name="githubDispatch.eventType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Event Type (Optional)</FormLabel>
+            <FormLabel>Event Type</FormLabel>
             <FormControl>
               <Input
-                placeholder="langfuse-prompt-created"
+                placeholder="langfuse-prompt-update"
                 disabled={disabled}
                 {...field}
               />
             </FormControl>
             <FormDescription>
-              Custom event type for GitHub Actions workflow triggers. If not
-              specified, defaults to &quot;langfuse-prompt-
-              {"{action}"}&quot;.
+              Event type for GitHub Actions workflow triggers. This will be used
+              in the{" "}
+              <code className="text-xs">on.repository_dispatch.types</code>{" "}
+              filter in your workflow file.
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -92,7 +93,8 @@ export const GitHubDispatchActionForm: React.FC<
             </FormControl>
             <FormDescription>
               GitHub PAT with <code className="text-xs">repo</code> scope for
-              repository dispatch.{" "}
+              repository dispatch. Leave empty to keep existing token when
+              updating.{" "}
               <Link
                 href="https://github.com/settings/tokens/new?scopes=repo&description=Langfuse%20Automation"
                 target="_blank"
