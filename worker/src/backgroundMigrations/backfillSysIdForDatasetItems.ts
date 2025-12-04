@@ -24,6 +24,11 @@ export default class BackfillSysIdForDatasetItems
     // eslint-disable-next-line no-unused-vars
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+    // validate that the background migration record exists
+    await prisma.backgroundMigration.findUniqueOrThrow({
+      where: { id: backgroundMigrationId },
+    });
+
     // Check that sys_id column exists
     const columnExists = await prisma.$queryRaw<{ exists: boolean }[]>(
       Prisma.sql`
@@ -51,11 +56,6 @@ export default class BackfillSysIdForDatasetItems
     logger.info(
       `Backfilling sys_id for dataset_items with ${JSON.stringify(args)}`,
     );
-
-    // validate that the background migration record exists
-    await prisma.backgroundMigration.findUniqueOrThrow({
-      where: { id: backgroundMigrationId },
-    });
 
     const batchSize = Number(args.batchSize ?? 500);
     const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 500);
