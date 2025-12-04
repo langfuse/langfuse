@@ -567,6 +567,11 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
   ): Promise<void> {
     logger.info(`[Backfill Events] Firing query ${queryId}`);
 
+    // Create AbortController to abort HTTP connection after query starts on server.
+    // This follows ClickHouse best practices for long-running queries:
+    // https://github.com/ClickHouse/clickhouse-js/blob/main/examples/long_running_queries_timeouts.ts
+    const abortController = new AbortController();
+
     // Apply memory-reducing settings on retries
     const retrySettings =
       retryCount > 0
@@ -582,8 +587,8 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       );
     }
 
-    // Fire the query - commandClickhouse will wait for completion
-    // but we want to track it via polling instead
+    // Fire the query with abort signal. The query will continue on the server
+    // even after we abort the HTTP connection.
     const queryPromise = commandClickhouse({
       query,
       tags: {
@@ -599,6 +604,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         http_headers_progress_interval_ms: "30000",
         ...retrySettings,
       },
+      abortSignal: abortController.signal,
     });
 
     // Wait a short time to ensure query is registered
@@ -616,14 +622,27 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       }
     }
 
-    // Don't await the promise - we'll track via polling
-    // The promise will resolve when the query completes
+    // Abort the HTTP connection now that the query is confirmed running on the server.
+    // This prevents "Broken pipe" errors from the connection timing out.
+    // The query continues executing on ClickHouse - we track completion via polling.
+    logger.info(
+      `[Backfill Events] Query ${queryId} confirmed running, aborting HTTP connection`,
+    );
+    abortController.abort();
+
+    // Handle the expected abort error
     queryPromise.catch((err) => {
-      // Log but don't throw - we track completion via polling
-      logger.debug(
-        `[Backfill Events] Query ${queryId} promise resolved/rejected`,
-        err?.message,
-      );
+      // Abort errors are expected - log at debug level
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
+        logger.debug(
+          `[Backfill Events] Query ${queryId} HTTP connection aborted as expected`,
+        );
+      } else {
+        logger.info(
+          `[Backfill Events] Query ${queryId} promise rejected: ${err?.message}`,
+          err,
+        );
+      }
     });
   }
 

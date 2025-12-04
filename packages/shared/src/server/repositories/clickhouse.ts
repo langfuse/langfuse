@@ -445,6 +445,7 @@ export async function commandClickhouse(opts: {
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
   clickhouseSettings?: ClickHouseSettings;
+  abortSignal?: AbortSignal;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -461,6 +462,7 @@ export async function commandClickhouse(opts: {
         ...(opts.tags?.queryId
           ? { query_id: opts.tags.queryId as string }
           : {}),
+        ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
           log_comment: JSON.stringify(opts.tags ?? {}),
