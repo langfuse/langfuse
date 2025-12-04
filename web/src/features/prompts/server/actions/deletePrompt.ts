@@ -7,39 +7,21 @@ export type DeletePromptParams = {
   projectId: string;
   version?: number | null;
   label?: string;
-  prompts?: Prompt[]; // Optional: if already fetched, avoid duplicate query
+  promptVersions: Prompt[];
 };
 
 export const deletePrompt = async (params: DeletePromptParams) => {
-  const {
-    promptName,
-    projectId,
-    version,
-    label,
-    prompts: providedPrompts,
-  } = params;
+  const { promptName, projectId, version, label, promptVersions } = params;
 
   if (version && label) {
     throw new InvalidRequestError("Cannot specify both version and label");
   }
 
-  let prompts = providedPrompts;
-  if (!prompts) {
-    const where = {
-      projectId,
-      name: promptName,
-      ...(version ? { version } : {}),
-      ...(label ? { labels: { has: label } } : {}),
-    };
-
-    prompts = await prisma.prompt.findMany({ where });
-  }
-
-  if (prompts.length === 0) {
+  if (promptVersions.length === 0) {
     throw new LangfuseNotFoundError("Prompt not found");
   }
 
-  // Check if other prompts depend on the prompt(s) being deleted
+  // Check if other prompts depend on the specific prompt versions being deleted
   const dependents = await prisma.$queryRaw<
     {
       parent_name: string;
@@ -82,7 +64,7 @@ export const deletePrompt = async (params: DeletePromptParams) => {
     await promptService.invalidateCache({ projectId, promptName });
 
     await prisma.prompt.deleteMany({
-      where: { projectId, id: { in: prompts.map((p) => p.id) } },
+      where: { projectId, id: { in: promptVersions.map((p) => p.id) } },
     });
   } catch (err) {
     logger.error("Failed to delete prompt", err);
