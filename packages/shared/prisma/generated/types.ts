@@ -429,7 +429,7 @@ export type DatasetItem = {
   dataset_id: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
-  sys_id: Generated<string>;
+  sys_id: Generated<string | null>;
   valid_from: Generated<Timestamp>;
   is_deleted: Generated<boolean>;
 };
