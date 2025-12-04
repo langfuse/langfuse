@@ -3002,7 +3002,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       // @ts-expect-error
       expect(res.body.message).toContain("depending on");
       // @ts-expect-error
-      expect(res.body.message).toContain(parentPrompt.id);
+      expect(res.body.message).toContain(parentName);
 
       // Verify child was NOT deleted
       const remaining = await prisma.prompt.findMany({
@@ -3132,12 +3132,12 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       expect(res.status).toBe(400);
       // @ts-expect-error
       expect(res.body.message).toContain("depending on");
-      // @ts-expect-error - Should mention blocking parent IDs
-      expect(res.body.message).toContain(parent1.id);
+      // @ts-expect-error - Should mention blocking parent names
+      expect(res.body.message).toContain(parent1Name);
       // @ts-expect-error
-      expect(res.body.message).toContain(parent3.id);
+      expect(res.body.message).toContain(parent3Name);
       // @ts-expect-error - Should NOT mention parent2 (its dependency still satisfied)
-      expect(res.body.message).not.toContain(parent2.id);
+      expect(res.body.message).not.toContain(parent2Name);
     });
 
     it('reattaches "latest" label to highest remaining version when deleted', async () => {
