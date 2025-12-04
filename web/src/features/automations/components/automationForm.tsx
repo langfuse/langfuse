@@ -53,6 +53,13 @@ const slackSchema = z.object({
   messageTemplate: z.string().optional(),
 });
 
+// Define GitHub Dispatch action schema
+const githubDispatchSchema = z.object({
+  url: z.string().url("Invalid URL"),
+  eventType: z.string().max(100).optional(),
+  githubToken: z.string().min(1, "GitHub token is required"),
+});
+
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
   Prompt = "prompt",
@@ -77,6 +84,10 @@ const formSchema = z.discriminatedUnion("actionType", [
   baseFormSchema.extend({
     actionType: z.literal("SLACK"),
     slack: slackSchema,
+  }),
+  baseFormSchema.extend({
+    actionType: z.literal("GITHUB_DISPATCH"),
+    githubDispatch: githubDispatchSchema,
   }),
 ]);
 
@@ -283,6 +294,10 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("SLACK");
       const defaultValues = handler.getDefaultValues();
       form.setValue("slack", defaultValues.slack);
+    } else if (value === "GITHUB_DISPATCH") {
+      const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("githubDispatch", defaultValues.githubDispatch);
     }
 
     // If we are creating a new automation, update the default name
@@ -502,7 +517,9 @@ export const AutomationForm = ({
                               ? "Webhook"
                               : actionType === "SLACK"
                                 ? "Slack"
-                                : "Annotation Queue"}
+                                : actionType === "GITHUB_DISPATCH"
+                                  ? "GitHub Dispatch"
+                                  : "Annotation Queue"}
                           </SelectItem>
                         ),
                       )}
