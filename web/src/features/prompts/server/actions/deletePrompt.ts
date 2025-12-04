@@ -24,23 +24,19 @@ export const deletePrompt = async (params: DeletePromptParams) => {
   // Check if other prompts depend on the specific prompt versions being deleted
   const dependents = await prisma.$queryRaw<
     {
-      parent_name: string;
-      parent_version: number;
+      parent_id: string;
       child_version: number;
       child_label: string;
     }[]
   >`
     SELECT
-      p."name" AS "parent_name",
-      p."version" AS "parent_version",
+      pd.parent_id,
       pd."child_version" AS "child_version",
       pd."child_label" AS "child_label"
     FROM
       prompt_dependencies pd
-      INNER JOIN prompts p ON p.id = pd.parent_id
     WHERE
-      p.project_id = ${projectId}
-      AND pd.project_id = ${projectId}
+      pd.project_id = ${projectId}
       AND pd.child_name = ${promptName}
   `;
 
@@ -77,7 +73,7 @@ export const deletePrompt = async (params: DeletePromptParams) => {
     const dependencyMessages = blockingDependents
       .map(
         (d) =>
-          `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+          `Prompt ${d.parent_id} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
       )
       .join("\n");
 
@@ -91,6 +87,31 @@ export const deletePrompt = async (params: DeletePromptParams) => {
   try {
     await promptService.lockCache({ projectId, promptName });
     await promptService.invalidateCache({ projectId, promptName });
+
+    const deletingLatest = promptVersions.some((p) =>
+      p.labels.includes("latest"),
+    );
+    const latestRemainsAfterDeletion = remainingVersions.some((v) =>
+      v.labels.includes("latest"),
+    );
+
+    // reattach "latest" to highest remaining version
+    if (
+      deletingLatest &&
+      !latestRemainsAfterDeletion &&
+      remainingVersions.length > 0
+    ) {
+      const highestRemainingVersion = remainingVersions.reduce((max, v) =>
+        v.version > max.version ? v : max,
+      );
+
+      await prisma.prompt.update({
+        where: { id: highestRemainingVersion.id },
+        data: {
+          labels: [...new Set([...highestRemainingVersion.labels, "latest"])],
+        },
+      });
+    }
 
     await prisma.prompt.deleteMany({
       where: { projectId, id: { in: promptVersions.map((p) => p.id) } },
