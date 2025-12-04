@@ -222,6 +222,11 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   };
   const response = await fetch(finalUrl, options);
 
+  // Handle 204 No Content - no body to parse
+  if (response.status === 204) {
+    return { body: {} as T, status: response.status };
+  }
+
   // Clone the response before attempting to parse JSON
   const clonedResponse = response.clone();
 

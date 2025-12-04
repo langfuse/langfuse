@@ -2813,6 +2813,205 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     }, 10_000);
   });
 
+  describe("DELETE /api/public/v2/prompts/:promptName", () => {
+    it("deletes all versions of a prompt", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePrompt" + uuidv4();
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p1",
+            labels: ["production"],
+            version: 1,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p2",
+            labels: [],
+            version: 2,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+        ],
+      });
+
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("deletes by label and version", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePromptFiltered" + uuidv4();
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p1",
+            labels: ["production"],
+            version: 1,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p2",
+            labels: ["dev"],
+            version: 2,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+        ],
+      });
+
+      const res1 = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}?version=1`,
+        undefined,
+        auth,
+      );
+      expect(res1.status).toBe(204);
+
+      let remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(1);
+
+      const res2 = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}?label=dev`,
+        undefined,
+        auth,
+      );
+      expect(res2.status).toBe(204);
+
+      remaining = await prisma.prompt.findMany({ where: { projectId, name } });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("deletes a prompt with slashes in name (folder structure)", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "folder/subfolder/deletePrompt" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "prompt in folder",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("returns 400 when deleting prompt with dependencies", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const childName = "childPrompt" + uuidv4();
+      const parentName = "parentPrompt" + uuidv4();
+
+      // Create child prompt
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: childName,
+          prompt: "I am a child prompt",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Create parent prompt that depends on child
+      const parentPrompt = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parentName,
+          prompt: `Parent with dependency: @@@langfusePrompt:name=${childName}|version=1@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Create dependency relationship
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parentPrompt.id,
+          childName: childName,
+          childVersion: 1,
+          projectId,
+        },
+      });
+
+      // Try to delete child prompt (should fail because parent depends on it)
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(childName)}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("error");
+      // @ts-expect-error
+      expect(res.body.message).toContain("depending on");
+      // @ts-expect-error
+      expect(res.body.message).toContain(parentName);
+
+      // Verify child was NOT deleted
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name: childName },
+      });
+      expect(remaining.length).toBe(1);
+    });
+  });
+
   describe("Parsing prompt dependency tags", () => {
     it("should extract prompt dependency tags with version", () => {
       const content =
