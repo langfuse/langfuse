@@ -138,6 +138,257 @@ function deepParseJsonRecursive(
   return json;
 }
 
+/**
+ * Stack entry for immutable iterative parsing
+ * Each entry carries its processed result, enabling bottom-up reconstruction
+ */
+interface ParseStackEntry {
+  input: unknown; // Original input value
+  output?: unknown; // Processed output value (set after processing)
+  parent: ParseStackEntry | null; // Parent entry (not the data structure)
+  key: string | number | null;
+  depth: number;
+  childrenToProcess: number; // Count of children that need processing
+  childrenResults?: ParseStackEntry[]; // Collected children for objects/arrays
+  parsedEntry?: ParseStackEntry; // For strings that get parsed
+}
+
+/**
+ * High-performance iterative implementation of deepParseJson
+ * Uses immutable stack entries to avoid mutation bugs while maintaining speed
+ *
+ * Key optimizations:
+ * - No cloning of input (immutable approach)
+ * - Bottom-up reconstruction only where needed
+ * - Minimal object allocations
+ * - Direct semantic equivalence to recursive version
+ *
+ * @param json JSON string or object to parse
+ * @param options Options to control parsing behavior
+ * @returns Parsed JSON object
+ */
+export function deepParseJsonIterative(
+  json: unknown,
+  options: DeepParseJsonOptions = {},
+): unknown {
+  const { maxSize = 500_000, maxDepth = 3 } = options;
+  const startTime = performance.now();
+
+  // Size check: skip parsing for large objects to prevent UI freeze
+  if (typeof json === "object" && json !== null) {
+    const size = JSON.stringify(json).length;
+    if (size > maxSize) {
+      const elapsed = performance.now() - startTime;
+      console.log(
+        `[deepParseJsonIterative] Skipping: ${(size / 1024).toFixed(1)}KB > ${(maxSize / 1024).toFixed(1)}KB limit (${elapsed.toFixed(2)}ms)`,
+      );
+      return json;
+    }
+  }
+
+  // Root entry
+  const rootEntry: ParseStackEntry = {
+    input: json,
+    parent: null,
+    key: null,
+    depth: 0,
+    childrenToProcess: 0,
+  };
+
+  const stack: ParseStackEntry[] = [rootEntry];
+  const processed = new Set<ParseStackEntry>(); // Track which entries we've processed
+
+  while (stack.length > 0) {
+    const entry = stack[stack.length - 1]; // Peek, don't pop yet
+
+    // If we've already processed this entry's children, finalize it
+    if (processed.has(entry)) {
+      stack.pop();
+      continue;
+    }
+
+    const { input, depth } = entry;
+
+    // Stop processing if we've hit max depth
+    if (depth >= maxDepth) {
+      entry.output = input;
+      processed.add(entry);
+      continue;
+    }
+
+    // Process strings - try to parse as JSON
+    if (typeof input === "string") {
+      let parsed: unknown;
+      let wasParsed = false;
+
+      try {
+        parsed = JSON.parse(input);
+        // Numbers that were strings in the input should remain as strings
+        if (typeof parsed !== "number") {
+          wasParsed = true;
+        }
+      } catch (e) {
+        // Try Python dict parsing
+        const pythonParsed = tryParsePythonDict(input);
+        if (pythonParsed !== input) {
+          parsed = pythonParsed;
+          wasParsed = true;
+        }
+      }
+
+      if (wasParsed && parsed !== undefined) {
+        // The parsed value is conceptually at depth + 1
+        // Check if that would exceed the limit
+        if (depth + 1 > maxDepth) {
+          // Parsed value would be too deep, keep as string
+          entry.output = input;
+          processed.add(entry);
+          continue;
+        }
+
+        // Check if we've already created the parsed entry
+        if (!(entry as any).parsedEntry) {
+          // Create a new entry for the parsed value at depth + 1
+          // This matches the recursive version's behavior: parse string, recurse at depth + 1
+          const parsedEntry: ParseStackEntry = {
+            input: parsed,
+            parent: entry,
+            key: null, // Not a child of a collection
+            depth: depth + 1,
+            childrenToProcess: 0,
+          };
+
+          (entry as any).parsedEntry = parsedEntry;
+          stack.push(parsedEntry);
+          continue;
+        } else {
+          // Parsed entry has been processed, use its output
+          const parsedEntry = (entry as any).parsedEntry as ParseStackEntry;
+          if (processed.has(parsedEntry)) {
+            entry.output = parsedEntry.output;
+            processed.add(entry);
+            continue;
+          } else {
+            // Not ready yet
+            continue;
+          }
+        }
+      } else {
+        // Not JSON or parsed to number, use as-is
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
+    }
+
+    // Handle objects and arrays
+    if (typeof input === "object" && input !== null) {
+      const isArray = Array.isArray(input);
+      const keys = isArray ? null : Object.keys(input);
+      const length = isArray ? (input as unknown[]).length : keys!.length;
+
+      // If no children, use input as-is
+      if (length === 0) {
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
+
+      // Use a property to store children results
+      if (!entry.childrenResults) {
+        (entry as any).childrenResults = [];
+      }
+      const childrenResults = (entry as any)
+        .childrenResults as ParseStackEntry[];
+
+      // If we haven't added children yet, add them now
+      if (childrenResults.length === 0) {
+        // Add children to stack in reverse order (so they process in correct order)
+        if (isArray) {
+          const arr = input as unknown[];
+          for (let i = arr.length - 1; i >= 0; i--) {
+            const childEntry = {
+              input: arr[i],
+              parent: entry,
+              key: i,
+              depth: depth + 1,
+              childrenToProcess: 0,
+            };
+            childrenResults.push(childEntry);
+            stack.push(childEntry);
+          }
+        } else {
+          const obj = input as Record<string, unknown>;
+          for (let i = keys!.length - 1; i >= 0; i--) {
+            const key = keys![i];
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+              const childEntry = {
+                input: obj[key],
+                parent: entry,
+                key: key,
+                depth: depth + 1,
+                childrenToProcess: 0,
+              };
+              childrenResults.push(childEntry);
+              stack.push(childEntry);
+            }
+          }
+        }
+        // Reverse to maintain order
+        childrenResults.reverse();
+        continue;
+      }
+
+      // Check if all children are processed
+      const allChildrenProcessed = childrenResults.every((child) =>
+        processed.has(child),
+      );
+      if (!allChildrenProcessed) {
+        // Not ready yet, will come back
+        continue;
+      }
+
+      // All children processed, reconstruct this level
+      // Check if any children changed
+      const anyChildChanged = childrenResults.some(
+        (child) => child.output !== child.input,
+      );
+
+      if (!anyChildChanged) {
+        // No children changed, reuse input
+        entry.output = input;
+      } else {
+        // Reconstruct with new children
+        if (isArray) {
+          entry.output = childrenResults.map((child) => child.output);
+        } else {
+          const newObj: Record<string, unknown> = {};
+          for (const child of childrenResults) {
+            newObj[child.key as string] = child.output;
+          }
+          entry.output = newObj;
+        }
+      }
+
+      processed.add(entry);
+      continue;
+    }
+
+    // Primitive value (number, boolean, null)
+    entry.output = input;
+    processed.add(entry);
+  }
+
+  const elapsed = performance.now() - startTime;
+  if (elapsed > 10) {
+    console.log(
+      `[deepParseJsonIterative] Completed in ${elapsed.toFixed(2)}ms (maxDepth: ${maxDepth})`,
+    );
+  }
+
+  return rootEntry.output;
+}
+
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
