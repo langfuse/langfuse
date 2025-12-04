@@ -77,7 +77,6 @@ service:
           version:
             type: optional<integer>
             docs: Optional version to filter deletion. If specified, deletes only this specific version of the prompt.
-      response: scim.EmptyResponse
 
 types:
   PromptMetaListResponse:

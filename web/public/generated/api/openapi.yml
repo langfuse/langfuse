@@ -3641,12 +3641,8 @@ paths:
             type: integer
             nullable: true
       responses:
-        '200':
+        '204':
           description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmptyResponse'
         '400':
           description: ''
           content:
