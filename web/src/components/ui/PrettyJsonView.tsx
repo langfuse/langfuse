@@ -741,6 +741,7 @@ function JsonPrettyTable({
 
 export function PrettyJsonView(props: {
   json?: unknown;
+  parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
   className?: string;
@@ -760,8 +761,16 @@ export function PrettyJsonView(props: {
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
 }) {
-  // Skip expensive deepParseJson if data is already an object (not a string)
+  // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
+    // If pre-parsed data is provided, use it directly (skip parsing)
+    if (props.parsedJson !== undefined) {
+      console.log(
+        `[PrettyJsonView:${props.title || "untitled"}] Using pre-parsed data`,
+      );
+      return props.parsedJson;
+    }
+
     const startTime = performance.now();
 
     // Fast path: if already an object, likely no parsing needed
@@ -787,7 +796,7 @@ export function PrettyJsonView(props: {
     }
 
     return result;
-  }, [props.json, props.title]);
+  }, [props.json, props.parsedJson, props.title]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);

@@ -30,6 +30,9 @@ export interface IOPreviewProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  // Pre-parsed data (optional, from useParsedObservation hook for performance)
+  parsedInput?: unknown;
+  parsedOutput?: unknown;
   observationName?: string;
   isLoading?: boolean;
   hideIfNull?: boolean;
@@ -118,6 +121,8 @@ export function IOPreview({
   input,
   output,
   metadata,
+  parsedInput: preParsedInput,
+  parsedOutput: preParsedOutput,
   observationName,
   isLoading = false,
   hideIfNull = false,
@@ -144,9 +149,12 @@ export function IOPreview({
   const [compensateScrollRef, startPreserveScroll] =
     usePreserveRelativeScroll<HTMLDivElement>([selectedView]);
 
-  // Parse input/output with size/depth limits to prevent UI freeze
-  const parsedInput = deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
-  const parsedOutput = deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
+  // Use pre-parsed data if available (from useParsedObservation hook),
+  // otherwise parse with size/depth limits to prevent UI freeze
+  const parsedInput =
+    preParsedInput ?? deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
+  const parsedOutput =
+    preParsedOutput ?? deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
 
   // Parse ChatML format
   const {

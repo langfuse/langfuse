@@ -47,7 +47,6 @@ import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { api } from "@/src/utils/api";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
 import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
@@ -60,6 +59,7 @@ import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/c
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
+import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -103,18 +103,27 @@ export function ObservationDetailView({
     [scores, observation.id],
   );
 
-  // Fetch observation input/output (not included in ObservationReturnTypeWithMetadata)
-  const observationWithIO = api.observations.byId.useQuery(
-    {
-      observationId: observation.id,
-      traceId: traceId,
-      projectId: projectId,
-      startTime: observation.startTime,
-    },
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  );
+  // Fetch and parse observation input/output in background (Web Worker)
+  // This combines tRPC fetch + non-blocking JSON parsing
+  const {
+    observation: observationWithIO,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    isLoadingObservation,
+    isParsing,
+  } = useParsedObservation({
+    observationId: observation.id,
+    traceId: traceId,
+    projectId: projectId,
+    startTime: observation.startTime,
+  });
+
+  // For backward compatibility, create observationWithIO query-like object
+  const observationWithIOCompat = {
+    data: observationWithIO,
+    isLoading: isLoadingObservation,
+  };
 
   // Fetch media for this observation
   const observationMedia = useMedia({
@@ -164,14 +173,14 @@ export function ObservationDetailView({
           </div>
           {/* Action buttons */}
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            {observationWithIO.data && (
+            {observationWithIOCompat.data && (
               <NewDatasetItemFromExistingObject
                 traceId={traceId}
                 observationId={observation.id}
                 projectId={projectId}
-                input={observationWithIO.data.input}
-                output={observationWithIO.data.output}
-                metadata={observationWithIO.data.metadata}
+                input={observationWithIOCompat.data.input}
+                output={observationWithIOCompat.data.output}
+                metadata={observationWithIOCompat.data.metadata}
                 key={observation.id}
                 size="sm"
               />
@@ -199,11 +208,11 @@ export function ObservationDetailView({
                 size="sm"
               />
             </div>
-            {observationWithIO.data &&
-              isGenerationLike(observationWithIO.data.type) && (
+            {observationWithIOCompat.data &&
+              isGenerationLike(observationWithIOCompat.data.type) && (
                 <JumpToPlaygroundButton
                   source="generation"
-                  generation={observationWithIO.data}
+                  generation={observationWithIOCompat.data}
                   analyticsEventName="trace_detail:test_in_playground_button_click"
                   size="sm"
                 />
@@ -302,10 +311,12 @@ export function ObservationDetailView({
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
-              input={observationWithIO.data?.input ?? undefined}
-              output={observationWithIO.data?.output ?? undefined}
-              metadata={observationWithIO.data?.metadata ?? undefined}
-              isLoading={observationWithIO.isLoading}
+              input={observationWithIOCompat.data?.input ?? undefined}
+              output={observationWithIOCompat.data?.output ?? undefined}
+              metadata={observationWithIOCompat.data?.metadata ?? undefined}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              isLoading={observationWithIOCompat.isLoading || isParsing}
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -316,12 +327,13 @@ export function ObservationDetailView({
                 setFieldExpansion("output", exp)
               }
             />
-            {observationWithIO.data?.metadata && (
+            {observationWithIOCompat.data?.metadata && (
               <div className="px-2">
                 <PrettyJsonView
-                  key={observationWithIO.data.id + "-metadata"}
+                  key={observationWithIOCompat.data.id + "-metadata"}
                   title="Metadata"
-                  json={observationWithIO.data.metadata}
+                  json={observationWithIOCompat.data.metadata}
+                  parsedJson={parsedMetadata}
                   media={observationMedia.data?.filter(
                     (m) => m.field === "metadata",
                   )}
