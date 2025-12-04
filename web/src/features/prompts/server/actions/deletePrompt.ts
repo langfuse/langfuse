@@ -44,8 +44,37 @@ export const deletePrompt = async (params: DeletePromptParams) => {
       AND pd.child_name = ${promptName}
   `;
 
-  if (dependents.length > 0) {
-    const dependencyMessages = dependents
+  // Get all existing versions to check which labels will cease to exist
+  const allVersions = await prisma.prompt.findMany({
+    where: { projectId, name: promptName },
+    select: { id: true, version: true, labels: true },
+  });
+
+  const versionIdsBeingDeleted = new Set(promptVersions.map((p) => p.id));
+  const versionsBeingDeleted = new Set(promptVersions.map((p) => p.version));
+
+  const remainingVersions = allVersions.filter(
+    (v) => !versionIdsBeingDeleted.has(v.id),
+  );
+
+  // only get dependencies that will actually break
+  const blockingDependents = dependents.filter((dep) => {
+    // block if we're deleting this specific version
+    if (dep.child_version && versionsBeingDeleted.has(dep.child_version)) {
+      return true;
+    }
+    // block only if no remaining version has this label
+    if (dep.child_label) {
+      const labelWillExist = remainingVersions.some((v) =>
+        v.labels.includes(dep.child_label),
+      );
+      return !labelWillExist;
+    }
+    return false;
+  });
+
+  if (blockingDependents.length > 0) {
+    const dependencyMessages = blockingDependents
       .map(
         (d) =>
           `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
