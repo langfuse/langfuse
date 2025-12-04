@@ -11,6 +11,7 @@ import { useChatMLParser } from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
+import { OptimizedJSONView } from "./components/OptimizedJSONView";
 
 export type { ViewMode };
 
@@ -268,6 +269,8 @@ export function IOPreview({
        * dual DOM tree construction and forced reflows with large data.
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates 1500ms+ UI freeze with large observations.
+       *
+       * JSON view uses OptimizedJSONView for virtualization and performance.
        */}
       {selectedView === "pretty" ? (
         canDisplayAsChat ? (
@@ -285,7 +288,13 @@ export function IOPreview({
           <JsonInputOutputView {...jsonViewProps} />
         )
       ) : (
-        <JsonInputOutputView {...jsonViewProps} />
+        <OptimizedJSONView
+          input={input}
+          output={output}
+          metadata={metadata}
+          hideInput={hideInput}
+          hideOutput={hideOutput}
+        />
       )}
     </>
   );
