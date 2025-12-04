@@ -264,12 +264,13 @@ export function IOPreview({
       )}
 
       {/*
-       * Content views - BOTH are rendered but one is hidden via CSS.
-       * This preserves component state (scroll position, expansion state, etc.)
-       * when toggling between views, avoiding re-mount and data loss.
+       * Conditional rendering: only render the active view to prevent
+       * dual DOM tree construction and forced reflows with large data.
+       * Trade-off: scroll/expansion state is lost when toggling views,
+       * but this eliminates 1500ms+ UI freeze with large observations.
        */}
-      <div style={{ display: selectedView === "pretty" ? "block" : "none" }}>
-        {canDisplayAsChat ? (
+      {selectedView === "pretty" ? (
+        canDisplayAsChat ? (
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
             <ChatMessageList
               messages={allMessages}
@@ -282,12 +283,10 @@ export function IOPreview({
           </div>
         ) : (
           <JsonInputOutputView {...jsonViewProps} />
-        )}
-      </div>
-
-      <div style={{ display: selectedView === "json" ? "block" : "none" }}>
+        )
+      ) : (
         <JsonInputOutputView {...jsonViewProps} />
-      </div>
+      )}
     </>
   );
 }
