@@ -968,9 +968,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      handlebars:
-        specifier: ^4.7.8
-        version: 4.7.8
       helmet:
         specifier: ^7.1.0
         version: 7.1.0
@@ -25540,6 +25537,7 @@ snapshots:
       wordwrap: 1.0.0
     optionalDependencies:
       uglify-js: 3.18.0
+    optional: true
 
   has-bigints@1.0.2: {}
 
@@ -31233,7 +31231,8 @@ snapshots:
       triple-beam: 1.4.1
       winston-transport: 4.7.1
 
-  wordwrap@1.0.0: {}
+  wordwrap@1.0.0:
+    optional: true
 
   wrap-ansi@6.2.0:
     dependencies:
