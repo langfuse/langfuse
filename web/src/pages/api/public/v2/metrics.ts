@@ -6,7 +6,6 @@ import {
   GetMetricsV2Response,
 } from "@/src/features/public-api/types/metrics";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
-import { type QueryType } from "@/src/features/query/types";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -18,22 +17,18 @@ export default withMiddlewares({
       try {
         const queryParams = query.query;
 
-        // Map observations view to events-observations internally
-        let resolvedQuery: QueryType = queryParams;
-        if (queryParams.view === "observations") {
-          resolvedQuery = {
-            ...queryParams,
-            view: "events-observations", // Always use events table
-          };
-        }
-
         logger.info("Received v2 metrics query", {
-          query: resolvedQuery,
+          query: queryParams,
           version: "v2",
           projectId: auth.scope.projectId,
         });
 
-        const result = await executeQuery(auth.scope.projectId, resolvedQuery);
+        // Explicitly use v2 (events table)
+        const result = await executeQuery(
+          auth.scope.projectId,
+          queryParams,
+          "v2",
+        );
 
         return { data: result };
       } catch (error) {
