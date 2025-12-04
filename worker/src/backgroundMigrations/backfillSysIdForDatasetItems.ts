@@ -11,8 +11,7 @@ const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b9";
  *
  * Background:
  * - Dataset items need a sys_id column for versioning/temporal table support
- * - This backfills NULL sys_id values with generated UUIDs
- * - Processes 14M+ rows in batches using time-based cursor pagination
+ * - This backfills NULL sys_id values with dataset item id
  *
  * This migration is idempotent and can be safely re-run if interrupted.
  */
@@ -66,8 +65,8 @@ export default class BackfillSysIdForDatasetItems
       `Backfilling sys_id for dataset_items with ${JSON.stringify(args)}`,
     );
 
-    const batchSize = Number(args.batchSize ?? 1000);
-    const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 100);
+    const batchSize = Number(args.batchSize ?? 500);
+    const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 500);
 
     let totalUpdated = 0;
 
