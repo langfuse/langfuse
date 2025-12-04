@@ -617,7 +617,7 @@ model Dataset {
 model DatasetItem {
   id                  String            @default(cuid())
   projectId           String            @map("project_id")
-  status              DatasetStatus     @default(ACTIVE)
+  status              DatasetStatus?    @default(ACTIVE)
   input               Json?
   expectedOutput      Json?             @map("expected_output")
   metadata            Json?
@@ -627,6 +627,10 @@ model DatasetItem {
   dataset             Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
+  // dataset version cols
+  sysId               String?           @default(dbgenerated()) @map("sys_id")
+  validFrom           DateTime          @default(now()) @map("valid_from")
+  isDeleted           Boolean           @default(false) @map("is_deleted")
   datasetRunItems     DatasetRunItems[]
 
   @@id([id, projectId])
@@ -840,15 +844,15 @@ model Model {
   projectId String?  @map("project_id")
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  modelName       String    @map("model_name")
-  matchPattern    String    @map("match_pattern")
-  startDate       DateTime? @map("start_date")
-  inputPrice      Decimal?  @map("input_price")
-  outputPrice     Decimal?  @map("output_price")
-  totalPrice      Decimal?  @map("total_price")
+  modelName       String        @map("model_name")
+  matchPattern    String        @map("match_pattern")
+  startDate       DateTime?     @map("start_date")
+  inputPrice      Decimal?      @map("input_price")
+  outputPrice     Decimal?      @map("output_price")
+  totalPrice      Decimal?      @map("total_price")
   unit            String? // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, REQUESTS, or IMAGES
-  tokenizerId     String?   @map("tokenizer_id")
-  tokenizerConfig Json?     @map("tokenizer_config")
+  tokenizerId     String?       @map("tokenizer_id")
+  tokenizerConfig Json?         @map("tokenizer_config")
   Price           Price[]
   pricingTiers    PricingTier[]
 
@@ -858,17 +862,17 @@ model Model {
 }
 
 model Price {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-  modelId   String   @map("model_id") // Model is already linked to project (or default), so we don't need projectId here
-  Model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  projectId String?  @map("project_id")
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  pricingTierId String  @map("pricing_tier_id")
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+  modelId       String      @map("model_id") // Model is already linked to project (or default), so we don't need projectId here
+  Model         Model       @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  projectId     String?     @map("project_id")
+  project       Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pricingTierId String      @map("pricing_tier_id")
   pricingTier   PricingTier @relation(fields: [pricingTierId], references: [id], onDelete: Cascade)
-  usageType String   @map("usage_type")
-  price     Decimal
+  usageType     String      @map("usage_type")
+  price         Decimal
 
   @@unique([modelId, usageType, pricingTierId])
   @@index(pricingTierId)
@@ -880,13 +884,13 @@ model PricingTier {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  modelId   String   @map("model_id")
-  model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  modelId String @map("model_id")
+  model   Model  @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
-  name       String   @map("name")
-  isDefault  Boolean  @default(false) @map("is_default")
-  priority   Int      @map("priority")
-  conditions Json     @map("conditions") @db.JsonB
+  name       String  @map("name")
+  isDefault  Boolean @default(false) @map("is_default")
+  priority   Int     @map("priority")
+  conditions Json    @map("conditions") @db.JsonB
 
   prices Price[]
 
