@@ -3021,7 +3021,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       // Create child prompt with 2 versions
       // v1: labels ["production", "latest"]
       // v2: labels ["production"]
-      const childV1 = await prisma.prompt.create({
+      await prisma.prompt.create({
         data: {
           id: uuidv4(),
           name: childName,
