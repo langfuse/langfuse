@@ -8,6 +8,7 @@ import {
   LLMAdapter,
   type LlmApiKeys,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod/v4";
@@ -62,6 +63,8 @@ const createFormSchema = (mode: "create" | "update") =>
       awsSecretAccessKey: z.string().optional(),
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
+      vertexAIProjectId: z.string().optional(),
+      vertexAIUseADC: z.boolean().optional(),
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -127,9 +130,31 @@ const createFormSchema = (mode: "create" | "update") =>
         path: ["withDefaultModels"],
       },
     )
+    // Vertex AI validation - service account key required unless using ADC in self-hosted
+    .refine(
+      (data) => {
+        if (data.adapter !== LLMAdapter.VertexAI) return true;
+
+        // In update mode, credentials are optional (existing ones are preserved)
+        if (mode === "update") return true;
+
+        // For cloud deployments, service account key is required
+        if (isLangfuseCloud) return !!data.secretKey;
+
+        // For self-hosted, either service account key or ADC is required
+        return data.vertexAIUseADC || !!data.secretKey;
+      },
+      {
+        message: isLangfuseCloud
+          ? "GCP service account JSON key is required for Vertex AI"
+          : "Either GCP service account JSON key or ADC (Application Default Credentials) is required.",
+        path: ["secretKey"],
+      },
+    )
     .refine(
       (data) =>
         data.adapter === LLMAdapter.Bedrock ||
+        data.adapter === LLMAdapter.VertexAI ||
         mode === "update" ||
         data.secretKey,
       {
@@ -224,6 +249,13 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
                 ? ((existingKey.config as VertexAIConfig).location ?? "")
                 : "",
+            vertexAIProjectId:
+              existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
+                ? ((existingKey.config as VertexAIConfig).projectId ?? "")
+                : "",
+            vertexAIUseADC:
+              existingKey.adapter === LLMAdapter.VertexAI &&
+              existingKey.displaySecretKey === "Default GCP credentials (ADC)",
             awsRegion:
               existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
                 ? ((existingKey.config as BedrockConfig).region ?? "")
@@ -240,6 +272,8 @@ export function CreateLLMApiKeyForm({
             customModels: [],
             extraHeaders: [],
             vertexAILocation: "",
+            vertexAIProjectId: "",
+            vertexAIUseADC: false,
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -442,13 +476,38 @@ export function CreateLLMApiKeyForm({
       config = {
         region: values.awsRegion ?? "",
       };
-    } else if (
-      currentAdapter === LLMAdapter.VertexAI &&
-      values.vertexAILocation
-    ) {
-      config = {
-        location: values.vertexAILocation.trim(),
-      };
+    } else if (currentAdapter === LLMAdapter.VertexAI) {
+      // Handle Vertex AI ADC (Application Default Credentials)
+      if (mode === "update") {
+        // In update mode, only update secretKey if a new one is provided
+        if (values.secretKey) {
+          secretKey = values.secretKey;
+        } else if (values.vertexAIUseADC && !isLangfuseCloud) {
+          secretKey = VERTEXAI_USE_DEFAULT_CREDENTIALS;
+        } else {
+          // Keep existing credentials by not setting secretKey
+          secretKey = undefined;
+        }
+      } else {
+        // In create mode
+        if (!isLangfuseCloud && values.vertexAIUseADC) {
+          secretKey = VERTEXAI_USE_DEFAULT_CREDENTIALS;
+        }
+        // else secretKey is already set from values.secretKey
+      }
+
+      // Build config with location and optional projectId
+      config = {};
+      if (values.vertexAILocation?.trim()) {
+        config.location = values.vertexAILocation.trim();
+      }
+      if (values.vertexAIProjectId?.trim()) {
+        config.projectId = values.vertexAIProjectId.trim();
+      }
+      // If config is empty, set to undefined
+      if (Object.keys(config).length === 0) {
+        config = undefined;
+      }
     }
 
     const extraHeaders =
@@ -580,7 +639,7 @@ export function CreateLLMApiKeyForm({
             )}
           />
 
-          {/* API Key or AWS Credentials */}
+          {/* API Key or AWS Credentials or Vertex AI Credentials */}
           {currentAdapter === LLMAdapter.Bedrock ? (
             <>
               <FormField
@@ -722,6 +781,140 @@ export function CreateLLMApiKeyForm({
                 </div>
               )}
             </>
+          ) : currentAdapter === LLMAdapter.VertexAI ? (
+            <>
+              {/* Vertex AI ADC option for self-hosted only */}
+              {!isLangfuseCloud && (
+                <FormField
+                  control={form.control}
+                  name="vertexAIUseADC"
+                  render={({ field }) => (
+                    <FormItem>
+                      <span className="row flex">
+                        <span className="flex-1">
+                          <FormLabel>
+                            Use Application Default Credentials (ADC)
+                          </FormLabel>
+                          <FormDescription>
+                            When enabled, authentication uses the GCP
+                            environment&apos;s default credentials instead of a
+                            service account key.
+                          </FormDescription>
+                        </span>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </span>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Service Account Key - hidden when ADC is enabled */}
+              {(isLangfuseCloud || !form.watch("vertexAIUseADC")) && (
+                <FormField
+                  control={form.control}
+                  name="secretKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GCP Service Account Key (JSON)</FormLabel>
+                      <FormDescription>
+                        {isLangfuseCloud
+                          ? "Your API keys are stored encrypted on our servers."
+                          : "Your API keys are stored encrypted in your database."}
+                      </FormDescription>
+                      <FormDescription className="text-dark-yellow">
+                        Paste your GCP service account JSON key here. The
+                        service account must have `Vertex AI User` role
+                        permissions.
+                      </FormDescription>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder={
+                            mode === "update"
+                              ? existingKey?.displaySecretKey
+                              : '{"type": "service_account", ...}'
+                          }
+                          autoComplete="off"
+                          spellCheck="false"
+                          autoCapitalize="off"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* ADC info box for self-hosted */}
+              {!isLangfuseCloud && form.watch("vertexAIUseADC") && (
+                <div className="space-y-2 border-l-2 border-blue-200 pl-4 text-sm text-muted-foreground">
+                  <p>
+                    <strong>Application Default Credentials (ADC):</strong> When
+                    enabled, the system will automatically check for credentials
+                    in this order:
+                  </p>
+                  <ul className="ml-2 list-inside list-disc space-y-1">
+                    <li>
+                      Environment variable (GOOGLE_APPLICATION_CREDENTIALS)
+                    </li>
+                    <li>
+                      gcloud CLI credentials (gcloud auth application-default
+                      login)
+                    </li>
+                    <li>GKE Workload Identity</li>
+                    <li>Cloud Run service account</li>
+                    <li>GCE instance service account (metadata service)</li>
+                  </ul>
+                  <p>
+                    <a
+                      href="https://cloud.google.com/docs/authentication/application-default-credentials"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline hover:text-blue-800"
+                    >
+                      Learn more about GCP Application Default Credentials →
+                    </a>
+                  </p>
+                </div>
+              )}
+
+              {/* Optional Project ID for ADC */}
+              {!isLangfuseCloud && form.watch("vertexAIUseADC") && (
+                <FormField
+                  control={form.control}
+                  name="vertexAIProjectId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        GCP Project ID
+                        <span className="font-normal text-muted-foreground">
+                          {" "}
+                          (optional)
+                        </span>
+                      </FormLabel>
+                      <FormDescription>
+                        Specify the GCP project ID explicitly. If not provided,
+                        it will be auto-detected from the environment.
+                      </FormDescription>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="e.g., my-gcp-project"
+                          data-1p-ignore
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </>
           ) : (
             <FormField
               control={form.control}
@@ -734,27 +927,6 @@ export function CreateLLMApiKeyForm({
                       ? "Your API keys are stored encrypted on our servers."
                       : "Your API keys are stored encrypted in your database."}
                   </FormDescription>
-                  {currentAdapter === LLMAdapter.VertexAI && (
-                    <FormDescription className="text-dark-yellow">
-                      Paste your GCP service account JSON key here. The service
-                      account must have `Vertex AI User` role permissions.
-                      Example JSON:
-                      <pre className="text-xs">
-                        {`{
-  "type": "service_account",
-  "project_id": "<project_id>",
-  "private_key_id": "<private_key_id>",
-  "private_key": "<private_key>",
-  "client_email": "<client_email>",
-  "client_id": "<client_id>",
-  "auth_uri": "<auth_uri>",
-  "token_uri": "<token_uri>",
-  "auth_provider_x509_cert_url": "<auth_provider_x509_cert_url>",
-  "client_x509_cert_url": "<client_x509_cert_url>",
-}`}
-                      </pre>
-                    </FormDescription>
-                  )}
                   <FormControl>
                     <Input
                       {...field}

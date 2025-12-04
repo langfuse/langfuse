@@ -25,6 +25,7 @@ import GCPServiceAccountKeySchema, {
   BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import {
   ChatMessage,
@@ -352,10 +353,32 @@ export async function fetchLLMCompletion(
       additionalModelRequestFields: modelParams.providerOptions as any,
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
-    const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
-    const { location } = config
+    const { location, projectId } = config
       ? VertexAIConfigSchema.parse(config)
-      : { location: undefined };
+      : { location: undefined, projectId: undefined };
+
+    // Handle both explicit credentials and default provider chain (ADC)
+    // Only allow default provider chain in self-hosted or internal AI features
+    const isSelfHosted = !isLangfuseCloud;
+    const useADC =
+      apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS &&
+      (isSelfHosted || shouldUseLangfuseAPIKey);
+
+    // When using ADC, authOptions can be undefined to use google-auth-library's default credential chain
+    // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
+    const authOptions = useADC
+      ? projectId
+        ? { projectId } // Allow explicit projectId even with ADC
+        : undefined
+      : (() => {
+          const credentials = GCPServiceAccountKeySchema.parse(
+            JSON.parse(apiKey),
+          );
+          return {
+            projectId: credentials.project_id,
+            credentials,
+          };
+        })();
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
@@ -367,10 +390,7 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       location,
-      authOptions: {
-        projectId: credentials.project_id,
-        credentials,
-      },
+      authOptions,
       ...(modelParams.providerOptions && {
         additionalModelRequestFields: modelParams.providerOptions,
       }),
