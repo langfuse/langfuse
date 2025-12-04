@@ -12,12 +12,12 @@ import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import { Button } from "@/src/components/ui/button";
+import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
-import Link from "next/link";
 
 export type { ViewMode };
 
-const EMPTY_IO_ALERT_ID = "empty-io-alert";
+const EMPTY_IO_ALERT_ID = "empty-io";
 const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export interface ExpansionStateProps {
@@ -297,19 +297,15 @@ export function IOPreview({
           <p className="max-w-sm text-sm text-muted-foreground">
             Add it in your code to make debugging a lot easier.
           </p>
-          <Button variant="outline" asChild size="sm">
-            <Link
-              href="https://langfuse.com/faq/all/empty-trace-input-and-output"
-              target="_blank"
-              onClick={() => {
-                capture("notification:click_link", {
-                  notification_id: EMPTY_IO_ALERT_ID,
-                });
-              }}
-            >
-              View Documentation
-            </Link>
-          </Button>
+          <ActionButton
+            variant="outline"
+            size="sm"
+            href="https://langfuse.com/faq/all/empty-trace-input-and-output"
+            trackingEventName="notification:click_link"
+            trackingProps={{ notification_id: EMPTY_IO_ALERT_ID }}
+          >
+            View Documentation
+          </ActionButton>
         </div>
       )}
     </>

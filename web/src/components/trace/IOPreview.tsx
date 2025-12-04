@@ -3,6 +3,7 @@ import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import { ActionButton } from "@/src/components/ActionButton";
 import { Fragment } from "react";
 import type { z } from "zod/v4";
 import type {
@@ -37,9 +38,8 @@ import {
   X,
 } from "lucide-react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import Link from "next/link";
 
-const EMPTY_IO_ALERT_ID = "empty-io-alert";
+const EMPTY_IO_ALERT_ID = "empty-io";
 const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export const IOPreview: React.FC<{
@@ -403,19 +403,15 @@ export const IOPreview: React.FC<{
           <p className="max-w-sm text-sm text-muted-foreground">
             Add it in your code to make debugging a lot easier.
           </p>
-          <Button variant="outline" asChild size="sm">
-            <Link
-              href="https://langfuse.com/faq/all/empty-trace-input-and-output"
-              target="_blank"
-              onClick={() => {
-                capture("notification:click_link", {
-                  notification_id: EMPTY_IO_ALERT_ID,
-                });
-              }}
-            >
-              View Documentation
-            </Link>
-          </Button>
+          <ActionButton
+            variant="outline"
+            size="sm"
+            href="https://langfuse.com/faq/all/empty-trace-input-and-output"
+            trackingEventName="notification:click_link"
+            trackingProps={{ notification_id: EMPTY_IO_ALERT_ID }}
+          >
+            View Documentation
+          </ActionButton>
         </div>
       )}
     </>

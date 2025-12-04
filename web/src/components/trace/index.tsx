@@ -21,7 +21,6 @@ import {
   Info,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { usePanelState } from "./hooks/usePanelState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -34,6 +33,7 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { Button } from "@/src/components/ui/button";
+import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
@@ -62,7 +62,7 @@ const getNestedObservationKeys = (
   return keys;
 };
 
-const OBSERVATION_TYPE_ALERT_ID = "observation-type-alert";
+const OBSERVATION_TYPE_ALERT_ID = "observation-types";
 const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export function Trace(props: {
@@ -475,25 +475,16 @@ export function Trace(props: {
             You&apos;ll get much richer insights by using specific observation
             types.
           </p>
-          <Button
+          <ActionButton
             variant="outline"
-            asChild
             size="sm"
             className="h-auto whitespace-normal py-0.5 text-left"
+            href="https://langfuse.com/docs/observability/features/observation-types"
+            trackingEventName="notification:click_link"
+            trackingProps={{ notification_id: OBSERVATION_TYPE_ALERT_ID }}
           >
-            <Link
-              href="https://langfuse.com/docs/observability/features/observation-types"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => {
-                capture("notification:click_link", {
-                  notification_id: OBSERVATION_TYPE_ALERT_ID,
-                });
-              }}
-            >
-              Learn how to use observation types
-            </Link>
-          </Button>
+            Learn how to use observation types
+          </ActionButton>
         </div>
       );
     }
