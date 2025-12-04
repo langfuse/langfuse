@@ -33,12 +33,16 @@ export const exportOptions: Record<
     fileType: string;
   }
 > = {
-  CSV: { label: "CSV", extension: "csv", fileType: "text/csv" },
-  JSON: { label: "JSON", extension: "json", fileType: "application/json" },
+  CSV: { label: "CSV", extension: "csv", fileType: "text/csv; charset=utf-8" },
+  JSON: {
+    label: "JSON",
+    extension: "json",
+    fileType: "application/json; charset=utf-8",
+  },
   JSONL: {
     label: "JSONL",
     extension: "jsonl",
-    fileType: "application/x-ndjson",
+    fileType: "application/x-ndjson; charset=utf-8",
   },
 } as const;
 
