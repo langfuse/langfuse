@@ -2650,6 +2650,50 @@
             }
           },
           "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a prompt or specific versions",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:promptName?label=&version=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts",
+                ":promptName"
+              ],
+              "query": [
+                {
+                  "key": "label",
+                  "value": "",
+                  "description": "Optional label of the prompt to delete"
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Optional version of the prompt to delete"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "promptName",
+                  "value": "",
+                  "description": "The name of the prompt"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
         }
       ]
     },
