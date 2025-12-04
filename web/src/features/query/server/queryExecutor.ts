@@ -1,20 +1,23 @@
 import { queryClickhouse, measureAndReturn } from "@langfuse/shared/src/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { type QueryType } from "@/src/features/query/types";
+import { type QueryType, type ViewVersion } from "@/src/features/query/types";
 
 /**
  * Execute a query using the QueryBuilder.
  *
  * @param projectId - The project ID
  * @param query - The query configuration as defined in QueryType
+ * @param version - The view version to use (v1 or v2), defaults to v1
  * @returns The query result data
  */
 export async function executeQuery(
   projectId: string,
   query: QueryType,
+  version: ViewVersion = "v1",
 ): Promise<Array<Record<string, unknown>>> {
   const { query: compiledQuery, parameters } = await new QueryBuilder(
     query.chartConfig,
+    version,
   ).build(query, projectId);
 
   // Check if the query contains trace table references
