@@ -1408,7 +1408,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    }\n}",
+              "raw": "{\n    \"provider\": \"example\",\n    \"adapter\": \"anthropic\",\n    \"secretKey\": \"example\",\n    \"baseURL\": \"example\",\n    \"customModels\": [\n        \"example\"\n    ],\n    \"withDefaultModels\": true,\n    \"extraHeaders\": {\n        \"example\": \"example\"\n    },\n    \"config\": {\n        \"example\": \"UNKNOWN\"\n    }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2210,7 +2210,7 @@
           "_type": "endpoint",
           "name": "Get",
           "request": {
-            "description": "Get Project associated with API key",
+            "description": "Get Project associated with API key (requires project-scoped API key). You can use GET /api/public/organizations/projects to get all projects with an organization-scoped key.",
             "url": {
               "raw": "{{baseUrl}}/api/public/projects",
               "host": [
@@ -2648,6 +2648,50 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "_type": "endpoint",
+          "name": "Delete",
+          "request": {
+            "description": "Delete a prompt or specific versions",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/prompts/:promptName?label=&version=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "prompts",
+                ":promptName"
+              ],
+              "query": [
+                {
+                  "key": "label",
+                  "value": "",
+                  "description": "Optional label of the prompt to delete"
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Optional version of the prompt to delete"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "promptName",
+                  "value": "",
+                  "description": "The name of the prompt"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE",
+            "auth": null,
+            "body": null
           },
           "response": []
         }

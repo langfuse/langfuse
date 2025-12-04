@@ -1,3 +1,7 @@
+// Redirect helper for /trace/[traceId] URLs
+// Looks up the projectId for a trace and redirects to /project/[projectId]/traces/[traceId]
+// which displays the current trace view
+
 import { ErrorPage } from "@/src/components/error-page";
 import { getTracesByIdsForAnyProject } from "@langfuse/shared/src/server";
 import { type GetServerSideProps } from "next";

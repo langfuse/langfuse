@@ -3079,7 +3079,10 @@ paths:
         - BasicAuth: []
   /api/public/projects:
     get:
-      description: Get Project associated with API key
+      description: >-
+        Get Project associated with API key (requires project-scoped API key).
+        You can use GET /api/public/organizations/projects to get all projects
+        with an organization-scoped key.
       operationId: projects_get
       tags:
         - Projects
@@ -3578,6 +3581,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Prompt'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
+    delete:
+      description: Delete a prompt or specific versions
+      operationId: prompts_delete
+      tags:
+        - Prompts
+      parameters:
+        - name: promptName
+          in: path
+          description: The name of the prompt
+          required: true
+          schema:
+            type: string
+        - name: label
+          in: query
+          description: Optional label of the prompt to delete
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: version
+          in: query
+          description: Optional version of the prompt to delete
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
         '400':
           description: ''
           content:
@@ -6834,8 +6897,8 @@ components:
             Name of the pricing tier for display and identification purposes.
 
 
-            Examples: "Standard", "High Volume Tier", "Large Context",
-            "Extended Context Tier"
+            Examples: "Standard", "High Volume Tier", "Large Context", "Extended
+            Context Tier"
         isDefault:
           type: boolean
           description: >-
@@ -6940,8 +7003,8 @@ components:
             Name of the pricing tier for display and identification purposes.
 
 
-            Must be unique within the model. Common patterns: "Standard
-            Pricing", "High Volume Tier", "Extended Context"
+            Must be unique within the model. Common patterns: "Standard", "High
+            Volume Tier", "Extended Context"
         isDefault:
           type: boolean
           description: >-
@@ -7971,6 +8034,14 @@ components:
           description: >-
             Keys of extra headers sent with requests (values excluded for
             security)
+        config:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            Adapter-specific configuration. Required for Bedrock
+            (`{"region":"us-east-1"}`), optional for VertexAI
+            (`{"location":"us-central1"}`), not used by other adapters.
         createdAt:
           type: string
           format: date-time
@@ -8036,6 +8107,17 @@ components:
             type: string
           nullable: true
           description: Extra headers to send with requests
+        config:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            Adapter-specific configuration. Validation rules: - **Bedrock**:
+            Required. Must be `{"region": "<aws-region>"}` (e.g.,
+            `{"region":"us-east-1"}`) - **VertexAI**: Optional. If provided,
+            must be `{"location": "<gcp-location>"}` (e.g.,
+            `{"location":"us-central1"}`) - **Other adapters**: Not supported.
+            Omit this field or set to null.
       required:
         - provider
         - adapter

@@ -334,7 +334,7 @@ export const handleEventPropagationJob = async (
           CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
           mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
           mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_raw_values,
-          multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+          multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
           '' AS blob_storage_file_path,
           byteSize(*) AS event_bytes,
           obs.created_at,

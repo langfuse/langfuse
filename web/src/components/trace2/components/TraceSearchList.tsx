@@ -10,6 +10,7 @@ import { useMemo } from "react";
 import { useTraceData } from "../contexts/TraceDataContext";
 import { useSearch } from "../contexts/SearchContext";
 import { useSelection } from "../contexts/SelectionContext";
+import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
 import { VirtualizedList } from "./_shared/VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
@@ -19,6 +20,7 @@ export function TraceSearchList() {
   const { searchItems } = useTraceData();
   const { searchQuery, setSearchInputValue } = useSearch();
   const { selectedNodeId, setSelectedNodeId } = useSelection();
+  const { handleHover } = useHandlePrefetchObservation();
 
   // Co-located filtering - only this component re-renders on search query change
   const searchResults = useMemo(() => {
@@ -70,6 +72,7 @@ export function TraceSearchList() {
           item={item}
           isSelected={isSelected}
           onSelect={onSelect}
+          onHover={() => handleHover(item.node)}
         />
       )}
     />

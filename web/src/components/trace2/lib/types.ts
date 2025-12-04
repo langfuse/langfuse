@@ -43,6 +43,8 @@ export type TreeNode = {
   startTimeSinceParentStart: number | null;
   /** Tree depth: -1 for trace root, 0 for root observations, increases with nesting */
   depth: number;
+  /** Maximum depth of subtree rooted at this node (0 for leaf nodes) */
+  childrenDepth: number;
 };
 
 /**
