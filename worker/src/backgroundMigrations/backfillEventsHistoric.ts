@@ -34,7 +34,6 @@ interface MigrationArgs {
   concurrency?: number; // Default: 4
   pollIntervalMs?: number; // Default: 30_000
   maxRetries?: number; // Default: 3
-  batchTimeoutMs?: number; // Default: 7_200_000 (2h)
   retryFailed?: boolean; // Reset failed chunks to pending
 }
 
@@ -50,7 +49,6 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
   concurrency: 4,
   pollIntervalMs: 30_000,
   maxRetries: 3,
-  batchTimeoutMs: 7_200_000,
 };
 
 type OnQueryCompleteCallback = (
@@ -562,28 +560,32 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
   private async fireQuery(
     query: string,
     queryId: string,
-    timeoutMs: number,
     retryCount: number = 0,
   ): Promise<void> {
     logger.info(`[Backfill Events] Firing query ${queryId}`);
+
+    // Create AbortController to abort HTTP connection after query starts on server.
+    // This follows ClickHouse best practices for long-running queries:
+    // https://github.com/ClickHouse/clickhouse-js/blob/main/examples/long_running_queries_timeouts.ts
+    const abortController = new AbortController();
 
     // Apply memory-reducing settings on retries
     const retrySettings =
       retryCount > 0
         ? {
-            max_threads: 1,
+            // max_threads: 1,
             max_block_size: "32768",
           }
         : {};
 
     if (retryCount > 0) {
       logger.info(
-        `[Backfill Events] Applying retry settings for query ${queryId}: max_threads=1, max_block_size=32768 (retry ${retryCount})`,
+        `[Backfill Events] Applying retry settings for query ${queryId}: max_block_size=32768 (retry ${retryCount})`,
       );
     }
 
-    // Fire the query - commandClickhouse will wait for completion
-    // but we want to track it via polling instead
+    // Fire the query with abort signal. The query will continue on the server
+    // even after we abort the HTTP connection.
     const queryPromise = commandClickhouse({
       query,
       tags: {
@@ -591,14 +593,15 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         operation: "fireQuery",
         queryId,
       },
-      clickhouseConfigs: {
-        request_timeout: timeoutMs,
-      },
+      // clickhouseConfigs: {
+      //   request_timeout: timeoutMs,
+      // },
       clickhouseSettings: {
-        send_progress_in_http_headers: 1,
-        http_headers_progress_interval_ms: "30000",
+        // send_progress_in_http_headers: 1,
+        // http_headers_progress_interval_ms: "30000",
         ...retrySettings,
       },
+      abortSignal: abortController.signal,
     });
 
     // Wait a short time to ensure query is registered
@@ -616,14 +619,27 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       }
     }
 
-    // Don't await the promise - we'll track via polling
-    // The promise will resolve when the query completes
+    // Abort the HTTP connection now that the query is confirmed running on the server.
+    // This prevents "Broken pipe" errors from the connection timing out.
+    // The query continues executing on ClickHouse - we track completion via polling.
+    logger.info(
+      `[Backfill Events] Query ${queryId} confirmed running, aborting HTTP connection`,
+    );
+    abortController.abort();
+
+    // Handle the expected abort error
     queryPromise.catch((err) => {
-      // Log but don't throw - we track completion via polling
-      logger.debug(
-        `[Backfill Events] Query ${queryId} promise resolved/rejected`,
-        err?.message,
-      );
+      // Abort errors are expected - log at debug level
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) {
+        logger.debug(
+          `[Backfill Events] Query ${queryId} HTTP connection aborted as expected`,
+        );
+      } else {
+        logger.info(
+          `[Backfill Events] Query ${queryId} promise rejected: ${err?.message}`,
+          err,
+        );
+      }
     });
   }
 
@@ -713,8 +729,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       pollIntervalMs:
         migrationArgs.pollIntervalMs ?? DEFAULT_CONFIG.pollIntervalMs,
       maxRetries: migrationArgs.maxRetries ?? DEFAULT_CONFIG.maxRetries,
-      batchTimeoutMs:
-        migrationArgs.batchTimeoutMs ?? DEFAULT_CONFIG.batchTimeoutMs,
     };
 
     logger.info(
@@ -798,7 +812,6 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         await this.fireQuery(
           query,
           state.todos[todoIndex].queryId!,
-          config.batchTimeoutMs!,
           state.todos[todoIndex].retryCount || 0,
         );
         manager.addQuery(
@@ -921,7 +934,6 @@ async function main() {
       concurrency: { type: "string", short: "c", default: "4" },
       pollIntervalMs: { type: "string", short: "p", default: "30000" },
       maxRetries: { type: "string", short: "r", default: "3" },
-      batchTimeoutMs: { type: "string", short: "t", default: "7200000" },
       retryFailed: { type: "boolean", short: "f", default: false },
     },
   });
@@ -932,7 +944,6 @@ async function main() {
     concurrency: parseInt(args.values.concurrency as string, 10),
     pollIntervalMs: parseInt(args.values.pollIntervalMs as string, 10),
     maxRetries: parseInt(args.values.maxRetries as string, 10),
-    batchTimeoutMs: parseInt(args.values.batchTimeoutMs as string, 10),
     retryFailed: args.values.retryFailed as boolean,
   };
 
