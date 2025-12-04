@@ -3002,7 +3002,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       // @ts-expect-error
       expect(res.body.message).toContain("depending on");
       // @ts-expect-error
-      expect(res.body.message).toContain(parentName);
+      expect(res.body.message).toContain(parentPrompt.id);
 
       // Verify child was NOT deleted
       const remaining = await prisma.prompt.findMany({
@@ -3132,12 +3132,88 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       expect(res.status).toBe(400);
       // @ts-expect-error
       expect(res.body.message).toContain("depending on");
-      // @ts-expect-error - Should mention blocking parents
-      expect(res.body.message).toContain(parent1Name);
+      // @ts-expect-error - Should mention blocking parent IDs
+      expect(res.body.message).toContain(parent1.id);
       // @ts-expect-error
-      expect(res.body.message).toContain(parent3Name);
+      expect(res.body.message).toContain(parent3.id);
       // @ts-expect-error - Should NOT mention parent2 (its dependency still satisfied)
-      expect(res.body.message).not.toContain(parent2Name);
+      expect(res.body.message).not.toContain(parent2.id);
+    });
+
+    it('reattaches "latest" label to highest remaining version when deleted', async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const promptName = "testPrompt" + uuidv4();
+
+      // Create 3 versions: v1 (dev), v2 (production, latest), v3 (dev)
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: promptName,
+          prompt: "version 1",
+          labels: ["dev"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: promptName,
+          prompt: "version 2",
+          labels: ["production", "latest"],
+          version: 2,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: promptName,
+          prompt: "version 3",
+          labels: ["dev"],
+          version: 3,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Delete v2 (which has "latest" label)
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(promptName)}?version=2`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(204);
+
+      // Verify v2 was deleted
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name: promptName },
+        orderBy: { version: "asc" },
+      });
+
+      expect(remaining.length).toBe(2);
+      expect(remaining.map((p) => p.version)).toEqual([1, 3]);
+
+      // Verify "latest" label was moved to v3 (highest remaining version)
+      const v3 = remaining.find((p) => p.version === 3);
+      expect(v3?.labels).toContain("latest");
+      expect(v3?.labels).toContain("dev");
+
+      // Verify v1 still only has "dev" label
+      const v1 = remaining.find((p) => p.version === 1);
+      expect(v1?.labels).toEqual(["dev"]);
     });
   });
 
