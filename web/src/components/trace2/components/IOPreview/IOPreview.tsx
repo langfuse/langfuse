@@ -213,19 +213,12 @@ export function IOPreview({
     onOutputExpansionChange,
   };
 
-  const isInputEmpty = parsedInput === null || parsedInput === undefined;
-  const isOutputEmpty = parsedOutput === null || parsedOutput === undefined;
   const showEmptyState =
-    (isInputEmpty || isOutputEmpty) &&
+    (parsedInput === null || parsedInput === undefined) &&
+    (parsedOutput === null || parsedOutput === undefined) &&
     !isLoading &&
     !hideIfNull &&
     !dismissedTraceViewNotifications.includes(EMPTY_IO_ALERT_ID);
-
-  const title = isInputEmpty
-    ? isOutputEmpty
-      ? "Looks like this trace didn't receive an input/output."
-      : "Looks like this trace didn't receive an input."
-    : "Looks like this trace didn't receive an output.";
 
   return (
     <>
@@ -292,7 +285,9 @@ export function IOPreview({
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </div>
-            <h3 className="text-sm font-semibold">{title}</h3>
+            <h3 className="text-sm font-semibold">
+              Looks like this trace didn&apos;t receive an input or output.
+            </h3>
           </div>
           <p className="max-w-sm text-sm text-muted-foreground">
             Add it in your code to make debugging a lot easier.
