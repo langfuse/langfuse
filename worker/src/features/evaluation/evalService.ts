@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
-import { JobConfigState, JobExecutionStatus, Prisma } from "@prisma/client";
+import { JobConfigState, JobExecutionStatus } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
@@ -38,6 +38,7 @@ import {
 } from "./traceFilterUtils";
 import {
   ChatMessageRole,
+  Prisma,
   singleFilter,
   variableMappingList,
   evalDatasetFormFilterCols,
@@ -56,7 +57,6 @@ import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
-import { isArray } from "lodash";
 
 let s3StorageServiceClient: StorageService;
 

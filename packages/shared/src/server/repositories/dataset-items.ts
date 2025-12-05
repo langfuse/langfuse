@@ -234,7 +234,6 @@ export async function createDatasetItem(props: {
 
   const datasetItem = {
     ...result.datasetItems[0],
-    id: result.datasetItems[0].itemId,
     createdAt: new Date(),
     updatedAt: new Date(),
   } as DatasetItemDomain;
@@ -515,7 +514,7 @@ export async function createManyDatasetItems(props: {
       } else {
         // Validation passed - prepare for insert
         preparedItems.push({
-          itemId: v4(),
+          id: v4(),
           projectId: props.projectId,
           status: DatasetStatus.ACTIVE,
           datasetId: item.datasetId,
@@ -540,7 +539,7 @@ export async function createManyDatasetItems(props: {
 
   // 5. Bulk insert all valid items
   await prisma.datasetItem.createMany({
-    data: preparedItems.map(toPostgresDatasetItem),
+    data: preparedItems,
   });
 
   return {
@@ -572,7 +571,7 @@ export type CreateManyItemsPayload = {
 }[];
 
 export type CreateManyItemsInsert = {
-  itemId: string;
+  id: string;
   projectId: string;
   datasetId: string;
   status: DatasetStatus;
@@ -756,6 +755,10 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
       case "status":
         if (filter.type === "stringOptions" && filter.value.length > 0) {
           where.status = { in: filter.value.map((v) => v as DatasetStatus) };
+        }
+      case "createdAt":
+        if (filter.type === "datetime") {
+          where.createdAt = { lte: filter.value };
         }
         break;
       // metadata filters are not supported in Prisma path (need raw SQL)

@@ -1188,7 +1188,7 @@ export const datasetRouter = createTRPCRouter({
             auditLog({
               session: ctx.session,
               resourceType: "datasetItem",
-              resourceId: item.itemId,
+              resourceId: item.id,
               action: "create",
               after: item,
             }),
