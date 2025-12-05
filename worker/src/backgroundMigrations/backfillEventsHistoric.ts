@@ -574,13 +574,13 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       retryCount > 0
         ? {
             // max_threads: 1,
-            max_block_size: "32768",
+            max_block_size: "4096",
           }
         : {};
 
     if (retryCount > 0) {
       logger.info(
-        `[Backfill Events] Applying retry settings for query ${queryId}: max_block_size=32768 (retry ${retryCount})`,
+        `[Backfill Events] Applying retry settings for query ${queryId}: max_block_size=4096 (retry ${retryCount})`,
       );
     }
 
