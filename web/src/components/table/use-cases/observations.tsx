@@ -1332,7 +1332,10 @@ const GenerationsDynamicCell = ({
     <MemoizedIOTableCell
       isLoading={observation.isPending}
       data={data}
-      className={cn(col === "output" && "bg-accent-light-green")}
+      className={cn(
+        col === "output" && "bg-accent-light-green",
+        col === "input" && "bg-muted/50",
+      )}
       singleLine={singleLine}
     />
   );

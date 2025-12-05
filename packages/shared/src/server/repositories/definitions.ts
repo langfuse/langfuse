@@ -626,6 +626,7 @@ export const eventRecordBaseSchema = z.object({
   version: z.string().nullish(),
   release: z.string().nullish(),
 
+  trace_name: z.string().nullish(),
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
 
