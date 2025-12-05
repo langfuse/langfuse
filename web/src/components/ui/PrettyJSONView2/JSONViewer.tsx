@@ -152,6 +152,7 @@ interface SearchMatch {
   value: unknown; // The value at this path
   matchInKey: boolean; // Whether match was in key or value
   query: string; // The original search query
+  depth: number; // Nesting depth of the matched node (for expansion calculation)
 }
 
 /**
@@ -208,7 +209,7 @@ function SearchBar({
       />
       <span
         className={cn(
-          "min-w-[70px] text-xs text-muted-foreground transition-opacity",
+          "min-w-[70px] text-right text-xs text-muted-foreground transition-opacity",
           query ? "opacity-100" : "opacity-0",
         )}
       >
@@ -288,6 +289,7 @@ function searchJSON(
             value,
             matchInKey: true,
             query,
+            depth: newPath.length,
           });
         }
 
@@ -303,6 +305,7 @@ function searchJSON(
             value,
             matchInKey: false,
             query,
+            depth: newPath.length,
           });
         } else if (
           typeof value === "number" &&
@@ -315,6 +318,7 @@ function searchJSON(
             value,
             matchInKey: false,
             query,
+            depth: newPath.length,
           });
         } else if (
           typeof value === "boolean" &&
@@ -327,6 +331,7 @@ function searchJSON(
             value,
             matchInKey: false,
             query,
+            depth: newPath.length,
           });
         }
 
@@ -352,6 +357,7 @@ function searchJSON(
             value: item,
             matchInKey: false,
             query,
+            depth: newPath.length,
           });
         } else if (
           typeof item === "number" &&
@@ -364,6 +370,7 @@ function searchJSON(
             value: item,
             matchInKey: false,
             query,
+            depth: newPath.length,
           });
         } else if (
           typeof item === "boolean" &&
@@ -376,6 +383,7 @@ function searchJSON(
             value: item,
             matchInKey: false,
             query,
+            depth: newPath.length,
           });
         }
 
@@ -458,56 +466,57 @@ export function JSONViewer({
       setSearchMatches(matches);
       setCurrentMatchIndex(0);
 
-      // Auto-expand to show first match
-      if (matches.length > 0 && internalCollapsed) {
-        setInternalCollapsed(false);
+      // Auto-expand to show matches
+      if (matches.length > 0) {
+        // Uncollapse if currently collapsed
+        if (internalCollapsed) {
+          setInternalCollapsed(false);
+        }
+
+        // Find the deepest match depth and expand accordingly
+        const maxDepth = Math.max(...matches.map((m) => m.depth));
+        // The search automatically keeps things expanded via the expandLevel calculation below
       }
     },
     [data, internalCollapsed],
   );
 
-  // Scroll to match in DOM
+  // Scroll to match in DOM with multi-frame animation for virtualization
   const scrollToMatch = useCallback((match: SearchMatch) => {
     if (!containerRef.current) return;
 
     // Wait for DOM to update after potential expansion
+    // Use multiple animation frames to ensure virtualization has time to render
     requestAnimationFrame(() => {
-      // Try multiple strategies to find the element
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Find the highlighted row (which should be visible after expansion)
+          const rowElements =
+            containerRef.current?.querySelectorAll(".row") ?? [];
 
-      // Strategy 1: Find by data-key attribute (if react-obj-view uses it)
-      let targetElement: Element | null = null;
-      const keySelector = `[data-key="${match.key}"]`;
-      targetElement = containerRef.current?.querySelector(keySelector) ?? null;
+          // Search through rendered rows for the match
+          for (const row of rowElements) {
+            // Check if this row matches our search
+            const nameEl = row.querySelector(".name");
+            const valueEl = row.querySelector(".value");
 
-      // Strategy 2: Find by text content
-      if (!targetElement) {
-        const allValueElements =
-          containerRef.current?.querySelectorAll(".value") ?? [];
-        for (const el of Array.from(allValueElements)) {
-          if (el.textContent?.includes(String(match.value))) {
-            targetElement = el;
-            break;
+            const textContent = match.matchInKey
+              ? nameEl?.textContent
+              : valueEl?.textContent;
+
+            if (
+              textContent?.toLowerCase().includes(match.query.toLowerCase())
+            ) {
+              // Found the row, scroll it into view
+              row.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+              break;
+            }
           }
-        }
-      }
-
-      // Strategy 3: Find parent row by class
-      if (targetElement) {
-        const rowElement = targetElement.closest(
-          ".node-container, .node-default",
-        );
-        if (rowElement) {
-          rowElement.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        } else {
-          targetElement.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }
-      }
+        });
+      });
     });
   }, []);
 
@@ -585,6 +594,30 @@ export function JSONViewer({
   // Memoize valueGetter for react-obj-view (required for performance)
   const valueGetter = useMemo(() => () => data, [data]);
 
+  // Calculate row count for display
+  const rowCount = useMemo(() => {
+    const countRows = (obj: unknown): number => {
+      if (obj === null || obj === undefined) return 1;
+      if (typeof obj !== "object") return 1;
+
+      let count = 1; // Count the current object/array itself
+
+      if (Array.isArray(obj)) {
+        obj.forEach((item) => {
+          count += countRows(item);
+        });
+      } else {
+        Object.values(obj as Record<string, unknown>).forEach((value) => {
+          count += countRows(value);
+        });
+      }
+
+      return count;
+    };
+
+    return countRows(data);
+  }, [data]);
+
   // Select theme based on current mode and merge background color
   const currentTheme = useMemo(() => {
     const baseTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -612,12 +645,12 @@ export function JSONViewer({
   }, [resolvedTheme, backgroundColor, title]);
 
   // Determine expansion level based on collapsed state
-  // When searching, expand more to show matches
+  // When searching, expand to show all matches
   const effectiveCollapsed = onToggleCollapse ? collapsed : internalCollapsed;
   const expandLevel = effectiveCollapsed
     ? 0
     : searchMatches.length > 0
-      ? 10 // Expand deeper when searching
+      ? Math.max(10, Math.max(...searchMatches.map((m) => m.depth)) + 1) // Expand deep enough to show all matches
       : 3; // Default to 3 levels deep when expanded
 
   // Container classes
@@ -690,7 +723,14 @@ export function JSONViewer({
       {title && !hideTitle ? (
         <div className={cn(scrollable && "sticky top-0 z-10 bg-background")}>
           <MarkdownJsonViewHeader
-            title={title}
+            title={
+              <div className="flex items-center gap-2">
+                <span>{title}</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {rowCount} rows
+                </span>
+              </div>
+            }
             canEnableMarkdown={false}
             handleOnValueChange={() => {}}
             handleOnCopy={handleCopy}
