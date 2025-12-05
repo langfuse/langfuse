@@ -50,6 +50,7 @@ export function AdvancedJsonViewer({
   className,
   isLoading = false,
   error,
+  scrollContainerRef,
 }: AdvancedJsonViewerProps) {
   // Resolve theme
   const theme = useJsonTheme(userTheme);
@@ -312,6 +313,7 @@ export function AdvancedJsonViewer({
           wrapLongStrings={wrapLongStrings}
           onToggleExpansion={handleToggleExpansion}
           scrollToIndex={scrollToIndex}
+          scrollContainerRef={scrollContainerRef}
         />
       </div>
     </div>

@@ -5,7 +5,7 @@
  * Uses @tanstack/react-virtual which is already in project dependencies.
  */
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FlatJSONRow, type SearchMatch, type JSONTheme } from "./types";
 import { JsonRow } from "./components/JsonRow";
@@ -23,6 +23,7 @@ interface VirtualizedJsonViewerProps {
   onToggleExpansion?: (rowId: string) => void;
   className?: string;
   scrollToIndex?: number; // For search navigation
+  scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
 }
 
 export function VirtualizedJsonViewer({
@@ -37,6 +38,7 @@ export function VirtualizedJsonViewer({
   onToggleExpansion,
   className,
   scrollToIndex,
+  scrollContainerRef,
 }: VirtualizedJsonViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +73,7 @@ export function VirtualizedJsonViewer({
   // Initialize virtualizer
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => scrollContainerRef?.current || parentRef.current,
     estimateSize,
     overscan: 50, // Render 50 extra rows above/below viewport
     measureElement:
@@ -102,7 +104,6 @@ export function VirtualizedJsonViewer({
       className={className}
       style={{
         height: "100%",
-        overflow: "auto",
         backgroundColor: theme.background,
         color: theme.foreground,
       }}

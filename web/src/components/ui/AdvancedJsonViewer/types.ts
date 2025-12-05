@@ -5,6 +5,8 @@
  * Self-contained with no external dependencies.
  */
 
+import type { RefObject } from "react";
+
 // ============================================================================
 // JSON Value Types
 // ============================================================================
@@ -242,6 +244,9 @@ export interface AdvancedJsonViewerProps {
 
   /** Error state */
   error?: Error | string;
+
+  /** Ref to the scroll container (for proper scroll-to behavior) */
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
 /**

@@ -10,7 +10,7 @@
  * - Custom theme (fontSize: 0.7rem, lineHeight: 16px)
  */
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -252,6 +252,9 @@ export function AdvancedJsonSection({
     });
   }, [flatRows, customTheme.lineHeight, truncateStringsAt]);
 
+  // Ref for scroll container (the body wrapper div)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   // Hide section if data is null/undefined
   if (hideIfNull && (data === null || data === undefined)) {
     return null;
@@ -381,10 +384,11 @@ export function AdvancedJsonSection({
       {/* Body */}
       {!sectionCollapsed && (
         <div
+          ref={scrollContainerRef}
           style={{
             minHeight: "100px",
             maxHeight: maxHeight,
-            overflow: "hidden", // Let AdvancedJsonViewer handle scrolling
+            overflow: "auto", // This is the scroll container for search navigation
             backgroundColor: headerBackgroundColor || backgroundColor,
           }}
         >
@@ -403,6 +407,7 @@ export function AdvancedJsonSection({
             truncateStringsAt={truncateStringsAt}
             wrapLongStrings={wrapLongStrings}
             isLoading={isLoading}
+            scrollContainerRef={scrollContainerRef}
             className="h-full"
           />
         </div>

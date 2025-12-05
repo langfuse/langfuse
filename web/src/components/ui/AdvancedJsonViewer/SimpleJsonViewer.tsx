@@ -5,7 +5,7 @@
  * Best for small datasets (<500 rows) where virtualization overhead isn't worth it.
  */
 
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, type RefObject } from "react";
 import { type FlatJSONRow, type SearchMatch, type JSONTheme } from "./types";
 import { JsonRow } from "./components/JsonRow";
 
@@ -21,6 +21,7 @@ interface SimpleJsonViewerProps {
   onToggleExpansion?: (rowId: string) => void;
   className?: string;
   scrollToIndex?: number; // For search navigation
+  scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
 }
 
 export function SimpleJsonViewer({
@@ -35,6 +36,7 @@ export function SimpleJsonViewer({
   onToggleExpansion,
   className,
   scrollToIndex,
+  scrollContainerRef: _scrollContainerRef,
 }: SimpleJsonViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -81,7 +83,6 @@ export function SimpleJsonViewer({
         backgroundColor: theme.background,
         color: theme.foreground,
         fontFamily: "monospace",
-        overflow: "auto",
       }}
     >
       {rows.map((row, index) => {
