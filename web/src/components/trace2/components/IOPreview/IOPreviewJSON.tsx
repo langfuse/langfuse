@@ -60,6 +60,7 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          headerBackgroundColor="rgba(59, 130, 246, 0.05)"
         />
       )}
       {showOutput && (
@@ -76,6 +77,7 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          headerBackgroundColor="rgba(34, 197, 94, 0.05)"
         />
       )}
     </div>
