@@ -156,18 +156,11 @@ function normalizeMessage(
   });
 }
 
-// flattening any split messages
 function normalizeMessages(data: unknown[]): unknown[] {
-  const result: Record<string, unknown>[] = [];
-  for (const msg of data) {
+  return data.flatMap((msg) => {
     const normalized = normalizeMessage(msg);
-    if (Array.isArray(normalized)) {
-      result.push(...normalized);
-    } else {
-      result.push(normalized);
-    }
-  }
-  return result;
+    return Array.isArray(normalized) ? normalized : [normalized];
+  });
 }
 
 function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
