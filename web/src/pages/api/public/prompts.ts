@@ -16,7 +16,7 @@ import {
   LegacyCreatePromptSchema,
   PRODUCTION_LABEL,
 } from "@langfuse/shared";
-import { traceException, logger } from "@langfuse/shared/src/server";
+import { redis, traceException, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { telemetry } from "@/src/features/telemetry";
 
