@@ -41,6 +41,7 @@ export function AdvancedJsonViewer({
   onSearchQueryChange,
   currentMatchIndex: controlledCurrentMatchIndex,
   onCurrentMatchIndexChange,
+  matchCounts,
   showLineNumbers = false,
   enableCopy = true,
   truncateStringsAt = 100,
@@ -307,6 +308,7 @@ export function AdvancedJsonViewer({
           theme={theme}
           searchMatches={searchMatches}
           currentMatchIndex={currentMatchIndex}
+          matchCounts={matchCounts}
           showLineNumbers={showLineNumbers}
           enableCopy={enableCopy}
           truncateStringsAt={truncateStringsAt}

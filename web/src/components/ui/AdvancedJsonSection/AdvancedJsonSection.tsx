@@ -29,7 +29,11 @@ import {
   type PartialJSONTheme,
 } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { flattenJSON } from "@/src/components/ui/AdvancedJsonViewer/utils/flattenJson";
-import { searchInRows } from "@/src/components/ui/AdvancedJsonViewer/utils/searchJson";
+import {
+  searchInRows,
+  expandToMatch,
+  getMatchCountsPerRow,
+} from "@/src/components/ui/AdvancedJsonViewer/utils/searchJson";
 import { shouldVirtualize } from "@/src/components/ui/AdvancedJsonViewer/utils/estimateRowHeight";
 
 export interface AdvancedJsonSectionProps {
@@ -182,18 +186,55 @@ export function AdvancedJsonSection({
     });
   }, [flatRows, debouncedSearchQuery]);
 
+  // Compute match counts per row (including descendants)
+  const matchCounts = useMemo(() => {
+    if (searchMatches.length === 0) return undefined;
+    return getMatchCountsPerRow(flatRows, searchMatches);
+  }, [flatRows, searchMatches]);
+
   // Handle search navigation
   const handleNextMatch = useCallback(() => {
     if (searchMatches.length === 0) return;
-    setCurrentMatchIndex((prev) => (prev + 1) % searchMatches.length);
-  }, [searchMatches.length]);
+    const nextIndex = (currentMatchIndex + 1) % searchMatches.length;
+    setCurrentMatchIndex(nextIndex);
+
+    // Auto-expand ancestors to show the match
+    const match = searchMatches[nextIndex];
+    if (match) {
+      const newExpansion = expandToMatch(match, flatRows, fieldExpansionState);
+      setFieldExpansion(field, newExpansion);
+    }
+  }, [
+    searchMatches,
+    currentMatchIndex,
+    flatRows,
+    fieldExpansionState,
+    field,
+    setFieldExpansion,
+  ]);
 
   const handlePreviousMatch = useCallback(() => {
     if (searchMatches.length === 0) return;
-    setCurrentMatchIndex((prev) =>
-      prev === 0 ? searchMatches.length - 1 : prev - 1,
-    );
-  }, [searchMatches.length]);
+    const prevIndex =
+      currentMatchIndex === 0
+        ? searchMatches.length - 1
+        : currentMatchIndex - 1;
+    setCurrentMatchIndex(prevIndex);
+
+    // Auto-expand ancestors to show the match
+    const match = searchMatches[prevIndex];
+    if (match) {
+      const newExpansion = expandToMatch(match, flatRows, fieldExpansionState);
+      setFieldExpansion(field, newExpansion);
+    }
+  }, [
+    searchMatches,
+    currentMatchIndex,
+    flatRows,
+    fieldExpansionState,
+    field,
+    setFieldExpansion,
+  ]);
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery("");
@@ -402,6 +443,7 @@ export function AdvancedJsonSection({
             onSearchQueryChange={setSearchQuery}
             currentMatchIndex={currentMatchIndex}
             onCurrentMatchIndexChange={setCurrentMatchIndex}
+            matchCounts={matchCounts}
             showLineNumbers={showLineNumbers}
             enableCopy={enableCopy}
             truncateStringsAt={truncateStringsAt}

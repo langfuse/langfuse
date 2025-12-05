@@ -14,6 +14,7 @@ interface SimpleJsonViewerProps {
   theme: JSONTheme;
   searchMatches?: SearchMatch[];
   currentMatchIndex?: number;
+  matchCounts?: Map<string, number>; // Row ID -> count of matches in row and descendants
   showLineNumbers?: boolean;
   enableCopy?: boolean;
   truncateStringsAt?: number | null;
@@ -29,6 +30,7 @@ export function SimpleJsonViewer({
   theme,
   searchMatches = [],
   currentMatchIndex = 0,
+  matchCounts,
   showLineNumbers = false,
   enableCopy = false,
   truncateStringsAt = null,
@@ -88,6 +90,7 @@ export function SimpleJsonViewer({
       {rows.map((row, index) => {
         const searchMatch = matchMap.get(row.id);
         const isCurrentMatch = currentMatch?.rowId === row.id;
+        const matchCount = matchCounts?.get(row.id);
 
         return (
           <div
@@ -105,6 +108,7 @@ export function SimpleJsonViewer({
               theme={theme}
               searchMatch={searchMatch}
               isCurrentMatch={isCurrentMatch}
+              matchCount={matchCount}
               showLineNumber={showLineNumbers}
               lineNumber={index + 1}
               enableCopy={enableCopy}

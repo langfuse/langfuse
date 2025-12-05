@@ -24,6 +24,7 @@ export function JsonRow({
   theme,
   searchMatch,
   isCurrentMatch = false,
+  matchCount,
   showLineNumber = false,
   lineNumber,
   enableCopy = false,
@@ -115,6 +116,33 @@ export function JsonRow({
         highlightStart={isValue ? searchMatch?.highlightStart : undefined}
         highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
       />
+
+      {/* Match count badge (for collapsed rows with matches in descendants) */}
+      {matchCount !== undefined &&
+        matchCount > 0 &&
+        row.isExpandable &&
+        !row.isExpanded && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginLeft: "6px",
+              padding: "0 4px",
+              minWidth: "16px",
+              height: "14px",
+              fontSize: "9px",
+              fontWeight: 600,
+              borderRadius: "7px",
+              backgroundColor: theme.searchMatchBackground,
+              color: theme.foreground,
+              border: `1px solid ${theme.searchCurrentBackground}`,
+            }}
+            title={`${matchCount} match${matchCount === 1 ? "" : "es"} in this section`}
+          >
+            {matchCount}
+          </span>
+        )}
 
       {/* Copy button (optional, on hover) */}
       {enableCopy && <CopyButton value={row.value} theme={theme} />}

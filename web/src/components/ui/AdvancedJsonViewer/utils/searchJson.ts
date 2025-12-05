@@ -252,6 +252,42 @@ export function getSearchStats(matches: SearchMatch[]): SearchStats {
 }
 
 /**
+ * Count matches for each row, including matches in descendants
+ * Useful for showing "this collapsed row contains X matches"
+ *
+ * @param rows - All flattened rows
+ * @param matches - All search matches
+ * @returns Map of rowId -> count of matches in this row and its descendants
+ */
+export function getMatchCountsPerRow(
+  rows: FlatJSONRow[],
+  matches: SearchMatch[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  // Initialize all rows with 0
+  rows.forEach((row) => counts.set(row.id, 0));
+
+  // For each match, increment count for the matched row and all ancestors
+  matches.forEach((match) => {
+    const row = rows[match.rowIndex];
+    if (!row) return;
+
+    // Increment count for this row
+    counts.set(row.id, (counts.get(row.id) || 0) + 1);
+
+    // Increment count for all ancestors
+    const pathArray = row.pathArray;
+    for (let i = 1; i < pathArray.length; i++) {
+      const ancestorPath = pathArray.slice(0, i).join(".");
+      counts.set(ancestorPath, (counts.get(ancestorPath) || 0) + 1);
+    }
+  });
+
+  return counts;
+}
+
+/**
  * Highlight text with search match positions
  * Returns array of segments with highlight info
  */

@@ -218,6 +218,9 @@ export interface AdvancedJsonViewerProps {
   /** Callback when current match index changes */
   onCurrentMatchIndexChange?: (index: number) => void;
 
+  /** Match counts per row (including descendants) for visual indicators */
+  matchCounts?: Map<string, number>;
+
   /** Show line numbers */
   showLineNumbers?: boolean;
 
@@ -264,6 +267,9 @@ export interface JsonRowProps {
 
   /** Whether this is the current search match */
   isCurrentMatch?: boolean;
+
+  /** Number of search matches in this row and its descendants */
+  matchCount?: number;
 
   /** Show line number */
   showLineNumber?: boolean;
