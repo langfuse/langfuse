@@ -50,7 +50,7 @@ export function JsonRow({
       className={className}
       style={{
         display: "grid",
-        gridTemplateColumns: "auto 1fr auto",
+        gridTemplateColumns: "auto 1fr",
         alignItems: "start",
         minHeight: `${theme.lineHeight}px`,
         paddingLeft: "4px",
@@ -115,7 +115,7 @@ export function JsonRow({
         </span>
       </div>
 
-      {/* Column 2: Value (wraps with hanging indent) */}
+      {/* Column 2: Value + badge + copy button */}
       <div
         style={{
           minHeight: `${theme.lineHeight}px`,
@@ -135,16 +135,7 @@ export function JsonRow({
           highlightStart={isValue ? searchMatch?.highlightStart : undefined}
           highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
         />
-      </div>
 
-      {/* Column 3: Badge + copy button */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          minHeight: `${theme.lineHeight}px`,
-        }}
-      >
         {/* Match count badge (for collapsed rows or leaf nodes with multiple matches) */}
         {matchCount !== undefined &&
           matchCount > 1 &&
@@ -164,6 +155,7 @@ export function JsonRow({
                 backgroundColor: theme.searchMatchBackground,
                 color: theme.foreground,
                 border: `1px solid ${theme.searchCurrentBackground}`,
+                flexShrink: 0,
               }}
               title={
                 row.isExpandable
