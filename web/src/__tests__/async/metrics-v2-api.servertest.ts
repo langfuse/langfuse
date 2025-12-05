@@ -6,9 +6,9 @@ import {
 import { GetMetricsV2Response } from "@/src/features/public-api/types/metrics";
 import {
   createEvent,
-  createTrace,
-  createTracesCh,
   createEventsCh,
+  createScoresCh,
+  createTraceScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
@@ -33,17 +33,6 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
     traceId = randomUUID();
     observationIds = [];
-
-    // Create trace in ClickHouse
-    const trace = createTrace({
-      id: traceId,
-      project_id: projectId,
-      user_id: "test-user-v2",
-      session_id: "test-session-v2",
-      tags: ["v2-test", "events-table"],
-      release: "v2.0.0",
-    });
-    await createTracesCh([trace]);
 
     // Create observations in events table
     const observations = [];
@@ -84,7 +73,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     await createEventsCh(observations);
 
     // Wait a bit for ClickHouse to process
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   });
 
   it("should kill redis connection", () => {
@@ -551,16 +540,6 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       const taggedObsId = randomUUID();
       const taggedTraceId = randomUUID();
 
-      await createTracesCh([
-        createTrace({
-          id: taggedTraceId,
-          name: "tagged-observation-trace",
-          project_id: projectId,
-          timestamp: Date.now(),
-          tags: ["v2-filter-test", "array-test"],
-        }),
-      ]);
-
       await createEventsCh([
         createEvent({
           id: taggedObsId,
@@ -611,7 +590,426 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         (row: any) => row.name === "tagged-observation",
       );
       expect(taggedObsResult).toBeDefined();
-      expect(Number(taggedObsResult.count_count)).toBeGreaterThanOrEqual(1);
+      expect(Number(taggedObsResult?.count_count)).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  maybe("Scores Views - Denormalized Fields", () => {
+    const scoreTraceId = randomUUID();
+    const scoreIds: string[] = [];
+    const scoreObservationId = randomUUID();
+    const scoreSessionId = randomUUID();
+
+    beforeAll(async () => {
+      if (!hasEvents) return;
+
+      // Create observation in events table for scores to reference
+      await createEventsCh([
+        createEvent({
+          id: scoreObservationId,
+          span_id: scoreObservationId,
+          trace_id: scoreTraceId,
+          project_id: projectId,
+          name: "test-observation-for-scores",
+          start_time: Date.now() * 1000,
+          session_id: scoreSessionId,
+        }),
+      ]);
+
+      const scores = [];
+      for (let i = 0; i < 3; i++) {
+        const scoreId = randomUUID();
+        scoreIds.push(scoreId);
+
+        scores.push({
+          ...createTraceScore({
+            id: scoreId,
+            project_id: projectId,
+            trace_id: scoreTraceId,
+            observation_id: scoreObservationId,
+            name: `test-score-${i}`,
+            value: i * 10,
+            data_type: "NUMERIC",
+            timestamp: Date.now() + i * 1000,
+          }),
+          session_id: scoreSessionId,
+        });
+      }
+
+      await createScoresCh(scores);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    it("should support sessionId dimension from scores table", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "sessionId" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      // Find our test session
+      const nonEmptyRows = response.body.data.filter(
+        (row: any) => row.sessionId && row.count_count > 0,
+      );
+      expect(nonEmptyRows.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should support filtering by sessionId", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "sessionId",
+            operator: "=",
+            value: scoreSessionId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+      expect(response.body.data.length).toBeGreaterThan(0);
+    });
+
+    it("should support value aggregations for numeric scores", async () => {
+      const query = {
+        view: "scores-numeric",
+        metrics: [
+          { measure: "value", aggregation: "avg" },
+          { measure: "value", aggregation: "max" },
+          { measure: "value", aggregation: "min" },
+        ],
+        filters: [
+          {
+            column: "sessionId",
+            operator: "=",
+            value: scoreSessionId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.length).toBeGreaterThan(0);
+
+      const data = response.body.data[0];
+      expect(data.avg_value).toBeDefined();
+      expect(data.max_value).toBeDefined();
+      expect(data.min_value).toBeDefined();
+    });
+  });
+
+  maybe("Scores Views - Denormalized Trace Fields via Events", () => {
+    let eventsScoreTraceId: string;
+    let eventsObservationId: string;
+    const eventsScoreSessionId = "events-score-session";
+    const eventsScoreUserId = "events-score-user";
+    const eventsScoreTags = ["events-tag-1", "events-tag-2"];
+    const eventsScoreRelease = "events-v3.0.0";
+
+    beforeAll(async () => {
+      if (!hasEvents) return;
+
+      eventsScoreTraceId = randomUUID();
+      eventsObservationId = randomUUID();
+
+      // Create observation in events table (v2 source)
+      await createEventsCh([
+        createEvent({
+          id: eventsObservationId,
+          span_id: eventsObservationId,
+          trace_id: eventsScoreTraceId,
+          project_id: projectId,
+          name: "test-observation-for-score",
+          provided_model_name: "gpt-4-turbo",
+          start_time: Date.now() * 1000,
+          user_id: eventsScoreUserId,
+          session_id: eventsScoreSessionId,
+          tags: eventsScoreTags,
+          release: eventsScoreRelease,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          id: randomUUID(),
+          project_id: projectId,
+          trace_id: eventsScoreTraceId,
+          observation_id: eventsObservationId,
+          session_id: eventsScoreSessionId,
+          name: "score-with-events",
+          value: 95,
+          data_type: "NUMERIC",
+          timestamp: Date.now(),
+        }),
+      ]);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    it("should support userId dimension via events JOIN", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "userId" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "score-with-events",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      const userData = response.body.data.find(
+        (row: any) => row.userId === eventsScoreUserId,
+      );
+      expect(userData).toBeDefined();
+    });
+
+    it("should support tags dimension via events JOIN", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "tags" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "score-with-events",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+      expect(response.body.data.length).toBeGreaterThan(0);
+    });
+
+    it("should support release dimension via events JOIN", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "release" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "score-with-events",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      const releaseData = response.body.data.find(
+        (row: any) => row.release === eventsScoreRelease,
+      );
+      expect(releaseData).toBeDefined();
+    });
+  });
+
+  maybe("Scores Views - Validation (Reject traceName)", () => {
+    it("should reject traceName dimension in scores-numeric (not on events table)", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "traceName" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("Invalid request data");
+    });
+
+    it("should reject traceName in scores-categorical view", async () => {
+      const query = {
+        view: "scores-categorical",
+        dimensions: [{ field: "traceName" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain("Invalid request data");
+    });
+  });
+
+  maybe("Scores Views - Observation Dimensions via Events", () => {
+    let obsEventsTraceId: string;
+    let obsEventsObservationId: string;
+
+    beforeAll(async () => {
+      if (!hasEvents) return;
+
+      obsEventsTraceId = randomUUID();
+      obsEventsObservationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: obsEventsObservationId,
+          span_id: obsEventsObservationId,
+          trace_id: obsEventsTraceId,
+          project_id: projectId,
+          name: "test-observation-for-score-v2",
+          provided_model_name: "gpt-4-turbo",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          id: randomUUID(),
+          project_id: projectId,
+          trace_id: obsEventsTraceId,
+          observation_id: obsEventsObservationId,
+          session_id: "obs-events-test-session",
+          name: "score-with-observation-v2",
+          value: 95,
+          data_type: "NUMERIC",
+          timestamp: Date.now(),
+        }),
+      ]);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    it("should support observationModelName dimension via events table JOIN", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "observationModelName" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "score-with-observation-v2",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      // Should be able to access observation fields via events table JOIN
+      const modelData = response.body.data.find(
+        (row: any) => row.observationModelName === "gpt-4-turbo",
+      );
+      expect(modelData).toBeDefined();
+    });
+
+    it("should support observationName dimension from events table", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "observationName" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "score-with-observation-v2",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV2Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      const obsNameData = response.body.data.find(
+        (row: any) => row.observationName === "test-observation-for-score-v2",
+      );
+      expect(obsNameData).toBeDefined();
     });
   });
 });
