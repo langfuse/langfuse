@@ -53,12 +53,14 @@ import {
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
-  toPostgresDatasetItem,
   getDatasetItemById,
   getDatasetItemsByLatest,
   getDatasetItemsCountByLatest,
   getDatasetItemsCountByLatestGrouped,
   createDatasetItemFilterState,
+  executeWithDatasetServiceStrategy,
+  OperationType,
+  Implementation,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -1043,7 +1045,7 @@ export const datasetRouter = createTRPCRouter({
 
       // Copy items in batches to avoid 256MB JSONB limit
       let page = 0;
-      const createdAt = new Date();
+      const validFrom = new Date();
 
       while (true) {
         const itemsBatch = await getDatasetItemsByLatest({
@@ -1058,7 +1060,7 @@ export const datasetRouter = createTRPCRouter({
         if (itemsBatch.length === 0) break;
 
         const preparedItems = itemsBatch.map((item) => ({
-          itemId: v4(),
+          id: v4(),
           input: item.input ?? undefined,
           expectedOutput: item.expectedOutput ?? undefined,
           metadata: item.metadata ?? undefined,
@@ -1067,11 +1069,20 @@ export const datasetRouter = createTRPCRouter({
           status: item.status,
           projectId: input.projectId,
           datasetId: newDataset.id,
-          createdAt: createdAt,
+          validFrom: validFrom,
         }));
 
-        await ctx.prisma.datasetItem.createMany({
-          data: preparedItems.map((item) => toPostgresDatasetItem(item)),
+        await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+          [Implementation.STATEFUL]: async () => {
+            await ctx.prisma.datasetItem.createMany({
+              data: preparedItems,
+            });
+          },
+          [Implementation.VERSIONED]: async () => {
+            await ctx.prisma.datasetItem.createMany({
+              data: preparedItems,
+            });
+          },
         });
 
         if (itemsBatch.length < DUPLICATE_DATASET_ITEMS_BATCH_SIZE) break; // Last batch

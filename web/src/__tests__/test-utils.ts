@@ -90,7 +90,6 @@ export const pruneDatabase = async () => {
   await prisma.scoreConfig.deleteMany();
   await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
-  await prisma.datasetItemEvent.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();
