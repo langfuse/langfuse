@@ -634,6 +634,7 @@ model DatasetItem {
   datasetRunItems     DatasetRunItems[]
 
   @@id([id, projectId])
+  @@unique([id, projectId, validFrom])
   @@index([sourceTraceId], type: Hash)
   @@index([sourceObservationId], type: Hash)
   @@index([datasetId], type: Hash)
