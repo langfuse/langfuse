@@ -756,6 +756,7 @@ function buildPrismaWhereFromFilterState(filterState: FilterState): any {
         if (filter.type === "stringOptions" && filter.value.length > 0) {
           where.status = { in: filter.value.map((v) => v as DatasetStatus) };
         }
+        break;
       case "createdAt":
         if (filter.type === "datetime") {
           where.createdAt = { lte: filter.value };
