@@ -70,7 +70,7 @@ export const GitHubDispatchActionForm: React.FC<
             </FormLabel>
             <FormControl>
               <Input
-                placeholder="langfuse-prompt-update"
+                placeholder="prompt-update"
                 disabled={disabled}
                 {...field}
               />
