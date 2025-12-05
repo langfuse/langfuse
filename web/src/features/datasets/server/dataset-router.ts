@@ -861,7 +861,6 @@ export const datasetRouter = createTRPCRouter({
                 string,
                 unknown
               > | null,
-              prisma: ctx.prisma,
             });
 
             if (!validationResult.isValid) {
@@ -1790,7 +1789,6 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         inputSchema: input.inputSchema,
         expectedOutputSchema: input.expectedOutputSchema,
-        prisma: ctx.prisma,
       });
 
       return validationResult;
@@ -1834,7 +1832,6 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         inputSchema: input.inputSchema,
         expectedOutputSchema: input.expectedOutputSchema,
-        prisma: ctx.prisma,
       });
 
       if (!validationResult.isValid) {

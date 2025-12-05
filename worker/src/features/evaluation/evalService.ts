@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
 import { z as zodV3 } from "zod/v3";
-import { JobConfigState, JobExecutionStatus } from "@prisma/client";
+import { JobConfigState, JobExecutionStatus, Prisma } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
@@ -30,7 +30,6 @@ import {
   mapDatasetRunItemFilterColumn,
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
-  getDatasetItemById,
   tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
@@ -420,8 +419,7 @@ export const createEvalJobs = async ({
       | { id: string; observationId: string | null }
       | undefined;
     if (isDatasetConfig) {
-      // Validate filter condition
-      tableColumnsToSqlFilterAndPrefix(
+      const condition = tableColumnsToSqlFilterAndPrefix(
         config.target_object === "dataset" ? validatedFilter : [],
         evalDatasetFormFilterCols,
         "dataset_items",
@@ -429,32 +427,20 @@ export const createEvalJobs = async ({
 
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
-        const item = await getDatasetItemById({
-          projectId: event.projectId,
-          datasetItemId: event.datasetItemId,
-          status: "ACTIVE",
-          includeIO: false,
-        });
-
-        if (!item) {
-          datasetItem = undefined;
+        const datasetItems = await prisma.$queryRaw<
+          Array<{ id: string; is_deleted: boolean }>
+        >(Prisma.sql`
+          SELECT id, is_deleted
+          FROM dataset_items as di
+          WHERE project_id = ${event.projectId}
+            AND id = ${event.datasetItemId}
+            ${condition}
+        `);
+        const latestDatasetItem = datasetItems.shift();
+        if (latestDatasetItem && latestDatasetItem.is_deleted === false) {
+          datasetItem = { id: latestDatasetItem.id };
         } else {
-          // Check if item matches datasetId filter (if any)
-          const datasetIdFilter = validatedFilter.find(
-            (f) => f.column === "datasetId" && f.type === "stringOptions",
-          );
-          const allowedDatasetIds =
-            datasetIdFilter?.type === "stringOptions" &&
-            isArray(datasetIdFilter.value)
-              ? datasetIdFilter.value
-              : null;
-
-          const matchesFilter =
-            !allowedDatasetIds ||
-            allowedDatasetIds.length === 0 ||
-            allowedDatasetIds.includes(item.datasetId);
-
-          datasetItem = matchesFilter ? { id: item.id } : undefined;
+          datasetItem = undefined;
         }
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.

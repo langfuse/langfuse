@@ -1,4 +1,3 @@
-import type { PrismaClient } from "../../db";
 import {
   createDatasetItemFilterState,
   getDatasetItemsByLatest,
@@ -34,7 +33,7 @@ export type ValidationResult = {
  * @example
  * // User tries to add schema to dataset with existing items
  * const result = await validateAllDatasetItems({
- *   datasetId, projectId, inputSchema, expectedOutputSchema, prisma
+ *   datasetId, projectId, inputSchema, expectedOutputSchema
  * });
  * if (!result.isValid) {
  *   throw new Error(`Cannot add schema: ${result.errors.length} items fail validation`);
@@ -45,7 +44,6 @@ export async function validateAllDatasetItems(params: {
   projectId: string;
   inputSchema: Record<string, unknown> | null;
   expectedOutputSchema: Record<string, unknown> | null;
-  prisma: PrismaClient;
 }): Promise<ValidationResult> {
   const { datasetId, projectId, inputSchema, expectedOutputSchema } = params;
 
