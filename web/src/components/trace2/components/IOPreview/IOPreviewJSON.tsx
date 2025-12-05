@@ -46,6 +46,11 @@ export function IOPreviewJSON({
   hideInput = false,
   media,
 }: IOPreviewJSONProps) {
+  // Height constants for accordion layout
+  // AdvancedJsonSection header has minHeight: 38px
+  const HEADER_HEIGHT = 38; // px
+  const BODY_MAX_HEIGHT = `calc(100% - ${HEADER_HEIGHT}px)`;
+
   const showInput = !hideInput && !(hideIfNull && !parsedInput && !input);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput && !output);
   const showMetadata = !(hideIfNull && !parsedMetadata && !metadata);
@@ -94,12 +99,12 @@ export function IOPreviewJSON({
           media={media?.filter((m) => m.field === "input")}
           enableSearch={true}
           searchPlaceholder="Search input"
-          maxHeight="100%"
+          maxHeight={BODY_MAX_HEIGHT}
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
           headerBackgroundColor="rgba(59, 130, 246, 0.05)"
-          className={expandedSection === "input" ? "flex-1" : ""}
+          className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
         />
       )}
       {showOutput && (
@@ -116,12 +121,12 @@ export function IOPreviewJSON({
           media={media?.filter((m) => m.field === "output")}
           enableSearch={true}
           searchPlaceholder="Search output"
-          maxHeight="100%"
+          maxHeight={BODY_MAX_HEIGHT}
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
           headerBackgroundColor="rgba(34, 197, 94, 0.05)"
-          className={expandedSection === "output" ? "flex-1" : ""}
+          className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
         />
       )}
       {showMetadata && (
@@ -140,12 +145,12 @@ export function IOPreviewJSON({
           media={media?.filter((m) => m.field === "metadata")}
           enableSearch={true}
           searchPlaceholder="Search metadata"
-          maxHeight="100%"
+          maxHeight={BODY_MAX_HEIGHT}
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
           headerBackgroundColor="rgba(168, 85, 247, 0.05)"
-          className={expandedSection === "metadata" ? "flex-1" : ""}
+          className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
         />
       )}
     </div>
