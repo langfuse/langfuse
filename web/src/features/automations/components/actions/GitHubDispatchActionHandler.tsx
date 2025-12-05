@@ -64,21 +64,6 @@ export class GitHubDispatchActionHandler
 
     if (!formData.githubDispatch?.url) {
       errors.push("GitHub dispatch URL is required");
-    } else {
-      // Validate GitHub URL format
-      const pattern =
-        /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
-      const enterprisePattern =
-        /^https:\/\/[^\/]+\/api\/v3\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
-
-      if (
-        !pattern.test(formData.githubDispatch.url) &&
-        !enterprisePattern.test(formData.githubDispatch.url)
-      ) {
-        errors.push(
-          "URL must be a valid GitHub repository dispatch endpoint (e.g., https://api.github.com/repos/owner/repo/dispatches)",
-        );
-      }
     }
 
     if (!formData.githubDispatch?.eventType) {

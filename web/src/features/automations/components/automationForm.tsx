@@ -96,7 +96,11 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface AutomationFormProps {
   projectId: string;
-  onSuccess?: (automationId?: string, webhookSecret?: string) => void;
+  onSuccess?: (
+    automationId?: string,
+    webhookSecret?: string,
+    actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
+  ) => void;
   onCancel?: () => void;
   automation?: AutomationDomain;
   isEditing?: boolean;
@@ -290,7 +294,11 @@ export const AutomationForm = ({
         description: `Successfully created automation "${data.name}".`,
       });
 
-      onSuccess?.(result.automation.id, result.webhookSecret);
+      onSuccess?.(
+        result.automation.id,
+        result.webhookSecret,
+        data.actionType as "WEBHOOK" | "GITHUB_DISPATCH",
+      );
     }
   };
 
