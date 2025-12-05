@@ -482,43 +482,91 @@ export function JSONViewer({
   );
 
   // Scroll to match in DOM with multi-frame animation for virtualization
-  const scrollToMatch = useCallback((match: SearchMatch) => {
-    if (!containerRef.current) return;
+  const scrollToMatch = useCallback(
+    (match: SearchMatch) => {
+      if (!containerRef.current) return;
 
-    // Wait for DOM to update after potential expansion
-    // Use multiple animation frames to ensure virtualization has time to render
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Find the highlighted row (which should be visible after expansion)
-          const rowElements =
-            containerRef.current?.querySelectorAll(".row") ?? [];
+      const scrollContainer =
+        containerRef.current.querySelector(".overflow-y-auto");
+      if (!scrollContainer) return;
 
-          // Search through rendered rows for the match
-          for (const row of rowElements) {
-            // Check if this row matches our search
-            const nameEl = row.querySelector(".name");
-            const valueEl = row.querySelector(".value");
+      // Helper function to find the matching row in the current DOM
+      const findMatchingRow = (): Element | null => {
+        const rowElements =
+          containerRef.current?.querySelectorAll(".row") ?? [];
 
-            const textContent = match.matchInKey
-              ? nameEl?.textContent
-              : valueEl?.textContent;
+        for (const row of rowElements) {
+          const nameEl = row.querySelector(".name");
+          const valueEl = row.querySelector(".value");
 
-            if (
-              textContent?.toLowerCase().includes(match.query.toLowerCase())
-            ) {
-              // Found the row, scroll it into view
-              row.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-              break;
-            }
+          const textContent = match.matchInKey
+            ? nameEl?.textContent
+            : valueEl?.textContent;
+
+          if (textContent?.toLowerCase().includes(match.query.toLowerCase())) {
+            return row;
           }
+        }
+        return null;
+      };
+
+      // Try to find the row immediately (it might already be rendered)
+      let targetRow = findMatchingRow();
+
+      if (targetRow) {
+        // Row is already rendered, just scroll to it
+        targetRow.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
         });
-      });
-    });
-  }, []);
+        // Re-apply highlights after scrolling
+        setTimeout(() => applyHighlights(), 300);
+      } else {
+        // Row is not rendered yet - estimate scroll position and wait for virtualization
+        // Estimate based on match index in searchMatches array
+        const matchIndex = searchMatches.indexOf(match);
+        const totalMatches = searchMatches.length;
+
+        // Rough estimate: scroll proportionally through the content
+        // This will trigger virtualization to render rows near the match
+        const estimatedScrollPercent = matchIndex / Math.max(totalMatches, 1);
+        const maxScroll =
+          scrollContainer.scrollHeight - scrollContainer.clientHeight;
+        const estimatedScroll = maxScroll * estimatedScrollPercent;
+
+        // Scroll to estimated position
+        scrollContainer.scrollTo({
+          top: estimatedScroll,
+          behavior: "smooth",
+        });
+
+        // Wait for virtualization to render, then try to find and scroll to exact row
+        const attemptFindRow = (attempts = 0) => {
+          if (attempts > 10) return; // Give up after 10 attempts
+
+          setTimeout(
+            () => {
+              targetRow = findMatchingRow();
+              if (targetRow) {
+                targetRow.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+                applyHighlights();
+              } else {
+                // Try again
+                attemptFindRow(attempts + 1);
+              }
+            },
+            100 * (attempts + 1),
+          ); // Increasing delay for each attempt
+        };
+
+        attemptFindRow();
+      }
+    },
+    [searchMatches, applyHighlights],
+  );
 
   // Navigate to next match
   const handleNextMatch = useCallback(() => {
@@ -545,8 +593,8 @@ export function JSONViewer({
     setCurrentMatchIndex(0);
   }, []);
 
-  // Highlight matches in DOM after render
-  useEffect(() => {
+  // Apply highlights to visible rows
+  const applyHighlights = useCallback(() => {
     if (!containerRef.current) return;
 
     // Always clear previous highlights first
@@ -590,6 +638,35 @@ export function JSONViewer({
       }
     });
   }, [searchMatches, currentMatchIndex]);
+
+  // Highlight matches in DOM after render and on scroll (for virtualization)
+  useEffect(() => {
+    applyHighlights();
+  }, [applyHighlights]);
+
+  // Re-apply highlights when scrolling (for newly virtualized rows)
+  useEffect(() => {
+    if (!containerRef.current || searchMatches.length === 0) return;
+
+    const scrollContainer =
+      containerRef.current.querySelector(".overflow-y-auto");
+    if (!scrollContainer) return;
+
+    // Throttle scroll events to avoid performance issues
+    let timeoutId: NodeJS.Timeout | null = null;
+    const handleScroll = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        applyHighlights();
+      }, 100);
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [searchMatches, applyHighlights]);
 
   // Memoize valueGetter for react-obj-view (required for performance)
   const valueGetter = useMemo(() => () => data, [data]);
