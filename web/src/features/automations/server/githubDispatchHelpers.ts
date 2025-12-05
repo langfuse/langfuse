@@ -84,7 +84,6 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
-  // Determine the token to use
   let tokenToUse: string;
   let displayToken: string;
   let returnToken: string | undefined;
@@ -93,17 +92,14 @@ export async function processGitHubDispatchActionConfig({
     gitHubDispatchConfig.githubToken &&
     gitHubDispatchConfig.githubToken.trim() !== ""
   ) {
-    // User provided a new token
     tokenToUse = gitHubDispatchConfig.githubToken;
     displayToken = maskGitHubToken(tokenToUse);
-    returnToken = tokenToUse; // Return for one-time display
+    returnToken = tokenToUse;
   } else if (existingActionConfig?.githubToken) {
-    // Keep existing token (update without changing token)
-    tokenToUse = existingActionConfig.githubToken; // Already encrypted
+    tokenToUse = existingActionConfig.githubToken;
     displayToken = existingActionConfig.displayGitHubToken;
-    returnToken = undefined; // Don't return existing token
+    returnToken = undefined;
   } else {
-    // No token provided and no existing token - this is an error for creation
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "GitHub Personal Access Token is required",
@@ -115,7 +111,7 @@ export async function processGitHubDispatchActionConfig({
       type: "GITHUB_DISPATCH",
       url: urlToUse,
       eventType: eventTypeToUse,
-      githubToken: returnToken !== undefined ? encrypt(tokenToUse) : tokenToUse, // Encrypt if new, keep as-is if already encrypted
+      githubToken: returnToken !== undefined ? encrypt(tokenToUse) : tokenToUse,
       displayGitHubToken: displayToken,
       lastFailingExecutionId: existingActionConfig?.lastFailingExecutionId,
     },
@@ -123,10 +119,9 @@ export async function processGitHubDispatchActionConfig({
   };
 }
 
-// Helper function to mask GitHub tokens for display
 function maskGitHubToken(token: string): string {
   if (token.length < 6) {
-    return token; // Too short to mask meaningfully
+    return token;
   }
   const prefix = token.substring(0, 4);
   const suffix = token.substring(token.length - 1);

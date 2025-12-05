@@ -163,7 +163,6 @@ export default function AutomationsPage() {
     webhookSecret?: string,
     actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
   ) => {
-    // Show webhook secret dialog only for WEBHOOK actions (not for GitHub Dispatch)
     if (webhookSecret && actionType === "WEBHOOK") {
       setWebhookSecret(webhookSecret);
       setShowSecretDialog(true);
