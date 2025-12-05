@@ -246,7 +246,7 @@ export function AdvancedJsonSection({
   // Determine if virtualization is being used (must come after customTheme)
   const isVirtualized = useMemo(() => {
     return shouldVirtualize(flatRows, {
-      baseHeight: customTheme.lineHeight,
+      baseHeight: customTheme.lineHeight ?? 16,
       longStringThreshold: truncateStringsAt ?? 100,
       charsPerLine: 80,
     });
