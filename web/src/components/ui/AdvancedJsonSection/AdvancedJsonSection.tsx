@@ -17,6 +17,9 @@ import {
   FoldVertical,
   UnfoldVertical,
   ChevronUp,
+  WrapText,
+  Minus,
+  ArrowRightToLine,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -85,9 +88,6 @@ export interface AdvancedJsonSectionProps {
   /** Truncate strings longer than this */
   truncateStringsAt?: number | null;
 
-  /** Wrap long strings */
-  wrapLongStrings?: boolean;
-
   /** Loading state */
   isLoading?: boolean;
 
@@ -115,11 +115,15 @@ export function AdvancedJsonSection({
   showLineNumbers = true,
   enableCopy = true,
   truncateStringsAt = 100,
-  wrapLongStrings = false,
   isLoading = false,
   media: _media, // TODO: Implement media attachment support
   controlButtons,
 }: AdvancedJsonSectionProps) {
+  // String wrap mode state (cycles between truncate, wrap, nowrap)
+  const [stringWrapMode, setStringWrapMode] =
+    useState<
+      import("@/src/components/ui/AdvancedJsonViewer/types").StringWrapMode
+    >("truncate");
   // Section collapse state (different from JSON tree expansion)
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isCollapseControlled =
@@ -263,6 +267,15 @@ export function AdvancedJsonSection({
     setFieldExpansion(field, newExpansion);
   };
 
+  // Handle string wrap mode cycling: truncate → wrap → nowrap → truncate
+  const handleCycleWrapMode = () => {
+    setStringWrapMode((prev) => {
+      if (prev === "truncate") return "wrap";
+      if (prev === "wrap") return "nowrap";
+      return "truncate";
+    });
+  };
+
   // Handle copy
   const handleCopy = useCallback(
     (event?: React.MouseEvent<HTMLButtonElement>) => {
@@ -302,7 +315,12 @@ export function AdvancedJsonSection({
   }
 
   return (
-    <div className={`border-b border-t ${className || ""}`}>
+    <div
+      className={`border-b border-t ${className || ""}`}
+      style={{
+        backgroundColor: headerBackgroundColor || backgroundColor,
+      }}
+    >
       {/* Header with fixed height */}
       <div
         className="border-b"
@@ -401,6 +419,31 @@ export function AdvancedJsonSection({
               {/* Custom control buttons */}
               {!sectionCollapsed && controlButtons}
 
+              {/* String wrap mode toggle */}
+              {!sectionCollapsed && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={handleCycleWrapMode}
+                  className="hover:bg-border"
+                  title={
+                    stringWrapMode === "truncate"
+                      ? "Truncate long strings (click to wrap)"
+                      : stringWrapMode === "wrap"
+                        ? "Wrap long strings (click for single line)"
+                        : "Single line (click to truncate)"
+                  }
+                >
+                  {stringWrapMode === "truncate" ? (
+                    <Minus className="h-3 w-3" />
+                  ) : stringWrapMode === "wrap" ? (
+                    <WrapText className="h-3 w-3" />
+                  ) : (
+                    <ArrowRightToLine className="h-3 w-3" />
+                  )}
+                </Button>
+              )}
+
               {/* Collapse/Expand All */}
               {!sectionCollapsed && (
                 <Button
@@ -446,8 +489,8 @@ export function AdvancedJsonSection({
             matchCounts={matchCounts}
             showLineNumbers={showLineNumbers}
             enableCopy={enableCopy}
+            stringWrapMode={stringWrapMode}
             truncateStringsAt={truncateStringsAt}
-            wrapLongStrings={wrapLongStrings}
             isLoading={isLoading}
             scrollContainerRef={scrollContainerRef}
             className="h-full"

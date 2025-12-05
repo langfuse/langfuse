@@ -16,8 +16,8 @@ export function JsonValue({
   theme,
   isExpandable = false,
   childCount: _childCount,
+  stringWrapMode = "truncate",
   truncateStringsAt = null,
-  wrapLongStrings = false,
   highlightStart,
   highlightEnd,
   className,
@@ -58,27 +58,29 @@ export function JsonValue({
 
   const color = getColor();
 
-  // Handle string values with truncation and highlighting
+  // Handle string values with wrap mode logic
   if (type === "string") {
     const str = value as string;
 
-    // Check if truncation is needed
-    const shouldTruncate =
-      truncateStringsAt !== null && str.length > truncateStringsAt;
+    // Mode 1: "truncate" - use TruncatedString component
+    if (stringWrapMode === "truncate") {
+      const shouldTruncate =
+        truncateStringsAt !== null && str.length > truncateStringsAt;
 
-    if (shouldTruncate) {
-      return (
-        <TruncatedString
-          value={str}
-          maxLength={truncateStringsAt}
-          theme={theme}
-          highlightStart={highlightStart}
-          highlightEnd={highlightEnd}
-        />
-      );
+      if (shouldTruncate) {
+        return (
+          <TruncatedString
+            value={str}
+            maxLength={truncateStringsAt}
+            theme={theme}
+            highlightStart={highlightStart}
+            highlightEnd={highlightEnd}
+          />
+        );
+      }
     }
 
-    // No truncation - render with highlighting
+    // Mode 2: "nowrap" or Mode 3: "wrap" - render with appropriate whiteSpace
     const segments = highlightText(str, highlightStart, highlightEnd);
 
     return (
@@ -87,7 +89,7 @@ export function JsonValue({
         style={{
           color,
           fontFamily: "monospace",
-          whiteSpace: wrapLongStrings ? "pre-wrap" : "nowrap",
+          whiteSpace: stringWrapMode === "wrap" ? "pre-wrap" : "nowrap",
         }}
       >
         &quot;

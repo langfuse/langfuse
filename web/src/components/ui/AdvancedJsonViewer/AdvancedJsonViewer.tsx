@@ -44,8 +44,9 @@ export function AdvancedJsonViewer({
   matchCounts,
   showLineNumbers = false,
   enableCopy = true,
+  stringWrapMode = "truncate",
+  onStringWrapModeChange: _onStringWrapModeChange,
   truncateStringsAt = 100,
-  wrapLongStrings = false,
   showArrayIndices: _showArrayIndices = true, // TODO: Implement array indices feature
   groupArraysAbove: _groupArraysAbove, // TODO: Implement array grouping feature
   className,
@@ -311,8 +312,8 @@ export function AdvancedJsonViewer({
           matchCounts={matchCounts}
           showLineNumbers={showLineNumbers}
           enableCopy={enableCopy}
+          stringWrapMode={stringWrapMode}
           truncateStringsAt={truncateStringsAt}
-          wrapLongStrings={wrapLongStrings}
           onToggleExpansion={handleToggleExpansion}
           scrollToIndex={scrollToIndex}
           scrollContainerRef={scrollContainerRef}

@@ -20,8 +20,8 @@ interface VirtualizedJsonViewerProps {
   matchCounts?: Map<string, number>; // Row ID -> count of matches in row and descendants
   showLineNumbers?: boolean;
   enableCopy?: boolean;
+  stringWrapMode?: import("../types").StringWrapMode;
   truncateStringsAt?: number | null;
-  wrapLongStrings?: boolean;
   onToggleExpansion?: (rowId: string) => void;
   className?: string;
   scrollToIndex?: number; // For search navigation
@@ -36,8 +36,8 @@ export function VirtualizedJsonViewer({
   matchCounts,
   showLineNumbers = false,
   enableCopy = false,
+  stringWrapMode = "truncate",
   truncateStringsAt = null,
-  wrapLongStrings = false,
   onToggleExpansion,
   className,
   scrollToIndex,
@@ -157,8 +157,8 @@ export function VirtualizedJsonViewer({
                 showLineNumber={showLineNumbers}
                 lineNumber={virtualRow.index + 1}
                 enableCopy={enableCopy}
+                stringWrapMode={stringWrapMode}
                 truncateStringsAt={truncateStringsAt}
-                wrapLongStrings={wrapLongStrings}
                 onToggleExpansion={onToggleExpansion}
                 maxLineNumberDigits={maxLineNumberDigits}
               />

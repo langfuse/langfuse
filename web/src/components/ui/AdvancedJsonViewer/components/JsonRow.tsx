@@ -29,8 +29,8 @@ export function JsonRow({
   showLineNumber = false,
   lineNumber,
   enableCopy = false,
+  stringWrapMode = "truncate",
   truncateStringsAt = null,
-  wrapLongStrings = false,
   onToggleExpansion,
   maxLineNumberDigits,
   className,
@@ -130,8 +130,8 @@ export function JsonRow({
           theme={theme}
           isExpandable={row.isExpandable}
           childCount={row.childCount}
+          stringWrapMode={stringWrapMode}
           truncateStringsAt={truncateStringsAt}
-          wrapLongStrings={wrapLongStrings}
           highlightStart={isValue ? searchMatch?.highlightStart : undefined}
           highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
         />

@@ -18,8 +18,8 @@ interface SimpleJsonViewerProps {
   matchCounts?: Map<string, number>; // Row ID -> count of matches in row and descendants
   showLineNumbers?: boolean;
   enableCopy?: boolean;
+  stringWrapMode?: import("./types").StringWrapMode;
   truncateStringsAt?: number | null;
-  wrapLongStrings?: boolean;
   onToggleExpansion?: (rowId: string) => void;
   className?: string;
   scrollToIndex?: number; // For search navigation
@@ -34,8 +34,8 @@ export function SimpleJsonViewer({
   matchCounts,
   showLineNumbers = false,
   enableCopy = false,
+  stringWrapMode = "truncate",
   truncateStringsAt = null,
-  wrapLongStrings = false,
   onToggleExpansion,
   className,
   scrollToIndex,
@@ -122,8 +122,8 @@ export function SimpleJsonViewer({
               showLineNumber={showLineNumbers}
               lineNumber={index + 1}
               enableCopy={enableCopy}
+              stringWrapMode={stringWrapMode}
               truncateStringsAt={truncateStringsAt}
-              wrapLongStrings={wrapLongStrings}
               onToggleExpansion={onToggleExpansion}
               maxLineNumberDigits={maxLineNumberDigits}
             />

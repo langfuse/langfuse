@@ -34,6 +34,14 @@ export type JSONType =
   | "object"
   | "array";
 
+/**
+ * String wrapping mode for long string values
+ * - "nowrap": Display in one line (horizontal scroll)
+ * - "truncate": Dynamically truncate based on available width (default)
+ * - "wrap": Break into multiple lines, no truncation
+ */
+export type StringWrapMode = "nowrap" | "truncate" | "wrap";
+
 // ============================================================================
 // Flat Row Structure
 // ============================================================================
@@ -227,11 +235,14 @@ export interface AdvancedJsonViewerProps {
   /** Enable copy buttons */
   enableCopy?: boolean;
 
-  /** Truncate strings longer than this (null = no truncation) */
-  truncateStringsAt?: number | null;
+  /** String wrapping mode (default: "truncate") */
+  stringWrapMode?: StringWrapMode;
 
-  /** Enable string wrapping */
-  wrapLongStrings?: boolean;
+  /** Callback when string wrap mode changes */
+  onStringWrapModeChange?: (mode: StringWrapMode) => void;
+
+  /** Truncate strings longer than this (null = no truncation) - used internally for "truncate" mode */
+  truncateStringsAt?: number | null;
 
   /** Show array indices */
   showArrayIndices?: boolean;
@@ -283,11 +294,11 @@ export interface JsonRowProps {
   /** Enable copy button */
   enableCopy?: boolean;
 
-  /** Truncate strings at this length */
-  truncateStringsAt?: number | null;
+  /** String wrapping mode */
+  stringWrapMode?: StringWrapMode;
 
-  /** Wrap long strings */
-  wrapLongStrings?: boolean;
+  /** Truncate strings at this length (for "truncate" mode) */
+  truncateStringsAt?: number | null;
 
   /** Callback when expand/collapse is toggled */
   onToggleExpansion?: (rowId: string) => void;
@@ -318,11 +329,11 @@ export interface JsonValueProps {
   /** Child count (for preview) */
   childCount?: number;
 
-  /** Truncate strings at this length */
-  truncateStringsAt?: number | null;
+  /** String wrapping mode */
+  stringWrapMode?: StringWrapMode;
 
-  /** Wrap long strings */
-  wrapLongStrings?: boolean;
+  /** Truncate strings at this length (for "truncate" mode) */
+  truncateStringsAt?: number | null;
 
   /** Search highlight positions */
   highlightStart?: number;
