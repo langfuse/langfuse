@@ -120,7 +120,7 @@ export function JsonRow({
         style={{
           minHeight: `${theme.lineHeight}px`,
           display: "flex",
-          alignItems: "center",
+          alignItems: "start",
           wordBreak: "break-word",
         }}
       >
