@@ -1,5 +1,5 @@
 import { type Prisma } from "@langfuse/shared";
-import { CollapsibleJSONSection } from "@/src/components/ui/PrettyJSONView2/CollapsibleJSONSection";
+import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
 
@@ -40,70 +40,42 @@ export function IOPreviewJSON({
   hideOutput = false,
   hideInput = false,
   media,
-  inputExpansionState,
-  outputExpansionState,
-  onInputExpansionChange,
-  onOutputExpansionChange,
 }: IOPreviewJSONProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput && !input);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput && !output);
 
-  // Handle expansion state (boolean indicates collapsed/expanded)
-  const inputCollapsed =
-    typeof inputExpansionState === "boolean" ? !inputExpansionState : false;
-  const outputCollapsed =
-    typeof outputExpansionState === "boolean" ? !outputExpansionState : false;
-
-  const handleInputToggle = () => {
-    if (onInputExpansionChange && typeof inputExpansionState === "boolean") {
-      onInputExpansionChange(!inputExpansionState);
-    }
-  };
-
-  const handleOutputToggle = () => {
-    if (onOutputExpansionChange && typeof outputExpansionState === "boolean") {
-      onOutputExpansionChange(!outputExpansionState);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-2">
       {showInput && (
-        <CollapsibleJSONSection
+        <AdvancedJsonSection
           title="Input"
-          data={parsedInput ?? input}
-          isLoading={isLoading}
-          isParsing={isParsing}
-          media={media?.filter((m) => m.field === "input") ?? []}
+          field="input"
+          data={input}
+          parsedData={parsedInput}
+          isLoading={isLoading || isParsing}
+          media={media?.filter((m) => m.field === "input")}
           enableSearch={true}
           searchPlaceholder="Search input"
           maxHeight="500px"
-          collapsed={
-            onInputExpansionChange !== undefined ? inputCollapsed : undefined
-          }
-          onToggleCollapse={
-            onInputExpansionChange !== undefined ? handleInputToggle : undefined
-          }
+          hideIfNull={hideIfNull}
+          truncateStringsAt={100}
+          enableCopy={true}
         />
       )}
       {showOutput && (
-        <CollapsibleJSONSection
+        <AdvancedJsonSection
           title="Output"
-          data={parsedOutput ?? output}
-          isLoading={isLoading}
-          isParsing={isParsing}
-          media={media?.filter((m) => m.field === "output") ?? []}
+          field="output"
+          data={output}
+          parsedData={parsedOutput}
+          isLoading={isLoading || isParsing}
+          media={media?.filter((m) => m.field === "output")}
           enableSearch={true}
           searchPlaceholder="Search output"
           maxHeight="500px"
-          collapsed={
-            onOutputExpansionChange !== undefined ? outputCollapsed : undefined
-          }
-          onToggleCollapse={
-            onOutputExpansionChange !== undefined
-              ? handleOutputToggle
-              : undefined
-          }
+          hideIfNull={hideIfNull}
+          truncateStringsAt={100}
+          enableCopy={true}
         />
       )}
     </div>
