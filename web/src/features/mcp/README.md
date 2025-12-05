@@ -44,15 +44,46 @@ Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to inte
 
 ## Available Tools
 
-The MCP server provides 5 tools for prompt management:
+The MCP server provides 6 tools for prompt management:
 
-- **`getPrompt`** - Fetch a specific prompt by name with optional label or version
+- **`getPrompt`** - Fetch a specific prompt by name with optional label or version (fully resolved with dependencies)
+- **`getPromptUnresolved`** - Fetch a specific prompt WITHOUT resolving dependencies (useful for prompt composition analysis)
 - **`listPrompts`** - List all prompts in the project with filtering and pagination
 - **`createTextPrompt`** - Create a new text prompt version
 - **`createChatPrompt`** - Create a new chat prompt version (OpenAI-style messages)
 - **`updatePromptLabels`** - Add/move labels across prompt versions
 
-**Implementation:** See [`/web/src/features/mcp/server/tools/`](/web/src/features/mcp/server/tools/) for detailed schemas, parameters, and examples for each tool.
+**Implementation:** See [`/web/src/features/mcp/features/prompts/tools/`](/web/src/features/mcp/features/prompts/tools/) for detailed schemas, parameters, and examples for each tool.
+
+### Prompt Resolution: `getPrompt` vs `getPromptUnresolved`
+
+Langfuse supports **prompt composition** where prompts can reference other prompts via dependency tags like `@@@langfusePrompt:name=xxx|label=yyy@@@`. The MCP server provides two tools for fetching prompts with different resolution behaviors:
+
+#### `getPrompt` (Fully Resolved)
+- **Use when**: You want the final, executable prompt ready to send to an LLM
+- **Behavior**: Recursively resolves all dependency tags by fetching and inserting referenced prompts
+- **Returns**: Final prompt content with all dependencies replaced
+- **Example**:
+  ```
+  Input:  "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
+  Output: "You are helpful. Always be kind and respectful."
+  ```
+
+#### `getPromptUnresolved` (Raw)
+- **Use when**: You want to analyze prompt composition, debug dependencies, or understand the prompt structure
+- **Behavior**: Returns raw prompt content with dependency tags intact
+- **Returns**: Original prompt content with `@@@langfusePrompt:...@@@` tags preserved
+- **Example**:
+  ```
+  Input:  "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
+  Output: "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
+  ```
+
+**Use Cases for `getPromptUnresolved`**:
+- Understanding how prompts compose together (prompt stacking)
+- Debugging dependency chains before execution
+- Analyzing prompt structure and references
+- Building tools that manage prompt composition
 
 ---
 

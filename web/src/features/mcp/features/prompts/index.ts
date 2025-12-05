@@ -6,6 +6,7 @@
  *
  * Tools provided:
  * - getPrompt: Fetch specific prompts by name/label/version (read-only)
+ * - getPromptUnresolved: Fetch prompts without resolving dependencies (read-only)
  * - listPrompts: List and filter prompts with pagination (read-only)
  * - createTextPrompt: Create new text prompt versions (destructive)
  * - createChatPrompt: Create new chat prompt versions (destructive)
@@ -14,6 +15,10 @@
 
 import type { McpFeatureModule } from "../../server/registry";
 import { getPromptTool, handleGetPrompt } from "./tools/getPrompt";
+import {
+  getPromptUnresolvedTool,
+  handleGetPromptUnresolved,
+} from "./tools/getPromptUnresolved";
 import { listPromptsTool, handleListPrompts } from "./tools/listPrompts";
 import {
   createTextPromptTool,
@@ -43,6 +48,10 @@ export const promptsFeature: McpFeatureModule = {
     {
       definition: getPromptTool,
       handler: handleGetPrompt,
+    },
+    {
+      definition: getPromptUnresolvedTool,
+      handler: handleGetPromptUnresolved,
     },
     {
       definition: listPromptsTool,

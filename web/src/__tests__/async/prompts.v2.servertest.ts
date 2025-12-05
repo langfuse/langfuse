@@ -22,6 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
+import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -1626,6 +1627,240 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     expect(body3.data[2].versions.length).toBe(1);
 
     expect(body3.meta.totalItems).toBe(3);
+  });
+
+  describe("Unresolved prompt fetching via public API (resolve parameter)", () => {
+    it("should return resolved prompt by default (backward compatibility)", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "I am a child prompt",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent prompt with dependency
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent prompt with dependency: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Fetch without resolve parameter (default should be resolved)
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      // Should be resolved (no @@@langfusePrompt tags)
+      expect(body.prompt).not.toContain("@@@langfusePrompt");
+      expect(body.prompt).toContain("I am a child prompt");
+    });
+
+    it("should return resolved prompt when resolve=true", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "Child content",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent prompt with dependency
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Explicitly set resolve=true
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=true`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.prompt).not.toContain("@@@langfusePrompt");
+      expect(body.prompt).toContain("Child content");
+    });
+
+    it("should return unresolved prompt when resolve=false", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt (doesn't matter, we won't resolve)
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "Child content",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent prompt with dependency
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Fetch with resolve=false
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      // Should be unresolved (keep @@@langfusePrompt tags)
+      expect(body.prompt).toContain("@@@langfusePrompt");
+      expect(body.prompt).toContain(
+        `@@@langfusePrompt:name=${childPromptName}|label=production@@@`,
+      );
+      expect(body.prompt).not.toContain("Child content");
+    });
+
+    it("should return unresolved chat prompt when resolve=false", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "Base instructions",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent chat prompt with dependency
+      const parentPromptName = "parent-chat-prompt-" + nanoid();
+      const chatMessages = [
+        {
+          role: "system",
+          content: `System: @@@langfusePrompt:name=${childPromptName}|label=production@@@`,
+        },
+        { role: "user", content: "User message" },
+      ];
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: chatMessages,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        type: PromptType.Chat,
+        prisma,
+      });
+
+      // Fetch with resolve=false
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.type).toBe("chat");
+      // Verify the chat messages still contain unresolved tags
+      const messages = body.prompt as Array<{ role: string; content: string }>;
+      expect(messages[0].content).toContain("@@@langfusePrompt");
+      expect(messages[0].content).toContain(
+        `@@@langfusePrompt:name=${childPromptName}|label=production@@@`,
+      );
+    });
+
+    it("should work with production label when no version specified and resolve=false", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPromptInDB({
+        name: childPromptName,
+        prompt: "Child",
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      // Create parent prompt with production label
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      // Fetch without version (should get production label) with resolve=false
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.labels).toContain("production");
+      expect(body.prompt).toContain("@@@langfusePrompt");
+    });
   });
 });
 

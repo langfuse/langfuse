@@ -28,6 +28,10 @@ import {
   handleGetPrompt,
 } from "@/src/features/mcp/features/prompts/tools/getPrompt";
 import {
+  getPromptUnresolvedTool,
+  handleGetPromptUnresolved,
+} from "@/src/features/mcp/features/prompts/tools/getPromptUnresolved";
+import {
   listPromptsTool,
   handleListPrompts,
 } from "@/src/features/mcp/features/prompts/tools/listPrompts";
@@ -516,6 +520,177 @@ describe("MCP Read Tools", () => {
       expect(result.data[0].name).toBe(promptName);
       expect(result.data[0].labels).toContain("production");
       expect(result.data[0].tags).toContain("important");
+    });
+  });
+
+  describe("getPromptUnresolved tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getPromptUnresolvedTool, { readOnlyHint: true });
+    });
+
+    it("should fetch prompt without resolving dependencies (by name only)", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `test-prompt-unresolved-${nanoid()}`;
+
+      // Create a prompt with dependency tags (unresolved)
+      const rawPromptContent =
+        "You are a helpful assistant. @@@langfusePrompt:name=base-instructions|label=production@@@";
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: rawPromptContent,
+        projectId,
+        labels: ["production"],
+        version: 1,
+      });
+
+      const result = (await handleGetPromptUnresolved(
+        { name: promptName },
+        context,
+      )) as {
+        name: string;
+        version: number;
+        prompt: string;
+        labels: string[];
+      };
+
+      expect(result.name).toBe(promptName);
+      expect(result.version).toBe(1);
+      expect(result.labels).toContain("production");
+      // Verify dependency tags are NOT resolved
+      expect(result.prompt).toBe(rawPromptContent);
+      expect(result.prompt).toContain(
+        "@@@langfusePrompt:name=base-instructions|label=production@@@",
+      );
+    });
+
+    it("should fetch prompt by name and specific label without resolution", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `test-prompt-unresolved-${nanoid()}`;
+
+      // Create v1 with staging label
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Version 1 @@@langfusePrompt:name=helper|label=staging@@@",
+        projectId,
+        labels: ["staging"],
+        version: 1,
+      });
+
+      // Create v2 with production label
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Version 2 @@@langfusePrompt:name=helper|label=production@@@",
+        projectId,
+        labels: ["production"],
+        version: 2,
+      });
+
+      const result = (await handleGetPromptUnresolved(
+        { name: promptName, label: "staging" },
+        context,
+      )) as { version: number; prompt: string };
+
+      expect(result.version).toBe(1);
+      expect(result.prompt).toBe(
+        "Version 1 @@@langfusePrompt:name=helper|label=staging@@@",
+      );
+    });
+
+    it("should fetch prompt by name and specific version without resolution", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `test-prompt-unresolved-${nanoid()}`;
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "V1 content @@@langfusePrompt:name=dep|label=v1@@@",
+        projectId,
+        labels: ["staging"],
+        version: 1,
+      });
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "V2 content @@@langfusePrompt:name=dep|label=v2@@@",
+        projectId,
+        labels: ["production"],
+        version: 2,
+      });
+
+      const result = (await handleGetPromptUnresolved(
+        { name: promptName, version: 1 },
+        context,
+      )) as { version: number; prompt: string };
+
+      expect(result.version).toBe(1);
+      expect(result.prompt).toBe(
+        "V1 content @@@langfusePrompt:name=dep|label=v1@@@",
+      );
+    });
+
+    it("should throw error if prompt not found", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleGetPromptUnresolved(
+          { name: "non-existent-prompt-12345" },
+          context,
+        ),
+      ).rejects.toThrow("Prompt 'non-existent-prompt-12345' not found");
+    });
+
+    it("should throw error when both label and version are specified", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleGetPromptUnresolved(
+          { name: "test", label: "production", version: 1 },
+          context,
+        ),
+      ).rejects.toThrow(
+        "Cannot specify both label and version - they are mutually exclusive",
+      );
+    });
+
+    it("should return raw chat prompt without resolving dependencies", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const promptName = `test-chat-unresolved-${nanoid()}`;
+
+      const chatMessages = [
+        {
+          role: "system",
+          content:
+            "You are helpful @@@langfusePrompt:name=system-base|label=production@@@",
+        },
+        {
+          role: "user",
+          content: "@@@langfusePrompt:name=user-template|label=production@@@",
+        },
+      ];
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: chatMessages,
+        projectId,
+        labels: ["production"],
+        version: 1,
+        type: "chat",
+      });
+
+      const result = (await handleGetPromptUnresolved(
+        { name: promptName },
+        context,
+      )) as {
+        name: string;
+        type: string;
+        prompt: Array<{ role: string; content: string }>;
+      };
+
+      expect(result.type).toBe("chat");
+      expect(result.prompt).toEqual(chatMessages);
+      expect(result.prompt[0].content).toContain(
+        "@@@langfusePrompt:name=system-base|label=production@@@",
+      );
     });
   });
 });

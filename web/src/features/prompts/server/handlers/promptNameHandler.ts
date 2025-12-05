@@ -28,13 +28,16 @@ const getPromptNameHandler = async (
     return rateLimitCheck.sendRestResponseIfLimited(res);
   }
 
-  const { promptName, version, label } = GetPromptByNameSchema.parse(req.query);
+  const { promptName, version, label, resolve } = GetPromptByNameSchema.parse(
+    req.query,
+  );
 
   const prompt = await getPromptByName({
     promptName: promptName,
     projectId: authCheck.scope.projectId,
     version,
     label,
+    resolve: resolve ?? true, // Default to true for backward compatibility
   });
 
   if (!prompt) {
@@ -49,7 +52,10 @@ const getPromptNameHandler = async (
     throw new LangfuseNotFoundError(errorMessage);
   }
 
-  res.status(200).json(prompt);
+  res.status(200).json({
+    ...prompt,
+    isActive: prompt.labels.includes(PRODUCTION_LABEL),
+  });
 };
 
 const deletePromptNameHandler = async (

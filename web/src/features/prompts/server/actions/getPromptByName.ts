@@ -15,16 +15,43 @@ type GetPromptByNameParams = {
   projectId: string;
   version?: number | null;
   label?: string;
+  resolve?: boolean; // If false, returns raw prompt without resolving dependencies
 };
 
 export const getPromptByName = async (
   params: GetPromptByNameParams,
 ): Promise<Prompt | null> => {
-  const { promptName, projectId, version, label } = params;
-  const promptService = new PromptService(prisma, redis, recordIncrement);
+  const { promptName, projectId, version, label, resolve = true } = params;
 
   if (version && label)
     throw new InvalidRequestError("Cannot specify both version and label");
+
+  // If resolve is false, fetch directly from database without resolving dependencies
+  if (!resolve) {
+    if (version) {
+      return prisma.prompt.findFirst({
+        where: {
+          projectId,
+          name: promptName,
+          version,
+        },
+      });
+    }
+
+    const targetLabel = label ?? PRODUCTION_LABEL;
+    return prisma.prompt.findFirst({
+      where: {
+        projectId,
+        name: promptName,
+        labels: {
+          has: targetLabel,
+        },
+      },
+    });
+  }
+
+  // Default behavior: resolve dependencies using PromptService
+  const promptService = new PromptService(prisma, redis, recordIncrement);
 
   if (version)
     return promptService.getPrompt({
