@@ -953,9 +953,19 @@ export const eventsObservationsView: ViewDeclarationType = {
 };
 
 // Define versioned structure type
+// v1 has all views including traces (normalized model with traces table)
+// v2 omits traces (denormalized model with events table only)
 type VersionedViewDeclarations = {
-  readonly [version in ViewVersion]: {
-    readonly [K in z.infer<typeof views>]: ViewDeclarationType;
+  readonly v1: {
+    readonly traces: ViewDeclarationType;
+    readonly observations: ViewDeclarationType;
+    readonly "scores-numeric": ViewDeclarationType;
+    readonly "scores-categorical": ViewDeclarationType;
+  };
+  readonly v2: {
+    readonly observations: ViewDeclarationType;
+    readonly "scores-numeric": ViewDeclarationType;
+    readonly "scores-categorical": ViewDeclarationType;
   };
 };
 
@@ -968,7 +978,7 @@ export const viewDeclarations: VersionedViewDeclarations = {
     "scores-categorical": scoresCategoricalView,
   },
   v2: {
-    traces: traceView,
+    // No traces in v2 - trace metadata is denormalized in events table
     observations: eventsObservationsView,
     "scores-numeric": scoresNumericViewV2,
     "scores-categorical": scoresCategoricalViewV2,
@@ -980,11 +990,16 @@ export function getViewDeclaration(
   viewName: z.infer<typeof views>,
   version: ViewVersion = "v1",
 ): ViewDeclarationType {
-  const viewDecl = viewDeclarations[version]?.[viewName];
-  if (!viewDecl) {
+  const versionViews = viewDeclarations[version];
+
+  // TypeScript knows the exact shape of each version now
+  if (!(viewName in versionViews)) {
+    const supportedViews = Object.keys(versionViews).join(", ");
     throw new InvalidRequestError(
-      `Invalid view '${viewName}' for version '${version}'. Must be one of ${Object.keys(viewDeclarations[version])}`,
+      `View '${viewName}' is not supported in version '${version}'. ` +
+        `Supported views for ${version}: ${supportedViews}`,
     );
   }
-  return viewDecl;
+
+  return versionViews[viewName as keyof typeof versionViews];
 }
