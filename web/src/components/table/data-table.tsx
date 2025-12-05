@@ -555,7 +555,7 @@ function TableBodyComponent<TData>({
                 <TableCell
                   key={cell.id}
                   className={cn(
-                    "overflow-hidden border-b p-1 text-xs first:pl-2",
+                    "overflow-hidden border-b px-1 text-xs first:pl-2",
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
                   )}
