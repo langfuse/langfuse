@@ -471,236 +471,273 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   },
 };
 
-export const scoresNumericView: ViewDeclarationType = {
-  name: "scores_numeric",
-  description:
-    "Scores are flexible objects that are used for evaluations. This view contains numeric and boolean scores.",
-  dimensions: {
-    ...scoreBaseDimensions,
-    id: {
-      sql: "scores_numeric.id",
-      alias: "id",
-      type: "string",
-      description: "Unique identifier of the score entry.",
-    },
-    environment: {
-      sql: "scores_numeric.environment",
-      alias: "environment",
-      type: "string",
-      description: "Deployment environment (e.g., production, staging).",
-    },
-    name: {
-      sql: "scores_numeric.name",
-      alias: "name",
-      type: "string",
-      description: "Name of the score (e.g., accuracy, toxicity).",
-    },
-    source: {
-      sql: "scores_numeric.source",
-      alias: "source",
-      type: "string",
-      description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
-    },
-    dataType: {
-      sql: "scores_numeric.data_type",
-      alias: "dataType",
-      type: "string",
-      description:
-        "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
-    },
-    traceId: {
-      sql: "scores_numeric.trace_id",
-      alias: "traceId",
-      type: "string",
-      description: "Identifier of the parent trace.",
-    },
-    configId: {
-      sql: "scores_numeric.config_id",
-      alias: "configId",
-      type: "string",
-      description: "Identifier of the config associated with the score.",
-    },
-    timestampMonth: {
-      sql: "formatDateTime(scores_numeric.timestamp, '%Y-%m')",
-      alias: "timestampMonth",
-      type: "string",
-      description: "Month of the score timestamp in YYYY-MM format.",
-    },
-    timestampDay: {
-      sql: "formatDateTime(scores_numeric.timestamp, '%Y-%m-%d')",
-      alias: "timestampDay",
-      type: "string",
-      description: "Day of the score timestamp in YYYY-MM-DD format.",
-    },
-    observationId: {
-      sql: "scores_numeric.observation_id",
-      alias: "observationId",
-      type: "string",
-      description: "Identifier of the observation associated with the score.",
-    },
-    value: {
-      sql: "scores_numeric.value",
-      alias: "value",
-      type: "number",
-      description: "Value of the score.",
-    },
+// v2 scores dimensions
+const scoresV2BaseDimensions: DimensionsDeclarationType = {
+  sessionId: {
+    sql: "scores.session_id",
+    alias: "sessionId",
+    type: "string",
+    description: "Identifier of the session.",
   },
-  measures: {
-    count: {
-      sql: "count(*)",
-      alias: "count",
-      type: "integer",
-      description: "Total number of scores.",
-      unit: "scores",
-    },
-    value: {
-      sql: "any(value)",
-      alias: "value",
-      type: "number",
-      description: "Value of the score.",
-    },
+  // Trace metadata on events table (accessed via events JOIN)
+  userId: {
+    sql: "events.user_id",
+    alias: "userId",
+    type: "string",
+    relationTable: "events",
+    description: "Identifier of the user.",
   },
-  tableRelations: {
-    traces: {
-      name: "traces",
-      joinConditionSql:
-        "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
-      timeDimension: "timestamp",
-    },
-    observations: {
-      name: "observations",
-      joinConditionSql:
-        "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
-      timeDimension: "start_time",
-    },
+  tags: {
+    sql: "events.tags",
+    alias: "tags",
+    type: "string[]",
+    relationTable: "events",
+    description: "User-defined tags.",
   },
-  segments: [
-    {
-      column: "data_type",
-      // We consider NUMERIC and BOOLEAN scores as numeric.
-      operator: "does not contain",
-      value: "CATEGORICAL",
-      type: "string",
-    },
-  ],
-  timeDimension: "timestamp",
-  baseCte: `scores scores_numeric FINAL`,
+  release: {
+    sql: "events.release",
+    alias: "release",
+    type: "string",
+    relationTable: "events",
+    description: "Release version.",
+  },
+  // Observation fields from events table
+  observationName: {
+    sql: "events.name",
+    alias: "observationName",
+    type: "string",
+    relationTable: "events",
+    description: "Name of the observation associated with the score.",
+  },
+  observationModelName: {
+    sql: "events.provided_model_name",
+    alias: "observationModelName",
+    type: "string",
+    relationTable: "events",
+    description: "Name of the model used for the observation.",
+  },
+  observationPromptName: {
+    sql: "events.prompt_name",
+    alias: "observationPromptName",
+    type: "string",
+    relationTable: "events",
+    description: "Name of the prompt used for the observation.",
+  },
+  observationPromptVersion: {
+    sql: "events.prompt_version",
+    alias: "observationPromptVersion",
+    type: "string",
+    relationTable: "events",
+    description: "Version of the prompt used for the observation.",
+  },
 };
 
-export const scoresCategoricalView: ViewDeclarationType = {
-  name: "scores_categorical",
-  description:
-    "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
-  dimensions: {
-    ...scoreBaseDimensions,
-    id: {
-      sql: "scores_categorical.id",
-      alias: "id",
-      type: "string",
-      description: "Unique identifier of the score entry.",
-    },
-    environment: {
-      sql: "scores_categorical.environment",
-      alias: "environment",
-      type: "string",
-      description: "Deployment environment (e.g., production, staging).",
-    },
-    name: {
-      sql: "scores_categorical.name",
-      alias: "name",
-      type: "string",
-      description: "Name of the score (e.g., accuracy, toxicity).",
-    },
-    source: {
-      sql: "scores_categorical.source",
-      alias: "source",
-      type: "string",
-      description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
-    },
-    dataType: {
-      sql: "scores_categorical.data_type",
-      alias: "dataType",
-      type: "string",
-      description:
-        "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
-    },
-    traceId: {
-      sql: "scores_categorical.trace_id",
-      alias: "traceId",
-      type: "string",
-      description: "Identifier of the parent trace.",
-    },
-    configId: {
-      sql: "scores_categorical.config_id",
-      alias: "configId",
-      type: "string",
-      description: "Identifier of the config associated with the score.",
-    },
-    timestampMonth: {
-      sql: "formatDateTime(scores_categorical.timestamp, '%Y-%m')",
-      alias: "timestampMonth",
-      type: "string",
-      description: "Month of the score timestamp in YYYY-MM format.",
-    },
-    timestampDay: {
-      sql: "formatDateTime(scores_categorical.timestamp, '%Y-%m-%d')",
-      alias: "timestampDay",
-      type: "string",
-      description: "Day of the score timestamp in YYYY-MM-DD format.",
-    },
-    observationId: {
-      sql: "scores_categorical.observation_id",
-      alias: "observationId",
-      type: "string",
-      description: "Identifier of the observation associated with the score.",
-    },
-    stringValue: {
-      sql: "string_value",
-      alias: "stringValue",
-      type: "string",
-      description: "Value of the score.",
-    },
+// Factory for shared score-specific dimensions (both numeric and categorical)
+const createScoreSpecificDimensions = (
+  tableAlias: string,
+): DimensionsDeclarationType => ({
+  id: {
+    sql: `${tableAlias}.id`,
+    alias: "id",
+    type: "string",
+    description: "Unique identifier of the score entry.",
   },
-  measures: {
-    count: {
-      sql: "count(*)",
-      alias: "count",
-      type: "integer",
-      description: "Total number of scores.",
-      unit: "scores",
-    },
+  environment: {
+    sql: `${tableAlias}.environment`,
+    alias: "environment",
+    type: "string",
+    description: "Deployment environment (e.g., production, staging).",
   },
-  tableRelations: {
-    traces: {
-      name: "traces",
-      joinConditionSql:
-        "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
-      timeDimension: "timestamp",
-    },
-    observations: {
-      name: "observations",
-      joinConditionSql:
-        "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
-      timeDimension: "start_time",
-    },
+  name: {
+    sql: `${tableAlias}.name`,
+    alias: "name",
+    type: "string",
+    description: "Name of the score (e.g., accuracy, toxicity).",
   },
-  segments: [
-    {
-      column: "data_type",
-      operator: "=",
-      value: "CATEGORICAL",
-      type: "string",
-    },
-  ],
-  timeDimension: "timestamp",
-  baseCte: `scores scores_categorical FINAL`,
+  source: {
+    sql: `${tableAlias}.source`,
+    alias: "source",
+    type: "string",
+    description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
+  },
+  dataType: {
+    sql: `${tableAlias}.data_type`,
+    alias: "dataType",
+    type: "string",
+    description:
+      "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
+  },
+  traceId: {
+    sql: `${tableAlias}.trace_id`,
+    alias: "traceId",
+    type: "string",
+    description: "Identifier of the parent trace.",
+  },
+  configId: {
+    sql: `${tableAlias}.config_id`,
+    alias: "configId",
+    type: "string",
+    description: "Identifier of the config associated with the score.",
+  },
+  timestampMonth: {
+    sql: `formatDateTime(${tableAlias}.timestamp, '%Y-%m')`,
+    alias: "timestampMonth",
+    type: "string",
+    description: "Month of the score timestamp in YYYY-MM format.",
+  },
+  timestampDay: {
+    sql: `formatDateTime(${tableAlias}.timestamp, '%Y-%m-%d')`,
+    alias: "timestampDay",
+    type: "string",
+    description: "Day of the score timestamp in YYYY-MM-DD format.",
+  },
+  observationId: {
+    sql: `${tableAlias}.observation_id`,
+    alias: "observationId",
+    type: "string",
+    description: "Identifier of the observation associated with the score.",
+  },
+});
+
+// Shared table relations factory
+const createScoreTableRelations = (
+  version: "v1" | "v2",
+): Record<
+  string,
+  { name: string; joinConditionSql: string; timeDimension: string }
+> => {
+  if (version === "v1") {
+    return {
+      traces: {
+        name: "traces",
+        joinConditionSql:
+          "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
+        timeDimension: "timestamp",
+      },
+      observations: {
+        name: "observations",
+        joinConditionSql:
+          "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
+        timeDimension: "start_time",
+      },
+    };
+  } else {
+    return {
+      events: {
+        name: "events",
+        joinConditionSql:
+          "ON scores.observation_id = events.span_id AND scores.project_id = events.project_id",
+        timeDimension: "start_time",
+      },
+    };
+  }
 };
+
+function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
+  const baseDimensions =
+    version === "v1" ? scoreBaseDimensions : scoresV2BaseDimensions;
+  return {
+    name: "scores_numeric",
+    description:
+      "Scores are flexible objects that are used for evaluations. This view contains numeric and boolean scores.",
+    dimensions: {
+      ...baseDimensions, // v1 keeps trace-JOIN dimensions
+      ...createScoreSpecificDimensions("scores_numeric"),
+      value: {
+        sql: "scores_numeric.value",
+        alias: "value",
+        type: "number",
+        description: "Value of the score.",
+      },
+    },
+    measures: {
+      count: {
+        sql: "count(*)",
+        alias: "count",
+        type: "integer",
+        description: "Total number of scores.",
+        unit: "scores",
+      },
+      value: {
+        sql: "any(value)",
+        alias: "value",
+        type: "number",
+        description: "Value of the score.",
+      },
+    },
+    tableRelations: createScoreTableRelations(version),
+    segments: [
+      {
+        column: "data_type",
+        // We consider NUMERIC and BOOLEAN scores as numeric.
+        operator: "does not contain" as const,
+        value: "CATEGORICAL",
+        type: "string" as const,
+      },
+    ], // Numeric
+    timeDimension: "timestamp",
+    baseCte: `scores scores_numeric FINAL`,
+  };
+}
+
+function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
+  const baseDimensions =
+    version === "v1" ? scoreBaseDimensions : scoresV2BaseDimensions;
+  return {
+    name: "scores_categorical",
+    description:
+      "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
+    dimensions: {
+      ...baseDimensions,
+      ...createScoreSpecificDimensions("scores_categorical"),
+      stringValue: {
+        sql: "string_value",
+        alias: "stringValue",
+        type: "string",
+        description: "Value of the score.",
+      },
+    },
+    measures: {
+      count: {
+        sql: "count(*)",
+        alias: "count",
+        type: "integer",
+        description: "Total number of scores.",
+        unit: "scores",
+      },
+    },
+    tableRelations: createScoreTableRelations(version),
+    segments: [
+      {
+        column: "data_type",
+        operator: "=" as const,
+        value: "CATEGORICAL",
+        type: "string" as const,
+      },
+    ], // Categorical
+    timeDimension: "timestamp",
+    baseCte: `scores scores_categorical FINAL`,
+  };
+}
+
+export const scoresNumericView: ViewDeclarationType =
+  scoresNumericViewBase("v1");
+
+export const scoresCategoricalView: ViewDeclarationType =
+  scoresCategoricalViewBase("v1");
+
+// v2 Scores Views
+export const scoresNumericViewV2: ViewDeclarationType =
+  scoresNumericViewBase("v2");
+
+export const scoresCategoricalViewV2: ViewDeclarationType =
+  scoresCategoricalViewBase("v2");
 
 // Events-Observations View - queries from events table instead of observations table
 export const eventsObservationsView: ViewDeclarationType = {
   name: "events_observations",
   description:
-    "Observations from the events table. Supports denormalized trace fields (userId, sessionId, tags, release) but not trace-JOIN dimensions (traceName, traceRelease, traceVersion).",
+    "Observations represent individual requests or operations within a trace. They are grouped into Spans, Generations, and Events.",
   dimensions: {
     id: {
       sql: "events_observations.span_id",
@@ -757,28 +794,25 @@ export const eventsObservationsView: ViewDeclarationType = {
       sql: "events_observations.user_id",
       alias: "userId",
       type: "string",
-      description:
-        "Identifier of the user triggering the observation (denormalized from trace).",
+      description: "Identifier of the user triggering the observation.",
     },
     sessionId: {
       sql: "events_observations.session_id",
       alias: "sessionId",
       type: "string",
-      description:
-        "Identifier of the session triggering the observation (denormalized from trace).",
+      description: "Identifier of the session triggering the observation.",
     },
     tags: {
       sql: "events_observations.tags",
       alias: "tags",
       type: "string[]",
-      description:
-        "User-defined tags associated with the trace (denormalized from trace).",
+      description: "User-defined tags associated with the trace.",
     },
     release: {
       sql: "events_observations.release",
       alias: "release",
       type: "string",
-      description: "Release version (denormalized from trace).",
+      description: "Release version.",
     },
     providedModelName: {
       sql: "events_observations.provided_model_name",
@@ -935,9 +969,9 @@ export const viewDeclarations: VersionedViewDeclarations = {
   },
   v2: {
     traces: traceView,
-    observations: eventsObservationsView, // New: events table
-    "scores-numeric": scoresNumericView,
-    "scores-categorical": scoresCategoricalView,
+    observations: eventsObservationsView,
+    "scores-numeric": scoresNumericViewV2,
+    "scores-categorical": scoresCategoricalViewV2,
   },
 } as const;
 
