@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import { logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
@@ -19,7 +20,6 @@ export default class BackfillSysIdForDatasetItems
   private isAborted = false;
 
   async validate(
-    // eslint-disable-next-line no-unused-vars
     args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     return { valid: true, invalidReason: undefined };
