@@ -117,11 +117,10 @@ export function JsonRow({
         highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
       />
 
-      {/* Match count badge (for collapsed rows with matches in descendants) */}
+      {/* Match count badge (for collapsed rows or leaf nodes with multiple matches) */}
       {matchCount !== undefined &&
-        matchCount > 0 &&
-        row.isExpandable &&
-        !row.isExpanded && (
+        matchCount > 1 &&
+        ((row.isExpandable && !row.isExpanded) || !row.isExpandable) && (
           <span
             style={{
               display: "inline-flex",
@@ -138,7 +137,11 @@ export function JsonRow({
               color: theme.foreground,
               border: `1px solid ${theme.searchCurrentBackground}`,
             }}
-            title={`${matchCount} match${matchCount === 1 ? "" : "es"} in this section`}
+            title={
+              row.isExpandable
+                ? `${matchCount} match${matchCount === 1 ? "" : "es"} in this section`
+                : `${matchCount} match${matchCount === 1 ? "" : "es"} in this value`
+            }
           >
             {matchCount}
           </span>
