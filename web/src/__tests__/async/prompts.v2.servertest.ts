@@ -22,6 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
+import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -1634,28 +1635,28 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Create child prompt
       const childPromptName = "child-prompt-" + nanoid();
-      await createPromptInDB({
+      await createPrompt({
         name: childPromptName,
         prompt: "I am a child prompt",
         labels: ["production"],
-        version: 1,
         config: {},
         projectId,
         createdBy: "user-1",
+        prisma,
       });
 
       // Create parent prompt with dependency
       const parentPromptName = "parent-prompt-" + nanoid();
       const parentContent = `Parent prompt with dependency: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
 
-      await createPromptInDB({
+      await createPrompt({
         name: parentPromptName,
         prompt: parentContent,
         labels: ["production"],
-        version: 1,
         config: {},
         projectId,
         createdBy: "user-1",
+        prisma,
       });
 
       // Fetch without resolve parameter (default should be resolved)
@@ -1678,28 +1679,28 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Create child prompt
       const childPromptName = "child-prompt-" + nanoid();
-      await createPromptInDB({
+      await createPrompt({
         name: childPromptName,
         prompt: "Child content",
         labels: ["production"],
-        version: 1,
         config: {},
         projectId,
         createdBy: "user-1",
+        prisma,
       });
 
       // Create parent prompt with dependency
       const parentPromptName = "parent-prompt-" + nanoid();
       const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
 
-      await createPromptInDB({
+      await createPrompt({
         name: parentPromptName,
         prompt: parentContent,
         labels: ["production"],
-        version: 1,
         config: {},
         projectId,
         createdBy: "user-1",
+        prisma,
       });
 
       // Explicitly set resolve=true
@@ -1721,28 +1722,28 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Create child prompt (doesn't matter, we won't resolve)
       const childPromptName = "child-prompt-" + nanoid();
-      await createPromptInDB({
+      await createPrompt({
         name: childPromptName,
         prompt: "Child content",
         labels: ["production"],
-        version: 1,
         config: {},
         projectId,
         createdBy: "user-1",
+        prisma,
       });
 
       // Create parent prompt with dependency
       const parentPromptName = "parent-prompt-" + nanoid();
       const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
 
-      await createPromptInDB({
+      await createPrompt({
         name: parentPromptName,
         prompt: parentContent,
         labels: ["production"],
-        version: 1,
         config: {},
         projectId,
         createdBy: "user-1",
+        prisma,
       });
 
       // Fetch with resolve=false
@@ -1768,14 +1769,14 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Create child prompt
       const childPromptName = "child-prompt-" + nanoid();
-      await createPromptInDB({
+      await createPrompt({
         name: childPromptName,
         prompt: "Base instructions",
         labels: ["production"],
-        version: 1,
         config: {},
         projectId,
         createdBy: "user-1",
+        prisma,
       });
 
       // Create parent chat prompt with dependency
@@ -1788,18 +1789,15 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         { role: "user", content: "User message" },
       ];
 
-      await prisma.prompt.create({
-        data: {
-          id: uuidv4(),
-          name: parentPromptName,
-          prompt: chatMessages,
-          labels: ["production"],
-          version: 1,
-          config: {},
-          projectId,
-          createdBy: "user-1",
-          type: "CHAT",
-        },
+      await createPrompt({
+        name: parentPromptName,
+        prompt: chatMessages,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        type: PromptType.Chat,
+        prisma,
       });
 
       // Fetch with resolve=false
