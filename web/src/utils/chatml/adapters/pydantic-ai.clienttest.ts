@@ -61,7 +61,7 @@ describe("Pydantic AI Adapter", () => {
           parts: [
             {
               type: "tool_call",
-              id: "call_X0OSgjUukT5inyEQvuZQnHrk",
+              id: "call_123",
               name: "get_pun_suggestion",
               arguments: {
                 topic: "programming",
@@ -69,7 +69,7 @@ describe("Pydantic AI Adapter", () => {
             },
             {
               type: "tool_call",
-              id: "call_WxZcCvSDhGT4RJHlcU01k10x",
+              id: "call_456",
               name: "get_dad_joke_suggestion",
               arguments: {
                 topic: "programming",
@@ -83,14 +83,14 @@ describe("Pydantic AI Adapter", () => {
           parts: [
             {
               type: "tool_call_response",
-              id: "call_X0OSgjUukT5inyEQvuZQnHrk",
+              id: "call_123",
               name: "get_pun_suggestion",
               result:
                 "Pun idea: Play on words related to 'programming' - think about homophones or double meanings",
             },
             {
               type: "tool_call_response",
-              id: "call_WxZcCvSDhGT4RJHlcU01k10x",
+              id: "call_456",
               name: "get_dad_joke_suggestion",
               result:
                 "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist",
@@ -125,13 +125,13 @@ describe("Pydantic AI Adapter", () => {
       expect(result.data?.[2].role).toBe("assistant");
       expect(result.data?.[2].tool_calls).toHaveLength(2);
       expect(result.data?.[2].tool_calls?.[0]).toEqual({
-        id: "call_X0OSgjUukT5inyEQvuZQnHrk",
+        id: "call_123",
         name: "get_pun_suggestion",
         arguments: '{"topic":"programming"}',
         type: "function",
       });
       expect(result.data?.[2].tool_calls?.[1]).toEqual({
-        id: "call_WxZcCvSDhGT4RJHlcU01k10x",
+        id: "call_456",
         name: "get_dad_joke_suggestion",
         arguments: '{"topic":"programming"}',
         type: "function",
@@ -139,16 +139,12 @@ describe("Pydantic AI Adapter", () => {
 
       // Fourth message - first tool response
       expect(result.data?.[3].role).toBe("tool");
-      expect(result.data?.[3].tool_call_id).toBe(
-        "call_X0OSgjUukT5inyEQvuZQnHrk",
-      );
+      expect(result.data?.[3].tool_call_id).toBe("call_123");
       expect(result.data?.[3].content).toContain("Pun idea");
 
       // Fifth message - second tool response
       expect(result.data?.[4].role).toBe("tool");
-      expect(result.data?.[4].tool_call_id).toBe(
-        "call_WxZcCvSDhGT4RJHlcU01k10x",
-      );
+      expect(result.data?.[4].tool_call_id).toBe("call_456");
       expect(result.data?.[4].content).toContain("Dad joke idea");
     });
   });
