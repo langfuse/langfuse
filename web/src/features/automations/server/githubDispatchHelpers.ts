@@ -68,6 +68,20 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
+  // Validate GitHub API URL format
+  const urlPattern =
+    /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
+  const enterprisePattern =
+    /^https:\/\/[^\/]+\/api\/v3\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
+
+  if (!urlPattern.test(urlToUse) && !enterprisePattern.test(urlToUse)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "URL must be a valid GitHub repository dispatch endpoint (e.g., https://api.github.com/repos/owner/repo/dispatches)",
+    });
+  }
+
   // Determine event type to use
   let eventTypeToUse: string;
   if (
