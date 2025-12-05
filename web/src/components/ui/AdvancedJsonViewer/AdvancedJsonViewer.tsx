@@ -15,7 +15,7 @@
  * - Theme customization
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { type AdvancedJsonViewerProps, type ExpansionState } from "./types";
 import { flattenJSON, toggleRowExpansion } from "./utils/flattenJson";
 import { searchInRows, expandToMatch } from "./utils/searchJson";
@@ -99,11 +99,20 @@ export function AdvancedJsonViewer({
   );
 
   // Reset match index when matches change
-  useMemo(() => {
+  useEffect(() => {
     if (searchMatches.length > 0 && currentMatchIndex >= searchMatches.length) {
-      setCurrentMatchIndex(0);
+      if (isMatchIndexControlled) {
+        onCurrentMatchIndexChange(0);
+      } else {
+        setInternalCurrentMatchIndex(0);
+      }
     }
-  }, [searchMatches, currentMatchIndex]);
+  }, [
+    searchMatches,
+    currentMatchIndex,
+    isMatchIndexControlled,
+    onCurrentMatchIndexChange,
+  ]);
 
   // Determine if virtualization should be used
   const shouldUseVirtualization = useMemo(() => {
