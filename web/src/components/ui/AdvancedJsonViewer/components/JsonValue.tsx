@@ -15,7 +15,7 @@ export function JsonValue({
   type,
   theme,
   isExpandable = false,
-  childCount,
+  childCount: _childCount,
   truncateStringsAt = null,
   wrapLongStrings = false,
   highlightStart,

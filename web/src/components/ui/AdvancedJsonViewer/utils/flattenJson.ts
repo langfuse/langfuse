@@ -12,7 +12,7 @@ import {
   getChildCount,
   getChildren,
 } from "./jsonTypes";
-import { joinPath, buildPath, hasCollapsedAncestor } from "./pathUtils";
+import { joinPath, hasCollapsedAncestor } from "./pathUtils";
 
 /**
  * Flatten JSON data into a flat list of rows for rendering

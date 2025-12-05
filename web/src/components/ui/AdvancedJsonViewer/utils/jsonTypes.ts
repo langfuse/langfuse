@@ -4,7 +4,7 @@
  * Zero dependencies - pure JavaScript type detection
  */
 
-import { JSONType } from "../types";
+import type { JSONType } from "../types";
 
 /**
  * Get the JSON type of a value
@@ -205,7 +205,7 @@ export function safeStringify(value: unknown, indent = 2): string {
       },
       indent,
     );
-  } catch (error) {
+  } catch (_error) {
     return String(value);
   }
 }
