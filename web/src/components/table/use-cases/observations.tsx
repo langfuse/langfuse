@@ -1318,6 +1318,7 @@ const GenerationsDynamicCell = ({
       enabled: typeof traceId === "string" && typeof observationId === "string",
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes: [404] },
     },
   );
 
