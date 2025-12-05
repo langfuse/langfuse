@@ -534,7 +534,7 @@ describe("MCP Read Tools", () => {
 
       // Create a prompt with dependency tags (unresolved)
       const rawPromptContent =
-        "You are a helpful assistant. {{prompt:base-instructions:production}}";
+        "You are a helpful assistant. @@@langfusePrompt:name=base-instructions|label=production@@@";
 
       await createPromptInDb({
         name: promptName,
@@ -560,7 +560,7 @@ describe("MCP Read Tools", () => {
       // Verify dependency tags are NOT resolved
       expect(result.prompt).toBe(rawPromptContent);
       expect(result.prompt).toContain(
-        "{{prompt:base-instructions:production}}",
+        "@@@langfusePrompt:name=base-instructions|label=production@@@",
       );
     });
 
@@ -571,7 +571,7 @@ describe("MCP Read Tools", () => {
       // Create v1 with staging label
       await createPromptInDb({
         name: promptName,
-        prompt: "Version 1 {{prompt:helper:staging}}",
+        prompt: "Version 1 @@@langfusePrompt:name=helper|label=staging@@@",
         projectId,
         labels: ["staging"],
         version: 1,
@@ -580,7 +580,7 @@ describe("MCP Read Tools", () => {
       // Create v2 with production label
       await createPromptInDb({
         name: promptName,
-        prompt: "Version 2 {{prompt:helper:production}}",
+        prompt: "Version 2 @@@langfusePrompt:name=helper|label=production@@@",
         projectId,
         labels: ["production"],
         version: 2,
@@ -592,7 +592,9 @@ describe("MCP Read Tools", () => {
       )) as { version: number; prompt: string };
 
       expect(result.version).toBe(1);
-      expect(result.prompt).toBe("Version 1 {{prompt:helper:staging}}");
+      expect(result.prompt).toBe(
+        "Version 1 @@@langfusePrompt:name=helper|label=staging@@@",
+      );
     });
 
     it("should fetch prompt by name and specific version without resolution", async () => {
@@ -601,7 +603,7 @@ describe("MCP Read Tools", () => {
 
       await createPromptInDb({
         name: promptName,
-        prompt: "V1 content {{prompt:dep:v1}}",
+        prompt: "V1 content @@@langfusePrompt:name=dep|label=v1@@@",
         projectId,
         labels: ["staging"],
         version: 1,
@@ -609,7 +611,7 @@ describe("MCP Read Tools", () => {
 
       await createPromptInDb({
         name: promptName,
-        prompt: "V2 content {{prompt:dep:v2}}",
+        prompt: "V2 content @@@langfusePrompt:name=dep|label=v2@@@",
         projectId,
         labels: ["production"],
         version: 2,
@@ -621,7 +623,9 @@ describe("MCP Read Tools", () => {
       )) as { version: number; prompt: string };
 
       expect(result.version).toBe(1);
-      expect(result.prompt).toBe("V1 content {{prompt:dep:v1}}");
+      expect(result.prompt).toBe(
+        "V1 content @@@langfusePrompt:name=dep|label=v1@@@",
+      );
     });
 
     it("should throw error if prompt not found", async () => {
@@ -655,9 +659,13 @@ describe("MCP Read Tools", () => {
       const chatMessages = [
         {
           role: "system",
-          content: "You are helpful {{prompt:system-base:production}}",
+          content:
+            "You are helpful @@@langfusePrompt:name=system-base|label=production@@@",
         },
-        { role: "user", content: "{{prompt:user-template:production}}" },
+        {
+          role: "user",
+          content: "@@@langfusePrompt:name=user-template|label=production@@@",
+        },
       ];
 
       await createPromptInDb({
@@ -681,7 +689,7 @@ describe("MCP Read Tools", () => {
       expect(result.type).toBe("chat");
       expect(result.prompt).toEqual(chatMessages);
       expect(result.prompt[0].content).toContain(
-        "{{prompt:system-base:production}}",
+        "@@@langfusePrompt:name=system-base|label=production@@@",
       );
     });
   });

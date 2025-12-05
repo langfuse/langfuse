@@ -57,7 +57,7 @@ The MCP server provides 6 tools for prompt management:
 
 ### Prompt Resolution: `getPrompt` vs `getPromptUnresolved`
 
-Langfuse supports **prompt composition** where prompts can reference other prompts via dependency tags like `{{prompt:name:label}}`. The MCP server provides two tools for fetching prompts with different resolution behaviors:
+Langfuse supports **prompt composition** where prompts can reference other prompts via dependency tags like `@@@langfusePrompt:name=xxx|label=yyy@@@`. The MCP server provides two tools for fetching prompts with different resolution behaviors:
 
 #### `getPrompt` (Fully Resolved)
 - **Use when**: You want the final, executable prompt ready to send to an LLM
@@ -65,18 +65,18 @@ Langfuse supports **prompt composition** where prompts can reference other promp
 - **Returns**: Final prompt content with all dependencies replaced
 - **Example**:
   ```
-  Input:  "You are helpful. {{prompt:base-rules:production}}"
+  Input:  "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
   Output: "You are helpful. Always be kind and respectful."
   ```
 
 #### `getPromptUnresolved` (Raw)
 - **Use when**: You want to analyze prompt composition, debug dependencies, or understand the prompt structure
 - **Behavior**: Returns raw prompt content with dependency tags intact
-- **Returns**: Original prompt content with `{{prompt:...}}` tags preserved
+- **Returns**: Original prompt content with `@@@langfusePrompt:...@@@` tags preserved
 - **Example**:
   ```
-  Input:  "You are helpful. {{prompt:base-rules:production}}"
-  Output: "You are helpful. {{prompt:base-rules:production}}"
+  Input:  "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
+  Output: "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
   ```
 
 **Use Cases for `getPromptUnresolved`**:
