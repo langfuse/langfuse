@@ -435,6 +435,8 @@ export const createEvalJobs = async ({
           WHERE project_id = ${event.projectId}
             AND id = ${event.datasetItemId}
             ${condition}
+          ORDER BY valid_from DESC
+          LIMIT 1
         `);
         const latestDatasetItem = datasetItems.shift();
         if (latestDatasetItem && latestDatasetItem.is_deleted === false) {
