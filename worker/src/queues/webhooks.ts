@@ -157,19 +157,19 @@ async function executeHttpAction({
 
           if (!res.ok) {
             logger.warn(
-              `HTTP request failed with status ${res.status} for url ${url} and project ${projectId}. Body: ${responseBody}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${url} and project ${projectId}. Body: ${responseBody}`,
             );
             throw new Error(
-              `HTTP request failed with status ${res.status} for url ${url} and project ${projectId}`,
+              `Webhook does not return 2xx status: failed with status ${res.status} for url ${url} and project ${projectId}`,
             );
           }
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") {
             logger.warn(
-              `HTTP request timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
             );
             throw new Error(
-              `HTTP request timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
+              `Webhook timeout after ${env.LANGFUSE_WEBHOOK_TIMEOUT_MS}ms for url ${url} and project ${projectId}`,
             );
           }
           throw error;
@@ -285,7 +285,9 @@ async function executeHttpAction({
       `HTTP action failed for action ${automation.action.id} in project ${projectId}`,
     );
 
-    throw error;
+    // Error has been handled - don't rethrow
+    // Return empty response to indicate failure was handled
+    return { httpStatus: httpStatus || 0, responseBody: responseBody || "" };
   }
 }
 
