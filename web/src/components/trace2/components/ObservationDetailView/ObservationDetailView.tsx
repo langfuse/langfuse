@@ -46,7 +46,6 @@ import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
 import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
@@ -316,6 +315,7 @@ export function ObservationDetailView({
               metadata={observationWithIOCompat.data?.metadata ?? undefined}
               parsedInput={parsedInput}
               parsedOutput={parsedOutput}
+              parsedMetadata={parsedMetadata}
               isLoading={observationWithIOCompat.isLoading}
               isParsing={isParsing}
               media={observationMedia.data}
@@ -328,26 +328,6 @@ export function ObservationDetailView({
                 setFieldExpansion("output", exp)
               }
             />
-            {observationWithIOCompat.data?.metadata && (
-              <div className="px-2">
-                <PrettyJsonView
-                  key={observationWithIOCompat.data.id + "-metadata"}
-                  title="Metadata"
-                  json={observationWithIOCompat.data.metadata}
-                  parsedJson={parsedMetadata}
-                  isLoading={observationWithIOCompat.isLoading}
-                  isParsing={isParsing}
-                  media={observationMedia.data?.filter(
-                    (m) => m.field === "metadata",
-                  )}
-                  currentView={currentView}
-                  externalExpansionState={expansionState.metadata}
-                  onExternalExpansionChange={(exp) =>
-                    setFieldExpansion("metadata", exp)
-                  }
-                />
-              </div>
-            )}
           </div>
         </TabsBarContent>
 

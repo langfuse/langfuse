@@ -6,9 +6,11 @@ import { type ExpansionStateProps } from "./IOPreview";
 export interface IOPreviewJSONProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  metadata?: Prisma.JsonValue;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
+  parsedMetadata?: unknown;
   isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
@@ -32,8 +34,10 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
 export function IOPreviewJSON({
   input,
   output,
+  metadata,
   parsedInput,
   parsedOutput,
+  parsedMetadata,
   isLoading = false,
   isParsing = false,
   hideIfNull = false,
@@ -43,6 +47,7 @@ export function IOPreviewJSON({
 }: IOPreviewJSONProps) {
   const showInput = !hideInput && !(hideIfNull && !parsedInput && !input);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput && !output);
+  const showMetadata = !(hideIfNull && !parsedMetadata && !metadata);
 
   return (
     <div className="flex flex-col gap-2">
@@ -78,6 +83,23 @@ export function IOPreviewJSON({
           truncateStringsAt={100}
           enableCopy={true}
           headerBackgroundColor="rgba(34, 197, 94, 0.05)"
+        />
+      )}
+      {showMetadata && (
+        <AdvancedJsonSection
+          title="Metadata"
+          field="metadata"
+          data={metadata}
+          parsedData={parsedMetadata}
+          isLoading={isLoading || isParsing}
+          media={media?.filter((m) => m.field === "metadata")}
+          enableSearch={true}
+          searchPlaceholder="Search metadata"
+          maxHeight="500px"
+          hideIfNull={hideIfNull}
+          truncateStringsAt={100}
+          enableCopy={true}
+          headerBackgroundColor="rgba(168, 85, 247, 0.05)"
         />
       )}
     </div>

@@ -30,6 +30,7 @@ import {
 } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { flattenJSON } from "@/src/components/ui/AdvancedJsonViewer/utils/flattenJson";
 import { searchInRows } from "@/src/components/ui/AdvancedJsonViewer/utils/searchJson";
+import { shouldVirtualize } from "@/src/components/ui/AdvancedJsonViewer/utils/estimateRowHeight";
 
 export interface AdvancedJsonSectionProps {
   /** Section title */
@@ -242,6 +243,15 @@ export function AdvancedJsonSection({
     [headerBackgroundColor, backgroundColor],
   );
 
+  // Determine if virtualization is being used (must come after customTheme)
+  const isVirtualized = useMemo(() => {
+    return shouldVirtualize(flatRows, {
+      baseHeight: customTheme.lineHeight,
+      longStringThreshold: truncateStringsAt ?? 100,
+      charsPerLine: 80,
+    });
+  }, [flatRows, customTheme.lineHeight, truncateStringsAt]);
+
   // Hide section if data is null/undefined
   if (hideIfNull && (data === null || data === undefined)) {
     return null;
@@ -275,7 +285,7 @@ export function AdvancedJsonSection({
               </button>
               <span>{title}</span>
               <span className="text-xs font-normal text-muted-foreground">
-                {rowCount} rows
+                {rowCount} rows{isVirtualized ? " (virtualized)" : ""}
               </span>
             </div>
           }

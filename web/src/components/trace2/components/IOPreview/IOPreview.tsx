@@ -105,8 +105,10 @@ export function IOPreview({
   const sharedProps = {
     input,
     output,
+    metadata,
     parsedInput,
     parsedOutput,
+    parsedMetadata,
     isLoading,
     isParsing,
     hideIfNull,
@@ -141,12 +143,7 @@ export function IOPreview({
       {selectedView === "json" ? (
         <IOPreviewJSON {...sharedProps} />
       ) : (
-        <IOPreviewPretty
-          {...sharedProps}
-          metadata={metadata}
-          parsedMetadata={parsedMetadata}
-          observationName={observationName}
-        />
+        <IOPreviewPretty {...sharedProps} observationName={observationName} />
       )}
     </>
   );
