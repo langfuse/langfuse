@@ -379,7 +379,6 @@ export const automationsRouter = createTRPCRouter({
       }
 
       let finalActionConfig = input.actionConfig;
-      let newUnencryptedWebhookSecret: string | undefined; // For returning updated token
 
       if (input.actionType === "WEBHOOK") {
         const webhookResult = await processWebhookActionConfig({
@@ -408,7 +407,6 @@ export const automationsRouter = createTRPCRouter({
           projectId: input.projectId,
         });
         finalActionConfig = githubResult.finalActionConfig;
-        newUnencryptedWebhookSecret = githubResult.githubToken;
       }
 
       const [action, trigger, automation] = await ctx.prisma.$transaction(
@@ -489,7 +487,6 @@ export const automationsRouter = createTRPCRouter({
         },
         trigger,
         automation,
-        webhookSecret: newUnencryptedWebhookSecret, // Return token at top level for one-time display (if updated)
       };
     }),
 

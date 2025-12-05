@@ -6,7 +6,10 @@ import {
   type GitHubDispatchActionCreate,
   isGitHubDispatchActionConfig,
 } from "@langfuse/shared";
-import { getActionByIdWithSecrets } from "@langfuse/shared/src/server";
+import {
+  getActionByIdWithSecrets,
+  validateWebhookURL,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 interface GitHubDispatchConfigOptions {
@@ -56,17 +59,12 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
-  // Validate GitHub API URL format (without DNS lookup)
-  const urlPattern =
-    /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
-  const enterprisePattern =
-    /^https:\/\/[^\/]+\/api\/v3\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
-
-  if (!urlPattern.test(urlToUse) && !enterprisePattern.test(urlToUse)) {
+  try {
+    await validateWebhookURL(urlToUse);
+  } catch (error) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message:
-        "URL must be a valid GitHub repository dispatch endpoint (e.g., https://api.github.com/repos/owner/repo/dispatches)",
+      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
     });
   }
 
