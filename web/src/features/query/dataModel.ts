@@ -626,7 +626,7 @@ const createScoreTableRelations = (
       events: {
         name: "events",
         joinConditionSql:
-          "ON scores.observation_id = events.span_id AND scores.project_id = events.project_id",
+          "ON (scores.trace_id = events.span_id OR scores.observation_id = events.span_id) AND scores.project_id = events.project_id",
         timeDimension: "start_time",
       },
     };
