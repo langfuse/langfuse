@@ -25,6 +25,7 @@ export function JsonRow({
   searchMatch,
   isCurrentMatch = false,
   matchCount,
+  currentMatchIndexInRow,
   showLineNumber = false,
   lineNumber,
   enableCopy = false,
@@ -143,7 +144,9 @@ export function JsonRow({
                 : `${matchCount} match${matchCount === 1 ? "" : "es"} in this value`
             }
           >
-            {matchCount}
+            {currentMatchIndexInRow !== undefined
+              ? `${currentMatchIndexInRow}/${matchCount}`
+              : matchCount}
           </span>
         )}
 

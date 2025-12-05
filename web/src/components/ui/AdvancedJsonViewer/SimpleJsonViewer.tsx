@@ -8,6 +8,7 @@
 import { useMemo, useEffect, useRef, type RefObject } from "react";
 import { type FlatJSONRow, type SearchMatch, type JSONTheme } from "./types";
 import { JsonRow } from "./components/JsonRow";
+import { getCurrentMatchIndexInRow } from "./utils/searchJson";
 
 interface SimpleJsonViewerProps {
   rows: FlatJSONRow[];
@@ -55,6 +56,12 @@ export function SimpleJsonViewer({
 
   // Get current match for highlighting
   const currentMatch = searchMatches[currentMatchIndex];
+
+  // Get current match index within its row (1-based)
+  const currentMatchIndexInRow = useMemo(
+    () => getCurrentMatchIndexInRow(currentMatchIndex, searchMatches),
+    [currentMatchIndex, searchMatches],
+  );
 
   // Scroll to match when search navigation occurs
   useEffect(() => {
@@ -109,6 +116,9 @@ export function SimpleJsonViewer({
               searchMatch={searchMatch}
               isCurrentMatch={isCurrentMatch}
               matchCount={matchCount}
+              currentMatchIndexInRow={
+                isCurrentMatch ? currentMatchIndexInRow : undefined
+              }
               showLineNumber={showLineNumbers}
               lineNumber={index + 1}
               enableCopy={enableCopy}

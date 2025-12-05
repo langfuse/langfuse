@@ -271,6 +271,9 @@ export interface JsonRowProps {
   /** Number of search matches in this row and its descendants */
   matchCount?: number;
 
+  /** Current match index within this row (1-based) */
+  currentMatchIndexInRow?: number;
+
   /** Show line number */
   showLineNumber?: boolean;
 

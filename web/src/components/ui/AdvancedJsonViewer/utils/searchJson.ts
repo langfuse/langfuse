@@ -229,6 +229,35 @@ export function groupMatchesByRow(
 }
 
 /**
+ * Get the index of the current match within its row
+ * Returns 1-based index (1, 2, 3...) or undefined if not found
+ *
+ * @param currentMatchIndex - Global current match index
+ * @param matches - All search matches
+ * @returns 1-based index within the row, or undefined
+ */
+export function getCurrentMatchIndexInRow(
+  currentMatchIndex: number,
+  matches: SearchMatch[],
+): number | undefined {
+  const currentMatch = matches[currentMatchIndex];
+  if (!currentMatch) return undefined;
+
+  // Get all matches for this row
+  const rowMatches = matches.filter((m) => m.rowId === currentMatch.rowId);
+
+  // Find the index of the current match within the row's matches
+  const indexInRow = rowMatches.findIndex(
+    (m) =>
+      m.rowIndex === currentMatch.rowIndex &&
+      m.matchType === currentMatch.matchType &&
+      m.highlightStart === currentMatch.highlightStart,
+  );
+
+  return indexInRow !== -1 ? indexInRow + 1 : undefined; // 1-based
+}
+
+/**
  * Get search statistics
  */
 export interface SearchStats {

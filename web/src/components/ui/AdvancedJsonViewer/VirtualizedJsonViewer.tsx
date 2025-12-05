@@ -10,6 +10,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FlatJSONRow, type SearchMatch, type JSONTheme } from "./types";
 import { JsonRow } from "./components/JsonRow";
 import { createHeightEstimator } from "./utils/estimateRowHeight";
+import { getCurrentMatchIndexInRow } from "./utils/searchJson";
 
 interface VirtualizedJsonViewerProps {
   rows: FlatJSONRow[];
@@ -60,6 +61,12 @@ export function VirtualizedJsonViewer({
 
   // Get current match for highlighting
   const currentMatch = searchMatches[currentMatchIndex];
+
+  // Get current match index within its row (1-based)
+  const currentMatchIndexInRow = useMemo(
+    () => getCurrentMatchIndexInRow(currentMatchIndex, searchMatches),
+    [currentMatchIndex, searchMatches],
+  );
 
   // Create height estimator
   const estimateSize = useMemo(
@@ -144,6 +151,9 @@ export function VirtualizedJsonViewer({
                 searchMatch={searchMatch}
                 isCurrentMatch={isCurrentMatch}
                 matchCount={matchCount}
+                currentMatchIndexInRow={
+                  isCurrentMatch ? currentMatchIndexInRow : undefined
+                }
                 showLineNumber={showLineNumbers}
                 lineNumber={virtualRow.index + 1}
                 enableCopy={enableCopy}
