@@ -490,7 +490,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       INSERT INTO events (
         project_id, trace_id, span_id, parent_span_id, start_time, end_time,
         name, type, environment, version, release, tags, public, bookmarked,
-        user_id, session_id, level, status_message, completion_start_time,
+        trace_name, user_id, session_id, level, status_message, completion_start_time,
         prompt_id, prompt_name, prompt_version, model_id, provided_model_name,
         model_parameters, provided_usage_details, usage_details,
         provided_cost_details, cost_details, input, output, metadata,
@@ -512,6 +512,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         t.tags as tags,
         t.public as public,
         t.bookmarked as bookmarked,
+        coalesce(t.name, '') AS trace_name,
         coalesce(t.user_id, '') AS user_id,
         coalesce(t.session_id, '') AS session_id,
         o.level,

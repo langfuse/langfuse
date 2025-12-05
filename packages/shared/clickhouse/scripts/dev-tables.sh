@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS events
       version String,
       release String,
 
+      trace_name String,
       user_id String,
       session_id String,
 
@@ -298,7 +299,7 @@ clickhouse client \
   --multiquery <<EOF
   TRUNCATE events;
   INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
-                      environment, version, release, tags, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
+                      environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details, input,
                       output, metadata, metadata_names, metadata_raw_values,
@@ -318,6 +319,7 @@ clickhouse client \
          o.version,
          t.release as release,
          t.tags as tags,
+         t.name as trace_name,
          t.user_id                                                                      AS user_id,
          t.session_id                                                                   AS session_id,
          t.public                                                                      AS public,
