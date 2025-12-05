@@ -4,13 +4,13 @@
    <div>
       <h3>
         <a href="https://langfuse.com/blog/2025-06-04-open-sourcing-langfuse-product">
-            <strong>Langfuse Is Doubling Down On Open Source</strong>
+            <strong>Langfuse setzt noch stärker auf Open Source</strong>
          </a> <br> <br>
          <a href="https://cloud.langfuse.com">
             <strong>Langfuse Cloud</strong>
          </a> · 
          <a href="https://langfuse.com/docs/deployment/self-host">
-            <strong>Self Host</strong>
+            <strong>Self-Hosting</strong>
          </a> · 
          <a href="https://langfuse.com/demo">
             <strong>Demo</strong>
@@ -19,16 +19,16 @@
    </div>
 
    <div>
-      <a href="https://langfuse.com/docs"><strong>Docs</strong></a> ·
-      <a href="https://langfuse.com/issues"><strong>Report Bug</strong></a> ·
-      <a href="https://langfuse.com/ideas"><strong>Feature Request</strong></a> ·
+      <a href="https://langfuse.com/docs"><strong>Dokumentation</strong></a> ·
+      <a href="https://langfuse.com/issues"><strong>Bug melden</strong></a> ·
+      <a href="https://langfuse.com/ideas"><strong>Feature vorschlagen</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>Changelog</strong></a> ·
       <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
    </div>
    <br/>
-   <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a>  for Support and Feature Requests.</span>
+   <span>Langfuse nutzt <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a> für Support und Feature-Requests.</span>
    <br/>
-   <span><b>We're hiring.</b> <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in product engineering and technical go-to-market roles.</span>
+   <span><b>Wir stellen ein.</b> <a href="https://langfuse.com/careers"><strong>Werde Teil unseres Teams</strong></a> in den Bereichen Product Engineering und Technical Go-To-Market.</span>
    <br/>
    <br/>
    <div>
@@ -42,149 +42,149 @@
    <a href="https://www.ycombinator.com/companies/langfuse"><img src="https://img.shields.io/badge/Y%20Combinator-W23-orange" alt="Y Combinator W23"></a>
    <a href="https://hub.docker.com/u/langfuse" target="_blank">
    <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/langfuse/langfuse?labelColor=%20%23FDB062&logo=Docker&labelColor=%20%23528bff"></a>
-   <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/dm/langfuse?logo=python&logoColor=white&label=pypi%20langfuse&color=blue" alt="langfuse Python package on PyPi"></a>
-   <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/dm/langfuse?logo=npm&logoColor=white&label=npm%20langfuse&color=blue" alt="langfuse npm package"></a>
+   <a href="https://pypi.python.org/pypi/langfuse"><img src="https://img.shields.io/pypi/dm/langfuse?logo=python&logoColor=white&label=pypi%20langfuse&color=blue" alt="langfuse Python-Paket auf PyPI"></a>
+   <a href="https://www.npmjs.com/package/langfuse"><img src="https://img.shields.io/npm/dm/langfuse?logo=npm&logoColor=white&label=npm%20langfuse&color=blue" alt="langfuse npm-Paket"></a>
    <br/>
    <a href="https://discord.com/invite/7NXusRtqYU" target="_blank">
    <img src="https://img.shields.io/discord/1111061815649124414?logo=discord&labelColor=%20%235462eb&logoColor=%20%23f5f5f5&color=%20%235462eb"
-      alt="chat on Discord"></a>
+      alt="Chat auf Discord"></a>
    <a href="https://twitter.com/intent/follow?screen_name=langfuse" target="_blank">
    <img src="https://img.shields.io/twitter/follow/langfuse?logo=X&color=%20%23f5f5f5"
-      alt="follow on X(Twitter)"></a>
+      alt="Auf X (Twitter) folgen"></a>
    <a href="https://www.linkedin.com/company/langfuse/" target="_blank">
    <img src="https://custom-icon-badges.demolab.com/badge/LinkedIn-0A66C2?logo=linkedin-white&logoColor=fff"
-      alt="follow on LinkedIn"></a>
+      alt="Auf LinkedIn folgen"></a>
    <a href="https://github.com/langfuse/langfuse/graphs/commit-activity" target="_blank">
-   <img alt="Commits last month" src="https://img.shields.io/github/commit-activity/m/langfuse/langfuse?labelColor=%20%2332b583&color=%20%2312b76a"></a>
+   <img alt="Commits im letzten Monat" src="https://img.shields.io/github/commit-activity/m/langfuse/langfuse?labelColor=%20%2332b583&color=%20%2312b76a"></a>
    <a href="https://github.com/langfuse/langfuse/" target="_blank">
-   <img alt="Issues closed" src="https://img.shields.io/github/issues-search?query=repo%3Alangfuse%2Flangfuse%20is%3Aclosed&label=issues%20closed&labelColor=%20%237d89b0&color=%20%235d6b98"></a>
+   <img alt="Geschlossene Issues" src="https://img.shields.io/github/issues-search?query=repo%3Alangfuse%2Flangfuse%20is%3Aclosed&label=issues%20closed&labelColor=%20%237d89b0&color=%20%235d6b98"></a>
    <a href="https://github.com/langfuse/langfuse/discussions/" target="_blank">
-   <img alt="Discussion posts" src="https://img.shields.io/github/discussions/langfuse/langfuse?labelColor=%20%239b8afb&color=%20%237a5af8"></a>
+   <img alt="Diskussionsbeiträge" src="https://img.shields.io/github/discussions/langfuse/langfuse?labelColor=%20%239b8afb&color=%20%237a5af8"></a>
    <a href="https://deepwiki.com/langfuse/langfuse" target="_blank">
    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg"></a>
 </p>
 
 <p align="center">
-  <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9"></a>
+  <a href="./README.md"><img alt="README auf Englisch" src="https://img.shields.io/badge/English-d9d9d9"></a>
   <a href="./README.cn.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
   <a href="./README.ja.md"><img alt="日本語のREADME" src="https://img.shields.io/badge/日本語-d9d9d9"></a>
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
   <a href="./README.de.md"><img alt="README auf Deutsch" src="https://img.shields.io/badge/Deutsch-d9d9d9"></a>
 </p>
 
-Langfuse is an **open source LLM engineering** platform. It helps teams collaboratively
-**develop, monitor, evaluate,** and **debug** AI applications. Langfuse can be **self-hosted in minutes** and is **battle-tested**.
+Langfuse ist eine **Open-Source-Plattform für LLM-Engineering**. Sie hilft Teams dabei, AI-Anwendungen gemeinsam zu
+**entwickeln, zu überwachen, zu evaluieren** und zu **debuggen**. Langfuse kann in **wenigen Minuten selbst gehostet** werden und ist **praxisbewährt**.
 
 [![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
 
-## ✨ Core Features
+## ✨ Zentrale Funktionen
 
-<img width="4856" height="1944" alt="Langfuse Overview" src="https://github.com/user-attachments/assets/5dac68ef-d546-49fb-b06f-cfafc19282e3" />
+<img width="4856" height="1944" alt="Langfuse Übersicht" src="https://github.com/user-attachments/assets/5dac68ef-d546-49fb-b06f-cfafc19282e3" />
 
-- [LLM Application Observability](https://langfuse.com/docs/tracing): Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions. Try the interactive [demo](https://langfuse.com/docs/demo) to see this in action.
+- [LLM Application Observability](https://langfuse.com/docs/tracing): Instrumentiere deine Anwendung und beginne, Traces in Langfuse zu ingestieren, um LLM-Aufrufe und weitere relevante Logik in deiner App zu verfolgen – z. B. Retrieval, Embeddings oder Agent-Aktionen. Inspiziere und debugge komplexe Logs und Usersessions. Probiere die interaktive [Demo](https://langfuse.com/docs/demo) aus, um dies in Aktion zu sehen.
 
-- [Prompt Management](https://langfuse.com/docs/prompt-management/get-started) helps you centrally manage, version control, and collaboratively iterate on your prompts. Thanks to strong caching on server and client side, you can iterate on prompts without adding latency to your application.
+- [Prompt Management](https://langfuse.com/docs/prompt-management/get-started) hilft dir, Prompts zentral zu verwalten, zu versionieren und kollaborativ zu iterieren. Dank starkem Caching auf Server- und Client-Seite kannst du an Prompts arbeiten, ohne zusätzliche Latenz in deiner Anwendung zu erzeugen.
 
-- [Evaluations](https://langfuse.com/docs/evaluation/overview) are key to the LLM application development workflow, and Langfuse adapts to your needs. It supports LLM-as-a-judge, user feedback collection, manual labeling, and custom evaluation pipelines via APIs/SDKs.
+- [Evaluations](https://langfuse.com/docs/evaluation/overview) sind zentral im Entwicklungs-Workflow von LLM-Anwendungen, und Langfuse passt sich deinen Bedürfnissen an. Es unterstützt LLM-as-a-judge, Nutzerfeedback, manuelle Labeling-Prozesse und eigene Evaluations-Pipelines über APIs/SDKs.
 
-- [Datasets](https://langfuse.com/docs/evaluation/dataset-runs/datasets) enable test sets and benchmarks for evaluating your LLM application. They support continuous improvement, pre-deployment testing, structured experiments, flexible evaluation, and seamless integration with frameworks like LangChain and LlamaIndex.
+- [Datasets](https://langfuse.com/docs/evaluation/dataset-runs/datasets) ermöglichen Testsätze und Benchmarks zur Evaluation deiner LLM-Anwendung. Sie unterstützen kontinuierliche Verbesserung, Tests vor dem Deployment, strukturierte Experimente, flexible Evaluation und nahtlose Integration mit Frameworks wie LangChain und LlamaIndex.
 
-- [LLM Playground](https://langfuse.com/docs/playground) is a tool for testing and iterating on your prompts and model configurations, shortening the feedback loop and accelerating development. When you see a bad result in tracing, you can directly jump to the playground to iterate on it.
+- [LLM Playground](https://langfuse.com/docs/playground) ist ein Tool zum Testen und Iterieren an Prompts und Modell-Konfigurationen. Es verkürzt den Feedback-Loop und beschleunigt die Entwicklung. Wenn du ein schlechtes Ergebnis im Tracing siehst, kannst du direkt in den Playground springen, um daran zu iterieren.
 
-- [Comprehensive API](https://langfuse.com/docs/api): Langfuse is frequently used to power bespoke LLMOps workflows while using the building blocks provided by Langfuse via the API. OpenAPI spec, Postman collection, and typed SDKs for Python, JS/TS are available.
+- [Umfassende API](https://langfuse.com/docs/api): Langfuse wird häufig genutzt, um maßgeschneiderte LLMOps-Workflows zu betreiben, basierend auf den Bausteinen, die Langfuse über die API bereitstellt. Es gibt eine OpenAPI-Spezifikation, eine Postman Collection und typisierte SDKs für Python sowie JS/TS.
 
-## 📦 Deploy Langfuse
+## 📦 Langfuse bereitstellen
 
-<img width="4856" height="1322" alt="Langfuse Deployment Options" src="https://github.com/user-attachments/assets/98f020c7-7a20-4264-a201-65c41a52a5d5" />
+<img width="4856" height="1322" alt="Langfuse Deployment Optionen" src="https://github.com/user-attachments/assets/98f020c7-7a20-4264-a201-65c41a52a5d5" />
 
 ### Langfuse Cloud
 
-Managed deployment by the Langfuse team, generous free-tier, no credit card required.
+Von Langfuse verwaltete Bereitstellung, großzügiger Free-Tier, keine Kreditkarte erforderlich.
 
 <div align="center">
     <a href="https://cloud.langfuse.com" target="_blank">
-        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=orange">
+        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Für%20Langfuse%20Cloud%20anmelden-8A2BE2?&color=orange">
     </a>
 </div>
 
-### Self-Host Langfuse
+### Langfuse selbst hosten
 
-Run Langfuse on your own infrastructure:
+Betreibe Langfuse in deiner eigenen Infrastruktur:
 
-- [Local (docker compose)](https://langfuse.com/self-hosting/local): Run Langfuse on your own machine in 5 minutes using Docker Compose.
+- [Lokal (Docker Compose)](https://langfuse.com/self-hosting/local): Starte Langfuse in 5 Minuten auf deinem eigenen Rechner mit Docker Compose.
 
   ```bash
-  # Get a copy of the latest Langfuse repository
+  # Klone das aktuelle Langfuse-Repository
   git clone https://github.com/langfuse/langfuse.git
   cd langfuse
 
-  # Run the langfuse docker compose
+  # Starte das Langfuse Docker Compose
   docker compose up
-  ```
 
-- [VM](https://langfuse.com/self-hosting/docker-compose): Run Langfuse on a single Virtual Machine using Docker Compose.
-- [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Run Langfuse on a Kubernetes cluster using Helm. This is the preferred production deployment.
-- Terraform Templates: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
 
-See [self-hosting documentation](https://langfuse.com/self-hosting) to learn more about architecture and configuration options.
+- [VM](https://langfuse.com/self-hosting/docker-compose): Führen Sie Langfuse auf einer einzelnen virtuellen Maschine mit Docker Compose aus.
+- [Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm): Führen Sie Langfuse in einem Kubernetes-Cluster mit Helm aus. Dies ist die bevorzugte Produktionsbereitstellung.
+- Terraform-Templates: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
 
-## 🔌 Integrations
+Weitere Informationen zu Architektur und Konfigurationsoptionen finden Sie in der [Self-Hosting-Dokumentation](https://langfuse.com/self-hosting).
+
+## 🔌 Integrationen
 
 <img width="4856" height="1322" alt="github-integrations" src="https://github.com/user-attachments/assets/e41ea0fb-742d-41ce-bf94-1d4fb95750cd" />
 
-### Main Integrations:
+### Wichtige Integrationen:
 
-| Integration                                                                  | Supports                   | Description                                                                                                                                      |
-| ---------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS              | Manual instrumentation using the SDKs for full flexibility.                                                                                      |
-| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)        | Python, JS/TS              | Automated instrumentation using drop-in replacement of OpenAI SDK.                                                                               |
-| [Langchain](https://langfuse.com/docs/integrations/langchain)                | Python, JS/TS              | Automated instrumentation by passing callback handler to Langchain application.                                                                  |
-| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started) | Python                     | Automated instrumentation via LlamaIndex callback system.                                                                                        |
-| [Haystack](https://langfuse.com/docs/integrations/haystack)                  | Python                     | Automated instrumentation via Haystack content tracing system.                                                                                   |
-| [LiteLLM](https://langfuse.com/docs/integrations/litellm)                    | Python, JS/TS (proxy only) | Use any LLM as a drop in replacement for GPT. Use Azure, OpenAI, Cohere, Anthropic, Ollama, VLLM, Sagemaker, HuggingFace, Replicate (100+ LLMs). |
-| [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)        | JS/TS                      | TypeScript toolkit designed to help developers build AI-powered applications with React, Next.js, Vue, Svelte, Node.js.                          |
-| [Mastra](https://langfuse.com/docs/integrations/mastra)                      | JS/TS                      | Open source framework for building AI agents and multi-agent systems.                                                                             |
-| [API](https://langfuse.com/docs/api)                                         |                            | Directly call the public API. OpenAPI spec available.                                                                                            |
+| Integration                                                                  | Unterstützt             | Beschreibung                                                                                                                                         |
+| ---------------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS           | Manuelle Instrumentierung mit den SDKs für maximale Flexibilität.                                                                                   |
+| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)        | Python, JS/TS           | Automatische Instrumentierung durch Drop-in-Replacement des OpenAI-SDK.                                                                             |
+| [Langchain](https://langfuse.com/docs/integrations/langchain)                | Python, JS/TS           | Automatische Instrumentierung, indem der Langchain-Applikation ein Callback-Handler übergeben wird.                                                 |
+| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started) | Python                  | Automatische Instrumentierung über das Callback-System von LlamaIndex.                                                                              |
+| [Haystack](https://langfuse.com/docs/integrations/haystack)                  | Python                  | Automatische Instrumentierung über das Content-Tracing-System von Haystack.                                                                         |
+| [LiteLLM](https://langfuse.com/docs/integrations/litellm)                    | Python, JS/TS (Proxy)   | Verwenden Sie jedes LLM als Drop-in-Ersatz für GPT. Unterstützt Azure, OpenAI, Cohere, Anthropic, Ollama, VLLM, Sagemaker, HuggingFace, Replicate (100+ LLMs). |
+| [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)        | JS/TS                   | TypeScript-Toolkit, das Entwickler:innen beim Aufbau KI-gestützter Anwendungen mit React, Next.js, Vue, Svelte, Node.js unterstützt.               |
+| [Mastra](https://langfuse.com/docs/integrations/mastra)                      | JS/TS                   | Open-Source-Framework zum Aufbau von KI-Agenten und Multi-Agenten-Systemen.                                                                         |
+| [API](https://langfuse.com/docs/api)                                         |                         | Direkter Aufruf der öffentlichen API. OpenAPI-Spezifikation verfügbar.                                                                              |
 
-### Packages integrated with Langfuse:
+### Pakete, die mit Langfuse integriert sind:
 
-| Name                                                                    | Type               | Description                                                                                                             |
+| Name                                                                    | Typ                | Beschreibung                                                                                                             |
 | ----------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| [Instructor](https://langfuse.com/docs/integrations/instructor)         | Library            | Library to get structured LLM outputs (JSON, Pydantic)                                                                  |
-| [DSPy](https://langfuse.com/docs/integrations/dspy)                     | Library            | Framework that systematically optimizes language model prompts and weights                                              |
-| [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | Library            | Python toolkit for building LLM applications.                                                                           |
-| [Ollama](https://langfuse.com/docs/integrations/ollama)                 | Model (local)      | Easily run open source LLMs on your own machine.                                                                        |
-| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | Model              | Run foundation and fine-tuned models on AWS.                                                                            |
-| [AutoGen](https://langfuse.com/docs/integrations/autogen)               | Agent Framework    | Open source LLM platform for building distributed agents.                                                               |
-| [Flowise](https://langfuse.com/docs/integrations/flowise)               | Chat/Agent&nbsp;UI | JS/TS no-code builder for customized LLM flows.                                                                         |
-| [Langflow](https://langfuse.com/docs/integrations/langflow)             | Chat/Agent&nbsp;UI | Python-based UI for LangChain, designed with react-flow to provide an effortless way to experiment and prototype flows. |
-| [Dify](https://langfuse.com/docs/integrations/dify)                     | Chat/Agent&nbsp;UI | Open source LLM app development platform with no-code builder.                                                          |
-| [OpenWebUI](https://langfuse.com/docs/integrations/openwebui)           | Chat/Agent&nbsp;UI | Self-hosted LLM Chat web ui supporting various LLM runners including self-hosted and local models.                      |
-| [Promptfoo](https://langfuse.com/docs/integrations/promptfoo)           | Tool               | Open source LLM testing platform.                                                                                       |
-| [LobeChat](https://langfuse.com/docs/integrations/lobechat)             | Chat/Agent&nbsp;UI | Open source chatbot platform.                                                                                           |
-| [Vapi](https://langfuse.com/docs/integrations/vapi)                     | Platform           | Open source voice AI platform.                                                                                          |
-| [Inferable](https://langfuse.com/docs/integrations/other/inferable)     | Agents             | Open source LLM platform for building distributed agents.                                                               |
-| [Gradio](https://langfuse.com/docs/integrations/other/gradio)           | Chat/Agent&nbsp;UI | Open source Python library to build web interfaces like Chat UI.                                                        |
-| [Goose](https://langfuse.com/docs/integrations/goose)                   | Agents             | Open source LLM platform for building distributed agents.                                                               |
-| [smolagents](https://langfuse.com/docs/integrations/smolagents)         | Agents             | Open source AI agents framework.                                                                                        |
-| [CrewAI](https://langfuse.com/docs/integrations/crewai)                 | Agents             | Multi agent framework for agent collaboration and tool use.                                                             |
+| [Instructor](https://langfuse.com/docs/integrations/instructor)         | Bibliothek         | Bibliothek für strukturierte LLM-Ausgaben (JSON, Pydantic).                                                             |
+| [DSPy](https://langfuse.com/docs/integrations/dspy)                     | Bibliothek         | Framework zur systematischen Optimierung von Prompts und Gewichten von Sprachmodellen.                                 |
+| [Mirascope](https://langfuse.com/docs/integrations/mirascope)           | Bibliothek         | Python-Toolkit zum Aufbau von LLM-Applikationen.                                                                        |
+| [Ollama](https://langfuse.com/docs/integrations/ollama)                 | Modell (lokal)     | Open-Source-LLMs einfach auf dem eigenen Rechner ausführen.                                                             |
+| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock) | Modell             | Foundation- und Fine-Tuning-Modelle auf AWS ausführen.                                                                  |
+| [AutoGen](https://langfuse.com/docs/integrations/autogen)               | Agent-Framework    | Open-Source-Plattform zum Aufbau verteilter LLM-Agenten.                                                                |
+| [Flowise](https://langfuse.com/docs/integrations/flowise)               | Chat/Agent&nbsp;UI | JS/TS No-Code-Builder für individuelle LLM-Flows.                                                                       |
+| [Langflow](https://langfuse.com/docs/integrations/langflow)             | Chat/Agent&nbsp;UI | Python-basierte UI für LangChain, mit react-flow entwickelt, um Experimente und Prototypen für Flows zu erleichtern.   |
+| [Dify](https://langfuse.com/docs/integrations/dify)                     | Chat/Agent&nbsp;UI | Open-Source-Plattform für LLM-Apps mit No-Code-Builder.                                                                 |
+| [OpenWebUI](https://langfuse.com/docs/integrations/openwebui)           | Chat/Agent&nbsp;UI | Self-Hosted LLM-Chat-Web-UI mit Unterstützung verschiedener LLM-Runner (inkl. self-hosted und lokaler Modelle).        |
+| [Promptfoo](https://langfuse.com/docs/integrations/promptfoo)           | Tool               | Open-Source-Plattform zum Testen von LLMs.                                                                              |
+| [LobeChat](https://langfuse.com/docs/integrations/lobechat)             | Chat/Agent&nbsp;UI | Open-Source-Chatbot-Plattform.                                                                                          |
+| [Vapi](https://langfuse.com/docs/integrations/vapi)                     | Plattform          | Open-Source-Plattform für Voice-AI.                                                                                     |
+| [Inferable](https://langfuse.com/docs/integrations/other/inferable)     | Agents             | Open-Source-Plattform zum Aufbau verteilter LLM-Agenten.                                                                |
+| [Gradio](https://langfuse.com/docs/integrations/other/gradio)           | Chat/Agent&nbsp;UI | Open-Source-Python-Bibliothek zum Erstellen von Web-Interfaces wie Chat-UIs.                                            |
+| [Goose](https://langfuse.com/docs/integrations/goose)                   | Agents             | Open-Source-Plattform zum Aufbau verteilter LLM-Agenten.                                                                |
+| [smolagents](https://langfuse.com/docs/integrations/smolagents)         | Agents             | Open-Source-Framework für KI-Agenten.                                                                                   |
+| [CrewAI](https://langfuse.com/docs/integrations/crewai)                 | Agents             | Multi-Agenten-Framework für Agenten-Kollaboration und Tool-Nutzung.                                                     |
 
-## 🚀 Quickstart
+## 🚀 Schnellstart
 
-Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions.
+Instrumentieren Sie Ihre App und beginnen Sie damit, Traces an Langfuse zu senden. So können Sie LLM-Aufrufe und andere relevante Logik in Ihrer Anwendung wie Retrieval, Embedding oder Agentenaktionen nachverfolgen. Untersuchen und debuggen Sie komplexe Logs und Nutzersessions.
 
-### 1️⃣ Create new project
+### 1️⃣ Neues Projekt erstellen
 
-1.  [Create Langfuse account](https://cloud.langfuse.com/auth/sign-up) or [self-host](https://langfuse.com/self-hosting)
-2.  Create a new project
-3.  Create new API credentials in the project settings
+1.  [Langfuse-Account erstellen](https://cloud.langfuse.com/auth/sign-up) oder [self-hosten](https://langfuse.com/self-hosting)
+2.  Ein neues Projekt erstellen
+3.  Neue API-Credentials in den Projekteinstellungen anlegen
 
-### 2️⃣ Log your first LLM call
+### 2️⃣ Ihren ersten LLM-Aufruf loggen
 
-The [`@observe()` decorator](https://langfuse.com/docs/sdk/python/decorators) makes it easy to trace any Python LLM application. In this quickstart we also use the Langfuse [OpenAI integration](https://langfuse.com/integrations/model-providers/openai-py) to automatically capture all model parameters.
+Der [`@observe()`-Decorator](https://langfuse.com/docs/sdk/python/decorators) macht es einfach, beliebige Python-LLM-Applikationen zu tracen. In diesem Quickstart verwenden wir ausserdem die Langfuse-[OpenAI-Integration](https://langfuse.com/integrations/model-providers/openai-py), um alle Modellparameter automatisch zu erfassen.
 
 > [!TIP]
-> Not using OpenAI? Visit [our documentation](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse) to learn how to log other models and frameworks.
+> Sie nutzen nicht OpenAI? In unserer [Dokumentation](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse) erfahren Sie, wie Sie andere Modelle und Frameworks loggen können.
 
 ```bash
 pip install langfuse openai
@@ -215,62 +215,62 @@ def main():
 main()
 ```
 
-### 3️⃣ See traces in Langfuse
+### 3️⃣ Traces in Langfuse ansehen
 
-See your language model calls and other application logic in Langfuse.
+Sieh dir deine Sprachmodell-Aufrufe und andere Anwendungslogik in Langfuse an.
 
-<img width="1787" height="674" alt="Example trace in Langfuse" src="https://github.com/user-attachments/assets/f796eb78-dfb5-4570-b236-bdb4b67d4d55" />
+<img width="1787" height="674" alt="Beispiel-Trace in Langfuse" src="https://github.com/user-attachments/assets/f796eb78-dfb5-4570-b236-bdb4b67d4d55" />
 
-_[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
+_[Öffentliches Beispiel-Trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
 
-> [!TIP]
+> [!TIPP]
 >
-> [Learn more](https://langfuse.com/docs/tracing) about tracing in Langfuse or play with the [interactive demo](https://langfuse.com/docs/demo).
+> [Erfahre mehr](https://langfuse.com/docs/tracing) über Tracing in Langfuse oder probiere die [interaktive Demo](https://langfuse.com/docs/demo) aus.
 
-## ⭐️ Star Us
+## ⭐️ Gib uns einen Stern
 
 ![star-langfuse-on-github](https://github.com/user-attachments/assets/79a1d816-d229-4526-aecc-097d4a19f1ad)
 
 ## 💭 Support
 
-Finding an answer to your question:
+So findest du eine Antwort auf deine Frage:
 
-- Our [documentation](https://langfuse.com/docs) is the best place to start looking for answers. It is comprehensive, and we invest significant time into maintaining it. You can also suggest edits to the docs via GitHub.
-- [Langfuse FAQs](https://langfuse.com/faq) where the most common questions are answered.
-- Use "[Ask AI](https://langfuse.com/docs/ask-ai)" to get instant answers to your questions.
+- Unsere [Dokumentation](https://langfuse.com/docs) ist der beste Ort, um mit der Suche nach Antworten zu beginnen. Sie ist umfassend und wir investieren viel Zeit in ihre Pflege. Du kannst über GitHub auch Änderungen an der Doku vorschlagen.
+- [Langfuse FAQs](https://langfuse.com/faq), in denen die häufigsten Fragen beantwortet werden.
+- Verwende "[Ask AI](https://langfuse.com/docs/ask-ai)", um sofortige Antworten auf deine Fragen zu erhalten.
 
-Support Channels:
+Support-Kanäle:
 
-- **Ask any question in our [public Q&A](https://github.com/orgs/langfuse/discussions/categories/support) on GitHub Discussions.** Please include as much detail as possible (e.g. code snippets, screenshots, background information) to help us understand your question.
-- [Request a feature](https://github.com/orgs/langfuse/discussions/categories/ideas) on GitHub Discussions.
-- [Report a Bug](https://github.com/langfuse/langfuse/issues) on GitHub Issues.
-- For time-sensitive queries, ping us via the in-app chat widget.
+- **Stelle jede Frage in unserem [öffentlichen Q&A](https://github.com/orgs/langfuse/discussions/categories/support) auf GitHub Discussions.** Bitte füge so viele Details wie möglich hinzu (z. B. Code-Snippets, Screenshots, Hintergrundinformationen), damit wir dein Anliegen besser verstehen können.
+- [Fordere ein Feature an](https://github.com/orgs/langfuse/discussions/categories/ideas) auf GitHub Discussions.
+- [Melde einen Bug](https://github.com/langfuse/langfuse/issues) auf GitHub Issues.
+- Bei zeitkritischen Anfragen schreibe uns über das In-App-Chat-Widget.
 
-## 🤝 Contributing
+## 🤝 Beiträge
 
-Your contributions are welcome!
+Deine Beiträge sind willkommen!
 
-- Vote on [Ideas](https://github.com/orgs/langfuse/discussions/categories/ideas) in GitHub Discussions.
-- Raise and comment on [Issues](https://github.com/langfuse/langfuse/issues).
-- Open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to setup a development environment.
+- Stimme über [Ideen](https://github.com/orgs/langfuse/discussions/categories/ideas) in GitHub Discussions ab.
+- Erstelle und kommentiere [Issues](https://github.com/langfuse/langfuse/issues).
+- Öffne einen PR – siehe [CONTRIBUTING.md](CONTRIBUTING.md) für Details zur Einrichtung der Entwicklungsumgebung.
 
-## 🥇 License
+## 🥇 Lizenz
 
-This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+Dieses Repository ist unter der MIT-Lizenz lizenziert, mit Ausnahme der `ee`-Ordner. Siehe [LICENSE](LICENSE) und [Doku](https://langfuse.com/docs/open-source) für weitere Details.
 
-## ⭐️ Star History
+## ⭐️ Sternverlauf
 
 <a href="https://star-history.com/#langfuse/langfuse&Date">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date&theme=dark" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" style="border-radius: 15px;" />
+   <img alt="Sternverlauf-Diagramm" src="https://api.star-history.com/svg?repos=langfuse/langfuse&type=Date" style="border-radius: 15px;" />
  </picture>
 </a>
 
-## ❤️ Open Source Projects Using Langfuse
+## ❤️ Open-Source-Projekte, die Langfuse verwenden
 
-Top open-source Python projects that use Langfuse, ranked by stars ([Source](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents)):
+Top Open-Source-Python-Projekte, die Langfuse verwenden, nach Sternen sortiert ([Quelle](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents)):
 
 | Repository                                                                                                                                                                                                                                                                                                     |  Stars |
 | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -----: |
@@ -371,20 +371,19 @@ Top open-source Python projects that use Langfuse, ranked by stars ([Source](htt
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/90423581?s=40&v=4" width="20" height="20" alt=""> &nbsp; [bmd1905](https://github.com/bmd1905) / [ChatOpsLLM](https://github.com/bmd1905/ChatOpsLLM)                                                                                     |    127 |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/202074444?s=40&v=4" width="20" height="20" alt=""> &nbsp; [Fintech-Dreamer](https://github.com/Fintech-Dreamer) / [FinSynth](https://github.com/Fintech-Dreamer/FinSynth)                                                                |    121 |
 | <img class="avatar mr-2" src="https://avatars.githubusercontent.com/u/1566555?s=40&v=4" width="20" height="20" alt=""> &nbsp; [kenshiro-o](https://github.com/kenshiro-o) / [nagato-ai](https://github.com/kenshiro-o/nagato-ai)                                                                               |    119 |
+## 🔒 Sicherheit & Datenschutz
 
-## 🔒 Security & Privacy
+Wir nehmen Datensicherheit und Datenschutz ernst. Weitere Informationen findest du auf unserer Seite [Security and Privacy](https://langfuse.com/security).
 
-We take data security and privacy seriously. Please refer to our [Security and Privacy](https://langfuse.com/security) page for more information.
+### Telemetrie
 
-### Telemetry
+Standardmäßig sendet Langfuse automatisch grundlegende Nutzungsstatistiken von selbst gehosteten Instanzen an einen zentralen Server (PostHog).
 
-By default, Langfuse automatically reports basic usage statistics of self-hosted instances to a centralized server (PostHog).
+Das hilft uns:
 
-This helps us to:
+1. Zu verstehen, wie Langfuse genutzt wird, und die relevantesten Features zu verbessern.
+2. Die Gesamtnutzung für interne und externe Berichte (z. B. Fundraising) nachzuverfolgen.
 
-1. Understand how Langfuse is used and improve the most relevant features.
-2. Track overall usage for internal and external (e.g. fundraising) reporting.
+Keine dieser Daten werden mit Drittparteien geteilt und sie enthalten keine sensiblen Informationen. Wir möchten damit sehr transparent umgehen – du findest die genaue Liste der von uns erhobenen Daten [hier](/web/src/features/telemetry/index.ts).
 
-None of the data is shared with third parties and does not include any sensitive information. We want to be super transparent about this and you can find the exact data we collect [here](/web/src/features/telemetry/index.ts).
-
-You can opt-out by setting `TELEMETRY_ENABLED=false`.
+Du kannst dies deaktivieren, indem du `TELEMETRY_ENABLED=false` setzt.
