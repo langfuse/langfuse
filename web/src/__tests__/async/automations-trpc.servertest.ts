@@ -2551,8 +2551,8 @@ describe("automations trpc", () => {
         },
       });
 
-      // Verify new token is returned once
-      expect(response.webhookSecret).toBe("ghp_new_token_456");
+      // Verify token is NOT returned (users provided it themselves)
+      expect(response.webhookSecret).toBeUndefined();
 
       const config = response.action.config as any;
       expect(config.displayGitHubToken).toMatch(/^ghp_...6$/);
@@ -2566,6 +2566,86 @@ describe("automations trpc", () => {
       const dbConfig = updatedAction?.config as any;
       expect(dbConfig.githubToken).not.toBe("ghp_new_token_456"); // Encrypted
       expect(decrypt(dbConfig.githubToken)).toBe("ghp_new_token_456"); // Can decrypt
+    });
+
+    it("should preserve encrypted token when updating without providing new token", async () => {
+      const { project, caller } = await prepare();
+
+      const originalToken = "ghp_original_token_xyz";
+      const encryptedToken = encrypt(originalToken);
+
+      // Create initial automation with encrypted token
+      const trigger = await prisma.trigger.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          eventSource: "prompt",
+          eventActions: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+        },
+      });
+
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://api.github.com/repos/owner/repo/dispatches",
+            eventType: "original-event-type",
+            githubToken: encryptedToken,
+            displayGitHubToken: "ghp_...xyz",
+          },
+        },
+      });
+
+      const automation = await prisma.automation.create({
+        data: {
+          projectId: project.id,
+          triggerId: trigger.id,
+          actionId: action.id,
+          name: "GitHub Dispatch Preserve Token",
+        },
+      });
+
+      // Update URL without providing token
+      await caller.automations.updateAutomation({
+        projectId: project.id,
+        automationId: automation.id,
+        name: "GitHub Dispatch Preserve Token",
+        eventSource: "prompt",
+        eventAction: ["created"],
+        filter: [],
+        status: JobConfigState.ACTIVE,
+        actionType: "GITHUB_DISPATCH",
+        actionConfig: {
+          type: "GITHUB_DISPATCH",
+          url: "https://api.github.com/repos/new-owner/new-repo/dispatches",
+          eventType: "new-event-type",
+          // githubToken intentionally omitted
+        },
+      });
+
+      // Verify token was preserved (not double-encrypted)
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: action.id },
+      });
+
+      const dbConfig = updatedAction?.config as any;
+
+      // Token should still be the same encrypted value
+      expect(dbConfig.githubToken).toBe(encryptedToken);
+
+      // Should still decrypt to original plaintext
+      expect(decrypt(dbConfig.githubToken)).toBe(originalToken);
+
+      // Verify URL and eventType were updated
+      expect(dbConfig.url).toBe(
+        "https://api.github.com/repos/new-owner/new-repo/dispatches",
+      );
+      expect(dbConfig.eventType).toBe("new-event-type");
     });
   });
 });
