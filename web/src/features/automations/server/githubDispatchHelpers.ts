@@ -43,20 +43,46 @@ export async function processGitHubDispatchActionConfig({
     existingActionConfig = existingAction.config;
   }
 
+  // Determine URL to use
+  let urlToUse: string;
+  if (gitHubDispatchConfig.url && gitHubDispatchConfig.url.trim() !== "") {
+    urlToUse = gitHubDispatchConfig.url;
+  } else if (existingActionConfig?.url) {
+    urlToUse = existingActionConfig.url;
+  } else {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Repository Dispatch URL is required",
+    });
+  }
+
   // Validate GitHub API URL format (without DNS lookup)
   const urlPattern =
     /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
   const enterprisePattern =
     /^https:\/\/[^\/]+\/api\/v3\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
 
-  if (
-    !urlPattern.test(gitHubDispatchConfig.url) &&
-    !enterprisePattern.test(gitHubDispatchConfig.url)
-  ) {
+  if (!urlPattern.test(urlToUse) && !enterprisePattern.test(urlToUse)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message:
         "URL must be a valid GitHub repository dispatch endpoint (e.g., https://api.github.com/repos/owner/repo/dispatches)",
+    });
+  }
+
+  // Determine event type to use
+  let eventTypeToUse: string;
+  if (
+    gitHubDispatchConfig.eventType &&
+    gitHubDispatchConfig.eventType.trim() !== ""
+  ) {
+    eventTypeToUse = gitHubDispatchConfig.eventType;
+  } else if (existingActionConfig?.eventType) {
+    eventTypeToUse = existingActionConfig.eventType;
+  } else {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Event type is required",
     });
   }
 
@@ -88,8 +114,9 @@ export async function processGitHubDispatchActionConfig({
 
   return {
     finalActionConfig: {
-      ...gitHubDispatchConfig,
       type: "GITHUB_DISPATCH",
+      url: urlToUse,
+      eventType: eventTypeToUse,
       githubToken: returnToken !== undefined ? encrypt(tokenToUse) : tokenToUse, // Encrypt if new, keep as-is if already encrypted
       displayGitHubToken: displayToken,
       lastFailingExecutionId: existingActionConfig?.lastFailingExecutionId,

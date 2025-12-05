@@ -2285,45 +2285,6 @@ describe("automations trpc", () => {
       expect(responseConfig.displayGitHubToken).toMatch(/^ghp_...6$/);
     });
 
-    it("should create GitHub dispatch automation with optional eventType", async () => {
-      const { project, caller } = await prepare();
-
-      // Create test prompt
-      await prisma.prompt.create({
-        data: {
-          id: v4(),
-          projectId: project.id,
-          name: "test-prompt",
-          version: 1,
-          type: "text",
-          prompt: { text: "Hello world" },
-          createdBy: "test-user",
-        },
-      });
-
-      const response = await caller.automations.createAutomation({
-        projectId: project.id,
-        name: "GitHub Dispatch Without Event Type",
-        eventSource: "prompt",
-        eventAction: ["created"],
-        filter: [],
-        status: JobConfigState.ACTIVE,
-        actionType: "GITHUB_DISPATCH",
-        actionConfig: {
-          type: "GITHUB_DISPATCH",
-          url: "https://api.github.com/repos/owner/repo/dispatches",
-          // eventType is optional - will default to langfuse-prompt-{action}
-          githubToken: "ghp_another_token_789",
-        },
-      });
-
-      expect(response.action.type).toBe("GITHUB_DISPATCH");
-      expect(response.webhookSecret).toBe("ghp_another_token_789");
-
-      const config = response.action.config as any;
-      expect(config.eventType).toBeUndefined(); // Optional field not provided
-    });
-
     it("should fail to create GitHub dispatch automation with invalid URL", async () => {
       const { project, caller } = await prepare();
 
@@ -2339,6 +2300,7 @@ describe("automations trpc", () => {
           actionConfig: {
             type: "GITHUB_DISPATCH",
             url: "https://example.com/not-github",
+            eventType: "test-event",
             githubToken: "ghp_token_123",
           },
         }),
@@ -2556,6 +2518,7 @@ describe("automations trpc", () => {
           config: {
             type: "GITHUB_DISPATCH",
             url: "https://api.github.com/repos/owner/repo/dispatches",
+            eventType: "test-event-type",
             githubToken: encrypt("ghp_old_token_123"),
             displayGitHubToken: "ghp_...123",
           },

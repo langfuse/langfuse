@@ -56,8 +56,9 @@ const slackSchema = z.object({
 // Define GitHub Dispatch action schema
 const githubDispatchSchema = z.object({
   url: z.string().url("Invalid URL"),
-  eventType: z.string().max(100).optional(),
-  githubToken: z.string().min(1, "GitHub token is required"),
+  eventType: z.string().min(1, "Event type is required").max(100),
+  githubToken: z.string(),
+  displayGitHubToken: z.string().optional(),
 });
 
 // Define the TriggerEventSource enum directly in this file to match the backend
@@ -205,6 +206,8 @@ export const AutomationForm = ({
           url: githubDefaults.githubDispatch.url || "",
           eventType: githubDefaults.githubDispatch.eventType || "",
           githubToken: githubDefaults.githubDispatch.githubToken || "",
+          displayGitHubToken:
+            githubDefaults.githubDispatch.displayGitHubToken || undefined,
         },
       };
     } else {

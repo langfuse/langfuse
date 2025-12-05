@@ -12,23 +12,10 @@ import { z } from "zod/v4";
 // Define the form schema for GitHub dispatch actions
 export const GitHubDispatchActionFormSchema = z.object({
   githubDispatch: z.object({
-    url: z
-      .string()
-      .url("Invalid URL")
-      .refine(
-        (url) => {
-          const pattern =
-            /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
-          const enterprisePattern =
-            /^https:\/\/[^\/]+\/api\/v3\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
-          return pattern.test(url) || enterprisePattern.test(url);
-        },
-        {
-          message: "Must be a valid GitHub repository dispatch endpoint",
-        },
-      ),
+    url: z.string().url("Invalid URL"),
     eventType: z.string().min(1, "Event type is required").max(100),
-    githubToken: z.string().optional(), // Optional for updates, validated in backend
+    githubToken: z.string(),
+    displayGitHubToken: z.string().optional(), // Display value for existing token
   }),
 });
 
@@ -59,6 +46,12 @@ export class GitHubDispatchActionHandler
             automation.action.config.eventType) ||
           "",
         githubToken: "", // Never populate with existing token for security
+        displayGitHubToken:
+          automation?.action?.type === "GITHUB_DISPATCH" &&
+          automation?.action?.config &&
+          "displayGitHubToken" in automation.action.config
+            ? automation.action.config.displayGitHubToken
+            : undefined,
       },
     };
   }
@@ -88,15 +81,18 @@ export class GitHubDispatchActionHandler
       }
     }
 
-    if (!formData.githubDispatch?.githubToken) {
-      errors.push("GitHub token is required");
+    if (!formData.githubDispatch?.eventType) {
+      errors.push("Event type is required");
+    } else if (formData.githubDispatch.eventType.length > 100) {
+      errors.push("Event type must be 100 characters or less");
     }
 
+    // Token is required only if there's no existing token (displayGitHubToken)
     if (
-      formData.githubDispatch?.eventType &&
-      formData.githubDispatch.eventType.length > 100
+      !formData.githubDispatch?.githubToken &&
+      !formData.githubDispatch?.displayGitHubToken
     ) {
-      errors.push("Event type must be 100 characters or less");
+      errors.push("GitHub token is required");
     }
 
     return {
@@ -108,9 +104,13 @@ export class GitHubDispatchActionHandler
   buildActionConfig(formData: GitHubDispatchActionFormData): ActionCreate {
     return {
       type: "GITHUB_DISPATCH",
-      url: formData.githubDispatch?.url || "",
-      eventType: formData.githubDispatch?.eventType || undefined,
-      // Send empty string if no token to preserve existing token on updates
+      // Only include fields if they have values (for updates)
+      ...(formData.githubDispatch?.url
+        ? { url: formData.githubDispatch.url }
+        : {}),
+      ...(formData.githubDispatch?.eventType
+        ? { eventType: formData.githubDispatch.eventType }
+        : {}),
       ...(formData.githubDispatch?.githubToken
         ? { githubToken: formData.githubDispatch.githubToken }
         : {}),

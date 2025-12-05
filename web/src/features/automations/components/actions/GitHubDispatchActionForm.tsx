@@ -22,14 +22,20 @@ interface GitHubDispatchActionFormProps {
 export const GitHubDispatchActionForm: React.FC<
   GitHubDispatchActionFormProps
 > = ({ form, disabled }) => {
+  const displayGitHubToken = form.watch("githubDispatch.displayGitHubToken");
+
   return (
     <div className="space-y-4">
       <FormField
         control={form.control}
         name="githubDispatch.url"
+        rules={{ required: "Repository Dispatch URL is required" }}
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Repository Dispatch URL</FormLabel>
+            <FormLabel className="flex items-center">
+              Repository Dispatch URL{" "}
+              <span className="ml-1 text-destructive">*</span>
+            </FormLabel>
             <FormControl>
               <Input
                 placeholder="https://api.github.com/repos/owner/repo/dispatches"
@@ -56,9 +62,12 @@ export const GitHubDispatchActionForm: React.FC<
       <FormField
         control={form.control}
         name="githubDispatch.eventType"
+        rules={{ required: "Event type is required" }}
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Event Type</FormLabel>
+            <FormLabel className="flex items-center">
+              Event Type <span className="ml-1 text-destructive">*</span>
+            </FormLabel>
             <FormControl>
               <Input
                 placeholder="langfuse-prompt-update"
@@ -82,19 +91,26 @@ export const GitHubDispatchActionForm: React.FC<
         name="githubDispatch.githubToken"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>GitHub Personal Access Token</FormLabel>
+            <FormLabel className="flex items-center">
+              GitHub Personal Access Token
+              {!displayGitHubToken && (
+                <span className="ml-1 text-destructive">*</span>
+              )}
+            </FormLabel>
             <FormControl>
               <Input
                 type="password"
-                placeholder="ghp_..."
+                placeholder={displayGitHubToken || "ghp_..."}
                 disabled={disabled}
                 {...field}
               />
             </FormControl>
             <FormDescription>
               GitHub PAT with <code className="text-xs">repo</code> scope for
-              repository dispatch. Leave empty to keep existing token when
-              updating.{" "}
+              repository dispatch.
+              {displayGitHubToken
+                ? " Leave empty to keep existing token."
+                : ""}{" "}
               <Link
                 href="https://github.com/settings/tokens/new?scopes=repo&description=Langfuse%20Automation"
                 target="_blank"
