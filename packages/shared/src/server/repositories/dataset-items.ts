@@ -1291,15 +1291,19 @@ export async function getDatasetItemById<
           id: props.datasetItemId,
           projectId: props.projectId,
           ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-          ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
         },
         orderBy: {
           validFrom: "desc",
         },
       });
 
-      // If latest version is deleted, return null
+      // Get latest version first, then check if it matches status and is not deleted
       if (!item || item.isDeleted) {
+        return null;
+      }
+
+      // Check status filter AFTER getting latest version
+      if (status === "ACTIVE" && item.status !== DatasetStatus.ACTIVE) {
         return null;
       }
 
@@ -1486,6 +1490,7 @@ export async function getDatasetItemsCountByLatestGrouped(props: {
         where: {
           projectId: props.projectId,
           datasetId: { in: props.datasetIds },
+          status: DatasetStatus.ACTIVE, // Filter by ACTIVE status to match VERSIONED
         },
         _count: true,
       });
