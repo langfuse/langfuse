@@ -89,7 +89,7 @@ export function VirtualizedJsonViewer({
     ) {
       rowVirtualizer.scrollToIndex(scrollToIndex, {
         align: "center",
-        behavior: "smooth",
+        behavior: "auto", // Use "auto" instead of "smooth" for dynamic sizing
       });
     }
   }, [scrollToIndex, rowVirtualizer, rows.length]);
@@ -99,7 +99,7 @@ export function VirtualizedJsonViewer({
     if (currentMatch && currentMatch.rowIndex >= 0) {
       rowVirtualizer.scrollToIndex(currentMatch.rowIndex, {
         align: "center",
-        behavior: "smooth",
+        behavior: "auto", // Use "auto" instead of "smooth" for dynamic sizing
       });
     }
   }, [currentMatch, rowVirtualizer]);
