@@ -5,7 +5,7 @@
  * Best for small datasets (<500 rows) where virtualization overhead isn't worth it.
  */
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { type FlatJSONRow, type SearchMatch, type JSONTheme } from "./types";
 import { JsonRow } from "./components/JsonRow";
 
@@ -20,6 +20,7 @@ interface SimpleJsonViewerProps {
   wrapLongStrings?: boolean;
   onToggleExpansion?: (rowId: string) => void;
   className?: string;
+  scrollToIndex?: number; // For search navigation
 }
 
 export function SimpleJsonViewer({
@@ -33,7 +34,10 @@ export function SimpleJsonViewer({
   wrapLongStrings = false,
   onToggleExpansion,
   className,
+  scrollToIndex,
 }: SimpleJsonViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // Calculate maximum number of digits needed for line numbers
   const maxLineNumberDigits = useMemo(() => {
     return Math.max(1, Math.floor(Math.log10(rows.length)) + 1);
@@ -48,8 +52,30 @@ export function SimpleJsonViewer({
   // Get current match for highlighting
   const currentMatch = searchMatches[currentMatchIndex];
 
+  // Scroll to match when search navigation occurs
+  useEffect(() => {
+    if (
+      scrollToIndex !== undefined &&
+      scrollToIndex >= 0 &&
+      scrollToIndex < rows.length
+    ) {
+      const row = rows[scrollToIndex];
+      if (row) {
+        const element = rowRefs.current.get(row.id);
+        if (element) {
+          element.scrollIntoView({
+            behavior: "auto",
+            block: "center",
+            inline: "nearest",
+          });
+        }
+      }
+    }
+  }, [scrollToIndex, rows]);
+
   return (
     <div
+      ref={containerRef}
       className={className}
       style={{
         backgroundColor: theme.background,
@@ -63,20 +89,30 @@ export function SimpleJsonViewer({
         const isCurrentMatch = currentMatch?.rowId === row.id;
 
         return (
-          <JsonRow
+          <div
             key={row.id}
-            row={row}
-            theme={theme}
-            searchMatch={searchMatch}
-            isCurrentMatch={isCurrentMatch}
-            showLineNumber={showLineNumbers}
-            lineNumber={index + 1}
-            enableCopy={enableCopy}
-            truncateStringsAt={truncateStringsAt}
-            wrapLongStrings={wrapLongStrings}
-            onToggleExpansion={onToggleExpansion}
-            maxLineNumberDigits={maxLineNumberDigits}
-          />
+            ref={(el) => {
+              if (el) {
+                rowRefs.current.set(row.id, el);
+              } else {
+                rowRefs.current.delete(row.id);
+              }
+            }}
+          >
+            <JsonRow
+              row={row}
+              theme={theme}
+              searchMatch={searchMatch}
+              isCurrentMatch={isCurrentMatch}
+              showLineNumber={showLineNumbers}
+              lineNumber={index + 1}
+              enableCopy={enableCopy}
+              truncateStringsAt={truncateStringsAt}
+              wrapLongStrings={wrapLongStrings}
+              onToggleExpansion={onToggleExpansion}
+              maxLineNumberDigits={maxLineNumberDigits}
+            />
+          </div>
         );
       })}
 

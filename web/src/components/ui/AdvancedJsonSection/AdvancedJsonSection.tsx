@@ -384,7 +384,7 @@ export function AdvancedJsonSection({
           style={{
             minHeight: "100px",
             maxHeight: maxHeight,
-            overflow: "auto", // Enable scrolling
+            overflow: "hidden", // Let AdvancedJsonViewer handle scrolling
             backgroundColor: headerBackgroundColor || backgroundColor,
           }}
         >

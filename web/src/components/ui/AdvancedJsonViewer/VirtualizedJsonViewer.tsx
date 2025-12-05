@@ -94,16 +94,6 @@ export function VirtualizedJsonViewer({
     }
   }, [scrollToIndex, rowVirtualizer, rows.length]);
 
-  // Auto-scroll to current match when it changes
-  useEffect(() => {
-    if (currentMatch && currentMatch.rowIndex >= 0) {
-      rowVirtualizer.scrollToIndex(currentMatch.rowIndex, {
-        align: "center",
-        behavior: "auto", // Use "auto" instead of "smooth" for dynamic sizing
-      });
-    }
-  }, [currentMatch, rowVirtualizer]);
-
   const virtualRows = rowVirtualizer.getVirtualItems();
 
   return (
