@@ -60,6 +60,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
+import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -348,6 +349,82 @@ export function ObservationDetailView({
                 />
               </div>
             )}
+
+            {/* New AdvancedJsonSection Test */}
+            <div className="mt-4 border-t pt-4">
+              <div className="mb-2 px-2">
+                <h3 className="text-sm font-semibold">
+                  AdvancedJsonSection (New Component)
+                </h3>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Testing the new JSON section with integrated header, search,
+                  and controls
+                </p>
+              </div>
+
+              {/* Input */}
+              {observationWithIOCompat.data?.input && (
+                <div className="mb-6">
+                  <AdvancedJsonSection
+                    title="Input (Advanced Section)"
+                    field="input"
+                    data={observationWithIOCompat.data.input}
+                    parsedData={parsedInput}
+                    enableSearch={true}
+                    truncateStringsAt={100}
+                    enableCopy={true}
+                    isLoading={observationWithIOCompat.isLoading}
+                    maxHeight="500px"
+                    headerBackgroundColor="rgba(59, 130, 246, 0.05)"
+                    media={observationMedia.data?.filter(
+                      (m) => m.field === "input",
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Output */}
+              {observationWithIOCompat.data?.output && (
+                <div className="mb-6">
+                  <AdvancedJsonSection
+                    title="Output (Advanced Section)"
+                    field="output"
+                    data={observationWithIOCompat.data.output}
+                    parsedData={parsedOutput}
+                    enableSearch={true}
+                    truncateStringsAt={100}
+                    enableCopy={true}
+                    isLoading={observationWithIOCompat.isLoading}
+                    maxHeight="500px"
+                    headerBackgroundColor="rgba(34, 197, 94, 0.05)"
+                    media={observationMedia.data?.filter(
+                      (m) => m.field === "output",
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Metadata */}
+              {observationWithIOCompat.data?.metadata && (
+                <div className="mb-6">
+                  <AdvancedJsonSection
+                    title="Metadata (Advanced Section)"
+                    field="metadata"
+                    data={observationWithIOCompat.data.metadata}
+                    parsedData={parsedMetadata}
+                    enableSearch={true}
+                    truncateStringsAt={100}
+                    enableCopy={true}
+                    isLoading={observationWithIOCompat.isLoading}
+                    maxHeight="500px"
+                    headerBackgroundColor="rgba(168, 85, 247, 0.05)"
+                    media={observationMedia.data?.filter(
+                      (m) => m.field === "metadata",
+                    )}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </TabsBarContent>
 

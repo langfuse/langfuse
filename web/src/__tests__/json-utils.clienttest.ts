@@ -808,7 +808,7 @@ describe("Performance Comparison", () => {
         }
 
         if (!recursiveError && !iterativeError) {
-          const ratio = (iterativeTime / recursiveTime).toFixed(2);
+          const _ratio = (iterativeTime / recursiveTime).toFixed(2);
           const winner =
             iterativeTime < recursiveTime ? "ITERATIVE" : "RECURSIVE";
           const speedup =
@@ -897,7 +897,7 @@ describe("Performance Comparison", () => {
         }
 
         if (!recursiveError && !iterativeError) {
-          const ratio = (iterativeTime / recursiveTime).toFixed(2);
+          const _ratio = (iterativeTime / recursiveTime).toFixed(2);
           const winner =
             iterativeTime < recursiveTime ? "ITERATIVE" : "RECURSIVE";
           const speedup =
@@ -940,7 +940,7 @@ describe("Performance Comparison", () => {
     const iterativeResult = deepParseJsonIterative(input2, options);
     const iterativeTime = performance.now() - iterativeStart;
 
-    const ratio = (iterativeTime / recursiveTime).toFixed(2);
+    const _ratio = (iterativeTime / recursiveTime).toFixed(2);
     const winner =
       iterativeTime < recursiveTime ? "✓ ITERATIVE FASTER" : "RECURSIVE FASTER";
     const speedup =

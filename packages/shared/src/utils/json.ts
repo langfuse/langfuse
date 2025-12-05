@@ -59,6 +59,7 @@ export function deepParseJson(
   json: unknown,
   options: DeepParseJsonOptions = {},
 ): unknown {
+  console.log("deepParseJson");
   const { maxSize = 500_000, maxDepth = 3 } = options;
   const startTime = performance.now();
 

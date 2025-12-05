@@ -709,6 +709,9 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.2)(react@19.2.1)
+      react-obj-view:
+        specifier: ^1.1.2
+        version: 1.1.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       react-resizable-panels:
         specifier: ^3.0.6
         version: 3.0.6(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -12142,6 +12145,13 @@ packages:
     peerDependencies:
       '@types/react': '>=18'
       react: '>=18'
+
+  react-obj-view@1.1.2:
+    resolution: {integrity: sha512-UTNf1MPS2j9kKGPOT6YXroIho5mw6rV/BtIflpwxEuW3BbwUTfz19D2wJzHkRz1bT+4i9A2eENNmppAtQc5bTQ==}
+    engines: {node: '>=22.0.0', yarn: '>=4.0.0'}
+    peerDependencies:
+      react: '19'
+      react-dom: '19'
 
   react-promise-suspense@0.3.4:
     resolution: {integrity: sha512-I42jl7L3Ze6kZaq+7zXWSunBa3b1on5yfvUW6Eo/3fFOj6dZ5Bqmcd264nJbTK/gn1HjjILAjSwnZbV4RpSaNQ==}
@@ -29019,6 +29029,11 @@ snapshots:
       vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
+
+  react-obj-view@1.1.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
+    dependencies:
+      react: 19.2.1
+      react-dom: 19.2.1(react@19.2.1)
 
   react-promise-suspense@0.3.4:
     dependencies:

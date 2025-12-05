@@ -53,20 +53,34 @@ function parseToolCallsFromMessage(
  * - Tool definition extraction from messages
  * - Tool call counting and numbering (output messages only)
  * - Additional non-message input extraction
+ *
+ * Performance optimization:
+ * - Accepts optional pre-parsed data to avoid duplicate parsing
+ * - When pre-parsed data is provided (from Web Worker), skips synchronous deepParseJson
  */
 export function useChatMLParser(
   input: Prisma.JsonValue | undefined,
   output: Prisma.JsonValue | undefined,
   metadata: Prisma.JsonValue | undefined,
   observationName: string | undefined,
+  preParsedInput?: unknown,
+  preParsedOutput?: unknown,
+  preParsedMetadata?: unknown,
 ): ChatMLParserResult {
-  // Parse with size/depth limits - ChatML only needs top-level structure
-  const parsedInput = deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
-  const parsedOutput = deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
-  const parsedMetadata = deepParseJson(metadata, {
-    maxSize: 100_000,
-    maxDepth: 2,
-  });
+  // Use pre-parsed data if available (from Web Worker), otherwise parse synchronously
+  // This eliminates ~100ms of duplicate parsing when data comes from useParsedObservation
+  const parsedInput =
+    preParsedInput !== undefined
+      ? preParsedInput
+      : deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
+  const parsedOutput =
+    preParsedOutput !== undefined
+      ? preParsedOutput
+      : deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
+  const parsedMetadata =
+    preParsedMetadata !== undefined
+      ? preParsedMetadata
+      : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 });
 
   return useMemo(() => {
     const startTime = performance.now();
