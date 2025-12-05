@@ -1300,6 +1300,7 @@ const TracesDynamicCell = ({
     {
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes: [404] },
     },
   );
 
