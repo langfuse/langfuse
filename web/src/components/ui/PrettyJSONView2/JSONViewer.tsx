@@ -18,7 +18,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   FoldVertical,
   UnfoldVertical,
-  Search,
   X,
   ChevronUp,
   ChevronDown,
@@ -51,7 +50,7 @@ const lightTheme: CSSProperties = {
   "--bigobjview-color": "hsl(var(--foreground))",
   "--bigobjview-bg-color": "hsl(var(--background))", // Default to standard background
   "--bigobjview-change-color": "hsl(var(--primary))",
-  "--bigobjview-fontsize": "12px",
+  "--bigobjview-fontsize": "0.7rem",
   "--bigobjview-type-boolean-color": "#0550ae", // Keep blue for booleans
   "--bigobjview-type-number-color": "#0550ae", // Keep blue for numbers
   "--bigobjview-type-bigint-color": "#0550ae",
@@ -74,7 +73,7 @@ const darkTheme: CSSProperties = {
   "--bigobjview-color": "hsl(var(--foreground))",
   "--bigobjview-bg-color": "hsl(var(--background))", // Default to standard background
   "--bigobjview-change-color": "hsl(var(--primary))",
-  "--bigobjview-fontsize": "12px",
+  "--bigobjview-fontsize": "0.7rem",
   "--bigobjview-type-boolean-color": "#539bf5", // Keep blue for booleans
   "--bigobjview-type-number-color": "#539bf5", // Keep blue for numbers
   "--bigobjview-type-bigint-color": "#539bf5",
@@ -136,6 +135,9 @@ export interface JSONViewerProps {
   /** Enable search functionality */
   enableSearch?: boolean;
 
+  /** Placeholder text for search input */
+  searchPlaceholder?: string;
+
   /** Additional control buttons to display in header */
   controlButtons?: React.ReactNode;
 
@@ -162,6 +164,7 @@ function SearchBar({
   onNext,
   onPrevious,
   onClear,
+  placeholder = "Search...",
 }: {
   onSearch: (query: string) => void;
   matches: SearchMatch[];
@@ -169,6 +172,7 @@ function SearchBar({
   onNext: () => void;
   onPrevious: () => void;
   onClear: () => void;
+  placeholder?: string;
 }) {
   const [query, setQuery] = useState("");
 
@@ -193,15 +197,14 @@ function SearchBar({
   };
 
   return (
-    <div className="flex items-center gap-1 rounded-md border bg-background px-2 py-1">
-      <Search className="h-3 w-3 text-muted-foreground" />
+    <div className="flex items-center gap-1 rounded-md border bg-background px-2 py-0.5">
       <Input
         type="text"
-        placeholder="Search..."
+        placeholder={placeholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="h-6 w-32 border-none bg-transparent px-1 text-xs focus-visible:ring-0"
+        className="h-5 w-32 border-none bg-transparent px-1 text-xs focus-visible:ring-0"
       />
       <span
         className={cn(
@@ -405,6 +408,7 @@ export function JSONViewer({
   onToggleCollapse,
   collapseStringsAfterLength: _collapseStringsAfterLength,
   enableSearch = false,
+  searchPlaceholder = "Search...",
   controlButtons,
   backgroundColor,
 }: JSONViewerProps) {
@@ -684,45 +688,55 @@ export function JSONViewer({
     >
       {/* Header */}
       {title && !hideTitle ? (
-        <MarkdownJsonViewHeader
-          title={title}
-          canEnableMarkdown={false}
-          handleOnValueChange={() => {}}
-          handleOnCopy={handleCopy}
-          controlButtons={
-            <>
-              {/* Search */}
-              {enableSearch && (
-                <SearchBar
-                  onSearch={handleSearch}
-                  matches={searchMatches}
-                  currentIndex={currentMatchIndex}
-                  onNext={handleNextMatch}
-                  onPrevious={handlePreviousMatch}
-                  onClear={handleClearSearch}
-                />
-              )}
-
-              {/* Custom control buttons */}
-              {controlButtons}
-
-              {/* Collapse/Expand All */}
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={handleToggleCollapse}
-                className="-mr-2 hover:bg-border"
-                title={effectiveCollapsed ? "Expand all" : "Collapse all"}
-              >
-                {effectiveCollapsed ? (
-                  <UnfoldVertical className="h-3 w-3" />
-                ) : (
-                  <FoldVertical className="h-3 w-3" />
+        <div className={cn(scrollable && "sticky top-0 z-10 bg-background")}>
+          <MarkdownJsonViewHeader
+            title={title}
+            canEnableMarkdown={false}
+            handleOnValueChange={() => {}}
+            handleOnCopy={handleCopy}
+            controlButtons={
+              <>
+                {/* Search */}
+                {enableSearch && (
+                  <SearchBar
+                    onSearch={handleSearch}
+                    matches={searchMatches}
+                    currentIndex={currentMatchIndex}
+                    onNext={handleNextMatch}
+                    onPrevious={handlePreviousMatch}
+                    onClear={handleClearSearch}
+                    placeholder={searchPlaceholder}
+                  />
                 )}
-              </Button>
-            </>
-          }
-        />
+
+                {/* Custom control buttons */}
+                {controlButtons}
+
+                {/* Collapse/Expand All */}
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={handleToggleCollapse}
+                  className="-mr-2 hover:bg-border"
+                  disabled={searchMatches.length > 0}
+                  title={
+                    searchMatches.length > 0
+                      ? "Clear search to collapse"
+                      : effectiveCollapsed
+                        ? "Expand all"
+                        : "Collapse all"
+                  }
+                >
+                  {effectiveCollapsed ? (
+                    <UnfoldVertical className="h-3 w-3" />
+                  ) : (
+                    <FoldVertical className="h-3 w-3" />
+                  )}
+                </Button>
+              </>
+            }
+          />
+        </div>
       ) : null}
 
       {/* Body */}

@@ -5,10 +5,30 @@
  * Base styles and theming are provided by react-obj-view.
  */
 
-/* Make array indices and object keys lighter/muted */
+/* Make line numbers lighter and remove colon */
+.big-objview-root .line-number {
+  opacity: 0.3;
+}
+
+.big-objview-root .line-number::after {
+  content: none !important;
+}
+
+/* Make array indices lighter/muted */
 .big-objview-root .key {
   opacity: 0.5;
   color: hsl(var(--foreground)) !important;
+}
+
+/* Make keys (property names) fully opaque/dark */
+.big-objview-root .name {
+  opacity: 1;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Make values slightly lighter than keys using muted foreground color */
+.big-objview-root .value {
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 /* Make secondary elements lighter (separators, punctuation) */
