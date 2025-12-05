@@ -481,6 +481,52 @@ export function JSONViewer({
     [data, internalCollapsed],
   );
 
+  // Apply highlights to visible rows
+  const applyHighlights = useCallback(() => {
+    if (!containerRef.current) return;
+
+    // Always clear previous highlights first
+    const previousHighlights = containerRef.current.querySelectorAll(
+      ".search-match, .search-match-current",
+    );
+    previousHighlights.forEach((el) => {
+      el.classList.remove("search-match", "search-match-current");
+    });
+
+    // If no matches, just clear and return
+    if (searchMatches.length === 0) return;
+
+    // Track which rows we've already highlighted to avoid duplicates
+    const highlightedRows = new Set<Element>();
+
+    // Highlight all matches by highlighting their entire row containers
+    searchMatches.forEach((match, matchIndex) => {
+      // Only search in the appropriate elements based on where the match was found
+      const elementsToSearch = match.matchInKey
+        ? Array.from(containerRef.current?.querySelectorAll(".name") ?? [])
+        : Array.from(containerRef.current?.querySelectorAll(".value") ?? []);
+
+      for (const el of elementsToSearch) {
+        const textContent = el.textContent ?? "";
+
+        // Match the query in the text content (case-insensitive)
+        if (textContent.toLowerCase().includes(match.query.toLowerCase())) {
+          // Find the parent row container
+          const rowContainer = el.closest(".row");
+
+          if (rowContainer && !highlightedRows.has(rowContainer)) {
+            rowContainer.classList.add("search-match");
+            if (matchIndex === currentMatchIndex) {
+              rowContainer.classList.add("search-match-current");
+            }
+            highlightedRows.add(rowContainer);
+            break; // Only highlight one row per match
+          }
+        }
+      }
+    });
+  }, [searchMatches, currentMatchIndex]);
+
   // Scroll to match in DOM with multi-frame animation for virtualization
   const scrollToMatch = useCallback(
     (match: SearchMatch) => {
@@ -592,52 +638,6 @@ export function JSONViewer({
     setSearchMatches([]);
     setCurrentMatchIndex(0);
   }, []);
-
-  // Apply highlights to visible rows
-  const applyHighlights = useCallback(() => {
-    if (!containerRef.current) return;
-
-    // Always clear previous highlights first
-    const previousHighlights = containerRef.current.querySelectorAll(
-      ".search-match, .search-match-current",
-    );
-    previousHighlights.forEach((el) => {
-      el.classList.remove("search-match", "search-match-current");
-    });
-
-    // If no matches, just clear and return
-    if (searchMatches.length === 0) return;
-
-    // Track which rows we've already highlighted to avoid duplicates
-    const highlightedRows = new Set<Element>();
-
-    // Highlight all matches by highlighting their entire row containers
-    searchMatches.forEach((match, matchIndex) => {
-      // Only search in the appropriate elements based on where the match was found
-      const elementsToSearch = match.matchInKey
-        ? Array.from(containerRef.current?.querySelectorAll(".name") ?? [])
-        : Array.from(containerRef.current?.querySelectorAll(".value") ?? []);
-
-      for (const el of elementsToSearch) {
-        const textContent = el.textContent ?? "";
-
-        // Match the query in the text content (case-insensitive)
-        if (textContent.toLowerCase().includes(match.query.toLowerCase())) {
-          // Find the parent row container
-          const rowContainer = el.closest(".row");
-
-          if (rowContainer && !highlightedRows.has(rowContainer)) {
-            rowContainer.classList.add("search-match");
-            if (matchIndex === currentMatchIndex) {
-              rowContainer.classList.add("search-match-current");
-            }
-            highlightedRows.add(rowContainer);
-            break; // Only highlight one row per match
-          }
-        }
-      }
-    });
-  }, [searchMatches, currentMatchIndex]);
 
   // Highlight matches in DOM after render and on scroll (for virtualization)
   useEffect(() => {
