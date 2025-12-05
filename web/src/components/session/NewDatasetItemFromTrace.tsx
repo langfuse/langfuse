@@ -22,6 +22,7 @@ export const NewDatasetItemFromTraceId = (props: {
         },
       },
       refetchOnMount: false,
+      meta: { silentHttpCodes: [404] },
     },
   );
 
