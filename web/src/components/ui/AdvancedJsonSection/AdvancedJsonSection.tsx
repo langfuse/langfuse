@@ -26,8 +26,8 @@ import { Input } from "@/src/components/ui/input";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { AdvancedJsonViewer } from "@/src/components/ui/AdvancedJsonViewer";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { type StringWrapMode } from "@/src/components/ui/AdvancedJsonViewer/types";
 import {
   type ExpansionState,
   type PartialJSONTheme,
@@ -120,9 +120,9 @@ export function AdvancedJsonSection({
   media: _media, // TODO: Implement media attachment support
   controlButtons,
 }: AdvancedJsonSectionProps) {
-  // String wrap mode state (cycles between truncate, wrap, nowrap)
-  const [stringWrapMode, setStringWrapMode] =
-    useState<StringWrapMode>("truncate");
+  // String wrap mode state (persisted in localStorage)
+  const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
+
   // Section collapse state (different from JSON tree expansion)
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isCollapseControlled =
