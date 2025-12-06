@@ -471,8 +471,7 @@ export function AdvancedJsonSection({
           style={{
             minHeight: "100px",
             maxHeight: maxHeight,
-            overflowY: "auto", // Vertical scroll for search navigation
-            overflowX: "hidden", // Horizontal scroll handled by viewer's scrollable column
+            overflow: "auto", // Single scroll container for both X and Y
             backgroundColor: headerBackgroundColor || backgroundColor,
           }}
         >
