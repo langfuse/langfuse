@@ -6,7 +6,12 @@
  */
 
 import { useMemo, useEffect, useRef, type RefObject } from "react";
-import { type FlatJSONRow, type SearchMatch, type JSONTheme } from "./types";
+import {
+  type FlatJSONRow,
+  type SearchMatch,
+  type JSONTheme,
+  type StringWrapMode,
+} from "./types";
 import { JsonRow } from "./components/JsonRow";
 import { getCurrentMatchIndexInRow } from "./utils/searchJson";
 
@@ -18,7 +23,7 @@ interface SimpleJsonViewerProps {
   matchCounts?: Map<string, number>; // Row ID -> count of matches in row and descendants
   showLineNumbers?: boolean;
   enableCopy?: boolean;
-  stringWrapMode?: import("./types").StringWrapMode;
+  stringWrapMode?: StringWrapMode;
   truncateStringsAt?: number | null;
   onToggleExpansion?: (rowId: string) => void;
   className?: string;
@@ -120,7 +125,7 @@ export function SimpleJsonViewer({
                 isCurrentMatch ? currentMatchIndexInRow : undefined
               }
               showLineNumber={showLineNumbers}
-              lineNumber={index + 1}
+              lineNumber={row.absoluteLineNumber ?? index + 1}
               enableCopy={enableCopy}
               stringWrapMode={stringWrapMode}
               truncateStringsAt={truncateStringsAt}

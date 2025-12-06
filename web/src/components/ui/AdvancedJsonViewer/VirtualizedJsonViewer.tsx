@@ -7,7 +7,12 @@
 
 import { useRef, useMemo, useEffect, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type FlatJSONRow, type SearchMatch, type JSONTheme } from "./types";
+import {
+  type FlatJSONRow,
+  type SearchMatch,
+  type JSONTheme,
+  type StringWrapMode,
+} from "./types";
 import { JsonRow } from "./components/JsonRow";
 import { createHeightEstimator } from "./utils/estimateRowHeight";
 import { getCurrentMatchIndexInRow } from "./utils/searchJson";
@@ -20,7 +25,7 @@ interface VirtualizedJsonViewerProps {
   matchCounts?: Map<string, number>; // Row ID -> count of matches in row and descendants
   showLineNumbers?: boolean;
   enableCopy?: boolean;
-  stringWrapMode?: import("../types").StringWrapMode;
+  stringWrapMode?: StringWrapMode;
   truncateStringsAt?: number | null;
   onToggleExpansion?: (rowId: string) => void;
   className?: string;
@@ -155,7 +160,7 @@ export function VirtualizedJsonViewer({
                   isCurrentMatch ? currentMatchIndexInRow : undefined
                 }
                 showLineNumber={showLineNumbers}
-                lineNumber={virtualRow.index + 1}
+                lineNumber={row.absoluteLineNumber ?? virtualRow.index + 1}
                 enableCopy={enableCopy}
                 stringWrapMode={stringWrapMode}
                 truncateStringsAt={truncateStringsAt}

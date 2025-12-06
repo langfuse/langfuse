@@ -50,7 +50,8 @@ export function JsonRow({
       className={className}
       style={{
         display: "grid",
-        gridTemplateColumns: "auto 1fr",
+        gridTemplateColumns:
+          stringWrapMode === "nowrap" ? "auto max-content" : "auto 1fr",
         alignItems: "start",
         minHeight: `${theme.lineHeight}px`,
         paddingLeft: "4px",

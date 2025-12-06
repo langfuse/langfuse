@@ -85,6 +85,9 @@ export interface FlatJSONRow {
 
   /** Path array for easy traversal */
   pathArray: (string | number)[];
+
+  /** Absolute line number in fully expanded JSON (1-indexed) */
+  absoluteLineNumber?: number;
 }
 
 // ============================================================================

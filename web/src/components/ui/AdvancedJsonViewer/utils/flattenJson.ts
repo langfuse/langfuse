@@ -11,6 +11,7 @@ import {
   isExpandable,
   getChildCount,
   getChildren,
+  countAllDescendants,
 } from "./jsonTypes";
 import { joinPath, hasCollapsedAncestor } from "./pathUtils";
 
@@ -34,6 +35,9 @@ export function flattenJSON(
 
   const rows: FlatJSONRow[] = [];
   const collapsedPaths = convertExpansionStateToSet(expansionState);
+
+  // Track absolute line number (1-indexed)
+  let absoluteLineNumber = 0;
 
   // Stack for iterative traversal
   interface StackItem {
@@ -78,6 +82,9 @@ export function flattenJSON(
     // Check if this node should be expanded
     const isExpanded = shouldExpand(id, expansionState, collapsedPaths);
 
+    // Increment line number for this node
+    absoluteLineNumber++;
+
     // Add current row
     rows.push({
       id,
@@ -92,6 +99,7 @@ export function flattenJSON(
       indexInParent,
       isLastChild,
       pathArray,
+      absoluteLineNumber,
     });
 
     // Stop expanding if max depth reached
@@ -99,8 +107,11 @@ export function flattenJSON(
       continue;
     }
 
-    // If collapsed, don't traverse children
+    // If collapsed, don't traverse children but count them for line numbers
     if (!isExpanded) {
+      if (expandable) {
+        absoluteLineNumber += countAllDescendants(value);
+      }
       continue;
     }
 

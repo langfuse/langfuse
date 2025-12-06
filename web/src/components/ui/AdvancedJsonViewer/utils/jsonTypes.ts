@@ -209,3 +209,25 @@ export function safeStringify(value: unknown, indent = 2): string {
     return String(value);
   }
 }
+
+/**
+ * Count total number of descendants (all nested children) in a value
+ * Used for calculating absolute line numbers when nodes are collapsed
+ */
+export function countAllDescendants(value: unknown): number {
+  if (!isExpandable(value)) {
+    return 0;
+  }
+
+  let count = 0;
+  const children = getChildren(value);
+
+  for (const [, childValue] of children) {
+    // Count this child
+    count++;
+    // Recursively count its descendants
+    count += countAllDescendants(childValue);
+  }
+
+  return count;
+}
