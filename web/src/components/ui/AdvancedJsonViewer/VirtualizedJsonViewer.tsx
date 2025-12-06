@@ -13,10 +13,12 @@ import {
   type JSONTheme,
   type StringWrapMode,
 } from "./types";
-import { JsonRow } from "./components/JsonRow";
+import { JsonRowFixed } from "./components/JsonRowFixed";
+import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { createHeightEstimator } from "./utils/estimateRowHeight";
 import { getCurrentMatchIndexInRow } from "./utils/searchJson";
 import { calculateMinimumWidth } from "./utils/calculateWidth";
+import { calculateFixedColumnWidth } from "./utils/calculateFixedColumnWidth";
 
 interface VirtualizedJsonViewerProps {
   rows: FlatJSONRow[];
@@ -74,8 +76,14 @@ export function VirtualizedJsonViewer({
     [currentMatchIndex, searchMatches],
   );
 
-  // Calculate minimum width for nowrap mode
-  const minWidth = useMemo(() => {
+  // Calculate fixed column width
+  const fixedColumnWidth = useMemo(
+    () => calculateFixedColumnWidth(showLineNumbers, maxLineNumberDigits),
+    [showLineNumbers, maxLineNumberDigits],
+  );
+
+  // Calculate minimum width for nowrap mode (scrollable column only)
+  const scrollableMinWidth = useMemo(() => {
     if (stringWrapMode === "nowrap") {
       return calculateMinimumWidth(rows, theme);
     }
@@ -126,60 +134,112 @@ export function VirtualizedJsonViewer({
       ref={parentRef}
       className={className}
       style={{
+        display: "flex",
         height: "100%",
         backgroundColor: theme.background,
         color: theme.foreground,
       }}
     >
-      {/* Total height container */}
+      {/* Fixed column (line numbers + expand buttons) */}
       <div
         style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-          width: "100%",
-          minWidth: minWidth ? `${minWidth}px` : undefined,
-          position: "relative",
+          width: `${fixedColumnWidth}px`,
+          flexShrink: 0,
+          overflow: "hidden",
         }}
       >
-        {/* Virtualized rows */}
-        {virtualRows.map((virtualRow) => {
-          const row = rows[virtualRow.index]!;
-          const searchMatch = matchMap.get(row.id);
-          const isCurrentMatch = currentMatch?.rowId === row.id;
-          const matchCount = matchCounts?.get(row.id);
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            position: "relative",
+          }}
+        >
+          {virtualRows.map((virtualRow) => {
+            const row = rows[virtualRow.index]!;
+            const searchMatch = matchMap.get(row.id);
+            const isCurrentMatch = currentMatch?.rowId === row.id;
 
-          return (
-            <div
-              key={row.id}
-              data-index={virtualRow.index}
-              ref={rowVirtualizer.measureElement}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <JsonRow
-                row={row}
-                theme={theme}
-                searchMatch={searchMatch}
-                isCurrentMatch={isCurrentMatch}
-                matchCount={matchCount}
-                currentMatchIndexInRow={
-                  isCurrentMatch ? currentMatchIndexInRow : undefined
-                }
-                showLineNumber={showLineNumbers}
-                lineNumber={row.absoluteLineNumber ?? virtualRow.index + 1}
-                enableCopy={enableCopy}
-                stringWrapMode={stringWrapMode}
-                truncateStringsAt={truncateStringsAt}
-                onToggleExpansion={onToggleExpansion}
-                maxLineNumberDigits={maxLineNumberDigits}
-              />
-            </div>
-          );
-        })}
+            return (
+              <div
+                key={`fixed-${row.id}`}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <JsonRowFixed
+                  row={row}
+                  theme={theme}
+                  showLineNumber={showLineNumbers}
+                  lineNumber={row.absoluteLineNumber ?? virtualRow.index + 1}
+                  maxLineNumberDigits={maxLineNumberDigits}
+                  searchMatch={searchMatch}
+                  isCurrentMatch={isCurrentMatch}
+                  onToggleExpansion={onToggleExpansion}
+                  stringWrapMode={stringWrapMode}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Scrollable column (indent + key + value + badges + copy) */}
+      <div
+        style={{
+          flex: 1,
+          overflowX: stringWrapMode === "nowrap" ? "auto" : "hidden",
+          overflowY: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            position: "relative",
+            minWidth: scrollableMinWidth
+              ? `${scrollableMinWidth}px`
+              : undefined,
+          }}
+        >
+          {virtualRows.map((virtualRow) => {
+            const row = rows[virtualRow.index]!;
+            const searchMatch = matchMap.get(row.id);
+            const isCurrentMatch = currentMatch?.rowId === row.id;
+            const matchCount = matchCounts?.get(row.id);
+
+            return (
+              <div
+                key={`scrollable-${row.id}`}
+                data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <JsonRowScrollable
+                  row={row}
+                  theme={theme}
+                  stringWrapMode={stringWrapMode}
+                  truncateStringsAt={truncateStringsAt}
+                  matchCount={matchCount}
+                  currentMatchIndexInRow={
+                    isCurrentMatch ? currentMatchIndexInRow : undefined
+                  }
+                  enableCopy={enableCopy}
+                  searchMatch={searchMatch}
+                  isCurrentMatch={isCurrentMatch}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Empty state */}

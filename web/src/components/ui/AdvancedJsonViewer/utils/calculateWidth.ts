@@ -38,44 +38,43 @@ function getValueDisplayLength(value: unknown): number {
 }
 
 /**
- * Calculate minimum width needed for a single row
+ * Calculate minimum width needed for a single row (scrollable column only)
+ *
+ * Note: Line numbers and expand buttons are now in a separate fixed column,
+ * so we only calculate width for: indentation + key + colon + value + badges + copy button
  */
 function calculateRowWidth(row: FlatJSONRow, theme: JSONTheme): number {
-  // Components of a row (in order):
-  // 1. Line number (if shown, estimate max 4 digits = 4 chars)
-  const lineNumberWidth = 4; // Conservative estimate
-
-  // 2. Expand button (fixed width, ~20px)
-  const expandButtonWidth = 20;
-
-  // 3. Indentation (depth * indentSize)
+  // Components in scrollable column:
+  // 1. Indentation (depth * indentSize)
   const indentWidth = row.depth * theme.indentSize;
 
-  // 4. Key name (string or number)
+  // 2. Key name (string or number)
   const keyLength = String(row.key).length;
 
-  // 5. Colon + space (": ")
+  // 3. Colon + space (": ")
   const colonWidth = 2 * CHAR_WIDTH_PX;
 
-  // 6. Value
+  // 4. Value
   const valueLength = getValueDisplayLength(row.value);
 
-  // 7. Padding (left + right = 8px)
-  const paddingWidth = 8;
+  // 5. Padding (right side only, left is indent)
+  const paddingWidth = 4;
 
   // Total character-based width
-  const charCount = lineNumberWidth + keyLength + valueLength;
+  const charCount = keyLength + valueLength;
   const charWidth = charCount * CHAR_WIDTH_PX;
 
   // Total width
   return (
-    expandButtonWidth + indentWidth + colonWidth + charWidth + paddingWidth + 50 // Extra buffer for buttons, badges, etc.
+    indentWidth + colonWidth + charWidth + paddingWidth + 50 // Extra buffer for buttons, badges, etc.
   );
 }
 
 /**
- * Calculate minimum container width for all rows
- * Returns the width needed to display the longest row without wrapping
+ * Calculate minimum container width for scrollable column
+ *
+ * Returns the width needed to display the longest row without wrapping.
+ * This is only for the scrollable column (excludes fixed column with line numbers/buttons).
  */
 export function calculateMinimumWidth(
   rows: FlatJSONRow[],

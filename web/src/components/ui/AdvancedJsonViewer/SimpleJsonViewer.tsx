@@ -12,9 +12,11 @@ import {
   type JSONTheme,
   type StringWrapMode,
 } from "./types";
-import { JsonRow } from "./components/JsonRow";
+import { JsonRowFixed } from "./components/JsonRowFixed";
+import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { getCurrentMatchIndexInRow } from "./utils/searchJson";
 import { calculateMinimumWidth } from "./utils/calculateWidth";
+import { calculateFixedColumnWidth } from "./utils/calculateFixedColumnWidth";
 
 interface SimpleJsonViewerProps {
   rows: FlatJSONRow[];
@@ -69,8 +71,14 @@ export function SimpleJsonViewer({
     [currentMatchIndex, searchMatches],
   );
 
-  // Calculate minimum width for nowrap mode
-  const minWidth = useMemo(() => {
+  // Calculate fixed column width
+  const fixedColumnWidth = useMemo(
+    () => calculateFixedColumnWidth(showLineNumbers, maxLineNumberDigits),
+    [showLineNumbers, maxLineNumberDigits],
+  );
+
+  // Calculate minimum width for nowrap mode (scrollable column only)
+  const scrollableMinWidth = useMemo(() => {
     if (stringWrapMode === "nowrap") {
       return calculateMinimumWidth(rows, theme);
     }
@@ -103,48 +111,83 @@ export function SimpleJsonViewer({
       ref={containerRef}
       className={className}
       style={{
+        display: "flex",
         backgroundColor: theme.background,
         color: theme.foreground,
         fontFamily: "monospace",
-        minWidth: minWidth ? `${minWidth}px` : undefined,
       }}
     >
-      {rows.map((row, index) => {
-        const searchMatch = matchMap.get(row.id);
-        const isCurrentMatch = currentMatch?.rowId === row.id;
-        const matchCount = matchCounts?.get(row.id);
+      {/* Fixed column (line numbers + expand buttons) */}
+      <div
+        style={{
+          width: `${fixedColumnWidth}px`,
+          flexShrink: 0,
+          overflow: "hidden",
+        }}
+      >
+        {rows.map((row, index) => {
+          const searchMatch = matchMap.get(row.id);
+          const isCurrentMatch = currentMatch?.rowId === row.id;
 
-        return (
-          <div
-            key={row.id}
-            ref={(el) => {
-              if (el) {
-                rowRefs.current.set(row.id, el);
-              } else {
-                rowRefs.current.delete(row.id);
-              }
-            }}
-          >
-            <JsonRow
+          return (
+            <JsonRowFixed
+              key={`fixed-${row.id}`}
               row={row}
               theme={theme}
-              searchMatch={searchMatch}
-              isCurrentMatch={isCurrentMatch}
-              matchCount={matchCount}
-              currentMatchIndexInRow={
-                isCurrentMatch ? currentMatchIndexInRow : undefined
-              }
               showLineNumber={showLineNumbers}
               lineNumber={row.absoluteLineNumber ?? index + 1}
-              enableCopy={enableCopy}
-              stringWrapMode={stringWrapMode}
-              truncateStringsAt={truncateStringsAt}
-              onToggleExpansion={onToggleExpansion}
               maxLineNumberDigits={maxLineNumberDigits}
+              searchMatch={searchMatch}
+              isCurrentMatch={isCurrentMatch}
+              onToggleExpansion={onToggleExpansion}
+              stringWrapMode={stringWrapMode}
             />
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {/* Scrollable column (indent + key + value + badges + copy) */}
+      <div
+        style={{
+          flex: 1,
+          overflowX: stringWrapMode === "nowrap" ? "auto" : "hidden",
+          overflowY: "hidden",
+          minWidth: scrollableMinWidth ? `${scrollableMinWidth}px` : undefined,
+        }}
+      >
+        {rows.map((row) => {
+          const searchMatch = matchMap.get(row.id);
+          const isCurrentMatch = currentMatch?.rowId === row.id;
+          const matchCount = matchCounts?.get(row.id);
+
+          return (
+            <div
+              key={`scrollable-${row.id}`}
+              ref={(el) => {
+                if (el) {
+                  rowRefs.current.set(row.id, el);
+                } else {
+                  rowRefs.current.delete(row.id);
+                }
+              }}
+            >
+              <JsonRowScrollable
+                row={row}
+                theme={theme}
+                stringWrapMode={stringWrapMode}
+                truncateStringsAt={truncateStringsAt}
+                matchCount={matchCount}
+                currentMatchIndexInRow={
+                  isCurrentMatch ? currentMatchIndexInRow : undefined
+                }
+                enableCopy={enableCopy}
+                searchMatch={searchMatch}
+                isCurrentMatch={isCurrentMatch}
+              />
+            </div>
+          );
+        })}
+      </div>
 
       {/* Empty state */}
       {rows.length === 0 && (
