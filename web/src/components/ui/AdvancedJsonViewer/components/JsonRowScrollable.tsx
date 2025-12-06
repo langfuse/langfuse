@@ -59,8 +59,6 @@ export function JsonRowScrollable({
         lineHeight: `${theme.lineHeight}px`,
         fontFamily: "monospace",
         transition: "background-color 0.15s ease",
-        wordBreak: "break-word",
-        minWidth: 0, // Allow flex child to shrink below content size
       }}
     >
       {/* Key name */}
