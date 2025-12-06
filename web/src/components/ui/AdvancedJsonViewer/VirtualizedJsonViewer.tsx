@@ -11,6 +11,7 @@ import {
   useEffect,
   useLayoutEffect,
   useCallback,
+  useState,
   type RefObject,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -41,6 +42,7 @@ interface VirtualizedJsonViewerProps {
   className?: string;
   scrollToIndex?: number; // For search navigation
   scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
+  totalLineCount?: number; // Total number of lines when fully expanded (for line number width calculation)
 }
 
 export function VirtualizedJsonViewer({
@@ -57,18 +59,36 @@ export function VirtualizedJsonViewer({
   className,
   scrollToIndex,
   scrollContainerRef,
+  totalLineCount,
 }: VirtualizedJsonViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const lastToggledRowRef = useRef<{
-    rowId: string;
-    index: number;
+  const prevRowCountRef = useRef(rows.length);
+  const prevWrapModeRef = useRef(stringWrapMode);
+
+  // Key to force complete virtualizer remount when row structure or wrap mode changes
+  // This is necessary because TanStack Virtual maintains an index-based measurement cache.
+  // When rows are added/removed (expand/collapse), the same index points to different rows,
+  // but the cache still contains stale measurements and positions from the old rows at those indices.
+  // Similarly, when wrap mode changes, all row heights may change but the cache isn't invalidated.
+  // By changing this key, we force React to unmount and remount the virtualizer container,
+  // giving TanStack Virtual a fresh start with an empty cache.
+  const [virtualizerKey, setVirtualizerKey] = useState(0);
+
+  // Pending scroll restoration - stored in state so it survives virtualizer remount
+  // After remount, useLayoutEffect will restore the scroll position before browser paint
+  // We track the first visible row and its offset, so it stays in the same viewport position
+  // even when content above/below is added/removed
+  const [pendingScrollRestore, setPendingScrollRestore] = useState<{
+    firstVisibleRowId: string;
     offsetFromTop: number;
   } | null>(null);
 
   // Calculate maximum number of digits needed for line numbers
+  // Use totalLineCount if provided, otherwise fall back to current rows length
   const maxLineNumberDigits = useMemo(() => {
-    return Math.max(1, Math.floor(Math.log10(rows.length)) + 1);
-  }, [rows.length]);
+    const lineCount = totalLineCount ?? rows.length;
+    return Math.max(1, Math.floor(Math.log10(lineCount)) + 1);
+  }, [totalLineCount, rows.length]);
 
   // Build a map of rowId -> match for quick lookup
   const matchMap = useMemo(() => {
@@ -125,67 +145,145 @@ export function VirtualizedJsonViewer({
         : undefined,
   });
 
-  // Wrapped toggle handler that preserves scroll position
+  // Wrapped toggle handler that captures scroll position
   const handleToggleExpansion = useCallback(
     (rowId: string) => {
       if (!onToggleExpansion) return;
 
-      // Find the row index
-      const rowIndex = rows.findIndex((r) => r.id === rowId);
-      if (rowIndex === -1) return;
-
-      // Get scroll container
+      // Capture the first visible row and its offset from top of viewport
+      // This row will be kept in the same position after expand/collapse
       const scrollElement = scrollContainerRef?.current || parentRef.current;
-      if (!scrollElement) {
-        onToggleExpansion(rowId);
-        return;
-      }
+      if (scrollElement) {
+        const virtualItems = rowVirtualizer.getVirtualItems();
+        const firstVisibleItem = virtualItems[0];
 
-      // Calculate row's offset from top of viewport
-      const virtualItems = rowVirtualizer.getVirtualItems();
-      const virtualRow = virtualItems.find((v) => v.index === rowIndex);
-      if (virtualRow) {
-        const offsetFromTop = virtualRow.start - scrollElement.scrollTop;
-        lastToggledRowRef.current = {
-          rowId,
-          index: rowIndex,
-          offsetFromTop,
-        };
+        if (firstVisibleItem) {
+          const firstVisibleRow = rows[firstVisibleItem.index];
+          const offsetFromTop =
+            firstVisibleItem.start - scrollElement.scrollTop;
+
+          console.log("[Toggle] Capturing first visible row:", {
+            rowId: firstVisibleRow?.id,
+            index: firstVisibleItem.index,
+            start: firstVisibleItem.start,
+            scrollTop: scrollElement.scrollTop,
+            offsetFromTop,
+          });
+
+          if (firstVisibleRow) {
+            setPendingScrollRestore({
+              firstVisibleRowId: firstVisibleRow.id,
+              offsetFromTop,
+            });
+          }
+        } else {
+          console.log("[Toggle] No visible items found");
+        }
+      } else {
+        console.log("[Toggle] No scroll element found");
       }
 
       onToggleExpansion(rowId);
     },
-    [onToggleExpansion, rows, scrollContainerRef, rowVirtualizer],
+    [onToggleExpansion, rows, rowVirtualizer, scrollContainerRef],
   );
 
-  // Restore scroll position after expansion/collapse
-  useLayoutEffect(() => {
-    if (!lastToggledRowRef.current) return;
-
-    const { rowId, offsetFromTop } = lastToggledRowRef.current;
-
-    // Find the row's new index (may have changed due to expansion/collapse)
-    const newIndex = rows.findIndex((r) => r.id === rowId);
-    if (newIndex === -1) return;
-
-    // Force virtualizer to remeasure all visible rows (critical for multi-line/wrap mode)
-    // This ensures row heights are recalculated after expand/collapse
-    rowVirtualizer.measure();
-
-    // Get scroll container
-    const scrollElement = scrollContainerRef?.current || parentRef.current;
-    if (!scrollElement) return;
-
-    // Calculate target scroll position to maintain offset from top
-    const virtualItems = rowVirtualizer.getVirtualItems();
-    const virtualRow = virtualItems.find((v) => v.index === newIndex);
-    if (virtualRow) {
-      const targetScrollTop = virtualRow.start - offsetFromTop;
-      scrollElement.scrollTop = targetScrollTop;
+  // Force complete virtualizer remount when rows are added/removed (expand/collapse)
+  // TanStack Virtual's measurement cache becomes stale when row indices shift due to
+  // expansion/collapse. Remounting ensures accurate positioning for all rows.
+  useEffect(() => {
+    if (prevRowCountRef.current !== rows.length) {
+      console.log("[Remount Effect] Row count changed:", {
+        prev: prevRowCountRef.current,
+        new: rows.length,
+        pendingScrollRestore,
+      });
+      // Force virtualizer remount by changing key (invalidates entire cache)
+      setVirtualizerKey((prev) => {
+        console.log(
+          "[Remount Effect] Incrementing virtualizer key:",
+          prev,
+          "->",
+          prev + 1,
+        );
+        return prev + 1;
+      });
+      prevRowCountRef.current = rows.length;
     }
+  }, [rows.length, pendingScrollRestore]);
 
-    lastToggledRowRef.current = null;
-  }, [rows, scrollContainerRef, rowVirtualizer]);
+  // Force complete virtualizer remount when wrap mode changes
+  // When switching between wrap/nowrap/truncate modes, row heights change significantly
+  // but the cached measurements don't automatically update. Remounting fixes this.
+  useEffect(() => {
+    if (prevWrapModeRef.current !== stringWrapMode) {
+      // Force virtualizer remount by changing key (invalidates entire cache)
+      setVirtualizerKey((prev) => prev + 1);
+      prevWrapModeRef.current = stringWrapMode;
+    }
+  }, [stringWrapMode]);
+
+  // Restore scroll position after virtualizer remount
+  // Uses useLayoutEffect to run synchronously before browser paint, preventing visible jump
+  useLayoutEffect(() => {
+    if (!pendingScrollRestore) return;
+
+    console.log(
+      "[Layout Effect] Attempting scroll restoration:",
+      pendingScrollRestore,
+    );
+
+    const { firstVisibleRowId, offsetFromTop } = pendingScrollRestore;
+    const scrollElement = scrollContainerRef?.current || parentRef.current;
+
+    // Find where the first visible row is now in the new rows array
+    const newIndex = rows.findIndex((r) => r.id === firstVisibleRowId);
+
+    console.log("[Layout Effect] First visible row now at index:", newIndex);
+
+    if (newIndex !== -1 && scrollElement) {
+      // Need one RAF to let virtualizer initialize after remount
+      requestAnimationFrame(() => {
+        // Calculate the position of this row in the new layout
+        // We use estimateSize to sum up heights of all rows before this one
+        let estimatedPosition = 0;
+        for (let i = 0; i < newIndex; i++) {
+          estimatedPosition += estimateSize(i);
+        }
+
+        console.log("[Layout Effect RAF] Calculated position:", {
+          rowId: firstVisibleRowId,
+          newIndex,
+          estimatedPosition,
+          offsetFromTop,
+        });
+
+        // Set scroll so this row appears at the same offset from top as before
+        const targetScrollTop = estimatedPosition - offsetFromTop;
+
+        console.log("[Layout Effect RAF] Setting scroll position:", {
+          estimatedPosition,
+          offsetFromTop,
+          targetScrollTop,
+          currentScrollTop: scrollElement.scrollTop,
+        });
+
+        scrollElement.scrollTop = targetScrollTop;
+
+        console.log("[Layout Effect RAF] After setting scroll:", {
+          scrollTop: scrollElement.scrollTop,
+        });
+
+        // Clear pending restoration
+        setPendingScrollRestore(null);
+      });
+    } else {
+      console.log(
+        "[Layout Effect] Row not found or no scroll element, clearing pending state",
+      );
+      setPendingScrollRestore(null);
+    }
+  }, [pendingScrollRestore, rows, estimateSize, scrollContainerRef]);
 
   // Scroll to match when search navigation occurs
   useEffect(() => {
@@ -208,45 +306,51 @@ export function VirtualizedJsonViewer({
       ref={parentRef}
       className={className}
       style={{
-        display: "grid",
-        gridTemplateColumns: `${fixedColumnWidth}px auto`,
         height: "100%",
-        width: "fit-content",
-        minWidth: "100%",
+        width: "100%",
         backgroundColor: theme.background,
         color: theme.foreground,
       }}
     >
-      {/* Fixed column (line numbers + expand buttons) - sticky */}
       <div
+        key={virtualizerKey} // Force remount when key changes to invalidate TanStack Virtual's cache
         style={{
-          position: "sticky",
-          left: 0,
-          zIndex: 2,
-          backgroundColor: theme.background,
-          overflow: "hidden",
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: "fit-content",
+          minWidth: "100%",
+          position: "relative",
         }}
       >
-        <div
-          style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            position: "relative",
-          }}
-        >
-          {virtualRows.map((virtualRow) => {
-            const row = rows[virtualRow.index]!;
-            const searchMatch = matchMap.get(row.id);
-            const isCurrentMatch = currentMatch?.rowId === row.id;
+        {virtualRows.map((virtualRow) => {
+          const row = rows[virtualRow.index]!;
+          const searchMatch = matchMap.get(row.id);
+          const isCurrentMatch = currentMatch?.rowId === row.id;
+          const matchCount = matchCounts?.get(row.id);
 
-            return (
+          return (
+            <div
+              key={row.id}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "fit-content",
+                minWidth: "100%",
+                transform: `translateY(${virtualRow.start}px)`,
+                display: "grid",
+                gridTemplateColumns: `${fixedColumnWidth}px auto`,
+              }}
+            >
+              {/* Fixed column (line numbers + expand buttons) - sticky within row */}
               <div
-                key={`fixed-${row.id}`}
                 style={{
-                  position: "absolute",
-                  top: 0,
+                  position: "sticky",
                   left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
+                  zIndex: 1,
+                  width: `${fixedColumnWidth}px`,
+                  backgroundColor: theme.background,
                 }}
               >
                 <JsonRowFixed
@@ -261,40 +365,13 @@ export function VirtualizedJsonViewer({
                   stringWrapMode={stringWrapMode}
                 />
               </div>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* Scrollable column (indent + key + value + badges + copy) */}
-      <div
-        style={{
-          minWidth: scrollableMinWidth ? `${scrollableMinWidth}px` : undefined,
-        }}
-      >
-        <div
-          style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            position: "relative",
-          }}
-        >
-          {virtualRows.map((virtualRow) => {
-            const row = rows[virtualRow.index]!;
-            const searchMatch = matchMap.get(row.id);
-            const isCurrentMatch = currentMatch?.rowId === row.id;
-            const matchCount = matchCounts?.get(row.id);
-
-            return (
+              {/* Scrollable column (indent + key + value + badges + copy) */}
               <div
-                key={`scrollable-${row.id}`}
-                data-index={virtualRow.index}
-                ref={rowVirtualizer.measureElement}
                 style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
+                  minWidth: scrollableMinWidth
+                    ? `${scrollableMinWidth}px`
+                    : undefined,
                 }}
               >
                 <JsonRowScrollable
@@ -311,9 +388,9 @@ export function VirtualizedJsonViewer({
                   isCurrentMatch={isCurrentMatch}
                 />
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Empty state */}

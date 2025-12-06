@@ -22,7 +22,7 @@ export function LineNumber({
       className="select-none"
       style={{
         display: "inline-block",
-        minWidth: `${maxDigits}ch`,
+        width: `${maxDigits}ch`,
         textAlign: "right",
         marginRight: "8px",
         color: theme.lineNumberColor,

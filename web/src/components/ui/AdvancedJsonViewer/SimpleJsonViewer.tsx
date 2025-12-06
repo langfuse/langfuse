@@ -39,6 +39,7 @@ interface SimpleJsonViewerProps {
   className?: string;
   scrollToIndex?: number; // For search navigation
   scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
+  totalLineCount?: number; // Total number of lines when fully expanded (for line number width calculation)
 }
 
 export function SimpleJsonViewer({
@@ -55,6 +56,7 @@ export function SimpleJsonViewer({
   className,
   scrollToIndex,
   scrollContainerRef: _scrollContainerRef,
+  totalLineCount,
 }: SimpleJsonViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -63,9 +65,11 @@ export function SimpleJsonViewer({
     offsetFromTop: number;
   } | null>(null);
   // Calculate maximum number of digits needed for line numbers
+  // Use totalLineCount if provided, otherwise fall back to current rows length
   const maxLineNumberDigits = useMemo(() => {
-    return Math.max(1, Math.floor(Math.log10(rows.length)) + 1);
-  }, [rows.length]);
+    const lineCount = totalLineCount ?? rows.length;
+    return Math.max(1, Math.floor(Math.log10(lineCount)) + 1);
+  }, [totalLineCount, rows.length]);
 
   // Build a map of rowId -> match for quick lookup
   const matchMap = new Map<string, SearchMatch>();

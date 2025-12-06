@@ -95,6 +95,17 @@ export function AdvancedJsonViewer({
     [data, expansionState],
   );
 
+  // Calculate total line count when fully expanded (for line number width)
+  const totalLineCount = useMemo(
+    () =>
+      flattenJSON(data, true, {
+        rootKey: "root",
+        maxDepth: null,
+        maxRows: null,
+      }).length,
+    [data],
+  );
+
   // Search matches
   const searchMatches = useMemo(
     () => searchInRows(flatRows, searchQuery, { caseSensitive: false }),
@@ -317,6 +328,7 @@ export function AdvancedJsonViewer({
           onToggleExpansion={handleToggleExpansion}
           scrollToIndex={scrollToIndex}
           scrollContainerRef={scrollContainerRef}
+          totalLineCount={totalLineCount}
         />
       </div>
     </div>
