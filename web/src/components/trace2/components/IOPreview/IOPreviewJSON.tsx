@@ -103,8 +103,6 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
-          backgroundColor="rgb(249, 252, 255)"
-          headerBackgroundColor="rgb(249, 252, 255)"
           className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
         />
       )}
@@ -126,8 +124,6 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
-          backgroundColor="rgb(248, 253, 250)"
-          headerBackgroundColor="rgb(248, 253, 250)"
           className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
         />
       )}
@@ -151,8 +147,6 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
-          backgroundColor="rgb(253, 251, 254)"
-          headerBackgroundColor="rgb(253, 251, 254)"
           className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
         />
       )}
