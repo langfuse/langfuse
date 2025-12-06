@@ -19,6 +19,7 @@ import {
   BedrockConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
@@ -34,6 +35,9 @@ import { TRPCError } from "@trpc/server";
 export function getDisplaySecretKey(secretKey: string) {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return "Default AWS credentials";
+  }
+  if (secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
+    return "Default GCP credentials (ADC)";
   }
   return secretKey.endsWith('"}')
     ? "..." + secretKey.slice(-6, -2)
@@ -61,10 +65,14 @@ async function testLLMConnection(
     if (!model) throw Error("No model found");
 
     if (params.adapter === LLMAdapter.VertexAI) {
-      const parsed = GCPServiceAccountKeySchema.safeParse(
-        JSON.parse(params.secretKey),
-      );
-      if (!parsed.success) throw Error("Invalid GCP service account JSON key");
+      // Skip validation if using ADC (Application Default Credentials)
+      if (params.secretKey !== VERTEXAI_USE_DEFAULT_CREDENTIALS) {
+        const parsed = GCPServiceAccountKeySchema.safeParse(
+          JSON.parse(params.secretKey),
+        );
+        if (!parsed.success)
+          throw Error("Invalid GCP service account JSON key");
+      }
     }
 
     const testMessages: ChatMessage[] = [
@@ -82,9 +90,16 @@ async function testLLMConnection(
       parsedConfig = { region: bedrockConfig.region };
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
       const vertexAIConfig = VertexAIConfigSchema.parse(params.config);
-      parsedConfig = vertexAIConfig.location
-        ? { location: vertexAIConfig.location }
-        : null;
+      parsedConfig = {};
+      if (vertexAIConfig.location) {
+        parsedConfig.location = vertexAIConfig.location;
+      }
+      if (vertexAIConfig.projectId) {
+        parsedConfig.projectId = vertexAIConfig.projectId;
+      }
+      if (Object.keys(parsedConfig).length === 0) {
+        parsedConfig = null;
+      }
     }
 
     await fetchLLMCompletion({
@@ -127,17 +142,25 @@ export const llmApiKeyRouter = createTRPCRouter({
           scope: "llmApiKeys:create",
         });
 
-        // Validate that default credentials sentinel is only allowed for Bedrock in self-hosted deployments
-        if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-          const isLangfuseCloud = Boolean(
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-          );
+        // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
+        const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+        if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
           if (isLangfuseCloud || input.adapter !== LLMAdapter.Bedrock) {
             throw new TRPCError({
               code: "BAD_REQUEST",
               message:
-                "Default credentials are only allowed for Bedrock in self-hosted deployments.",
+                "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
+          if (isLangfuseCloud || input.adapter !== LLMAdapter.VertexAI) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Default GCP credentials (ADC) are only allowed for Vertex AI in self-hosted deployments.",
             });
           }
         }
@@ -426,17 +449,25 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
-        // Validate that default credentials sentinel is only allowed for Bedrock in self-hosted deployments
-        if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
-          const isLangfuseCloud = Boolean(
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-          );
+        // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
+        const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+        if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
           if (isLangfuseCloud || input.adapter !== LLMAdapter.Bedrock) {
             throw new TRPCError({
               code: "BAD_REQUEST",
               message:
-                "Default credentials are only allowed for Bedrock in self-hosted deployments.",
+                "Default AWS credentials are only allowed for Bedrock in self-hosted deployments.",
+            });
+          }
+        }
+
+        if (input.secretKey === VERTEXAI_USE_DEFAULT_CREDENTIALS) {
+          if (isLangfuseCloud || input.adapter !== LLMAdapter.VertexAI) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Default GCP credentials (ADC) are only allowed for Vertex AI in self-hosted deployments.",
             });
           }
         }
