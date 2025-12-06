@@ -18,9 +18,10 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { type AdvancedJsonViewerProps, type ExpansionState } from "./types";
 import { flattenJSON, toggleRowExpansion } from "./utils/flattenJson";
-import { searchInRows, expandToMatch } from "./utils/searchJson";
+import { searchInRows } from "./utils/searchJson";
 import { shouldVirtualize } from "./utils/estimateRowHeight";
 import { useJsonTheme } from "./hooks/useJsonTheme";
+import { useSearchNavigation } from "./hooks/useSearchNavigation";
 import { SearchBar } from "./components/SearchBar";
 import { SimpleJsonViewer } from "./SimpleJsonViewer";
 import { VirtualizedJsonViewer } from "./VirtualizedJsonViewer";
@@ -152,6 +153,25 @@ export function AdvancedJsonViewer({
     [expansionState, isExpansionControlled, onExpansionChange],
   );
 
+  // Search navigation
+  const {
+    handleNextMatch,
+    handlePreviousMatch,
+    handleClearSearch,
+    scrollToIndex,
+  } = useSearchNavigation({
+    searchMatches,
+    currentMatchIndex,
+    flatRows,
+    expansionState,
+    isMatchIndexControlled,
+    onCurrentMatchIndexChange,
+    setInternalCurrentMatchIndex,
+    isExpansionControlled,
+    onExpansionChange,
+    setInternalExpansionState,
+  });
+
   // Handle search
   const handleSearch = useCallback(
     (query: string) => {
@@ -176,100 +196,14 @@ export function AdvancedJsonViewer({
     ],
   );
 
-  // Navigate to next match
-  const handleNextMatch = useCallback(() => {
-    if (searchMatches.length === 0) return;
-
-    const nextIndex = (currentMatchIndex + 1) % searchMatches.length;
-
-    if (isMatchIndexControlled) {
-      onCurrentMatchIndexChange(nextIndex);
-    } else {
-      setInternalCurrentMatchIndex(nextIndex);
-    }
-
-    // Expand ancestors to show the match
-    const match = searchMatches[nextIndex];
-    if (match) {
-      const newExpansion = expandToMatch(match, flatRows, expansionState);
-      if (isExpansionControlled) {
-        onExpansionChange(newExpansion);
-      } else {
-        setInternalExpansionState(newExpansion);
-      }
-    }
-  }, [
-    searchMatches,
-    currentMatchIndex,
-    flatRows,
-    expansionState,
-    isExpansionControlled,
-    onExpansionChange,
-    isMatchIndexControlled,
-    onCurrentMatchIndexChange,
-  ]);
-
-  // Navigate to previous match
-  const handlePreviousMatch = useCallback(() => {
-    if (searchMatches.length === 0) return;
-
-    const prevIndex =
-      currentMatchIndex === 0
-        ? searchMatches.length - 1
-        : currentMatchIndex - 1;
-
-    if (isMatchIndexControlled) {
-      onCurrentMatchIndexChange(prevIndex);
-    } else {
-      setInternalCurrentMatchIndex(prevIndex);
-    }
-
-    // Expand ancestors to show the match
-    const match = searchMatches[prevIndex];
-    if (match) {
-      const newExpansion = expandToMatch(match, flatRows, expansionState);
-      if (isExpansionControlled) {
-        onExpansionChange(newExpansion);
-      } else {
-        setInternalExpansionState(newExpansion);
-      }
-    }
-  }, [
-    searchMatches,
-    currentMatchIndex,
-    flatRows,
-    expansionState,
-    isExpansionControlled,
-    onExpansionChange,
-    isMatchIndexControlled,
-    onCurrentMatchIndexChange,
-  ]);
-
-  // Clear search
-  const handleClearSearch = useCallback(() => {
-    if (isSearchControlled) {
-      onSearchQueryChange("");
-    } else {
-      setInternalSearchQuery("");
-    }
-
-    if (isMatchIndexControlled) {
-      onCurrentMatchIndexChange(0);
-    } else {
-      setInternalCurrentMatchIndex(0);
-    }
-  }, [
-    isSearchControlled,
-    onSearchQueryChange,
-    isMatchIndexControlled,
-    onCurrentMatchIndexChange,
-  ]);
-
-  // Get scroll index for current match (for virtualized viewer)
-  const scrollToIndex = useMemo(() => {
-    if (searchMatches.length === 0) return undefined;
-    return searchMatches[currentMatchIndex]?.rowIndex;
-  }, [searchMatches, currentMatchIndex]);
+  // Wrap handleClearSearch to pass required params
+  const handleClearSearchWrapped = useCallback(() => {
+    handleClearSearch(
+      isSearchControlled,
+      onSearchQueryChange,
+      setInternalSearchQuery,
+    );
+  }, [handleClearSearch, isSearchControlled, onSearchQueryChange]);
 
   // Loading state
   if (isLoading) {
@@ -308,7 +242,7 @@ export function AdvancedJsonViewer({
           currentIndex={currentMatchIndex}
           onNext={handleNextMatch}
           onPrevious={handlePreviousMatch}
-          onClear={handleClearSearch}
+          onClear={handleClearSearchWrapped}
           placeholder={searchPlaceholder}
         />
       )}
