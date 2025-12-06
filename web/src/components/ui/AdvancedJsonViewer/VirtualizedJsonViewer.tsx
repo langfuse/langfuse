@@ -191,54 +191,67 @@ export function VirtualizedJsonViewer({
       <div
         style={{
           flex: 1,
-          overflowX: stringWrapMode === "nowrap" ? "auto" : "hidden",
-          overflowY: "hidden",
+          overflow: "hidden",
+          position: "relative",
         }}
       >
+        {/* Horizontal scroll wrapper - fixed height, handles X-scroll */}
         <div
           style={{
-            height: `${rowVirtualizer.getTotalSize()}px`,
-            position: "relative",
-            minWidth: scrollableMinWidth
-              ? `${scrollableMinWidth}px`
-              : undefined,
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflowX: stringWrapMode === "nowrap" ? "auto" : "hidden",
+            overflowY: "hidden",
           }}
         >
-          {virtualRows.map((virtualRow) => {
-            const row = rows[virtualRow.index]!;
-            const searchMatch = matchMap.get(row.id);
-            const isCurrentMatch = currentMatch?.rowId === row.id;
-            const matchCount = matchCounts?.get(row.id);
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              position: "relative",
+              minWidth: scrollableMinWidth
+                ? `${scrollableMinWidth}px`
+                : undefined,
+            }}
+          >
+            {virtualRows.map((virtualRow) => {
+              const row = rows[virtualRow.index]!;
+              const searchMatch = matchMap.get(row.id);
+              const isCurrentMatch = currentMatch?.rowId === row.id;
+              const matchCount = matchCounts?.get(row.id);
 
-            return (
-              <div
-                key={`scrollable-${row.id}`}
-                data-index={virtualRow.index}
-                ref={rowVirtualizer.measureElement}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <JsonRowScrollable
-                  row={row}
-                  theme={theme}
-                  stringWrapMode={stringWrapMode}
-                  truncateStringsAt={truncateStringsAt}
-                  matchCount={matchCount}
-                  currentMatchIndexInRow={
-                    isCurrentMatch ? currentMatchIndexInRow : undefined
-                  }
-                  enableCopy={enableCopy}
-                  searchMatch={searchMatch}
-                  isCurrentMatch={isCurrentMatch}
-                />
-              </div>
-            );
-          })}
+              return (
+                <div
+                  key={`scrollable-${row.id}`}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <JsonRowScrollable
+                    row={row}
+                    theme={theme}
+                    stringWrapMode={stringWrapMode}
+                    truncateStringsAt={truncateStringsAt}
+                    matchCount={matchCount}
+                    currentMatchIndexInRow={
+                      isCurrentMatch ? currentMatchIndexInRow : undefined
+                    }
+                    enableCopy={enableCopy}
+                    searchMatch={searchMatch}
+                    isCurrentMatch={isCurrentMatch}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
