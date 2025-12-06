@@ -3,15 +3,16 @@ import {
   convertDateToClickhouseDateTime,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import {
-  type QueryType,
-  type ViewDeclarationType,
-  query as queryModel,
-  type metricAggregations,
-  type granularities,
-  type privateViews,
+import type {
+  QueryType,
+  ViewDeclarationType,
+  metricAggregations,
+  granularities,
+  ViewVersion,
+  views,
 } from "../types";
-import { viewDeclarations } from "@/src/features/query/dataModel";
+import { query as queryModel } from "../types";
+import { getViewDeclaration } from "@/src/features/query/dataModel";
 import {
   FilterList,
   createFilterFromFilterState,
@@ -34,9 +35,14 @@ type AppliedMetricType = {
 
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
+  private version: ViewVersion;
 
-  constructor(chartConfig?: { bins?: number; row_limit?: number }) {
+  constructor(
+    chartConfig?: { bins?: number; row_limit?: number },
+    version: ViewVersion = "v1",
+  ) {
     this.chartConfig = chartConfig;
+    this.version = version;
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
@@ -75,14 +81,9 @@ export class QueryBuilder {
   }
 
   private getViewDeclaration(
-    viewName: z.infer<typeof privateViews>,
+    viewName: z.infer<typeof views>,
   ): ViewDeclarationType {
-    if (!(viewName in viewDeclarations)) {
-      throw new InvalidRequestError(
-        `Invalid view. Must be one of ${Object.keys(viewDeclarations)}`,
-      );
-    }
-    return viewDeclarations[viewName];
+    return getViewDeclaration(viewName, this.version);
   }
 
   private mapDimensions(

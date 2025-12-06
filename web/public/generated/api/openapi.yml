@@ -3609,7 +3609,9 @@ paths:
       security:
         - BasicAuth: []
     delete:
-      description: Delete a prompt or specific versions
+      description: >-
+        Delete prompt versions. If neither version nor label is specified, all
+        versions of the prompt are deleted.
       operationId: prompts_delete
       tags:
         - Prompts
@@ -3622,25 +3624,25 @@ paths:
             type: string
         - name: label
           in: query
-          description: Optional label of the prompt to delete
+          description: >-
+            Optional label to filter deletion. If specified, deletes all prompt
+            versions that have this label.
           required: false
           schema:
             type: string
             nullable: true
         - name: version
           in: query
-          description: Optional version of the prompt to delete
+          description: >-
+            Optional version to filter deletion. If specified, deletes only this
+            specific version of the prompt.
           required: false
           schema:
             type: integer
             nullable: true
       responses:
-        '200':
+        '204':
           description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmptyResponse'
         '400':
           description: ''
           content:

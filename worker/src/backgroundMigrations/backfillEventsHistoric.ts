@@ -490,7 +490,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       INSERT INTO events (
         project_id, trace_id, span_id, parent_span_id, start_time, end_time,
         name, type, environment, version, release, tags, public, bookmarked,
-        user_id, session_id, level, status_message, completion_start_time,
+        trace_name, user_id, session_id, level, status_message, completion_start_time,
         prompt_id, prompt_name, prompt_version, model_id, provided_model_name,
         model_parameters, provided_usage_details, usage_details,
         provided_cost_details, cost_details, input, output, metadata,
@@ -512,6 +512,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         t.tags as tags,
         t.public as public,
         t.bookmarked as bookmarked,
+        coalesce(t.name, '') AS trace_name,
         coalesce(t.user_id, '') AS user_id,
         coalesce(t.session_id, '') AS session_id,
         o.level,
@@ -529,7 +530,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.cost_details,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
-        metadata::JSON AS metadata,
+        CAST(o.metadata, 'JSON(max_dynamic_paths=0)') AS metadata,
         mapKeys(o.metadata) AS metadata_names,
         mapValues(o.metadata) AS metadata_raw_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
@@ -574,13 +575,13 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       retryCount > 0
         ? {
             // max_threads: 1,
-            max_block_size: "32768",
+            max_block_size: "4096",
           }
         : {};
 
     if (retryCount > 0) {
       logger.info(
-        `[Backfill Events] Applying retry settings for query ${queryId}: max_block_size=32768 (retry ${retryCount})`,
+        `[Backfill Events] Applying retry settings for query ${queryId}: max_block_size=4096 (retry ${retryCount})`,
       );
     }
 
