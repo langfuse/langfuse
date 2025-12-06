@@ -5,14 +5,7 @@
  * Best for small datasets (<500 rows) where virtualization overhead isn't worth it.
  */
 
-import {
-  useMemo,
-  useEffect,
-  useLayoutEffect,
-  useCallback,
-  useRef,
-  type RefObject,
-} from "react";
+import { useMemo, useEffect, useRef, type RefObject } from "react";
 import {
   type FlatJSONRow,
   type SearchMatch,
@@ -23,6 +16,7 @@ import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
+import { useScrollPreservation } from "./hooks/useScrollPreservation";
 
 interface SimpleJsonViewerProps {
   rows: FlatJSONRow[];
@@ -57,12 +51,11 @@ export function SimpleJsonViewer({
   scrollContainerRef: _scrollContainerRef,
   totalLineCount,
 }: SimpleJsonViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const lastToggledRowRef = useRef<{
-    rowId: string;
-    offsetFromTop: number;
-  } | null>(null);
+  // Scroll preservation logic
+  const { containerRef, rowRefs, handleToggleExpansion } =
+    useScrollPreservation({
+      onToggleExpansion,
+    });
 
   // Layout calculations (widths, heights, column sizes)
   const { maxLineNumberDigits, fixedColumnWidth, scrollableMinWidth } =
@@ -80,48 +73,6 @@ export function SimpleJsonViewer({
     searchMatches,
     currentMatchIndex,
   );
-
-  // Wrapped toggle handler that preserves scroll position
-  const handleToggleExpansion = useCallback(
-    (rowId: string) => {
-      if (!onToggleExpansion) return;
-
-      const element = rowRefs.current.get(rowId);
-      if (element && containerRef.current) {
-        const containerRect = containerRef.current.getBoundingClientRect();
-        const elementRect = element.getBoundingClientRect();
-        const offsetFromTop = elementRect.top - containerRect.top;
-        lastToggledRowRef.current = {
-          rowId,
-          offsetFromTop,
-        };
-      }
-
-      onToggleExpansion(rowId);
-    },
-    [onToggleExpansion],
-  );
-
-  // Restore scroll position after expansion/collapse
-  useLayoutEffect(() => {
-    if (!lastToggledRowRef.current) return;
-
-    const { rowId, offsetFromTop } = lastToggledRowRef.current;
-    const element = rowRefs.current.get(rowId);
-
-    if (element && containerRef.current) {
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const elementRect = element.getBoundingClientRect();
-      const currentOffset = elementRect.top - containerRect.top;
-      const scrollAdjustment = currentOffset - offsetFromTop;
-
-      if (scrollAdjustment !== 0) {
-        containerRef.current.scrollTop += scrollAdjustment;
-      }
-    }
-
-    lastToggledRowRef.current = null;
-  }, [rows]);
 
   // Scroll to match when search navigation occurs
   useEffect(() => {
