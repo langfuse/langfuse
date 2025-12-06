@@ -268,11 +268,13 @@ export function AdvancedJsonSection({
 
   // Handle string wrap mode cycling: truncate → wrap → nowrap → truncate
   const handleCycleWrapMode = () => {
-    setStringWrapMode((prev) => {
-      if (prev === "truncate") return "wrap";
-      if (prev === "wrap") return "nowrap";
-      return "truncate";
-    });
+    if (stringWrapMode === "truncate") {
+      setStringWrapMode("wrap");
+    } else if (stringWrapMode === "wrap") {
+      setStringWrapMode("nowrap");
+    } else {
+      setStringWrapMode("truncate");
+    }
   };
 
   // Handle copy
