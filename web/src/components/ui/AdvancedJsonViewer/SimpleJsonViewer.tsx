@@ -54,6 +54,7 @@ export function SimpleJsonViewer({
   // Scroll preservation logic
   const { containerRef, rowRefs, handleToggleExpansion } =
     useScrollPreservation({
+      rows,
       onToggleExpansion,
     });
 

@@ -69,7 +69,7 @@ export function IOPreviewJSON({
   >(defaultExpanded);
 
   // Ensure expandedSection is always valid (if current is hidden, switch to first visible)
-  useMemo(() => {
+  useEffect(() => {
     if (expandedSection === "input" && !showInput) {
       setExpandedSection(
         showOutput ? "output" : showMetadata ? "metadata" : null,

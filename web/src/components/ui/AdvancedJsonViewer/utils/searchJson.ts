@@ -334,7 +334,8 @@ export function highlightText(
     highlightStart === undefined ||
     highlightEnd === undefined ||
     highlightStart < 0 ||
-    highlightEnd > text.length
+    highlightEnd > text.length ||
+    highlightEnd < highlightStart
   ) {
     return [{ text, isHighlight: false }];
   }

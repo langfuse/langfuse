@@ -7,13 +7,16 @@
  * Used by SimpleJsonViewer
  */
 
-import { useRef, useLayoutEffect, useCallback } from "react";
+import { useRef, useLayoutEffect, useCallback, useEffect } from "react";
+import type { FlatJSONRow } from "../types";
 
 interface UseScrollPreservationParams {
+  rows: FlatJSONRow[];
   onToggleExpansion?: (rowId: string) => void;
 }
 
 export function useScrollPreservation({
+  rows,
   onToggleExpansion,
 }: UseScrollPreservationParams) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -22,6 +25,16 @@ export function useScrollPreservation({
     rowId: string;
     offsetFromTop: number;
   } | null>(null);
+
+  // Clean up refs for rows that no longer exist to prevent memory leak
+  useEffect(() => {
+    const currentRowIds = new Set(rows.map((r) => r.id));
+    rowRefs.current.forEach((_, rowId) => {
+      if (!currentRowIds.has(rowId)) {
+        rowRefs.current.delete(rowId);
+      }
+    });
+  }, [rows]);
 
   // Wrapped toggle handler that preserves scroll position
   const handleToggleExpansion = useCallback(
