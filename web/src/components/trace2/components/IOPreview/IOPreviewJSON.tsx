@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { type Prisma } from "@langfuse/shared";
 import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection/AdvancedJsonSection";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -46,6 +47,14 @@ export function IOPreviewJSON({
   hideInput = false,
   media,
 }: IOPreviewJSONProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  // Background colors that adapt to theme
+  const inputBgColor = isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)"; // Dark slate vs light blue
+  const outputBgColor = isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)"; // Dark blue-gray vs light green
+  const metadataBgColor = isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)"; // Dark purple vs light purple
+
   // Height constants for accordion layout
   // AdvancedJsonSection header has minHeight: 38px
   const HEADER_HEIGHT = 38; // px
@@ -103,6 +112,8 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          backgroundColor={inputBgColor}
+          headerBackgroundColor={inputBgColor}
           className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
         />
       )}
@@ -124,6 +135,8 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          backgroundColor={outputBgColor}
+          headerBackgroundColor={outputBgColor}
           className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
         />
       )}
@@ -147,6 +160,8 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          backgroundColor={metadataBgColor}
+          headerBackgroundColor={metadataBgColor}
           className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
         />
       )}
