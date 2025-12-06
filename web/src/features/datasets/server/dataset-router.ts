@@ -965,6 +965,107 @@ export const datasetRouter = createTRPCRouter({
 
       return result.deletedItem;
     }),
+  deleteDatasetItems: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetItemIds: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      // Get all items for audit logging
+      const items = await ctx.prisma.datasetItem.findMany({
+        where: {
+          id: { in: input.datasetItemIds },
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+
+      // Delete all items
+      await ctx.prisma.datasetItem.deleteMany({
+        where: {
+          id: { in: input.datasetItemIds },
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+
+      // Log audit entries for each deleted item
+      await Promise.all(
+        items.map((item) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "datasetItem",
+            resourceId: item.id,
+            action: "delete",
+            before: item,
+          }),
+        ),
+      );
+
+      return items;
+    }),
+  archiveDatasetItems: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetItemIds: z.array(z.string()),
+        status: z.enum(["ACTIVE", "ARCHIVED"]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      // Get all items for audit logging
+      const items = await ctx.prisma.datasetItem.findMany({
+        where: {
+          id: { in: input.datasetItemIds },
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+      });
+
+      // Update all items
+      await ctx.prisma.datasetItem.updateMany({
+        where: {
+          id: { in: input.datasetItemIds },
+          datasetId: input.datasetId,
+          projectId: input.projectId,
+        },
+        data: {
+          status: input.status,
+        },
+      });
+
+      // Log audit entries for each updated item
+      await Promise.all(
+        items.map((item) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "datasetItem",
+            resourceId: item.id,
+            action: "update",
+            before: item,
+            after: { ...item, status: input.status },
+          }),
+        ),
+      );
+
+      return items;
+    }),
   duplicateDataset: protectedProjectProcedure
     .input(
       z.object({

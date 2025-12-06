@@ -12,7 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { Archive, Edit, ListTree, MoreVertical, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ChevronDown,
+  Edit,
+  ListTree,
+  MoreVertical,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   datasetItemFilterColumns,
@@ -21,7 +28,7 @@ import {
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -36,6 +43,16 @@ import { BatchExportTableName } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import { type RowSelectionState } from "@tanstack/react-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 
 type RowData = {
   id: string;
@@ -48,6 +65,172 @@ type RowData = {
   input: Prisma.JsonValue;
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
+};
+
+const DatasetItemsMultiSelectAction = ({
+  selectedItemIds,
+  projectId,
+  datasetId,
+  setRowSelection,
+  hasAccess,
+}: {
+  selectedItemIds: string[];
+  projectId: string;
+  datasetId: string;
+  setRowSelection: (value: Record<string, boolean>) => void;
+  hasAccess: boolean;
+}) => {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [archiveAction, setArchiveAction] = useState<"ARCHIVED" | "ACTIVE">(
+    "ARCHIVED",
+  );
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+
+  const mutDelete = api.datasets.deleteDatasetItems.useMutation({
+    onSuccess: () => {
+      utils.datasets.invalidate();
+      setRowSelection({});
+    },
+  });
+
+  const mutArchive = api.datasets.archiveDatasetItems.useMutation({
+    onSuccess: () => {
+      utils.datasets.invalidate();
+      setRowSelection({});
+    },
+  });
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button disabled={selectedItemIds.length < 1 || !hasAccess}>
+            Actions ({selectedItemIds.length} selected)
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent key="dropdown-menu-content">
+          <DropdownMenuItem
+            key="archive"
+            onClick={() => {
+              setArchiveAction("ARCHIVED");
+              setIsArchiveDialogOpen(true);
+            }}
+          >
+            <Archive className="mr-2 h-4 w-4" />
+            <span>Archive</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            key="unarchive"
+            onClick={() => {
+              setArchiveAction("ACTIVE");
+              setIsArchiveDialogOpen(true);
+            }}
+          >
+            <Archive className="mr-2 h-4 w-4" />
+            <span>Unarchive</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            key="delete"
+            className="text-destructive"
+            onClick={() => setIsDeleteDialogOpen(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            <span>Delete</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Delete confirmation dialog */}
+      <Dialog
+        key="delete-dialog"
+        open={isDeleteDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!mutDelete.isPending) {
+            setIsDeleteDialogOpen(isOpen);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="mb-4">Please confirm</DialogTitle>
+            <DialogDescription className="text-md p-0">
+              This action cannot be undone. This will permanently delete{" "}
+              {selectedItemIds.length} dataset item
+              {selectedItemIds.length > 1 ? "s" : ""} and all associated run
+              items.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              loading={mutDelete.isPending}
+              disabled={mutDelete.isPending}
+              onClick={async (event) => {
+                event.preventDefault();
+                capture("dataset_items:bulk_delete");
+                await mutDelete.mutateAsync({
+                  projectId,
+                  datasetId,
+                  datasetItemIds: selectedItemIds,
+                });
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Delete Dataset Items
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Archive confirmation dialog */}
+      <Dialog
+        key="archive-dialog"
+        open={isArchiveDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!mutArchive.isPending) {
+            setIsArchiveDialogOpen(isOpen);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="mb-4">Please confirm</DialogTitle>
+            <DialogDescription className="text-md p-0">
+              {archiveAction === "ARCHIVED"
+                ? `This will archive ${selectedItemIds.length} dataset item${selectedItemIds.length > 1 ? "s" : ""}. Archived items will not be included in new dataset runs.`
+                : `This will unarchive ${selectedItemIds.length} dataset item${selectedItemIds.length > 1 ? "s" : ""}. The items will be active and included in new dataset runs.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              loading={mutArchive.isPending}
+              disabled={mutArchive.isPending}
+              onClick={async (event) => {
+                event.preventDefault();
+                capture("dataset_items:bulk_archive", {
+                  status: archiveAction.toLowerCase(),
+                });
+                await mutArchive.mutateAsync({
+                  projectId,
+                  datasetId,
+                  datasetItemIds: selectedItemIds,
+                  status: archiveAction,
+                });
+                setIsArchiveDialogOpen(false);
+              }}
+            >
+              {archiveAction === "ARCHIVED"
+                ? "Archive Dataset Items"
+                : "Unarchive Dataset Items"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 };
 
 export function DatasetItemsTable({
@@ -67,6 +250,7 @@ export function DatasetItemsTable({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "datasetItems",
@@ -115,11 +299,54 @@ export function DatasetItemsTable({
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
+      id: "select",
+      accessorKey: "select",
+      size: 30,
+      isFixedPosition: true,
+      isPinnedLeft: true,
+      header: ({ table }) => {
+        return (
+          <div className="flex h-full items-center">
+            <Checkbox
+              checked={
+                table.getIsAllPageRowsSelected()
+                  ? true
+                  : table.getIsSomePageRowsSelected()
+                    ? "indeterminate"
+                    : false
+              }
+              onCheckedChange={(value) => {
+                table.toggleAllPageRowsSelected(!!value);
+                if (!value) {
+                  setSelectedRows({});
+                }
+              }}
+              aria-label="Select all"
+              className="opacity-60"
+              disabled={!hasAccess}
+            />
+          </div>
+        );
+      },
+      cell: ({ row }) => {
+        return (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+            className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
+            disabled={!hasAccess}
+          />
+        );
+      },
+    },
+    {
       accessorKey: "id",
       header: "Item id",
       id: "id",
       size: 90,
       isFixedPosition: true,
+      isPinnedLeft: true,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
         return (
@@ -358,6 +585,11 @@ export function DatasetItemsTable({
   const setFilterStateWithDebounce = useDebounce(setFilterState);
   const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
 
+  // Get selected item IDs that are in the current page
+  const selectedItemIds = Object.keys(selectedRows).filter((itemId) =>
+    items.data?.datasetItems.map((item) => item.id).includes(itemId),
+  );
+
   return (
     <>
       <DataTableToolbar
@@ -371,7 +603,20 @@ export function DatasetItemsTable({
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={[menuItems, batchExportButton].filter(Boolean)}
+        actionButtons={[
+          selectedItemIds.length > 0 ? (
+            <DatasetItemsMultiSelectAction
+              key="multiSelectAction"
+              selectedItemIds={selectedItemIds}
+              projectId={projectId}
+              datasetId={datasetId}
+              setRowSelection={setSelectedRows}
+              hasAccess={hasAccess}
+            />
+          ) : null,
+          menuItems,
+          batchExportButton,
+        ].filter(Boolean)}
         searchConfig={{
           metadataSearchFields: ["ID"],
           updateQuery: setSearchQueryWithDebounce,
@@ -416,6 +661,8 @@ export function DatasetItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+        rowSelection={selectedRows}
+        setRowSelection={setSelectedRows}
       />
     </>
   );
