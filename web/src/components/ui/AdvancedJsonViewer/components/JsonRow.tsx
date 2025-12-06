@@ -50,9 +50,8 @@ export function JsonRow({
       className={className}
       style={{
         display: "grid",
-        gridTemplateColumns:
-          stringWrapMode === "nowrap" ? "auto max-content" : "auto 1fr",
-        alignItems: "start",
+        gridTemplateColumns: "auto 1fr",
+        alignItems: stringWrapMode === "wrap" ? "start" : "center",
         minHeight: `${theme.lineHeight}px`,
         paddingLeft: "4px",
         paddingRight: "4px",
@@ -61,6 +60,7 @@ export function JsonRow({
         lineHeight: `${theme.lineHeight}px`,
         fontFamily: "monospace",
         transition: "background-color 0.15s ease",
+        overflow: stringWrapMode === "nowrap" ? "auto" : "visible",
       }}
     >
       {/* Column 1: Line number + expand button + indent + key + colon */}
@@ -69,6 +69,7 @@ export function JsonRow({
           display: "flex",
           alignItems: "center",
           minHeight: `${theme.lineHeight}px`,
+          flexShrink: 0,
         }}
       >
         {/* Line number (optional) */}
@@ -121,8 +122,9 @@ export function JsonRow({
         style={{
           minHeight: `${theme.lineHeight}px`,
           display: "flex",
-          alignItems: "start",
+          alignItems: stringWrapMode === "wrap" ? "start" : "center",
           wordBreak: "break-word",
+          minWidth: 0, // Allow flex child to shrink below content size
         }}
       >
         <JsonValue
