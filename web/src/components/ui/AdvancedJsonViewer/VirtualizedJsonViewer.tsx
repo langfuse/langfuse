@@ -76,11 +76,12 @@ export function VirtualizedJsonViewer({
 
   // Pending scroll restoration - stored in state so it survives virtualizer remount
   // After remount, useLayoutEffect will restore the scroll position before browser paint
-  // We track the first visible row and its offset, so it stays in the same viewport position
-  // even when content above/below is added/removed
+  // We track the toggled row and its viewport position, so it stays in the same visual location
+  // Also preserve horizontal scroll to prevent left/right jumping
   const [pendingScrollRestore, setPendingScrollRestore] = useState<{
-    firstVisibleRowId: string;
-    offsetFromTop: number;
+    toggledRowId: string; // The row that was clicked
+    viewportOffsetTop: number; // Distance from viewport top
+    scrollLeft: number; // Horizontal scroll position
   } | null>(null);
 
   // Calculate maximum number of digits needed for line numbers
@@ -150,34 +151,35 @@ export function VirtualizedJsonViewer({
     (rowId: string) => {
       if (!onToggleExpansion) return;
 
-      // Capture the first visible row and its offset from top of viewport
-      // This row will be kept in the same position after expand/collapse
+      // Capture the toggled row's position relative to viewport
+      // This ensures the clicked row stays exactly where it was visually
       const scrollElement = scrollContainerRef?.current || parentRef.current;
       if (scrollElement) {
-        const virtualItems = rowVirtualizer.getVirtualItems();
-        const firstVisibleItem = virtualItems[0];
+        // Find the toggled row's index and DOM element
+        const rowIndex = rows.findIndex((r) => r.id === rowId);
+        const rowElement = scrollElement.querySelector(
+          `[data-index="${rowIndex}"]`,
+        );
 
-        if (firstVisibleItem) {
-          const firstVisibleRow = rows[firstVisibleItem.index];
-          const offsetFromTop =
-            firstVisibleItem.start - scrollElement.scrollTop;
+        if (rowElement) {
+          const rect = rowElement.getBoundingClientRect();
+          const containerRect = scrollElement.getBoundingClientRect();
+          const viewportOffsetTop = rect.top - containerRect.top;
 
-          console.log("[Toggle] Capturing first visible row:", {
-            rowId: firstVisibleRow?.id,
-            index: firstVisibleItem.index,
-            start: firstVisibleItem.start,
-            scrollTop: scrollElement.scrollTop,
-            offsetFromTop,
+          console.log("[Toggle] Capturing toggled row position:", {
+            rowId,
+            rowIndex,
+            viewportOffsetTop,
+            scrollLeft: scrollElement.scrollLeft,
           });
 
-          if (firstVisibleRow) {
-            setPendingScrollRestore({
-              firstVisibleRowId: firstVisibleRow.id,
-              offsetFromTop,
-            });
-          }
+          setPendingScrollRestore({
+            toggledRowId: rowId,
+            viewportOffsetTop,
+            scrollLeft: scrollElement.scrollLeft,
+          });
         } else {
-          console.log("[Toggle] No visible items found");
+          console.log("[Toggle] Row element not found:", rowId);
         }
       } else {
         console.log("[Toggle] No scroll element found");
@@ -185,7 +187,7 @@ export function VirtualizedJsonViewer({
 
       onToggleExpansion(rowId);
     },
-    [onToggleExpansion, rows, rowVirtualizer, scrollContainerRef],
+    [onToggleExpansion, rows, scrollContainerRef],
   );
 
   // Force complete virtualizer remount when rows are added/removed (expand/collapse)
@@ -233,57 +235,66 @@ export function VirtualizedJsonViewer({
       pendingScrollRestore,
     );
 
-    const { firstVisibleRowId, offsetFromTop } = pendingScrollRestore;
+    const { toggledRowId, viewportOffsetTop, scrollLeft } =
+      pendingScrollRestore;
     const scrollElement = scrollContainerRef?.current || parentRef.current;
 
-    // Find where the first visible row is now in the new rows array
-    const newIndex = rows.findIndex((r) => r.id === firstVisibleRowId);
+    if (!scrollElement) {
+      console.log("[Layout Effect] No scroll element, clearing pending state");
+      setPendingScrollRestore(null);
+      return;
+    }
 
-    console.log("[Layout Effect] First visible row now at index:", newIndex);
-
-    if (newIndex !== -1 && scrollElement) {
-      // Need one RAF to let virtualizer initialize after remount
+    // Use double RAF to ensure virtualizer measurements are stable
+    // Frame 1: React commits DOM, virtualizer starts measuring
+    // Frame 2: Measurements complete, layout stable
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // Calculate the position of this row in the new layout
-        // We use estimateSize to sum up heights of all rows before this one
-        let estimatedPosition = 0;
-        for (let i = 0; i < newIndex; i++) {
-          estimatedPosition += estimateSize(i);
+        // Find the toggled row's new index and DOM element
+        const newIndex = rows.findIndex((r) => r.id === toggledRowId);
+        const rowElement = scrollElement.querySelector(
+          `[data-index="${newIndex}"]`,
+        );
+
+        if (rowElement) {
+          // Get actual DOM measurements (not estimates)
+          const currentRect = rowElement.getBoundingClientRect();
+          const containerRect = scrollElement.getBoundingClientRect();
+          const currentOffsetTop = currentRect.top - containerRect.top;
+
+          // Calculate how much to adjust scroll to maintain visual position
+          const scrollDelta = currentOffsetTop - viewportOffsetTop;
+
+          console.log("[Layout Effect RAF2] Restoring scroll:", {
+            toggledRowId,
+            newIndex,
+            currentOffsetTop,
+            targetOffsetTop: viewportOffsetTop,
+            scrollDelta,
+            scrollLeftBefore: scrollElement.scrollLeft,
+            scrollLeftTarget: scrollLeft,
+          });
+
+          // Adjust scroll position (both vertical and horizontal)
+          scrollElement.scrollTop += scrollDelta;
+          scrollElement.scrollLeft = scrollLeft;
+
+          console.log("[Layout Effect RAF2] After scroll restoration:", {
+            scrollTop: scrollElement.scrollTop,
+            scrollLeft: scrollElement.scrollLeft,
+          });
+        } else {
+          console.log("[Layout Effect RAF2] Row element not found:", {
+            toggledRowId,
+            newIndex,
+          });
         }
-
-        console.log("[Layout Effect RAF] Calculated position:", {
-          rowId: firstVisibleRowId,
-          newIndex,
-          estimatedPosition,
-          offsetFromTop,
-        });
-
-        // Set scroll so this row appears at the same offset from top as before
-        const targetScrollTop = estimatedPosition - offsetFromTop;
-
-        console.log("[Layout Effect RAF] Setting scroll position:", {
-          estimatedPosition,
-          offsetFromTop,
-          targetScrollTop,
-          currentScrollTop: scrollElement.scrollTop,
-        });
-
-        scrollElement.scrollTop = targetScrollTop;
-
-        console.log("[Layout Effect RAF] After setting scroll:", {
-          scrollTop: scrollElement.scrollTop,
-        });
 
         // Clear pending restoration
         setPendingScrollRestore(null);
       });
-    } else {
-      console.log(
-        "[Layout Effect] Row not found or no scroll element, clearing pending state",
-      );
-      setPendingScrollRestore(null);
-    }
-  }, [pendingScrollRestore, rows, estimateSize, scrollContainerRef]);
+    });
+  }, [pendingScrollRestore, rows, scrollContainerRef]);
 
   // Scroll to match when search navigation occurs
   useEffect(() => {

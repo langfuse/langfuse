@@ -476,6 +476,7 @@ export function AdvancedJsonSection({
             maxHeight: maxHeight,
             overflow: "auto", // Single scroll container for both X and Y
             backgroundColor: headerBackgroundColor || backgroundColor,
+            height: "100%",
           }}
         >
           <AdvancedJsonViewer
