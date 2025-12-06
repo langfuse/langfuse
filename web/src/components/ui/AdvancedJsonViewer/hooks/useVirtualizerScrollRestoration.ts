@@ -26,7 +26,7 @@ interface UseVirtualizerScrollRestorationParams {
   rows: FlatJSONRow[];
   stringWrapMode: StringWrapMode;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
-  parentRef: RefObject<HTMLDivElement>;
+  parentRef: RefObject<HTMLDivElement | null>;
   onToggleExpansion?: (rowId: string) => void;
 }
 
