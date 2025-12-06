@@ -75,6 +75,7 @@ export function JsonRowScrollable({
           color: theme.punctuationColor,
           marginLeft: "2px",
           marginRight: "4px",
+          flexShrink: 0, // Prevent colon from being compressed
         }}
       >
         :
