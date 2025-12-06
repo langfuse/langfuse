@@ -60,7 +60,6 @@ export function JsonRow({
         lineHeight: `${theme.lineHeight}px`,
         fontFamily: "monospace",
         transition: "background-color 0.15s ease",
-        overflow: stringWrapMode === "nowrap" ? "auto" : "visible",
       }}
     >
       {/* Column 1: Line number + expand button + indent + key + colon */}

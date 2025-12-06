@@ -14,6 +14,7 @@ import {
 } from "./types";
 import { JsonRow } from "./components/JsonRow";
 import { getCurrentMatchIndexInRow } from "./utils/searchJson";
+import { calculateMinimumWidth } from "./utils/calculateWidth";
 
 interface SimpleJsonViewerProps {
   rows: FlatJSONRow[];
@@ -68,6 +69,14 @@ export function SimpleJsonViewer({
     [currentMatchIndex, searchMatches],
   );
 
+  // Calculate minimum width for nowrap mode
+  const minWidth = useMemo(() => {
+    if (stringWrapMode === "nowrap") {
+      return calculateMinimumWidth(rows, theme);
+    }
+    return undefined;
+  }, [stringWrapMode, rows, theme]);
+
   // Scroll to match when search navigation occurs
   useEffect(() => {
     if (
@@ -97,6 +106,7 @@ export function SimpleJsonViewer({
         backgroundColor: theme.background,
         color: theme.foreground,
         fontFamily: "monospace",
+        minWidth: minWidth ? `${minWidth}px` : undefined,
       }}
     >
       {rows.map((row, index) => {

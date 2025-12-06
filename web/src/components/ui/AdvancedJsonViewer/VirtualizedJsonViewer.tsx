@@ -16,6 +16,7 @@ import {
 import { JsonRow } from "./components/JsonRow";
 import { createHeightEstimator } from "./utils/estimateRowHeight";
 import { getCurrentMatchIndexInRow } from "./utils/searchJson";
+import { calculateMinimumWidth } from "./utils/calculateWidth";
 
 interface VirtualizedJsonViewerProps {
   rows: FlatJSONRow[];
@@ -73,6 +74,14 @@ export function VirtualizedJsonViewer({
     [currentMatchIndex, searchMatches],
   );
 
+  // Calculate minimum width for nowrap mode
+  const minWidth = useMemo(() => {
+    if (stringWrapMode === "nowrap") {
+      return calculateMinimumWidth(rows, theme);
+    }
+    return undefined;
+  }, [stringWrapMode, rows, theme]);
+
   // Create height estimator
   const estimateSize = useMemo(
     () =>
@@ -127,6 +136,7 @@ export function VirtualizedJsonViewer({
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
           width: "100%",
+          minWidth: minWidth ? `${minWidth}px` : undefined,
           position: "relative",
         }}
       >
