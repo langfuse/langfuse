@@ -23,10 +23,8 @@ import {
 } from "./types";
 import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
-import { createHeightEstimator } from "./utils/estimateRowHeight";
-import { getCurrentMatchIndexInRow } from "./utils/searchJson";
-import { calculateMinimumWidth } from "./utils/calculateWidth";
-import { calculateFixedColumnWidth } from "./utils/calculateFixedColumnWidth";
+import { useJsonSearch } from "./hooks/useJsonSearch";
+import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 
 interface VirtualizedJsonViewerProps {
   rows: FlatJSONRow[];
@@ -84,54 +82,25 @@ export function VirtualizedJsonViewer({
     scrollLeft: number; // Horizontal scroll position
   } | null>(null);
 
-  // Calculate maximum number of digits needed for line numbers
-  // Use totalLineCount if provided, otherwise fall back to current rows length
-  const maxLineNumberDigits = useMemo(() => {
-    const lineCount = totalLineCount ?? rows.length;
-    return Math.max(1, Math.floor(Math.log10(lineCount)) + 1);
-  }, [totalLineCount, rows.length]);
+  // Layout calculations (widths, heights, column sizes)
+  const {
+    maxLineNumberDigits,
+    fixedColumnWidth,
+    scrollableMinWidth,
+    estimateSize,
+  } = useJsonViewerLayout({
+    rows,
+    theme,
+    showLineNumbers,
+    totalLineCount,
+    stringWrapMode,
+    truncateStringsAt,
+  });
 
-  // Build a map of rowId -> match for quick lookup
-  const matchMap = useMemo(() => {
-    const map = new Map<string, SearchMatch>();
-    searchMatches.forEach((match) => {
-      map.set(match.rowId, match);
-    });
-    return map;
-  }, [searchMatches]);
-
-  // Get current match for highlighting
-  const currentMatch = searchMatches[currentMatchIndex];
-
-  // Get current match index within its row (1-based)
-  const currentMatchIndexInRow = useMemo(
-    () => getCurrentMatchIndexInRow(currentMatchIndex, searchMatches),
-    [currentMatchIndex, searchMatches],
-  );
-
-  // Calculate fixed column width
-  const fixedColumnWidth = useMemo(
-    () => calculateFixedColumnWidth(showLineNumbers, maxLineNumberDigits),
-    [showLineNumbers, maxLineNumberDigits],
-  );
-
-  // Calculate minimum width for nowrap mode (scrollable column only)
-  const scrollableMinWidth = useMemo(() => {
-    if (stringWrapMode === "nowrap") {
-      return calculateMinimumWidth(rows, theme);
-    }
-    return undefined;
-  }, [stringWrapMode, rows, theme]);
-
-  // Create height estimator
-  const estimateSize = useMemo(
-    () =>
-      createHeightEstimator(rows, {
-        baseHeight: theme.lineHeight,
-        longStringThreshold: truncateStringsAt ?? 100,
-        charsPerLine: 80,
-      }),
-    [rows, theme.lineHeight, truncateStringsAt],
+  // Search-related calculations
+  const { matchMap, currentMatch, currentMatchIndexInRow } = useJsonSearch(
+    searchMatches,
+    currentMatchIndex,
   );
 
   // Initialize virtualizer
@@ -166,23 +135,12 @@ export function VirtualizedJsonViewer({
           const containerRect = scrollElement.getBoundingClientRect();
           const viewportOffsetTop = rect.top - containerRect.top;
 
-          console.log("[Toggle] Capturing toggled row position:", {
-            rowId,
-            rowIndex,
-            viewportOffsetTop,
-            scrollLeft: scrollElement.scrollLeft,
-          });
-
           setPendingScrollRestore({
             toggledRowId: rowId,
             viewportOffsetTop,
             scrollLeft: scrollElement.scrollLeft,
           });
-        } else {
-          console.log("[Toggle] Row element not found:", rowId);
         }
-      } else {
-        console.log("[Toggle] No scroll element found");
       }
 
       onToggleExpansion(rowId);
@@ -195,21 +153,8 @@ export function VirtualizedJsonViewer({
   // expansion/collapse. Remounting ensures accurate positioning for all rows.
   useEffect(() => {
     if (prevRowCountRef.current !== rows.length) {
-      console.log("[Remount Effect] Row count changed:", {
-        prev: prevRowCountRef.current,
-        new: rows.length,
-        pendingScrollRestore,
-      });
       // Force virtualizer remount by changing key (invalidates entire cache)
-      setVirtualizerKey((prev) => {
-        console.log(
-          "[Remount Effect] Incrementing virtualizer key:",
-          prev,
-          "->",
-          prev + 1,
-        );
-        return prev + 1;
-      });
+      setVirtualizerKey((prev) => prev + 1);
       prevRowCountRef.current = rows.length;
     }
   }, [rows.length, pendingScrollRestore]);
@@ -230,17 +175,11 @@ export function VirtualizedJsonViewer({
   useLayoutEffect(() => {
     if (!pendingScrollRestore) return;
 
-    console.log(
-      "[Layout Effect] Attempting scroll restoration:",
-      pendingScrollRestore,
-    );
-
     const { toggledRowId, viewportOffsetTop, scrollLeft } =
       pendingScrollRestore;
     const scrollElement = scrollContainerRef?.current || parentRef.current;
 
     if (!scrollElement) {
-      console.log("[Layout Effect] No scroll element, clearing pending state");
       setPendingScrollRestore(null);
       return;
     }
@@ -265,29 +204,9 @@ export function VirtualizedJsonViewer({
           // Calculate how much to adjust scroll to maintain visual position
           const scrollDelta = currentOffsetTop - viewportOffsetTop;
 
-          console.log("[Layout Effect RAF2] Restoring scroll:", {
-            toggledRowId,
-            newIndex,
-            currentOffsetTop,
-            targetOffsetTop: viewportOffsetTop,
-            scrollDelta,
-            scrollLeftBefore: scrollElement.scrollLeft,
-            scrollLeftTarget: scrollLeft,
-          });
-
           // Adjust scroll position (both vertical and horizontal)
           scrollElement.scrollTop += scrollDelta;
           scrollElement.scrollLeft = scrollLeft;
-
-          console.log("[Layout Effect RAF2] After scroll restoration:", {
-            scrollTop: scrollElement.scrollTop,
-            scrollLeft: scrollElement.scrollLeft,
-          });
-        } else {
-          console.log("[Layout Effect RAF2] Row element not found:", {
-            toggledRowId,
-            newIndex,
-          });
         }
 
         // Clear pending restoration

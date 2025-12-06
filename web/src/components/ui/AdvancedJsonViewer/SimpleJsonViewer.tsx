@@ -21,9 +21,8 @@ import {
 } from "./types";
 import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
-import { getCurrentMatchIndexInRow } from "./utils/searchJson";
-import { calculateMinimumWidth } from "./utils/calculateWidth";
-import { calculateFixedColumnWidth } from "./utils/calculateFixedColumnWidth";
+import { useJsonSearch } from "./hooks/useJsonSearch";
+import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 
 interface SimpleJsonViewerProps {
   rows: FlatJSONRow[];
@@ -64,41 +63,23 @@ export function SimpleJsonViewer({
     rowId: string;
     offsetFromTop: number;
   } | null>(null);
-  // Calculate maximum number of digits needed for line numbers
-  // Use totalLineCount if provided, otherwise fall back to current rows length
-  const maxLineNumberDigits = useMemo(() => {
-    const lineCount = totalLineCount ?? rows.length;
-    return Math.max(1, Math.floor(Math.log10(lineCount)) + 1);
-  }, [totalLineCount, rows.length]);
 
-  // Build a map of rowId -> match for quick lookup
-  const matchMap = new Map<string, SearchMatch>();
-  searchMatches.forEach((match) => {
-    matchMap.set(match.rowId, match);
-  });
+  // Layout calculations (widths, heights, column sizes)
+  const { maxLineNumberDigits, fixedColumnWidth, scrollableMinWidth } =
+    useJsonViewerLayout({
+      rows,
+      theme,
+      showLineNumbers,
+      totalLineCount,
+      stringWrapMode,
+      truncateStringsAt,
+    });
 
-  // Get current match for highlighting
-  const currentMatch = searchMatches[currentMatchIndex];
-
-  // Get current match index within its row (1-based)
-  const currentMatchIndexInRow = useMemo(
-    () => getCurrentMatchIndexInRow(currentMatchIndex, searchMatches),
-    [currentMatchIndex, searchMatches],
+  // Search-related calculations
+  const { matchMap, currentMatch, currentMatchIndexInRow } = useJsonSearch(
+    searchMatches,
+    currentMatchIndex,
   );
-
-  // Calculate fixed column width
-  const fixedColumnWidth = useMemo(
-    () => calculateFixedColumnWidth(showLineNumbers, maxLineNumberDigits),
-    [showLineNumbers, maxLineNumberDigits],
-  );
-
-  // Calculate minimum width for nowrap mode (scrollable column only)
-  const scrollableMinWidth = useMemo(() => {
-    if (stringWrapMode === "nowrap") {
-      return calculateMinimumWidth(rows, theme);
-    }
-    return undefined;
-  }, [stringWrapMode, rows, theme]);
 
   // Wrapped toggle handler that preserves scroll position
   const handleToggleExpansion = useCallback(
