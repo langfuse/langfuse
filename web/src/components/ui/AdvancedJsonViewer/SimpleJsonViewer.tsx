@@ -5,7 +5,14 @@
  * Best for small datasets (<500 rows) where virtualization overhead isn't worth it.
  */
 
-import { useMemo, useEffect, useRef, type RefObject } from "react";
+import {
+  useMemo,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+  type RefObject,
+} from "react";
 import {
   type FlatJSONRow,
   type SearchMatch,
@@ -51,6 +58,10 @@ export function SimpleJsonViewer({
 }: SimpleJsonViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const lastToggledRowRef = useRef<{
+    rowId: string;
+    offsetFromTop: number;
+  } | null>(null);
   // Calculate maximum number of digits needed for line numbers
   const maxLineNumberDigits = useMemo(() => {
     return Math.max(1, Math.floor(Math.log10(rows.length)) + 1);
@@ -84,6 +95,48 @@ export function SimpleJsonViewer({
     }
     return undefined;
   }, [stringWrapMode, rows, theme]);
+
+  // Wrapped toggle handler that preserves scroll position
+  const handleToggleExpansion = useCallback(
+    (rowId: string) => {
+      if (!onToggleExpansion) return;
+
+      const element = rowRefs.current.get(rowId);
+      if (element && containerRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const elementRect = element.getBoundingClientRect();
+        const offsetFromTop = elementRect.top - containerRect.top;
+        lastToggledRowRef.current = {
+          rowId,
+          offsetFromTop,
+        };
+      }
+
+      onToggleExpansion(rowId);
+    },
+    [onToggleExpansion],
+  );
+
+  // Restore scroll position after expansion/collapse
+  useLayoutEffect(() => {
+    if (!lastToggledRowRef.current) return;
+
+    const { rowId, offsetFromTop } = lastToggledRowRef.current;
+    const element = rowRefs.current.get(rowId);
+
+    if (element && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const currentOffset = elementRect.top - containerRect.top;
+      const scrollAdjustment = currentOffset - offsetFromTop;
+
+      if (scrollAdjustment !== 0) {
+        containerRef.current.scrollTop += scrollAdjustment;
+      }
+    }
+
+    lastToggledRowRef.current = null;
+  }, [rows]);
 
   // Scroll to match when search navigation occurs
   useEffect(() => {
@@ -144,7 +197,7 @@ export function SimpleJsonViewer({
               maxLineNumberDigits={maxLineNumberDigits}
               searchMatch={searchMatch}
               isCurrentMatch={isCurrentMatch}
-              onToggleExpansion={onToggleExpansion}
+              onToggleExpansion={handleToggleExpansion}
               stringWrapMode={stringWrapMode}
             />
           );

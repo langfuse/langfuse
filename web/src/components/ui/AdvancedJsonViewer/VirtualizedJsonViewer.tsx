@@ -5,7 +5,14 @@
  * Uses @tanstack/react-virtual which is already in project dependencies.
  */
 
-import { useRef, useMemo, useEffect, type RefObject } from "react";
+import {
+  useRef,
+  useMemo,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  type RefObject,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type FlatJSONRow,
@@ -52,6 +59,11 @@ export function VirtualizedJsonViewer({
   scrollContainerRef,
 }: VirtualizedJsonViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const lastToggledRowRef = useRef<{
+    rowId: string;
+    index: number;
+    offsetFromTop: number;
+  } | null>(null);
 
   // Calculate maximum number of digits needed for line numbers
   const maxLineNumberDigits = useMemo(() => {
@@ -112,6 +124,64 @@ export function VirtualizedJsonViewer({
         ? (element) => element.getBoundingClientRect().height
         : undefined,
   });
+
+  // Wrapped toggle handler that preserves scroll position
+  const handleToggleExpansion = useCallback(
+    (rowId: string) => {
+      if (!onToggleExpansion) return;
+
+      // Find the row index
+      const rowIndex = rows.findIndex((r) => r.id === rowId);
+      if (rowIndex === -1) return;
+
+      // Get scroll container
+      const scrollElement = scrollContainerRef?.current || parentRef.current;
+      if (!scrollElement) {
+        onToggleExpansion(rowId);
+        return;
+      }
+
+      // Calculate row's offset from top of viewport
+      const virtualItems = rowVirtualizer.getVirtualItems();
+      const virtualRow = virtualItems.find((v) => v.index === rowIndex);
+      if (virtualRow) {
+        const offsetFromTop = virtualRow.start - scrollElement.scrollTop;
+        lastToggledRowRef.current = {
+          rowId,
+          index: rowIndex,
+          offsetFromTop,
+        };
+      }
+
+      onToggleExpansion(rowId);
+    },
+    [onToggleExpansion, rows, scrollContainerRef, rowVirtualizer],
+  );
+
+  // Restore scroll position after expansion/collapse
+  useLayoutEffect(() => {
+    if (!lastToggledRowRef.current) return;
+
+    const { rowId, offsetFromTop } = lastToggledRowRef.current;
+
+    // Find the row's new index (may have changed due to expansion/collapse)
+    const newIndex = rows.findIndex((r) => r.id === rowId);
+    if (newIndex === -1) return;
+
+    // Get scroll container
+    const scrollElement = scrollContainerRef?.current || parentRef.current;
+    if (!scrollElement) return;
+
+    // Calculate target scroll position to maintain offset from top
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const virtualRow = virtualItems.find((v) => v.index === newIndex);
+    if (virtualRow) {
+      const targetScrollTop = virtualRow.start - offsetFromTop;
+      scrollElement.scrollTop = targetScrollTop;
+    }
+
+    lastToggledRowRef.current = null;
+  }, [rows, scrollContainerRef, rowVirtualizer]);
 
   // Scroll to match when search navigation occurs
   useEffect(() => {
@@ -183,7 +253,7 @@ export function VirtualizedJsonViewer({
                   maxLineNumberDigits={maxLineNumberDigits}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}
-                  onToggleExpansion={onToggleExpansion}
+                  onToggleExpansion={handleToggleExpansion}
                   stringWrapMode={stringWrapMode}
                 />
               </div>
