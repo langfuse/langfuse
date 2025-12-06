@@ -135,9 +135,10 @@ export function VirtualizedJsonViewer({
       className={className}
       style={{
         display: "grid",
-        gridTemplateColumns: `${fixedColumnWidth}px 1fr`,
+        gridTemplateColumns: `${fixedColumnWidth}px auto`,
         height: "100%",
-        width: "100%",
+        width: "fit-content",
+        minWidth: "100%",
         backgroundColor: theme.background,
         color: theme.foreground,
       }}

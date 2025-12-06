@@ -303,7 +303,7 @@ export function AdvancedJsonViewer({
       )}
 
       {/* Viewer */}
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
         <Viewer
           rows={flatRows}
           theme={theme}

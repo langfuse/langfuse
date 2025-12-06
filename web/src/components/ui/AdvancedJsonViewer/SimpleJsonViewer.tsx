@@ -112,8 +112,9 @@ export function SimpleJsonViewer({
       className={className}
       style={{
         display: "grid",
-        gridTemplateColumns: `${fixedColumnWidth}px 1fr`,
-        width: "100%",
+        gridTemplateColumns: `${fixedColumnWidth}px auto`,
+        width: "fit-content",
+        minWidth: "100%",
         backgroundColor: theme.background,
         color: theme.foreground,
         fontFamily: "monospace",
