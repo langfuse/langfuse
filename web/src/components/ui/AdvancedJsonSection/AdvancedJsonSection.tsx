@@ -143,7 +143,7 @@ export function AdvancedJsonSection({
   const { expansionState: globalExpansionState, setFieldExpansion } =
     useJsonExpansion();
 
-  // Get field expansion state - use JSON.stringify to ensure fresh reference on change
+  // Get field expansion state - use direct field reference to detect changes
   const fieldExpansionState = useMemo(
     () => globalExpansionState[field] ?? {},
     // eslint-disable-next-line react-hooks/exhaustive-deps

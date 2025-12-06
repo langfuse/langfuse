@@ -229,10 +229,14 @@ export function toggleRowExpansion(
     };
   }
 
+  // Get current expansion state for this row
+  // Default is true (expanded) if not explicitly set, matching shouldExpand logic
+  const currentExpansion = currentState[rowId] ?? true;
+
   // Toggle the specific path
   return {
     ...currentState,
-    [rowId]: !currentState[rowId],
+    [rowId]: !currentExpansion,
   };
 }
 
