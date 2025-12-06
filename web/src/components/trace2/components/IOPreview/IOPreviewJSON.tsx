@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { type Prisma } from "@langfuse/shared";
-import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection";
+import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection/AdvancedJsonSection";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
 
