@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import Link from "next/link";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const BUTTON_STATE_MESSAGES = {
   limitReached: (current: number, max: number) =>
@@ -27,6 +28,8 @@ interface ActionButtonProps extends ButtonProps {
   children: React.ReactNode;
   className?: string;
   href?: string;
+  trackingEventName?: Parameters<ReturnType<typeof usePostHogClientCapture>>[0];
+  trackingProps?: Record<string, unknown>;
 }
 
 export const ActionButton = React.forwardRef<
@@ -44,10 +47,13 @@ export const ActionButton = React.forwardRef<
     icon,
     className,
     href,
+    trackingEventName,
+    trackingProps,
     ...buttonProps
   },
   ref,
 ) {
+  const capture = usePostHogClientCapture();
   const hasReachedLimit =
     typeof limit === "number" &&
     limitValue !== undefined &&
@@ -70,6 +76,13 @@ export const ActionButton = React.forwardRef<
 
   const message = getMessage();
 
+  // Handle click tracking for external links
+  const handleLinkClick = () => {
+    if (trackingEventName && href && isExternalUrl(href)) {
+      capture(trackingEventName, trackingProps ?? null);
+    }
+  };
+
   const btnContent = (
     <ButtonContent
       ref={ref}
@@ -82,6 +95,7 @@ export const ActionButton = React.forwardRef<
       className={className}
       buttonProps={buttonProps}
       href={href}
+      onLinkClick={handleLinkClick}
     >
       {children}
     </ButtonContent>
@@ -126,6 +140,7 @@ const ButtonContent = React.forwardRef<
     buttonProps: Omit<ButtonProps, "disabled" | "loading" | "className">;
     children: React.ReactNode;
     href?: string;
+    onLinkClick?: () => void;
   }
 >(function ButtonContent(
   {
@@ -139,6 +154,7 @@ const ButtonContent = React.forwardRef<
     buttonProps,
     children,
     href,
+    onLinkClick,
   },
   ref,
 ) {
@@ -174,6 +190,7 @@ const ButtonContent = React.forwardRef<
           href={href}
           target={isExternal ? "_blank" : undefined}
           rel={isExternal ? "noopener noreferrer" : undefined}
+          onClick={onLinkClick}
         >
           {content}
         </Link>

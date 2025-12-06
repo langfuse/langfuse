@@ -18,6 +18,8 @@ import {
   UnfoldVertical,
   PanelLeftClose,
   PanelLeftOpen,
+  Info,
+  X,
 } from "lucide-react";
 import { useCallback, useState, useMemo, useRef, useEffect } from "react";
 import { usePanelState } from "./hooks/usePanelState";
@@ -31,6 +33,7 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { TraceSearchList } from "@/src/components/trace/TraceSearchList";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { Button } from "@/src/components/ui/button";
+import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { JsonExpansionProvider } from "@/src/components/trace/JsonExpansionContext";
@@ -58,6 +61,9 @@ const getNestedObservationKeys = (
   collectKeys(observations);
   return keys;
 };
+
+const OBSERVATION_TYPE_ALERT_ID = "observation-types";
+const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export function Trace(props: {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -101,6 +107,8 @@ export function Trace(props: {
   ] = useLocalStorage("colorCodeMetricsOnObservationTree", true);
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
   const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
+  const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
+    useLocalStorage<string[]>(STORAGE_KEY, []);
   const [collapsedNodes, setCollapsedNodes] = useState<string[]>([]);
 
   // Use imperative panel API for collapse/expand
@@ -430,6 +438,67 @@ export function Trace(props: {
       />
     ) : null;
 
+  const observationTypeAlert = useMemo(() => {
+    if (
+      context === "peek" &&
+      props.observations.length > 0 &&
+      props.observations.every((o) => o.type === "SPAN") &&
+      !dismissedTraceViewNotifications.includes(OBSERVATION_TYPE_ALERT_ID)
+    ) {
+      return (
+        <div className="relative mx-2 mb-2 flex flex-col items-start justify-center gap-2 rounded-lg border border-dashed p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
+            onClick={() => {
+              capture("notification:dismiss_notification", {
+                notification_id: OBSERVATION_TYPE_ALERT_ID,
+              });
+              setDismissedTraceViewNotifications((prev) =>
+                prev.includes(OBSERVATION_TYPE_ALERT_ID)
+                  ? prev
+                  : [...prev, OBSERVATION_TYPE_ALERT_ID],
+              );
+            }}
+            title="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+          <div className="flex w-full flex-row items-center gap-2 pr-6">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+              <Info className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <h3 className="text-sm font-semibold">
+              You&apos;re only using spans here.
+            </h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            You&apos;ll get much richer insights by using specific observation
+            types.
+          </p>
+          <ActionButton
+            variant="outline"
+            size="sm"
+            className="h-auto whitespace-normal py-0.5 text-left"
+            href="https://langfuse.com/docs/observability/features/observation-types"
+            trackingEventName="notification:click_link"
+            trackingProps={{ notification_id: OBSERVATION_TYPE_ALERT_ID }}
+          >
+            Learn how to use observation types
+          </ActionButton>
+        </div>
+      );
+    }
+    return null;
+  }, [
+    context,
+    props.observations,
+    dismissedTraceViewNotifications,
+    setDismissedTraceViewNotifications,
+    capture,
+  ]);
+
   return (
     <JsonExpansionProvider>
       <div
@@ -438,7 +507,7 @@ export function Trace(props: {
       >
         {/* Mobile: Vertical stack without resizing */}
         {isMobile && (
-          <div className="flex h-full w-full flex-col overflow-y-auto md:hidden">
+          <div className="flex w-full flex-1 flex-col overflow-y-auto md:hidden">
             {/* Tree Panel - Mobile */}
             <div className="flex-shrink-0 border-b pb-2">
               <Command className="mt-1 flex flex-col gap-1 overflow-hidden rounded-none border-0">
@@ -621,7 +690,10 @@ export function Trace(props: {
                       />
                     </div>
                   ) : (
-                    <div className="w-full">{treeOrSearchContent}</div>
+                    <div className="w-full">
+                      {treeOrSearchContent}
+                      {observationTypeAlert}
+                    </div>
                   )}
                 </div>
               </Command>
@@ -636,7 +708,7 @@ export function Trace(props: {
 
         {/* Desktop: Horizontal resizable panels */}
         {!isMobile && (
-          <div className="hidden md:block md:h-full">
+          <div className="hidden md:flex md:h-full md:min-h-0 md:flex-1 md:flex-col">
             <ResizablePanelGroup
               id={panelGroupId}
               direction="horizontal"
@@ -982,8 +1054,11 @@ export function Trace(props: {
                                 maxSize={95}
                                 className="flex flex-col overflow-hidden pl-0 pr-2"
                               >
-                                <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                                <div className="min-h-0 overflow-y-auto pb-2">
                                   {treeOrSearchContent}
+                                </div>
+                                <div className="shrink-0">
+                                  {observationTypeAlert}
                                 </div>
                               </ResizablePanel>
 
@@ -1003,8 +1078,11 @@ export function Trace(props: {
                             </ResizablePanelGroup>
                           ) : (
                             <div className="flex h-full w-full flex-col overflow-hidden pl-0 pr-2">
-                              <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                              <div className="min-h-0 overflow-y-auto pb-2">
                                 {treeOrSearchContent}
+                              </div>
+                              <div className="shrink-0">
+                                {observationTypeAlert}
                               </div>
                             </div>
                           )}
