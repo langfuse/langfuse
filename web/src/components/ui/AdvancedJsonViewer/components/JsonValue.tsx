@@ -90,6 +90,8 @@ export function JsonValue({
           color,
           fontFamily: "monospace",
           whiteSpace: stringWrapMode === "wrap" ? "pre-wrap" : "nowrap",
+          overflowWrap: stringWrapMode === "wrap" ? "break-word" : undefined,
+          wordBreak: stringWrapMode === "wrap" ? "break-word" : undefined,
         }}
       >
         &quot;
