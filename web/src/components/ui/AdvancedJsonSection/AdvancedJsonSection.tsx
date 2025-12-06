@@ -246,8 +246,13 @@ export function AdvancedJsonSection({
     setCurrentMatchIndex(0);
   }, []);
 
-  // Compute row count for title display
-  const rowCount = flatRows.length;
+  // Compute total row count when fully expanded (for consistent display with line numbers)
+  // This matches how totalLineCount is calculated in AdvancedJsonViewer
+  const totalRowCount = useMemo(() => {
+    return flattenJSON(parsedData ?? data, true, {
+      rootKey: "root",
+    }).length;
+  }, [parsedData, data]);
 
   // Determine if all nodes are collapsed/expanded for collapse/expand all button
   const allExpanded = useMemo(() => {
@@ -349,7 +354,7 @@ export function AdvancedJsonSection({
               </button>
               <span>{title}</span>
               <span className="text-xs font-normal text-muted-foreground">
-                {rowCount} rows{isVirtualized ? " (virtualized)" : ""}
+                {totalRowCount} rows{isVirtualized ? " (virtualized)" : ""}
               </span>
             </div>
           }

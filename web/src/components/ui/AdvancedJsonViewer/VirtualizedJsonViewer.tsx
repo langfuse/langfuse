@@ -139,7 +139,7 @@ export function VirtualizedJsonViewer({
     count: rows.length,
     getScrollElement: () => scrollContainerRef?.current || parentRef.current,
     estimateSize,
-    overscan: 50, // Render 50 extra rows above/below viewport
+    overscan: 500, // Render 500 extra rows above/below viewport
     measureElement:
       typeof window !== "undefined"
         ? (element) => element.getBoundingClientRect().height
