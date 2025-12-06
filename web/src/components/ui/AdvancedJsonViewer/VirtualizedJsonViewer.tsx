@@ -168,6 +168,10 @@ export function VirtualizedJsonViewer({
     const newIndex = rows.findIndex((r) => r.id === rowId);
     if (newIndex === -1) return;
 
+    // Force virtualizer to remeasure all visible rows (critical for multi-line/wrap mode)
+    // This ensures row heights are recalculated after expand/collapse
+    rowVirtualizer.measure();
+
     // Get scroll container
     const scrollElement = scrollContainerRef?.current || parentRef.current;
     if (!scrollElement) return;
