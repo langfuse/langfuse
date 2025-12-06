@@ -32,7 +32,10 @@ import {
   type ExpansionState,
   type PartialJSONTheme,
 } from "@/src/components/ui/AdvancedJsonViewer/types";
-import { flattenJSON } from "@/src/components/ui/AdvancedJsonViewer/utils/flattenJson";
+import {
+  flattenJSON,
+  calculateTotalLineCount,
+} from "@/src/components/ui/AdvancedJsonViewer/utils/flattenJson";
 import {
   searchInRows,
   expandToMatch,
@@ -247,11 +250,9 @@ export function AdvancedJsonSection({
   }, []);
 
   // Compute total row count when fully expanded (for consistent display with line numbers)
-  // This matches how totalLineCount is calculated in AdvancedJsonViewer
+  // Uses optimized traversal instead of full flattening
   const totalRowCount = useMemo(() => {
-    return flattenJSON(parsedData ?? data, true, {
-      rootKey: "root",
-    }).length;
+    return calculateTotalLineCount(parsedData ?? data);
   }, [parsedData, data]);
 
   // Determine if all nodes are collapsed/expanded for collapse/expand all button

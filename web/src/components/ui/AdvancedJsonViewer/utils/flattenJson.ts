@@ -341,3 +341,28 @@ export function getFlattenStats(rows: FlatJSONRow[]): FlattenStats {
     minDepth,
   };
 }
+
+/**
+ * Calculate total line count when fully expanded WITHOUT full flattening
+ * Much more efficient than flattenJSON(data, true).length for large datasets
+ *
+ * @param data - The JSON data
+ * @returns Total number of rows when fully expanded
+ */
+export function calculateTotalLineCount(data: unknown): number {
+  let count = 0;
+
+  function traverse(value: unknown): void {
+    count++;
+
+    if (isExpandable(value)) {
+      const children = getChildren(value);
+      children.forEach(([_, childValue]) => {
+        traverse(childValue);
+      });
+    }
+  }
+
+  traverse(data);
+  return count;
+}

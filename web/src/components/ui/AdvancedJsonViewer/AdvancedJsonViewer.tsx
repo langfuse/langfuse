@@ -17,7 +17,11 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { type AdvancedJsonViewerProps, type ExpansionState } from "./types";
-import { flattenJSON, toggleRowExpansion } from "./utils/flattenJson";
+import {
+  flattenJSON,
+  toggleRowExpansion,
+  calculateTotalLineCount,
+} from "./utils/flattenJson";
 import { searchInRows } from "./utils/searchJson";
 import { shouldVirtualize } from "./utils/estimateRowHeight";
 import { useJsonTheme } from "./hooks/useJsonTheme";
@@ -97,15 +101,8 @@ export function AdvancedJsonViewer({
   );
 
   // Calculate total line count when fully expanded (for line number width)
-  const totalLineCount = useMemo(
-    () =>
-      flattenJSON(data, true, {
-        rootKey: "root",
-        maxDepth: null,
-        maxRows: null,
-      }).length,
-    [data],
-  );
+  // Uses optimized traversal instead of full flattening
+  const totalLineCount = useMemo(() => calculateTotalLineCount(data), [data]);
 
   // Search matches
   const searchMatches = useMemo(
