@@ -12,7 +12,7 @@ import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Check, Copy } from "lucide-react";
 
-export interface JsonSectionHeaderProps {
+export interface AdvancedJsonSectionHeaderProps {
   /** Section title (can be string or React node for custom rendering) */
   title: string | React.ReactNode;
 
@@ -29,13 +29,13 @@ export interface JsonSectionHeaderProps {
   backgroundColor?: string;
 }
 
-export function JsonSectionHeader({
+export function AdvancedJsonSectionHeader({
   title,
   titleIcon,
   handleOnCopy,
   controlButtons,
   backgroundColor,
-}: JsonSectionHeaderProps) {
+}: AdvancedJsonSectionHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
   return (

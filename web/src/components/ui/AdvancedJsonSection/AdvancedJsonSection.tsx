@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { JsonSectionHeader } from "./JsonSectionHeader";
+import { AdvancedJsonSectionHeader } from "./AdvancedJsonSectionHeader";
 import { AdvancedJsonViewer } from "@/src/components/ui/AdvancedJsonViewer";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
@@ -336,7 +336,7 @@ export function AdvancedJsonSection({
           minHeight: "38px", // Fixed height for header
         }}
       >
-        <JsonSectionHeader
+        <AdvancedJsonSectionHeader
           title={
             <div className="flex items-center gap-2">
               <button
