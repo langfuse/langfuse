@@ -15,7 +15,13 @@
  * - Theme customization
  */
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  startTransition,
+} from "react";
 import { type AdvancedJsonViewerProps, type ExpansionState } from "./types";
 import {
   flattenJSON,
@@ -90,15 +96,22 @@ export function AdvancedJsonViewer({
     : internalCurrentMatchIndex;
 
   // Flatten JSON data
-  const flatRows = useMemo(
-    () =>
-      flattenJSON(data, expansionState, {
-        rootKey: "root",
-        maxDepth: null,
-        maxRows: null,
-      }),
-    [data, expansionState],
-  );
+  const flatRows = useMemo(() => {
+    console.log("[AdvancedJsonViewer] Running flattenJSON");
+    console.time("[AdvancedJsonViewer] flattenJSON");
+    const result = flattenJSON(data, expansionState, {
+      rootKey: "root",
+      maxDepth: null,
+      maxRows: null,
+    });
+    console.timeEnd("[AdvancedJsonViewer] flattenJSON");
+    console.log(
+      "[AdvancedJsonViewer] flattenJSON result:",
+      result.length,
+      "rows",
+    );
+    return result;
+  }, [data, expansionState]);
 
   // Calculate total line count when fully expanded (for line number width)
   // Uses optimized traversal instead of full flattening
@@ -139,13 +152,32 @@ export function AdvancedJsonViewer({
   // Handle expansion toggle
   const handleToggleExpansion = useCallback(
     (rowId: string) => {
-      const newExpansion = toggleRowExpansion(rowId, expansionState);
+      console.log(
+        "[AdvancedJsonViewer] handleToggleExpansion START for rowId:",
+        rowId,
+      );
+      console.time("[AdvancedJsonViewer] handleToggleExpansion (sync part)");
 
-      if (isExpansionControlled) {
-        onExpansionChange(newExpansion);
-      } else {
-        setInternalExpansionState(newExpansion);
-      }
+      // Heavy computation (flattenJSON + virtualizer update) happens in background
+      // This keeps the UI responsive - button press feedback is immediate
+      startTransition(() => {
+        console.time("[AdvancedJsonViewer] handleToggleExpansion (transition)");
+
+        const newExpansion = toggleRowExpansion(rowId, expansionState);
+
+        if (isExpansionControlled) {
+          onExpansionChange(newExpansion);
+        } else {
+          setInternalExpansionState(newExpansion);
+        }
+
+        console.timeEnd(
+          "[AdvancedJsonViewer] handleToggleExpansion (transition)",
+        );
+        console.log("[AdvancedJsonViewer] handleToggleExpansion END");
+      });
+
+      console.timeEnd("[AdvancedJsonViewer] handleToggleExpansion (sync part)");
     },
     [expansionState, isExpansionControlled, onExpansionChange],
   );

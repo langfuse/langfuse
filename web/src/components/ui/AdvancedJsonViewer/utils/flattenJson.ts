@@ -31,10 +31,24 @@ export function flattenJSON(
   expansionState: ExpansionState = true,
   config: FlattenConfig = {},
 ): FlatJSONRow[] {
+  const startTime = performance.now();
   const { rootKey = "root", maxDepth = null, maxRows = null } = config;
 
   const rows: FlatJSONRow[] = [];
   const collapsedPaths = convertExpansionStateToSet(expansionState);
+
+  // Performance tracking
+  let iterationCount = 0;
+  let skippedCollapsedNodes = 0;
+  let expandedNodes = 0;
+  let maxDepthSeen = 0;
+
+  console.log("[flattenJSON] Starting with:", {
+    expansionStateType: typeof expansionState,
+    collapsedPathsCount: collapsedPaths.size,
+    maxDepth,
+    maxRows,
+  });
 
   // Track absolute line number (1-indexed)
   let absoluteLineNumber = 0;
@@ -64,6 +78,7 @@ export function flattenJSON(
 
   // Process stack (LIFO - depth-first traversal)
   while (stack.length > 0 && (maxRows === null || rows.length < maxRows)) {
+    iterationCount++;
     const current = stack.pop()!;
     const {
       value,
@@ -74,6 +89,9 @@ export function flattenJSON(
       indexInParent,
       isLastChild,
     } = current;
+
+    // Track max depth
+    if (depth > maxDepthSeen) maxDepthSeen = depth;
 
     const id = joinPath(pathArray);
     const type = getJSONType(value);
@@ -110,6 +128,7 @@ export function flattenJSON(
     // If collapsed, don't traverse children but count them for line numbers
     if (!isExpanded) {
       if (expandable) {
+        skippedCollapsedNodes++;
         absoluteLineNumber += countAllDescendants(value);
       }
       continue;
@@ -117,6 +136,7 @@ export function flattenJSON(
 
     // Traverse children
     if (expandable) {
+      expandedNodes++;
       const children = getChildren(value);
 
       // Push children in REVERSE order to maintain left-to-right DFS traversal
@@ -138,6 +158,18 @@ export function flattenJSON(
       }
     }
   }
+
+  const totalTime = performance.now() - startTime;
+  console.log("[flattenJSON] Completed:", {
+    totalTime: `${totalTime.toFixed(2)}ms`,
+    iterations: iterationCount,
+    outputRows: rows.length,
+    expandedNodes,
+    skippedCollapsedNodes,
+    maxDepthReached: maxDepthSeen,
+    msPerIteration: (totalTime / iterationCount).toFixed(4),
+    msPerRow: (totalTime / rows.length).toFixed(4),
+  });
 
   return rows;
 }

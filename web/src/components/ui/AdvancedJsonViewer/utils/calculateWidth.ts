@@ -11,7 +11,7 @@ import type { FlatJSONRow, JSONTheme } from "../types";
  * Approximate character width in pixels for monospace font
  * Based on common monospace fonts at typical sizes
  */
-const CHAR_WIDTH_PX = 7.2; // Approximate width for 0.7rem monospace
+const CHAR_WIDTH_PX = 6.2; // Approximate width for 0.6rem monospace
 
 /**
  * Calculate the display length of a value (for width estimation)

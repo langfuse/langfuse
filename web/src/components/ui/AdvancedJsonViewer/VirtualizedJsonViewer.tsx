@@ -5,7 +5,7 @@
  * Uses @tanstack/react-virtual which is already in project dependencies.
  */
 
-import { useRef, useMemo, useEffect, type RefObject } from "react";
+import { useRef, useMemo, useEffect, useCallback, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type FlatJSONRow,
@@ -54,16 +54,6 @@ export function VirtualizedJsonViewer({
 }: VirtualizedJsonViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // Scroll restoration logic (handles virtualizer remount and position preservation)
-  const { virtualizerKey, handleToggleExpansion } =
-    useVirtualizerScrollRestoration({
-      rows,
-      stringWrapMode,
-      scrollContainerRef,
-      parentRef,
-      onToggleExpansion,
-    });
-
   // Layout calculations (widths, heights, column sizes)
   const {
     maxLineNumberDigits,
@@ -85,7 +75,23 @@ export function VirtualizedJsonViewer({
     currentMatchIndex,
   );
 
+  // Memoize getItemKey to track rows by ID instead of index
+  // This prevents TanStack Virtual from invalidating its cache when row indices shift
+  const getItemKey = useCallback(
+    (index: number) => {
+      const row = rows[index];
+      return row?.id ?? index;
+    },
+    [rows],
+  );
+
   // Initialize virtualizer
+  console.log(
+    "[VirtualizedJsonViewer] Creating virtualizer with",
+    rows.length,
+    "rows",
+  );
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollContainerRef?.current || parentRef.current,
@@ -95,6 +101,14 @@ export function VirtualizedJsonViewer({
       typeof window !== "undefined"
         ? (element) => element.getBoundingClientRect().height
         : undefined,
+    getItemKey, // Track items by row.id, not by array index
+  });
+
+  // Scroll restoration logic (uses virtualizer's scrollToIndex)
+  const { handleToggleExpansion } = useVirtualizerScrollRestoration({
+    rows,
+    virtualizer: rowVirtualizer,
+    onToggleExpansion,
   });
 
   // Scroll to match when search navigation occurs
@@ -125,7 +139,6 @@ export function VirtualizedJsonViewer({
       }}
     >
       <div
-        key={virtualizerKey} // Force remount when key changes to invalidate TanStack Virtual's cache
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
           width: "fit-content",

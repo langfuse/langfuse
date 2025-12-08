@@ -7,7 +7,7 @@
  * - Collapse all / expand all buttons
  * - Copy button in header
  * - JsonExpansionContext integration for state persistence
- * - Custom theme (fontSize: 0.7rem, lineHeight: 16px)
+ * - Custom theme (fontSize: 0.6rem, lineHeight: 16px)
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
@@ -297,7 +297,7 @@ export function AdvancedJsonSection({
   // Custom theme for AdvancedJsonViewer
   const customTheme: PartialJSONTheme = useMemo(
     () => ({
-      fontSize: "0.7rem",
+      fontSize: "0.6rem",
       lineHeight: 16,
       indentSize: 20,
       background: headerBackgroundColor || backgroundColor || "transparent",
