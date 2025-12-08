@@ -633,7 +633,6 @@ model DatasetItem {
   isDeleted           Boolean        @default(false) @map("is_deleted")
 
   @@id([id, projectId, validFrom])
-  @@unique([id, projectId, validFrom])
   @@index([sourceTraceId], type: Hash)
   @@index([sourceObservationId], type: Hash)
   @@index([datasetId], type: Hash)
