@@ -157,7 +157,6 @@ export async function seedDatasetVersions(
           status: op.status,
           sourceTraceId: null,
           sourceObservationId: null,
-          sysId: v4(), // Unique version identifier (physical row ID)
         };
         if (op.operation === "delete") {
           return {

@@ -688,17 +688,16 @@ model DatasetRuns {
 }
 
 model DatasetRunItems {
-  id                   String       @default(cuid())
-  projectId            String       @map("project_id")
-  datasetRunId         String       @map("dataset_run_id")
-  datasetRun           DatasetRuns  @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
-  datasetItemId        String       @map("dataset_item_id")
-  traceId              String       @map("trace_id")
-  observationId        String?      @map("observation_id")
-  createdAt            DateTime     @default(now()) @map("created_at")
-  updatedAt            DateTime     @default(now()) @updatedAt @map("updated_at")
-  datasetItem          DatasetItem? @relation(fields: [datasetItemId, datasetItemProjectId], references: [id, projectId])
-  datasetItemProjectId String?
+  id            String      @default(cuid())
+  projectId     String      @map("project_id")
+  datasetRunId  String      @map("dataset_run_id")
+  datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
+  datasetItemId String      @map("dataset_item_id")
+  datasetItem   DatasetItem @relation(fields: [datasetItemId, projectId], references: [id, projectId], onDelete: Cascade)
+  traceId       String      @map("trace_id")
+  observationId String?     @map("observation_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
 
   @@id([id, projectId])
   @@index([datasetRunId], type: Hash)

@@ -546,7 +546,6 @@ export async function createDatasets(
           expectedOutput: item.output,
           metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
           status: "ACTIVE" as const,
-          sysId: v4(), // Generate unique version identifier
           validFrom: new Date(),
           isDeleted: false,
         });

@@ -2,7 +2,6 @@ import { DatasetItem, DatasetStatus } from "../db";
 
 export type DatasetItemDomain = Pick<
   DatasetItem,
-  | "sysId"
   | "id"
   | "projectId"
   | "datasetId"
@@ -13,6 +12,7 @@ export type DatasetItemDomain = Pick<
   | "sourceObservationId"
   | "createdAt"
   | "updatedAt"
+  | "validFrom"
 > & {
   status: DatasetStatus;
 };
