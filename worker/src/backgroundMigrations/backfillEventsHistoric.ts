@@ -137,9 +137,9 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
 }
 
 async function getQueryError(queryId: string): Promise<string | undefined> {
-  const result = await queryClickhouse<{ exception: string }>({
+  const result = await queryClickhouse<{ exception_message: string }>({
     query: `
-      SELECT exception
+      SELECT exception as exception_message
       FROM clusterAllReplicas('default', 'system.query_log')
       WHERE query_id = {queryId: String}
         AND type != 'QueryStart'
@@ -157,7 +157,7 @@ async function getQueryError(queryId: string): Promise<string | undefined> {
     },
   });
 
-  return result[0]?.exception;
+  return result[0]?.exception_message;
 }
 
 // ============================================================================
@@ -430,18 +430,26 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
   // Recovery Logic
   // ============================================================================
 
-  private async recoverInProgressTodos(state: MigrationState): Promise<void> {
+  /**
+   * Recovers in-progress todos from a previous run.
+   * Returns an array of todos that are still running and should be added to the query manager.
+   */
+  private async recoverInProgressTodos(
+    state: MigrationState,
+  ): Promise<ChunkTodo[]> {
     const inProgress = state.todos.filter(
       (t) => t.status === "in_progress" && t.queryId,
     );
 
     if (inProgress.length === 0) {
-      return;
+      return [];
     }
 
     logger.info(
       `[Backfill Events] Recovering ${inProgress.length} in-progress chunks`,
     );
+
+    const stillRunning: ChunkTodo[] = [];
 
     for (const todo of inProgress) {
       const status = await pollQueryStatus(todo.queryId!);
@@ -459,21 +467,23 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         logger.warn(
           `[Backfill Events] Recovered chunk ${todo.id} as failed, will retry: ${error}`,
         );
+      } else if (status === "running") {
+        // Query is still running on ClickHouse - track it in the manager
+        logger.info(
+          `[Backfill Events] Recovered chunk ${todo.id} as still running (query ${todo.queryId}), will continue tracking`,
+        );
+        stillRunning.push(todo);
       } else {
-        // not_found or running
-        if (status === "not_found") {
-          // Query never started or was lost
-          todo.status = "pending";
-          logger.warn(
-            `[Backfill Events] Recovered chunk ${todo.id} as not_found, resetting to pending`,
-          );
-        }
-        // If still running, we leave it as in_progress but clear queryId
-        // so it doesn't interfere with new queries
+        // not_found - query was lost
+        todo.status = "pending";
+        logger.warn(
+          `[Backfill Events] Recovered chunk ${todo.id} as not_found, resetting to pending`,
+        );
       }
     }
 
     await this.updateState(state);
+    return stillRunning;
   }
 
   // ============================================================================
@@ -572,16 +582,21 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
 
     // Apply memory-reducing settings on retries
     const retrySettings =
-      retryCount > 0
+      retryCount > 1
         ? {
-            // max_threads: 1,
-            max_block_size: "4096",
+            max_threads: 1,
+            max_insert_threads: "1",
+            max_block_size: "2048",
           }
-        : {};
+        : retryCount > 0
+          ? {
+              max_block_size: "4096",
+            }
+          : {};
 
     if (retryCount > 0) {
       logger.info(
-        `[Backfill Events] Applying retry settings for query ${queryId}: max_block_size=4096 (retry ${retryCount})`,
+        `[Backfill Events] Applying retry settings for query ${queryId}: ${JSON.stringify(retrySettings)} (retry ${retryCount})`,
       );
     }
 
@@ -754,7 +769,8 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     }
 
     // Phase 2: Recover any in-progress queries from previous run
-    await this.recoverInProgressTodos(state);
+    // Returns queries that are still running on ClickHouse so we can track them
+    const stillRunningTodos = await this.recoverInProgressTodos(state);
 
     // Phase 2.5: Reset failed chunks to pending if --retry-failed flag is set
     if (migrationArgs.retryFailed) {
@@ -882,8 +898,18 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     // Start polling and initial scheduling
     manager.startPolling(config.pollIntervalMs!, onComplete, scheduleNext);
 
-    // Schedule initial batch up to concurrency limit
-    for (let i = 0; i < config.concurrency!; i++) {
+    // Add recovered still-running queries to the manager so they count against concurrency
+    // This prevents scheduling new queries on top of already-running ones after a restart
+    for (const todo of stillRunningTodos) {
+      manager.addQuery(todo, todo.queryId!);
+      logger.info(
+        `[Backfill Events] Added recovered running query ${todo.queryId} for chunk ${todo.id} to manager`,
+      );
+    }
+
+    // Schedule initial batch up to concurrency limit (minus already-running recovered queries)
+    const slotsAvailable = config.concurrency! - stillRunningTodos.length;
+    for (let i = 0; i < slotsAvailable; i++) {
       await scheduleNext();
     }
 
