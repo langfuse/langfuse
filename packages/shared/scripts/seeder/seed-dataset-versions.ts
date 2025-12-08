@@ -174,8 +174,12 @@ export async function seedDatasetVersions(
       // Insert in batches directly into dataset_items (versioned table)
       for (let i = 0; i < items.length; i += BATCH_SIZE) {
         const batch = items.slice(i, i + BATCH_SIZE);
-        await prismaClient.datasetItem.createMany({
-          data: batch,
+        // TODO: replace with datasetItems table once pk is swapped
+        await prismaClient.datasetItemEvent.createMany({
+          data: batch.map((item) => ({
+            ...item,
+            itemId: item.id,
+          })),
           skipDuplicates: false, // We want all versions
         });
         totalInserts += batch.length;
