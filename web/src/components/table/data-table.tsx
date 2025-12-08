@@ -569,6 +569,7 @@ function TableBodyComponent<TData>({
                       "flex",
                       "items-start",
                       isSmallRowHeight && "items-center",
+                      !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}
                   >
