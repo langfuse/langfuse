@@ -21,7 +21,6 @@ export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
 
 export const VertexAIConfigSchema = z.object({
   location: z.string().optional(),
-  projectId: z.string().optional(),
 });
 export type VertexAIConfig = z.infer<typeof VertexAIConfigSchema>;
 
