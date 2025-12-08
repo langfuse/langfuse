@@ -5,7 +5,7 @@
  * Best for small datasets (<500 rows) where virtualization overhead isn't worth it.
  */
 
-import { useMemo, useEffect, useRef, type RefObject } from "react";
+import { useEffect, type RefObject } from "react";
 import {
   type FlatJSONRow,
   type SearchMatch,
@@ -94,7 +94,9 @@ export function SimpleJsonViewer({
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToIndex, rows]);
+  // Note: rowRefs is a stable ref from useScrollPreservation hook, doesn't need to be in deps
 
   return (
     <div

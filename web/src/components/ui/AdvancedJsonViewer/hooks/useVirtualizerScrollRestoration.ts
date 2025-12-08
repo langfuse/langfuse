@@ -12,7 +12,7 @@
  * Used by VirtualizedJsonViewer
  */
 
-import { useRef, useCallback, useLayoutEffect, useState } from "react";
+import { useRef, useCallback, useLayoutEffect } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import type { FlatJSONRow } from "../types";
 

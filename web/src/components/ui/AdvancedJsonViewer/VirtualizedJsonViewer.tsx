@@ -5,7 +5,7 @@
  * Uses @tanstack/react-virtual which is already in project dependencies.
  */
 
-import { useRef, useMemo, useEffect, useCallback, type RefObject } from "react";
+import { useRef, useEffect, useCallback, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type FlatJSONRow,

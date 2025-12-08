@@ -23,15 +23,12 @@ import {
   startTransition,
 } from "react";
 import { type AdvancedJsonViewerProps, type ExpansionState } from "./types";
-import {
-  flattenJSON,
-  toggleRowExpansion,
-  calculateTotalLineCount,
-} from "./utils/flattenJson";
+import { toggleRowExpansion } from "./utils/flattenJson";
 import { searchInRows } from "./utils/searchJson";
 import { shouldVirtualize } from "./utils/estimateRowHeight";
 import { useJsonTheme } from "./hooks/useJsonTheme";
 import { useSearchNavigation } from "./hooks/useSearchNavigation";
+import { useFlattenedJson } from "./hooks/useFlattenedJson";
 import { SearchBar } from "./components/SearchBar";
 import { SimpleJsonViewer } from "./SimpleJsonViewer";
 import { VirtualizedJsonViewer } from "./VirtualizedJsonViewer";
@@ -95,27 +92,32 @@ export function AdvancedJsonViewer({
     ? controlledCurrentMatchIndex
     : internalCurrentMatchIndex;
 
-  // Flatten JSON data
-  const flatRows = useMemo(() => {
-    console.log("[AdvancedJsonViewer] Running flattenJSON");
-    console.time("[AdvancedJsonViewer] flattenJSON");
-    const result = flattenJSON(data, expansionState, {
+  // Flatten JSON data in Web Worker (non-blocking)
+  const {
+    flatRows,
+    totalLineCount,
+    isFlattening,
+    isReady,
+    flattenTime,
+    flattenError,
+  } = useFlattenedJson({
+    data,
+    expansionState,
+    config: {
       rootKey: "root",
       maxDepth: null,
       maxRows: null,
-    });
-    console.timeEnd("[AdvancedJsonViewer] flattenJSON");
-    console.log(
-      "[AdvancedJsonViewer] flattenJSON result:",
-      result.length,
-      "rows",
-    );
-    return result;
-  }, [data, expansionState]);
+    },
+  });
 
-  // Calculate total line count when fully expanded (for line number width)
-  // Uses optimized traversal instead of full flattening
-  const totalLineCount = useMemo(() => calculateTotalLineCount(data), [data]);
+  // Log flatten performance
+  useEffect(() => {
+    if (isReady && flattenTime !== undefined) {
+      console.log(
+        `[AdvancedJsonViewer] Flatten completed in ${flattenTime.toFixed(2)}ms (${flatRows.length} rows)`,
+      );
+    }
+  }, [isReady, flattenTime, flatRows.length]);
 
   // Search matches
   const searchMatches = useMemo(
@@ -249,6 +251,26 @@ export function AdvancedJsonViewer({
     return (
       <div className={className} style={{ padding: "16px" }}>
         <div className="text-sm text-destructive">Error: {errorMessage}</div>
+      </div>
+    );
+  }
+
+  // Flatten error state
+  if (flattenError) {
+    return (
+      <div className={className} style={{ padding: "16px" }}>
+        <div className="text-sm text-destructive">
+          Error flattening JSON: {flattenError}
+        </div>
+      </div>
+    );
+  }
+
+  // Flattening state (show during initial load, but not during expansion changes)
+  if (isFlattening && flatRows.length === 0) {
+    return (
+      <div className={className} style={{ padding: "16px" }}>
+        <div className="text-sm text-muted-foreground">Processing JSON...</div>
       </div>
     );
   }
