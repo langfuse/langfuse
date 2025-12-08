@@ -1,4 +1,3 @@
-import { v4 } from "uuid";
 import { PrismaClient } from "../../src/index";
 import { logger } from "../../src/server";
 
