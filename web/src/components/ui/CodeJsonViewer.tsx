@@ -35,6 +35,7 @@ export function JSONView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
+  borderless?: boolean;
   projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   externalJsonCollapsed?: boolean;
@@ -86,14 +87,15 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex gap-2 whitespace-pre-wrap break-words p-2 text-xs",
+          "io-message-content flex gap-2 whitespace-pre-wrap break-words text-xs",
+          props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
             : "",
           props.title === "system" || props.title === "Input"
             ? "bg-primary-foreground"
             : "",
-          props.scrollable ? "" : "rounded-sm border",
+          props.scrollable || props.borderless ? "" : "rounded-sm border",
           props.codeClassName,
         )}
       >

@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.137.0",
+  "version": "3.138.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -42,7 +42,7 @@
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.1",
-    "@modelcontextprotocol/sdk": "^1.20.2",
+    "@modelcontextprotocol/sdk": "^1.24.3",
     "@mui/material": "^7.3.1",
     "@mui/x-tree-view": "^8.17.0",
     "@next-auth/prisma-adapter": "^1.0.7",
@@ -153,7 +153,7 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
-    "remark-rehype": "^11.1.1",
+    "remark-rehype": "^11.1.2",
     "remark-stringify": "^11.0.0",
     "sonner": "^2.0.7",
     "stripe": "^18.5.0",
