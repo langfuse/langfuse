@@ -1997,4 +1997,84 @@ describe("batch export test suite", () => {
     expect(rowsByIdVariant[0].id).toBe("other-trace-id-456");
     expect(rowsByIdVariant[0].name).toBe("other-trace");
   });
+
+  it("should properly export traces with Thai and other non-ASCII characters", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with Thai, Chinese, Arabic, and emoji characters
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        name: "สวัสดี ภาษาไทย", // Thai: "Hello Thai language"
+        user_id: "ผู้ใช้", // Thai: "user"
+        metadata: {
+          description: "การทดสอบภาษาไทย", // Thai: "Thai language test"
+          mixed: "Hello สวัสดี 世界 مرحبا 🌍",
+        },
+        tags: ["ไทย", "テスト", "测试"],
+      }),
+      createTrace({
+        project_id: projectId,
+        name: "中文测试", // Chinese: "Chinese test"
+        user_id: "用户", // Chinese: "user"
+        metadata: {
+          description: "这是中文测试", // Chinese: "This is a Chinese test"
+        },
+        tags: ["中文", "汉字"],
+      }),
+      createTrace({
+        project_id: projectId,
+        name: "العربية", // Arabic: "Arabic"
+        user_id: "مستخدم", // Arabic: "user"
+        metadata: {
+          description: "اختبار اللغة العربية", // Arabic: "Arabic language test"
+        },
+        tags: ["عربي"],
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Export all traces
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(3);
+
+    // Verify Thai characters are preserved
+    const thaiTrace = rows.find((r) => r.name === "สวัสดี ภาษาไทย");
+    expect(thaiTrace).toBeDefined();
+    expect(thaiTrace?.userId).toBe("ผู้ใช้");
+    expect(thaiTrace?.metadata).toEqual({
+      description: "การทดสอบภาษาไทย",
+      mixed: "Hello สวัสดี 世界 مرحبا 🌍",
+    });
+    expect(thaiTrace?.tags).toEqual(["ไทย", "テスト", "测试"]);
+
+    // Verify Chinese characters are preserved
+    const chineseTrace = rows.find((r) => r.name === "中文测试");
+    expect(chineseTrace).toBeDefined();
+    expect(chineseTrace?.userId).toBe("用户");
+    expect(chineseTrace?.metadata).toEqual({
+      description: "这是中文测试",
+    });
+    expect(chineseTrace?.tags).toEqual(["中文", "汉字"]);
+
+    // Verify Arabic characters are preserved
+    const arabicTrace = rows.find((r) => r.name === "العربية");
+    expect(arabicTrace).toBeDefined();
+    expect(arabicTrace?.userId).toBe("مستخدم");
+    expect(arabicTrace?.metadata).toEqual({
+      description: "اختبار اللغة العربية",
+    });
+    expect(arabicTrace?.tags).toEqual(["عربي"]);
+  });
 });

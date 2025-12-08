@@ -25,7 +25,7 @@ import Decimal from "decimal.js";
 import { sql } from "kysely";
 import { afterEach } from "node:test";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { compileHandlebarString } from "../features/utils/utilities";
+import { compileTemplateString } from "../features/utils/utilities";
 import { OpenAIServer } from "./network";
 import {
   createEvalJobs,
@@ -73,13 +73,508 @@ afterAll(openAIServer.teardown);
 
 describe("eval service tests", () => {
   describe("compile prompt", () => {
-    test("compile handlebars template", async () => {
+    test("compile template string with basic variables", async () => {
       const template = "Please evaluate toxicity {{input}} {{output}}";
-      const compiledString = compileHandlebarString(template, {
+      const compiledString = compileTemplateString(template, {
         input: "foo",
         output: "bar",
       });
       expect(compiledString).toBe("Please evaluate toxicity foo bar");
+    });
+
+    test("compile template string with single variable", async () => {
+      const template = "Hello {{name}}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with no variables", async () => {
+      const template = "This is a plain string without variables";
+      const compiledString = compileTemplateString(template, {
+        input: "foo",
+      });
+      expect(compiledString).toBe("This is a plain string without variables");
+    });
+
+    test("compile template string with empty context keeps original variables", async () => {
+      const template = "Hello {{name}}!";
+      const compiledString = compileTemplateString(template, {});
+      expect(compiledString).toBe("Hello {{name}}!");
+    });
+
+    test("compile template string with missing variable keeps original variable", async () => {
+      const template = "Hello {{name}}, your score is {{score}}";
+      const compiledString = compileTemplateString(template, {
+        name: "Alice",
+      });
+      expect(compiledString).toBe("Hello Alice, your score is {{score}}");
+    });
+
+    test("compile template string with all variables missing keeps all original", async () => {
+      const template = "{{greeting}} {{name}}, welcome to {{place}}!";
+      const compiledString = compileTemplateString(template, {});
+      expect(compiledString).toBe(
+        "{{greeting}} {{name}}, welcome to {{place}}!",
+      );
+    });
+
+    test("compile template string with whitespace variable missing keeps original with whitespace", async () => {
+      const template = "Hello {{  name  }}!";
+      const compiledString = compileTemplateString(template, {});
+      expect(compiledString).toBe("Hello {{  name  }}!");
+    });
+
+    test("compile template string with null value returns empty string", async () => {
+      const template = "Value: {{value}}";
+      const compiledString = compileTemplateString(template, {
+        value: null,
+      });
+      expect(compiledString).toBe("Value: ");
+    });
+
+    test("compile template string with undefined value returns empty string", async () => {
+      const template = "Value: {{value}}";
+      const compiledString = compileTemplateString(template, {
+        value: undefined,
+      });
+      expect(compiledString).toBe("Value: ");
+    });
+
+    test("compile template string with numeric value", async () => {
+      const template = "Score: {{score}}";
+      const compiledString = compileTemplateString(template, {
+        score: 42,
+      });
+      expect(compiledString).toBe("Score: 42");
+    });
+
+    test("compile template string with zero value", async () => {
+      const template = "Count: {{count}}";
+      const compiledString = compileTemplateString(template, {
+        count: 0,
+      });
+      expect(compiledString).toBe("Count: 0");
+    });
+
+    test("compile template string with boolean true value", async () => {
+      const template = "Active: {{active}}";
+      const compiledString = compileTemplateString(template, {
+        active: true,
+      });
+      expect(compiledString).toBe("Active: true");
+    });
+
+    test("compile template string with boolean false value", async () => {
+      const template = "Active: {{active}}";
+      const compiledString = compileTemplateString(template, {
+        active: false,
+      });
+      expect(compiledString).toBe("Active: false");
+    });
+
+    test("compile template string with object value stringifies object", async () => {
+      const template = "Data: {{data}}";
+      const compiledString = compileTemplateString(template, {
+        data: { key: "value" },
+      });
+      expect(compiledString).toBe("Data: [object Object]");
+    });
+
+    test("compile template string with array value stringifies array", async () => {
+      const template = "Items: {{items}}";
+      const compiledString = compileTemplateString(template, {
+        items: [1, 2, 3],
+      });
+      expect(compiledString).toBe("Items: 1,2,3");
+    });
+
+    test("compile template string with whitespace around variable name", async () => {
+      const template = "Hello {{ name }}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with extra whitespace around variable name", async () => {
+      const template = "Hello {{   name   }}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with tabs around variable name", async () => {
+      const template = "Hello {{\tname\t}}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with mixed whitespace around variable name", async () => {
+      const template = "Hello {{  \t  name  \t  }}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with newline inside", async () => {
+      const template = "Hello {{\nname\n}}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      // Newlines are not matched by \s* in the regex pattern (which only matches spaces)
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with leading whitespace only", async () => {
+      const template = "Hello {{   name}}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with trailing whitespace only", async () => {
+      const template = "Hello {{name   }}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string with excessive whitespace", async () => {
+      const template = "Hello {{          name          }}!";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World!");
+    });
+
+    test("compile template string whitespace variations with multiple variables", async () => {
+      const template = "{{ input }} and {{output}} and {{  expected  }}";
+      const compiledString = compileTemplateString(template, {
+        input: "A",
+        output: "B",
+        expected: "C",
+      });
+      expect(compiledString).toBe("A and B and C");
+    });
+
+    test("compile template string with multiple occurrences of same variable", async () => {
+      const template = "{{name}} said hello to {{name}}";
+      const compiledString = compileTemplateString(template, {
+        name: "Alice",
+      });
+      expect(compiledString).toBe("Alice said hello to Alice");
+    });
+
+    test("compile template string with special characters in value", async () => {
+      const template = "Query: {{query}}";
+      const compiledString = compileTemplateString(template, {
+        query: "SELECT * FROM users WHERE name = 'test'",
+      });
+      expect(compiledString).toBe(
+        "Query: SELECT * FROM users WHERE name = 'test'",
+      );
+    });
+
+    test("compile template string with HTML in value (no escaping)", async () => {
+      const template = "Content: {{content}}";
+      const compiledString = compileTemplateString(template, {
+        content: "<script>alert('xss')</script>",
+      });
+      expect(compiledString).toBe("Content: <script>alert('xss')</script>");
+    });
+
+    test("compile template string with newlines in value", async () => {
+      const template = "Message: {{message}}";
+      const compiledString = compileTemplateString(template, {
+        message: "Line 1\nLine 2\nLine 3",
+      });
+      expect(compiledString).toBe("Message: Line 1\nLine 2\nLine 3");
+    });
+
+    test("compile template string with empty string value", async () => {
+      const template = "Name: {{name}}";
+      const compiledString = compileTemplateString(template, {
+        name: "",
+      });
+      expect(compiledString).toBe("Name: ");
+    });
+
+    test("compile template string with JSON string value", async () => {
+      const template = "Data: {{data}}";
+      const jsonData = JSON.stringify({ input: "test", output: "result" });
+      const compiledString = compileTemplateString(template, {
+        data: jsonData,
+      });
+      expect(compiledString).toBe('Data: {"input":"test","output":"result"}');
+    });
+
+    test("compile template string with underscore in variable name", async () => {
+      const template = "Value: {{my_variable}}";
+      const compiledString = compileTemplateString(template, {
+        my_variable: "test",
+      });
+      expect(compiledString).toBe("Value: test");
+    });
+
+    test("compile template string with numbers in variable name", async () => {
+      const template = "Value: {{var1}}";
+      const compiledString = compileTemplateString(template, {
+        var1: "test",
+      });
+      expect(compiledString).toBe("Value: test");
+    });
+
+    test("compile template string with dot notation in variable name", async () => {
+      const template = "Value: {{user.name}}";
+      const compiledString = compileTemplateString(template, {
+        "user.name": "Alice",
+      });
+      expect(compiledString).toBe("Value: Alice");
+    });
+
+    test("compile template string preserves curly braces that are not variables", async () => {
+      const template = "JSON: {key: value} and {{variable}}";
+      const compiledString = compileTemplateString(template, {
+        variable: "test",
+      });
+      expect(compiledString).toBe("JSON: {key: value} and test");
+    });
+
+    test("compile template string with triple braces preserves outer braces", async () => {
+      const template = "{{{variable}}}";
+      const compiledString = compileTemplateString(template, {
+        variable: "test",
+      });
+      expect(compiledString).toBe("{test}");
+    });
+
+    test("compile template string with complex LLM eval prompt", async () => {
+      const template = `You are an expert evaluator. Please evaluate the following:
+
+Input: {{input}}
+Output: {{output}}
+Expected: {{expected}}
+
+Provide a score from 0 to 1 based on correctness.`;
+
+      const compiledString = compileTemplateString(template, {
+        input: "What is 2+2?",
+        output: "4",
+        expected: "4",
+      });
+
+      expect(compiledString)
+        .toBe(`You are an expert evaluator. Please evaluate the following:
+
+Input: What is 2+2?
+Output: 4
+Expected: 4
+
+Provide a score from 0 to 1 based on correctness.`);
+    });
+
+    test("compile template string with very long value", async () => {
+      const template = "Content: {{content}}";
+      const longValue = "a".repeat(10000);
+      const compiledString = compileTemplateString(template, {
+        content: longValue,
+      });
+      expect(compiledString).toBe(`Content: ${longValue}`);
+    });
+
+    test("compile template string with unicode characters in value", async () => {
+      const template = "Message: {{message}}";
+      const compiledString = compileTemplateString(template, {
+        message: "Hello 世界 🌍 مرحبا",
+      });
+      expect(compiledString).toBe("Message: Hello 世界 🌍 مرحبا");
+    });
+
+    test("compile template string with unicode characters in template", async () => {
+      const template = "你好 {{name}} 🎉";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("你好 World 🎉");
+    });
+
+    test("compile template string returns original on regex error", async () => {
+      // This test verifies error handling - the function should gracefully handle errors
+      const template = "Test {{var}}";
+      // Normal context should work
+      const compiledString = compileTemplateString(template, {
+        var: "value",
+      });
+      expect(compiledString).toBe("Test value");
+    });
+
+    test("compile template string with many variables", async () => {
+      const template =
+        "{{a}} {{b}} {{c}} {{d}} {{e}} {{f}} {{g}} {{h}} {{i}} {{j}}";
+      const compiledString = compileTemplateString(template, {
+        a: "1",
+        b: "2",
+        c: "3",
+        d: "4",
+        e: "5",
+        f: "6",
+        g: "7",
+        h: "8",
+        i: "9",
+        j: "10",
+      });
+      expect(compiledString).toBe("1 2 3 4 5 6 7 8 9 10");
+    });
+
+    test("compile template string with adjacent variables", async () => {
+      const template = "{{first}}{{second}}{{third}}";
+      const compiledString = compileTemplateString(template, {
+        first: "A",
+        second: "B",
+        third: "C",
+      });
+      expect(compiledString).toBe("ABC");
+    });
+
+    test("compile template string with variable at start", async () => {
+      const template = "{{greeting}} there!";
+      const compiledString = compileTemplateString(template, {
+        greeting: "Hello",
+      });
+      expect(compiledString).toBe("Hello there!");
+    });
+
+    test("compile template string with variable at end", async () => {
+      const template = "Hello {{name}}";
+      const compiledString = compileTemplateString(template, {
+        name: "World",
+      });
+      expect(compiledString).toBe("Hello World");
+    });
+
+    test("compile template string with only variable", async () => {
+      const template = "{{value}}";
+      const compiledString = compileTemplateString(template, {
+        value: "Just this",
+      });
+      expect(compiledString).toBe("Just this");
+    });
+
+    test("compile template string with empty template", async () => {
+      const template = "";
+      const compiledString = compileTemplateString(template, {
+        value: "test",
+      });
+      expect(compiledString).toBe("");
+    });
+
+    test("compile template string with float value", async () => {
+      const template = "Score: {{score}}";
+      const compiledString = compileTemplateString(template, {
+        score: 0.95,
+      });
+      expect(compiledString).toBe("Score: 0.95");
+    });
+
+    test("compile template string with negative number", async () => {
+      const template = "Temperature: {{temp}}";
+      const compiledString = compileTemplateString(template, {
+        temp: -15,
+      });
+      expect(compiledString).toBe("Temperature: -15");
+    });
+
+    test("compile template string with Infinity value", async () => {
+      const template = "Value: {{val}}";
+      const compiledString = compileTemplateString(template, {
+        val: Infinity,
+      });
+      expect(compiledString).toBe("Value: Infinity");
+    });
+
+    test("compile template string with NaN value", async () => {
+      const template = "Value: {{val}}";
+      const compiledString = compileTemplateString(template, {
+        val: NaN,
+      });
+      expect(compiledString).toBe("Value: NaN");
+    });
+
+    test("compile template string escapes regex special characters in values", async () => {
+      const template = "Pattern: {{pattern}}";
+      const compiledString = compileTemplateString(template, {
+        pattern: ".*+?^${}()|[]\\",
+      });
+      expect(compiledString).toBe("Pattern: .*+?^${}()|[]\\");
+    });
+
+    test("compile template string with backslash in value", async () => {
+      const template = "Path: {{path}}";
+      const compiledString = compileTemplateString(template, {
+        path: "C:\\Users\\test",
+      });
+      expect(compiledString).toBe("Path: C:\\Users\\test");
+    });
+
+    test("compile template string with dollar sign in value", async () => {
+      const template = "Price: {{price}}";
+      const compiledString = compileTemplateString(template, {
+        price: "$100",
+      });
+      expect(compiledString).toBe("Price: $100");
+    });
+
+    test("compile template string does not process nested braces as variables", async () => {
+      const template = "Code: {{ {{nested}} }}";
+      const compiledString = compileTemplateString(template, {
+        nested: "value",
+      });
+      // The outer braces should match the inner {{nested}} first
+      expect(compiledString).toBe("Code: {{ value }}");
+    });
+
+    test("compile template string handles real-world eval template", async () => {
+      const template = `You are evaluating an AI assistant's response.
+
+## Task
+Evaluate how well the assistant's response matches the expected output.
+
+## Input
+The user asked: {{input}}
+
+## Assistant's Response
+{{output}}
+
+## Expected Response
+{{expected_output}}
+
+## Instructions
+1. Compare the assistant's response with the expected output
+2. Consider semantic similarity, not just exact matching
+3. Provide a score from 0.0 to 1.0
+
+Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
+
+      const compiledString = compileTemplateString(template, {
+        input: "What is the capital of France?",
+        output: "The capital of France is Paris.",
+        expected_output: "Paris is the capital of France.",
+      });
+
+      expect(compiledString).toContain("What is the capital of France?");
+      expect(compiledString).toContain("The capital of France is Paris.");
+      expect(compiledString).toContain("Paris is the capital of France.");
+      expect(compiledString).not.toContain("{{input}}");
+      expect(compiledString).not.toContain("{{output}}");
+      expect(compiledString).not.toContain("{{expected_output}}");
     });
   });
 
@@ -172,6 +667,7 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -248,6 +744,7 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -325,6 +822,7 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
         })
@@ -485,6 +983,7 @@ describe("eval service tests", () => {
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
+          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -1099,6 +1598,7 @@ describe("eval service tests", () => {
           id: datasetItemId,
           project_id: projectId,
           dataset_id: datasetId2,
+          sys_id: randomUUID(),
           source_trace_id: traceId,
         })
         .execute();
@@ -1254,6 +1754,7 @@ describe("eval service tests", () => {
         .values({
           id: datasetItemId,
           project_id: projectId,
+          sys_id: randomUUID(),
           dataset_id: datasetId1,
           source_trace_id: traceId,
         })
@@ -1946,6 +2447,7 @@ describe("eval service tests", () => {
           expected_output: { expected_output: "This is a great response" },
           project_id: projectId,
           dataset_id: datasetId,
+          sys_id: randomUUID(),
         })
         .execute();
 
@@ -2619,6 +3121,7 @@ describe("eval service tests", () => {
         .values({
           id: datasetItemId,
           project_id: projectId,
+          sys_id: randomUUID(),
           dataset_id: datasetId,
         })
         .execute();

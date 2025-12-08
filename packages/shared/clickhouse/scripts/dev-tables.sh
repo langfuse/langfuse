@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS events
       version String,
       release String,
 
+      trace_name String,
       user_id String,
       session_id String,
 
@@ -205,7 +206,7 @@ CREATE TABLE IF NOT EXISTS events
       -- Metadata
       -- Keep raw JSON to benefit from future ClickHouse improvements.
       -- For now, store things as "German Strings" with fast prefix matches based on https://www.uber.com/en-DE/blog/logging/.
-      metadata JSON,
+      metadata JSON(max_dynamic_paths=0),
       metadata_names Array(String),
       metadata_raw_values Array(String), -- should not be used on retrieval, only for materializing other columns
       metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_raw_values),
@@ -275,7 +276,11 @@ CREATE TABLE IF NOT EXISTS events
     index_granularity = 8192,
     index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
     enable_block_number_column = 1,
-    enable_block_offset_column = 1
+    enable_block_offset_column = 1,
+    dynamic_serialization_version='v3',
+    object_serialization_version='v3',
+    object_shared_data_serialization_version='advanced',
+    object_shared_data_serialization_version_for_zero_level_parts='map_with_buckets'
     -- Try without, but re-enable if recent row performance is bad
     -- min_rows_for_wide_part = 0,
     -- min_bytes_for_wide_part = 0
@@ -294,7 +299,7 @@ clickhouse client \
   --multiquery <<EOF
   TRUNCATE events;
   INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
-                      environment, version, release, tags, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
+                      environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details, input,
                       output, metadata, metadata_names, metadata_raw_values,
@@ -314,6 +319,7 @@ clickhouse client \
          o.version,
          t.release as release,
          t.tags as tags,
+         t.name as trace_name,
          t.user_id                                                                      AS user_id,
          t.session_id                                                                   AS session_id,
          t.public                                                                      AS public,
@@ -353,6 +359,59 @@ clickhouse client \
   FROM observations o
   LEFT JOIN traces t ON o.trace_id = t.id
   WHERE (o.is_deleted = 0);
+  -- Backfill events from traces table as well
+  INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
+                      environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level,
+                      model_parameters, provided_usage_details, usage_details, provided_cost_details, cost_details,
+                      input, output,
+                      metadata, metadata_names, metadata_raw_values,
+                      source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
+                      telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_bytes,
+                      created_at, updated_at, event_ts, is_deleted)
+  SELECT t.project_id,
+         t.id,
+         t.id                                                                            AS span_id,
+         ''                                                                       AS parent_span_id,
+         t.timestamp,
+         t.name,
+         'SPAN',
+         t.environment,
+         t.version,
+         t.release as release,
+         t.tags as tags,
+         t.name as trace_name,
+         t.user_id                                                                      AS user_id,
+         t.session_id                                                                   AS session_id,
+         t.public                                                                       AS public,
+         t.bookmarked                                                                   AS bookmarked,
+         'DEFAULT'                                                                      AS level,
+         map()                                                                           AS model_parameters,
+         map(),
+         map(),
+         map(),
+         map(),
+         ifNull(t.input, '')                                                             AS input,
+         ifNull(t.output, '')                                                            AS output,
+         CAST(t.metadata, 'JSON'),
+         mapKeys(t.metadata)                                                             AS metadata_names,
+         mapValues(t.metadata)                                                           AS metadata_raw_values,
+         multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+         NULL                                                                          AS service_name,
+         NULL                                                                          AS service_version,
+         NULL                                                                          AS scope_name,
+         NULL                                                                          AS scope_version,
+         NULL                                                                          AS telemetry_sdk_language,
+         NULL                                                                          AS telemetry_sdk_name,
+         NULL                                                                          AS telemetry_sdk_version,
+         ''                                                                            AS blob_storage_file_path,
+         0                                                                             AS event_bytes,
+         t.created_at,
+         t.updated_at,
+         t.event_ts,
+         t.is_deleted
+  FROM traces t
+  WHERE (t.is_deleted = 0);
+
 EOF
 
 echo "Development tables created successfully (or already exist)."

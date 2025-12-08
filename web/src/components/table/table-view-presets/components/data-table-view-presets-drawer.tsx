@@ -188,7 +188,7 @@ export function TableViewPresetsDrawer({
       if (fetchedViewData) {
         applyViewState(fetchedViewData);
       }
-    } catch (error) {
+    } catch (_error) {
       showErrorToast(
         "Failed to apply view selection",
         "Please try again",

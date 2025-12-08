@@ -8,6 +8,12 @@ import { ErrorPage } from "@/src/components/error-page";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace2/Trace";
+import { useSession } from "next-auth/react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { stripBasePath } from "@/src/utils/redirect";
+import { Badge } from "@/src/components/ui/badge";
 
 export function TracePage({
   traceId,
@@ -17,12 +23,14 @@ export function TracePage({
   timestamp?: Date;
 }) {
   const router = useRouter();
+  const session = useSession();
+  const routeProjectId = (router.query.projectId as string) ?? "";
 
   const trace = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId,
       timestamp,
-      projectId: router.query.projectId as string,
+      projectId: routeProjectId,
     },
     {
       retry(failureCount, error) {
@@ -34,6 +42,11 @@ export function TracePage({
         return failureCount < 3;
       },
     },
+  );
+
+  const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
+  const hasProjectAccess = useIsAuthenticatedAndProjectMember(
+    projectIdForAccessCheck,
   );
 
   const [selectedTab, setSelectedTab] = useQueryParam(
@@ -58,6 +71,42 @@ export function TracePage({
 
   if (!trace.data) return <div className="p-3">Loading...</div>;
 
+  const isSharedTrace = trace.data.public;
+  const showPublicIndicators = isSharedTrace && !hasProjectAccess;
+  const encodedTargetPath = encodeURIComponent(
+    stripBasePath(router.asPath || "/"),
+  );
+  const leadingControl = showPublicIndicators ? (
+    session.status === "authenticated" ? (
+      <Button
+        asChild
+        size="sm"
+        variant="outline"
+        title="Back to Langfuse"
+        className="px-3"
+      >
+        <Link href="/">Langfuse</Link>
+      </Button>
+    ) : (
+      <Button
+        asChild
+        size="sm"
+        variant="default"
+        title="Sign in to Langfuse"
+        className="px-3"
+      >
+        <Link href={`/auth/sign-in?targetPath=${encodedTargetPath}`}>
+          Sign in
+        </Link>
+      </Button>
+    )
+  ) : undefined;
+  const sharedBadge = showPublicIndicators ? (
+    <Badge variant="outline" className="text-xs font-medium">
+      Public
+    </Badge>
+  ) : undefined;
+
   return (
     <Page
       headerProps={{
@@ -71,6 +120,9 @@ export function TracePage({
             href: `/project/${router.query.projectId as string}/traces`,
           },
         ],
+        showSidebarTrigger: !showPublicIndicators,
+        leadingControl,
+        breadcrumbBadges: sharedBadge,
         actionButtonsLeft: (
           <div className="ml-1 flex items-center gap-1">
             <div className="flex items-center gap-0">
@@ -112,7 +164,7 @@ export function TracePage({
                   ? `?${queryParams.toString()}`
                   : "";
 
-                return `/project/${projectId as string}/traces2/${entry.id}${finalQueryString}`;
+                return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
             />

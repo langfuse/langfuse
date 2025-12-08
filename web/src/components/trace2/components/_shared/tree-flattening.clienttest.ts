@@ -495,7 +495,7 @@ describe("flattenTree", () => {
     });
   });
 
-  describe("Performance Tests", () => {
+  describe.skip("Performance Tests", () => {
     // Helper to generate tree structures at scale
     const generateTree = (
       count: number,

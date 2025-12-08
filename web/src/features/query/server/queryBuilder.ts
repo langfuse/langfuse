@@ -3,15 +3,16 @@ import {
   convertDateToClickhouseDateTime,
   shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
-import {
-  type QueryType,
-  type ViewDeclarationType,
-  type views,
-  query as queryModel,
-  type metricAggregations,
-  type granularities,
+import type {
+  QueryType,
+  ViewDeclarationType,
+  metricAggregations,
+  granularities,
+  ViewVersion,
+  views,
 } from "../types";
-import { viewDeclarations } from "@/src/features/query/dataModel";
+import { query as queryModel } from "../types";
+import { getViewDeclaration } from "@/src/features/query/dataModel";
 import {
   FilterList,
   createFilterFromFilterState,
@@ -34,9 +35,14 @@ type AppliedMetricType = {
 
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
+  private version: ViewVersion;
 
-  constructor(chartConfig?: { bins?: number; row_limit?: number }) {
+  constructor(
+    chartConfig?: { bins?: number; row_limit?: number },
+    version: ViewVersion = "v1",
+  ) {
     this.chartConfig = chartConfig;
+    this.version = version;
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
@@ -77,12 +83,7 @@ export class QueryBuilder {
   private getViewDeclaration(
     viewName: z.infer<typeof views>,
   ): ViewDeclarationType {
-    if (!(viewName in viewDeclarations)) {
-      throw new InvalidRequestError(
-        `Invalid view. Must be one of ${Object.keys(viewDeclarations)}`,
-      );
-    }
-    return viewDeclarations[viewName];
+    return getViewDeclaration(viewName, this.version);
   }
 
   private mapDimensions(
@@ -178,6 +179,11 @@ export class QueryBuilder {
     }
   }
 
+  private actualTableName(view: ViewDeclarationType): string {
+    // Extract actual table name from baseCte (handles cases like "events-observations" -> "events")
+    return view.baseCte.split(" ")[0];
+  }
+
   private mapFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
@@ -185,11 +191,13 @@ export class QueryBuilder {
     // Validate all filters before processing
     this.validateFilters(filters, view);
 
+    const actualTableName = this.actualTableName(view);
+
     // Transform our filters to match the column mapping format expected by createFilterFromFilterState
     const columnMappings = filters.map((filter) => {
       let clickhouseSelect: string;
       let queryPrefix: string = "";
-      let clickhouseTableName: string = view.name;
+      let clickhouseTableName: string = actualTableName;
       let type: string;
 
       if (filter.column in view.dimensions) {
@@ -249,11 +257,13 @@ export class QueryBuilder {
     fromTimestamp: string,
     toTimestamp: string,
   ) {
+    const actualTableName = this.actualTableName(view);
+
     // Create column mappings for standard filters
     const projectIdMapping = {
       uiTableName: "project_id",
       uiTableId: "project_id",
-      clickhouseTableName: view.name,
+      clickhouseTableName: actualTableName,
       clickhouseSelect: "project_id",
       queryPrefix: view.name,
       type: "string",
@@ -262,7 +272,7 @@ export class QueryBuilder {
     const timeDimensionMapping = {
       uiTableName: view.timeDimension,
       uiTableId: view.timeDimension,
-      clickhouseTableName: view.name,
+      clickhouseTableName: actualTableName,
       clickhouseSelect: view.timeDimension,
       queryPrefix: view.name,
       type: "datetime",
@@ -339,6 +349,8 @@ export class QueryBuilder {
     filters: FilterList,
   ) {
     const relationTables = new Set<string>();
+    const actualTableName = this.actualTableName(view);
+
     appliedDimensions.forEach((dimension) => {
       if (dimension.relationTable) {
         relationTables.add(dimension.relationTable);
@@ -350,7 +362,11 @@ export class QueryBuilder {
       }
     });
     filters.forEach((filter) => {
-      if (filter.clickhouseTable !== view.name) {
+      // Only add as relation table if it's not the base table
+      if (
+        filter.clickhouseTable !== view.name &&
+        filter.clickhouseTable !== actualTableName
+      ) {
         relationTables.add(filter.clickhouseTable);
       }
     });
@@ -538,14 +554,18 @@ export class QueryBuilder {
     innerMetricsPart: string,
     fromClause: string,
   ) {
+    // Use actual SQL from view definition for id column (handles events.span_id -> id mapping)
+    const idSql = view.dimensions.id?.sql || `${view.name}.id`;
+    const projectIdSql = `${view.name}.project_id`;
+
     return `
       SELECT
-        ${view.name}.project_id,
-        ${view.name}.id,
+        ${projectIdSql},
+        ${idSql},
         ${innerDimensionsPart}
         ${innerMetricsPart}
         ${fromClause}
-      GROUP BY ${view.name}.project_id, ${view.name}.id`;
+      GROUP BY ${projectIdSql}, ${idSql}`;
   }
 
   private buildOuterDimensionsPart(
@@ -810,8 +830,14 @@ export class QueryBuilder {
     // Check if we should skip FINAL modifier for observations (OTEL optimization)
     const skipObservationsFinal = await shouldSkipObservationsFinal(projectId);
     let view = this.getViewDeclaration(query.view);
+
+    // Events table never needs FINAL modifier (already deduplicated)
+    if (view.name === "events-observations") {
+      // baseCte already set to "events" in view definition (no FINAL)
+      // No changes needed, just using as-is
+    }
     // Skip FINAL on observations base table if OTEL project
-    if (view.name === "observations" && skipObservationsFinal) {
+    else if (view.name === "observations" && skipObservationsFinal) {
       view = {
         ...view,
         baseCte: "observations", // Remove FINAL (was "observations FINAL")

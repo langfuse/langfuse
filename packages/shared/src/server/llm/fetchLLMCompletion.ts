@@ -187,7 +187,7 @@ export async function fetchLLMCompletion(
     // Ensure provider schema compliance
     finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
-    finalMessages = messages.map((message) => {
+    finalMessages = messages.map((message, idx) => {
       // For arbitrary content types, convert to string safely
       const safeContent =
         typeof message.content === "string"
@@ -200,7 +200,9 @@ export async function fetchLLMCompletion(
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
       )
-        return new SystemMessage(safeContent);
+        return idx === 0
+          ? new SystemMessage(safeContent)
+          : new HumanMessage(safeContent);
 
       if (message.type === ChatMessageType.ToolResult) {
         return new ToolMessage({
@@ -376,6 +378,7 @@ export async function fetchLLMCompletion(
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
       model: modelParams.model,
+      baseUrl: baseURL ?? undefined,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,

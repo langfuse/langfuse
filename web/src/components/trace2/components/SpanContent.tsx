@@ -35,6 +35,7 @@ interface SpanContentProps {
   parentTotalDuration?: number;
   commentCount?: number;
   onSelect?: () => void;
+  onHover?: () => void;
   className?: string;
 }
 
@@ -44,6 +45,7 @@ export function SpanContent({
   parentTotalDuration,
   commentCount,
   onSelect,
+  onHover,
   className,
 }: SpanContentProps) {
   const { scores } = useTraceData();
@@ -89,6 +91,7 @@ export function SpanContent({
         e.stopPropagation();
         onSelect?.();
       }}
+      onMouseEnter={onHover}
       title={node.name}
       className={cn(
         "peer relative flex min-w-0 flex-1 items-start rounded-md py-0.5 pl-1 pr-2 text-left",

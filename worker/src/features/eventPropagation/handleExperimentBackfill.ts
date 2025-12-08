@@ -17,7 +17,7 @@ const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
 const EXPERIMENT_BACKFILL_LOCK_KEY = "langfuse:experiment-backfill:lock";
 const LOCK_TTL_SECONDS = 300; // 5 minutes
 
-interface DatasetRunItem {
+export interface DatasetRunItem {
   id: string;
   project_id: string;
   trace_id: string;
@@ -33,7 +33,7 @@ interface DatasetRunItem {
   created_at: string;
 }
 
-interface SpanRecord {
+export interface SpanRecord {
   project_id: string;
   trace_id: string;
   span_id: string;
@@ -62,16 +62,19 @@ interface SpanRecord {
   provided_cost_details: Record<string, number> | null;
   cost_details: Record<string, number> | null;
   total_cost: number;
+  usage_pricing_tier_id: string | null;
+  usage_pricing_tier_name: string | null;
   metadata: Record<string, unknown>;
   source: string;
   tags: Array<string>;
   bookmarked: boolean;
   public: boolean;
+  trace_name: string;
   user_id: string;
   session_id: string;
 }
 
-interface EnrichedSpan extends SpanRecord {
+export interface EnrichedSpan extends SpanRecord {
   experiment_id: string;
   experiment_name: string;
   experiment_metadata_names: string[];
@@ -85,7 +88,8 @@ interface EnrichedSpan extends SpanRecord {
   experiment_item_metadata_values: Array<string | null | undefined>;
 }
 
-interface TraceProperties {
+export interface TraceProperties {
+  name: string;
   userId: string;
   sessionId: string;
   version: string;
@@ -202,11 +206,14 @@ export async function getRelevantObservations(
       o.provided_cost_details AS provided_cost_details,
       o.cost_details AS cost_details,
       coalesce(o.total_cost, 0) AS total_cost,
+      o.usage_pricing_tier_id,
+      o.usage_pricing_tier_name,
       o.metadata,
-      multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+      multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write-experiments', 'ingestion-api-dual-write-experiments') AS source,
       [] as tags,
       false AS bookmarked,
       false AS public,
+      '' AS trace_name,
       '' AS user_id,
       '' AS session_id
     FROM observations o
@@ -251,7 +258,7 @@ export async function getRelevantTraces(
       '' AS parent_span_id,
       t.timestamp AS start_time,
       '' AS end_time,
-      coalesce(t.name, '') AS name,
+      t.name AS name,
       'SPAN' AS type,
       coalesce(t.environment, '') AS environment,
       coalesce(t.version, '') AS version,
@@ -273,10 +280,11 @@ export async function getRelevantTraces(
       map() AS cost_details,
       0 AS total_cost,
       t.metadata,
-      multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+      multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write-experiments', 'ingestion-api-dual-write-experiments') AS source,
       t.tags,
       t.bookmarked,
       t.public,
+      t.name AS trace_name,
       coalesce(t.user_id, '') AS user_id,
       coalesce(t.session_id, '') AS session_id
     FROM traces t
@@ -358,6 +366,7 @@ function convertToEnrichedSpanWithoutExperiment(
 ): EnrichedSpan {
   return {
     ...span,
+    trace_name: traceProperties?.name || "",
     user_id: traceProperties?.userId || "",
     session_id: traceProperties?.sessionId || "",
     version: span.version || traceProperties?.version || "",
@@ -401,6 +410,7 @@ export function enrichSpansWithExperiment(
   // Enrich root span
   enrichedSpans.push({
     ...rootSpan,
+    trace_name: traceProperties?.name || "",
     user_id: traceProperties?.userId || "",
     session_id: traceProperties?.sessionId || "",
     version: rootSpan.version || traceProperties?.version || "",
@@ -425,6 +435,7 @@ export function enrichSpansWithExperiment(
   for (const child of childSpans) {
     enrichedSpans.push({
       ...child,
+      trace_name: traceProperties?.name || "",
       user_id: traceProperties?.userId || "",
       session_id: traceProperties?.sessionId || "",
       version: child.version || traceProperties?.version || "",
@@ -452,7 +463,7 @@ export function enrichSpansWithExperiment(
  * Write enriched spans to the events table using IngestionService.writeEvent().
  * Converts EnrichedSpan to EventInput format.
  */
-async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
+export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
   if (spans.length === 0) {
     return;
   }
@@ -493,6 +504,7 @@ async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       completionStartTime: span.completion_start_time || undefined,
 
       // User/session
+      traceName: span.trace_name || undefined,
       userId: span.user_id || undefined,
       sessionId: span.session_id || undefined,
       level: span.level || undefined,
@@ -513,6 +525,9 @@ async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       providedCostDetails: span.provided_cost_details || undefined,
       costDetails: span.cost_details || undefined,
       totalCost: span.total_cost || undefined,
+
+      usagePricingTierId: span.usage_pricing_tier_id || undefined,
+      usagePricingTierName: span.usage_pricing_tier_name || undefined,
 
       // I/O
       input: span.input || undefined,
@@ -781,6 +796,7 @@ async function processExperimentBackfill(
     const tracePropertiesMap = new Map<string, TraceProperties>();
     for (const trace of traces) {
       tracePropertiesMap.set(trace.trace_id, {
+        name: trace.name,
         userId: trace.user_id,
         sessionId: trace.session_id,
         version: trace.version,

@@ -57,6 +57,9 @@ export const views = z.enum([
   // "users",
 ]);
 
+export const viewVersions = z.enum(["v1", "v2"]);
+export type ViewVersion = z.infer<typeof viewVersions>;
+
 export const dimension = z.object({
   field: z.string(),
 });

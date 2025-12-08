@@ -15,6 +15,15 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
+/** Log view ordering mode */
+export type LogViewMode = "chronological" | "tree-order";
+
+/** Log view tree visualization style (only applies in tree-order mode) */
+export type LogViewTreeStyle = "flat" | "indented";
+
+/** JSON view preference (formatted/pretty vs raw JSON) */
+export type JsonViewPreference = "pretty" | "json";
+
 interface ViewPreferencesContextValue {
   showDuration: boolean;
   setShowDuration: (value: boolean) => void;
@@ -32,6 +41,15 @@ interface ViewPreferencesContextValue {
   setMinObservationLevel: (value: ObservationLevelType) => void;
   /** Whether trace is rendered in peek mode (e.g., annotation queues) */
   isPeekMode: boolean;
+  /** Log view ordering mode (chronological or tree-order) */
+  logViewMode: LogViewMode;
+  setLogViewMode: (value: LogViewMode) => void;
+  /** Log view tree style (flat or indented, only applies in tree-order mode) */
+  logViewTreeStyle: LogViewTreeStyle;
+  setLogViewTreeStyle: (value: LogViewTreeStyle) => void;
+  /** JSON view preference (pretty/formatted or raw JSON) */
+  jsonViewPreference: JsonViewPreference;
+  setJsonViewPreference: (value: JsonViewPreference) => void;
 }
 
 const ViewPreferencesContext =
@@ -81,6 +99,14 @@ export function ViewPreferencesProvider({
       "minObservationLevel",
       ObservationLevel.DEFAULT,
     );
+  const [logViewMode, setLogViewMode] = useLocalStorage<LogViewMode>(
+    "logViewMode",
+    "chronological",
+  );
+  const [logViewTreeStyle, setLogViewTreeStyle] =
+    useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
+  const [jsonViewPreference, setJsonViewPreference] =
+    useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
 
   const value = useMemo<ViewPreferencesContextValue>(
     () => ({
@@ -99,6 +125,12 @@ export function ViewPreferencesProvider({
       minObservationLevel,
       setMinObservationLevel,
       isPeekMode,
+      logViewMode,
+      setLogViewMode,
+      logViewTreeStyle,
+      setLogViewTreeStyle,
+      jsonViewPreference,
+      setJsonViewPreference,
     }),
     [
       showDuration,
@@ -116,6 +148,12 @@ export function ViewPreferencesProvider({
       minObservationLevel,
       setMinObservationLevel,
       isPeekMode,
+      logViewMode,
+      setLogViewMode,
+      logViewTreeStyle,
+      setLogViewTreeStyle,
+      jsonViewPreference,
+      setJsonViewPreference,
     ],
   );
 

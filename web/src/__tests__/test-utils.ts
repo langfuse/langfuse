@@ -36,7 +36,7 @@ export const ensureTestDatabaseExists = async () => {
       stdio: "inherit",
     });
     console.log("Test database schema verified/updated");
-  } catch (error) {
+  } catch (_error) {
     console.log("Test database not accessible, creating...");
 
     const url = new URL(env.DATABASE_URL);
@@ -221,6 +221,11 @@ export async function makeAPICall<T = IngestionAPIResponse>(
       body !== undefined && { body: JSON.stringify(body) }),
   };
   const response = await fetch(finalUrl, options);
+
+  // Handle 204 No Content - no body to parse
+  if (response.status === 204) {
+    return { body: {} as T, status: response.status };
+  }
 
   // Clone the response before attempting to parse JSON
   const clonedResponse = response.clone();
