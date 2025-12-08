@@ -1,16 +1,20 @@
 /**
- * useFlattenedJson - Flattens JSON data in background
+ * useFlattenedJson - Flattens JSON data in background (for large datasets)
  *
- * This hook uses Web Worker-based JSON flattening to prevent blocking the main
- * thread when processing large JSON structures during expand/collapse operations.
+ * This hook intelligently chooses between sync and Web Worker-based flattening
+ * based on dataset size to optimize performance:
+ * - Small datasets (≤100K nodes): Sync flattening (instant, no worker overhead)
+ * - Large datasets (>100K nodes): Web Worker flattening (non-blocking)
  *
  * Benefits:
- * - Non-blocking: Flattening happens in Web Worker
+ * - Automatic threshold-based selection
+ * - Non-blocking for large datasets: Flattening happens in Web Worker
+ * - Instant for small datasets: No worker overhead or message serialization
  * - Cached: React Query caches flattened data by expansion state
- * - Progressive: UI renders immediately, data populates when ready
  * - Graceful fallback: Uses sync flattening if Web Workers unavailable
  */
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { flattenJSON, calculateTotalLineCount } from "../utils/flattenJson";
 import type { FlatJSONRow, ExpansionState, FlattenConfig } from "../types";
@@ -18,6 +22,9 @@ import type {
   FlattenRequest,
   FlattenResponse,
 } from "@/src/workers/flatten-json.worker";
+
+// Size threshold for using Web Worker (nodes)
+const WORKER_SIZE_THRESHOLD = 100_000;
 
 // Singleton worker instance shared across all hook calls
 let workerInstance: Worker | null = null;
@@ -95,14 +102,31 @@ function generateExpansionKey(expansionState: ExpansionState): string {
 }
 
 /**
- * Flatten JSON data in Web Worker (or fallback to sync)
+ * Flatten JSON data - uses Web Worker for large datasets, sync for small ones
  * Returns a promise that resolves with flattened data
  */
 async function flattenJsonData(
   data: unknown,
   expansionState: ExpansionState,
-  config?: FlattenConfig,
+  config: FlattenConfig | undefined,
+  dataSize: number,
 ): Promise<FlattenedData> {
+  const startTime = performance.now();
+
+  // Use sync flattening for small datasets (no worker overhead)
+  if (dataSize <= WORKER_SIZE_THRESHOLD) {
+    console.log(
+      `[useFlattenedJson] Small dataset (${dataSize} nodes), using sync flattening`,
+    );
+
+    return {
+      flatRows: flattenJSON(data, expansionState, config),
+      totalLineCount: dataSize,
+      flattenTime: performance.now() - startTime,
+    };
+  }
+
+  // Use Web Worker for large datasets (non-blocking)
   const worker = getOrCreateWorker();
 
   // Fallback to sync flattening if no worker support
@@ -111,16 +135,18 @@ async function flattenJsonData(
       "[useFlattenedJson] Web Worker not available, using sync flattening",
     );
 
-    const startTime = performance.now();
-
     return {
       flatRows: flattenJSON(data, expansionState, config),
-      totalLineCount: calculateTotalLineCount(data),
+      totalLineCount: dataSize,
       flattenTime: performance.now() - startTime,
     };
   }
 
   // Flatten in Web Worker (non-blocking)
+  console.log(
+    `[useFlattenedJson] Large dataset (${dataSize} nodes), using Web Worker`,
+  );
+
   return new Promise<FlattenedData>((resolve, reject) => {
     const flattenId = `${Date.now()}-${Math.random()}`;
 
@@ -162,10 +188,16 @@ export function useFlattenedJson({
   expansionState,
   config,
 }: UseFlattenedJsonParams) {
+  // Calculate data size once (cached by data reference)
+  const dataSize = useMemo(() => {
+    if (data === undefined || data === null) return 0;
+    return calculateTotalLineCount(data);
+  }, [data]);
+
   // Generate stable cache key from expansion state
   const expansionKey = generateExpansionKey(expansionState);
 
-  // Flatten the data in Web Worker (React Query caches this)
+  // Flatten the data (sync for small, worker for large - React Query caches this)
   const flattenQuery = useQuery({
     queryKey: [
       "flattened-json",
@@ -179,7 +211,7 @@ export function useFlattenedJson({
       config?.maxRows,
     ],
     queryFn: async () => {
-      return flattenJsonData(data, expansionState, config);
+      return flattenJsonData(data, expansionState, config, dataSize);
     },
     enabled: data !== undefined && data !== null, // Only run if we have data
     staleTime: Infinity, // Flattened data never goes stale (data + expansionState is the source of truth)
@@ -189,7 +221,7 @@ export function useFlattenedJson({
   return {
     // Flattened data (cached by React Query)
     flatRows: flattenQuery.data?.flatRows ?? [],
-    totalLineCount: flattenQuery.data?.totalLineCount ?? 0,
+    totalLineCount: flattenQuery.data?.totalLineCount ?? dataSize,
 
     // Loading states
     isFlattening: flattenQuery.isLoading,
