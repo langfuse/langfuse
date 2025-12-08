@@ -181,7 +181,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(name, event_ts, parent_span_id = '') AS name",
+  name: "argMaxIf(trace_name, event_ts, trace_name <> '') AS name",
   timestamp: "min(start_time) as timestamp",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
