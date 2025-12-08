@@ -1,18 +1,22 @@
 /**
- * useParsedObservation - Fetches and parses observation data in background
+ * useParsedTrace - Parses trace data in background
  *
- * This hook combines tRPC data fetching with Web Worker-based JSON parsing
- * to prevent blocking the main thread when processing large observation I/O.
+ * This hook uses Web Worker-based JSON parsing to prevent blocking the main
+ * thread when processing large trace I/O.
+ *
+ * Key differences from useParsedObservation:
+ * - No data fetching (trace data already loaded)
+ * - Only performs parsing step
+ * - Lighter weight, focused on single responsibility
  *
  * Benefits:
  * - Non-blocking: Parsing happens in Web Worker
- * - Cached: React Query caches both raw data AND parsed data independently
+ * - Cached: React Query caches parsed data
  * - Progressive: UI renders immediately, data populates when ready
  * - Graceful fallback: Uses sync parsing if Web Workers unavailable
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/src/utils/api";
 import type {
   ParseRequest,
   ParseResponse,
@@ -46,10 +50,10 @@ function getOrCreateWorker(): Worker | null {
       };
 
       workerInstance.onerror = (error) => {
-        console.error("[useParsedObservation] Worker error:", error);
+        console.error("[useParsedTrace] Worker error:", error);
       };
     } catch (error) {
-      console.error("[useParsedObservation] Failed to create worker:", error);
+      console.error("[useParsedTrace] Failed to create worker:", error);
       return null;
     }
   }
@@ -57,11 +61,11 @@ function getOrCreateWorker(): Worker | null {
   return workerInstance;
 }
 
-interface UseParsedObservationParams {
-  observationId: string;
+interface UseParsedTraceParams {
   traceId: string;
-  projectId: string;
-  startTime?: Date;
+  input: unknown;
+  output: unknown;
+  metadata: unknown;
 }
 
 interface ParsedData {
@@ -72,10 +76,10 @@ interface ParsedData {
 }
 
 /**
- * Parse observation data in Web Worker (or fallback to sync)
+ * Parse trace data in Web Worker (or fallback to sync)
  * Returns a promise that resolves with parsed data
  */
-async function parseObservationData(
+async function parseTraceData(
   input: unknown,
   output: unknown,
   metadata: unknown,
@@ -85,7 +89,7 @@ async function parseObservationData(
   // Fallback to sync parsing if no worker support
   if (!worker) {
     console.log(
-      "[useParsedObservation] Web Worker not available, using sync parsing",
+      "[useParsedTrace] Web Worker not available, using sync parsing",
     );
 
     const { deepParseJsonIterative } = await import("@langfuse/shared");
@@ -112,19 +116,19 @@ async function parseObservationData(
   return new Promise<ParsedData>((resolve, reject) => {
     const parseId = `${Date.now()}-${Math.random()}`;
 
-    console.log(`[useParsedObservation] Starting background parse ${parseId}`);
+    console.log(`[useParsedTrace] Starting background parse ${parseId}`);
 
     pendingCallbacks.set(parseId, (result) => {
       pendingCallbacks.delete(parseId);
 
       if (result.error) {
-        console.error(`[useParsedObservation] Parse error: ${result.error}`);
+        console.error(`[useParsedTrace] Parse error: ${result.error}`);
         reject(new Error(result.error));
         return;
       }
 
       console.log(
-        `[useParsedObservation] Parse completed in ${result.parseTime?.toFixed(2)}ms`,
+        `[useParsedTrace] Parse completed in ${result.parseTime?.toFixed(2)}ms`,
       );
 
       resolve({
@@ -146,67 +150,39 @@ async function parseObservationData(
   });
 }
 
-export function useParsedObservation({
-  observationId,
+export function useParsedTrace({
   traceId,
-  projectId,
-  startTime,
-}: UseParsedObservationParams) {
-  // Step 1: Fetch raw observation data via tRPC (React Query caches this)
-  const observationQuery = api.observations.byId.useQuery(
-    {
-      observationId,
-      traceId,
-      projectId,
-      startTime,
-    },
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  );
-
-  // Step 2: Parse the data in Web Worker (React Query caches THIS too!)
+  input,
+  output,
+  metadata,
+}: UseParsedTraceParams) {
+  // Parse the data in Web Worker (React Query caches this)
   const parseQuery = useQuery({
     queryKey: [
-      "parsed-observation",
-      observationId,
+      "parsed-trace",
+      traceId,
       // Include data hash to detect changes
-      observationQuery.data?.input,
-      observationQuery.data?.output,
-      observationQuery.data?.metadata,
+      input,
+      output,
+      metadata,
     ],
     queryFn: async () => {
-      if (!observationQuery.data) {
-        throw new Error("No observation data to parse");
-      }
-
-      return parseObservationData(
-        observationQuery.data.input,
-        observationQuery.data.output,
-        observationQuery.data.metadata,
-      );
+      return parseTraceData(input, output, metadata);
     },
-    enabled: !!observationQuery.data, // Only run when we have data
+    enabled: !!(input || output || metadata), // Only run if we have data
     staleTime: Infinity, // Parsed data never goes stale (input data is the source of truth)
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes after unmount
   });
 
   return {
-    // Original observation data (cached by tRPC/React Query)
-    observation: observationQuery.data,
-
     // Parsed data (cached by React Query)
     parsedInput: parseQuery.data?.input,
     parsedOutput: parseQuery.data?.output,
     parsedMetadata: parseQuery.data?.metadata,
 
     // Loading states
-    isLoadingObservation: observationQuery.isLoading,
     isParsing: parseQuery.isLoading,
-    isReady:
-      !observationQuery.isLoading &&
-      !parseQuery.isLoading &&
-      parseQuery.data !== undefined,
+    isReady: !parseQuery.isLoading && parseQuery.data !== undefined,
 
     // Debug info
     parseTime: parseQuery.data?.parseTime,
