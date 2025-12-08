@@ -1938,6 +1938,24 @@ export class OtelIngestionProcessor {
       }
     }
 
+    if (instrumentationScopeName === "pydantic-ai") {
+      const inputTokens = attributes["gen_ai.usage.input_tokens"];
+      const outputTokens = attributes["gen_ai.usage.output_tokens"];
+      const cacheReadTokens =
+        attributes["gen_ai.usage.cache_read_tokens"] ??
+        attributes["gen_ai.usage.details.cache_read_input_tokens"];
+      const cacheWriteTokens =
+        attributes["gen_ai.usage.cache_write_tokens"] ??
+        attributes["gen_ai.usage.details.cache_creation_input_tokens"];
+
+      return {
+        input: inputTokens,
+        output: outputTokens,
+        input_cache_read: cacheReadTokens,
+        input_cache_creation: cacheWriteTokens,
+      };
+    }
+
     const usageDetails = Object.keys(attributes).filter(
       (key) =>
         (key.startsWith("gen_ai.usage.") && key !== "gen_ai.usage.cost") ||
