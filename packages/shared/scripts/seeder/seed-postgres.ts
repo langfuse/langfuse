@@ -523,7 +523,6 @@ export async function createDatasets(
         }));
 
       const datasetItemIds: string[] = [];
-      // const itemsToCreate = [];
 
       for (let index = 0; index < data.items.length; index++) {
         const item = data.items[index];
@@ -554,33 +553,6 @@ export async function createDatasets(
         });
         datasetItemIds.push(datasetItem.id);
       }
-
-      //   const itemId = generateDatasetItemId(datasetName, index, projectId);
-      //   datasetItemIds.push(itemId);
-
-      //   // Create dataset items in versioned format with all required fields
-      //   itemsToCreate.push({
-      //     id: itemId,
-      //     projectId,
-      //     datasetId: dataset.id,
-      //     sourceTraceId: sourceTraceId ?? null,
-      //     sourceObservationId: null,
-      //     input: item.input,
-      //     expectedOutput: item.output,
-      //     metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
-      //     status: "ACTIVE" as const,
-      //     validFrom: new Date(),
-      //     isDeleted: false,
-      //   });
-      // }
-
-      // // Bulk insert all items (use createMany for better performance)
-      // if (itemsToCreate.length > 0) {
-      //   await prisma.datasetItem.createMany({
-      //     data: itemsToCreate,
-      //     skipDuplicates: true, // Skip if already exists (handles re-runs)
-      //   });
-      // }
 
       for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
         if (!data.shouldRunExperiment) continue;

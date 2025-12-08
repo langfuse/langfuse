@@ -1,3 +1,4 @@
+import { v4 } from "uuid";
 import { PrismaClient } from "../../src/index";
 import { logger } from "../../src/server";
 
@@ -5,8 +6,8 @@ import { logger } from "../../src/server";
 const ITEM_COUNT = 500;
 const BULK_VERSIONS = 5;
 const ITEMS_PER_BULK_VERSION = 100;
-const ADDITIONAL_VERSIONS = 5;
-const TOTAL_VERSIONS = 10;
+const ADDITIONAL_VERSIONS = 25;
+const TOTAL_VERSIONS = 50;
 
 const TEST_DATASET_NAME = "version-perf-test";
 
@@ -15,11 +16,10 @@ interface VersionData {
   operations: Array<{
     itemId: string;
     operation: "create" | "update" | "delete";
-    status: "ACTIVE" | null;
     input?: any;
     expectedOutput?: any;
     metadata?: any;
-    validFrom?: Date;
+    deletedAt?: Date | null;
   }>;
 }
 
@@ -64,8 +64,8 @@ export async function seedDatasetVersions(
           operation: "create" as const,
           input: { prompt: `Initial prompt for ${itemId}` },
           expectedOutput: { response: `Initial response for ${itemId}` },
-          status: "ACTIVE" as const,
           metadata: { version: v, batch: true },
+          deletedAt: null,
         });
       }
 
@@ -76,7 +76,7 @@ export async function seedDatasetVersions(
       `Created ${BULK_VERSIONS} bulk versions with ${ITEMS_PER_BULK_VERSION} items each`,
     );
 
-    // Create additional versions with mixed operations
+    // Create 95 additional versions with mixed operations
     const existingItemIds = Array.from(
       { length: BULK_VERSIONS * ITEMS_PER_BULK_VERSION },
       (_, i) => `item-${i}`,
@@ -87,15 +87,15 @@ export async function seedDatasetVersions(
         baseTime.getTime() + (BULK_VERSIONS + v) * 60 * 60 * 1000,
       );
       const operations = [];
-      const operationCount = 50; // Fixed 50 operations per version for consistency
+      const operationCount = Math.floor(Math.random() * 100) + 50; // 50-150 operations per version
 
       for (let i = 0; i < operationCount; i++) {
         const rand = Math.random();
         const itemId =
           existingItemIds[Math.floor(Math.random() * existingItemIds.length)];
 
-        if (rand < 0.7) {
-          // 70% updates
+        if (rand < 0.6) {
+          // 60% updates
           operations.push({
             itemId,
             operation: "update" as const,
@@ -103,31 +103,30 @@ export async function seedDatasetVersions(
             expectedOutput: {
               response: `Updated response v${v} for ${itemId}`,
             },
-            status: "ACTIVE" as const,
             metadata: { version: v + BULK_VERSIONS, updated: true },
+            deletedAt: null,
           });
-        } else if (rand < 0.85) {
-          // 15% deletes
-          operations.push({
-            itemId,
-            operation: "delete" as const,
-            input: null,
-            expectedOutput: null,
-            metadata: null,
-            status: null,
-            validFrom: timestamp,
-          });
-        } else {
-          // 15% creates (new items)
-          const newItemId = `item-${BULK_VERSIONS * ITEMS_PER_BULK_VERSION + v * 100 + i}`;
+        } else if (rand < 0.9) {
+          // 30% creates (new items)
+          const newItemId = `item-${BULK_VERSIONS * ITEMS_PER_BULK_VERSION + v * 1000 + i}`;
           existingItemIds.push(newItemId);
           operations.push({
             itemId: newItemId,
             operation: "create" as const,
             input: { prompt: `New prompt v${v} for ${newItemId}` },
             expectedOutput: { response: `New response v${v} for ${newItemId}` },
-            status: "ACTIVE" as const,
             metadata: { version: v + BULK_VERSIONS, new: true },
+            deletedAt: null,
+          });
+        } else {
+          // 10% deletes
+          operations.push({
+            itemId,
+            operation: "delete" as const,
+            input: { prompt: `Deleted prompt for ${itemId}` },
+            expectedOutput: { response: `Deleted response for ${itemId}` },
+            metadata: { version: v + BULK_VERSIONS, deleted: true },
+            deletedAt: timestamp,
           });
         }
       }
@@ -139,48 +138,30 @@ export async function seedDatasetVersions(
       `Created ${ADDITIONAL_VERSIONS} additional versions with mixed operations`,
     );
 
-    // Insert all data into dataset_items table using versioned pattern
-    logger.info("Starting bulk insert into dataset_items...");
+    // Insert all data
+    logger.info("Starting bulk insert...");
     let totalInserts = 0;
     const BATCH_SIZE = 1000;
 
     for (const version of versions) {
-      const items = version.operations.map((op) => {
-        const baseRow = {
-          id: op.itemId, // The logical item ID (stays same across versions)
-          projectId,
-          datasetId: dataset.id,
-          input: op.input,
-          expectedOutput: op.expectedOutput,
-          metadata: op.metadata,
-          status: op.status,
-          sourceTraceId: null,
-          sourceObservationId: null,
-        };
-        if (op.operation === "delete") {
-          return {
-            ...baseRow,
-            validFrom: op.validFrom, // When this version became valid
-            isDeleted: true, // Soft delete flag
-          };
-        } else {
-          return {
-            ...baseRow,
-            validFrom: version.timestamp, // When this version became valid
-          };
-        }
-      });
+      const items = version.operations.map((op) => ({
+        id: v4(),
+        itemId: op.itemId,
+        projectId,
+        datasetId: dataset.id,
+        input: op.input,
+        expectedOutput: op.expectedOutput,
+        metadata: op.metadata,
+        createdAt: version.timestamp,
+        deletedAt: op.deletedAt,
+        status: "ACTIVE" as const,
+      }));
 
-      // Insert in batches directly into dataset_items (versioned table)
+      // Insert in batches using Prisma (cleaner than raw SQL)
       for (let i = 0; i < items.length; i += BATCH_SIZE) {
         const batch = items.slice(i, i + BATCH_SIZE);
-        // TODO: replace with datasetItems table once pk is swapped
         await prismaClient.datasetItemEvent.createMany({
-          data: batch.map((item) => ({
-            ...item,
-            itemId: item.id,
-          })),
-          skipDuplicates: false, // We want all versions
+          data: batch,
         });
         totalInserts += batch.length;
       }
@@ -190,9 +171,7 @@ export async function seedDatasetVersions(
       }
     }
 
-    logger.info(
-      `✅ Complete! Inserted ${totalInserts} total version rows into dataset_items`,
-    );
+    logger.info(`✅ Complete! Inserted ${totalInserts} total rows`);
     logger.info(`   Dataset: ${TEST_DATASET_NAME}`);
     logger.info(`   Versions: ${TOTAL_VERSIONS}`);
     logger.info(`   Unique items: ~${ITEM_COUNT}`);
