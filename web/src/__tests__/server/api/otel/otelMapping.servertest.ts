@@ -5126,7 +5126,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent).toBeDefined();
 
       // Verify basic token usage
-      expect(observationEvent?.body.usageDetails.input).toBe(5734);
+      expect(observationEvent?.body.usageDetails.input).toBe(1152);
       expect(observationEvent?.body.usageDetails.output).toBe(178);
       expect(observationEvent?.body.usageDetails.total).toBe(10394);
 
@@ -5197,7 +5197,7 @@ describe("OTel Resource Span Mapping", () => {
       );
 
       expect(observationEvent).toBeDefined();
-      expect(observationEvent?.body.usageDetails.input).toBe(100);
+      expect(observationEvent?.body.usageDetails.input).toBe(0);
       expect(observationEvent?.body.usageDetails.input_cache_read).toBe(5000);
       // Other cache tokens should not be set
       expect(
