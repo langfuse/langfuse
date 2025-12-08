@@ -1932,6 +1932,15 @@ export class OtelIngestionProcessor {
           }
         }
 
+        // Subtract cached token count from total input
+        usageDetails["input"] = Math.max(
+          (usageDetails["input"] ?? 0) -
+            (usageDetails["input_cached_tokens"] ?? 0) -
+            (usageDetails["input_cache_creation"] ?? 0) -
+            (usageDetails["input_cache_read"] ?? 0),
+          0,
+        );
+
         return usageDetails;
       } catch {
         // Fallthrough
