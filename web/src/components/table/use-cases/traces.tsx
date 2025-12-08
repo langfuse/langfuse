@@ -1300,6 +1300,7 @@ const TracesDynamicCell = ({
     {
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -1314,7 +1315,10 @@ const TracesDynamicCell = ({
     <MemoizedIOTableCell
       isLoading={trace.isPending}
       data={data}
-      className={cn(col === "output" && "bg-accent-light-green")}
+      className={cn(
+        col === "output" && "bg-accent-light-green",
+        col === "input" && "bg-muted/50",
+      )}
       singleLine={singleLine}
     />
   );

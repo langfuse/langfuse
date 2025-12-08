@@ -32,7 +32,7 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate rounded-sm border px-2 py-0.5",
+        "h-full w-full self-stretch overflow-hidden overflow-y-auto truncate px-2 py-1",
         className,
       )}
     >
@@ -48,9 +48,10 @@ const IOTableCellContent = ({
             `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
           true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
-        className={cn("h-full w-full self-stretch rounded-sm", className)}
+        className={cn("h-full w-full self-stretch", className)}
         codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
+        borderless
       />
       <div className="text-xs text-muted-foreground">
         Content was truncated.
@@ -61,9 +62,10 @@ const IOTableCellContent = ({
       json={
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
-      className={cn("h-full w-full self-stretch rounded-sm", className)}
+      className={cn("h-full w-full self-stretch", className)}
       codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
+      borderless
     />
   );
 };

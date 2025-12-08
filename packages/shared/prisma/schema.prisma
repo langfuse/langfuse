@@ -1449,6 +1449,7 @@ model Automation {
 enum ActionType {
   WEBHOOK
   SLACK
+  GITHUB_DISPATCH
   // More action types can be added as needed
 }
 

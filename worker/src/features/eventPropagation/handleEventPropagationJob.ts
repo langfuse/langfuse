@@ -228,6 +228,7 @@ export const handleEventPropagationJob = async (
           select
             t.id,
             t.project_id,
+            t.name,
             t.user_id,
             t.session_id,
             t.version,
@@ -260,6 +261,7 @@ export const handleEventPropagationJob = async (
           tags,
           public,
           bookmarked,
+          trace_name,
           user_id,
           session_id,
           level,
@@ -311,6 +313,7 @@ export const handleEventPropagationJob = async (
           t.tags as tags,
           t.public as public,
           t.bookmarked AND (obs.parent_observation_id IS NULL OR obs.parent_observation_id = '') AS bookmarked,
+          t.name AS trace_name,
           coalesce(t.user_id, '') AS user_id,
           coalesce(t.session_id, '') AS session_id,
           obs.level,
@@ -331,7 +334,7 @@ export const handleEventPropagationJob = async (
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,
           -- Merge trace and observation metadata, with observation taking precedence (first map wins)
-          CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON') AS metadata,
+          CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON(max_dynamic_paths=0)') AS metadata,
           mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
           mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_raw_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,

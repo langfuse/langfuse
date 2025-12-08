@@ -5,6 +5,7 @@ import { aisdkAdapter } from "./aisdk";
 import { openAIAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { microsoftAgentAdapter } from "./microsoft-agent";
+import { pydanticAIAdapter } from "./pydantic-ai";
 import { genericAdapter } from "./generic";
 
 const adapters: ProviderAdapter[] = [
@@ -13,6 +14,7 @@ const adapters: ProviderAdapter[] = [
   openAIAdapter, // OpenAI (Chat Completions & Responses API)
   geminiAdapter, // Gemini/VertexAI format
   microsoftAgentAdapter, // Microsoft Agent Framework
+  pydanticAIAdapter, // Pydantic AI framework
   // Add more adapters here as needed
   genericAdapter, // Always last (fallback)
 ];
