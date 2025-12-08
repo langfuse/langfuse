@@ -158,6 +158,7 @@ export type DashboardWidgetChartType =
 export const ActionType = {
   WEBHOOK: "WEBHOOK",
   SLACK: "SLACK",
+  GITHUB_DISPATCH: "GITHUB_DISPATCH",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 export const ActionExecutionStatus = {

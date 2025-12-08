@@ -239,6 +239,7 @@ export default class BackfillExperimentsHistoric
         [] AS tags,
         false AS bookmarked,
         false AS public,
+        '' as trace_name,
         '' AS user_id,
         '' AS session_id
       FROM observations o
@@ -298,6 +299,7 @@ export default class BackfillExperimentsHistoric
         t.tags,
         t.bookmarked,
         t.public,
+        t.name as trace_name,
         coalesce(t.user_id, '') AS user_id,
         coalesce(t.session_id, '') AS session_id
       FROM traces t
@@ -451,6 +453,7 @@ export default class BackfillExperimentsHistoric
       const tracePropertiesMap = new Map<string, TraceProperties>();
       for (const trace of traces) {
         tracePropertiesMap.set(trace.trace_id, {
+          name: trace.name,
           userId: trace.user_id,
           sessionId: trace.session_id,
           version: trace.version,

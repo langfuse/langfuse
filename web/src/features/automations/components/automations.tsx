@@ -161,9 +161,9 @@ export default function AutomationsPage() {
   const handleCreateSuccess = (
     automationId?: string,
     webhookSecret?: string,
+    actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
   ) => {
-    // Show webhook secret if provided
-    if (webhookSecret) {
+    if (webhookSecret && actionType === "WEBHOOK") {
       setWebhookSecret(webhookSecret);
       setShowSecretDialog(true);
     }
