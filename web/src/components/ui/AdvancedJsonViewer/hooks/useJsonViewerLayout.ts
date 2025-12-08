@@ -19,6 +19,7 @@ import {
 import { calculateFixedColumnWidth } from "../utils/calculateFixedColumnWidth";
 import { calculateMinimumWidth } from "../utils/calculateWidth";
 import { createHeightEstimator } from "../utils/estimateRowHeight";
+import { getDepthRange } from "../utils/flattenJson";
 
 interface UseJsonViewerLayoutParams {
   rows: FlatJSONRow[];
@@ -50,11 +51,45 @@ export function useJsonViewerLayout({
     [showLineNumbers, maxLineNumberDigits],
   );
 
-  // Calculate minimum width for nowrap mode (scrollable column only)
+  // Calculate minimum width for scrollable column
   const scrollableMinWidth = useMemo(() => {
     if (stringWrapMode === "nowrap") {
-      return calculateMinimumWidth(rows, theme);
+      // Calculate based on actual content width (respects truncation)
+      return calculateMinimumWidth(rows, theme, truncateStringsAt);
     }
+    if (stringWrapMode === "wrap") {
+      // Calculate based on max depth to ensure values have room to wrap properly
+      // Cap at 20 levels to prevent excessive width from deeply nested data
+      const [, maxDepth] = getDepthRange(rows);
+      const cappedDepth = Math.min(maxDepth, 20);
+      const maxIndent = cappedDepth * theme.indentSize;
+      // Add buffer for key name + colon + value (400px minimum for value area)
+      return maxIndent + 400;
+    }
+    if (stringWrapMode === "truncate") {
+      // Set reasonable minimum to prevent excessive wrapping of keys and short values
+      // Cap at 20 levels to prevent excessive width from deeply nested data
+      const [, maxDepth] = getDepthRange(rows);
+      const cappedDepth = Math.min(maxDepth, 20);
+      const maxIndent = cappedDepth * theme.indentSize;
+      // Add buffer for key + truncated value (600px for value area to show truncated strings comfortably)
+      return maxIndent + 600;
+    }
+    return undefined;
+  }, [stringWrapMode, rows, theme, truncateStringsAt]);
+
+  // Calculate maximum width for scrollable column (to prevent excessive horizontal scrolling)
+  const scrollableMaxWidth = useMemo(() => {
+    if (stringWrapMode === "wrap") {
+      // Cap at reasonable width for wrap mode to force line breaking
+      // Cap depth at 20 levels to prevent excessive width from deeply nested data
+      const [, maxDepth] = getDepthRange(rows);
+      const cappedDepth = Math.min(maxDepth, 20);
+      const maxIndent = cappedDepth * theme.indentSize;
+      // Max 600px for value area - forces long lines to wrap
+      return maxIndent + 600;
+    }
+    // No maximum for nowrap and truncate modes
     return undefined;
   }, [stringWrapMode, rows, theme]);
 
@@ -73,6 +108,7 @@ export function useJsonViewerLayout({
     maxLineNumberDigits,
     fixedColumnWidth,
     scrollableMinWidth,
+    scrollableMaxWidth,
     estimateSize,
   };
 }

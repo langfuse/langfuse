@@ -61,6 +61,7 @@ export function VirtualizedJsonViewer({
     maxLineNumberDigits,
     fixedColumnWidth,
     scrollableMinWidth,
+    scrollableMaxWidth,
     estimateSize,
   } = useJsonViewerLayout({
     rows,
@@ -143,7 +144,7 @@ export function VirtualizedJsonViewer({
       <div
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
-          width: "fit-content",
+          width: stringWrapMode === "wrap" ? "100%" : "fit-content",
           minWidth: "100%",
           position: "relative",
         }}
@@ -199,6 +200,9 @@ export function VirtualizedJsonViewer({
                 style={{
                   minWidth: scrollableMinWidth
                     ? `${scrollableMinWidth}px`
+                    : undefined,
+                  maxWidth: scrollableMaxWidth
+                    ? `${scrollableMaxWidth}px`
                     : undefined,
                 }}
               >

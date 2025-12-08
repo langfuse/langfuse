@@ -92,6 +92,8 @@ export function JsonValue({
           whiteSpace: stringWrapMode === "wrap" ? "pre-wrap" : "nowrap",
           overflowWrap: stringWrapMode === "wrap" ? "break-word" : undefined,
           wordBreak: stringWrapMode === "wrap" ? "break-word" : undefined,
+          display: stringWrapMode === "wrap" ? "inline-block" : undefined,
+          maxWidth: stringWrapMode === "wrap" ? "100%" : undefined,
         }}
       >
         &quot;

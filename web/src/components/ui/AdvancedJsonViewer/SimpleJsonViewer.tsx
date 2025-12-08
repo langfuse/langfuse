@@ -61,15 +61,19 @@ export function SimpleJsonViewer({
     });
 
   // Layout calculations (widths, heights, column sizes)
-  const { maxLineNumberDigits, fixedColumnWidth, scrollableMinWidth } =
-    useJsonViewerLayout({
-      rows,
-      theme,
-      showLineNumbers,
-      totalLineCount,
-      stringWrapMode,
-      truncateStringsAt,
-    });
+  const {
+    maxLineNumberDigits,
+    fixedColumnWidth,
+    scrollableMinWidth,
+    scrollableMaxWidth,
+  } = useJsonViewerLayout({
+    rows,
+    theme,
+    showLineNumbers,
+    totalLineCount,
+    stringWrapMode,
+    truncateStringsAt,
+  });
 
   // Search-related calculations
   const { matchMap, currentMatch, currentMatchIndexInRow } = useJsonSearch(
@@ -107,7 +111,7 @@ export function SimpleJsonViewer({
       style={{
         display: "grid",
         gridTemplateColumns: `${fixedColumnWidth}px auto`,
-        width: "fit-content",
+        width: stringWrapMode === "wrap" ? "100%" : "fit-content",
         minWidth: "100%",
         backgroundColor: theme.background,
         color: theme.foreground,
@@ -150,6 +154,7 @@ export function SimpleJsonViewer({
       <div
         style={{
           minWidth: scrollableMinWidth ? `${scrollableMinWidth}px` : undefined,
+          maxWidth: scrollableMaxWidth ? `${scrollableMaxWidth}px` : undefined,
         }}
       >
         {rows.map((row) => {

@@ -16,14 +16,23 @@ const CHAR_WIDTH_PX = 6.2; // Approximate width for 0.6rem monospace
 /**
  * Calculate the display length of a value (for width estimation)
  */
-function getValueDisplayLength(value: unknown): number {
+function getValueDisplayLength(
+  value: unknown,
+  truncateAt: number | null,
+): number {
   if (value === null) return 4; // "null"
   if (value === undefined) return 9; // "undefined"
   if (typeof value === "boolean") return value ? 4 : 5; // "true" or "false"
   if (typeof value === "number") return String(value).length;
   if (typeof value === "string") {
-    // Add 2 for quotes
-    return (value as string).length + 2;
+    const str = value as string;
+    const fullLength = str.length;
+    const effectiveLength = truncateAt
+      ? Math.min(fullLength, truncateAt)
+      : fullLength;
+    // Add 2 for quotes, +3 for "..." if truncated
+    const ellipsis = truncateAt && fullLength > truncateAt ? 3 : 0;
+    return effectiveLength + 2 + ellipsis;
   }
   if (Array.isArray(value)) {
     return `Array(${value.length})`.length;
@@ -43,7 +52,11 @@ function getValueDisplayLength(value: unknown): number {
  * Note: Line numbers and expand buttons are now in a separate fixed column,
  * so we only calculate width for: indentation + key + colon + value + badges + copy button
  */
-function calculateRowWidth(row: FlatJSONRow, theme: JSONTheme): number {
+function calculateRowWidth(
+  row: FlatJSONRow,
+  theme: JSONTheme,
+  truncateAt: number | null,
+): number {
   // Components in scrollable column:
   // 1. Indentation (depth * indentSize)
   const indentWidth = row.depth * theme.indentSize;
@@ -55,7 +68,7 @@ function calculateRowWidth(row: FlatJSONRow, theme: JSONTheme): number {
   const colonWidth = 2 * CHAR_WIDTH_PX;
 
   // 4. Value
-  const valueLength = getValueDisplayLength(row.value);
+  const valueLength = getValueDisplayLength(row.value, truncateAt);
 
   // 5. Padding (right side only, left is indent)
   const paddingWidth = 4;
@@ -79,13 +92,14 @@ function calculateRowWidth(row: FlatJSONRow, theme: JSONTheme): number {
 export function calculateMinimumWidth(
   rows: FlatJSONRow[],
   theme: JSONTheme,
+  truncateAt: number | null,
 ): number {
   if (rows.length === 0) return 0;
 
   let maxWidth = 0;
 
   for (const row of rows) {
-    const rowWidth = calculateRowWidth(row, theme);
+    const rowWidth = calculateRowWidth(row, theme, truncateAt);
     if (rowWidth > maxWidth) {
       maxWidth = rowWidth;
     }
