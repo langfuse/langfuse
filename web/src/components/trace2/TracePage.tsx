@@ -164,7 +164,7 @@ export function TracePage({
                   ? `?${queryParams.toString()}`
                   : "";
 
-                return `/project/${projectId as string}/traces2/${entry.id}${finalQueryString}`;
+                return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
             />

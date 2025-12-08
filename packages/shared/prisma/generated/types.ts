@@ -158,6 +158,7 @@ export type DashboardWidgetChartType =
 export const ActionType = {
   WEBHOOK: "WEBHOOK",
   SLACK: "SLACK",
+  GITHUB_DISPATCH: "GITHUB_DISPATCH",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 export const ActionExecutionStatus = {
@@ -420,7 +421,7 @@ export type Dataset = {
 export type DatasetItem = {
   id: string;
   project_id: string;
-  status: Generated<DatasetStatus>;
+  status: Generated<DatasetStatus | null>;
   input: unknown | null;
   expected_output: unknown | null;
   metadata: unknown | null;
@@ -429,6 +430,9 @@ export type DatasetItem = {
   dataset_id: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
+  sys_id: Generated<string | null>;
+  valid_from: Generated<Timestamp>;
+  is_deleted: Generated<boolean>;
 };
 export type DatasetItemEvent = {
   id: string;

@@ -3608,6 +3608,68 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+    delete:
+      description: >-
+        Delete prompt versions. If neither version nor label is specified, all
+        versions of the prompt are deleted.
+      operationId: prompts_delete
+      tags:
+        - Prompts
+      parameters:
+        - name: promptName
+          in: path
+          description: The name of the prompt
+          required: true
+          schema:
+            type: string
+        - name: label
+          in: query
+          description: >-
+            Optional label to filter deletion. If specified, deletes all prompt
+            versions that have this label.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: version
+          in: query
+          description: >-
+            Optional version to filter deletion. If specified, deletes only this
+            specific version of the prompt.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '204':
+          description: ''
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/prompts:
     get:
       description: Get a list of prompt names with versions and labels

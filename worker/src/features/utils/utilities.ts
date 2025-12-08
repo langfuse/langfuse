@@ -1,17 +1,22 @@
 import crypto from "node:crypto";
 import { logger } from "@langfuse/shared/src/server";
-import Handlebars from "handlebars";
 
-export function compileHandlebarString(
-  handlebarString: string,
+export function compileTemplateString(
+  template: string,
   context: Record<string, any>,
 ): string {
   try {
-    const template = Handlebars.compile(handlebarString, { noEscape: true });
-    return template(context);
+    return template.replace(/{{\s*([\w.]+)\s*}}/g, (match, key) => {
+      if (key in context) {
+        const value = context[key];
+        return value === undefined || value === null ? "" : String(value);
+      }
+      return match; // missing key → return original variable including its braces
+    });
   } catch (error) {
-    logger.info("Handlebars compilation error:", error);
-    return handlebarString; // Fallback to the original string if Handlebars fails
+    logger.info("Template compilation error:", error);
+
+    return template;
   }
 }
 

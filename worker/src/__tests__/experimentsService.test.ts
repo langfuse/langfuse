@@ -6,15 +6,6 @@ import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
 import { logger } from "@langfuse/shared/src/server";
-import { fetchLLMCompletion } from "@langfuse/shared/src/server";
-
-// Mock LLM completion call
-vi.mock("../features/utils/utilities", () => ({
-  compileHandlebarString: vi.fn().mockImplementation((str, context) => {
-    // Simple mock that replaces handlebars variables with their values
-    return str.replace(/\{\{(\w+)\}\}/g, (_, key) => context[key] || "");
-  }),
-}));
 
 // Mock the logger to capture log calls
 vi.mock("@langfuse/shared/src/server", async () => {
