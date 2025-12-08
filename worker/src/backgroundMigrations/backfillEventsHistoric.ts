@@ -572,15 +572,15 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
 
     // Apply memory-reducing settings on retries
     const retrySettings =
-      retryCount > 0
+      retryCount > 1
         ? {
-            max_block_size: "4096",
+            max_threads: 1,
+            max_insert_threads: "1",
+            max_block_size: "2048",
           }
-        : retryCount > 1
+        : retryCount > 0
           ? {
-              max_threads: 1,
-              max_insert_threads: "1",
-              max_block_size: "2048",
+              max_block_size: "4096",
             }
           : {};
 
