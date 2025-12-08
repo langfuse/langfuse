@@ -287,6 +287,11 @@ export async function upsertDatasetItem(
       datasetItemId: props.datasetItemId,
       datasetId: dataset.id,
     });
+    if (!!existingItem && existingItem.datasetId !== dataset.id) {
+      throw new LangfuseNotFoundError(
+        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+      );
+    }
   }
 
   // 3. Merge incoming data with existing data
