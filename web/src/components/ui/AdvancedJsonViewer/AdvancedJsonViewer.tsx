@@ -92,6 +92,9 @@ export function AdvancedJsonViewer({
     ? controlledCurrentMatchIndex
     : internalCurrentMatchIndex;
 
+  // Track which row is being toggled (for spinner display)
+  const [togglingRowId, setTogglingRowId] = useState<string | null>(null);
+
   // Flatten JSON data in Web Worker (non-blocking)
   const {
     flatRows,
@@ -160,6 +163,9 @@ export function AdvancedJsonViewer({
       );
       console.time("[AdvancedJsonViewer] handleToggleExpansion (sync part)");
 
+      // Set toggling state to show spinner on button
+      setTogglingRowId(rowId);
+
       // Heavy computation (flattenJSON + virtualizer update) happens in background
       // This keeps the UI responsive - button press feedback is immediate
       startTransition(() => {
@@ -177,6 +183,9 @@ export function AdvancedJsonViewer({
           "[AdvancedJsonViewer] handleToggleExpansion (transition)",
         );
         console.log("[AdvancedJsonViewer] handleToggleExpansion END");
+
+        // Clear toggling state after transition completes
+        setTogglingRowId(null);
       });
 
       console.timeEnd("[AdvancedJsonViewer] handleToggleExpansion (sync part)");
@@ -266,8 +275,9 @@ export function AdvancedJsonViewer({
     );
   }
 
-  // Flattening state (show during initial load, but not during expansion changes)
-  if (isFlattening && flatRows.length === 0) {
+  // Flattening state (show ONLY during initial load when no rows exist yet)
+  // During expand/collapse, we show spinner on the button instead (no flickering)
+  if (isFlattening && flatRows.length === 0 && togglingRowId === null) {
     return (
       <div className={className} style={{ padding: "16px" }}>
         <div className="text-sm text-muted-foreground">Processing JSON...</div>
@@ -314,6 +324,7 @@ export function AdvancedJsonViewer({
           scrollToIndex={scrollToIndex}
           scrollContainerRef={scrollContainerRef}
           totalLineCount={totalLineCount}
+          togglingRowId={togglingRowId}
         />
       </div>
     </div>

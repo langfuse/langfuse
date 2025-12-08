@@ -34,6 +34,7 @@ interface VirtualizedJsonViewerProps {
   scrollToIndex?: number; // For search navigation
   scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
   totalLineCount?: number; // Total number of lines when fully expanded (for line number width calculation)
+  togglingRowId?: string | null; // Row ID being toggled (for spinner display)
 }
 
 export function VirtualizedJsonViewer({
@@ -51,6 +52,7 @@ export function VirtualizedJsonViewer({
   scrollToIndex,
   scrollContainerRef,
   totalLineCount,
+  togglingRowId,
 }: VirtualizedJsonViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -188,6 +190,7 @@ export function VirtualizedJsonViewer({
                   isCurrentMatch={isCurrentMatch}
                   onToggleExpansion={handleToggleExpansion}
                   stringWrapMode={stringWrapMode}
+                  isToggling={togglingRowId === row.id}
                 />
               </div>
 

@@ -33,6 +33,7 @@ interface SimpleJsonViewerProps {
   scrollToIndex?: number; // For search navigation
   scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
   totalLineCount?: number; // Total number of lines when fully expanded (for line number width calculation)
+  togglingRowId?: string | null; // Row ID being toggled (for spinner display)
 }
 
 export function SimpleJsonViewer({
@@ -50,6 +51,7 @@ export function SimpleJsonViewer({
   scrollToIndex,
   scrollContainerRef: _scrollContainerRef,
   totalLineCount,
+  togglingRowId,
 }: SimpleJsonViewerProps) {
   // Scroll preservation logic
   const { containerRef, rowRefs, handleToggleExpansion } =
@@ -138,6 +140,7 @@ export function SimpleJsonViewer({
               isCurrentMatch={isCurrentMatch}
               onToggleExpansion={handleToggleExpansion}
               stringWrapMode={stringWrapMode}
+              isToggling={togglingRowId === row.id}
             />
           );
         })}

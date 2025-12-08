@@ -20,6 +20,7 @@ export interface JsonRowFixedProps {
   onToggleExpansion?: (rowId: string) => void;
   stringWrapMode?: "nowrap" | "truncate" | "wrap";
   className?: string;
+  isToggling?: boolean; // Show spinner when this row is being toggled
 }
 
 export function JsonRowFixed({
@@ -33,6 +34,7 @@ export function JsonRowFixed({
   onToggleExpansion,
   stringWrapMode = "truncate",
   className,
+  isToggling = false,
 }: JsonRowFixedProps) {
   // Calculate background based on search match
   const backgroundColor = isCurrentMatch
@@ -72,6 +74,7 @@ export function JsonRowFixed({
         isExpandable={row.isExpandable}
         onClick={() => onToggleExpansion?.(row.id)}
         theme={theme}
+        isToggling={isToggling}
       />
     </div>
   );

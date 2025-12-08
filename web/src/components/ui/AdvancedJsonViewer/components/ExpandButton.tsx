@@ -2,10 +2,11 @@
  * ExpandButton - Chevron button for expanding/collapsing rows
  *
  * Shows right chevron when collapsed, down chevron when expanded.
+ * Shows spinner when toggling.
  * Positioned next to line numbers, not indented.
  */
 
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, Loader2 } from "lucide-react";
 import { type JSONTheme } from "../types";
 
 interface ExpandButtonProps {
@@ -13,6 +14,7 @@ interface ExpandButtonProps {
   isExpandable: boolean;
   onClick: () => void;
   theme: JSONTheme;
+  isToggling?: boolean; // Show spinner when toggling
 }
 
 export function ExpandButton({
@@ -20,13 +22,15 @@ export function ExpandButton({
   isExpandable,
   onClick,
   theme,
+  isToggling = false,
 }: ExpandButtonProps) {
   if (!isExpandable) {
     // Empty placeholder to maintain alignment
     return <span className="inline-block w-4" />;
   }
 
-  const Icon = isExpanded ? ChevronDown : ChevronRight;
+  // Show spinner when toggling, otherwise show chevron
+  const Icon = isToggling ? Loader2 : isExpanded ? ChevronDown : ChevronRight;
 
   return (
     <button
@@ -35,18 +39,21 @@ export function ExpandButton({
         e.stopPropagation();
         onClick();
       }}
-      className="inline-flex items-center justify-center transition-opacity hover:opacity-70"
+      className={`inline-flex items-center justify-center transition-opacity hover:opacity-70 ${isToggling ? "animate-spin" : ""}`}
       style={{
         width: "16px",
         height: "16px",
         color: theme.expandButtonColor,
         background: "transparent",
         border: "none",
-        cursor: "pointer",
+        cursor: isToggling ? "wait" : "pointer",
         padding: 0,
-        opacity: 0.3,
+        opacity: isToggling ? 0.5 : 0.3,
       }}
-      aria-label={isExpanded ? "Collapse" : "Expand"}
+      aria-label={
+        isToggling ? "Processing..." : isExpanded ? "Collapse" : "Expand"
+      }
+      disabled={isToggling}
     >
       <Icon size={14} />
     </button>

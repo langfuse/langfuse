@@ -194,18 +194,38 @@ export function useFlattenedJson({
     return calculateTotalLineCount(data);
   }, [data]);
 
-  // Generate stable cache key from expansion state
+  // For small datasets, use direct useMemo (truly synchronous, no loading states)
+  const syncFlattenedData = useMemo(() => {
+    if (dataSize > WORKER_SIZE_THRESHOLD) return null; // Don't compute for large datasets
+
+    console.log(
+      `[useFlattenedJson] Small dataset (${dataSize} nodes), using sync useMemo`,
+    );
+
+    const startTime = performance.now();
+    const flatRows = flattenJSON(data, expansionState, config);
+    const flattenTime = performance.now() - startTime;
+
+    console.log(
+      `[useFlattenedJson] Sync flatten completed in ${flattenTime.toFixed(2)}ms`,
+    );
+
+    return {
+      flatRows,
+      totalLineCount: dataSize,
+      flattenTime,
+    };
+  }, [data, expansionState, config, dataSize]);
+
+  // Generate stable cache key from expansion state (only for large datasets)
   const expansionKey = generateExpansionKey(expansionState);
 
-  // Flatten the data (sync for small, worker for large - React Query caches this)
-  const flattenQuery = useQuery({
+  // For large datasets, use React Query + Web Worker (async, non-blocking)
+  const asyncFlattenQuery = useQuery({
     queryKey: [
       "flattened-json",
-      // Use data reference for cache invalidation
       data,
-      // Use stable expansion key instead of full state object
       expansionKey,
-      // Include config
       config?.rootKey,
       config?.maxDepth,
       config?.maxRows,
@@ -213,22 +233,31 @@ export function useFlattenedJson({
     queryFn: async () => {
       return flattenJsonData(data, expansionState, config, dataSize);
     },
-    enabled: data !== undefined && data !== null, // Only run if we have data
-    staleTime: Infinity, // Flattened data never goes stale (data + expansionState is the source of truth)
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes after unmount
+    enabled:
+      data !== undefined && data !== null && dataSize > WORKER_SIZE_THRESHOLD, // Only run for large datasets
+    staleTime: Infinity,
+    gcTime: 5 * 60 * 1000,
   });
 
+  // Return sync data for small datasets, async data for large datasets
+  if (dataSize <= WORKER_SIZE_THRESHOLD) {
+    return {
+      flatRows: syncFlattenedData?.flatRows ?? [],
+      totalLineCount: syncFlattenedData?.totalLineCount ?? dataSize,
+      isFlattening: false, // Sync computation never has loading state
+      isReady: syncFlattenedData !== null,
+      flattenTime: syncFlattenedData?.flattenTime,
+      flattenError: undefined,
+    };
+  }
+
   return {
-    // Flattened data (cached by React Query)
-    flatRows: flattenQuery.data?.flatRows ?? [],
-    totalLineCount: flattenQuery.data?.totalLineCount ?? dataSize,
-
-    // Loading states
-    isFlattening: flattenQuery.isLoading,
-    isReady: !flattenQuery.isLoading && flattenQuery.data !== undefined,
-
-    // Debug info
-    flattenTime: flattenQuery.data?.flattenTime,
-    flattenError: flattenQuery.error?.message,
+    flatRows: asyncFlattenQuery.data?.flatRows ?? [],
+    totalLineCount: asyncFlattenQuery.data?.totalLineCount ?? dataSize,
+    isFlattening: asyncFlattenQuery.isLoading,
+    isReady:
+      !asyncFlattenQuery.isLoading && asyncFlattenQuery.data !== undefined,
+    flattenTime: asyncFlattenQuery.data?.flattenTime,
+    flattenError: asyncFlattenQuery.error?.message,
   };
 }
