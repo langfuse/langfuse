@@ -11,8 +11,14 @@ import { useChatMLParser } from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
+import { Button } from "@/src/components/ui/button";
+import { ActionButton } from "@/src/components/ActionButton";
+import { BookOpen, X } from "lucide-react";
 
 export type { ViewMode };
+
+const EMPTY_IO_ALERT_ID = "empty-io";
+const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export interface ExpansionStateProps {
   inputExpansionState?: Record<string, boolean> | boolean;
@@ -131,6 +137,8 @@ export function IOPreview({
   setIsPrettyViewAvailable,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
+  const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
+    useLocalStorage<string[]>(STORAGE_KEY, []);
 
   // View state management
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<ViewMode>(
@@ -205,6 +213,13 @@ export function IOPreview({
     onOutputExpansionChange,
   };
 
+  const showEmptyState =
+    (parsedInput === null || parsedInput === undefined) &&
+    (parsedOutput === null || parsedOutput === undefined) &&
+    !isLoading &&
+    !hideIfNull &&
+    !dismissedTraceViewNotifications.includes(EMPTY_IO_ALERT_ID);
+
   return (
     <>
       <SectionToolDefinitions
@@ -246,6 +261,48 @@ export function IOPreview({
       <div style={{ display: selectedView === "json" ? "block" : "none" }}>
         <JsonInputOutputView {...jsonViewProps} />
       </div>
+      {showEmptyState && (
+        <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
+            onClick={() => {
+              capture("notification:dismiss_notification", {
+                notification_id: EMPTY_IO_ALERT_ID,
+              });
+              setDismissedTraceViewNotifications((prev) =>
+                prev.includes(EMPTY_IO_ALERT_ID)
+                  ? prev
+                  : [...prev, EMPTY_IO_ALERT_ID],
+              );
+            }}
+            title="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+          <div className="flex w-full flex-row items-center gap-2 pr-6">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <h3 className="text-sm font-semibold">
+              Looks like this trace didn&apos;t receive an input or output.
+            </h3>
+          </div>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Add it in your code to make debugging a lot easier.
+          </p>
+          <ActionButton
+            variant="outline"
+            size="sm"
+            href="https://langfuse.com/faq/all/empty-trace-input-and-output"
+            trackingEventName="notification:click_link"
+            trackingProps={{ notification_id: EMPTY_IO_ALERT_ID }}
+          >
+            View Documentation
+          </ActionButton>
+        </div>
+      )}
     </>
   );
 }
