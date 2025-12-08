@@ -137,9 +137,9 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
 }
 
 async function getQueryError(queryId: string): Promise<string | undefined> {
-  const result = await queryClickhouse<{ exception: string }>({
+  const result = await queryClickhouse<{ exception_message: string }>({
     query: `
-      SELECT exception
+      SELECT exception as exception_message
       FROM clusterAllReplicas('default', 'system.query_log')
       WHERE query_id = {queryId: String}
         AND type != 'QueryStart'
@@ -157,7 +157,7 @@ async function getQueryError(queryId: string): Promise<string | undefined> {
     },
   });
 
-  return result[0]?.exception;
+  return result[0]?.exception_message;
 }
 
 // ============================================================================
@@ -574,14 +574,19 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const retrySettings =
       retryCount > 0
         ? {
-            // max_threads: 1,
             max_block_size: "4096",
           }
-        : {};
+        : retryCount > 1
+          ? {
+              max_threads: 1,
+              max_insert_threads: "1",
+              max_block_size: "2048",
+            }
+          : {};
 
     if (retryCount > 0) {
       logger.info(
-        `[Backfill Events] Applying retry settings for query ${queryId}: max_block_size=4096 (retry ${retryCount})`,
+        `[Backfill Events] Applying retry settings for query ${queryId}: ${JSON.stringify(retrySettings)} (retry ${retryCount})`,
       );
     }
 
