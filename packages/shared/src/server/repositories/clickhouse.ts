@@ -310,6 +310,10 @@ function handleExceptionRow<T>(parsedRow: T): T {
   ) {
     const potentialException = (parsedRow as { exception: string }).exception;
     if (potentialException.match(/^Code: (\d+)/)) {
+      logger.error(
+        `[clickhouse] Exception row detected: ${potentialException}`,
+        parsedRow,
+      );
       throw new Error(potentialException);
     }
   }
