@@ -1,4 +1,3 @@
-import { v4 } from "uuid";
 import { PrismaClient } from "../../src/index";
 import { logger } from "../../src/server";
 
@@ -176,7 +175,7 @@ export async function seedDatasetVersions(
         const batch = items.slice(i, i + BATCH_SIZE);
         await prismaClient.datasetItem.createMany({
           data: batch,
-          skipDuplicates: false, // We want all versions
+          skipDuplicates: true, // Skip if already exists (handles re-runs)
         });
         totalInserts += batch.length;
       }
