@@ -478,7 +478,6 @@ function calculateTreeDimensions(
 ): { maxDepth: number; maxContentWidth: number } {
   let maxDepth = 0;
   let maxContentWidth = 0;
-  let widestNode: TreeNode | null = null;
 
   for (const node of allNodes) {
     // Track maximum depth
@@ -490,7 +489,6 @@ function calculateTreeDimensions(
     const nodeWidth = calculateNodeWidth(node, config);
     if (nodeWidth > maxContentWidth) {
       maxContentWidth = nodeWidth;
-      widestNode = node;
     }
   }
 

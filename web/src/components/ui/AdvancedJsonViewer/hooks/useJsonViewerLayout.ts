@@ -32,7 +32,7 @@ interface UseJsonViewerLayoutParams {
 
 export function useJsonViewerLayout({
   tree,
-  expansionVersion,
+  expansionVersion: _expansionVersion,
   theme,
   showLineNumbers,
   totalLineCount,
@@ -141,13 +141,7 @@ export function useJsonViewerLayout({
 
       return theme.lineHeight;
     },
-    [
-      tree,
-      theme.lineHeight,
-      stringWrapMode,
-      truncateStringsAt,
-      expansionVersion,
-    ],
+    [tree, theme.lineHeight, stringWrapMode, truncateStringsAt],
   );
 
   return {

@@ -5,9 +5,12 @@
  * Zero dependencies - simple string matching with optional regex support.
  */
 
-import type { FlatJSONRow, SearchMatch, SearchOptions } from "../types";
-import { expandAncestors } from "./flattenJson";
-import type { ExpansionState } from "../types";
+import type {
+  FlatJSONRow,
+  SearchMatch,
+  SearchOptions,
+  ExpansionState,
+} from "../types";
 import type { TreeState } from "./treeStructure";
 import { expandToNode } from "./treeExpansion";
 
@@ -158,6 +161,35 @@ export function getPathsToExpand(
   }
 
   return paths;
+}
+
+/**
+ * Expand all ancestors of a path
+ * Useful for showing search results
+ *
+ * @param path - The path to expand ancestors for (e.g., "root.users.0.name")
+ * @param currentState - Current expansion state
+ * @returns New expansion state with ancestors expanded
+ */
+function expandAncestors(
+  path: string,
+  currentState: ExpansionState,
+): ExpansionState {
+  // Can't modify boolean state
+  if (typeof currentState === "boolean") {
+    return currentState;
+  }
+
+  const newState = { ...currentState };
+  const parts = path.split(".");
+
+  // Expand all ancestors
+  for (let i = 1; i < parts.length; i++) {
+    const ancestorPath = parts.slice(0, i).join(".");
+    newState[ancestorPath] = true;
+  }
+
+  return newState;
 }
 
 /**

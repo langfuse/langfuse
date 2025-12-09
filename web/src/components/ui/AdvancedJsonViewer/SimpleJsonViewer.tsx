@@ -5,7 +5,7 @@
  * Best for small datasets (<500 rows) where virtualization overhead isn't worth it.
  */
 
-import { useEffect, useMemo, memo, type RefObject } from "react";
+import { useEffect, useMemo, useRef, memo, type RefObject } from "react";
 import { type SearchMatch, type JSONTheme, type StringWrapMode } from "./types";
 import type { TreeState } from "./utils/treeStructure";
 import { getAllVisibleNodes, treeNodeToFlatRow } from "./utils/treeNavigation";
@@ -13,7 +13,6 @@ import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
-import { useScrollPreservation } from "./hooks/useScrollPreservation";
 import { debugLog } from "./utils/debug";
 
 interface SimpleJsonViewerProps {
@@ -61,14 +60,9 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, expansionVersion]); // expansionVersion forces re-computation on expand/collapse
 
-  // Scroll preservation logic
-  const { containerRef, rowRefs } = useScrollPreservation({
-    rows: effectiveRows,
-    onToggleExpansion,
-  });
-
-  // Use tree toggle directly (scroll preservation is handled by tree expansion logic)
-  const finalHandleToggleExpansion = onToggleExpansion;
+  // Refs for scroll-to-match functionality
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Layout calculations (widths, heights, column sizes)
   const {
@@ -168,7 +162,7 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
                   maxLineNumberDigits={maxLineNumberDigits}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}
-                  onToggleExpansion={finalHandleToggleExpansion}
+                  onToggleExpansion={onToggleExpansion}
                   stringWrapMode={stringWrapMode}
                 />
               </div>

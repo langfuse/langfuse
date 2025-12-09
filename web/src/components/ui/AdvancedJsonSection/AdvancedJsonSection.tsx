@@ -24,7 +24,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { AdvancedJsonSectionHeader } from "./AdvancedJsonSectionHeader";
-import { AdvancedJsonViewer } from "@/src/components/ui/AdvancedJsonViewer";
+import { AdvancedJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/AdvancedJsonViewer";
 import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type PartialJSONTheme } from "@/src/components/ui/AdvancedJsonViewer/types";

@@ -11,7 +11,7 @@
 
 import type { TreeNode, TreeState } from "./treeStructure";
 import type { ExpansionState } from "../types";
-import { debugTime, debugTimeEnd, debugLog } from "./debug";
+import { debugTime, debugTimeEnd } from "./debug";
 
 /**
  * Toggle expansion state of a node

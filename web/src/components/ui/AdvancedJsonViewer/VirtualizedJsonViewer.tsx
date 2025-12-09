@@ -5,14 +5,7 @@
  * Uses @tanstack/react-virtual which is already in project dependencies.
  */
 
-import {
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-  memo,
-  type RefObject,
-} from "react";
+import { useRef, useEffect, useMemo, memo, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type SearchMatch, type JSONTheme, type StringWrapMode } from "./types";
 import type { TreeState } from "./utils/treeStructure";
@@ -21,7 +14,6 @@ import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
-import { debugLog } from "./utils/debug";
 
 interface VirtualizedJsonViewerProps {
   tree: TreeState | null;

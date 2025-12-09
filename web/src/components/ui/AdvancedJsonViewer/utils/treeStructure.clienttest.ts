@@ -9,11 +9,7 @@
  * 5. Edge cases
  */
 
-import {
-  buildTreeFromJSON,
-  type TreeNode,
-  type TreeState,
-} from "./treeStructure";
+import { buildTreeFromJSON, type TreeNode } from "./treeStructure";
 import { getAllVisibleNodes, getNodeByIndex } from "./treeNavigation";
 
 describe("Tree Structure Building", () => {

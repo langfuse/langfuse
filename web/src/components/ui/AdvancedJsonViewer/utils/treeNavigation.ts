@@ -18,7 +18,6 @@
 
 import type { TreeNode } from "./treeStructure";
 import type { FlatJSONRow } from "../types";
-import { debugLog } from "./debug";
 
 /**
  * Get node at a specific index in the visible tree
