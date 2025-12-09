@@ -49,7 +49,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
