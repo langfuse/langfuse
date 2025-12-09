@@ -37,7 +37,7 @@ export function BatchActionsTable(props: { projectId: string }) {
     pageSize: withDefault(NumberParam, 10),
   });
 
-  const tableBatchActions = api.tableBatchAction.all.useQuery({
+  const batchActions = api.batchAction.all.useQuery({
     projectId: props.projectId,
     limit: paginationState.pageSize,
     page: paginationState.pageIndex,
@@ -184,29 +184,25 @@ export function BatchActionsTable(props: { projectId: string }) {
 
   return (
     <DataTable
-      tableName={"tableBatchActions"}
+      tableName={"batchActions"}
       columns={columns}
       data={
-        tableBatchActions.isPending
+        batchActions.isPending
           ? { isLoading: true, isError: false }
-          : tableBatchActions.isError
+          : batchActions.isError
             ? {
                 isLoading: false,
                 isError: true,
-                error: tableBatchActions.error.message,
+                error: batchActions.error.message,
               }
             : {
                 isLoading: false,
                 isError: false,
-                data: safeExtract(
-                  tableBatchActions.data,
-                  "tableBatchActions",
-                  [],
-                ),
+                data: safeExtract(batchActions.data, "batchActions", []),
               }
       }
       pagination={{
-        totalCount: tableBatchActions.data?.totalCount ?? 0,
+        totalCount: batchActions.data?.totalCount ?? 0,
         onChange: setPaginationState,
         state: paginationState,
       }}

@@ -207,14 +207,11 @@ export const DatasetForm = (props: DatasetFormProps) => {
   useEffect(() => {
     if (props.onSubmitHandlerReady) {
       props.onSubmitHandlerReady(() => {
-        if (props.mode === "delete") {
-          handleDelete(new Event("submit") as React.FormEvent);
-        } else {
+        if (props.mode !== "delete") {
           form.handleSubmit(onSubmit)();
         }
       });
     }
-    // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

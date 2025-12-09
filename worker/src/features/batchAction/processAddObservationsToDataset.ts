@@ -96,16 +96,16 @@ async function processChunk(params: {
 
 export async function processAddObservationsToDataset(params: {
   projectId: string;
-  tableBatchActionId: string;
+  batchActionId: string;
   config: ObservationAddToDatasetConfig;
   observations: ObservationForMapping[];
 }): Promise<void> {
-  const { projectId, tableBatchActionId, config, observations } = params;
+  const { projectId, batchActionId, config, observations } = params;
   const { datasetId, mapping } = config;
 
   // Update status to PROCESSING
-  await prisma.tableBatchAction.update({
-    where: { id: tableBatchActionId },
+  await prisma.batchAction.update({
+    where: { id: batchActionId },
     data: {
       status: "PROCESSING",
       totalCount: observations.length,
@@ -137,8 +137,8 @@ export async function processAddObservationsToDataset(params: {
 
     // Update progress periodically (every 5 chunks or at the end)
     if (i % (CHUNK_SIZE * 5) === 0 || i + CHUNK_SIZE >= observations.length) {
-      await prisma.tableBatchAction.update({
-        where: { id: tableBatchActionId },
+      await prisma.batchAction.update({
+        where: { id: batchActionId },
         data: { processedCount: processed, failedCount: failed },
       });
     }
@@ -155,8 +155,8 @@ export async function processAddObservationsToDataset(params: {
       : null;
 
   // Update final status
-  await prisma.tableBatchAction.update({
-    where: { id: tableBatchActionId },
+  await prisma.batchAction.update({
+    where: { id: batchActionId },
     data: {
       status: finalStatus,
       finishedAt: new Date(),
@@ -166,12 +166,9 @@ export async function processAddObservationsToDataset(params: {
     },
   });
 
-  logger.info(
-    `Completed observation-add-to-dataset action ${tableBatchActionId}`,
-    {
-      processed,
-      failed,
-      finalStatus,
-    },
-  );
+  logger.info(`Completed observation-add-to-dataset action ${batchActionId}`, {
+    processed,
+    failed,
+    finalStatus,
+  });
 }

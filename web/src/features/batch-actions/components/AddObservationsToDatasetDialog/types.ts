@@ -53,7 +53,7 @@ export type FieldMappingStepProps = {
 
 export type StatusStepProps = {
   projectId: string;
-  tableBatchActionId: string;
+  batchActionId: string;
   datasetId: string;
   datasetName: string;
   onClose: () => void;
@@ -65,5 +65,5 @@ export type AddObservationsDialogState = {
   datasetId: string | null;
   datasetName: string | null;
   mappingConfig: MappingConfig;
-  tableBatchActionId: string | null;
+  batchActionId: string | null;
 };

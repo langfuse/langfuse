@@ -9,7 +9,7 @@ import { z } from "zod/v4";
 import { GetBatchActionByIdSchema } from "../validation";
 import { addToDatasetRouter } from "./addToDatasetRouter";
 
-export const tableBatchActionRouter = createTRPCRouter({
+export const batchActionRouter = createTRPCRouter({
   addToDataset: addToDatasetRouter,
   byId: protectedProjectProcedure
     .input(GetBatchActionByIdSchema)
@@ -20,9 +20,9 @@ export const tableBatchActionRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const tableBatchAction = await ctx.prisma.tableBatchAction.findUnique({
+      const batchAction = await ctx.prisma.batchAction.findUnique({
         where: {
-          id: input.tableBatchActionId,
+          id: input.batchActionId,
           projectId: input.projectId,
         },
         select: {
@@ -40,14 +40,14 @@ export const tableBatchActionRouter = createTRPCRouter({
         },
       });
 
-      if (!tableBatchAction) {
+      if (!batchAction) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Table batch action not found",
         });
       }
 
-      return tableBatchAction;
+      return batchAction;
     }),
 
   all: protectedProjectProcedure
@@ -64,8 +64,8 @@ export const tableBatchActionRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const [tableBatchActions, totalCount] = await Promise.all([
-        ctx.prisma.tableBatchAction.findMany({
+      const [batchActions, totalCount] = await Promise.all([
+        ctx.prisma.batchAction.findMany({
           where: {
             projectId: input.projectId,
           },
@@ -75,7 +75,7 @@ export const tableBatchActionRouter = createTRPCRouter({
             createdAt: "desc",
           },
         }),
-        ctx.prisma.tableBatchAction.count({
+        ctx.prisma.batchAction.count({
           where: {
             projectId: input.projectId,
           },
@@ -83,7 +83,7 @@ export const tableBatchActionRouter = createTRPCRouter({
       ]);
 
       // Look up users for each action
-      const userIds = [...new Set(tableBatchActions.map((a) => a.userId))];
+      const userIds = [...new Set(batchActions.map((a) => a.userId))];
       const users = await ctx.prisma.user.findMany({
         where: {
           id: {
@@ -111,7 +111,7 @@ export const tableBatchActionRouter = createTRPCRouter({
       const userMap = new Map(users.map((u) => [u.id, u]));
 
       return {
-        tableBatchActions: tableBatchActions.map((action) => ({
+        batchActions: batchActions.map((action) => ({
           ...action,
           user: userMap.get(action.userId) ?? null,
         })),

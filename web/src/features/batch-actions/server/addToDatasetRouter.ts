@@ -67,7 +67,7 @@ export const addToDatasetRouter = createTRPCRouter({
         });
 
         // Create table batch action record
-        const tableBatchAction = await ctx.prisma.tableBatchAction.create({
+        const batchAction = await ctx.prisma.batchAction.create({
           data: {
             projectId,
             userId,
@@ -83,21 +83,21 @@ export const addToDatasetRouter = createTRPCRouter({
         await auditLog({
           session: ctx.session,
           resourceType: "batchAction",
-          resourceId: tableBatchAction.id,
+          resourceId: batchAction.id,
           projectId,
           action: "create",
-          after: tableBatchAction,
+          after: batchAction,
         });
 
         // Queue the job
         await BatchActionQueue.getInstance()?.add(
           QueueJobs.BatchActionProcessingJob,
           {
-            id: tableBatchAction.id,
+            id: batchAction.id,
             name: QueueJobs.BatchActionProcessingJob,
             timestamp: new Date(),
             payload: {
-              tableBatchActionId: tableBatchAction.id,
+              batchActionId: batchAction.id,
               projectId,
               actionId: "observation-add-to-dataset" as const,
               tableName: BatchTableNames.Observations,
@@ -108,11 +108,11 @@ export const addToDatasetRouter = createTRPCRouter({
             },
           },
           {
-            jobId: tableBatchAction.id,
+            jobId: batchAction.id,
           },
         );
 
-        return { id: tableBatchAction.id };
+        return { id: batchAction.id };
       } catch (e) {
         logger.error(e);
         if (e instanceof TRPCError) {

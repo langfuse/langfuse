@@ -67,7 +67,7 @@ import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import { AddObservationsToDatasetDialog } from "@/src/features/table-batch-actions/components/AddObservationsToDatasetDialog/index";
+import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 
 export type ObservationsTableRow = {
   // Shown by default

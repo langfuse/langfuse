@@ -123,7 +123,7 @@ export function FieldMappingStep(props: FieldMappingStepProps) {
 
   // Live validation query
   const validateMappingQuery =
-    api.tableBatchAction.addToDataset.validateMapping.useQuery(
+    api.batchAction.addToDataset.validateMapping.useQuery(
       {
         projectId,
         observationId: firstObservationId,
@@ -611,7 +611,7 @@ export function FieldMappingStep(props: FieldMappingStepProps) {
               <CardContent>
                 <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-[10px]">
                   {JSON.stringify(
-                    validationResult.preview.input ?? null,
+                    validationResult.preview?.input ?? null,
                     null,
                     2,
                   )}
@@ -628,7 +628,7 @@ export function FieldMappingStep(props: FieldMappingStepProps) {
               <CardContent>
                 <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-[10px]">
                   {JSON.stringify(
-                    validationResult.preview.expectedOutput ?? null,
+                    validationResult.preview?.expectedOutput ?? null,
                     null,
                     2,
                   )}
@@ -643,7 +643,7 @@ export function FieldMappingStep(props: FieldMappingStepProps) {
               <CardContent>
                 <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-[10px]">
                   {JSON.stringify(
-                    validationResult.preview.metadata ?? null,
+                    validationResult.preview?.metadata ?? null,
                     null,
                     2,
                   )}

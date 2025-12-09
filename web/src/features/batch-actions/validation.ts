@@ -21,7 +21,7 @@ export const ValidateBatchAddToDatasetMappingSchema = z.object({
 
 export const GetBatchActionByIdSchema = z.object({
   projectId: z.string(),
-  tableBatchActionId: z.string(),
+  batchActionId: z.string(),
 });
 
 export const ListBatchActionsSchema = z.object({

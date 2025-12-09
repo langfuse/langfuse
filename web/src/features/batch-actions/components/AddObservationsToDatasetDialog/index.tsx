@@ -55,7 +55,7 @@ export function AddObservationsToDatasetDialog(
     expectedOutputMappings: undefined,
     metadataMappings: undefined,
   });
-  const [tableBatchActionId, setBatchActionId] = useState<string | null>(null);
+  const [batchActionId, setBatchActionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Create step state
@@ -66,17 +66,16 @@ export function AddObservationsToDatasetDialog(
   }>({ handler: null });
 
   // Mutations
-  const createBatchAction =
-    api.tableBatchAction.addToDataset.create.useMutation({
-      onSuccess: (data) => {
-        setBatchActionId(data.id);
-        setStep("status");
-      },
-      onError: (error) => {
-        showErrorToast("Failed to schedule action", error.message);
-        setIsSubmitting(false);
-      },
-    });
+  const createBatchAction = api.batchAction.addToDataset.create.useMutation({
+    onSuccess: (data) => {
+      setBatchActionId(data.id);
+      setStep("status");
+    },
+    onError: (error) => {
+      showErrorToast("Failed to schedule action", error.message);
+      setIsSubmitting(false);
+    },
+  });
 
   // Display count
   const displayCount = selectAll ? totalCount : selectedObservationIds.length;
@@ -236,18 +235,15 @@ export function AddObservationsToDatasetDialog(
             />
           )}
 
-          {step === "status" &&
-            tableBatchActionId &&
-            datasetId &&
-            datasetName && (
-              <StatusStep
-                projectId={projectId}
-                tableBatchActionId={tableBatchActionId}
-                datasetId={datasetId}
-                datasetName={datasetName}
-                onClose={onClose}
-              />
-            )}
+          {step === "status" && batchActionId && datasetId && datasetName && (
+            <StatusStep
+              projectId={projectId}
+              batchActionId={batchActionId}
+              datasetId={datasetId}
+              datasetName={datasetName}
+              onClose={onClose}
+            />
+          )}
         </DialogBody>
 
         {/* Footer with navigation buttons */}

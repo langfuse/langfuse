@@ -315,7 +315,7 @@ export const handleBatchActionJob = async (
       `Batch action job completed, projectId: ${batchActionJob.payload.projectId}, ${count} elements`,
     );
   } else if (actionId === "observation-add-to-dataset") {
-    const { projectId, query, cutoffCreatedAt, config, tableBatchActionId } =
+    const { projectId, query, cutoffCreatedAt, config, batchActionId } =
       batchActionEvent;
 
     // Parse and validate config
@@ -354,7 +354,7 @@ export const handleBatchActionJob = async (
     // Process observations and add to dataset
     await processAddObservationsToDataset({
       projectId,
-      tableBatchActionId: tableBatchActionId as string,
+      batchActionId: batchActionId as string,
       config: parsedConfig,
       observations,
     });

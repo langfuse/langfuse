@@ -36,7 +36,10 @@ const isItemLocked = (item: AnnotationQueueItem) => {
 
 const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   AnnotationQueueObjectType,
-  { actionId: ActionId; tableName: BatchTableNames }
+  {
+    actionId: Exclude<ActionId, "observation-add-to-dataset">;
+    tableName: BatchTableNames;
+  }
 > = {
   [AnnotationQueueObjectType.TRACE]: {
     actionId: "trace-add-to-annotation-queue",

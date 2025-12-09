@@ -14,21 +14,20 @@ import { ExternalLink, Check, AlertCircle, Loader2 } from "lucide-react";
 
 type StatusStepProps = {
   projectId: string;
-  tableBatchActionId: string;
+  batchActionId: string;
   datasetId: string;
   datasetName: string;
   onClose: () => void;
 };
 
 export function StatusStep(props: StatusStepProps) {
-  const { projectId, tableBatchActionId, datasetId, datasetName, onClose } =
-    props;
+  const { projectId, batchActionId, datasetId, datasetName, onClose } = props;
 
   // Poll for status updates
-  const status = api.tableBatchAction.byId.useQuery(
+  const status = api.batchAction.byId.useQuery(
     {
       projectId,
-      tableBatchActionId,
+      batchActionId,
     },
     {
       refetchInterval: 2000, // Poll every 2 seconds
