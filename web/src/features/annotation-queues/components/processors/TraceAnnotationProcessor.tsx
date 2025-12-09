@@ -1,6 +1,6 @@
-import { Trace } from "@/src/components/trace";
-import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
-import { TracePreview } from "@/src/components/trace/TracePreview";
+import { Trace } from "@/src/components/trace2/Trace";
+import { ObservationPreview } from "@/src/components/trace2/ObservationPreview";
+import { TracePreview } from "@/src/components/trace2/TracePreview";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
@@ -13,7 +13,7 @@ import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout
 import { api } from "@/src/utils/api";
 import { castToNumberMap } from "@/src/utils/map-utils";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { buildTraceUiData } from "@/src/components/trace/lib/helpers";
+import { buildTraceUiData } from "@/src/components/trace2/lib/helpers";
 
 interface TraceAnnotationProcessorProps {
   item: AnnotationQueueItem & {
