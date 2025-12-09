@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { AlertTriangle } from "lucide-react";
 import { MappingModeSelector } from "./components/MappingModeSelector";
 import { CustomMappingEditor } from "./components/CustomMappingEditor";
 import { MappingPreviewPanel } from "./components/MappingPreviewPanel";

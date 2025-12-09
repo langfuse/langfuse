@@ -459,6 +459,7 @@ export function AddObservationsToDatasetDialog(
               batchActionId={batchActionId}
               datasetId={datasetId}
               datasetName={datasetName}
+              expectedCount={displayCount}
               onClose={onClose}
             />
           )}

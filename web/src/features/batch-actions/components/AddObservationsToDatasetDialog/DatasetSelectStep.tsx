@@ -15,7 +15,6 @@ import {
 } from "@/src/components/ui/command";
 import { cn } from "@/src/utils/tailwind";
 import { api } from "@/src/utils/api";
-import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import type { DatasetSelectStepProps } from "./types";
 
 export function DatasetSelectStep(props: DatasetSelectStepProps) {

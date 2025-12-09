@@ -1,4 +1,3 @@
-import React from "react";
 import { Button } from "@/src/components/ui/button";
 import { Progress } from "@/src/components/ui/progress";
 import { api } from "@/src/utils/api";
@@ -17,11 +16,19 @@ type StatusStepProps = {
   batchActionId: string;
   datasetId: string;
   datasetName: string;
+  expectedCount: number;
   onClose: () => void;
 };
 
 export function StatusStep(props: StatusStepProps) {
-  const { projectId, batchActionId, datasetId, datasetName, onClose } = props;
+  const {
+    projectId,
+    batchActionId,
+    datasetId,
+    datasetName,
+    expectedCount,
+    onClose,
+  } = props;
 
   // Poll for status updates
   const status = api.batchAction.byId.useQuery(
@@ -34,7 +41,8 @@ export function StatusStep(props: StatusStepProps) {
     },
   );
 
-  const totalCount = status.data?.totalCount ?? 0;
+  // Use expectedCount as fallback when API hasn't populated totalCount yet
+  const totalCount = status.data?.totalCount ?? expectedCount;
   const processedCount = status.data?.processedCount ?? 0;
   const failedCount = status.data?.failedCount ?? 0;
   const progressPercent =
