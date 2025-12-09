@@ -163,12 +163,11 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, shard${{ matrix.shard }}/3)
+    name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
     strategy:
       matrix:
         node-version: [24]
         postgres-version: [12, 15]
-        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
