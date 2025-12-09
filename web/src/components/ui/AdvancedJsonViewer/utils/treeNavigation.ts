@@ -18,6 +18,7 @@
 
 import type { TreeNode } from "./treeStructure";
 import type { FlatJSONRow } from "../types";
+import { debugLog } from "./debug";
 
 /**
  * Get node at a specific index in the visible tree
@@ -42,7 +43,15 @@ export function getNodeByIndex(
   while (remainingIndex > 0) {
     // If current node is not expanded, we can't go deeper
     if (!currentNode.isExpanded || currentNode.childOffsets.length === 0) {
-      return null; // Index out of bounds
+      // ERROR: Requested index is out of bounds
+      console.error("[getNodeByIndex] ERROR: Index out of bounds", {
+        requestedIndex: index,
+        currentNode: currentNode.id,
+        remainingIndex,
+        isExpanded: currentNode.isExpanded,
+        childOffsets: currentNode.childOffsets,
+      });
+      return null;
     }
 
     const { childOffsets, children } = currentNode;
@@ -73,11 +82,18 @@ export function getNodeByIndex(
 
     // Navigate into child
     const child = children[childIndex];
-    if (!child) return null; // Should never happen
+    if (!child) {
+      // ERROR: Child not found (should never happen)
+      console.error("[getNodeByIndex] ERROR: Child not found", {
+        requestedIndex: index,
+        childIndex,
+        childrenLength: children.length,
+        parentNode: currentNode.id,
+      });
+      return null;
+    }
 
     // Adjust remaining index
-    // We need to subtract: (previousOffset + 1)
-    // +1 accounts for the child node itself
     const previousOffset = childIndex > 0 ? childOffsets[childIndex - 1]! : 0;
     remainingIndex = remainingIndex - previousOffset - 1;
 
@@ -298,4 +314,70 @@ export function getVisibleDepthRange(rootNode: TreeNode): [number, number] {
   });
 
   return [minDepth, maxDepth];
+}
+
+/**
+ * Validate getNodeByIndex for all visible indices
+ *
+ * Compares getNodeByIndex results with getAllVisibleNodes to ensure consistency.
+ * Throws detailed error if any mismatch is found.
+ *
+ * @param rootNode - Root of the tree
+ * @returns True if validation passes
+ * @throws Error with detailed context if validation fails
+ */
+export function validateGetNodeByIndex(rootNode: TreeNode): boolean {
+  const expectedNodes = getAllVisibleNodes(rootNode);
+  const totalVisibleRows = expectedNodes.length;
+
+  for (let i = 0; i < totalVisibleRows; i++) {
+    const expectedNode = expectedNodes[i]!;
+    const actualNode = getNodeByIndex(rootNode, i);
+
+    if (!actualNode) {
+      const error = {
+        message: "getNodeByIndex returned null",
+        index: i,
+        expectedNode: {
+          id: expectedNode.id,
+          key: expectedNode.key,
+          depth: expectedNode.depth,
+          isExpanded: expectedNode.isExpanded,
+        },
+        totalVisibleRows,
+      };
+      console.error("[validateGetNodeByIndex] VALIDATION FAILED:", error);
+      throw new Error(
+        `getNodeByIndex(${i}) returned null, expected node ${expectedNode.id}`,
+      );
+    }
+
+    if (actualNode.id !== expectedNode.id) {
+      const error = {
+        message: "Node ID mismatch",
+        index: i,
+        expectedNode: {
+          id: expectedNode.id,
+          key: expectedNode.key,
+          depth: expectedNode.depth,
+          isExpanded: expectedNode.isExpanded,
+          pathArray: expectedNode.pathArray,
+        },
+        actualNode: {
+          id: actualNode.id,
+          key: actualNode.key,
+          depth: actualNode.depth,
+          isExpanded: actualNode.isExpanded,
+          pathArray: actualNode.pathArray,
+        },
+        totalVisibleRows,
+      };
+      console.error("[validateGetNodeByIndex] VALIDATION FAILED:", error);
+      throw new Error(
+        `Node mismatch at index ${i}: expected ${expectedNode.id}, got ${actualNode.id}`,
+      );
+    }
+  }
+
+  return true;
 }

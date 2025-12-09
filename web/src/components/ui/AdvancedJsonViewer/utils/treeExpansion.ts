@@ -11,7 +11,7 @@
 
 import type { TreeNode, TreeState } from "./treeStructure";
 import type { ExpansionState } from "../types";
-import { debugTime, debugTimeEnd } from "./debug";
+import { debugTime, debugTimeEnd, debugLog } from "./debug";
 
 /**
  * Toggle expansion state of a node
@@ -27,11 +27,8 @@ export function toggleNodeExpansion(
   tree: TreeState,
   nodeId: string,
 ): TreeState {
-  debugTime("[toggleNodeExpansion]");
-
   const node = tree.nodeMap.get(nodeId);
   if (!node || !node.isExpandable) {
-    debugTimeEnd("[toggleNodeExpansion]");
     return tree; // Can't toggle non-expandable nodes
   }
 
@@ -42,10 +39,8 @@ export function toggleNodeExpansion(
 
   // Recompute childOffsets for this node
   if (newExpanded) {
-    // Expanding: compute childOffsets
     recomputeNodeOffsets(node);
   } else {
-    // Collapsing: clear childOffsets
     node.childOffsets = [];
     node.visibleDescendantCount = 0;
   }
@@ -53,7 +48,33 @@ export function toggleNodeExpansion(
   // Propagate changes up the tree (recompute all ancestors)
   propagateOffsetsUpward(node.parentNode);
 
-  debugTimeEnd("[toggleNodeExpansion]");
+  // Validate tree offsets
+  try {
+    const { validateTreeOffsets } = require("./treeNavigation");
+    validateTreeOffsets(tree.rootNode);
+  } catch (error) {
+    console.error(
+      "[toggleNodeExpansion] Tree offsets validation FAILED:",
+      error,
+    );
+    throw error;
+  }
+
+  // Validate getNodeByIndex consistency (only for small trees to avoid performance hit)
+  const totalVisible = 1 + tree.rootNode.visibleDescendantCount;
+  if (totalVisible < 1000) {
+    try {
+      const { validateGetNodeByIndex } = require("./treeNavigation");
+      validateGetNodeByIndex(tree.rootNode);
+    } catch (error) {
+      console.error(
+        "[toggleNodeExpansion] getNodeByIndex validation FAILED:",
+        error,
+      );
+      throw error;
+    }
+  }
+
   return tree;
 }
 
@@ -75,9 +96,8 @@ function recomputeNodeOffsets(node: TreeNode): void {
   let cumulative = 0;
 
   node.children.forEach((child) => {
-    cumulative += 1; // The child itself
-    cumulative += child.visibleDescendantCount; // Child's descendants
-    offsets.push(cumulative); // Push AFTER adding both child and descendants
+    cumulative += 1 + child.visibleDescendantCount;
+    offsets.push(cumulative);
   });
 
   node.childOffsets = offsets;

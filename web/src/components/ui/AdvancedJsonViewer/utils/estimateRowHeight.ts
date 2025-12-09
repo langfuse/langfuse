@@ -41,6 +41,18 @@ export function estimateRowHeight(
   if (row.type === "string") {
     const str = row.value as string;
 
+    // In nowrap/truncate modes, strings are always single line
+    if (
+      config.stringWrapMode === "nowrap" ||
+      config.stringWrapMode === "truncate"
+    ) {
+      return {
+        height: baseHeight,
+        isDynamic: false,
+      };
+    }
+
+    // In wrap mode: calculate multi-line heights for long strings
     // Short strings are single line
     if (str.length <= longStringThreshold) {
       return {

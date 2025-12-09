@@ -108,7 +108,6 @@ function buildTreeStructureIterative(
 ): {
   rootNode: TreeNode;
   nodeMap: Map<string, TreeNode>;
-  allNodes: TreeNode[];
 } {
   const nodeMap = new Map<string, TreeNode>();
 
@@ -494,24 +493,6 @@ function calculateTreeDimensions(
       widestNode = node;
     }
   }
-
-  console.log("[calculateTreeDimensions] Results:", {
-    maxDepth,
-    maxContentWidth: `${maxContentWidth.toFixed(0)}px`,
-    widestNode: widestNode
-      ? {
-          id: widestNode.id,
-          key: widestNode.key,
-          type: widestNode.type,
-          depth: widestNode.depth,
-          valuePreview:
-            typeof widestNode.value === "string"
-              ? `"${(widestNode.value as string).substring(0, 100)}..."` +
-                ` (length: ${(widestNode.value as string).length})`
-              : widestNode.value,
-        }
-      : null,
-  });
 
   return { maxDepth, maxContentWidth };
 }

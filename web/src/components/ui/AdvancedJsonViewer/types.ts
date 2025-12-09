@@ -388,6 +388,9 @@ export interface RowHeightConfig {
 
   /** Characters per line for wrapped strings */
   charsPerLine: number;
+
+  /** String wrap mode (affects whether long strings are multi-line) */
+  stringWrapMode?: StringWrapMode;
 }
 
 /**

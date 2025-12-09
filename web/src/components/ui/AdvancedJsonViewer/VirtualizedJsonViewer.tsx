@@ -58,13 +58,11 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
   scrollContainerRef,
   totalLineCount,
 }: VirtualizedJsonViewerProps) {
-  debugLog("[VirtualizedJsonViewer] RENDER", { expansionVersion });
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Determine row count
   // NOTE: Must recalculate when expansionVersion changes because tree is mutated in place
   const rowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
-  debugLog("[VirtualizedJsonViewer] rowCount:", rowCount);
 
   // Layout calculations (widths, heights, column sizes)
   const {
@@ -90,10 +88,9 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
   );
 
   // Initialize virtualizer
-  // NOTE: We deliberately do NOT provide getItemKey because our data model is index-based.
-  // The tree is mutated in-place and getNodeByIndex does JIT lookup by index.
-  // When expansion changes, the node at each index changes, so we WANT all rows to repaint.
-  // Using index-based keys (default) aligns perfectly with our JIT architecture.
+  // NOTE: We provide getItemKey using node IDs so the virtualizer can detect when
+  // the content at a given index changes (e.g., after expand/collapse).
+  // This ensures cached measurements are invalidated when different nodes move to the same index.
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollContainerRef?.current || parentRef.current,
@@ -103,20 +100,15 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
       typeof window !== "undefined"
         ? (element) => element.getBoundingClientRect().height
         : undefined,
-    // No getItemKey - default to index-based keys for our positional data model
+    getItemKey: (index) => {
+      if (!tree) return index;
+      const node = getNodeByIndex(tree.rootNode, index);
+      return node ? node.id : index;
+    },
   });
 
   // Use tree toggle directly (scroll restoration is handled by tree expansion logic)
   const finalHandleToggleExpansion = onToggleExpansion;
-
-  // Log virtualizer creation (only when rowCount changes)
-  useEffect(() => {
-    debugLog(
-      `[VirtualizedJsonViewer] Virtualizer initialized with ${rowCount} rows`,
-    );
-    // No need to call measure() - the virtualizer will remeasure automatically
-    // because getItemKey returns new keys when expansionVersion changes
-  }, [rowCount]);
 
   // Scroll to match when search navigation occurs
   useEffect(() => {
@@ -140,29 +132,12 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
 
     // For nowrap mode: use full untruncated width from tree
     if (stringWrapMode === "nowrap") {
-      const total = fixedColumnWidth + tree.maxContentWidth;
-      console.log("[VirtualizedJsonViewer] Width calculation (nowrap):", {
-        stringWrapMode,
-        fixedColumnWidth,
-        treeMaxContentWidth: tree.maxContentWidth,
-        totalContentWidth: total,
-      });
-      return total;
+      return fixedColumnWidth + tree.maxContentWidth;
     }
 
     // For wrap/truncate: use constrained width from scrollableMaxWidth
     if (scrollableMaxWidth) {
-      const total = fixedColumnWidth + scrollableMaxWidth;
-      console.log(
-        "[VirtualizedJsonViewer] Width calculation (wrap/truncate):",
-        {
-          stringWrapMode,
-          fixedColumnWidth,
-          scrollableMaxWidth,
-          totalContentWidth: total,
-        },
-      );
-      return total;
+      return fixedColumnWidth + scrollableMaxWidth;
     }
 
     return undefined;

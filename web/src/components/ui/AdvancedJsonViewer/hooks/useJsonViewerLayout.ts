@@ -10,15 +10,13 @@
  * Used by both VirtualizedJsonViewer and SimpleJsonViewer
  */
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { type JSONTheme, type StringWrapMode } from "../types";
 import type { TreeState } from "../utils/treeStructure";
 import { calculateFixedColumnWidth } from "../utils/calculateFixedColumnWidth";
-import { calculateMinimumWidth } from "../utils/calculateWidth";
-import { createHeightEstimator } from "../utils/estimateRowHeight";
 import {
   getVisibleDepthRange,
-  getAllVisibleNodes,
+  getNodeByIndex,
   treeNodeToFlatRow,
 } from "../utils/treeNavigation";
 
@@ -41,19 +39,15 @@ export function useJsonViewerLayout({
   stringWrapMode,
   truncateStringsAt,
 }: UseJsonViewerLayoutParams) {
-  // Get rows from tree
-  const effectiveRows = useMemo(() => {
-    if (!tree) return [];
-    const visibleNodes = getAllVisibleNodes(tree.rootNode);
-    return visibleNodes.map((node, index) => treeNodeToFlatRow(node, index));
-  }, [tree, expansionVersion]);
+  // Calculate visible row count from tree
+  const visibleRowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
 
   // Calculate maximum number of digits needed for line numbers
-  // Use totalLineCount if provided, otherwise fall back to current rows length
+  // Use totalLineCount if provided, otherwise fall back to current visible count
   const maxLineNumberDigits = useMemo(() => {
-    const lineCount = totalLineCount ?? effectiveRows.length;
+    const lineCount = totalLineCount ?? visibleRowCount;
     return Math.max(1, Math.floor(Math.log10(lineCount)) + 1);
-  }, [totalLineCount, effectiveRows.length]);
+  }, [totalLineCount, visibleRowCount]);
 
   // Calculate fixed column width (line numbers + expand buttons)
   const fixedColumnWidth = useMemo(
@@ -115,15 +109,45 @@ export function useJsonViewerLayout({
     return undefined;
   }, [stringWrapMode, tree, theme]);
 
-  // Create height estimator (for virtualization)
-  const estimateSize = useMemo(
-    () =>
-      createHeightEstimator(effectiveRows, {
-        baseHeight: theme.lineHeight,
-        longStringThreshold: truncateStringsAt ?? 100,
-        charsPerLine: 80,
-      }),
-    [effectiveRows, theme.lineHeight, truncateStringsAt],
+  // Create height estimator (for virtualization) - JIT lookup from tree
+  // This matches getItemKey by using getNodeByIndex, ensuring both see the same tree state
+  const estimateSize = useCallback(
+    (index: number) => {
+      if (!tree) return theme.lineHeight;
+
+      const node = getNodeByIndex(tree.rootNode, index);
+      if (!node) return theme.lineHeight;
+
+      const row = treeNodeToFlatRow(node, index);
+
+      // Expandable rows are always single line (show preview only)
+      if (row.isExpandable) return theme.lineHeight;
+
+      // In nowrap/truncate modes, all strings are single line
+      if (stringWrapMode === "nowrap" || stringWrapMode === "truncate") {
+        return theme.lineHeight;
+      }
+
+      // In wrap mode, calculate multi-line height for long strings
+      if (row.type === "string") {
+        const str = row.value as string;
+        const threshold = truncateStringsAt ?? 100;
+
+        if (str.length > threshold) {
+          const lines = Math.ceil(str.length / 80);
+          return theme.lineHeight * Math.min(lines, 10);
+        }
+      }
+
+      return theme.lineHeight;
+    },
+    [
+      tree,
+      theme.lineHeight,
+      stringWrapMode,
+      truncateStringsAt,
+      expansionVersion,
+    ],
   );
 
   return {
