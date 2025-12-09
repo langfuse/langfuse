@@ -464,19 +464,18 @@ function computeOffsetsIterative(rootNode: TreeNode): void {
  *
  * Iterates through all nodes to find:
  * - Maximum depth across entire tree
- * - Maximum content width needed for any row
+ * - Maximum content width needed for any row (FULL untruncated width)
  *
  * This ensures width is stable regardless of expansion state.
+ * This is DATA LAYER - always uses full string lengths.
  *
  * @param allNodes - All nodes in pre-order (from PASS 1.5)
  * @param config - Width estimation configuration
- * @param truncateAt - Truncate strings longer than this (null = no truncation)
  * @returns Dimensions metadata
  */
 function calculateTreeDimensions(
   allNodes: TreeNode[],
   config: WidthEstimatorConfig,
-  truncateAt: number | null,
 ): { maxDepth: number; maxContentWidth: number } {
   let maxDepth = 0;
   let maxContentWidth = 0;
@@ -488,8 +487,8 @@ function calculateTreeDimensions(
       maxDepth = node.depth;
     }
 
-    // Calculate width for this node
-    const nodeWidth = calculateNodeWidth(node, config, truncateAt);
+    // Calculate width for this node (full untruncated)
+    const nodeWidth = calculateNodeWidth(node, config);
     if (nodeWidth > maxContentWidth) {
       maxContentWidth = nodeWidth;
       widestNode = node;
@@ -504,6 +503,7 @@ function calculateTreeDimensions(
           id: widestNode.id,
           key: widestNode.key,
           type: widestNode.type,
+          depth: widestNode.depth,
           valuePreview:
             typeof widestNode.value === "string"
               ? `"${(widestNode.value as string).substring(0, 100)}..."` +
@@ -538,7 +538,6 @@ export function buildTreeFromJSON(
     initialExpansion: ExpansionState;
     expandDepth?: number;
     widthEstimator?: WidthEstimatorConfig;
-    truncateStringsAt?: number | null;
   },
 ): TreeState {
   debugLog("[buildTreeFromJSON] Starting four-pass build");
@@ -565,6 +564,7 @@ export function buildTreeFromJSON(
   computeOffsetsIterative(rootNode);
 
   // PASS 4: Calculate dimensions (maxDepth, maxContentWidth)
+  // Always uses FULL untruncated widths (data layer)
   // Use default config if not provided
   const widthConfig: WidthEstimatorConfig = config.widthEstimator ?? {
     charWidthPx: 6.2,
@@ -574,7 +574,6 @@ export function buildTreeFromJSON(
   const { maxDepth, maxContentWidth } = calculateTreeDimensions(
     allNodes,
     widthConfig,
-    config.truncateStringsAt ?? null,
   );
 
   const totalTime = performance.now() - totalStartTime;

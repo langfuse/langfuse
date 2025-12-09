@@ -37,8 +37,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 interface UseTreeStateConfig {
   rootKey?: string;
   expandDepth?: number;
-  indentSizePx?: number; // Theme indent size for width calculation
-  truncateStringsAt?: number | null; // Truncation length for width calculation
+  indentSizePx?: number; // Theme indent size for width calculation (data layer only)
 }
 
 /**
@@ -137,12 +136,7 @@ export function useTreeState(
   initialExpansion: ExpansionState = true,
   config: UseTreeStateConfig = {},
 ): UseTreeStateReturn {
-  const {
-    rootKey = "root",
-    expandDepth,
-    indentSizePx = 16,
-    truncateStringsAt = null,
-  } = config;
+  const { rootKey = "root", expandDepth, indentSizePx = 16 } = config;
 
   // Estimate data size once
   const dataSize = useMemo(() => estimateNodeCount(data), [data]);
@@ -177,7 +171,6 @@ export function useTreeState(
         indentSizePx,
         extraBufferPx: 50,
       },
-      truncateStringsAt,
     });
     const buildTime = performance.now() - startTime;
 
@@ -193,7 +186,6 @@ export function useTreeState(
     expandDepth,
     expansionFromStorage,
     indentSizePx,
-    truncateStringsAt,
   ]);
 
   // For large datasets, use React Query + Web Worker
@@ -205,7 +197,6 @@ export function useTreeState(
       expandDepth,
       expansionFromStorage,
       indentSizePx,
-      truncateStringsAt,
     ],
     queryFn: () =>
       buildTreeInWorker(
@@ -219,7 +210,6 @@ export function useTreeState(
             indentSizePx,
             extraBufferPx: 50,
           },
-          truncateStringsAt,
         },
         dataSize,
       ),

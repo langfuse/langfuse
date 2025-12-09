@@ -15,25 +15,18 @@ import type { TreeNode } from "./treeStructure";
 const CHAR_WIDTH_PX = 6.2; // Approximate width for 0.6rem monospace
 
 /**
- * Calculate the display length of a value (for width estimation)
+ * Calculate the full display length of a value (for width estimation)
+ * Always returns the FULL untruncated length - this is data layer, not presentation.
  */
-function getValueDisplayLength(
-  value: unknown,
-  truncateAt: number | null,
-): number {
+function getValueDisplayLength(value: unknown): number {
   if (value === null) return 4; // "null"
   if (value === undefined) return 9; // "undefined"
   if (typeof value === "boolean") return value ? 4 : 5; // "true" or "false"
   if (typeof value === "number") return String(value).length;
   if (typeof value === "string") {
     const str = value as string;
-    const fullLength = str.length;
-    const effectiveLength = truncateAt
-      ? Math.min(fullLength, truncateAt)
-      : fullLength;
-    // Add 2 for quotes, +3 for "..." if truncated
-    const ellipsis = truncateAt && fullLength > truncateAt ? 3 : 0;
-    return effectiveLength + 2 + ellipsis;
+    // Always use full length + quotes (data layer = actual content width)
+    return str.length + 2;
   }
   if (Array.isArray(value)) {
     return `Array(${value.length})`.length;
@@ -53,11 +46,7 @@ function getValueDisplayLength(
  * Note: Line numbers and expand buttons are now in a separate fixed column,
  * so we only calculate width for: indentation + key + colon + value + badges + copy button
  */
-function calculateRowWidth(
-  row: FlatJSONRow,
-  theme: JSONTheme,
-  truncateAt: number | null,
-): number {
+function calculateRowWidth(row: FlatJSONRow, theme: JSONTheme): number {
   // Components in scrollable column:
   // 1. Indentation (depth * indentSize)
   const indentWidth = row.depth * theme.indentSize;
@@ -68,8 +57,8 @@ function calculateRowWidth(
   // 3. Colon + space (": ")
   const colonWidth = 2 * CHAR_WIDTH_PX;
 
-  // 4. Value
-  const valueLength = getValueDisplayLength(row.value, truncateAt);
+  // 4. Value (full untruncated length)
+  const valueLength = getValueDisplayLength(row.value);
 
   // 5. Padding (right side only, left is indent)
   const paddingWidth = 4;
@@ -89,18 +78,18 @@ function calculateRowWidth(
  *
  * Returns the width needed to display the longest row without wrapping.
  * This is only for the scrollable column (excludes fixed column with line numbers/buttons).
+ * Always calculates FULL untruncated width (data layer).
  */
 export function calculateMinimumWidth(
   rows: FlatJSONRow[],
   theme: JSONTheme,
-  truncateAt: number | null,
 ): number {
   if (rows.length === 0) return 0;
 
   let maxWidth = 0;
 
   for (const row of rows) {
-    const rowWidth = calculateRowWidth(row, theme, truncateAt);
+    const rowWidth = calculateRowWidth(row, theme);
     if (rowWidth > maxWidth) {
       maxWidth = rowWidth;
     }
@@ -124,16 +113,15 @@ export interface WidthEstimatorConfig {
  *
  * Similar to calculateRowWidth but operates on TreeNode instead of FlatJSONRow.
  * Used during tree building to calculate maxContentWidth.
+ * Always calculates FULL untruncated width (data layer).
  *
  * @param node - The tree node
  * @param config - Width estimation configuration
- * @param truncateAt - Truncate strings longer than this (null = no truncation)
  * @returns Estimated width in pixels
  */
 export function calculateNodeWidth(
   node: TreeNode,
   config: WidthEstimatorConfig,
-  truncateAt: number | null,
 ): number {
   // Components in scrollable column:
   // 1. Indentation (depth * indentSize)
@@ -145,8 +133,8 @@ export function calculateNodeWidth(
   // 3. Colon + space (": ")
   const colonWidth = 2 * config.charWidthPx;
 
-  // 4. Value
-  const valueLength = getValueDisplayLength(node.value, truncateAt);
+  // 4. Value (full untruncated length)
+  const valueLength = getValueDisplayLength(node.value);
 
   // 5. Padding (right side only, left is indent)
   const paddingWidth = 4;
@@ -160,7 +148,7 @@ export function calculateNodeWidth(
     indentWidth + colonWidth + charWidth + paddingWidth + config.extraBufferPx;
 
   // Debug log for wide nodes
-  if (totalWidth > 1000) {
+  if (totalWidth > 10000) {
     console.log("[calculateNodeWidth] Wide node detected:", {
       nodeId: node.id,
       depth: node.depth,

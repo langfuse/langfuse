@@ -134,18 +134,39 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
-  // Calculate total content width from tree metadata (includes entire tree, not just visible rows)
+  // Calculate total content width (PRESENTATION LAYER)
   const totalContentWidth = useMemo(() => {
     if (!tree) return undefined;
-    // Total width = fixed column + scrollable content
-    const total = fixedColumnWidth + tree.maxContentWidth;
-    console.log("[VirtualizedJsonViewer] Width calculation:", {
-      fixedColumnWidth,
-      treeMaxContentWidth: tree.maxContentWidth,
-      totalContentWidth: total,
-    });
-    return total;
-  }, [tree, fixedColumnWidth]);
+
+    // For nowrap mode: use full untruncated width from tree
+    if (stringWrapMode === "nowrap") {
+      const total = fixedColumnWidth + tree.maxContentWidth;
+      console.log("[VirtualizedJsonViewer] Width calculation (nowrap):", {
+        stringWrapMode,
+        fixedColumnWidth,
+        treeMaxContentWidth: tree.maxContentWidth,
+        totalContentWidth: total,
+      });
+      return total;
+    }
+
+    // For wrap/truncate: use constrained width from scrollableMaxWidth
+    if (scrollableMaxWidth) {
+      const total = fixedColumnWidth + scrollableMaxWidth;
+      console.log(
+        "[VirtualizedJsonViewer] Width calculation (wrap/truncate):",
+        {
+          stringWrapMode,
+          fixedColumnWidth,
+          scrollableMaxWidth,
+          totalContentWidth: total,
+        },
+      );
+      return total;
+    }
+
+    return undefined;
+  }, [tree, fixedColumnWidth, stringWrapMode, scrollableMaxWidth]);
 
   return (
     <div

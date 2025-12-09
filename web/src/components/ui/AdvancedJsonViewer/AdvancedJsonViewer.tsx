@@ -75,6 +75,7 @@ export function AdvancedJsonViewer({
 
   // Build tree from JSON data (sync for <100K, worker for >100K)
   // JIT expansion: reads from storage directly, no context subscription
+  // Tree building uses FULL untruncated widths (data layer)
   const {
     tree,
     isBuilding,
@@ -84,7 +85,6 @@ export function AdvancedJsonViewer({
   } = useTreeState(data, field, initialExpansion, {
     rootKey: "root",
     indentSizePx: theme.indentSize,
-    truncateStringsAt,
   });
 
   // Search matches

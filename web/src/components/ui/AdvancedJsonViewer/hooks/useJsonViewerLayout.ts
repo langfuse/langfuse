@@ -61,56 +61,57 @@ export function useJsonViewerLayout({
     [showLineNumbers, maxLineNumberDigits],
   );
 
-  // Calculate minimum width for scrollable column
+  // Calculate minimum width for scrollable column (PRESENTATION LAYER)
   const scrollableMinWidth = useMemo(() => {
-    if (stringWrapMode === "nowrap") {
-      // Calculate based on actual content width (respects truncation)
-      return calculateMinimumWidth(effectiveRows, theme, truncateStringsAt);
-    }
     if (!tree) return undefined;
 
+    if (stringWrapMode === "nowrap") {
+      // Use full untruncated width from tree metadata
+      return tree.maxContentWidth;
+    }
+
+    // For wrap and truncate modes, use depth-based constraints
+    const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
+    const cappedDepth = Math.min(maxDepth, 20);
+    const maxIndent = cappedDepth * theme.indentSize;
+
     if (stringWrapMode === "wrap") {
-      // Calculate based on max depth to ensure values have room to wrap properly
-      // Cap at 20 levels to prevent excessive width from deeply nested data
-      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
-      const cappedDepth = Math.min(maxDepth, 20);
-      const maxIndent = cappedDepth * theme.indentSize;
       // Add buffer for key name + colon + value (400px minimum for value area)
       return maxIndent + 400;
     }
+
     if (stringWrapMode === "truncate") {
-      // Set reasonable minimum to prevent excessive wrapping of keys and short values
-      // Cap at 20 levels to prevent excessive width from deeply nested data
-      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
-      const cappedDepth = Math.min(maxDepth, 20);
-      const maxIndent = cappedDepth * theme.indentSize;
-      // Add buffer for key + truncated value (600px for value area to show truncated strings comfortably)
+      // Buffer for key + truncated value (600px for value area to show truncated strings comfortably)
       return maxIndent + 600;
     }
-    return undefined;
-  }, [stringWrapMode, tree, effectiveRows, theme, truncateStringsAt]);
 
-  // Calculate maximum width for scrollable column (to prevent excessive horizontal scrolling)
+    return undefined;
+  }, [stringWrapMode, tree, theme]);
+
+  // Calculate maximum width for scrollable column (PRESENTATION LAYER)
   const scrollableMaxWidth = useMemo(() => {
-    if (stringWrapMode === "wrap" && tree) {
-      // Cap at reasonable width for wrap mode to force line breaking
-      // Cap depth at 20 levels to prevent excessive width from deeply nested data
-      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
-      const cappedDepth = Math.min(maxDepth, 20);
-      const maxIndent = cappedDepth * theme.indentSize;
+    if (!tree) return undefined;
+
+    if (stringWrapMode === "nowrap") {
+      // No maximum for nowrap - use full width for horizontal scrolling
+      return undefined;
+    }
+
+    // For wrap and truncate modes, apply constraints
+    const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
+    const cappedDepth = Math.min(maxDepth, 20);
+    const maxIndent = cappedDepth * theme.indentSize;
+
+    if (stringWrapMode === "wrap") {
       // Max 600px for value area - forces long lines to wrap
       return maxIndent + 600;
     }
-    if (stringWrapMode === "truncate" && tree) {
-      // Cap width for truncate mode to trigger truncation component
-      // Cap depth at 20 levels to prevent excessive width from deeply nested data
-      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
-      const cappedDepth = Math.min(maxDepth, 20);
-      const maxIndent = cappedDepth * theme.indentSize;
-      // Max 600px for value area - allows truncated strings to display comfortably
+
+    if (stringWrapMode === "truncate") {
+      // Max 600px for value area (same as wrap) - triggers CSS ellipsis
       return maxIndent + 600;
     }
-    // No maximum for nowrap mode
+
     return undefined;
   }, [stringWrapMode, tree, theme]);
 
