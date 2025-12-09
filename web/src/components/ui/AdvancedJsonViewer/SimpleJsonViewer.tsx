@@ -120,8 +120,6 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
       ref={containerRef}
       className={className}
       style={{
-        display: "grid",
-        gridTemplateColumns: `${fixedColumnWidth}px auto`,
         width: stringWrapMode === "wrap" ? "100%" : "fit-content",
         minWidth: "100%",
         backgroundColor: theme.background,
@@ -129,58 +127,60 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
         fontFamily: "monospace",
       }}
     >
-      {/* Fixed column (line numbers + expand buttons) - sticky */}
-      <div
-        style={{
-          position: "sticky",
-          left: 0,
-          zIndex: 2,
-          backgroundColor: theme.background,
-          overflow: "hidden",
-        }}
-      >
-        {effectiveRows.map((row, index) => {
-          const searchMatch = matchMap.get(row.id);
-          const isCurrentMatch = currentMatch?.rowId === row.id;
+      {effectiveRows.map((row, index) => {
+        const searchMatch = matchMap.get(row.id);
+        const isCurrentMatch = currentMatch?.rowId === row.id;
+        const matchCount = matchCounts?.get(row.id);
 
-          return (
-            <JsonRowFixed
-              key={`fixed-${row.id}`}
-              row={row}
-              theme={theme}
-              showLineNumber={showLineNumbers}
-              lineNumber={row.absoluteLineNumber ?? index + 1}
-              maxLineNumberDigits={maxLineNumberDigits}
-              searchMatch={searchMatch}
-              isCurrentMatch={isCurrentMatch}
-              onToggleExpansion={finalHandleToggleExpansion}
-              stringWrapMode={stringWrapMode}
-            />
-          );
-        })}
-      </div>
-
-      {/* Scrollable column (indent + key + value + badges + copy) */}
-      <div
-        style={{
-          minWidth: scrollableMinWidth ? `${scrollableMinWidth}px` : undefined,
-          maxWidth: scrollableMaxWidth ? `${scrollableMaxWidth}px` : undefined,
-        }}
-      >
-        {effectiveRows.map((row) => {
-          const searchMatch = matchMap.get(row.id);
-          const isCurrentMatch = currentMatch?.rowId === row.id;
-          const matchCount = matchCounts?.get(row.id);
-
-          return (
+        return (
+          <div
+            key={row.id}
+            ref={(el) => {
+              if (el) {
+                rowRefs.current.set(row.id, el);
+              } else {
+                rowRefs.current.delete(row.id);
+              }
+            }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: `${fixedColumnWidth}px auto`,
+              width: "fit-content",
+              minWidth: "100%",
+            }}
+          >
+            {/* Fixed column (line numbers + expand buttons) - sticky within row */}
             <div
-              key={`scrollable-${row.id}`}
-              ref={(el) => {
-                if (el) {
-                  rowRefs.current.set(row.id, el);
-                } else {
-                  rowRefs.current.delete(row.id);
-                }
+              style={{
+                position: "sticky",
+                left: 0,
+                zIndex: 1,
+                width: `${fixedColumnWidth}px`,
+                backgroundColor: theme.background,
+              }}
+            >
+              <JsonRowFixed
+                row={row}
+                theme={theme}
+                showLineNumber={showLineNumbers}
+                lineNumber={row.absoluteLineNumber ?? index + 1}
+                maxLineNumberDigits={maxLineNumberDigits}
+                searchMatch={searchMatch}
+                isCurrentMatch={isCurrentMatch}
+                onToggleExpansion={finalHandleToggleExpansion}
+                stringWrapMode={stringWrapMode}
+              />
+            </div>
+
+            {/* Scrollable column (indent + key + value + badges + copy) */}
+            <div
+              style={{
+                minWidth: scrollableMinWidth
+                  ? `${scrollableMinWidth}px`
+                  : undefined,
+                maxWidth: scrollableMaxWidth
+                  ? `${scrollableMaxWidth}px`
+                  : undefined,
               }}
             >
               <JsonRowScrollable
@@ -197,9 +197,9 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
                 isCurrentMatch={isCurrentMatch}
               />
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
 
       {/* Empty state */}
       {effectiveRows.length === 0 && (
