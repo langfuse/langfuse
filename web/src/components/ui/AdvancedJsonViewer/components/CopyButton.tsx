@@ -9,13 +9,15 @@ import { useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { type JSONTheme } from "../types";
 import { safeStringify } from "../utils/jsonTypes";
+import { cn } from "@/src/utils/tailwind";
 
 interface CopyButtonProps {
   value: unknown;
   theme: JSONTheme;
+  className?: string;
 }
 
-export function CopyButton({ value, theme }: CopyButtonProps) {
+export function CopyButton({ value, theme, className }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -38,10 +40,13 @@ export function CopyButton({ value, theme }: CopyButtonProps) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center justify-center transition-opacity hover:opacity-100"
+      className={cn(
+        "inline-flex items-center justify-center transition-opacity hover:opacity-100",
+        className,
+      )}
       style={{
-        width: "16px",
-        height: "16px",
+        width: "12px",
+        height: "12px",
         color: theme.copyButtonColor,
         background: "transparent",
         border: "none",
@@ -53,7 +58,7 @@ export function CopyButton({ value, theme }: CopyButtonProps) {
       aria-label={copied ? "Copied!" : "Copy value"}
       title={copied ? "Copied!" : "Copy value"}
     >
-      <Icon size={12} />
+      <Icon size={9} />
     </button>
   );
 }

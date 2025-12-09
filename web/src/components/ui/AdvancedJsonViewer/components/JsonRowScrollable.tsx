@@ -50,7 +50,7 @@ export function JsonRowScrollable({
       className={className}
       style={{
         display: "flex",
-        alignItems: stringWrapMode === "wrap" ? "start" : "center",
+        alignItems: "start",
         flexWrap: "nowrap", // Prevent wrapping between key, colon, value, badges
         minHeight: `${theme.lineHeight}px`,
         paddingLeft: `${row.depth * theme.indentSize}px`, // Indentation
@@ -129,7 +129,9 @@ export function JsonRowScrollable({
         )}
 
       {/* Copy button (optional, on hover) */}
-      {enableCopy && <CopyButton value={row.value} theme={theme} />}
+      {enableCopy && (
+        <CopyButton value={row.value} theme={theme} className="mt-0.5" />
+      )}
     </div>
   );
 }

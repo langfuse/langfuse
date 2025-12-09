@@ -128,79 +128,81 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
         fontFamily: "monospace",
       }}
     >
-      {effectiveRows.map((row, index) => {
-        const searchMatch = matchMap.get(row.id);
-        const isCurrentMatch = currentMatch?.rowId === row.id;
-        const matchCount = matchCounts?.get(row.id);
+      <div style={{ position: "relative" }}>
+        {effectiveRows.map((row, index) => {
+          const searchMatch = matchMap.get(row.id);
+          const isCurrentMatch = currentMatch?.rowId === row.id;
+          const matchCount = matchCounts?.get(row.id);
 
-        return (
-          <div
-            key={row.id}
-            ref={(el) => {
-              if (el) {
-                rowRefs.current.set(row.id, el);
-              } else {
-                rowRefs.current.delete(row.id);
-              }
-            }}
-            style={{
-              display: "grid",
-              gridTemplateColumns: `${fixedColumnWidth}px auto`,
-              width: "fit-content",
-              minWidth: "100%",
-            }}
-          >
-            {/* Fixed column (line numbers + expand buttons) - sticky within row */}
+          return (
             <div
-              style={{
-                position: "sticky",
-                left: 0,
-                zIndex: 1,
-                width: `${fixedColumnWidth}px`,
-                backgroundColor: theme.background,
-              }}
-            >
-              <JsonRowFixed
-                row={row}
-                theme={theme}
-                showLineNumber={showLineNumbers}
-                lineNumber={row.absoluteLineNumber ?? index + 1}
-                maxLineNumberDigits={maxLineNumberDigits}
-                searchMatch={searchMatch}
-                isCurrentMatch={isCurrentMatch}
-                onToggleExpansion={finalHandleToggleExpansion}
-                stringWrapMode={stringWrapMode}
-              />
-            </div>
-
-            {/* Scrollable column (indent + key + value + badges + copy) */}
-            <div
-              style={{
-                minWidth: scrollableMinWidth
-                  ? `${scrollableMinWidth}px`
-                  : undefined,
-                maxWidth: scrollableMaxWidth
-                  ? `${scrollableMaxWidth}px`
-                  : undefined,
-              }}
-            >
-              <JsonRowScrollable
-                row={row}
-                theme={theme}
-                stringWrapMode={stringWrapMode}
-                truncateStringsAt={truncateStringsAt}
-                matchCount={matchCount}
-                currentMatchIndexInRow={
-                  isCurrentMatch ? currentMatchIndexInRow : undefined
+              key={row.id}
+              ref={(el) => {
+                if (el) {
+                  rowRefs.current.set(row.id, el);
+                } else {
+                  rowRefs.current.delete(row.id);
                 }
-                enableCopy={enableCopy}
-                searchMatch={searchMatch}
-                isCurrentMatch={isCurrentMatch}
-              />
+              }}
+              style={{
+                display: "grid",
+                gridTemplateColumns: `${fixedColumnWidth}px auto`,
+                width: stringWrapMode === "truncate" ? undefined : "100%",
+              }}
+            >
+              {/* Fixed column (line numbers + expand buttons) - sticky within row */}
+              <div
+                style={{
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 1,
+                  width: `${fixedColumnWidth}px`,
+                  backgroundColor: theme.background,
+                }}
+              >
+                <JsonRowFixed
+                  row={row}
+                  theme={theme}
+                  showLineNumber={showLineNumbers}
+                  lineNumber={row.absoluteLineNumber ?? index + 1}
+                  maxLineNumberDigits={maxLineNumberDigits}
+                  searchMatch={searchMatch}
+                  isCurrentMatch={isCurrentMatch}
+                  onToggleExpansion={finalHandleToggleExpansion}
+                  stringWrapMode={stringWrapMode}
+                />
+              </div>
+
+              {/* Scrollable column (indent + key + value + badges + copy) */}
+              <div
+                style={{
+                  width: "fit-content",
+                  minWidth: scrollableMinWidth
+                    ? `${scrollableMinWidth}px`
+                    : undefined,
+                  maxWidth: scrollableMaxWidth
+                    ? `${scrollableMaxWidth}px`
+                    : undefined,
+                }}
+              >
+                <JsonRowScrollable
+                  row={row}
+                  theme={theme}
+                  stringWrapMode={stringWrapMode}
+                  truncateStringsAt={truncateStringsAt}
+                  matchCount={matchCount}
+                  currentMatchIndexInRow={
+                    isCurrentMatch ? currentMatchIndexInRow : undefined
+                  }
+                  enableCopy={enableCopy}
+                  searchMatch={searchMatch}
+                  isCurrentMatch={isCurrentMatch}
+                />
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
       {/* Empty state */}
       {effectiveRows.length === 0 && (
