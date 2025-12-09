@@ -133,7 +133,8 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
       className={className}
       style={{
         height: "100%",
-        width: "100%",
+        width: stringWrapMode === "wrap" ? "100%" : "fit-content",
+        minWidth: "100%",
         backgroundColor: theme.background,
         color: theme.foreground,
       }}
@@ -141,8 +142,6 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
       <div
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
-          width: stringWrapMode === "wrap" ? "100%" : "fit-content",
-          minWidth: "100%",
           position: "relative",
         }}
       >
