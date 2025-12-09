@@ -154,6 +154,155 @@ export const traceView: ViewDeclarationType = {
   baseCte: `traces FINAL`,
 };
 
+export const eventsTracesView: ViewDeclarationType = {
+  name: "events_traces",
+  description:
+    "Traces built from events table aggregation - mirrors v1 traces view with 100% API compatibility.",
+  dimensions: {
+    id: {
+      sql: "events.trace_id",
+      alias: "id",
+      type: "string",
+      description: "Unique identifier of the trace.",
+      // This is the GROUP BY identity column
+    },
+    name: {
+      sql: "events.trace_name",
+      alias: "name",
+      type: "string",
+      description:
+        "Name assigned to the trace (often the endpoint or operation).",
+      aggregationFunction:
+        "argMaxIf(events.trace_name, events.event_ts, events.trace_name <> '')",
+    },
+    tags: {
+      sql: "events.tags",
+      alias: "tags",
+      type: "string[]",
+      description: "User-defined tags associated with the trace.",
+      aggregationFunction: "arrayDistinct(flatten(groupArray(events.tags)))",
+    },
+    userId: {
+      sql: "events.user_id",
+      alias: "userId",
+      type: "string",
+      description: "Identifier of the user triggering the trace.",
+      aggregationFunction:
+        "argMaxIf(events.user_id, events.event_ts, events.user_id <> '')",
+    },
+    sessionId: {
+      sql: "events.session_id",
+      alias: "sessionId",
+      type: "string",
+      description: "Identifier of the session triggering the trace.",
+      aggregationFunction:
+        "argMaxIf(events.session_id, events.event_ts, events.session_id <> '')",
+    },
+    release: {
+      sql: "events.release",
+      alias: "release",
+      type: "string",
+      description: "Release version of the trace.",
+      aggregationFunction:
+        "argMaxIf(events.release, events.event_ts, events.release <> '')",
+    },
+    version: {
+      sql: "events.version",
+      alias: "version",
+      type: "string",
+      description: "Version of the trace.",
+      aggregationFunction:
+        "argMaxIf(events.version, events.event_ts, events.version <> '')",
+    },
+    environment: {
+      sql: "events.environment",
+      alias: "environment",
+      type: "string",
+      description: "Deployment environment (e.g., production, staging).",
+      aggregationFunction:
+        "argMaxIf(events.environment, events.event_ts, events.environment <> '')",
+    },
+    timestampMonth: {
+      sql: "events.start_time",
+      alias: "timestampMonth",
+      type: "string",
+      description: "Month of the trace timestamp in YYYY-MM format.",
+      aggregationFunction: "formatDateTime(min(events.start_time), '%Y-%m')",
+    },
+  },
+  measures: {
+    count: {
+      sql: "count(*)",
+      alias: "count",
+      type: "integer",
+      description: "Total number of traces.",
+      unit: "traces",
+    },
+    observationsCount: {
+      sql: "uniq(events.span_id)",
+      alias: "observationsCount",
+      type: "integer",
+      description: "Unique observations linked to the trace.",
+      unit: "observations",
+    },
+    scoresCount: {
+      sql: "uniq(scores.id)",
+      alias: "scoresCount",
+      type: "integer",
+      relationTable: "scores",
+      description: "Unique scores attached to the trace.",
+      unit: "scores",
+    },
+    uniqueUserIds: {
+      sql: "uniq(events.user_id)",
+      alias: "uniqueUserIds",
+      type: "integer",
+      description: "Count of unique userIds.",
+      unit: "users",
+    },
+    uniqueSessionIds: {
+      sql: "uniq(events.session_id)",
+      alias: "uniqueSessionIds",
+      type: "integer",
+      description: "Count of unique sessionIds.",
+      unit: "sessions",
+    },
+    latency: {
+      sql: "date_diff('microsecond', min(events.start_time), max(events.end_time)) / 1000",
+      alias: "latency",
+      type: "integer",
+      description:
+        "Elapsed time between the first and last observation inside the trace (converted from microseconds to milliseconds).",
+      unit: "millisecond",
+    },
+    totalTokens: {
+      sql: "sumMap(events.usage_details)['total']",
+      alias: "totalTokens",
+      type: "integer",
+      description: "Sum of tokens consumed by all observations in the trace.",
+      unit: "tokens",
+    },
+    totalCost: {
+      sql: "sum(events.total_cost)",
+      alias: "totalCost",
+      type: "decimal",
+      description: "Total cost accumulated across observations in the trace.",
+      unit: "USD",
+    },
+  },
+  tableRelations: {
+    scores: {
+      name: "scores",
+      joinConditionSql:
+        "ON events.trace_id = scores.trace_id AND events.project_id = scores.project_id",
+      timeDimension: "timestamp",
+    },
+  },
+  segments: [],
+  timeDimension: "start_time",
+  baseCte: `events`,
+};
+
 export const observationsView: ViewDeclarationType = {
   name: "observations",
   description:
@@ -480,6 +629,13 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     description: "Identifier of the session.",
   },
   // Trace metadata on events table (accessed via events JOIN)
+  traceName: {
+    sql: "events.trace_name",
+    alias: "traceName",
+    type: "string",
+    relationTable: "events",
+    description: "Name of the parent trace.",
+  },
   userId: {
     sql: "events.user_id",
     alias: "userId",
@@ -494,12 +650,19 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     relationTable: "events",
     description: "User-defined tags.",
   },
-  release: {
+  traceRelease: {
     sql: "events.release",
-    alias: "release",
+    alias: "traceRelease",
     type: "string",
     relationTable: "events",
     description: "Release version.",
+  },
+  traceVersion: {
+    sql: "events.version",
+    alias: "traceVersion",
+    type: "string",
+    relationTable: "events",
+    description: "Version of the parent trace.",
   },
   // Observation fields from events table
   observationName: {
@@ -814,6 +977,27 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Release version.",
     },
+    // Backwards-compatible field definitions (for API parity with v1)
+    traceName: {
+      sql: "events_observations.trace_name",
+      alias: "traceName",
+      type: "string",
+      description: "Name of the parent trace (backwards-compatible with v1).",
+    },
+    traceRelease: {
+      sql: "events_observations.release",
+      alias: "traceRelease",
+      type: "string",
+      description:
+        "Release version of the parent trace (backwards-compatible with v1, maps to denormalized release field).",
+    },
+    traceVersion: {
+      sql: "events_observations.version",
+      alias: "traceVersion",
+      type: "string",
+      description:
+        "Version of the parent trace (backwards-compatible with v1, maps to denormalized version field).",
+    },
     providedModelName: {
       sql: "events_observations.provided_model_name",
       alias: "providedModelName",
@@ -953,19 +1137,11 @@ export const eventsObservationsView: ViewDeclarationType = {
 };
 
 // Define versioned structure type
-// v1 has all views including traces (normalized model with traces table)
-// v2 omits traces (denormalized model with events table only)
+// Both v1 and v2 have all views (traces, observations, scores-numeric, scores-categorical)
+// v1 uses normalized tables (traces, observations), v2 uses events table
 type VersionedViewDeclarations = {
-  readonly v1: {
-    readonly traces: ViewDeclarationType;
-    readonly observations: ViewDeclarationType;
-    readonly "scores-numeric": ViewDeclarationType;
-    readonly "scores-categorical": ViewDeclarationType;
-  };
-  readonly v2: {
-    readonly observations: ViewDeclarationType;
-    readonly "scores-numeric": ViewDeclarationType;
-    readonly "scores-categorical": ViewDeclarationType;
+  readonly [version in ViewVersion]: {
+    readonly [K in z.infer<typeof views>]: ViewDeclarationType;
   };
 };
 
@@ -978,7 +1154,7 @@ export const viewDeclarations: VersionedViewDeclarations = {
     "scores-categorical": scoresCategoricalView,
   },
   v2: {
-    // No traces in v2 - trace metadata is denormalized in events table
+    traces: eventsTracesView,
     observations: eventsObservationsView,
     "scores-numeric": scoresNumericViewV2,
     "scores-categorical": scoresCategoricalViewV2,
