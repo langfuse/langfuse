@@ -43,15 +43,11 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
   if (message.type === "build") {
     try {
-      console.log("[tree-builder.worker] Starting tree build");
       const startTime = performance.now();
 
       const tree = buildTreeFromJSON(message.data, message.config);
 
       const buildTime = performance.now() - startTime;
-      console.log(
-        `[tree-builder.worker] Build completed in ${buildTime.toFixed(2)}ms`,
-      );
 
       // Send success response
       const response: SuccessMessage = {
