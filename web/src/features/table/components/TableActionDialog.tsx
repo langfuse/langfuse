@@ -66,7 +66,12 @@ export function TableActionDialog({
   );
 
   const handleConfirm = async () => {
-    await action.execute({ projectId, targetId: form.getValues().targetId });
+    if ("execute" in action) {
+      await action.execute({
+        projectId,
+        targetId: form.getValues().targetId,
+      });
+    }
     setSelectAll(false);
     onClose();
   };

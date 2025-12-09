@@ -16,6 +16,7 @@ const ActionIdSchema = z.enum([
   "trace-add-to-annotation-queue",
   "session-add-to-annotation-queue",
   "observation-add-to-annotation-queue",
+  "observation-add-to-dataset",
 ]);
 
 export type ActionId = z.infer<typeof ActionIdSchema>;

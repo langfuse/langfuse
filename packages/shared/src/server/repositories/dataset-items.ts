@@ -374,7 +374,7 @@ export async function deleteDatasetItem(props: {
 
 /**
  * Bulk creates multiple dataset items with validation.
- * Validates all items before insertion - if any fail, none are inserted.
+ * Validates all items before insertion - if any fail, none are inserted (unless allowPartialSuccess is true).
  *
  * **Performance:** Compiles schemas once per dataset (not per item), providing
  * 3800x+ speedup over individual validations.
@@ -388,6 +388,7 @@ export async function deleteDatasetItem(props: {
  * to original CSV rows or API payloads for user-friendly error reporting.
  *
  * @param props.items - Can contain items from multiple datasets
+ * @param props.allowPartialSuccess - If true, create valid items even if some fail validation
  * @returns Success with all created items, or validation errors with indices
  */
 export async function createManyDatasetItems(props: {
@@ -395,10 +396,12 @@ export async function createManyDatasetItems(props: {
   items: CreateManyItemsPayload;
   normalizeOpts: { sanitizeControlChars?: boolean };
   validateOpts: { normalizeUndefinedToNull?: boolean };
+  allowPartialSuccess?: boolean;
 }): Promise<
   | {
       success: true;
       datasetItems: CreateManyItemsInsert;
+      validationErrors?: CreateManyValidationError[];
     }
   | {
       success: false;
@@ -508,8 +511,8 @@ export async function createManyDatasetItems(props: {
     }
   }
 
-  // 4. If any validation errors, return early
-  if (validationErrors.length > 0) {
+  // 4. If any validation errors and partial success not allowed, return early
+  if (validationErrors.length > 0 && !props.allowPartialSuccess) {
     return {
       success: false,
       validationErrors,
@@ -517,9 +520,21 @@ export async function createManyDatasetItems(props: {
   }
 
   // 5. Bulk insert all valid items
-  await prisma.datasetItem.createMany({
-    data: preparedItems.map(toPostgresDatasetItem),
-  });
+  if (preparedItems.length > 0) {
+    await prisma.datasetItem.createMany({
+      data: preparedItems.map(toPostgresDatasetItem),
+    });
+  }
+
+  // 6. Return appropriate response
+  if (validationErrors.length > 0 && props.allowPartialSuccess) {
+    // Partial success: some items created, some failed
+    return {
+      success: true,
+      datasetItems: preparedItems,
+      validationErrors,
+    };
+  }
 
   return {
     success: true,

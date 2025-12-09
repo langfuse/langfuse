@@ -67,6 +67,7 @@ import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { AddObservationsToDatasetDialog } from "@/src/features/table-batch-actions/components/AddObservationsToDatasetDialog/index";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -134,6 +135,7 @@ export default function ObservationsTable({
     useFullTextSearch();
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
+  const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
@@ -484,6 +486,16 @@ export default function ObservationsTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
+      },
+    },
+    {
+      id: "observation-add-to-dataset",
+      type: BatchActionType.Create,
+      label: "Add to Dataset",
+      description: "Add selected observations to a dataset",
+      customDialog: true,
+      accessCheck: {
+        scope: "datasets:CUD",
       },
     },
   ];
@@ -1200,6 +1212,11 @@ export default function ObservationsTable({
                 projectId={projectId}
                 actions={tableActions}
                 tableName={BatchExportTableName.Observations}
+                onCustomAction={(actionType) => {
+                  if (actionType === "observation-add-to-dataset") {
+                    setShowAddToDatasetDialog(true);
+                  }
+                }}
               />
             ) : null,
           ]}
@@ -1287,6 +1304,29 @@ export default function ObservationsTable({
           </div>
         </ResizableFilterLayout>
       </div>
+
+      {/* Add to Dataset Dialog */}
+      {showAddToDatasetDialog && (
+        <AddObservationsToDatasetDialog
+          projectId={projectId}
+          selectedObservationIds={Object.keys(selectedRows).filter((id) =>
+            generations.data?.generations.map((g) => g.id).includes(id),
+          )}
+          query={{
+            filter: backendFilterState,
+            orderBy: orderByState,
+            searchQuery: searchQuery ?? undefined,
+            searchType,
+          }}
+          selectAll={selectAll}
+          totalCount={totalCount ?? 0}
+          onClose={() => {
+            setShowAddToDatasetDialog(false);
+            setSelectedRows({});
+            setSelectAll(false);
+          }}
+        />
+      )}
     </DataTableControlsProvider>
   );
 }

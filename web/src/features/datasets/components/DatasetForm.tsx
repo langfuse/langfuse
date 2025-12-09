@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Input } from "@/src/components/ui/input";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import {
@@ -41,8 +41,12 @@ type ServerSideSchemaValidationErrors = {
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
   projectId: string;
-  onFormSuccess?: () => void;
+  onFormSuccess?: (datasetId?: string, datasetName?: string) => void;
   className?: string;
+  redirectOnSuccess?: boolean;
+  showFooter?: boolean;
+  onValidationChange?: (isValid: boolean, isSubmitting: boolean) => void;
+  onSubmitHandlerReady?: (handler: () => void) => void;
 }
 
 interface CreateDatasetFormProps extends BaseDatasetFormProps {
@@ -180,6 +184,40 @@ export const DatasetForm = (props: DatasetFormProps) => {
     whitelistedName: props.mode === "update" ? props.datasetName : undefined,
   });
 
+  // Report validation state to parent
+  useEffect(() => {
+    if (props.onValidationChange) {
+      const isValid = form.formState.isValid && !form.formState.errors.name;
+      const isSubmitting =
+        (props.mode === "create" && createMutation.isPending) ||
+        (props.mode === "update" && updateMutation.isPending) ||
+        (props.mode === "delete" && deleteMutation.isPending);
+      props.onValidationChange(isValid, isSubmitting);
+    }
+  }, [
+    form.formState.isValid,
+    form.formState.errors.name,
+    createMutation.isPending,
+    updateMutation.isPending,
+    deleteMutation.isPending,
+    props,
+  ]);
+
+  // Provide submit handler to parent
+  useEffect(() => {
+    if (props.onSubmitHandlerReady) {
+      props.onSubmitHandlerReady(() => {
+        if (props.mode === "delete") {
+          handleDelete(new Event("submit") as React.FormEvent);
+        } else {
+          form.handleSubmit(onSubmit)();
+        }
+      });
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     // Parse schemas if they're not empty (tRPC expects objects for DatasetJSONSchema)
     const inputSchema =
@@ -209,11 +247,13 @@ export const DatasetForm = (props: DatasetFormProps) => {
           if (result.success) {
             // Success - navigate to dataset items
             void utils.datasets.invalidate();
-            props.onFormSuccess?.();
+            props.onFormSuccess?.(result.dataset.id, result.dataset.name);
             form.reset();
-            router.push(
-              `/project/${props.projectId}/datasets/${result.dataset.id}/items`,
-            );
+            if (props.redirectOnSuccess !== false) {
+              router.push(
+                `/project/${props.projectId}/datasets/${result.dataset.id}/items`,
+              );
+            }
           } else {
             // Validation failed - show errors
             setServerSideSchemaValidationErrors(result.validationErrors);
@@ -291,7 +331,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
         }
         className="flex h-full min-h-0 flex-col"
       >
-        <DialogBody>
+        <DialogBody className={props.showFooter === false ? "p-0" : undefined}>
           {props.mode === "delete" ? (
             <div className="mb-8 grid w-full gap-1.5">
               <Label htmlFor="delete-confirmation">
@@ -395,32 +435,34 @@ export const DatasetForm = (props: DatasetFormProps) => {
             </div>
           )}
         </DialogBody>
-        <DialogFooter>
-          <div className="flex w-full flex-col gap-4">
-            <Button
-              type="submit"
-              variant={props.mode === "delete" ? "destructive" : "default"}
-              disabled={!!form.formState.errors.name}
-              loading={
-                (props.mode === "create" && createMutation.isPending) ||
-                (props.mode === "update" && updateMutation.isPending) ||
-                (props.mode === "delete" && deleteMutation.isPending)
-              }
-              className="w-full"
-            >
-              {props.mode === "create"
-                ? "Create dataset"
-                : props.mode === "delete"
-                  ? "Delete Dataset"
-                  : "Update dataset"}
-            </Button>
-            {formError && (
-              <p className="mt-4 text-center text-sm text-red-500">
-                <span className="font-bold">Error:</span> {formError}
-              </p>
-            )}
-          </div>
-        </DialogFooter>
+        {props.showFooter !== false && (
+          <DialogFooter>
+            <div className="flex w-full flex-col gap-4">
+              <Button
+                type="submit"
+                variant={props.mode === "delete" ? "destructive" : "default"}
+                disabled={!!form.formState.errors.name}
+                loading={
+                  (props.mode === "create" && createMutation.isPending) ||
+                  (props.mode === "update" && updateMutation.isPending) ||
+                  (props.mode === "delete" && deleteMutation.isPending)
+                }
+                className="w-full"
+              >
+                {props.mode === "create"
+                  ? "Create dataset"
+                  : props.mode === "delete"
+                    ? "Delete Dataset"
+                    : "Update dataset"}
+              </Button>
+              {formError && (
+                <p className="mt-4 text-center text-sm text-red-500">
+                  <span className="font-bold">Error:</span> {formError}
+                </p>
+              )}
+            </div>
+          </DialogFooter>
+        )}
       </form>
     </Form>
   );
