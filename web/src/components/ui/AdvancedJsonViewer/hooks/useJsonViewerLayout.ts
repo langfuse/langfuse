@@ -101,7 +101,16 @@ export function useJsonViewerLayout({
       // Max 600px for value area - forces long lines to wrap
       return maxIndent + 600;
     }
-    // No maximum for nowrap and truncate modes
+    if (stringWrapMode === "truncate" && tree) {
+      // Cap width for truncate mode to trigger truncation component
+      // Cap depth at 20 levels to prevent excessive width from deeply nested data
+      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
+      const cappedDepth = Math.min(maxDepth, 20);
+      const maxIndent = cappedDepth * theme.indentSize;
+      // Max 800px for value area - allows truncated strings to display comfortably
+      return maxIndent + 800;
+    }
+    // No maximum for nowrap mode
     return undefined;
   }, [stringWrapMode, tree, theme]);
 

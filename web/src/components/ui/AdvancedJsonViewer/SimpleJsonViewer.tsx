@@ -147,7 +147,7 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
               style={{
                 display: "grid",
                 gridTemplateColumns: `${fixedColumnWidth}px auto`,
-                width: stringWrapMode === "truncate" ? undefined : "100%",
+                width: stringWrapMode === "nowrap" ? undefined : "100%",
               }}
             >
               {/* Fixed column (line numbers + expand buttons) - sticky within row */}
