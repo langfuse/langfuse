@@ -12,7 +12,7 @@ import { NewDatasetItemButton } from "@/src/features/datasets/components/NewData
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
-import { MoreVertical } from "lucide-react";
+import { Clock, MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
@@ -21,11 +21,17 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
+import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
+import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/DatasetVersionHistoryPanel";
+import { useState } from "react";
+import { DatasetVersionProvider } from "@/src/features/datasets/hooks/useDatasetVersion";
 
-export default function DatasetItems() {
+function DatasetItemsView() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
+
+  const [isVersionPanelOpen, setIsVersionPanelOpen] = useState(false);
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -39,6 +45,10 @@ export default function DatasetItems() {
 
   const showOnboarding =
     totalDatasetItemCount.isSuccess && totalDatasetItemCount.data === 0;
+
+  const handlePanelOpenChange = (open: boolean) => {
+    setIsVersionPanelOpen(open);
+  };
 
   return (
     <Page
@@ -59,6 +69,14 @@ export default function DatasetItems() {
         },
         actionButtonsRight: (
           <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
+              title="Version History"
+            >
+              <Clock className="h-4 w-4" />
+            </Button>
             {!showOnboarding && (
               <>
                 <NewDatasetItemButton
@@ -128,8 +146,35 @@ export default function DatasetItems() {
       {showOnboarding ? (
         <DatasetItemsOnboarding projectId={projectId} datasetId={datasetId} />
       ) : (
-        <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
+        <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden">
+          <div className="flex h-full flex-col overflow-hidden">
+            <DatasetItemsTable projectId={projectId} datasetId={datasetId} />
+          </div>
+          <SidePanel
+            id="version-history-panel"
+            openState={{
+              open: isVersionPanelOpen,
+              onOpenChange: handlePanelOpenChange,
+            }}
+            mobileTitle="Version History"
+          >
+            <SidePanelContent className="h-full">
+              <DatasetVersionHistoryPanel
+                projectId={projectId}
+                datasetId={datasetId}
+              />
+            </SidePanelContent>
+          </SidePanel>
+        </div>
       )}
     </Page>
+  );
+}
+
+export default function DatasetItems() {
+  return (
+    <DatasetVersionProvider>
+      <DatasetItemsView />
+    </DatasetVersionProvider>
   );
 }

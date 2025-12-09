@@ -59,6 +59,10 @@ import {
   getDatasetItemsCountByLatest,
   getDatasetItemsCountByLatestGrouped,
   createDatasetItemFilterState,
+  executeWithDatasetServiceStrategy,
+  OperationType,
+  Implementation,
+  listDatasetVersions,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -675,6 +679,14 @@ export const datasetRouter = createTRPCRouter({
         }),
       });
     }),
+  listDatasetVersions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetId: z.string() }))
+    .query(async ({ input }) => {
+      return await listDatasetVersions({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+      });
+    }),
   itemsByDatasetId: protectedProjectProcedure
     .input(
       z.object({
@@ -683,6 +695,7 @@ export const datasetRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullish(),
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
+        version: z.date().optional(),
         ...paginationZod,
       }),
     )

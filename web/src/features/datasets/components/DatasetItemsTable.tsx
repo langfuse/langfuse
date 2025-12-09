@@ -36,6 +36,8 @@ import { BatchExportTableName } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useDatasetVersion } from "../hooks/useDatasetVersion";
+import { DatasetVersionWarningBanner } from "./DatasetVersionWarningBanner";
 
 type RowData = {
   id: string;
@@ -83,6 +85,7 @@ export function DatasetItemsTable({
     useFullTextSearch();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
+  const { selectedVersion, resetToLatest } = useDatasetVersion();
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
@@ -92,6 +95,7 @@ export function DatasetItemsTable({
     limit: paginationState.pageSize,
     searchQuery: searchQuery ?? undefined,
     searchType: searchType,
+    version: selectedVersion ?? undefined,
   });
 
   useEffect(() => {
@@ -358,8 +362,18 @@ export function DatasetItemsTable({
   const setFilterStateWithDebounce = useDebounce(setFilterState);
   const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
 
+  const isViewingOldVersion = selectedVersion !== null;
+
   return (
     <>
+      {isViewingOldVersion && selectedVersion && (
+        <DatasetVersionWarningBanner
+          selectedVersion={selectedVersion}
+          resetToLatest={resetToLatest}
+          variant="inline"
+          className="mb-4"
+        />
+      )}
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={datasetItemFilterColumns}

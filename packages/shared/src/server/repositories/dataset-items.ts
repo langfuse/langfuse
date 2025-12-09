@@ -996,13 +996,13 @@ function buildDatasetItemsLatestQuery(
         di.id,
         di.project_id,
         di.dataset_id,
+        di.valid_from,
         ${ioFieldsCTE}
         di.source_trace_id,
         di.source_observation_id,
         di.status,
         di.created_at,
         di.updated_at,
-        di.valid_from,
         di.is_deleted
       FROM dataset_items di
       WHERE di.project_id = ${projectId}
@@ -1013,6 +1013,7 @@ function buildDatasetItemsLatestQuery(
       di.id,
       di.project_id,
       di.dataset_id,
+      di.valid_from,
       ${ioFieldsOuter}
       di.source_trace_id,
       di.source_observation_id,
@@ -1525,6 +1526,40 @@ export async function getDatasetItemsCountByLatestGrouped(props: {
         datasetIds: props.datasetIds,
       });
       return results;
+    },
+  });
+}
+
+/**
+ * Lists all distinct validFrom timestamps for dataset items in a dataset.
+ * These timestamps represent the different versions of the dataset.
+ * Returns timestamps in descending order (newest first).
+ *
+ * @returns Array of Date objects representing dataset versions
+ */
+export async function listDatasetVersions(props: {
+  projectId: string;
+  datasetId: string;
+}): Promise<Date[]> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      // In STATEFUL mode, there are no versions
+      // Return empty array or could return array with single date
+      return [];
+    },
+    [Implementation.VERSIONED]: async () => {
+      // Get all distinct validFrom timestamps for this dataset
+      const result = await prisma.$queryRaw<Array<{ valid_from: Date }>>(
+        Prisma.sql`
+          SELECT DISTINCT valid_from
+          FROM dataset_items
+          WHERE project_id = ${props.projectId}
+            AND dataset_id = ${props.datasetId}
+          ORDER BY valid_from DESC
+        `,
+      );
+
+      return result.map((row) => row.valid_from);
     },
   });
 }
