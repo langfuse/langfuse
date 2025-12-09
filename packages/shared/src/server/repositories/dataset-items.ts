@@ -1563,3 +1563,37 @@ export async function listDatasetVersions(props: {
     },
   });
 }
+
+/**
+ * Gets the version history for a specific dataset item.
+ * Returns all distinct validFrom timestamps when item was modified.
+ * Only applicable in VERSIONED mode.
+ *
+ * @returns Array of Date objects representing when item changed
+ */
+export async function getDatasetItemVersionHistory(props: {
+  projectId: string;
+  datasetId: string;
+  itemId: string;
+}): Promise<Date[]> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      // In STATEFUL mode, there's no version history
+      return [];
+    },
+    [Implementation.VERSIONED]: async () => {
+      const result = await prisma.$queryRaw<Array<{ valid_from: Date }>>(
+        Prisma.sql`
+          SELECT DISTINCT valid_from
+          FROM dataset_items
+          WHERE project_id = ${props.projectId}
+            AND dataset_id = ${props.datasetId}
+            AND id = ${props.itemId}
+          ORDER BY valid_from DESC
+        `,
+      );
+
+      return result.map((row) => row.valid_from);
+    },
+  });
+}

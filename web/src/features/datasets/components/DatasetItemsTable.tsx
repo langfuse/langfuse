@@ -21,7 +21,7 @@ import {
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -38,6 +38,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { DatasetVersionWarningBanner } from "./DatasetVersionWarningBanner";
+import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
 
 type RowData = {
   id: string;
@@ -86,6 +87,10 @@ export function DatasetItemsTable({
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
   const { selectedVersion, resetToLatest } = useDatasetVersion();
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedItemForEdit, setSelectedItemForEdit] = useState<string | null>(
+    null,
+  );
 
   const items = api.datasets.itemsByDatasetId.useQuery({
     projectId,
@@ -116,6 +121,28 @@ export function DatasetItemsTable({
   const mutDelete = api.datasets.deleteDatasetItem.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
   });
+
+  // Fetch selected item and dataset for edit dialog
+  const selectedItem = api.datasets.itemById.useQuery(
+    {
+      projectId,
+      datasetId,
+      datasetItemId: selectedItemForEdit!,
+    },
+    {
+      enabled: selectedItemForEdit !== null && editDialogOpen,
+    },
+  );
+
+  const dataset = api.datasets.byId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    {
+      enabled: editDialogOpen,
+    },
+  );
 
   const columns: LangfuseColumnDef<RowData>[] = [
     {
@@ -254,9 +281,8 @@ export function DatasetItemsTable({
               <DropdownMenuItem
                 disabled={!hasAccess}
                 onClick={() => {
-                  router.push(
-                    `/project/${projectId}/datasets/${datasetId}/items/${id}`,
-                  );
+                  setSelectedItemForEdit(id);
+                  setEditDialogOpen(true);
                 }}
               >
                 <Edit className="mr-2 h-4 w-4" />
@@ -430,6 +456,27 @@ export function DatasetItemsTable({
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         rowHeight={rowHeight}
+      />
+      <EditDatasetItemDialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) {
+            setSelectedItemForEdit(null);
+          }
+        }}
+        projectId={projectId}
+        datasetItem={selectedItem.data ?? null}
+        dataset={
+          dataset.data
+            ? {
+                id: dataset.data.id,
+                name: dataset.data.name,
+                inputSchema: dataset.data.inputSchema ?? null,
+                expectedOutputSchema: dataset.data.expectedOutputSchema ?? null,
+              }
+            : null
+        }
       />
     </>
   );

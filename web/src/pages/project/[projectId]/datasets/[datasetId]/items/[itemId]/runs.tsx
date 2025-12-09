@@ -2,8 +2,9 @@ import { useRouter } from "next/router";
 import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/DatasetRunItemsByItemTable";
 import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
+import { DatasetVersionProvider } from "@/src/features/datasets/hooks/useDatasetVersion";
 
-export default function Dataset() {
+function DatasetItemRuns() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -20,5 +21,13 @@ export default function Dataset() {
         datasetId={datasetId}
       />
     </DatasetItemDetailPage>
+  );
+}
+
+export default function Dataset() {
+  return (
+    <DatasetVersionProvider>
+      <DatasetItemRuns />
+    </DatasetVersionProvider>
   );
 }

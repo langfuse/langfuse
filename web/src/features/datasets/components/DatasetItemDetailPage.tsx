@@ -3,7 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
-import { ListTree, MoreVertical, Trash2 } from "lucide-react";
+import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { DatasetStatus } from "@langfuse/shared";
@@ -25,6 +25,8 @@ import { getDatasetItemTabs } from "@/src/features/navigation/utils/dataset-item
 import { type DatasetItemTab } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { type ReactNode } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
+import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 
 export const DatasetItemDetailPage = ({
   activeTab,
@@ -43,6 +45,9 @@ export const DatasetItemDetailPage = ({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const [isArchivePopoverOpen, setIsArchivePopoverOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const { selectedVersion } = useDatasetVersion();
+  const isViewingOldVersion = selectedVersion !== null;
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -220,8 +225,17 @@ export const DatasetItemDetailPage = ({
               </DropdownMenuTrigger>
               <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
                 <DropdownMenuItem
+                  onClick={() => setEditDialogOpen(true)}
+                  disabled={!hasAccess || isViewingOldVersion}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={handleDelete}
-                  disabled={!hasAccess || mutDelete.isPending}
+                  disabled={
+                    !hasAccess || mutDelete.isPending || isViewingOldVersion
+                  }
                   className="text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -234,6 +248,22 @@ export const DatasetItemDetailPage = ({
       }}
     >
       {children}
+      <EditDatasetItemDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        projectId={projectId}
+        datasetItem={item.data ?? null}
+        dataset={
+          dataset.data
+            ? {
+                id: dataset.data.id,
+                name: dataset.data.name,
+                inputSchema: dataset.data.inputSchema ?? null,
+                expectedOutputSchema: dataset.data.expectedOutputSchema ?? null,
+              }
+            : null
+        }
+      />
     </Page>
   );
 };

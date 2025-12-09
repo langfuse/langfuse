@@ -63,6 +63,7 @@ import {
   OperationType,
   Implementation,
   listDatasetVersions,
+  getDatasetItemVersionHistory,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -685,6 +686,21 @@ export const datasetRouter = createTRPCRouter({
       return await listDatasetVersions({
         projectId: input.projectId,
         datasetId: input.datasetId,
+      });
+    }),
+  itemVersionHistory: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        itemId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await getDatasetItemVersionHistory({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        itemId: input.itemId,
       });
     }),
   itemsByDatasetId: protectedProjectProcedure

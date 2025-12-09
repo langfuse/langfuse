@@ -23,6 +23,7 @@ import { DatasetVersionWarningBanner } from "./DatasetVersionWarningBanner";
 type DatasetVersionHistoryPanelProps = {
   projectId: string;
   datasetId: string;
+  itemVersions?: Date[]; // Optional: versions where a specific item changed
 };
 
 type GroupedVersions = {
@@ -36,7 +37,6 @@ type GroupedVersions = {
 function groupVersionsByTime(versions: Date[]): GroupedVersions {
   const now = new Date();
   const dayStart = startOfDay(now);
-  const yesterdayStart = startOfDay(subDays(now, 1));
   const sevenDaysAgo = subDays(now, 7);
   const thirtyDaysAgo = subDays(now, 30);
 
@@ -61,6 +61,7 @@ function groupVersionsByTime(versions: Date[]): GroupedVersions {
 export function DatasetVersionHistoryPanel({
   projectId,
   datasetId,
+  itemVersions,
 }: DatasetVersionHistoryPanelProps) {
   const { selectedVersion, setSelectedVersion, resetToLatest } =
     useDatasetVersion();
@@ -102,6 +103,11 @@ export function DatasetVersionHistoryPanel({
       selectedVersion?.getTime() === version.getTime() ||
       (isLatest && !selectedVersion);
 
+    // Check if this version has item-specific changes
+    const isItemVersion = itemVersions?.some(
+      (iv) => iv.getTime() === version.getTime(),
+    );
+
     return (
       <button
         key={version.toISOString()}
@@ -118,9 +124,17 @@ export function DatasetVersionHistoryPanel({
         )}
       >
         <div className="flex w-full items-center justify-between gap-2">
-          <span className={cn("truncate", isSelected && "text-foreground")}>
-            {format(version, "MMM d, yyyy 'at' h:mm a")}
-          </span>
+          <div className="flex min-w-0 items-center gap-2">
+            {isItemVersion && (
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                title="Item modified in this version"
+              />
+            )}
+            <span className={cn("truncate", isSelected && "text-foreground")}>
+              {format(version, "MMM d, yyyy 'at' h:mm a")}
+            </span>
+          </div>
           {isLatest && (
             <span className="shrink-0 rounded-md bg-accent-light-green px-2 py-0.5 text-xs font-medium text-accent-dark-green dark:bg-accent-dark-green dark:text-accent-light-green">
               Latest
