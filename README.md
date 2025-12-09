@@ -18,6 +18,7 @@
       </h3>
    </div>
 
+
    <div>
       <a href="https://langfuse.com/docs"><strong>Docs</strong></a> ·
       <a href="https://langfuse.com/issues"><strong>Report Bug</strong></a> ·
