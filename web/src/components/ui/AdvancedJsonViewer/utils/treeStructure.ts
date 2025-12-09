@@ -15,6 +15,10 @@ import type { ExpansionState } from "../types";
 import { getJSONType, isExpandable, getChildren } from "./jsonTypes";
 import { joinPath } from "./pathUtils";
 import { debugLog } from "./debug";
+import {
+  calculateNodeWidth,
+  type WidthEstimatorConfig,
+} from "./calculateWidth";
 
 /**
  * Size threshold for sync vs Web Worker
@@ -71,6 +75,8 @@ export interface TreeState {
   nodeMap: Map<string, TreeNode>; // Fast lookup by ID
   allNodes: TreeNode[]; // Flat array for search (pre-order traversal)
   totalNodeCount: number; // Total nodes in tree (when fully expanded)
+  maxDepth: number; // Maximum depth across entire tree (including collapsed nodes)
+  maxContentWidth: number; // Maximum pixel width needed for any row (for horizontal scrolling)
 }
 
 /**
@@ -454,12 +460,51 @@ function computeOffsetsIterative(rootNode: TreeNode): void {
 }
 
 /**
+ * Calculate tree dimensions (PASS 4: Width calculation)
+ *
+ * Iterates through all nodes to find:
+ * - Maximum depth across entire tree
+ * - Maximum content width needed for any row
+ *
+ * This ensures width is stable regardless of expansion state.
+ *
+ * @param allNodes - All nodes in pre-order (from PASS 1.5)
+ * @param config - Width estimation configuration
+ * @param truncateAt - Truncate strings longer than this (null = no truncation)
+ * @returns Dimensions metadata
+ */
+function calculateTreeDimensions(
+  allNodes: TreeNode[],
+  config: WidthEstimatorConfig,
+  truncateAt: number | null,
+): { maxDepth: number; maxContentWidth: number } {
+  let maxDepth = 0;
+  let maxContentWidth = 0;
+
+  for (const node of allNodes) {
+    // Track maximum depth
+    if (node.depth > maxDepth) {
+      maxDepth = node.depth;
+    }
+
+    // Calculate width for this node
+    const nodeWidth = calculateNodeWidth(node, config, truncateAt);
+    if (nodeWidth > maxContentWidth) {
+      maxContentWidth = nodeWidth;
+    }
+  }
+
+  return { maxDepth, maxContentWidth };
+}
+
+/**
  * Build complete tree from JSON data
  *
- * Three-pass build:
+ * Four-pass build:
  * 1. Build structure (nodes, children, hierarchy)
  * 2. Apply expansion state (isExpanded, userExpand)
  * 3. Compute offsets (childOffsets, visibleDescendantCount)
+ * 4. Calculate dimensions (maxDepth, maxContentWidth)
  *
  * All passes use ITERATIVE traversal (no recursion).
  *
@@ -473,9 +518,11 @@ export function buildTreeFromJSON(
     rootKey: string;
     initialExpansion: ExpansionState;
     expandDepth?: number;
+    widthEstimator?: WidthEstimatorConfig;
+    truncateStringsAt?: number | null;
   },
 ): TreeState {
-  debugLog("[buildTreeFromJSON] Starting three-pass build");
+  debugLog("[buildTreeFromJSON] Starting four-pass build");
   const totalStartTime = performance.now();
 
   // PASS 1: Build structure
@@ -498,10 +545,25 @@ export function buildTreeFromJSON(
   // PASS 3: Compute offsets
   computeOffsetsIterative(rootNode);
 
+  // PASS 4: Calculate dimensions (maxDepth, maxContentWidth)
+  // Use default config if not provided
+  const widthConfig: WidthEstimatorConfig = config.widthEstimator ?? {
+    charWidthPx: 6.2,
+    indentSizePx: 16,
+    extraBufferPx: 50,
+  };
+  const { maxDepth, maxContentWidth } = calculateTreeDimensions(
+    allNodes,
+    widthConfig,
+    config.truncateStringsAt ?? null,
+  );
+
   const totalTime = performance.now() - totalStartTime;
-  debugLog("[buildTreeFromJSON] Completed three-pass build:", {
+  debugLog("[buildTreeFromJSON] Completed four-pass build:", {
     totalTime: `${totalTime.toFixed(2)}ms`,
     totalNodes: allNodes.length,
+    maxDepth,
+    maxContentWidth: `${maxContentWidth.toFixed(0)}px`,
   });
 
   return {
@@ -509,6 +571,8 @@ export function buildTreeFromJSON(
     nodeMap,
     allNodes,
     totalNodeCount: allNodes.length,
+    maxDepth,
+    maxContentWidth,
   };
 }
 

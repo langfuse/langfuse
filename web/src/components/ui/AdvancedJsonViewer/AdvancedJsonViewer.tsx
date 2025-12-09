@@ -83,6 +83,8 @@ export function AdvancedJsonViewer({
     handleToggleExpansion: treeHandleToggleExpansion,
   } = useTreeState(data, field, initialExpansion, {
     rootKey: "root",
+    indentSizePx: theme.indentSize,
+    truncateStringsAt,
   });
 
   // Search matches

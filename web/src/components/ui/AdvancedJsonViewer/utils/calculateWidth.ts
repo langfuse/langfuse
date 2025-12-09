@@ -6,6 +6,7 @@
  */
 
 import type { FlatJSONRow, JSONTheme } from "../types";
+import type { TreeNode } from "./treeStructure";
 
 /**
  * Approximate character width in pixels for monospace font
@@ -107,4 +108,55 @@ export function calculateMinimumWidth(
 
   // Add some buffer for safety
   return Math.ceil(maxWidth * 1.1); // 10% buffer
+}
+
+/**
+ * Configuration for width estimation
+ */
+export interface WidthEstimatorConfig {
+  charWidthPx: number; // Character width in pixels (default: 6.2)
+  indentSizePx: number; // Indent size in pixels (from theme)
+  extraBufferPx: number; // Extra buffer for buttons, badges, etc (default: 50)
+}
+
+/**
+ * Calculate pixel width needed for a single tree node
+ *
+ * Similar to calculateRowWidth but operates on TreeNode instead of FlatJSONRow.
+ * Used during tree building to calculate maxContentWidth.
+ *
+ * @param node - The tree node
+ * @param config - Width estimation configuration
+ * @param truncateAt - Truncate strings longer than this (null = no truncation)
+ * @returns Estimated width in pixels
+ */
+export function calculateNodeWidth(
+  node: TreeNode,
+  config: WidthEstimatorConfig,
+  truncateAt: number | null,
+): number {
+  // Components in scrollable column:
+  // 1. Indentation (depth * indentSize)
+  const indentWidth = node.depth * config.indentSizePx;
+
+  // 2. Key name (string or number)
+  const keyLength = String(node.key).length;
+
+  // 3. Colon + space (": ")
+  const colonWidth = 2 * config.charWidthPx;
+
+  // 4. Value
+  const valueLength = getValueDisplayLength(node.value, truncateAt);
+
+  // 5. Padding (right side only, left is indent)
+  const paddingWidth = 4;
+
+  // Total character-based width
+  const charCount = keyLength + valueLength;
+  const charWidth = charCount * config.charWidthPx;
+
+  // Total width
+  return (
+    indentWidth + colonWidth + charWidth + paddingWidth + config.extraBufferPx
+  );
 }

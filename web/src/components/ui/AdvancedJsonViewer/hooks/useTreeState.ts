@@ -37,6 +37,8 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 interface UseTreeStateConfig {
   rootKey?: string;
   expandDepth?: number;
+  indentSizePx?: number; // Theme indent size for width calculation
+  truncateStringsAt?: number | null; // Truncation length for width calculation
 }
 
 /**
@@ -57,11 +59,7 @@ interface UseTreeStateReturn {
  */
 async function buildTreeInWorker(
   data: unknown,
-  config: {
-    rootKey: string;
-    initialExpansion: ExpansionState;
-    expandDepth?: number;
-  },
+  config: Parameters<typeof buildTreeFromJSON>[1],
   dataSize: number,
 ): Promise<{ tree: TreeState; buildTime: number }> {
   debugLog(
@@ -139,7 +137,12 @@ export function useTreeState(
   initialExpansion: ExpansionState = true,
   config: UseTreeStateConfig = {},
 ): UseTreeStateReturn {
-  const { rootKey = "root", expandDepth } = config;
+  const {
+    rootKey = "root",
+    expandDepth,
+    indentSizePx = 16,
+    truncateStringsAt = null,
+  } = config;
 
   // Estimate data size once
   const dataSize = useMemo(() => estimateNodeCount(data), [data]);
@@ -169,6 +172,12 @@ export function useTreeState(
       rootKey,
       initialExpansion: expansionFromStorage,
       expandDepth,
+      widthEstimator: {
+        charWidthPx: 6.2,
+        indentSizePx,
+        extraBufferPx: 50,
+      },
+      truncateStringsAt,
     });
     const buildTime = performance.now() - startTime;
 
@@ -177,15 +186,41 @@ export function useTreeState(
     );
 
     return { tree, buildTime };
-  }, [data, dataSize, rootKey, expandDepth, expansionFromStorage]);
+  }, [
+    data,
+    dataSize,
+    rootKey,
+    expandDepth,
+    expansionFromStorage,
+    indentSizePx,
+    truncateStringsAt,
+  ]);
 
   // For large datasets, use React Query + Web Worker
   const asyncTreeQuery = useQuery({
-    queryKey: ["tree-build", data, rootKey, expandDepth, expansionFromStorage],
+    queryKey: [
+      "tree-build",
+      data,
+      rootKey,
+      expandDepth,
+      expansionFromStorage,
+      indentSizePx,
+      truncateStringsAt,
+    ],
     queryFn: () =>
       buildTreeInWorker(
         data,
-        { rootKey, initialExpansion: expansionFromStorage, expandDepth },
+        {
+          rootKey,
+          initialExpansion: expansionFromStorage,
+          expandDepth,
+          widthEstimator: {
+            charWidthPx: 6.2,
+            indentSizePx,
+            extraBufferPx: 50,
+          },
+          truncateStringsAt,
+        },
         dataSize,
       ),
     enabled: dataSize > TREE_BUILD_THRESHOLD,

@@ -127,6 +127,13 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
+  // Calculate total content width from tree metadata (includes entire tree, not just visible rows)
+  const totalContentWidth = useMemo(() => {
+    if (!tree) return undefined;
+    // Total width = fixed column + scrollable content
+    return fixedColumnWidth + tree.maxContentWidth;
+  }, [tree, fixedColumnWidth]);
+
   return (
     <div
       ref={parentRef}
@@ -143,6 +150,7 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
           position: "relative",
+          width: totalContentWidth ? `${totalContentWidth}px` : "max-content",
         }}
       >
         {virtualRows.map((virtualRow) => {
@@ -167,7 +175,7 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
                 position: "absolute",
                 top: 0,
                 left: 0,
-                width: stringWrapMode === "wrap" ? "100%" : undefined,
+                width: totalContentWidth ? `${totalContentWidth}px` : "100%",
                 transform: `translateY(${virtualRow.start}px)`,
                 display: "grid",
                 gridTemplateColumns: `${fixedColumnWidth}px auto`,
@@ -199,6 +207,7 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
               {/* Scrollable column (indent + key + value + badges + copy) */}
               <div
                 style={{
+                  width: "fit-content",
                   minWidth: scrollableMinWidth
                     ? `${scrollableMinWidth}px`
                     : undefined,
