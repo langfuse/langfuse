@@ -30,6 +30,10 @@ export type KeyValueMappingEntry = {
   key: string;
   sourceField: SourceField;
   value: string; // JSON path if starts with $, else literal string
+  /** Whether this entry was generated from schema (UI only, not persisted) */
+  fromSchema?: boolean;
+  /** Whether this is a required field per schema (UI only, not persisted) */
+  isRequired?: boolean;
 };
 
 // Custom mapping configuration
@@ -78,7 +82,12 @@ export type DatasetSelectStepProps = {
   projectId: string;
   selectedDatasetId: string | null;
   selectedDatasetName: string | null;
-  onDatasetSelect: (id: string, name: string) => void;
+  onDatasetSelect: (
+    id: string,
+    name: string,
+    inputSchema: unknown,
+    expectedOutputSchema: unknown,
+  ) => void;
   onContinue: () => void;
   canContinue: boolean;
 };
@@ -90,6 +99,12 @@ export type DatasetCreateStepProps = {
   onSubmitHandlerReady?: (handler: () => void) => void;
 };
 
+// Schema validation error type
+export type SchemaValidationError = {
+  path: string;
+  message: string;
+};
+
 // Mapping step props (reusable for Input/Output/Metadata)
 export type MappingStepProps = {
   field: "input" | "expectedOutput" | "metadata";
@@ -99,6 +114,13 @@ export type MappingStepProps = {
   onConfigChange: (config: FieldMappingConfig) => void;
   observationData: ObservationPreviewData | null;
   isLoading: boolean;
+  /** JSON Schema for this field (inputSchema for input, expectedOutputSchema for expectedOutput) */
+  schema?: unknown;
+  /** Callback when validation state changes */
+  onValidationChange?: (
+    isValid: boolean,
+    errors: SchemaValidationError[],
+  ) => void;
 };
 
 // Final preview step props

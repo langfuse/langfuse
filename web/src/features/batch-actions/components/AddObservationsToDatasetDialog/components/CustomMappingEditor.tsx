@@ -100,11 +100,21 @@ export function CustomMappingEditor({
 
   const handleRemoveEntry = (id: string) => {
     const entries = config.keyValueMapConfig?.entries ?? [];
-    if (entries.length <= 1) return; // Keep at least one entry
+    const entryToRemove = entries.find((e) => e.id === id);
+
+    // Prevent removing required schema-derived entries
+    if (entryToRemove?.fromSchema && entryToRemove?.isRequired) {
+      return;
+    }
+
+    // Keep at least one entry (unless it's an empty schema-derived optional)
+    const remainingEntries = entries.filter((e) => e.id !== id);
+    if (remainingEntries.length < 1) return;
+
     onChange({
       ...config,
       keyValueMapConfig: {
-        entries: entries.filter((e) => e.id !== id),
+        entries: remainingEntries,
       },
     });
   };
@@ -182,22 +192,31 @@ export function CustomMappingEditor({
           </p>
 
           <div className="space-y-3">
-            {(config.keyValueMapConfig?.entries ?? []).map((entry) => (
-              <KeyValueEntryRow
-                key={entry.id}
-                entry={entry}
-                onKeyChange={(key) => handleEntryChange(entry.id, "key", key)}
-                onSourceFieldChange={(sf) =>
-                  handleEntryChange(entry.id, "sourceField", sf)
-                }
-                onValueChange={(value) =>
-                  handleEntryChange(entry.id, "value", value)
-                }
-                onRemove={() => handleRemoveEntry(entry.id)}
-                canRemove={(config.keyValueMapConfig?.entries.length ?? 0) > 1}
-                sourceData={getSourceData(entry.sourceField)}
-              />
-            ))}
+            {(config.keyValueMapConfig?.entries ?? []).map((entry) => {
+              // Determine if this entry can be removed
+              const isRequiredSchemaField =
+                entry.fromSchema === true && entry.isRequired === true;
+              const hasMultipleEntries =
+                (config.keyValueMapConfig?.entries.length ?? 0) > 1;
+              const canRemove = !isRequiredSchemaField && hasMultipleEntries;
+
+              return (
+                <KeyValueEntryRow
+                  key={entry.id}
+                  entry={entry}
+                  onKeyChange={(key) => handleEntryChange(entry.id, "key", key)}
+                  onSourceFieldChange={(sf) =>
+                    handleEntryChange(entry.id, "sourceField", sf)
+                  }
+                  onValueChange={(value) =>
+                    handleEntryChange(entry.id, "value", value)
+                  }
+                  onRemove={() => handleRemoveEntry(entry.id)}
+                  canRemove={canRemove}
+                  sourceData={getSourceData(entry.sourceField)}
+                />
+              );
+            })}
           </div>
 
           <Button
@@ -235,17 +254,31 @@ function KeyValueEntryRow({
   sourceData,
 }: KeyValueEntryRowProps) {
   const isPath = isJsonPath(entry.value);
+  const isSchemaField = entry.fromSchema === true;
+  const isRequired = entry.isRequired === true;
 
   return (
-    <div className="space-y-2 rounded-md border bg-background p-3">
+    <div
+      className={`space-y-2 rounded-md border bg-background p-3 ${
+        isSchemaField ? "border-primary/30" : ""
+      }`}
+    >
       <div className="grid grid-cols-[1fr,auto] gap-2">
         <div>
-          <Label className="text-xs text-muted-foreground">Key</Label>
+          <Label className="text-xs text-muted-foreground">
+            Key
+            {isRequired && <span className="ml-1 text-destructive">*</span>}
+            {isSchemaField && (
+              <span className="ml-2 text-primary">(from schema)</span>
+            )}
+          </Label>
           <Input
             value={entry.key}
             onChange={(e) => onKeyChange(e.target.value)}
             placeholder="field_name"
             className="mt-1 h-8"
+            readOnly={isSchemaField}
+            disabled={isSchemaField}
           />
         </div>
         <div className="flex items-end">
@@ -256,8 +289,19 @@ function KeyValueEntryRow({
             onClick={onRemove}
             disabled={!canRemove}
             className="h-8 w-8 p-0"
+            title={
+              isSchemaField && isRequired
+                ? "Required schema field cannot be removed"
+                : "Remove field"
+            }
           >
-            <Trash2 className="h-4 w-4 text-muted-foreground" />
+            <Trash2
+              className={`h-4 w-4 ${
+                !canRemove
+                  ? "text-muted-foreground/30"
+                  : "text-muted-foreground"
+              }`}
+            />
           </Button>
         </div>
       </div>

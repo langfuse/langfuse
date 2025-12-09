@@ -28,6 +28,7 @@ import type {
   MappingConfig,
   FieldMappingConfig,
   ObservationPreviewData,
+  SchemaValidationError,
 } from "./types";
 import { DEFAULT_MAPPING_CONFIG } from "./types";
 
@@ -63,6 +64,9 @@ export function AddObservationsToDatasetDialog(
   const [step, setStep] = useState<DialogStep>("choice");
   const [datasetId, setDatasetId] = useState<string | null>(null);
   const [datasetName, setDatasetName] = useState<string | null>(null);
+  const [datasetInputSchema, setDatasetInputSchema] = useState<unknown>(null);
+  const [datasetExpectedOutputSchema, setDatasetExpectedOutputSchema] =
+    useState<unknown>(null);
   const [mappingConfig, setMappingConfig] = useState<MappingConfig>(
     DEFAULT_MAPPING_CONFIG,
   );
@@ -75,6 +79,10 @@ export function AddObservationsToDatasetDialog(
   const [createDatasetHandler, setCreateDatasetHandler] = useState<{
     handler: (() => void) | null;
   }>({ handler: null });
+
+  // Mapping step validation state
+  const [inputMappingValid, setInputMappingValid] = useState(true);
+  const [outputMappingValid, setOutputMappingValid] = useState(true);
 
   // Get example observation for preview
   const observationQuery = api.observations.byId.useQuery(
@@ -120,9 +128,16 @@ export function AddObservationsToDatasetDialog(
     setStep(mode);
   };
 
-  const handleDatasetSelect = (id: string, name: string) => {
+  const handleDatasetSelect = (
+    id: string,
+    name: string,
+    inputSchema: unknown,
+    expectedOutputSchema: unknown,
+  ) => {
     setDatasetId(id);
     setDatasetName(name);
+    setDatasetInputSchema(inputSchema);
+    setDatasetExpectedOutputSchema(expectedOutputSchema);
   };
 
   const handleDatasetCreated = (id: string, name: string) => {
@@ -156,6 +171,20 @@ export function AddObservationsToDatasetDialog(
   const handleCreateHandlerReady = useCallback((handler: () => void) => {
     setCreateDatasetHandler({ handler });
   }, []);
+
+  const handleInputValidationChange = useCallback(
+    (isValid: boolean, _errors: SchemaValidationError[]) => {
+      setInputMappingValid(isValid);
+    },
+    [],
+  );
+
+  const handleOutputValidationChange = useCallback(
+    (isValid: boolean, _errors: SchemaValidationError[]) => {
+      setOutputMappingValid(isValid);
+    },
+    [],
+  );
 
   const handleSubmit = async () => {
     if (!datasetId || !datasetName) return;
@@ -291,6 +320,12 @@ export function AddObservationsToDatasetDialog(
         return !canContinueFromSelect;
       case "create":
         return !canContinueFromCreate || isCreatingDataset;
+      case "input-mapping":
+        // Block if schema validation fails (only when schema exists)
+        return datasetInputSchema !== null && !inputMappingValid;
+      case "output-mapping":
+        // Block if schema validation fails (only when schema exists)
+        return datasetExpectedOutputSchema !== null && !outputMappingValid;
       case "preview":
         return isSubmitting;
       default:
@@ -371,6 +406,8 @@ export function AddObservationsToDatasetDialog(
               }
               observationData={observationData}
               isLoading={observationQuery.isLoading}
+              schema={datasetInputSchema}
+              onValidationChange={handleInputValidationChange}
             />
           )}
 
@@ -385,6 +422,8 @@ export function AddObservationsToDatasetDialog(
               }
               observationData={observationData}
               isLoading={observationQuery.isLoading}
+              schema={datasetExpectedOutputSchema}
+              onValidationChange={handleOutputValidationChange}
             />
           )}
 

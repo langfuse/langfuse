@@ -1,13 +1,17 @@
-import { useMemo } from "react";
-import { ArrowDown } from "lucide-react";
+import { useMemo, useEffect } from "react";
+import { ArrowDown, AlertCircle, CheckCircle2 } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import type {
   FieldMappingConfig,
   SourceField,
   ObservationPreviewData,
+  SchemaValidationError,
 } from "../types";
-import { applyFieldMappingConfig } from "@langfuse/shared";
+import {
+  applyFieldMappingConfig,
+  validateFieldAgainstSchema,
+} from "@langfuse/shared";
 
 type MappingPreviewPanelProps = {
   fieldLabel: string;
@@ -15,6 +19,13 @@ type MappingPreviewPanelProps = {
   config: FieldMappingConfig;
   observationData: ObservationPreviewData | null;
   isLoading: boolean;
+  /** JSON Schema to validate the result against */
+  schema?: unknown;
+  /** Callback when validation state changes */
+  onValidationChange?: (
+    isValid: boolean,
+    errors: SchemaValidationError[],
+  ) => void;
 };
 
 export function MappingPreviewPanel({
@@ -23,7 +34,11 @@ export function MappingPreviewPanel({
   config,
   observationData,
   isLoading,
+  schema,
+  onValidationChange,
 }: MappingPreviewPanelProps) {
+  const hasSchema = schema !== null && schema !== undefined;
+
   // Compute source data to display
   const sourceData = useMemo(() => {
     if (!observationData) return null;
@@ -54,6 +69,46 @@ export function MappingPreviewPanel({
       defaultSourceField,
     });
   }, [observationData, config, defaultSourceField]);
+
+  // Validate result against schema
+  const validationResult = useMemo(() => {
+    // Skip validation if no schema or "none" mode
+    if (!hasSchema || config.mode === "none") {
+      return { isValid: true, errors: [] as SchemaValidationError[] };
+    }
+
+    // Skip if no result data (no observation)
+    if (resultData === null || resultData === undefined) {
+      return { isValid: true, errors: [] as SchemaValidationError[] };
+    }
+
+    try {
+      const result = validateFieldAgainstSchema({
+        data: resultData,
+        schema: schema as Record<string, unknown>,
+      });
+
+      if (result.isValid) {
+        return { isValid: true, errors: [] as SchemaValidationError[] };
+      }
+
+      return {
+        isValid: false,
+        errors: result.errors.map((e) => ({
+          path: e.path,
+          message: e.message,
+        })),
+      };
+    } catch {
+      // If validation fails to run, treat as valid (don't block on validation errors)
+      return { isValid: true, errors: [] as SchemaValidationError[] };
+    }
+  }, [hasSchema, config.mode, resultData, schema]);
+
+  // Notify parent of validation state changes
+  useEffect(() => {
+    onValidationChange?.(validationResult.isValid, validationResult.errors);
+  }, [validationResult, onValidationChange]);
 
   // Determine source label based on config
   const sourceLabel = useMemo(() => {
@@ -110,7 +165,7 @@ export function MappingPreviewPanel({
   }
 
   return (
-    <div className="mt-7 h-full space-y-4">
+    <div className="h-full space-y-4">
       <div>
         <h3 className="text-sm font-semibold">Preview</h3>
         <p className="text-xs text-muted-foreground">
@@ -135,16 +190,53 @@ export function MappingPreviewPanel({
 
       {/* Result data */}
       <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">
-          Result: Dataset Item {fieldLabel}
-        </p>
-        <div className="max-h-[22vh] overflow-auto rounded-md border bg-background">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            Result: Dataset Item {fieldLabel}
+          </p>
+          {/* Validation status indicator */}
+          {hasSchema && config.mode !== "none" && (
+            <div className="flex items-center gap-1">
+              {validationResult.isValid ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+              )}
+            </div>
+          )}
+        </div>
+        <div
+          className={`max-h-[22vh] overflow-auto rounded-md border bg-background ${
+            hasSchema && !validationResult.isValid && config.mode !== "none"
+              ? "border-destructive"
+              : ""
+          }`}
+        >
           {config.mode === "none" ? (
             <div className="p-3 text-xs italic text-muted-foreground">null</div>
           ) : (
             <JSONView json={resultData} className="text-xs" />
           )}
         </div>
+
+        {/* Validation errors */}
+        {hasSchema &&
+          !validationResult.isValid &&
+          validationResult.errors.length > 0 && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-2">
+              <p className="mb-1 text-xs font-medium text-destructive">
+                Schema validation errors:
+              </p>
+              <ul className="space-y-0.5">
+                {validationResult.errors.map((error, idx) => (
+                  <li key={idx} className="text-xs text-destructive">
+                    <span className="font-mono">{error.path || "root"}</span>:{" "}
+                    {error.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
       </div>
     </div>
   );

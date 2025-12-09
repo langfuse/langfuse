@@ -52,6 +52,34 @@ export function isJsonPath(value: string): boolean {
 }
 
 /**
+ * Set a value at a nested path using dot notation.
+ * Creates intermediate objects as needed.
+ *
+ * @example
+ * setNestedValue({}, "context.user_id", "123")
+ * // Returns: { context: { user_id: "123" } }
+ */
+function setNestedValue(
+  obj: Record<string, unknown>,
+  path: string,
+  value: unknown,
+): void {
+  const keys = path.split(".");
+  let current: Record<string, unknown> = obj;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (!(key in current) || typeof current[key] !== "object") {
+      current[key] = {};
+    }
+    current = current[key] as Record<string, unknown>;
+  }
+
+  const lastKey = keys[keys.length - 1];
+  current[lastKey] = value;
+}
+
+/**
  * Apply field mapping config to get the result for a single field
  */
 export function applyFieldMappingConfig(props: {
@@ -88,6 +116,7 @@ export function applyFieldMappingConfig(props: {
 
       if (config.custom.type === "keyValueMap") {
         // Key-value map mode: build object from entries
+        // Supports dot notation for nested objects (e.g., "context.user_id")
         const keyValueMapConfig = config.custom.keyValueMapConfig;
         if (!keyValueMapConfig || keyValueMapConfig.entries.length === 0) {
           return observation[defaultSourceField];
@@ -95,13 +124,26 @@ export function applyFieldMappingConfig(props: {
 
         const result: Record<string, unknown> = {};
         for (const entry of keyValueMapConfig.entries) {
+          // Skip entries with empty values
+          if (!entry.value && entry.value !== "") {
+            continue;
+          }
+
+          let resolvedValue: unknown;
           if (isJsonPath(entry.value)) {
             // It's a JSON path - evaluate it
             const sourceData = observation[entry.sourceField];
-            result[entry.key] = evaluateJsonPath(sourceData, entry.value);
+            resolvedValue = evaluateJsonPath(sourceData, entry.value);
           } else {
-            // It's a literal string
-            result[entry.key] = entry.value;
+            // It's a literal string (including empty string)
+            resolvedValue = entry.value;
+          }
+
+          // Use dot notation path setter for nested objects
+          if (entry.key.includes(".")) {
+            setNestedValue(result, entry.key, resolvedValue);
+          } else {
+            result[entry.key] = resolvedValue;
           }
         }
         return result;

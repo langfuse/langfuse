@@ -29,8 +29,18 @@ export function DatasetSelectStep(props: DatasetSelectStepProps) {
     projectId,
   });
 
-  const handleSelect = (dataset: { id: string; name: string }) => {
-    onDatasetSelect(dataset.id, dataset.name);
+  const handleSelect = (dataset: {
+    id: string;
+    name: string;
+    inputSchema: unknown;
+    expectedOutputSchema: unknown;
+  }) => {
+    onDatasetSelect(
+      dataset.id,
+      dataset.name,
+      dataset.inputSchema,
+      dataset.expectedOutputSchema,
+    );
     setOpen(false);
   };
 
@@ -77,22 +87,6 @@ export function DatasetSelectStep(props: DatasetSelectStepProps) {
                       )}
                     />
                     <span>{dataset.name}</span>
-                  </div>
-                  <div className="flex gap-1">
-                    {dataset.inputSchema && (
-                      <DatasetSchemaHoverCard
-                        schemaType="input"
-                        schema={dataset.inputSchema}
-                        showLabel
-                      />
-                    )}
-                    {dataset.expectedOutputSchema && (
-                      <DatasetSchemaHoverCard
-                        schemaType="expectedOutput"
-                        schema={dataset.expectedOutputSchema}
-                        showLabel
-                      />
-                    )}
                   </div>
                 </CommandItem>
               ))}

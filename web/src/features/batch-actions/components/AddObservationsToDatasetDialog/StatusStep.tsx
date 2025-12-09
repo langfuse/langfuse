@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import Link from "next/link";
-import { ExternalLink, Check, AlertCircle, Loader2 } from "lucide-react";
+import { Check, AlertCircle, Loader2 } from "lucide-react";
 
 type StatusStepProps = {
   projectId: string;
