@@ -766,28 +766,16 @@ export function PrettyJsonView(props: {
   const parsedJson = useMemo(() => {
     // If pre-parsed data is provided, use it directly (skip parsing)
     if (props.parsedJson !== undefined) {
-      console.log(
-        `[PrettyJsonView:${props.title || "untitled"}] Using pre-parsed data`,
-      );
       return props.parsedJson;
     }
 
     // If still parsing in Web Worker, return null (will show loading state)
     if (props.isParsing) {
-      console.log(
-        `[PrettyJsonView:${props.title || "untitled"}] Parsing in progress...`,
-      );
       return null;
     }
 
-    const startTime = performance.now();
-
     // Fast path: if already an object, likely no parsing needed
     if (typeof props.json !== "string") {
-      const elapsed = performance.now() - startTime;
-      console.log(
-        `[PrettyJsonView:${props.title || "untitled"}] Skipping deepParseJson - already an object (${elapsed.toFixed(2)}ms)`,
-      );
       return props.json;
     }
 
@@ -796,16 +784,9 @@ export function PrettyJsonView(props: {
       maxSize: 500_000,
       maxDepth: 2,
     });
-    const elapsed = performance.now() - startTime;
-
-    if (elapsed > 5) {
-      console.log(
-        `[PrettyJsonView:${props.title || "untitled"}] deepParseJson completed in ${elapsed.toFixed(2)}ms`,
-      );
-    }
 
     return result;
-  }, [props.json, props.parsedJson, props.isParsing, props.title]);
+  }, [props.json, props.parsedJson, props.isParsing]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -827,11 +808,6 @@ export function PrettyJsonView(props: {
   );
 
   const baseTableData = useMemo(() => {
-    const startTime = performance.now();
-    console.log(
-      `[PrettyJsonView:${props.title || "untitled"}] baseTableData useMemo starting...`,
-    );
-
     try {
       if (
         actualCurrentView === "pretty" &&
@@ -846,12 +822,6 @@ export function PrettyJsonView(props: {
             parsedJson as Record<string, unknown>,
           );
           if (topLevelKeys.length > DEFAULT_MAX_ROWS_IF_ROOT) {
-            console.log(
-              `[PrettyJsonView:${props.title || "untitled"}] ⚠️  Skipping table transformation:`,
-              `\n  - Top-level keys: ${topLevelKeys.length}`,
-              `\n  - Limit: ${DEFAULT_MAX_ROWS_IF_ROOT}`,
-              `\n  - Time: ${(performance.now() - startTime).toFixed(2)}ms`,
-            );
             // return empty array to skip expansion directly
             return [];
           }
@@ -887,7 +857,6 @@ export function PrettyJsonView(props: {
           return rows;
         };
 
-        const t0 = performance.now();
         let result: JsonTableRow[];
 
         // top-level is an object, start with its properties directly
@@ -897,33 +866,18 @@ export function PrettyJsonView(props: {
           result = transformJsonToTableData(parsedJson, "", 0, "", true);
         }
 
-        const transformTime = performance.now() - t0;
-        const totalTime = performance.now() - startTime;
-
-        console.log(
-          `[PrettyJsonView:${props.title || "untitled"}] Table transformation:`,
-          `\n  - transformJsonToTableData: ${transformTime.toFixed(2)}ms`,
-          `\n  - Top-level rows created: ${result.length}`,
-          `\n  - Total baseTableData time: ${totalTime.toFixed(2)}ms`,
-        );
-
         return result;
       }
 
-      console.log(
-        `[PrettyJsonView:${props.title || "untitled"}] Skipped table transformation (not pretty view or is ChatML/Markdown)`,
-      );
       return [];
     } catch (error) {
       console.error("Error transforming JSON to table data:", error);
       return [];
     }
-  }, [parsedJson, isChatML, isMarkdown, actualCurrentView, props.title]);
+  }, [parsedJson, isChatML, isMarkdown, actualCurrentView]);
 
   // state precedence: external state before smart expansion
   const finalExpansionState: ExpandedState = useMemo(() => {
-    const startTime = performance.now();
-
     if (baseTableData.length === 0) return {};
 
     if (props.externalExpansionState === false) {
@@ -944,26 +898,13 @@ export function PrettyJsonView(props: {
     }
 
     // No external state -> use smart expansion
-    console.log(
-      `[PrettyJsonView:${props.title || "untitled"}] Starting findOptimalExpansionLevel...`,
-    );
-    const t0 = performance.now();
     const optimalLevel = findOptimalExpansionLevel(
       baseTableData,
       DEFAULT_MAX_ROWS,
     );
-    const findOptimalTime = performance.now() - t0;
-
-    console.log(
-      `[PrettyJsonView:${props.title || "untitled"}] findOptimalExpansionLevel:`,
-      `\n  - Optimal level: ${optimalLevel}`,
-      `\n  - Time taken: ${findOptimalTime.toFixed(2)}ms`,
-    );
 
     if (optimalLevel > 0) {
-      const t1 = performance.now();
       const smartExpanded: ExpandedState = {};
-      let expandedRowCount = 0;
 
       const expandRowsToLevel = (
         rows: JsonTableRow[],
@@ -973,7 +914,6 @@ export function PrettyJsonView(props: {
           if (row.hasChildren && currentLevel < optimalLevel) {
             const keyPath = convertRowIdToKeyPath(row.id);
             smartExpanded[keyPath] = true;
-            expandedRowCount++;
 
             const children = getRowChildren(row);
             if (children.length > 0) {
@@ -984,26 +924,11 @@ export function PrettyJsonView(props: {
       };
       expandRowsToLevel(baseTableData, 0);
 
-      const expandRowsTime = performance.now() - t1;
-      const totalTime = performance.now() - startTime;
-
-      console.log(
-        `[PrettyJsonView:${props.title || "untitled"}] Smart expansion:`,
-        `\n  - expandRowsToLevel: ${expandRowsTime.toFixed(2)}ms`,
-        `\n  - Rows expanded: ${expandedRowCount}`,
-        `\n  ⏱️  TOTAL finalExpansionState TIME: ${totalTime.toFixed(2)}ms`,
-      );
-
       return smartExpanded;
     }
 
-    const totalTime = performance.now() - startTime;
-    console.log(
-      `[PrettyJsonView:${props.title || "untitled"}] No smart expansion (optimalLevel=0), time: ${totalTime.toFixed(2)}ms`,
-    );
-
     return {};
-  }, [baseTableData, props.externalExpansionState, props.title]);
+  }, [baseTableData, props.externalExpansionState]);
 
   // actual expansion state used by the table (combines initial + user changes)
   const actualExpansionState = useMemo(() => {

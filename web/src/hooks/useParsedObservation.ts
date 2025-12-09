@@ -84,10 +84,6 @@ async function parseObservationData(
 
   // Fallback to sync parsing if no worker support
   if (!worker) {
-    console.log(
-      "[useParsedObservation] Web Worker not available, using sync parsing",
-    );
-
     const { deepParseJsonIterative } = await import("@langfuse/shared");
     const startTime = performance.now();
 
@@ -112,8 +108,6 @@ async function parseObservationData(
   return new Promise<ParsedData>((resolve, reject) => {
     const parseId = `${Date.now()}-${Math.random()}`;
 
-    console.log(`[useParsedObservation] Starting background parse ${parseId}`);
-
     pendingCallbacks.set(parseId, (result) => {
       pendingCallbacks.delete(parseId);
 
@@ -122,10 +116,6 @@ async function parseObservationData(
         reject(new Error(result.error));
         return;
       }
-
-      console.log(
-        `[useParsedObservation] Parse completed in ${result.parseTime?.toFixed(2)}ms`,
-      );
 
       resolve({
         input: result.parsedInput,

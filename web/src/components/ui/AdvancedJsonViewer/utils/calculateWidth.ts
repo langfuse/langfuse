@@ -147,25 +147,5 @@ export function calculateNodeWidth(
   const totalWidth =
     indentWidth + colonWidth + charWidth + paddingWidth + config.extraBufferPx;
 
-  // Debug log for wide nodes
-  if (totalWidth > 10000) {
-    console.log("[calculateNodeWidth] Wide node detected:", {
-      nodeId: node.id,
-      depth: node.depth,
-      key: node.key,
-      valueType: node.type,
-      valueLength:
-        typeof node.value === "string" ? (node.value as string).length : "N/A",
-      estimatedWidth: totalWidth,
-      breakdown: {
-        indentWidth,
-        colonWidth,
-        charWidth,
-        paddingWidth,
-        extraBuffer: config.extraBufferPx,
-      },
-    });
-  }
-
   return totalWidth;
 }

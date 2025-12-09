@@ -59,32 +59,18 @@ export function deepParseJson(
   json: unknown,
   options: DeepParseJsonOptions = {},
 ): unknown {
-  console.log("deepParseJson");
   const { maxSize = 500_000, maxDepth = 3 } = options;
-  const startTime = performance.now();
 
   // Size check: skip parsing for large objects to prevent UI freeze
   if (typeof json === "object" && json !== null) {
     const size = JSON.stringify(json).length;
     if (size > maxSize) {
-      const elapsed = performance.now() - startTime;
-      console.log(
-        `[deepParseJson] Skipping: ${(size / 1024).toFixed(1)}KB > ${(maxSize / 1024).toFixed(1)}KB limit (${elapsed.toFixed(2)}ms)`,
-      );
       return json;
     }
   }
 
   // Perform depth-limited parsing
   const result = deepParseJsonRecursive(json, 0, maxDepth);
-
-  const elapsed = performance.now() - startTime;
-  if (elapsed > 10) {
-    // Only log slow operations
-    console.log(
-      `[deepParseJson] Completed in ${elapsed.toFixed(2)}ms (maxDepth: ${maxDepth})`,
-    );
-  }
 
   return result;
 }
@@ -173,16 +159,11 @@ export function deepParseJsonIterative(
   options: DeepParseJsonOptions = {},
 ): unknown {
   const { maxSize = 500_000, maxDepth = 3 } = options;
-  const startTime = performance.now();
 
   // Size check: skip parsing for large objects to prevent UI freeze
   if (typeof json === "object" && json !== null) {
     const size = JSON.stringify(json).length;
     if (size > maxSize) {
-      const elapsed = performance.now() - startTime;
-      console.log(
-        `[deepParseJsonIterative] Skipping: ${(size / 1024).toFixed(1)}KB > ${(maxSize / 1024).toFixed(1)}KB limit (${elapsed.toFixed(2)}ms)`,
-      );
       return json;
     }
   }
@@ -378,13 +359,6 @@ export function deepParseJsonIterative(
     // Primitive value (number, boolean, null)
     entry.output = input;
     processed.add(entry);
-  }
-
-  const elapsed = performance.now() - startTime;
-  if (elapsed > 10) {
-    console.log(
-      `[deepParseJsonIterative] Completed in ${elapsed.toFixed(2)}ms (maxDepth: ${maxDepth})`,
-    );
   }
 
   return rootEntry.output;
