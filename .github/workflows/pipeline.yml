@@ -251,9 +251,11 @@ jobs:
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run test-sync
-        run: pnpm --filter=web run test-sync -- --shard=${{ matrix.shard }}/3
+        working-directory: web
+        run: cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects sync-server --shard=${{ matrix.shard }}/3
       - name: run test-client
-        run: pnpm --filter=web run test-client -- --shard=${{ matrix.shard }}/3
+        working-directory: web
+        run: cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects client --shard=${{ matrix.shard }}/3
 
   tests-web-async:
     timeout-minutes: 30
@@ -366,7 +368,8 @@ jobs:
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
-        run: pnpm --filter=web run test -- --shard=${{ matrix.shard }}/3
+        working-directory: web
+        run: cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects async-server --shard=${{ matrix.shard }}/3
 
   tests-worker:
     timeout-minutes: 20
