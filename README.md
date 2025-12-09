@@ -78,6 +78,9 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 
 ## ✨ Core Features
 
+[![Run in Smithery](https://smithery.ai/badge/skills/langfuse)](https://smithery.ai/skills?ns=langfuse&utm_source=github&utm_medium=badge)
+
+
 <img width="4856" height="1944" alt="Langfuse Overview" src="https://github.com/user-attachments/assets/5dac68ef-d546-49fb-b06f-cfafc19282e3" />
 
 - [LLM Application Observability](https://langfuse.com/docs/tracing): Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM calls and other relevant logic in your app such as retrieval, embedding, or agent actions. Inspect and debug complex logs and user sessions. Try the interactive [demo](https://langfuse.com/docs/demo) to see this in action.
