@@ -521,7 +521,7 @@ export const getTraceById = async ({
         FROM traces
         WHERE id = {traceId: String}
         AND project_id = {projectId: String}
-        ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""}
+        ${timestamp ? `AND (toDate(timestamp) = toDate({timestamp: DateTime64(3)}) OR toDate(timestamp) = toDate({timestamp: DateTime64(3)}) - interval 1 day)` : ""}
         ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
         ORDER BY event_ts DESC
         LIMIT 1

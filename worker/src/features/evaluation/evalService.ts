@@ -258,6 +258,9 @@ export const createEvalJobs = async ({
       cachedTrace = await getTraceById({
         traceId: event.traceId,
         projectId: event.projectId,
+        // TODO: This is snsitive to day bounday shifts.
+        // Check if exactTimestamp is present in the event and prefer it.
+        // Alternatively, run this query for last day and current day.
         timestamp:
           "timestamp" in event
             ? new Date(event.timestamp)
