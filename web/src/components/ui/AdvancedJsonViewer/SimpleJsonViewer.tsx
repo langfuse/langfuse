@@ -5,21 +5,20 @@
  * Best for small datasets (<500 rows) where virtualization overhead isn't worth it.
  */
 
-import { useEffect, type RefObject } from "react";
-import {
-  type FlatJSONRow,
-  type SearchMatch,
-  type JSONTheme,
-  type StringWrapMode,
-} from "./types";
+import { useEffect, useMemo, memo, type RefObject } from "react";
+import { type SearchMatch, type JSONTheme, type StringWrapMode } from "./types";
+import type { TreeState } from "./utils/treeStructure";
+import { getAllVisibleNodes, treeNodeToFlatRow } from "./utils/treeNavigation";
 import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { useScrollPreservation } from "./hooks/useScrollPreservation";
+import { debugLog } from "./utils/debug";
 
 interface SimpleJsonViewerProps {
-  rows: FlatJSONRow[];
+  tree: TreeState | null;
+  expansionVersion: number; // Triggers re-render on expansion changes
   theme: JSONTheme;
   searchMatches?: SearchMatch[];
   currentMatchIndex?: number;
@@ -33,11 +32,11 @@ interface SimpleJsonViewerProps {
   scrollToIndex?: number; // For search navigation
   scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
   totalLineCount?: number; // Total number of lines when fully expanded (for line number width calculation)
-  togglingRowId?: string | null; // Row ID being toggled (for spinner display)
 }
 
-export function SimpleJsonViewer({
-  rows,
+export const SimpleJsonViewer = memo(function SimpleJsonViewer({
+  tree,
+  expansionVersion,
   theme,
   searchMatches = [],
   currentMatchIndex = 0,
@@ -51,14 +50,25 @@ export function SimpleJsonViewer({
   scrollToIndex,
   scrollContainerRef: _scrollContainerRef,
   totalLineCount,
-  togglingRowId,
 }: SimpleJsonViewerProps) {
+  debugLog("[SimpleJsonViewer] RENDER");
+
+  // Get rows from tree
+  const effectiveRows = useMemo(() => {
+    if (!tree) return [];
+    const visibleNodes = getAllVisibleNodes(tree.rootNode);
+    return visibleNodes.map((node, index) => treeNodeToFlatRow(node, index));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree, expansionVersion]); // expansionVersion forces re-computation on expand/collapse
+
   // Scroll preservation logic
-  const { containerRef, rowRefs, handleToggleExpansion } =
-    useScrollPreservation({
-      rows,
-      onToggleExpansion,
-    });
+  const { containerRef, rowRefs } = useScrollPreservation({
+    rows: effectiveRows,
+    onToggleExpansion,
+  });
+
+  // Use tree toggle directly (scroll preservation is handled by tree expansion logic)
+  const finalHandleToggleExpansion = onToggleExpansion;
 
   // Layout calculations (widths, heights, column sizes)
   const {
@@ -67,7 +77,8 @@ export function SimpleJsonViewer({
     scrollableMinWidth,
     scrollableMaxWidth,
   } = useJsonViewerLayout({
-    rows,
+    tree,
+    expansionVersion,
     theme,
     showLineNumbers,
     totalLineCount,
@@ -86,9 +97,9 @@ export function SimpleJsonViewer({
     if (
       scrollToIndex !== undefined &&
       scrollToIndex >= 0 &&
-      scrollToIndex < rows.length
+      scrollToIndex < effectiveRows.length
     ) {
-      const row = rows[scrollToIndex];
+      const row = effectiveRows[scrollToIndex];
       if (row) {
         const element = rowRefs.current.get(row.id);
         if (element) {
@@ -101,7 +112,7 @@ export function SimpleJsonViewer({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollToIndex, rows]);
+  }, [scrollToIndex, effectiveRows]);
   // Note: rowRefs is a stable ref from useScrollPreservation hook, doesn't need to be in deps
 
   return (
@@ -128,7 +139,7 @@ export function SimpleJsonViewer({
           overflow: "hidden",
         }}
       >
-        {rows.map((row, index) => {
+        {effectiveRows.map((row, index) => {
           const searchMatch = matchMap.get(row.id);
           const isCurrentMatch = currentMatch?.rowId === row.id;
 
@@ -142,9 +153,8 @@ export function SimpleJsonViewer({
               maxLineNumberDigits={maxLineNumberDigits}
               searchMatch={searchMatch}
               isCurrentMatch={isCurrentMatch}
-              onToggleExpansion={handleToggleExpansion}
+              onToggleExpansion={finalHandleToggleExpansion}
               stringWrapMode={stringWrapMode}
-              isToggling={togglingRowId === row.id}
             />
           );
         })}
@@ -157,7 +167,7 @@ export function SimpleJsonViewer({
           maxWidth: scrollableMaxWidth ? `${scrollableMaxWidth}px` : undefined,
         }}
       >
-        {rows.map((row) => {
+        {effectiveRows.map((row) => {
           const searchMatch = matchMap.get(row.id);
           const isCurrentMatch = currentMatch?.rowId === row.id;
           const matchCount = matchCounts?.get(row.id);
@@ -192,7 +202,7 @@ export function SimpleJsonViewer({
       </div>
 
       {/* Empty state */}
-      {rows.length === 0 && (
+      {effectiveRows.length === 0 && (
         <div
           className="flex items-center justify-center p-8 text-muted-foreground"
           style={{ fontSize: theme.fontSize }}
@@ -202,4 +212,4 @@ export function SimpleJsonViewer({
       )}
     </div>
   );
-}
+});

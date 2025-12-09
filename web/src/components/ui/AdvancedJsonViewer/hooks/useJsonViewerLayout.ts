@@ -11,18 +11,20 @@
  */
 
 import { useMemo } from "react";
-import {
-  type FlatJSONRow,
-  type JSONTheme,
-  type StringWrapMode,
-} from "../types";
+import { type JSONTheme, type StringWrapMode } from "../types";
+import type { TreeState } from "../utils/treeStructure";
 import { calculateFixedColumnWidth } from "../utils/calculateFixedColumnWidth";
 import { calculateMinimumWidth } from "../utils/calculateWidth";
 import { createHeightEstimator } from "../utils/estimateRowHeight";
-import { getDepthRange } from "../utils/flattenJson";
+import {
+  getVisibleDepthRange,
+  getAllVisibleNodes,
+  treeNodeToFlatRow,
+} from "../utils/treeNavigation";
 
 interface UseJsonViewerLayoutParams {
-  rows: FlatJSONRow[];
+  tree: TreeState | null;
+  expansionVersion: number;
   theme: JSONTheme;
   showLineNumbers: boolean;
   totalLineCount?: number;
@@ -31,19 +33,27 @@ interface UseJsonViewerLayoutParams {
 }
 
 export function useJsonViewerLayout({
-  rows,
+  tree,
+  expansionVersion,
   theme,
   showLineNumbers,
   totalLineCount,
   stringWrapMode,
   truncateStringsAt,
 }: UseJsonViewerLayoutParams) {
+  // Get rows from tree
+  const effectiveRows = useMemo(() => {
+    if (!tree) return [];
+    const visibleNodes = getAllVisibleNodes(tree.rootNode);
+    return visibleNodes.map((node, index) => treeNodeToFlatRow(node, index));
+  }, [tree, expansionVersion]);
+
   // Calculate maximum number of digits needed for line numbers
   // Use totalLineCount if provided, otherwise fall back to current rows length
   const maxLineNumberDigits = useMemo(() => {
-    const lineCount = totalLineCount ?? rows.length;
+    const lineCount = totalLineCount ?? effectiveRows.length;
     return Math.max(1, Math.floor(Math.log10(lineCount)) + 1);
-  }, [totalLineCount, rows.length]);
+  }, [totalLineCount, effectiveRows.length]);
 
   // Calculate fixed column width (line numbers + expand buttons)
   const fixedColumnWidth = useMemo(
@@ -55,12 +65,14 @@ export function useJsonViewerLayout({
   const scrollableMinWidth = useMemo(() => {
     if (stringWrapMode === "nowrap") {
       // Calculate based on actual content width (respects truncation)
-      return calculateMinimumWidth(rows, theme, truncateStringsAt);
+      return calculateMinimumWidth(effectiveRows, theme, truncateStringsAt);
     }
+    if (!tree) return undefined;
+
     if (stringWrapMode === "wrap") {
       // Calculate based on max depth to ensure values have room to wrap properly
       // Cap at 20 levels to prevent excessive width from deeply nested data
-      const [, maxDepth] = getDepthRange(rows);
+      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
       const cappedDepth = Math.min(maxDepth, 20);
       const maxIndent = cappedDepth * theme.indentSize;
       // Add buffer for key name + colon + value (400px minimum for value area)
@@ -69,21 +81,21 @@ export function useJsonViewerLayout({
     if (stringWrapMode === "truncate") {
       // Set reasonable minimum to prevent excessive wrapping of keys and short values
       // Cap at 20 levels to prevent excessive width from deeply nested data
-      const [, maxDepth] = getDepthRange(rows);
+      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
       const cappedDepth = Math.min(maxDepth, 20);
       const maxIndent = cappedDepth * theme.indentSize;
       // Add buffer for key + truncated value (600px for value area to show truncated strings comfortably)
       return maxIndent + 600;
     }
     return undefined;
-  }, [stringWrapMode, rows, theme, truncateStringsAt]);
+  }, [stringWrapMode, tree, effectiveRows, theme, truncateStringsAt]);
 
   // Calculate maximum width for scrollable column (to prevent excessive horizontal scrolling)
   const scrollableMaxWidth = useMemo(() => {
-    if (stringWrapMode === "wrap") {
+    if (stringWrapMode === "wrap" && tree) {
       // Cap at reasonable width for wrap mode to force line breaking
       // Cap depth at 20 levels to prevent excessive width from deeply nested data
-      const [, maxDepth] = getDepthRange(rows);
+      const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
       const cappedDepth = Math.min(maxDepth, 20);
       const maxIndent = cappedDepth * theme.indentSize;
       // Max 600px for value area - forces long lines to wrap
@@ -91,17 +103,17 @@ export function useJsonViewerLayout({
     }
     // No maximum for nowrap and truncate modes
     return undefined;
-  }, [stringWrapMode, rows, theme]);
+  }, [stringWrapMode, tree, theme]);
 
   // Create height estimator (for virtualization)
   const estimateSize = useMemo(
     () =>
-      createHeightEstimator(rows, {
+      createHeightEstimator(effectiveRows, {
         baseHeight: theme.lineHeight,
         longStringThreshold: truncateStringsAt ?? 100,
         charsPerLine: 80,
       }),
-    [rows, theme.lineHeight, truncateStringsAt],
+    [effectiveRows, theme.lineHeight, truncateStringsAt],
   );
 
   return {

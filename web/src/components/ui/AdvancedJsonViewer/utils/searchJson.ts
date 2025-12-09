@@ -8,6 +8,8 @@
 import type { FlatJSONRow, SearchMatch, SearchOptions } from "../types";
 import { expandAncestors } from "./flattenJson";
 import type { ExpansionState } from "../types";
+import type { TreeState } from "./treeStructure";
+import { expandToNode } from "./treeExpansion";
 
 /**
  * Search through JSON rows and find matches
@@ -365,4 +367,169 @@ export function highlightText(
   }
 
   return segments;
+}
+
+/**
+ * ============================================================================
+ * TREE-COMPATIBLE SEARCH FUNCTIONS
+ * ============================================================================
+ * The functions below work with TreeState instead of flat arrays.
+ * They use the allNodes array (built during tree construction) for searching.
+ */
+
+/**
+ * Search through tree nodes and find matches
+ *
+ * Uses the allNodes array from TreeState for searching.
+ * This is a flat array built during tree construction, so search is still O(n).
+ *
+ * @param tree - Tree state to search through
+ * @param query - Search query string
+ * @param options - Search options
+ * @returns Array of search matches
+ */
+export function searchInTree(
+  tree: TreeState,
+  query: string,
+  options: SearchOptions = {},
+): SearchMatch[] {
+  if (!query || query.trim() === "") return [];
+
+  const { caseSensitive = false, useRegex = false } = options;
+
+  const matches: SearchMatch[] = [];
+
+  // Prepare query for searching
+  const searchQuery = caseSensitive ? query : query.toLowerCase();
+  let regex: RegExp | null = null;
+
+  if (useRegex) {
+    try {
+      regex = new RegExp(searchQuery, caseSensitive ? "g" : "gi");
+    } catch (error) {
+      console.warn("Invalid regex pattern:", query, error);
+    }
+  }
+
+  // Search through all nodes (allNodes is a pre-order flat array)
+  tree.allNodes.forEach((node, index) => {
+    // Search in key
+    const keyStr = String(node.key);
+    const keyMatches = findMatchesInString(
+      keyStr,
+      searchQuery,
+      regex,
+      caseSensitive,
+    );
+
+    keyMatches.forEach((match) => {
+      matches.push({
+        rowIndex: index, // Index in allNodes array (not visible index!)
+        rowId: node.id,
+        matchType: "key",
+        highlightStart: match.start,
+        highlightEnd: match.end,
+        matchedText: match.text,
+      });
+    });
+
+    // Search in value (only for primitive values)
+    if (!node.isExpandable) {
+      const valueStr = String(node.value);
+      const valueMatches = findMatchesInString(
+        valueStr,
+        searchQuery,
+        regex,
+        caseSensitive,
+      );
+
+      valueMatches.forEach((match) => {
+        matches.push({
+          rowIndex: index,
+          rowId: node.id,
+          matchType: "value",
+          highlightStart: match.start,
+          highlightEnd: match.end,
+          matchedText: match.text,
+        });
+      });
+    }
+  });
+
+  return matches;
+}
+
+/**
+ * Expand tree to show a search match
+ *
+ * Expands all ancestors of the matched node so it becomes visible.
+ *
+ * @param tree - Tree state
+ * @param match - Search match to reveal
+ * @returns Updated tree state
+ */
+export function expandToMatch_Tree(
+  tree: TreeState,
+  match: SearchMatch,
+): TreeState {
+  // Get node from match
+  const node = tree.nodeMap.get(match.rowId);
+  if (!node) return tree;
+
+  // Expand all ancestors
+  return expandToNode(tree, node.id);
+}
+
+/**
+ * Get count of matches per node (including descendants)
+ *
+ * Tree-compatible version of getMatchCountsPerRow.
+ * Returns count of matches in each node and its descendants.
+ *
+ * @param tree - Tree state
+ * @param matches - Search matches
+ * @returns Map of nodeId -> match count
+ */
+export function getMatchCountsPerNode(
+  tree: TreeState,
+  matches: SearchMatch[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  // Initialize all nodes with 0
+  tree.allNodes.forEach((node) => counts.set(node.id, 0));
+
+  // For each match, increment count for the matched node and all ancestors
+  matches.forEach((match) => {
+    const node = tree.nodeMap.get(match.rowId);
+    if (!node) return;
+
+    // Increment count for this node
+    counts.set(node.id, (counts.get(node.id) || 0) + 1);
+
+    // Increment count for all ancestors
+    let current = node.parentNode;
+    while (current !== null) {
+      counts.set(current.id, (counts.get(current.id) || 0) + 1);
+      current = current.parentNode;
+    }
+  });
+
+  return counts;
+}
+
+/**
+ * Find visible index of a node in the tree
+ *
+ * Used for scrolling to search results.
+ * Returns the index in the visible tree (0-based), or -1 if not visible.
+ *
+ * @param tree - Tree state
+ * @param nodeId - ID of node to find
+ * @returns Visible index, or -1 if not visible/not found
+ */
+export function findNodeVisibleIndex(tree: TreeState, nodeId: string): number {
+  // Lazy import to avoid circular dependencies
+  const { findNodeIndex } = require("./treeNavigation");
+  return findNodeIndex(tree.rootNode, nodeId);
 }

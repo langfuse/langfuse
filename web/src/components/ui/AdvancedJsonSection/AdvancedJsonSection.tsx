@@ -10,7 +10,7 @@
  * - Custom theme (fontSize: 0.6rem, lineHeight: 16px)
  */
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -25,23 +25,11 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { AdvancedJsonSectionHeader } from "./AdvancedJsonSectionHeader";
 import { AdvancedJsonViewer } from "@/src/components/ui/AdvancedJsonViewer";
-import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import {
-  type ExpansionState,
-  type PartialJSONTheme,
-} from "@/src/components/ui/AdvancedJsonViewer/types";
-import {
-  flattenJSON,
-  calculateTotalLineCount,
-} from "@/src/components/ui/AdvancedJsonViewer/utils/flattenJson";
-import {
-  searchInRows,
-  expandToMatch,
-  getMatchCountsPerRow,
-} from "@/src/components/ui/AdvancedJsonViewer/utils/searchJson";
-import { shouldVirtualize } from "@/src/components/ui/AdvancedJsonViewer/utils/estimateRowHeight";
+import { type PartialJSONTheme } from "@/src/components/ui/AdvancedJsonViewer/types";
+import { buildTreeFromJSON } from "@/src/components/ui/AdvancedJsonViewer/utils/treeStructure";
+import { searchInTree } from "@/src/components/ui/AdvancedJsonViewer/utils/searchJson";
 
 export interface AdvancedJsonSectionProps {
   /** Section title */
@@ -142,24 +130,7 @@ export function AdvancedJsonSection({
     }
   };
 
-  // Get expansion state from JsonExpansionContext
-  const { expansionState: globalExpansionState, setFieldExpansion } =
-    useJsonExpansion();
-
-  // Get field expansion state - use direct field reference to detect changes
-  const fieldExpansionState = useMemo(
-    () => globalExpansionState[field] ?? {},
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [globalExpansionState[field], field],
-  );
-
-  // Handle expansion state changes
-  const handleExpansionChange = useCallback(
-    (newExpansion: ExpansionState) => {
-      setFieldExpansion(field, newExpansion);
-    },
-    [field, setFieldExpansion],
-  );
+  // No more context - AdvancedJsonViewer handles storage directly via field prop
 
   // Search state (managed in this component, not in AdvancedJsonViewer)
   const [searchQuery, setSearchQuery] = useState("");
@@ -176,49 +147,47 @@ export function AdvancedJsonSection({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Compute flat rows for search
-  const flatRows = useMemo(() => {
-    return flattenJSON(parsedData ?? data, fieldExpansionState, {
+  // Build tree ONCE on mount for row counting only
+  // Expansion state is managed by AdvancedJsonViewer internally
+  const initialTree = useMemo(() => {
+    const effectiveData = parsedData ?? data;
+    if (!effectiveData) {
+      return null;
+    }
+    const tree = buildTreeFromJSON(effectiveData, {
       rootKey: "root",
+      initialExpansion: true, // Fully expanded for counting
     });
-  }, [parsedData, data, fieldExpansionState]);
+    return tree;
+  }, [parsedData, data]);
 
-  // Compute search matches
+  // Compute total row count (when fully expanded)
+  const totalRowCount = useMemo(() => {
+    const count = initialTree ? initialTree.totalNodeCount : 0;
+    return count;
+  }, [initialTree]);
+
+  // Compute search matches using the initial tree
   const searchMatches = useMemo(() => {
-    if (!debouncedSearchQuery || debouncedSearchQuery.trim() === "") {
+    if (
+      !debouncedSearchQuery ||
+      debouncedSearchQuery.trim() === "" ||
+      !initialTree
+    ) {
       return [];
     }
-    return searchInRows(flatRows, debouncedSearchQuery, {
+    const matches = searchInTree(initialTree, debouncedSearchQuery, {
       caseSensitive: false,
     });
-  }, [flatRows, debouncedSearchQuery]);
+    return matches;
+  }, [initialTree, debouncedSearchQuery]);
 
-  // Compute match counts per row (including descendants)
-  const matchCounts = useMemo(() => {
-    if (searchMatches.length === 0) return undefined;
-    return getMatchCountsPerRow(flatRows, searchMatches);
-  }, [flatRows, searchMatches]);
-
-  // Handle search navigation
+  // Handle search navigation (controlled via AdvancedJsonViewer)
   const handleNextMatch = useCallback(() => {
     if (searchMatches.length === 0) return;
     const nextIndex = (currentMatchIndex + 1) % searchMatches.length;
     setCurrentMatchIndex(nextIndex);
-
-    // Auto-expand ancestors to show the match
-    const match = searchMatches[nextIndex];
-    if (match) {
-      const newExpansion = expandToMatch(match, flatRows, fieldExpansionState);
-      setFieldExpansion(field, newExpansion);
-    }
-  }, [
-    searchMatches,
-    currentMatchIndex,
-    flatRows,
-    fieldExpansionState,
-    field,
-    setFieldExpansion,
-  ]);
+  }, [searchMatches, currentMatchIndex]);
 
   const handlePreviousMatch = useCallback(() => {
     if (searchMatches.length === 0) return;
@@ -227,21 +196,7 @@ export function AdvancedJsonSection({
         ? searchMatches.length - 1
         : currentMatchIndex - 1;
     setCurrentMatchIndex(prevIndex);
-
-    // Auto-expand ancestors to show the match
-    const match = searchMatches[prevIndex];
-    if (match) {
-      const newExpansion = expandToMatch(match, flatRows, fieldExpansionState);
-      setFieldExpansion(field, newExpansion);
-    }
-  }, [
-    searchMatches,
-    currentMatchIndex,
-    flatRows,
-    fieldExpansionState,
-    field,
-    setFieldExpansion,
-  ]);
+  }, [searchMatches, currentMatchIndex]);
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery("");
@@ -249,28 +204,23 @@ export function AdvancedJsonSection({
     setCurrentMatchIndex(0);
   }, []);
 
-  // Compute total row count when fully expanded (for consistent display with line numbers)
-  // Uses optimized traversal instead of full flattening
-  const totalRowCount = useMemo(() => {
-    return calculateTotalLineCount(parsedData ?? data);
-  }, [parsedData, data]);
+  // Collapse/expand all state (managed via storage write)
+  const [allExpanded, setAllExpanded] = useState(true);
 
-  // Determine if all nodes are collapsed/expanded for collapse/expand all button
-  const allExpanded = useMemo(() => {
-    if (typeof fieldExpansionState === "boolean") {
-      return fieldExpansionState;
-    }
-    // If it's a Record, check if most paths are expanded
-    const values = Object.values(fieldExpansionState);
-    if (values.length === 0) return false;
-    const expandedCount = values.filter(Boolean).length;
-    return expandedCount > values.length / 2;
-  }, [fieldExpansionState]);
-
-  // Handle collapse/expand all
+  // Handle collapse/expand all (write to storage, AdvancedJsonViewer will read on next mount/rebuild)
   const handleToggleExpandAll = () => {
     const newExpansion = !allExpanded;
-    setFieldExpansion(field, newExpansion);
+    setAllExpanded(newExpansion);
+
+    // Write to storage directly (no context)
+    const {
+      writeExpansionToStorage,
+    } = require("@/src/components/trace2/contexts/JsonExpansionContext");
+    writeExpansionToStorage(field, newExpansion);
+
+    // Force AdvancedJsonViewer to rebuild by changing key
+    // This is necessary because we're writing to storage and need viewer to re-read
+    setSearchQuery((prev) => prev); // Trigger re-render
   };
 
   // Handle string wrap mode cycling: truncate → wrap → nowrap → truncate
@@ -305,14 +255,12 @@ export function AdvancedJsonSection({
     [headerBackgroundColor, backgroundColor],
   );
 
-  // Determine if virtualization is being used (must come after customTheme)
+  // Determine if virtualization is being used
+  // Auto-virtualize for 500+ rows (when fully expanded)
   const isVirtualized = useMemo(() => {
-    return shouldVirtualize(flatRows, {
-      baseHeight: customTheme.lineHeight ?? 16,
-      longStringThreshold: truncateStringsAt ?? 100,
-      charsPerLine: 80,
-    });
-  }, [flatRows, customTheme.lineHeight, truncateStringsAt]);
+    const virtualized = totalRowCount >= 500;
+    return virtualized;
+  }, [totalRowCount]);
 
   // Ref for scroll container (the body wrapper div)
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -321,6 +269,10 @@ export function AdvancedJsonSection({
   if (hideIfNull && (data === null || data === undefined)) {
     return null;
   }
+
+  // If data is still being loaded/parsed, show header but not body
+  const hasData = (parsedData ?? data) !== undefined;
+  const effectiveData = parsedData ?? data;
 
   return (
     <div
@@ -484,25 +436,29 @@ export function AdvancedJsonSection({
             height: "100%",
           }}
         >
-          <AdvancedJsonViewer
-            data={parsedData ?? data}
-            theme={customTheme}
-            expansionState={fieldExpansionState}
-            onExpansionChange={handleExpansionChange}
-            enableSearch={false} // Search is handled in header
-            searchQuery={debouncedSearchQuery}
-            onSearchQueryChange={setSearchQuery}
-            currentMatchIndex={currentMatchIndex}
-            onCurrentMatchIndexChange={setCurrentMatchIndex}
-            matchCounts={matchCounts}
-            showLineNumbers={showLineNumbers}
-            enableCopy={enableCopy}
-            stringWrapMode={stringWrapMode}
-            truncateStringsAt={truncateStringsAt}
-            isLoading={isLoading}
-            scrollContainerRef={scrollContainerRef}
-            className="h-full"
-          />
+          {!hasData ? (
+            <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">
+              {isLoading ? "Loading..." : "No data"}
+            </div>
+          ) : (
+            <AdvancedJsonViewer
+              data={effectiveData}
+              field={field}
+              theme={customTheme}
+              enableSearch={false} // Search is handled in header
+              searchQuery={debouncedSearchQuery}
+              onSearchQueryChange={setSearchQuery}
+              currentMatchIndex={currentMatchIndex}
+              onCurrentMatchIndexChange={setCurrentMatchIndex}
+              showLineNumbers={showLineNumbers}
+              enableCopy={enableCopy}
+              stringWrapMode={stringWrapMode}
+              truncateStringsAt={truncateStringsAt}
+              isLoading={isLoading}
+              scrollContainerRef={scrollContainerRef}
+              className="h-full"
+            />
+          )}
         </div>
       )}
     </div>

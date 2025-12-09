@@ -15,34 +15,26 @@
  * - Theme customization
  */
 
-import {
-  useState,
-  useMemo,
-  useCallback,
-  useEffect,
-  startTransition,
-} from "react";
-import { type AdvancedJsonViewerProps, type ExpansionState } from "./types";
-import { toggleRowExpansion } from "./utils/flattenJson";
-import { searchInRows } from "./utils/searchJson";
-import { shouldVirtualize } from "./utils/estimateRowHeight";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { type AdvancedJsonViewerProps } from "./types";
+import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
 import { useJsonTheme } from "./hooks/useJsonTheme";
-import { useSearchNavigation } from "./hooks/useSearchNavigation";
-import { useFlattenedJson } from "./hooks/useFlattenedJson";
+import { useSearchNavigationTree } from "./hooks/useSearchNavigationTree";
+import { useTreeState } from "./hooks/useTreeState";
 import { SearchBar } from "./components/SearchBar";
 import { SimpleJsonViewer } from "./SimpleJsonViewer";
 import { VirtualizedJsonViewer } from "./VirtualizedJsonViewer";
+import { debugLog } from "./utils/debug";
 
 /**
  * AdvancedJsonViewer - Self-contained JSON viewer
  */
 export function AdvancedJsonViewer({
   data,
+  field = null,
   virtualized: virtualizedProp,
   theme: userTheme,
   initialExpansion = true,
-  expansionState: controlledExpansionState,
-  onExpansionChange,
   enableSearch = true,
   searchPlaceholder = "Search JSON...",
   searchQuery: controlledSearchQuery,
@@ -55,25 +47,14 @@ export function AdvancedJsonViewer({
   stringWrapMode = "truncate",
   onStringWrapModeChange: _onStringWrapModeChange,
   truncateStringsAt = 100,
-  showArrayIndices: _showArrayIndices = true, // TODO: Implement array indices feature
-  groupArraysAbove: _groupArraysAbove, // TODO: Implement array grouping feature
   className,
   isLoading = false,
   error,
   scrollContainerRef,
 }: AdvancedJsonViewerProps) {
+  debugLog("[AdvancedJsonViewer] RENDER");
   // Resolve theme
   const theme = useJsonTheme(userTheme);
-
-  // Expansion state management
-  const [internalExpansionState, setInternalExpansionState] =
-    useState<ExpansionState>(initialExpansion);
-
-  const isExpansionControlled =
-    controlledExpansionState !== undefined && onExpansionChange !== undefined;
-  const expansionState = isExpansionControlled
-    ? controlledExpansionState
-    : internalExpansionState;
 
   // Search state management
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
@@ -92,41 +73,31 @@ export function AdvancedJsonViewer({
     ? controlledCurrentMatchIndex
     : internalCurrentMatchIndex;
 
-  // Track which row is being toggled (for spinner display)
-  const [togglingRowId, setTogglingRowId] = useState<string | null>(null);
-
-  // Flatten JSON data in Web Worker (non-blocking)
+  // Build tree from JSON data (sync for <100K, worker for >100K)
+  // JIT expansion: reads from storage directly, no context subscription
   const {
-    flatRows,
-    totalLineCount,
-    isFlattening,
-    isReady,
-    flattenTime,
-    flattenError,
-  } = useFlattenedJson({
-    data,
-    expansionState,
-    config: {
-      rootKey: "root",
-      maxDepth: null,
-      maxRows: null,
-    },
+    tree,
+    isBuilding,
+    buildError,
+    expansionVersion,
+    handleToggleExpansion: treeHandleToggleExpansion,
+  } = useTreeState(data, field, initialExpansion, {
+    rootKey: "root",
   });
 
-  // Log flatten performance
-  useEffect(() => {
-    if (isReady && flattenTime !== undefined) {
-      console.log(
-        `[AdvancedJsonViewer] Flatten completed in ${flattenTime.toFixed(2)}ms (${flatRows.length} rows)`,
-      );
-    }
-  }, [isReady, flattenTime, flatRows.length]);
-
   // Search matches
-  const searchMatches = useMemo(
-    () => searchInRows(flatRows, searchQuery, { caseSensitive: false }),
-    [flatRows, searchQuery],
-  );
+  const searchMatches = useMemo(() => {
+    debugLog("[AdvancedJsonViewer] Computing searchMatches");
+    return tree ? searchInTree(tree, searchQuery, { caseSensitive: false }) : [];
+  }, [tree, searchQuery]);
+
+  // Calculate match counts for collapsed nodes
+  const calculatedMatchCounts = useMemo(() => {
+    debugLog("[AdvancedJsonViewer] Computing calculatedMatchCounts");
+    return tree && searchMatches.length > 0
+      ? getMatchCountsPerNode(tree, searchMatches)
+      : matchCounts;
+  }, [tree, searchMatches, matchCounts]);
 
   // Reset match index when matches change
   useEffect(() => {
@@ -145,53 +116,19 @@ export function AdvancedJsonViewer({
   ]);
 
   // Determine if virtualization should be used
+  // Use initial tree size (totalNodeCount) rather than current visible rows
+  // This decision should be stable regardless of expansion state
   const shouldUseVirtualization = useMemo(() => {
     if (virtualizedProp !== undefined) return virtualizedProp;
-    return shouldVirtualize(flatRows, {
-      baseHeight: theme.lineHeight,
-      longStringThreshold: truncateStringsAt ?? 100,
-      charsPerLine: 80,
-    });
-  }, [virtualizedProp, flatRows, theme.lineHeight, truncateStringsAt]);
+    if (!tree) return false;
 
-  // Handle expansion toggle
-  const handleToggleExpansion = useCallback(
-    (rowId: string) => {
-      console.log(
-        "[AdvancedJsonViewer] handleToggleExpansion START for rowId:",
-        rowId,
-      );
-      console.time("[AdvancedJsonViewer] handleToggleExpansion (sync part)");
+    // Virtualize if tree has more than 500 nodes total
+    // This is based on the initial data structure size, not current expansion
+    return tree.totalNodeCount > 500;
+  }, [virtualizedProp, tree]);
 
-      // Set toggling state to show spinner on button
-      setTogglingRowId(rowId);
-
-      // Heavy computation (flattenJSON + virtualizer update) happens in background
-      // This keeps the UI responsive - button press feedback is immediate
-      startTransition(() => {
-        console.time("[AdvancedJsonViewer] handleToggleExpansion (transition)");
-
-        const newExpansion = toggleRowExpansion(rowId, expansionState);
-
-        if (isExpansionControlled) {
-          onExpansionChange(newExpansion);
-        } else {
-          setInternalExpansionState(newExpansion);
-        }
-
-        console.timeEnd(
-          "[AdvancedJsonViewer] handleToggleExpansion (transition)",
-        );
-        console.log("[AdvancedJsonViewer] handleToggleExpansion END");
-
-        // Clear toggling state after transition completes
-        setTogglingRowId(null);
-      });
-
-      console.timeEnd("[AdvancedJsonViewer] handleToggleExpansion (sync part)");
-    },
-    [expansionState, isExpansionControlled, onExpansionChange],
-  );
+  // Use tree's built-in toggle (already O(log n), no spinner needed)
+  const handleToggleExpansion = treeHandleToggleExpansion;
 
   // Search navigation
   const {
@@ -199,17 +136,14 @@ export function AdvancedJsonViewer({
     handlePreviousMatch,
     handleClearSearch,
     scrollToIndex,
-  } = useSearchNavigation({
+  } = useSearchNavigationTree({
     searchMatches,
     currentMatchIndex,
-    flatRows,
-    expansionState,
+    tree,
     isMatchIndexControlled,
     onCurrentMatchIndexChange,
     setInternalCurrentMatchIndex,
-    isExpansionControlled,
-    onExpansionChange,
-    setInternalExpansionState,
+    onToggleExpansion: treeHandleToggleExpansion,
   });
 
   // Handle search
@@ -245,6 +179,43 @@ export function AdvancedJsonViewer({
     );
   }, [handleClearSearch, isSearchControlled, onSearchQueryChange]);
 
+  // Common viewer props - memoized to prevent unnecessary re-renders
+  // MUST be defined before early returns to satisfy React Hooks rules
+  const viewerProps = useMemo(() => {
+    debugLog("[AdvancedJsonViewer] Creating viewerProps object");
+    return {
+      tree,
+      expansionVersion,
+      theme,
+      searchMatches,
+      currentMatchIndex,
+      matchCounts: calculatedMatchCounts,
+      showLineNumbers,
+      enableCopy,
+      stringWrapMode,
+      truncateStringsAt,
+      onToggleExpansion: handleToggleExpansion,
+      scrollToIndex,
+      scrollContainerRef,
+      totalLineCount: tree?.totalNodeCount,
+    };
+  }, [
+    tree,
+    expansionVersion,
+    theme,
+    searchMatches,
+    currentMatchIndex,
+    calculatedMatchCounts,
+    showLineNumbers,
+    enableCopy,
+    stringWrapMode,
+    truncateStringsAt,
+    handleToggleExpansion,
+    scrollToIndex,
+    scrollContainerRef,
+  ]);
+
+  // Early returns for special states
   // Loading state
   if (isLoading) {
     return (
@@ -264,31 +235,25 @@ export function AdvancedJsonViewer({
     );
   }
 
-  // Flatten error state
-  if (flattenError) {
+  // Build error state
+  if (buildError) {
     return (
       <div className={className} style={{ padding: "16px" }}>
         <div className="text-sm text-destructive">
-          Error flattening JSON: {flattenError}
+          Error building tree: {buildError}
         </div>
       </div>
     );
   }
 
-  // Flattening state (show ONLY during initial load when no rows exist yet)
-  // During expand/collapse, we show spinner on the button instead (no flickering)
-  if (isFlattening && flatRows.length === 0 && togglingRowId === null) {
+  // Building state (show ONLY during initial load)
+  if (isBuilding && !tree) {
     return (
       <div className={className} style={{ padding: "16px" }}>
         <div className="text-sm text-muted-foreground">Processing JSON...</div>
       </div>
     );
   }
-
-  // Select viewer component
-  const Viewer = shouldUseVirtualization
-    ? VirtualizedJsonViewer
-    : SimpleJsonViewer;
 
   return (
     <div
@@ -308,24 +273,13 @@ export function AdvancedJsonViewer({
         />
       )}
 
-      {/* Viewer */}
+      {/* Viewer - conditionally render without creating new component references */}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <Viewer
-          rows={flatRows}
-          theme={theme}
-          searchMatches={searchMatches}
-          currentMatchIndex={currentMatchIndex}
-          matchCounts={matchCounts}
-          showLineNumbers={showLineNumbers}
-          enableCopy={enableCopy}
-          stringWrapMode={stringWrapMode}
-          truncateStringsAt={truncateStringsAt}
-          onToggleExpansion={handleToggleExpansion}
-          scrollToIndex={scrollToIndex}
-          scrollContainerRef={scrollContainerRef}
-          totalLineCount={totalLineCount}
-          togglingRowId={togglingRowId}
-        />
+        {shouldUseVirtualization ? (
+          <VirtualizedJsonViewer {...viewerProps} />
+        ) : (
+          <SimpleJsonViewer {...viewerProps} />
+        )}
       </div>
     </div>
   );

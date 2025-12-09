@@ -5,22 +5,20 @@
  * Uses @tanstack/react-virtual which is already in project dependencies.
  */
 
-import { useRef, useEffect, useCallback, type RefObject } from "react";
+import { useRef, useEffect, useCallback, memo, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  type FlatJSONRow,
-  type SearchMatch,
-  type JSONTheme,
-  type StringWrapMode,
-} from "./types";
+import { type SearchMatch, type JSONTheme, type StringWrapMode } from "./types";
+import type { TreeState } from "./utils/treeStructure";
+import { getNodeByIndex, treeNodeToFlatRow } from "./utils/treeNavigation";
 import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
-import { useVirtualizerScrollRestoration } from "./hooks/useVirtualizerScrollRestoration";
+import { debugLog } from "./utils/debug";
 
 interface VirtualizedJsonViewerProps {
-  rows: FlatJSONRow[];
+  tree: TreeState | null;
+  expansionVersion: number; // Triggers re-render on expansion changes
   theme: JSONTheme;
   searchMatches?: SearchMatch[];
   currentMatchIndex?: number;
@@ -34,11 +32,11 @@ interface VirtualizedJsonViewerProps {
   scrollToIndex?: number; // For search navigation
   scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
   totalLineCount?: number; // Total number of lines when fully expanded (for line number width calculation)
-  togglingRowId?: string | null; // Row ID being toggled (for spinner display)
 }
 
-export function VirtualizedJsonViewer({
-  rows,
+export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
+  tree,
+  expansionVersion,
   theme,
   searchMatches = [],
   currentMatchIndex = 0,
@@ -52,9 +50,14 @@ export function VirtualizedJsonViewer({
   scrollToIndex,
   scrollContainerRef,
   totalLineCount,
-  togglingRowId,
 }: VirtualizedJsonViewerProps) {
+  debugLog("[VirtualizedJsonViewer] RENDER", { expansionVersion });
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Determine row count
+  // NOTE: Must recalculate when expansionVersion changes because tree is mutated in place
+  const rowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
+  debugLog("[VirtualizedJsonViewer] rowCount:", rowCount);
 
   // Layout calculations (widths, heights, column sizes)
   const {
@@ -64,7 +67,8 @@ export function VirtualizedJsonViewer({
     scrollableMaxWidth,
     estimateSize,
   } = useJsonViewerLayout({
-    rows,
+    tree,
+    expansionVersion,
     theme,
     showLineNumbers,
     totalLineCount,
@@ -78,25 +82,13 @@ export function VirtualizedJsonViewer({
     currentMatchIndex,
   );
 
-  // Memoize getItemKey to track rows by ID instead of index
-  // This prevents TanStack Virtual from invalidating its cache when row indices shift
-  const getItemKey = useCallback(
-    (index: number) => {
-      const row = rows[index];
-      return row?.id ?? index;
-    },
-    [rows],
-  );
-
   // Initialize virtualizer
-  console.log(
-    "[VirtualizedJsonViewer] Creating virtualizer with",
-    rows.length,
-    "rows",
-  );
-
+  // NOTE: We deliberately do NOT provide getItemKey because our data model is index-based.
+  // The tree is mutated in-place and getNodeByIndex does JIT lookup by index.
+  // When expansion changes, the node at each index changes, so we WANT all rows to repaint.
+  // Using index-based keys (default) aligns perfectly with our JIT architecture.
   const rowVirtualizer = useVirtualizer({
-    count: rows.length,
+    count: rowCount,
     getScrollElement: () => scrollContainerRef?.current || parentRef.current,
     estimateSize,
     overscan: 500, // Render 500 extra rows above/below viewport
@@ -104,29 +96,34 @@ export function VirtualizedJsonViewer({
       typeof window !== "undefined"
         ? (element) => element.getBoundingClientRect().height
         : undefined,
-    getItemKey, // Track items by row.id, not by array index
+    // No getItemKey - default to index-based keys for our positional data model
   });
 
-  // Scroll restoration logic (uses virtualizer's scrollToIndex)
-  const { handleToggleExpansion } = useVirtualizerScrollRestoration({
-    rows,
-    virtualizer: rowVirtualizer,
-    onToggleExpansion,
-  });
+  // Use tree toggle directly (scroll restoration is handled by tree expansion logic)
+  const finalHandleToggleExpansion = onToggleExpansion;
+
+  // Log virtualizer creation (only when rowCount changes)
+  useEffect(() => {
+    debugLog(
+      `[VirtualizedJsonViewer] Virtualizer initialized with ${rowCount} rows`,
+    );
+    // No need to call measure() - the virtualizer will remeasure automatically
+    // because getItemKey returns new keys when expansionVersion changes
+  }, [rowCount]);
 
   // Scroll to match when search navigation occurs
   useEffect(() => {
     if (
       scrollToIndex !== undefined &&
       scrollToIndex >= 0 &&
-      scrollToIndex < rows.length
+      scrollToIndex < rowCount
     ) {
       rowVirtualizer.scrollToIndex(scrollToIndex, {
         align: "center",
         behavior: "auto", // Use "auto" instead of "smooth" for dynamic sizing
       });
     }
-  }, [scrollToIndex, rowVirtualizer, rows.length]);
+  }, [scrollToIndex, rowVirtualizer, rowCount]);
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
@@ -150,7 +147,14 @@ export function VirtualizedJsonViewer({
         }}
       >
         {virtualRows.map((virtualRow) => {
-          const row = rows[virtualRow.index]!;
+          // Get row from tree
+          if (!tree) return null;
+
+          const node = getNodeByIndex(tree.rootNode, virtualRow.index);
+          if (!node) return null;
+
+          const row = treeNodeToFlatRow(node, virtualRow.index);
+
           const searchMatch = matchMap.get(row.id);
           const isCurrentMatch = currentMatch?.rowId === row.id;
           const matchCount = matchCounts?.get(row.id);
@@ -189,9 +193,8 @@ export function VirtualizedJsonViewer({
                   maxLineNumberDigits={maxLineNumberDigits}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}
-                  onToggleExpansion={handleToggleExpansion}
+                  onToggleExpansion={finalHandleToggleExpansion}
                   stringWrapMode={stringWrapMode}
-                  isToggling={togglingRowId === row.id}
                 />
               </div>
 
@@ -226,7 +229,7 @@ export function VirtualizedJsonViewer({
       </div>
 
       {/* Empty state */}
-      {rows.length === 0 && (
+      {rowCount === 0 && (
         <div
           className="flex items-center justify-center p-8 text-muted-foreground"
           style={{ fontSize: theme.fontSize }}
@@ -236,4 +239,4 @@ export function VirtualizedJsonViewer({
       )}
     </div>
   );
-}
+});

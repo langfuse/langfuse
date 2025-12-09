@@ -1,47 +1,42 @@
 /**
- * useSearchNavigation - Hook for managing search navigation
+ * useSearchNavigationTree - Tree-based search navigation hook
  *
  * Handles:
- * - Navigating to next/previous search matches
+ * - Navigating to next/previous search matches in tree mode
  * - Clearing search
  * - Auto-expanding ancestors to show matches
- * - Computing scroll-to index for virtualized viewer
+ * - Computing scroll-to index using tree navigation
  *
- * Used by AdvancedJsonViewer
+ * Tree-compatible version of useSearchNavigation
  */
 
 import { useMemo, useCallback } from "react";
-import type { SearchMatch, FlatJSONRow, ExpansionState } from "../types";
-import { expandToMatch } from "../utils/searchJson";
+import type { SearchMatch } from "../types";
+import type { TreeState } from "../utils/treeStructure";
+import { expandToMatch_Tree, findNodeVisibleIndex } from "../utils/searchJson";
 
-interface UseSearchNavigationParams {
+interface UseSearchNavigationTreeParams {
   searchMatches: SearchMatch[];
   currentMatchIndex: number;
-  flatRows: FlatJSONRow[];
-  expansionState: ExpansionState;
+  tree: TreeState | null;
   isMatchIndexControlled: boolean;
   onCurrentMatchIndexChange?: (index: number) => void;
   setInternalCurrentMatchIndex: (index: number) => void;
-  isExpansionControlled: boolean;
-  onExpansionChange?: (state: ExpansionState) => void;
-  setInternalExpansionState: (state: ExpansionState) => void;
+  onToggleExpansion: (nodeId: string) => void; // Tree-based toggle (unused but kept for future)
 }
 
-export function useSearchNavigation({
+export function useSearchNavigationTree({
   searchMatches,
   currentMatchIndex,
-  flatRows,
-  expansionState,
+  tree,
   isMatchIndexControlled,
   onCurrentMatchIndexChange,
   setInternalCurrentMatchIndex,
-  isExpansionControlled,
-  onExpansionChange,
-  setInternalExpansionState,
-}: UseSearchNavigationParams) {
+  onToggleExpansion: _onToggleExpansion,
+}: UseSearchNavigationTreeParams) {
   // Navigate to next match
   const handleNextMatch = useCallback(() => {
-    if (searchMatches.length === 0) return;
+    if (searchMatches.length === 0 || !tree) return;
 
     const nextIndex = (currentMatchIndex + 1) % searchMatches.length;
 
@@ -54,34 +49,25 @@ export function useSearchNavigation({
     // Expand ancestors to show the match
     const match = searchMatches[nextIndex];
     if (match) {
-      const newExpansion = expandToMatch(match, flatRows, expansionState);
-      if (isExpansionControlled) {
-        onExpansionChange?.(newExpansion);
-      } else {
-        setInternalExpansionState(newExpansion);
-      }
+      expandToMatch_Tree(tree, match);
+      // Trigger re-render by toggling (expansion is already done, this is just for UI sync)
+      // Note: expandToMatch_Tree mutates tree in place, caller needs to handle expansionVersion increment
     }
   }, [
     searchMatches,
     currentMatchIndex,
-    flatRows,
-    expansionState,
-    isExpansionControlled,
-    onExpansionChange,
+    tree,
     isMatchIndexControlled,
     onCurrentMatchIndexChange,
     setInternalCurrentMatchIndex,
-    setInternalExpansionState,
   ]);
 
   // Navigate to previous match
   const handlePreviousMatch = useCallback(() => {
-    if (searchMatches.length === 0) return;
+    if (searchMatches.length === 0 || !tree) return;
 
     const prevIndex =
-      currentMatchIndex === 0
-        ? searchMatches.length - 1
-        : currentMatchIndex - 1;
+      (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
 
     if (isMatchIndexControlled) {
       onCurrentMatchIndexChange?.(prevIndex);
@@ -92,24 +78,15 @@ export function useSearchNavigation({
     // Expand ancestors to show the match
     const match = searchMatches[prevIndex];
     if (match) {
-      const newExpansion = expandToMatch(match, flatRows, expansionState);
-      if (isExpansionControlled) {
-        onExpansionChange?.(newExpansion);
-      } else {
-        setInternalExpansionState(newExpansion);
-      }
+      expandToMatch_Tree(tree, match);
     }
   }, [
     searchMatches,
     currentMatchIndex,
-    flatRows,
-    expansionState,
-    isExpansionControlled,
-    onExpansionChange,
+    tree,
     isMatchIndexControlled,
     onCurrentMatchIndexChange,
     setInternalCurrentMatchIndex,
-    setInternalExpansionState,
   ]);
 
   // Clear search
@@ -125,6 +102,7 @@ export function useSearchNavigation({
         setInternalSearchQuery?.("");
       }
 
+      // Reset match index
       if (isMatchIndexControlled) {
         onCurrentMatchIndexChange?.(0);
       } else {
@@ -138,16 +116,21 @@ export function useSearchNavigation({
     ],
   );
 
-  // Get scroll index for current match (for virtualized viewer)
+  // Compute scroll-to index for current match
   const scrollToIndex = useMemo(() => {
-    if (searchMatches.length === 0) return undefined;
-    return searchMatches[currentMatchIndex]?.rowIndex;
-  }, [searchMatches, currentMatchIndex]);
+    if (searchMatches.length === 0 || !tree) return undefined;
+
+    const currentMatch = searchMatches[currentMatchIndex];
+    if (!currentMatch) return undefined;
+
+    // Find visible index of matched node
+    return findNodeVisibleIndex(tree, currentMatch.rowId);
+  }, [searchMatches, currentMatchIndex, tree]);
 
   return {
     handleNextMatch,
     handlePreviousMatch,
     handleClearSearch,
-    scrollToIndex,
+    scrollToIndex: scrollToIndex !== -1 ? scrollToIndex : undefined,
   };
 }

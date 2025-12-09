@@ -196,20 +196,17 @@ export interface AdvancedJsonViewerProps {
   /** Data to display */
   data: unknown;
 
+  /** Field name for sessionStorage persistence (e.g., "input", "output"). If null, no persistence. */
+  field?: string | null;
+
   /** Enable virtualization (default: true for >500 rows) */
   virtualized?: boolean;
 
   /** Theme customization */
   theme?: PartialJSONTheme;
 
-  /** Initial expansion state */
+  /** Initial expansion state (only used if field is null, otherwise read from storage) */
   initialExpansion?: ExpansionState;
-
-  /** Controlled expansion state */
-  expansionState?: ExpansionState;
-
-  /** Callback when expansion changes */
-  onExpansionChange?: (state: ExpansionState) => void;
 
   /** Enable search functionality */
   enableSearch?: boolean;
@@ -246,12 +243,6 @@ export interface AdvancedJsonViewerProps {
 
   /** Truncate strings longer than this (null = no truncation) - used internally for "truncate" mode */
   truncateStringsAt?: number | null;
-
-  /** Show array indices */
-  showArrayIndices?: boolean;
-
-  /** Group large arrays (threshold for grouping) */
-  groupArraysAbove?: number;
 
   /** Custom CSS class */
   className?: string;
