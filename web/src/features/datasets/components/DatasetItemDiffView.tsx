@@ -6,65 +6,25 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
-import { Badge } from "@/src/components/ui/badge";
-import { useMemo } from "react";
 
 type DatasetItemDiffViewProps = {
   selectedVersion: DatasetItemDomain;
   latestVersion: DatasetItemDomain;
 };
 
-const hasChanges = (oldValue: unknown, newValue: unknown): boolean => {
-  const oldStr = JSON.stringify(oldValue, null, 2);
-  const newStr = JSON.stringify(newValue, null, 2);
-  return oldStr !== newStr;
-};
-
 export const DatasetItemDiffView = ({
   selectedVersion,
   latestVersion,
 }: DatasetItemDiffViewProps) => {
-  const inputChanged = hasChanges(selectedVersion.input, latestVersion.input);
-  const outputChanged = hasChanges(
-    selectedVersion.expectedOutput,
-    latestVersion.expectedOutput,
-  );
-  const metadataChanged = hasChanges(
-    selectedVersion.metadata,
-    latestVersion.metadata,
-  );
-
-  // Auto-expand sections that have changes
-  const defaultExpanded = useMemo(() => {
-    const expanded: string[] = [];
-    if (inputChanged) expanded.push("input");
-    if (outputChanged) expanded.push("output");
-    if (metadataChanged) expanded.push("metadata");
-    // If nothing changed, expand all to show they're the same
-    if (expanded.length === 0) {
-      return ["input", "output", "metadata"];
-    }
-    return expanded;
-  }, [inputChanged, outputChanged, metadataChanged]);
-
   return (
     <div className="space-y-4">
       <Accordion
         type="multiple"
-        defaultValue={defaultExpanded}
+        defaultValue={["input", "output"]}
         className="w-full"
       >
         <AccordionItem value="input">
-          <AccordionTrigger>
-            <div className="flex items-center gap-2">
-              <span>Input</span>
-              {inputChanged && (
-                <Badge variant="outline" className="text-xs">
-                  Changed
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
+          <AccordionTrigger>Input</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
               oldString={
@@ -84,16 +44,7 @@ export const DatasetItemDiffView = ({
         </AccordionItem>
 
         <AccordionItem value="output">
-          <AccordionTrigger>
-            <div className="flex items-center gap-2">
-              <span>Expected Output</span>
-              {outputChanged && (
-                <Badge variant="outline" className="text-xs">
-                  Changed
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
+          <AccordionTrigger>Expected Output</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
               oldString={
@@ -113,16 +64,7 @@ export const DatasetItemDiffView = ({
         </AccordionItem>
 
         <AccordionItem value="metadata">
-          <AccordionTrigger>
-            <div className="flex items-center gap-2">
-              <span>Metadata</span>
-              {metadataChanged && (
-                <Badge variant="outline" className="text-xs">
-                  Changed
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
+          <AccordionTrigger>Metadata</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
               oldString={
