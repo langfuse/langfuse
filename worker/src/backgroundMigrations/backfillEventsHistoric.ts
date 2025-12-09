@@ -552,13 +552,12 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.event_ts,
         o.is_deleted
       FROM observations_pid_tid_sorting o
-      LEFT ANY JOIN traces_pid_tid_sorting t
+      LEFT ANY JOIN (select * from traces_pid_tid_sorting where _partition_id = '${todo.partition}') t
       ON o.project_id = t.project_id AND o.trace_id = t.id
       ${whereClause}
       -- Conditionally filter for partitions if not "REST"
       -- This allow us to have a catch all partition for older data
       ${todo.partition !== "REST" ? `AND o._partition_id = '${todo.partition}'` : ""}
-      ${todo.partition !== "REST" ? `AND (t._partition_id = '${todo.partition}' OR t._partition_id IS NULL)` : ""}
       SETTINGS
         join_algorithm = 'full_sorting_merge',
         type_json_skip_duplicated_paths = 1
