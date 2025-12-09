@@ -30,7 +30,9 @@ export function TruncatedString({
   highlightEnd,
 }: TruncatedStringProps) {
   const isTruncated = value.length > maxLength;
-  const displayValue = isTruncated ? value.slice(0, maxLength) + "..." : value;
+  // Still slice for performance (avoid rendering massive strings in DOM)
+  // but rely on CSS ellipsis for actual visual truncation
+  const displayValue = isTruncated ? value.slice(0, maxLength * 2) : value;
   const triggerRef = useRef<HTMLSpanElement>(null);
   const [triggerWidth, setTriggerWidth] = useState<number | undefined>(
     undefined,
@@ -73,7 +75,7 @@ export function TruncatedString({
     );
   }
 
-  // Truncated - show popover on hover
+  // Truncated - show popover on hover, use CSS ellipsis for visual truncation
   return (
     <HoverCard openDelay={300} closeDelay={100}>
       <HoverCardTrigger asChild>
@@ -83,9 +85,15 @@ export function TruncatedString({
             color: theme.stringColor,
             fontFamily: "monospace",
             cursor: "help",
+            display: "inline-block",
+            maxWidth: "100%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            verticalAlign: "bottom",
           }}
         >
-          &quot;
+          <span>&quot;</span>
           {segments.map((segment, index) => (
             <span
               key={index}
@@ -98,7 +106,7 @@ export function TruncatedString({
               {segment.text}
             </span>
           ))}
-          &quot;
+          <span>&quot;</span>
         </span>
       </HoverCardTrigger>
       <HoverCardContent
@@ -112,9 +120,11 @@ export function TruncatedString({
         }}
       >
         <div
-          className="max-h-60 overflow-auto p-0.5 text-xs"
+          className="max-h-60 overflow-auto p-0.5"
           style={{
             fontFamily: "monospace",
+            fontSize: theme.fontSize,
+            color: theme.stringColor,
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
           }}
