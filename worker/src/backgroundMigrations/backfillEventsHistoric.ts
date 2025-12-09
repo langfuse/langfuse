@@ -76,6 +76,9 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
       LIMIT 1
     `,
     params: { queryId },
+    clickhouseConfigs: {
+      request_timeout: 60_000, // 60s timeout for polling queries
+    },
     clickhouseSettings: {
       skip_unavailable_shards: 1,
     },
@@ -103,6 +106,9 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
       LIMIT 1
     `,
     params: { queryId },
+    clickhouseConfigs: {
+      request_timeout: 60_000, // 60s timeout for polling queries
+    },
     clickhouseSettings: {
       skip_unavailable_shards: 1,
     },
@@ -202,18 +208,13 @@ class ConcurrentQueryManager {
             }
             // 'running' - continue polling
           } catch (queryError) {
-            // Error while polling this specific query - treat as failure
-            logger.error(
-              `[Backfill Events] Error polling query ${queryId} for chunk ${todo.id}`,
+            // Error while polling this specific query - log warning and continue polling
+            // Polling errors (e.g., timeouts) are transient and don't indicate query failure
+            logger.warn(
+              `[Backfill Events] Error polling query ${queryId} for chunk ${todo.id}, will retry on next poll cycle`,
               queryError,
             );
-            this.activeQueries.delete(queryId);
-            const errorMessage =
-              queryError instanceof Error
-                ? queryError.message
-                : String(queryError);
-            await onComplete(todo, false, errorMessage);
-            await scheduleNext();
+            // Don't remove from activeQueries or call onComplete - just continue polling
           }
         }
       } catch (error) {
