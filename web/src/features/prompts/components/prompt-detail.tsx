@@ -528,6 +528,9 @@ export const PromptDetail = ({
                   <div className="w-full">
                     <OpenAiMessageView
                       messages={chatMessages}
+                      shouldRenderMarkdown={true}
+                      currentView="pretty"
+                      messageToToolCallNumbers={new Map()}
                       collapseLongHistory={false}
                       projectIdForPromptButtons={projectId}
                     />

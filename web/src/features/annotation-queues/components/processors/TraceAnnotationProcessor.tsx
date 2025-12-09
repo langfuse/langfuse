@@ -1,6 +1,7 @@
 import { Trace } from "@/src/components/trace2/Trace";
 import { ObservationPreview } from "@/src/components/trace2/ObservationPreview";
 import { TracePreview } from "@/src/components/trace2/TracePreview";
+import { JsonExpansionProvider } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
@@ -103,32 +104,34 @@ export const TraceAnnotationProcessor: React.FC<
 
   const leftPanel =
     view === "hideTree" ? (
-      <div className="flex h-full flex-col overflow-y-auto pl-4">
-        {item.objectType === AnnotationQueueObjectType.TRACE ? (
-          <TracePreview
-            key={data.id}
-            trace={data}
-            serverScores={data.scores}
-            observations={data.observations}
-            viewType="focused"
-            showCommentButton={true}
-            commentCounts={castToNumberMap(traceCommentCounts.data)}
-            precomputedCost={traceTree?.totalCost}
-          />
-        ) : (
-          <ObservationPreview
-            observations={data.observations}
-            serverScores={data.scores}
-            projectId={item.projectId}
-            currentObservationId={item.objectId}
-            precomputedCost={nodeMap.get(item.objectId)?.totalCost}
-            traceId={traceId}
-            viewType="focused"
-            showCommentButton={true}
-            commentCounts={castToNumberMap(observationCommentCounts.data)}
-          />
-        )}
-      </div>
+      <JsonExpansionProvider>
+        <div className="flex h-full flex-col overflow-y-auto pl-4">
+          {item.objectType === AnnotationQueueObjectType.TRACE ? (
+            <TracePreview
+              key={data.id}
+              trace={data}
+              serverScores={data.scores}
+              observations={data.observations}
+              viewType="focused"
+              showCommentButton={true}
+              commentCounts={castToNumberMap(traceCommentCounts.data)}
+              precomputedCost={traceTree?.totalCost}
+            />
+          ) : (
+            <ObservationPreview
+              observations={data.observations}
+              serverScores={data.scores}
+              projectId={item.projectId}
+              currentObservationId={item.objectId}
+              precomputedCost={nodeMap.get(item.objectId)?.totalCost}
+              traceId={traceId}
+              viewType="focused"
+              showCommentButton={true}
+              commentCounts={castToNumberMap(observationCommentCounts.data)}
+            />
+          )}
+        </div>
+      </JsonExpansionProvider>
     ) : (
       <div className="flex h-full flex-col overflow-y-auto">
         <Trace
