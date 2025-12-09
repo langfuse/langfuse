@@ -318,7 +318,7 @@ const EnvSchema = z.object({
   LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT: z.coerce
     .number()
     .positive()
-    .default(5),
+    .default(1),
 
   // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
