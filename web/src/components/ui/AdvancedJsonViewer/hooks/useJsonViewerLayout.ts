@@ -107,8 +107,8 @@ export function useJsonViewerLayout({
       const [, maxDepth] = getVisibleDepthRange(tree.rootNode);
       const cappedDepth = Math.min(maxDepth, 20);
       const maxIndent = cappedDepth * theme.indentSize;
-      // Max 800px for value area - allows truncated strings to display comfortably
-      return maxIndent + 800;
+      // Max 600px for value area - allows truncated strings to display comfortably
+      return maxIndent + 600;
     }
     // No maximum for nowrap mode
     return undefined;
