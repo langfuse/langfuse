@@ -9,13 +9,20 @@
  * 5. Edge cases
  */
 
-import { buildTreeFromJSON, type TreeNode, type TreeState } from "./treeStructure";
+import {
+  buildTreeFromJSON,
+  type TreeNode,
+  type TreeState,
+} from "./treeStructure";
 import { getAllVisibleNodes, getNodeByIndex } from "./treeNavigation";
 
 describe("Tree Structure Building", () => {
   describe("Basic Structure", () => {
     it("should handle null", () => {
-      const tree = buildTreeFromJSON(null, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(null, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree).toBeDefined();
       expect(tree.rootNode.value).toBeNull();
@@ -25,7 +32,10 @@ describe("Tree Structure Building", () => {
     });
 
     it("should handle undefined", () => {
-      const tree = buildTreeFromJSON(undefined, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(undefined, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree).toBeDefined();
       expect(tree.rootNode.value).toBeUndefined();
@@ -43,7 +53,10 @@ describe("Tree Structure Building", () => {
       ];
 
       testCases.forEach(({ value, type }) => {
-        const tree = buildTreeFromJSON(value, { rootKey: "root", initialExpansion: true });
+        const tree = buildTreeFromJSON(value, {
+          rootKey: "root",
+          initialExpansion: true,
+        });
 
         expect(tree.rootNode.value).toBe(value);
         expect(tree.rootNode.type).toBe(type);
@@ -54,7 +67,10 @@ describe("Tree Structure Building", () => {
     });
 
     it("should handle empty object", () => {
-      const tree = buildTreeFromJSON({}, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(
+        {},
+        { rootKey: "root", initialExpansion: true },
+      );
 
       expect(tree.rootNode.type).toBe("object");
       expect(tree.rootNode.isExpandable).toBe(true);
@@ -64,7 +80,10 @@ describe("Tree Structure Building", () => {
     });
 
     it("should handle empty array", () => {
-      const tree = buildTreeFromJSON([], { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON([], {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.rootNode.type).toBe("array");
       expect(tree.rootNode.isExpandable).toBe(true);
@@ -75,7 +94,10 @@ describe("Tree Structure Building", () => {
 
     it("should handle simple object with primitives", () => {
       const data = { a: 1, b: "hello", c: true };
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.rootNode.type).toBe("object");
       expect(tree.rootNode.children).toHaveLength(3);
@@ -93,7 +115,10 @@ describe("Tree Structure Building", () => {
 
     it("should handle simple array with primitives", () => {
       const data = [1, "hello", true];
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.rootNode.type).toBe("array");
       expect(tree.rootNode.children).toHaveLength(3);
@@ -113,7 +138,10 @@ describe("Tree Structure Building", () => {
   describe("Child Ordering (Critical)", () => {
     it("should maintain correct array index order in children array", () => {
       const data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Verify children array order matches array indices
       tree.rootNode.children.forEach((child, index) => {
@@ -125,7 +153,10 @@ describe("Tree Structure Building", () => {
 
     it("should maintain correct object key order in children array", () => {
       const data = { a: 1, b: 2, c: 3, d: 4, e: 5 };
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       const expectedKeys = Object.keys(data);
       tree.rootNode.children.forEach((child, index) => {
@@ -144,7 +175,10 @@ describe("Tree Structure Building", () => {
         metadata: { version: "1.0" },
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Check all nodes recursively
       const checkNode = (node: TreeNode) => {
@@ -167,7 +201,10 @@ describe("Tree Structure Building", () => {
         ],
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       const matrixNode = tree.rootNode.children[0]!;
       expect(matrixNode.key).toBe("matrix");
@@ -191,7 +228,10 @@ describe("Tree Structure Building", () => {
 
   describe("Absolute Line Numbers", () => {
     it("should assign root as line 1", () => {
-      const tree = buildTreeFromJSON({ a: 1 }, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(
+        { a: 1 },
+        { rootKey: "root", initialExpansion: true },
+      );
       expect(tree.rootNode.absoluteLineNumber).toBe(1);
     });
 
@@ -202,7 +242,10 @@ describe("Tree Structure Building", () => {
         c: 3,
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Pre-order: root(1), a(2), b(3), c(4)
       expect(tree.rootNode.absoluteLineNumber).toBe(1);
@@ -222,7 +265,10 @@ describe("Tree Structure Building", () => {
         },
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Pre-order: root(1), user(2), name(3), age(4), settings(5), theme(6)
       expect(tree.rootNode.absoluteLineNumber).toBe(1);
@@ -246,12 +292,15 @@ describe("Tree Structure Building", () => {
         e: "hello",
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Check that allNodes array has increasing line numbers
       for (let i = 1; i < tree.allNodes.length; i++) {
         expect(tree.allNodes[i]!.absoluteLineNumber).toBeGreaterThan(
-          tree.allNodes[i - 1]!.absoluteLineNumber
+          tree.allNodes[i - 1]!.absoluteLineNumber,
         );
       }
     });
@@ -262,16 +311,27 @@ describe("Tree Structure Building", () => {
         { id: 2, name: "Bob" },
       ];
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Pre-order: root(1), [0](2), id(3), name(4), [1](5), id(6), name(7)
       expect(tree.rootNode.absoluteLineNumber).toBe(1);
       expect(tree.rootNode.children[0]?.absoluteLineNumber).toBe(2);
-      expect(tree.rootNode.children[0]?.children[0]?.absoluteLineNumber).toBe(3);
-      expect(tree.rootNode.children[0]?.children[1]?.absoluteLineNumber).toBe(4);
+      expect(tree.rootNode.children[0]?.children[0]?.absoluteLineNumber).toBe(
+        3,
+      );
+      expect(tree.rootNode.children[0]?.children[1]?.absoluteLineNumber).toBe(
+        4,
+      );
       expect(tree.rootNode.children[1]?.absoluteLineNumber).toBe(5);
-      expect(tree.rootNode.children[1]?.children[0]?.absoluteLineNumber).toBe(6);
-      expect(tree.rootNode.children[1]?.children[1]?.absoluteLineNumber).toBe(7);
+      expect(tree.rootNode.children[1]?.children[0]?.absoluteLineNumber).toBe(
+        6,
+      );
+      expect(tree.rootNode.children[1]?.children[1]?.absoluteLineNumber).toBe(
+        7,
+      );
     });
   });
 
@@ -283,7 +343,10 @@ describe("Tree Structure Building", () => {
         e: [4, 5, 6],
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
       const visibleNodes = getAllVisibleNodes(tree.rootNode);
 
       // Verify line numbers increase monotonically
@@ -302,7 +365,10 @@ describe("Tree Structure Building", () => {
         ],
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Get all nodes via getNodeByIndex
       const nodesByIndex: TreeNode[] = [];
@@ -314,7 +380,7 @@ describe("Tree Structure Building", () => {
       // Verify line numbers increase
       for (let i = 1; i < nodesByIndex.length; i++) {
         expect(nodesByIndex[i]!.absoluteLineNumber).toBeGreaterThan(
-          nodesByIndex[i - 1]!.absoluteLineNumber
+          nodesByIndex[i - 1]!.absoluteLineNumber,
         );
       }
     });
@@ -328,7 +394,10 @@ describe("Tree Structure Building", () => {
         e: 4,
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Root has 3 children: a(1 node), b(3 nodes: b + c + d), e(1 node)
       // childOffsets should be cumulative: [1, 4, 5]
@@ -341,7 +410,10 @@ describe("Tree Structure Building", () => {
         b: { c: 2, d: 3 },
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Root has 5 total descendants when all expanded: a, b, c, d (primitives not counted further)
       // Visible descendants: a(1) + b(1) + c(1) + d(1) = 4
@@ -354,7 +426,10 @@ describe("Tree Structure Building", () => {
 
     it("should set parent-child relationships correctly", () => {
       const data = { a: { b: { c: 1 } } };
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       const aNode = tree.rootNode.children[0]!;
       const bNode = aNode.children[0]!;
@@ -378,13 +453,16 @@ describe("Tree Structure Building", () => {
         current = current.nested;
       }
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.totalNodeCount).toBe(40); // 20 objects + 20 values
 
       // Check max depth
       let maxDepth = 0;
-      tree.allNodes.forEach(node => {
+      tree.allNodes.forEach((node) => {
         if (node.depth > maxDepth) maxDepth = node.depth;
       });
       expect(maxDepth).toBe(20);
@@ -396,7 +474,10 @@ describe("Tree Structure Building", () => {
         data[`key${i}`] = i;
       }
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.rootNode.children).toHaveLength(100);
       expect(tree.totalNodeCount).toBe(101); // root + 100 children
@@ -422,7 +503,10 @@ describe("Tree Structure Building", () => {
         },
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       // Verify structure is built correctly
       expect(tree.rootNode.type).toBe("object");
@@ -443,7 +527,10 @@ describe("Tree Structure Building", () => {
         nan: NaN,
       };
 
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.rootNode.children).toHaveLength(3);
       expect(tree.rootNode.children[0]?.value).toBe(Infinity);
@@ -455,7 +542,10 @@ describe("Tree Structure Building", () => {
   describe("Node Map", () => {
     it("should build nodeMap with all nodes", () => {
       const data = { a: 1, b: { c: 2 } };
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.nodeMap.size).toBe(tree.totalNodeCount);
 
@@ -468,7 +558,10 @@ describe("Tree Structure Building", () => {
 
     it("should handle array indices in node IDs", () => {
       const data = { items: [1, 2, 3] };
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
 
       expect(tree.nodeMap.get("root.items.0")).toBeDefined();
       expect(tree.nodeMap.get("root.items.1")).toBeDefined();
@@ -482,14 +575,14 @@ describe("Tree Structure Building", () => {
 
       const treeExpanded = buildTreeFromJSON(data, {
         rootKey: "root",
-        initialExpansion: true
+        initialExpansion: true,
       });
       expect(treeExpanded.rootNode.isExpanded).toBe(true);
       expect(treeExpanded.rootNode.children[0]?.isExpanded).toBe(true);
 
       const treeCollapsed = buildTreeFromJSON(data, {
         rootKey: "root",
-        initialExpansion: false
+        initialExpansion: false,
       });
       expect(treeCollapsed.rootNode.isExpanded).toBe(false);
       expect(treeCollapsed.rootNode.children[0]?.isExpanded).toBe(false);
@@ -501,7 +594,7 @@ describe("Tree Structure Building", () => {
       const tree = buildTreeFromJSON(data, {
         rootKey: "root",
         initialExpansion: true,
-        expandDepth: 2
+        expandDepth: 2,
       });
 
       // Depth 0: root (expanded)
@@ -527,7 +620,10 @@ describe("Tree Structure Building", () => {
       }
 
       const startTime = performance.now();
-      const tree = buildTreeFromJSON(data, { rootKey: "root", initialExpansion: true });
+      const tree = buildTreeFromJSON(data, {
+        rootKey: "root",
+        initialExpansion: true,
+      });
       const buildTime = performance.now() - startTime;
 
       // Should complete in under 100ms for ~1000 nodes

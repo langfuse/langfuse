@@ -20,7 +20,10 @@ import {
   estimateNodeCount,
   TREE_BUILD_THRESHOLD,
 } from "../utils/treeStructure";
-import { toggleNodeExpansion, exportExpansionState } from "../utils/treeExpansion";
+import {
+  toggleNodeExpansion,
+  exportExpansionState,
+} from "../utils/treeExpansion";
 import { debugLog, debugError } from "../utils/debug";
 import {
   readExpansionFromStorage,
@@ -148,7 +151,9 @@ export function useTreeState(
   const expansionFromStorage = useMemo(() => {
     if (!field) return initialExpansion;
 
-    debugLog(`[useTreeState] Reading expansion state from storage for field: ${field}`);
+    debugLog(
+      `[useTreeState] Reading expansion state from storage for field: ${field}`,
+    );
     return readExpansionFromStorage(field);
   }, [field, initialExpansion]);
 
@@ -211,7 +216,9 @@ export function useTreeState(
     () => {
       if (!field || !treeRef.current) return;
 
-      debugLog(`[useTreeState] Saving expansion state to storage for field: ${field}`);
+      debugLog(
+        `[useTreeState] Saving expansion state to storage for field: ${field}`,
+      );
       const state = exportExpansionState(treeRef.current);
       writeExpansionToStorage(field, state);
     },
@@ -231,9 +238,7 @@ export function useTreeState(
       toggleNodeExpansion(treeRef.current, nodeId);
 
       const toggleTime = performance.now() - startTime;
-      debugLog(
-        `[useTreeState] Toggle completed in ${toggleTime.toFixed(2)}ms`,
-      );
+      debugLog(`[useTreeState] Toggle completed in ${toggleTime.toFixed(2)}ms`);
 
       // Increment expansion version to trigger React re-render (no tree rebuild)
       setExpansionVersion((v) => v + 1);

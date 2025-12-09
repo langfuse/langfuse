@@ -88,7 +88,9 @@ export function AdvancedJsonViewer({
   // Search matches
   const searchMatches = useMemo(() => {
     debugLog("[AdvancedJsonViewer] Computing searchMatches");
-    return tree ? searchInTree(tree, searchQuery, { caseSensitive: false }) : [];
+    return tree
+      ? searchInTree(tree, searchQuery, { caseSensitive: false })
+      : [];
   }, [tree, searchQuery]);
 
   // Calculate match counts for collapsed nodes

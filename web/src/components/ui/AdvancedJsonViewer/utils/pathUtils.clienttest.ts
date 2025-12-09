@@ -88,9 +88,7 @@ describe("pathUtils", () => {
   describe("isAncestorPath", () => {
     it("should return true for direct ancestors", () => {
       expect(isAncestorPath("user", "user.settings")).toBe(true);
-      expect(isAncestorPath("user.settings", "user.settings.theme")).toBe(
-        true,
-      );
+      expect(isAncestorPath("user.settings", "user.settings.theme")).toBe(true);
     });
 
     it("should return true for indirect ancestors", () => {

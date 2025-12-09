@@ -451,7 +451,6 @@ function computeOffsetsIterative(rootNode: TreeNode): void {
     node.childOffsets = offsets;
     node.visibleDescendantCount = cumulative;
   });
-
 }
 
 /**
