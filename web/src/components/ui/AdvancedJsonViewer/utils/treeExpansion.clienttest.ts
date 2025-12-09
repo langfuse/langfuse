@@ -4,7 +4,6 @@
  * Critical functionality: O(log n) toggle performance, ancestor expansion
  */
 
-import { describe, it, expect } from "@jest/globals";
 import {
   toggleNodeExpansion,
   expandToNode,

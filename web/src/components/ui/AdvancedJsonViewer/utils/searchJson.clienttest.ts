@@ -4,7 +4,6 @@
  * Critical functionality: search matching, highlight positioning, match counting
  */
 
-import { describe, it, expect } from "@jest/globals";
 import {
   searchInTree,
   getMatchCountsPerNode,

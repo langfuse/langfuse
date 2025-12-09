@@ -1,12 +1,11 @@
-
-
 # AdvancedJsonViewer
 
-A high-performance, self-contained JSON viewer component for React with zero external dependencies (except @tanstack/react-virtual and @radix-ui which are already in the project).
+A high-performance, self-contained JSON viewer component for React building on @tanstack/react-virtual and @radix-ui.
 
 ## TL;DR for Developers
 
 **What makes this different?**
+
 - Uses a **tree-based architecture** instead of flat arrays for O(log n) operations
 - **JIT rendering**: Computes visible rows on-demand via binary search (no pre-flattening)
 - **In-place mutations**: Expand/collapse only updates affected path (O(log n) vs O(n))
@@ -14,6 +13,7 @@ A high-performance, self-contained JSON viewer component for React with zero ext
 - **Web Worker support**: Offloads tree building for datasets >100K nodes
 
 **Key files to understand:**
+
 1. `utils/treeStructure.ts` - 4-pass tree building algorithm
 2. `utils/treeNavigation.ts` - `getNodeByIndex()` O(log n) lookup via childOffsets
 3. `utils/treeExpansion.ts` - `toggleNodeExpansion()` with ancestor propagation
@@ -21,11 +21,13 @@ A high-performance, self-contained JSON viewer component for React with zero ext
 5. `VirtualizedJsonViewer.tsx` - Rendering with TanStack Virtual
 
 **Performance wins:**
-- 100K nodes: <200ms render, <10ms expand/collapse
-- No re-render on expansion state changes (uses localStorage directly)
+
+- Dynamic decision whether to render DOM or virtualization
+- 100K nodes: ~200ms initial render, <10ms expand/collapse
 - Virtualization renders only ~50 rows regardless of dataset size
 
 **Architecture diagram:**
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │ JSON Data                                           │
@@ -84,14 +86,14 @@ A high-performance, self-contained JSON viewer component for React with zero ext
 ### Basic Example
 
 ```tsx
-import { AdvancedJsonViewer } from '@/components/ui/AdvancedJsonViewer';
+import { AdvancedJsonViewer } from "@/components/ui/AdvancedJsonViewer";
 
 function MyComponent() {
   const data = {
     users: [
       { name: "Alice", age: 30 },
-      { name: "Bob", age: 25 }
-    ]
+      { name: "Bob", age: 25 },
+    ],
   };
 
   return <AdvancedJsonViewer data={data} />;
@@ -112,10 +114,12 @@ function MyComponent() {
 
 ```tsx
 function MyComponent() {
-  const [expansionState, setExpansionState] = useState<Record<string, boolean>>({
-    "root.users": true,
-    "root.users.0": false,
-  });
+  const [expansionState, setExpansionState] = useState<Record<string, boolean>>(
+    {
+      "root.users": true,
+      "root.users.0": false,
+    },
+  );
 
   return (
     <AdvancedJsonViewer
@@ -153,23 +157,23 @@ function MyComponent() {
 
 ### AdvancedJsonViewerProps
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `data` | `unknown` | **required** | JSON data to display |
-| `virtualized` | `boolean` | `auto` | Enable virtualization (auto-detected based on size) |
-| `theme` | `PartialJSONTheme` | - | Custom theme overrides |
-| `initialExpansion` | `ExpansionState` | `true` | Initial expansion state (boolean or per-path) |
-| `expansionState` | `ExpansionState` | - | Controlled expansion state |
-| `onExpansionChange` | `(state) => void` | - | Callback when expansion changes |
-| `enableSearch` | `boolean` | `true` | Enable search functionality |
-| `searchPlaceholder` | `string` | `"Search JSON..."` | Search input placeholder |
-| `showLineNumbers` | `boolean` | `false` | Show line numbers |
-| `enableCopy` | `boolean` | `true` | Enable copy buttons |
-| `truncateStringsAt` | `number \| null` | `100` | Truncate strings longer than this |
-| `wrapLongStrings` | `boolean` | `false` | Wrap long strings instead of truncating |
-| `className` | `string` | - | Custom CSS class |
-| `isLoading` | `boolean` | `false` | Show loading state |
-| `error` | `Error \| string` | - | Show error state |
+| Prop                | Type               | Default            | Description                                         |
+| ------------------- | ------------------ | ------------------ | --------------------------------------------------- |
+| `data`              | `unknown`          | **required**       | JSON data to display                                |
+| `virtualized`       | `boolean`          | `auto`             | Enable virtualization (auto-detected based on size) |
+| `theme`             | `PartialJSONTheme` | -                  | Custom theme overrides                              |
+| `initialExpansion`  | `ExpansionState`   | `true`             | Initial expansion state (boolean or per-path)       |
+| `expansionState`    | `ExpansionState`   | -                  | Controlled expansion state                          |
+| `onExpansionChange` | `(state) => void`  | -                  | Callback when expansion changes                     |
+| `enableSearch`      | `boolean`          | `true`             | Enable search functionality                         |
+| `searchPlaceholder` | `string`           | `"Search JSON..."` | Search input placeholder                            |
+| `showLineNumbers`   | `boolean`          | `false`            | Show line numbers                                   |
+| `enableCopy`        | `boolean`          | `true`             | Enable copy buttons                                 |
+| `truncateStringsAt` | `number \| null`   | `100`              | Truncate strings longer than this                   |
+| `wrapLongStrings`   | `boolean`          | `false`            | Wrap long strings instead of truncating             |
+| `className`         | `string`           | -                  | Custom CSS class                                    |
+| `isLoading`         | `boolean`          | `false`            | Show loading state                                  |
+| `error`             | `Error \| string`  | -                  | Show error state                                    |
 
 ## Types
 
@@ -208,25 +212,6 @@ interface JSONTheme {
   indentSize: number;
 }
 ```
-
-## Performance
-
-### Benchmarks
-
-| Data Size | Rows | DOM Nodes | Render Time | Memory |
-|-----------|------|-----------|-------------|--------|
-| 1MB JSON | ~5,000 | ~500-2,000 | <100ms | ~3MB |
-| 5MB JSON | ~25,000 | ~500-2,000 | <150ms | ~8MB |
-| 10MB JSON | ~50,000 | ~500-2,000 | <200ms | ~15MB |
-
-### Comparison with react-obj-view
-
-| Metric | AdvancedJsonViewer | react-obj-view |
-|--------|-------------------|----------------|
-| DOM Nodes (10MB) | ~1,500 | ~140,000 |
-| Render Time | <200ms | 900-1500ms |
-| Memory Usage | ~15MB | ~30MB |
-| Search Navigation | Reliable | Requires retries |
 
 ## Architecture
 
@@ -327,6 +312,7 @@ TreeState returned with rootNode + nodeMap + allNodes
 All passes use **iterative traversal** (explicit stack) to avoid stack overflow on deep JSON.
 
 **Pass 1: Structure Building** (`buildTreeStructureIterative`)
+
 - Creates TreeNode for each JSON node
 - Establishes parent-child relationships
 - Uses iterative DFS with explicit stack
@@ -334,18 +320,21 @@ All passes use **iterative traversal** (explicit stack) to avoid stack overflow 
 - Complexity: O(n)
 
 **Pass 1.5: Line Number Assignment** (`assignLineNumbersAndBuildAllNodes`)
+
 - Pre-order traversal to assign absoluteLineNumber (1-indexed)
 - Builds allNodes array (used for search)
 - Ensures correct ordering for search results
 - Complexity: O(n)
 
 **Pass 2: Expansion State Application** (`applyExpansionStateIterative`)
+
 - Reads expansion state from localStorage or props
 - Sets isExpanded and userExpand for each node
 - Does NOT compute offsets yet
 - Complexity: O(n)
 
 **Pass 3: Offset Computation** (`computeOffsetsIterative`)
+
 - Post-order traversal (children before parents)
 - Computes childOffsets and visibleDescendantCount
 - Enables O(log n) binary search in getNodeByIndex
@@ -353,6 +342,7 @@ All passes use **iterative traversal** (explicit stack) to avoid stack overflow 
 - Complexity: O(n)
 
 **Pass 4: Width Calculation** (`calculateTreeDimensions`)
+
 - Iterates all nodes to find maxDepth and maxContentWidth
 - Uses FULL untruncated string lengths (data layer)
 - Complexity: O(n)
@@ -425,11 +415,13 @@ Virtualizer scrolls to index
 **Decision**: Use hierarchical tree with cumulative childOffsets for binary search.
 
 **Rationale**:
+
 - Traditional flat array requires O(n) traversal to find row at index i
 - With childOffsets, we binary search to find correct subtree in O(log n)
 - Example: If child 2 has childOffsets[2] = 16, rows 0-16 are in its subtree
 
 **Trade-offs**:
+
 - More complex offset management during expansion
 - Requires propagating changes up ancestor chain
 - **Benefit**: 100x faster expansion on large trees
@@ -439,11 +431,13 @@ Virtualizer scrolls to index
 **Decision**: Mutate tree nodes in place rather than creating new immutable copies.
 
 **Rationale**:
+
 - Expansion/collapse only affects one path through tree (O(log n) nodes)
 - Creating new tree would be O(n) copy operation
 - Use `expansionVersion` number to trigger React re-renders
 
 **Trade-offs**:
+
 - Doesn't follow React immutability patterns
 - Need careful validation (debug mode)
 - **Benefit**: Near-instant expand/collapse on 100K+ node trees
@@ -453,11 +447,13 @@ Virtualizer scrolls to index
 **Decision**: Split row into fixed column (line numbers, expand button) and scrollable column (content).
 
 **Rationale**:
+
 - Line numbers and expand buttons should stay visible during horizontal scroll
 - Content can be very wide in nowrap mode (10,000+ pixels for long strings)
 - CSS sticky positioning keeps fixed column in view
 
 **Implementation**:
+
 ```typescript
 <div style={{ display: "grid", gridTemplateColumns: `${fixedWidth}px auto` }}>
   <div style={{ position: "sticky", left: 0 }}>
@@ -474,11 +470,13 @@ Virtualizer scrolls to index
 **Decision**: Calculate full untruncated widths during tree building, apply constraints during rendering.
 
 **Data Layer** (tree building, runs once):
+
 - `tree.maxContentWidth` = full untruncated width of widest row
 - Always uses FULL string lengths
 - Used in nowrap mode for horizontal scrolling
 
 **Presentation Layer** (rendering, runs per frame):
+
 - `scrollableMinWidth` / `scrollableMaxWidth` computed per mode
 - Truncate mode: maxWidth triggers CSS ellipsis
 - Wrap mode: maxWidth triggers word wrap
@@ -491,11 +489,13 @@ Virtualizer scrolls to index
 **Decision**: Offload tree building to Web Worker for datasets >100K nodes.
 
 **Rationale**:
+
 - Tree building is O(n) with 4 full traversals
 - Blocks main thread for 500ms+ on large datasets
 - Web Worker keeps UI responsive during processing
 
 **Implementation**:
+
 - Main thread estimates node count
 - If >100K, serialize data and send to worker
 - Worker builds tree and transfers back
@@ -506,25 +506,27 @@ Virtualizer scrolls to index
 **Decision**: Read expansion state directly from localStorage during tree building, not via React context.
 
 **Rationale**:
+
 - Avoids unnecessary re-renders when expansion state changes
 - localStorage is synchronous and fast
 - Only component that needs expansion state is viewer itself
 
 **Trade-offs**:
+
 - Can't easily sync expansion state to parent component
 - Need manual refresh if expansion changes externally
 - **Benefit**: Zero re-renders from context updates
 
 ### Performance Characteristics
 
-| Operation | Complexity | Notes |
-|-----------|-----------|-------|
-| Initial tree build | O(n) | 4-pass algorithm, only on mount |
-| Expand/collapse single node | O(log n) | Only updates path to root |
-| Expand all descendants | O(k) | Where k = nodes in subtree |
-| Find node by index | O(log n) | Binary search via childOffsets |
-| Search | O(n) | Iterates allNodes array once |
-| Render visible rows | O(m) | Where m = visible rows (~50) |
+| Operation                   | Complexity | Notes                           |
+| --------------------------- | ---------- | ------------------------------- |
+| Initial tree build          | O(n)       | 4-pass algorithm, only on mount |
+| Expand/collapse single node | O(log n)   | Only updates path to root       |
+| Expand all descendants      | O(k)       | Where k = nodes in subtree      |
+| Find node by index          | O(log n)   | Binary search via childOffsets  |
+| Search                      | O(n)       | Iterates allNodes array once    |
+| Render visible rows         | O(m)       | Where m = visible rows (~50)    |
 
 **Memory usage**: O(n) for tree + O(n) for allNodes = 2n total
 
@@ -533,6 +535,7 @@ Virtualizer scrolls to index
 The component supports three string handling modes that affect how long strings are displayed:
 
 #### Truncate (default)
+
 - Strings are cut off with CSS ellipsis (`text-overflow: ellipsis`)
 - Max width applied to scrollable column (~600px for value area)
 - Single-line display for all rows
@@ -540,6 +543,7 @@ The component supports three string handling modes that affect how long strings 
 - Users can hover for full content (via TruncatedString popover)
 
 #### Wrap
+
 - Long strings wrap to multiple lines (`white-space: pre-wrap`)
 - Max width applied to force wrapping (~600px for value area)
 - Multi-line display preserves readability
@@ -547,6 +551,7 @@ The component supports three string handling modes that affect how long strings 
 - Dynamic row heights (estimated, then measured)
 
 #### Nowrap
+
 - No truncation, no wrapping (`white-space: nowrap`)
 - Uses full `tree.maxContentWidth` for horizontal scrolling
 - Can result in very wide rows (10,000+ pixels)
@@ -562,8 +567,8 @@ The core data structure that replaces flat arrays:
 ```typescript
 interface TreeNode {
   // Identity
-  id: string;                    // "root.users.0.name"
-  key: string | number;          // "name" or 0
+  id: string; // "root.users.0.name"
+  key: string | number; // "name" or 0
   pathArray: (string | number)[]; // ["root", "users", 0, "name"]
 
   // Value
@@ -571,7 +576,7 @@ interface TreeNode {
   type: "null" | "boolean" | "number" | "string" | "array" | "object";
 
   // Structure
-  depth: number;                 // 0 = root
+  depth: number; // 0 = root
   parentNode: TreeNode | null;
   children: TreeNode[];
   childCount: number;
@@ -582,20 +587,21 @@ interface TreeNode {
   userExpand: boolean | undefined; // User's explicit preference
 
   // Navigation (enables O(log n) lookup)
-  childOffsets: number[];        // Cumulative visible descendant counts
+  childOffsets: number[]; // Cumulative visible descendant counts
   visibleDescendantCount: number; // Total visible when expanded
 
   // Position
-  absoluteLineNumber: number;    // 1-indexed line in fully expanded tree
+  absoluteLineNumber: number; // 1-indexed line in fully expanded tree
   indexInParent: number;
   isLastChild: boolean;
 }
 ```
 
 **childOffsets** is the key to O(log n) navigation:
+
 ```typescript
 // Example: node has 3 children with 10, 5, 8 visible descendants
-childOffsets = [11, 17, 26]
+childOffsets = [11, 17, 26];
 // Meaning:
 //   - Child 0 spans indices 0-10 (self + 10 descendants)
 //   - Child 1 spans indices 11-16 (self + 5 descendants)
@@ -642,7 +648,7 @@ The expansion state can be controlled externally or managed internally:
 
 ```tsx
 const [expansion, setExpansion] = useState({
-  "root": true,
+  root: true,
   "root.users": true,
   "root.users.0": false, // Collapsed
   "root.users.1": true,
@@ -652,7 +658,7 @@ const [expansion, setExpansion] = useState({
   data={data}
   expansionState={expansion}
   onExpansionChange={setExpansion}
-/>
+/>;
 ```
 
 ## Theming
@@ -737,6 +743,7 @@ Make sure `enableSearch={true}` is set (it's true by default).
 ### Virtualization Issues
 
 If you experience scroll issues, try:
+
 1. Ensure the parent container has a fixed height
 2. Add `className="h-full"` or set explicit height
 3. Check that `virtualized` prop is not explicitly set to `false`
@@ -744,6 +751,7 @@ If you experience scroll issues, try:
 ### Performance Issues
 
 For very large datasets (>10MB):
+
 1. Consider pre-filtering the data
 2. Use `truncateStringsAt` to limit string rendering
 3. Ensure virtualization is enabled (`virtualized={true}`)
@@ -758,30 +766,27 @@ Make sure you're using `useTheme` from `next-themes` if you want automatic light
 ### Before
 
 ```tsx
-import { ObjectView } from 'react-obj-view';
+import { ObjectView } from "react-obj-view";
 
-<ObjectView
-  valueGetter={() => data}
-  expandLevel={3}
-  showLineNumbers={false}
-/>
+<ObjectView valueGetter={() => data} expandLevel={3} showLineNumbers={false} />;
 ```
 
 ### After
 
 ```tsx
-import { AdvancedJsonViewer } from '@/components/ui/AdvancedJsonViewer';
+import { AdvancedJsonViewer } from "@/components/ui/AdvancedJsonViewer";
 
 <AdvancedJsonViewer
   data={data}
   initialExpansion={true}
   showLineNumbers={false}
-/>
+/>;
 ```
 
 ## Testing
 
 Tests are colocated with utility files using `.clienttest.ts` extension:
+
 - `treeStructure.clienttest.ts` - Tree building and structure tests
 - `treeExpansion.clienttest.ts` - Expansion/collapse logic tests
 - `treeNavigation.clienttest.ts` - Navigation and lookup tests
@@ -790,45 +795,17 @@ Tests are colocated with utility files using `.clienttest.ts` extension:
 - `pathUtils.clienttest.ts` - Path manipulation tests
 
 Run tests with:
+
 ```bash
 pnpm --filter=web run test-client --testPathPattern="AdvancedJsonViewer"
 ```
-
-## Known Limitations
-
-1. **No horizontal virtualization**: Rows can be very wide (10,000px+) in nowrap mode, but entire width is rendered. This can impact performance for extremely long strings.
-
-2. **No column resize**: The fixed/scrollable column split is automatic, users can't adjust it manually.
-
-3. **Search is client-side only**: All matches computed in memory, no streaming/pagination. Large result sets (10,000+ matches) may cause performance issues.
-
-4. **Memory constraints**: Very large JSON (1M+ nodes) may cause memory issues despite virtualization, as entire tree structure is kept in memory.
-
-5. **No edit support**: This is a read-only viewer. Inline editing is not supported.
-
-6. **No diff mode**: Cannot compare two JSON objects side-by-side.
-
-7. **Line wrap mode performance**: In wrap mode with many long strings, row height measurement can be expensive. Estimated heights help but there's still some layout thrashing.
-
-## Future Enhancements
-
-- [ ] Horizontal virtualization for extremely wide rows
-- [ ] Incremental search (stop after N matches, pagination)
-- [ ] Copy row path to clipboard (e.g., `root.users[0].name`)
-- [ ] Export visible/expanded JSON (copy what you see)
-- [ ] Keyboard navigation (arrow keys to traverse tree)
-- [ ] Column resize (drag to adjust fixed/scrollable split)
-- [ ] Diff mode (compare two JSON objects)
-- [ ] Inline editing with validation
-- [ ] Vim keybindings (for power users)
-- [ ] Custom filters (hide/show based on path patterns)
-- [ ] Bookmarks (save/restore specific expansion states)
 
 ## Implementation Notes for Developers
 
 ### Why not react-window or react-virtuoso?
 
 We use `@tanstack/react-virtual` because:
+
 - Already in project dependencies (zero new deps)
 - Supports dynamic row heights with measurement
 - Lightweight and performant
@@ -837,16 +814,18 @@ We use `@tanstack/react-virtual` because:
 ### Why iterative algorithms instead of recursion?
 
 All tree algorithms use **explicit stack-based iteration** instead of recursion to:
+
 - Avoid stack overflow on deeply nested JSON (1000+ levels)
 - Enable better debugging (can inspect stack state)
 - Match JavaScript engine optimizations
 
 Example pattern:
+
 ```typescript
 // ❌ Recursive (can stack overflow)
 function traverse(node: TreeNode) {
   process(node);
-  node.children.forEach(child => traverse(child));
+  node.children.forEach((child) => traverse(child));
 }
 
 // ✅ Iterative (safe for any depth)
@@ -855,7 +834,7 @@ function traverse(rootNode: TreeNode) {
   while (stack.length > 0) {
     const node = stack.pop()!;
     process(node);
-    node.children.forEach(child => stack.push(child));
+    node.children.forEach((child) => stack.push(child));
   }
 }
 ```
@@ -863,6 +842,7 @@ function traverse(rootNode: TreeNode) {
 ### When to use Web Worker?
 
 Tree building uses Web Worker automatically when:
+
 - Estimated node count > 100,000
 - Browser supports Web Workers
 - Not in SSR context
@@ -872,11 +852,13 @@ The worker serializes the tree and transfers it back, which has overhead (~100ms
 ### Debug mode
 
 Enable debug logging by setting localStorage:
+
 ```javascript
-localStorage.setItem('debug:AdvancedJsonViewer', 'true');
+localStorage.setItem("debug:AdvancedJsonViewer", "true");
 ```
 
 This logs:
+
 - Tree building performance
 - Navigation operations
 - Search operations

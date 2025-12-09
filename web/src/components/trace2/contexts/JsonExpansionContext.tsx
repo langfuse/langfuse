@@ -80,11 +80,11 @@ export function writeExpansionToStorage(
 
   try {
     const stored = sessionStorage.getItem(STORAGE_KEY);
-    const parsed = stored
+    const parsed: JsonExpansionState = stored
       ? (JSON.parse(stored) as JsonExpansionState)
       : { input: {}, output: {}, metadata: {}, log: {} };
 
-    parsed[field] = state;
+    (parsed as Record<string, ExpandedState>)[field] = state;
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
   } catch (error) {
     console.error("Failed to write expansion state to storage", error);

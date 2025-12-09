@@ -2,7 +2,6 @@
  * @jest-environment jsdom
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { buildTreeFromJSON } from "./treeStructure";
 import {
   getAllVisibleNodes,

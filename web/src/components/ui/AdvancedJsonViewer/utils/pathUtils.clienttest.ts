@@ -4,7 +4,6 @@
  * Critical functionality: path manipulation for tree navigation
  */
 
-import { describe, it, expect } from "@jest/globals";
 import {
   joinPath,
   splitPath,

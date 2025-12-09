@@ -4,7 +4,6 @@
  * Critical functionality: accurate type detection for JSON values
  */
 
-import { describe, it, expect } from "@jest/globals";
 import {
   getJSONType,
   isExpandable,
