@@ -285,7 +285,6 @@ export async function upsertDatasetItem(
     existingItem = await getDatasetItemById({
       projectId: props.projectId,
       datasetItemId: props.datasetItemId,
-      datasetId: dataset.id,
     });
     if (!!existingItem && existingItem.datasetId !== dataset.id) {
       throw new LangfuseNotFoundError(
