@@ -204,24 +204,18 @@ export function AdvancedJsonSection({
     setCurrentMatchIndex(0);
   }, []);
 
-  // Collapse/expand all state (managed via storage write)
-  const [allExpanded, setAllExpanded] = useState(true);
+  // Expand all state - tracks whether all nodes are expanded
+  const [allExpanded, setAllExpanded] = useState(false);
 
-  // Handle collapse/expand all (write to storage, AdvancedJsonViewer will read on next mount/rebuild)
-  const handleToggleExpandAll = () => {
-    const newExpansion = !allExpanded;
-    setAllExpanded(newExpansion);
+  // Ref to store the toggle function from AdvancedJsonViewer
+  const toggleExpandAllRef = useRef<(() => void) | null>(null);
 
-    // Write to storage directly (no context)
-    const {
-      writeExpansionToStorage,
-    } = require("@/src/components/trace2/contexts/JsonExpansionContext");
-    writeExpansionToStorage(field, newExpansion);
-
-    // Force AdvancedJsonViewer to rebuild by changing key
-    // This is necessary because we're writing to storage and need viewer to re-read
-    setSearchQuery((prev) => prev); // Trigger re-render
-  };
+  // Handle collapse/expand all - calls AdvancedJsonViewer's function
+  const handleToggleExpandAll = useCallback(() => {
+    if (toggleExpandAllRef.current) {
+      toggleExpandAllRef.current();
+    }
+  }, []);
 
   // Handle string wrap mode cycling: truncate → wrap → nowrap → truncate
   const handleCycleWrapMode = () => {
@@ -450,6 +444,8 @@ export function AdvancedJsonSection({
               onSearchQueryChange={setSearchQuery}
               currentMatchIndex={currentMatchIndex}
               onCurrentMatchIndexChange={setCurrentMatchIndex}
+              onAllExpandedChange={setAllExpanded}
+              toggleExpandAllRef={toggleExpandAllRef}
               showLineNumbers={showLineNumbers}
               enableCopy={enableCopy}
               stringWrapMode={stringWrapMode}
