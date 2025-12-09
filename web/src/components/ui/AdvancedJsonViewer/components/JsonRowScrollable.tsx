@@ -51,6 +51,7 @@ export function JsonRowScrollable({
       style={{
         display: "flex",
         alignItems: stringWrapMode === "wrap" ? "start" : "center",
+        flexWrap: "nowrap", // Prevent wrapping between key, colon, value, badges
         minHeight: `${theme.lineHeight}px`,
         paddingLeft: `${row.depth * theme.indentSize}px`, // Indentation
         paddingRight: "4px",

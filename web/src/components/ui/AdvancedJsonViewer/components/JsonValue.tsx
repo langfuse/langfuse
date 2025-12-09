@@ -32,6 +32,8 @@ export function JsonValue({
           color: theme.punctuationColor,
           opacity: 0.4,
           fontFamily: "monospace",
+          whiteSpace: "nowrap", // Never wrap preview text like "{4 keys}" or "Array(3)"
+          flexShrink: 0, // Prevent compression in flex container
         }}
       >
         {preview}
