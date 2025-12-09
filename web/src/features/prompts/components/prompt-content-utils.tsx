@@ -12,6 +12,8 @@ import { FileCode } from "lucide-react";
 
 const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
   <span
+    dir="ltr"
+    style={{ unicodeBidi: "isolate" }}
     className={cn(
       isValid ? "text-primary-accent" : "text-destructive",
       "whitespace-nowrap",
@@ -46,6 +48,7 @@ const PromptReference = ({
       variant="outline"
       size="sm"
       className="inline-flex items-center gap-1.5 rounded-sm border-dashed bg-muted/50 px-2 py-0.5 align-[-3px] text-xs font-medium transition-colors hover:bg-muted"
+      dir="ltr"
       onClick={() => window.open(getPromptUrl(projectId, promptRef), "_blank")}
       title={`Open prompt: ${promptRef.name}${promptRef.type === "version" ? ` (v${promptRef.version})` : promptRef.label ? ` (${promptRef.label})` : ""}`}
     >
@@ -75,6 +78,17 @@ export const renderRichPromptContent = (
 ): React.ReactNode[] => {
   if (!content) return [];
 
+  const createTextNode = (text: string, key: string) => (
+    <span
+      key={key}
+      dir="auto"
+      style={{ unicodeBidi: "plaintext" }}
+      className="whitespace-pre-wrap break-words"
+    >
+      {text}
+    </span>
+  );
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
 
@@ -93,7 +107,9 @@ export const renderRichPromptContent = (
     // Add any text before this match
     if (index > lastIndex) {
       const textBefore = content.substring(lastIndex, index);
-      if (textBefore) parts.push(textBefore);
+      if (textBefore) {
+        parts.push(createTextNode(textBefore, `text-${lastIndex}-${index}`));
+      }
     }
 
     // Determine type based on which capture group matched and process directly
@@ -131,7 +147,7 @@ export const renderRichPromptContent = (
           </React.Fragment>,
         );
       } else {
-        parts.push(fullMatch);
+        parts.push(createTextNode(fullMatch, `raw-${index}`));
       }
     } else if (match[2] !== undefined) {
       // Second capture group = variable
@@ -150,7 +166,9 @@ export const renderRichPromptContent = (
   // Add any remaining text
   if (lastIndex < content.length) {
     const remainingText = content.substring(lastIndex);
-    if (remainingText) parts.push(remainingText);
+    if (remainingText) {
+      parts.push(createTextNode(remainingText, `text-${lastIndex}-end`));
+    }
   }
 
   return parts;
