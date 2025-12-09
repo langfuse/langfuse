@@ -1,19 +1,72 @@
-import type { BatchActionQuery } from "@langfuse/shared";
+// Step definitions - now includes separate mapping steps and final preview
+export type DialogStep =
+  | "choice"
+  | "select"
+  | "create"
+  | "input-mapping"
+  | "output-mapping"
+  | "metadata-mapping"
+  | "preview"
+  | "status";
 
-// Step definitions
-export type DialogStep = "choice" | "select" | "create" | "mapping" | "status";
+// Mapping mode for each field
+export type MappingMode = "full" | "custom" | "none";
 
-// Mapping configuration
-export type FieldMapping = {
-  sourceField: "input" | "output" | "metadata";
-  jsonPath?: string;
-  targetKey?: string;
+// Source field type
+export type SourceField = "input" | "output" | "metadata";
+
+// Mapping target type: "root" extracts single value, "keyValueMap" builds an object
+export type MappingTarget = "root" | "keyValueMap";
+
+// Root mapping configuration - single JSON path extraction
+export type RootMappingConfig = {
+  sourceField: SourceField;
+  jsonPath: string;
 };
 
+// Entry for key-value map type mapping
+export type KeyValueMappingEntry = {
+  id: string; // for react-hook-form
+  key: string;
+  sourceField: SourceField;
+  value: string; // JSON path if starts with $, else literal string
+};
+
+// Custom mapping configuration
+export type CustomMappingConfig = {
+  type: MappingTarget;
+  rootConfig?: RootMappingConfig;
+  keyValueMapConfig?: {
+    entries: KeyValueMappingEntry[];
+  };
+};
+
+// Per-field mapping config
+export type FieldMappingConfig = {
+  mode: MappingMode;
+  custom?: CustomMappingConfig;
+};
+
+// Complete mapping config for all three fields
 export type MappingConfig = {
-  inputMappings: FieldMapping[];
-  expectedOutputMappings?: FieldMapping[];
-  metadataMappings?: FieldMapping[];
+  input: FieldMappingConfig;
+  expectedOutput: FieldMappingConfig;
+  metadata: FieldMappingConfig;
+};
+
+// Default mapping config
+export const DEFAULT_MAPPING_CONFIG: MappingConfig = {
+  input: { mode: "full" },
+  expectedOutput: { mode: "full" },
+  metadata: { mode: "none" },
+};
+
+// Observation data for preview
+export type ObservationPreviewData = {
+  id: string;
+  input: unknown;
+  output: unknown;
+  metadata: unknown;
 };
 
 // Prop groups for each step
@@ -37,18 +90,26 @@ export type DatasetCreateStepProps = {
   onSubmitHandlerReady?: (handler: () => void) => void;
 };
 
-export type FieldMappingStepProps = {
+// Mapping step props (reusable for Input/Output/Metadata)
+export type MappingStepProps = {
+  field: "input" | "expectedOutput" | "metadata";
+  fieldLabel: string;
+  defaultSourceField: SourceField;
+  config: FieldMappingConfig;
+  onConfigChange: (config: FieldMappingConfig) => void;
+  observationData: ObservationPreviewData | null;
+  isLoading: boolean;
+};
+
+// Final preview step props
+export type FinalPreviewStepProps = {
   projectId: string;
   datasetId: string;
   datasetName: string;
-  selectedObservationIds: string[];
-  query: BatchActionQuery;
-  selectAll: boolean;
   mappingConfig: MappingConfig;
-  onMappingChange: (config: MappingConfig) => void;
-  onSubmit: () => Promise<void>;
-  isSubmitting: boolean;
-  canSubmit: boolean;
+  observationData: ObservationPreviewData | null;
+  totalCount: number;
+  onEditStep: (step: DialogStep) => void;
 };
 
 export type StatusStepProps = {

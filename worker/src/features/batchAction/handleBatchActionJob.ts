@@ -333,7 +333,7 @@ export const handleBatchActionJob = async (
     // Collect all observations
     const observations: Array<{
       id: string;
-      trace_id: string | null;
+      traceId: string;
       input: unknown;
       output: unknown;
       metadata: unknown;
@@ -343,7 +343,7 @@ export const handleBatchActionJob = async (
       if (record?.id) {
         observations.push({
           id: record.id,
-          trace_id: record.trace_id ?? null,
+          traceId: record.traceId,
           input: record.input,
           output: record.output,
           metadata: record.metadata,

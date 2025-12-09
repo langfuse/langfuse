@@ -10,7 +10,7 @@ export function DatasetChoiceStep(props: DatasetChoiceStepProps) {
       <button
         type="button"
         onClick={() => onSelectMode("select")}
-        className="flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all hover:border-primary hover:bg-accent"
+        className="flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all hover:border-tertiary hover:bg-accent"
       >
         <div className="mb-4 rounded-full bg-primary/10 p-4">
           <Database className="h-8 w-8 text-primary" />
@@ -25,7 +25,7 @@ export function DatasetChoiceStep(props: DatasetChoiceStepProps) {
       <button
         type="button"
         onClick={() => onSelectMode("create")}
-        className="flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all hover:border-primary hover:bg-accent"
+        className="flex flex-col items-center rounded-lg border-2 p-8 text-center transition-all hover:border-tertiary hover:bg-accent"
       >
         <div className="mb-4 rounded-full bg-primary/10 p-4">
           <Plus className="h-8 w-8 text-primary" />

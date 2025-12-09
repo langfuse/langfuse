@@ -1325,6 +1325,21 @@ export default function ObservationsTable({
             setSelectedRows({});
             setSelectAll(false);
           }}
+          exampleObservation={(() => {
+            // Get the first selected observation to use for preview
+            const selectedIds = Object.keys(selectedRows).filter((id) =>
+              generations.data?.generations.map((g) => g.id).includes(id),
+            );
+            const firstId = selectedIds[0];
+            const firstGen = generations.data?.generations.find(
+              (g) => g.id === firstId,
+            );
+            return {
+              id: firstGen?.id ?? "",
+              traceId: firstGen?.traceId ?? "",
+              startTime: firstGen?.traceTimestamp ?? undefined,
+            };
+          })()}
         />
       )}
     </DataTableControlsProvider>

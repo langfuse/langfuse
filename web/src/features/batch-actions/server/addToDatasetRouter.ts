@@ -15,10 +15,11 @@ import {
 import { TRPCError } from "@trpc/server";
 import { DatasetItemValidator } from "@langfuse/shared/src/server";
 import {
-  applyFieldMapping,
+  applyFullMapping,
   testJsonPath,
   BatchTableNames,
   BatchActionType,
+  isJsonPath,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import {
@@ -157,43 +158,59 @@ export const addToDatasetRouter = createTRPCRouter({
           metadata: observation.metadata,
         };
 
-        // Test JSON paths and apply mapping
+        // Test JSON paths in custom mappings
         const errors: string[] = [];
 
-        // Test each JSON path in the mapping
-        const testJsonPaths = (
-          mappings: Array<{
-            sourceField: "input" | "output" | "metadata";
-            jsonPath?: string;
-          }>,
+        const validateFieldMappingConfig = (
+          config: typeof input.mapping.input,
           fieldName: string,
         ) => {
-          for (const mapping of mappings) {
-            if (mapping.jsonPath) {
+          if (config.mode !== "custom" || !config.custom) return;
+
+          if (config.custom.type === "root" && config.custom.rootConfig) {
+            const { sourceField, jsonPath } = config.custom.rootConfig;
+            if (jsonPath && isJsonPath(jsonPath)) {
               const sourceData =
-                observationData[
-                  mapping.sourceField as keyof typeof observationData
-                ];
-              const result = testJsonPath({
-                jsonPath: mapping.jsonPath,
-                data: sourceData,
-              });
+                observationData[sourceField as keyof typeof observationData];
+              const result = testJsonPath({ jsonPath, data: sourceData });
               if (!result.success) {
                 errors.push(
-                  `Invalid JSON path "${mapping.jsonPath}" for ${fieldName}.${mapping.sourceField}: ${result.error}`,
+                  `Invalid JSON path "${jsonPath}" for ${fieldName}: ${result.error}`,
                 );
+              }
+            }
+          }
+
+          if (
+            config.custom.type === "keyValueMap" &&
+            config.custom.keyValueMapConfig
+          ) {
+            for (const entry of config.custom.keyValueMapConfig.entries) {
+              if (isJsonPath(entry.value)) {
+                const sourceData =
+                  observationData[
+                    entry.sourceField as keyof typeof observationData
+                  ];
+                const result = testJsonPath({
+                  jsonPath: entry.value,
+                  data: sourceData,
+                });
+                if (!result.success) {
+                  errors.push(
+                    `Invalid JSON path "${entry.value}" for ${fieldName}.${entry.key}: ${result.error}`,
+                  );
+                }
               }
             }
           }
         };
 
-        testJsonPaths(input.mapping.inputMappings, "input");
-        if (input.mapping.expectedOutputMappings) {
-          testJsonPaths(input.mapping.expectedOutputMappings, "expectedOutput");
-        }
-        if (input.mapping.metadataMappings) {
-          testJsonPaths(input.mapping.metadataMappings, "metadata");
-        }
+        validateFieldMappingConfig(input.mapping.input, "input");
+        validateFieldMappingConfig(
+          input.mapping.expectedOutput,
+          "expectedOutput",
+        );
+        validateFieldMappingConfig(input.mapping.metadata, "metadata");
 
         // If JSON path validation failed, return early
         if (errors.length > 0) {
@@ -204,23 +221,11 @@ export const addToDatasetRouter = createTRPCRouter({
           };
         }
 
-        // Apply mapping
-        const transformedInput = applyFieldMapping({
+        // Apply mapping using the new format
+        const transformed = applyFullMapping({
           observation: observationData,
-          mappings: input.mapping.inputMappings,
+          mapping: input.mapping,
         });
-        const transformedOutput = input.mapping.expectedOutputMappings
-          ? applyFieldMapping({
-              observation: observationData,
-              mappings: input.mapping.expectedOutputMappings,
-            })
-          : null;
-        const transformedMetadata = input.mapping.metadataMappings
-          ? applyFieldMapping({
-              observation: observationData,
-              mappings: input.mapping.metadataMappings,
-            })
-          : null;
 
         // Fetch dataset schema
         const dataset = await ctx.prisma.dataset.findUnique({
@@ -253,9 +258,9 @@ export const addToDatasetRouter = createTRPCRouter({
         });
 
         const validationResult = validator.validateAndNormalize({
-          input: transformedInput,
-          expectedOutput: transformedOutput,
-          metadata: transformedMetadata,
+          input: transformed.input,
+          expectedOutput: transformed.expectedOutput,
+          metadata: transformed.metadata,
           normalizeOpts: { sanitizeControlChars: true },
           validateOpts: { normalizeUndefinedToNull: true },
         });
@@ -264,9 +269,9 @@ export const addToDatasetRouter = createTRPCRouter({
           return {
             success: false,
             preview: {
-              input: transformedInput,
-              expectedOutput: transformedOutput,
-              metadata: transformedMetadata,
+              input: transformed.input,
+              expectedOutput: transformed.expectedOutput,
+              metadata: transformed.metadata,
             },
             validationErrors: [validationResult.message],
           };
@@ -275,9 +280,9 @@ export const addToDatasetRouter = createTRPCRouter({
         return {
           success: true,
           preview: {
-            input: transformedInput,
-            expectedOutput: transformedOutput,
-            metadata: transformedMetadata,
+            input: transformed.input,
+            expectedOutput: transformed.expectedOutput,
+            metadata: transformed.metadata,
           },
           validationErrors: [],
         };

@@ -11,7 +11,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { ChevronLeft } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { BatchActionQuery } from "@langfuse/shared";
 
@@ -19,11 +18,18 @@ import type { BatchActionQuery } from "@langfuse/shared";
 import { DatasetChoiceStep } from "./DatasetChoiceStep";
 import { DatasetSelectStep } from "./DatasetSelectStep";
 import { DatasetCreateStep } from "./DatasetCreateStep";
-import { FieldMappingStep } from "./FieldMappingStep";
+import { MappingStep } from "./MappingStep";
+import { FinalPreviewStep } from "./FinalPreviewStep";
 import { StatusStep } from "./StatusStep";
 
 // Types
-import type { DialogStep, MappingConfig } from "./types";
+import type {
+  DialogStep,
+  MappingConfig,
+  FieldMappingConfig,
+  ObservationPreviewData,
+} from "./types";
+import { DEFAULT_MAPPING_CONFIG } from "./types";
 
 type AddObservationsToDatasetDialogProps = {
   projectId: string;
@@ -32,6 +38,12 @@ type AddObservationsToDatasetDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  // Example observation data for preview
+  exampleObservation: {
+    id: string;
+    traceId: string;
+    startTime?: Date;
+  };
 };
 
 export function AddObservationsToDatasetDialog(
@@ -44,17 +56,16 @@ export function AddObservationsToDatasetDialog(
     selectAll,
     totalCount,
     onClose,
+    exampleObservation,
   } = props;
 
   // State management
   const [step, setStep] = useState<DialogStep>("choice");
   const [datasetId, setDatasetId] = useState<string | null>(null);
   const [datasetName, setDatasetName] = useState<string | null>(null);
-  const [mappingConfig, setMappingConfig] = useState<MappingConfig>({
-    inputMappings: [{ sourceField: "input" as const }],
-    expectedOutputMappings: undefined,
-    metadataMappings: undefined,
-  });
+  const [mappingConfig, setMappingConfig] = useState<MappingConfig>(
+    DEFAULT_MAPPING_CONFIG,
+  );
   const [batchActionId, setBatchActionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,6 +75,30 @@ export function AddObservationsToDatasetDialog(
   const [createDatasetHandler, setCreateDatasetHandler] = useState<{
     handler: (() => void) | null;
   }>({ handler: null });
+
+  // Get example observation for preview
+  const observationQuery = api.observations.byId.useQuery(
+    {
+      observationId: exampleObservation.id,
+      traceId: exampleObservation.traceId,
+      projectId,
+      startTime: exampleObservation.startTime,
+    },
+    {
+      enabled: true,
+    },
+  );
+
+  // Transform observation data for preview
+  // The API returns the observation directly, not wrapped in an 'observation' property
+  const observationData: ObservationPreviewData | null = observationQuery.data
+    ? {
+        id: observationQuery.data.id,
+        input: observationQuery.data.input,
+        output: observationQuery.data.output,
+        metadata: observationQuery.data.metadata,
+      }
+    : null;
 
   // Mutations
   const createBatchAction = api.batchAction.addToDataset.create.useMutation({
@@ -93,15 +128,21 @@ export function AddObservationsToDatasetDialog(
   const handleDatasetCreated = (id: string, name: string) => {
     setDatasetId(id);
     setDatasetName(name);
-    setStep("mapping");
+    setStep("input-mapping");
   };
 
-  const handleContinueToMapping = () => {
-    setStep("mapping");
+  const handleContinueToInputMapping = () => {
+    setStep("input-mapping");
   };
 
-  const handleMappingChange = (config: MappingConfig) => {
-    setMappingConfig(config);
+  const handleMappingConfigChange = (
+    field: "input" | "expectedOutput" | "metadata",
+    config: FieldMappingConfig,
+  ) => {
+    setMappingConfig((prev) => ({
+      ...prev,
+      [field]: config,
+    }));
   };
 
   const handleCreateValidationChange = useCallback(
@@ -116,7 +157,7 @@ export function AddObservationsToDatasetDialog(
     setCreateDatasetHandler({ handler });
   }, []);
 
-  const handleSubmitMapping = async () => {
+  const handleSubmit = async () => {
     if (!datasetId || !datasetName) return;
 
     setIsSubmitting(true);
@@ -149,18 +190,51 @@ export function AddObservationsToDatasetDialog(
   };
 
   const handleBack = () => {
-    if (step === "select" || step === "create") {
-      setStep("choice");
-    } else if (step === "mapping") {
-      // Go back to the appropriate step based on whether dataset was created or selected
-      // For simplicity, always go back to choice to allow changing the selection
-      setStep("choice");
+    switch (step) {
+      case "select":
+      case "create":
+        setStep("choice");
+        break;
+      case "input-mapping":
+        // Go back to dataset selection/creation step
+        setStep("choice");
+        break;
+      case "output-mapping":
+        setStep("input-mapping");
+        break;
+      case "metadata-mapping":
+        setStep("output-mapping");
+        break;
+      case "preview":
+        setStep("metadata-mapping");
+        break;
+      default:
+        break;
     }
+  };
+
+  const handleNext = () => {
+    switch (step) {
+      case "input-mapping":
+        setStep("output-mapping");
+        break;
+      case "output-mapping":
+        setStep("metadata-mapping");
+        break;
+      case "metadata-mapping":
+        setStep("preview");
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleEditStep = (targetStep: DialogStep) => {
+    setStep(targetStep);
   };
 
   // Determine if we can proceed at each step
   const canContinueFromSelect = !!datasetId && !!datasetName;
-  const canSubmitMapping = !!datasetId && !!datasetName && !isSubmitting;
 
   // Determine dialog description based on step
   const getDialogDescription = () => {
@@ -171,8 +245,14 @@ export function AddObservationsToDatasetDialog(
         return "Select an existing dataset";
       case "create":
         return "Create a new dataset";
-      case "mapping":
-        return "Configure how data is mapped";
+      case "input-mapping":
+        return "Configure dataset item input mapping";
+      case "output-mapping":
+        return "Configure dataset item expected output mapping";
+      case "metadata-mapping":
+        return "Configure dataset item metadata mapping";
+      case "preview":
+        return "Review and confirm your configuration";
       case "status":
         return "Your bulk action status";
       default:
@@ -186,12 +266,73 @@ export function AddObservationsToDatasetDialog(
   // Determine if we can close the dialog
   const canClose = step !== "status";
 
+  // Get the next button label based on current step
+  const getNextButtonLabel = () => {
+    switch (step) {
+      case "select":
+        return "Continue";
+      case "create":
+        return isCreatingDataset ? "Creating..." : "Create & Continue";
+      case "input-mapping":
+      case "output-mapping":
+      case "metadata-mapping":
+        return "Next";
+      case "preview":
+        return isSubmitting ? "Adding..." : "Add to Dataset";
+      default:
+        return "Continue";
+    }
+  };
+
+  // Check if next button should be disabled
+  const isNextDisabled = () => {
+    switch (step) {
+      case "select":
+        return !canContinueFromSelect;
+      case "create":
+        return !canContinueFromCreate || isCreatingDataset;
+      case "preview":
+        return isSubmitting;
+      default:
+        return false;
+    }
+  };
+
+  // Handle next button click
+  const handleNextClick = () => {
+    switch (step) {
+      case "select":
+        handleContinueToInputMapping();
+        break;
+      case "create":
+        createDatasetHandler.handler?.();
+        break;
+      case "input-mapping":
+      case "output-mapping":
+      case "metadata-mapping":
+        handleNext();
+        break;
+      case "preview":
+        handleSubmit();
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <Dialog open onOpenChange={(open) => !open && canClose && onClose()}>
-      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col">
+      <DialogContent className="flex max-h-[90vh] max-w-6xl flex-col">
         <DialogHeader>
-          <DialogTitle>Add {displayCount} Observations to Dataset</DialogTitle>
-          <DialogDescription>{getDialogDescription()}</DialogDescription>
+          <DialogTitle>
+            Add {displayCount} Observation(s) to dataset
+            {!["select", "create", "choice"].includes(step)
+              ? " " + datasetName
+              : ""}
+          </DialogTitle>
+          <DialogDescription className="mt-1">
+            {getDialogDescription()}
+          </DialogDescription>
         </DialogHeader>
 
         <DialogBody className="flex-1 overflow-y-auto">
@@ -205,7 +346,7 @@ export function AddObservationsToDatasetDialog(
               selectedDatasetId={datasetId}
               selectedDatasetName={datasetName}
               onDatasetSelect={handleDatasetSelect}
-              onContinue={handleContinueToMapping}
+              onContinue={handleContinueToInputMapping}
               canContinue={canContinueFromSelect}
             />
           )}
@@ -219,19 +360,57 @@ export function AddObservationsToDatasetDialog(
             />
           )}
 
-          {step === "mapping" && datasetId && datasetName && (
-            <FieldMappingStep
+          {step === "input-mapping" && (
+            <MappingStep
+              field="input"
+              fieldLabel="Input"
+              defaultSourceField="input"
+              config={mappingConfig.input}
+              onConfigChange={(config) =>
+                handleMappingConfigChange("input", config)
+              }
+              observationData={observationData}
+              isLoading={observationQuery.isLoading}
+            />
+          )}
+
+          {step === "output-mapping" && (
+            <MappingStep
+              field="expectedOutput"
+              fieldLabel="Expected Output"
+              defaultSourceField="output"
+              config={mappingConfig.expectedOutput}
+              onConfigChange={(config) =>
+                handleMappingConfigChange("expectedOutput", config)
+              }
+              observationData={observationData}
+              isLoading={observationQuery.isLoading}
+            />
+          )}
+
+          {step === "metadata-mapping" && (
+            <MappingStep
+              field="metadata"
+              fieldLabel="Metadata"
+              defaultSourceField="metadata"
+              config={mappingConfig.metadata}
+              onConfigChange={(config) =>
+                handleMappingConfigChange("metadata", config)
+              }
+              observationData={observationData}
+              isLoading={observationQuery.isLoading}
+            />
+          )}
+
+          {step === "preview" && datasetId && datasetName && (
+            <FinalPreviewStep
               projectId={projectId}
               datasetId={datasetId}
               datasetName={datasetName}
-              selectedObservationIds={selectedObservationIds}
-              query={query}
-              selectAll={selectAll}
               mappingConfig={mappingConfig}
-              onMappingChange={handleMappingChange}
-              onSubmit={handleSubmitMapping}
-              isSubmitting={isSubmitting}
-              canSubmit={canSubmitMapping}
+              observationData={observationData}
+              totalCount={displayCount}
+              onEditStep={handleEditStep}
             />
           )}
 
@@ -247,7 +426,7 @@ export function AddObservationsToDatasetDialog(
         </DialogBody>
 
         {/* Footer with navigation buttons */}
-        {step !== "status" && (
+        {step !== "status" && step !== "choice" && (
           <DialogFooter className="flex justify-between">
             <div className="flex-grow">
               {showBackButton && (
@@ -258,31 +437,19 @@ export function AddObservationsToDatasetDialog(
               )}
             </div>
             <div>
-              {step === "select" && (
-                <Button
-                  onClick={handleContinueToMapping}
-                  disabled={!canContinueFromSelect}
-                >
-                  Continue
-                </Button>
-              )}
-              {step === "create" && (
-                <Button
-                  onClick={() => createDatasetHandler.handler?.()}
-                  disabled={!canContinueFromCreate || isCreatingDataset}
-                  loading={isCreatingDataset}
-                >
-                  Create & Continue
-                </Button>
-              )}
-              {step === "mapping" && (
-                <Button
-                  onClick={handleSubmitMapping}
-                  disabled={!canSubmitMapping}
-                >
-                  {isSubmitting ? "Adding..." : "Add to Dataset"}
-                </Button>
-              )}
+              <Button
+                onClick={handleNextClick}
+                disabled={isNextDisabled()}
+                loading={
+                  step === "create"
+                    ? isCreatingDataset
+                    : step === "preview"
+                      ? isSubmitting
+                      : false
+                }
+              >
+                {getNextButtonLabel()}
+              </Button>
             </div>
           </DialogFooter>
         )}

@@ -2,7 +2,7 @@ import { logger, traceException } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { createManyDatasetItems } from "@langfuse/shared/src/server";
 import {
-  applyFieldMapping,
+  applyFullMapping,
   type ObservationAddToDatasetConfig,
 } from "@langfuse/shared";
 
@@ -10,7 +10,7 @@ const CHUNK_SIZE = 100; // Smaller chunks for complex processing with mapping
 
 type ObservationForMapping = {
   id: string;
-  trace_id: string | null;
+  traceId: string;
   input: unknown;
   output: unknown;
   metadata: unknown;
@@ -24,27 +24,25 @@ async function processChunk(params: {
 }): Promise<{ processed: number; failed: number; errors: string[] }> {
   const { projectId, datasetId, mapping, observations } = params;
 
-  const items = observations.map((obs) => ({
-    datasetId,
-    input: applyFieldMapping({
-      observation: obs,
-      mappings: mapping.inputMappings,
-    }),
-    expectedOutput: mapping.expectedOutputMappings
-      ? applyFieldMapping({
-          observation: obs,
-          mappings: mapping.expectedOutputMappings,
-        })
-      : undefined,
-    metadata: mapping.metadataMappings
-      ? applyFieldMapping({
-          observation: obs,
-          mappings: mapping.metadataMappings,
-        })
-      : undefined,
-    sourceTraceId: obs.trace_id ?? undefined,
-    sourceObservationId: obs.id,
-  }));
+  const items = observations.map((obs) => {
+    const mapped = applyFullMapping({
+      observation: {
+        input: obs.input,
+        output: obs.output,
+        metadata: obs.metadata,
+      },
+      mapping,
+    });
+
+    return {
+      datasetId,
+      input: mapped.input,
+      expectedOutput: mapped.expectedOutput ?? undefined,
+      metadata: mapped.metadata ?? undefined,
+      sourceTraceId: obs.traceId ?? undefined,
+      sourceObservationId: obs.id,
+    };
+  });
 
   try {
     const result = await createManyDatasetItems({
