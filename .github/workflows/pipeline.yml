@@ -204,9 +204,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-web-sync-${{ matrix.node-version }}-${{ matrix.postgres-version }}-shard${{ matrix.shard }}-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-web-sync-${{ matrix.node-version }}-${{ matrix.postgres-version }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-turbo-web-sync-${{ matrix.node-version }}-${{ matrix.postgres-version }}-shard${{ matrix.shard }}-
             ${{ runner.os }}-turbo-web-sync-${{ matrix.node-version }}-${{ matrix.postgres-version }}-
             ${{ runner.os }}-turbo-web-sync-${{ matrix.node-version }}-
             ${{ runner.os }}-turbo-
@@ -250,10 +249,10 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run test-sync
         working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects sync-server --shard=${{ matrix.shard }}/3
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects sync-server
       - name: run test-client
         working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client --shard=${{ matrix.shard }}/3
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
 
   tests-web-async:
     timeout-minutes: 30
