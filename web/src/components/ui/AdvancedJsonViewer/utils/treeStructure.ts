@@ -22,9 +22,9 @@ import {
 
 /**
  * Size threshold for sync vs Web Worker
- * Same as current WORKER_SIZE_THRESHOLD in useFlattenedJson
+ * Tree building with >10K nodes can block main thread for 50ms+
  */
-export const TREE_BUILD_THRESHOLD = 100_000;
+export const TREE_BUILD_THRESHOLD = 10_000;
 
 /**
  * TreeNode represents a single node in the hierarchical JSON tree

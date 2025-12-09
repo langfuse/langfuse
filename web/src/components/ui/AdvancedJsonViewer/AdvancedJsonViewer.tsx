@@ -73,7 +73,7 @@ export function AdvancedJsonViewer({
     ? controlledCurrentMatchIndex
     : internalCurrentMatchIndex;
 
-  // Build tree from JSON data (sync for <100K, worker for >100K)
+  // Build tree from JSON data (sync for <10K, worker for >10K)
   // JIT expansion: reads from storage directly, no context subscription
   // Tree building uses FULL untruncated widths (data layer)
   const {

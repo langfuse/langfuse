@@ -2,7 +2,7 @@
  * React hook for tree state management
  *
  * Manages tree building, expansion state, and synchronization with context.
- * Implements the 100K threshold for sync vs Web Worker build.
+ * Implements the 10K threshold for sync vs Web Worker build.
  *
  * Key features:
  * - Tree is source of truth after initialization
