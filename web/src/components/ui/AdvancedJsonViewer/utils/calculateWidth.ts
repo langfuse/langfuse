@@ -156,7 +156,28 @@ export function calculateNodeWidth(
   const charWidth = charCount * config.charWidthPx;
 
   // Total width
-  return (
-    indentWidth + colonWidth + charWidth + paddingWidth + config.extraBufferPx
-  );
+  const totalWidth =
+    indentWidth + colonWidth + charWidth + paddingWidth + config.extraBufferPx;
+
+  // Debug log for wide nodes
+  if (totalWidth > 1000) {
+    console.log("[calculateNodeWidth] Wide node detected:", {
+      nodeId: node.id,
+      depth: node.depth,
+      key: node.key,
+      valueType: node.type,
+      valueLength:
+        typeof node.value === "string" ? (node.value as string).length : "N/A",
+      estimatedWidth: totalWidth,
+      breakdown: {
+        indentWidth,
+        colonWidth,
+        charWidth,
+        paddingWidth,
+        extraBuffer: config.extraBufferPx,
+      },
+    });
+  }
+
+  return totalWidth;
 }

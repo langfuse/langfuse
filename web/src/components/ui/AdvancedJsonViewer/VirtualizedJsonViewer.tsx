@@ -138,7 +138,13 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
   const totalContentWidth = useMemo(() => {
     if (!tree) return undefined;
     // Total width = fixed column + scrollable content
-    return fixedColumnWidth + tree.maxContentWidth;
+    const total = fixedColumnWidth + tree.maxContentWidth;
+    console.log("[VirtualizedJsonViewer] Width calculation:", {
+      fixedColumnWidth,
+      treeMaxContentWidth: tree.maxContentWidth,
+      totalContentWidth: total,
+    });
+    return total;
   }, [tree, fixedColumnWidth]);
 
   return (

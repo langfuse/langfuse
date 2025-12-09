@@ -480,6 +480,7 @@ function calculateTreeDimensions(
 ): { maxDepth: number; maxContentWidth: number } {
   let maxDepth = 0;
   let maxContentWidth = 0;
+  let widestNode: TreeNode | null = null;
 
   for (const node of allNodes) {
     // Track maximum depth
@@ -491,8 +492,26 @@ function calculateTreeDimensions(
     const nodeWidth = calculateNodeWidth(node, config, truncateAt);
     if (nodeWidth > maxContentWidth) {
       maxContentWidth = nodeWidth;
+      widestNode = node;
     }
   }
+
+  console.log("[calculateTreeDimensions] Results:", {
+    maxDepth,
+    maxContentWidth: `${maxContentWidth.toFixed(0)}px`,
+    widestNode: widestNode
+      ? {
+          id: widestNode.id,
+          key: widestNode.key,
+          type: widestNode.type,
+          valuePreview:
+            typeof widestNode.value === "string"
+              ? `"${(widestNode.value as string).substring(0, 100)}..."` +
+                ` (length: ${(widestNode.value as string).length})`
+              : widestNode.value,
+        }
+      : null,
+  });
 
   return { maxDepth, maxContentWidth };
 }
