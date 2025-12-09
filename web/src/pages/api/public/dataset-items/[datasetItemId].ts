@@ -27,7 +27,6 @@ export default withMiddlewares({
       const datasetItem = await getDatasetItemById({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
-        status: "ALL",
       });
       if (!datasetItem) {
         throw new LangfuseNotFoundError("Dataset item not found");

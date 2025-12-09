@@ -286,7 +286,6 @@ export async function upsertDatasetItem(
       projectId: props.projectId,
       datasetItemId: props.datasetItemId,
       datasetId: dataset.id,
-      status: "ALL",
     });
   }
 
@@ -372,7 +371,6 @@ export async function deleteDatasetItem(props: {
     projectId: props.projectId,
     datasetItemId: props.datasetItemId,
     datasetId: props.datasetId,
-    status: "ALL",
   });
 
   if (!item) {
@@ -616,13 +614,16 @@ export type ItemWithDatasetName<T> = T & {
 /**
  * Raw database row for getting latest dataset items from dataset_items table
  */
+/**
+ * Raw database row for getting latest dataset items from dataset_items table
+ */
 type QueryGetLatestDatasetItemRow = {
   id: string;
   project_id: string;
   dataset_id: string;
-  input?: any;
-  expected_output?: any;
-  metadata?: any;
+  input?: Prisma.JsonValue | null;
+  expected_output?: Prisma.JsonValue | null;
+  metadata?: Prisma.JsonValue | null;
   source_trace_id: string | null;
   source_observation_id: string | null;
   status: DatasetStatus;
@@ -644,8 +645,9 @@ type QueryGetLatestDatasetItemRow = {
 export function createDatasetItemFilterState(options: {
   datasetIds?: string[];
   itemIds?: string[];
-  sourceTraceId?: string | null;
-  sourceObservationId?: string | null;
+  sourceTraceId?: string;
+  sourceObservationId?: string;
+  sourceObservationIdIsNull?: boolean;
   status?: "ACTIVE" | "ALL";
 }): FilterState {
   const filterState: FilterState = [];
@@ -669,39 +671,30 @@ export function createDatasetItemFilterState(options: {
   }
 
   if (options.sourceTraceId !== undefined) {
-    if (options.sourceTraceId === null) {
-      filterState.push({
-        type: "null",
-        column: "sourceTraceId",
-        operator: "is null",
-        value: "",
-      });
-    } else {
-      filterState.push({
-        type: "string",
-        column: "sourceTraceId",
-        operator: "=",
-        value: options.sourceTraceId,
-      });
-    }
+    filterState.push({
+      type: "string",
+      column: "sourceTraceId",
+      operator: "=",
+      value: options.sourceTraceId,
+    });
   }
 
   if (options.sourceObservationId !== undefined) {
-    if (options.sourceObservationId === null) {
-      filterState.push({
-        type: "null",
-        column: "sourceObservationId",
-        operator: "is null",
-        value: "",
-      });
-    } else {
-      filterState.push({
-        type: "string",
-        column: "sourceObservationId",
-        operator: "=",
-        value: options.sourceObservationId,
-      });
-    }
+    filterState.push({
+      type: "string",
+      column: "sourceObservationId",
+      operator: "=",
+      value: options.sourceObservationId,
+    });
+  }
+
+  if (options.sourceObservationIdIsNull === true) {
+    filterState.push({
+      type: "null",
+      column: "sourceObservationId",
+      operator: "is null",
+      value: "",
+    });
   }
 
   if (options.status === "ACTIVE") {
@@ -963,7 +956,7 @@ function buildDatasetItemsLatestQuery(
 
   return Prisma.sql`
     WITH latest_items AS (
-      SELECT DISTINCT ON (di.id, di.project_id)
+      SELECT DISTINCT ON (di.id)
         di.id,
         di.project_id,
         di.dataset_id,
@@ -978,7 +971,7 @@ function buildDatasetItemsLatestQuery(
       FROM dataset_items di
       WHERE di.project_id = ${projectId}
       ${filterCondition}
-      ORDER BY di.id, di.project_id, di.valid_from DESC
+      ORDER BY di.id, di.valid_from DESC
     )
     SELECT
       di.id,
@@ -1023,7 +1016,7 @@ function buildDatasetItemsLatestCountQuery(
 
   return Prisma.sql`
     WITH latest_items AS (
-      SELECT DISTINCT ON (di.id, di.project_id)
+      SELECT DISTINCT ON (di.id)
         di.id,
         di.project_id,
         di.dataset_id,
@@ -1039,7 +1032,7 @@ function buildDatasetItemsLatestCountQuery(
       FROM dataset_items di
       WHERE di.project_id = ${projectId}
       ${filterCondition}
-      ORDER BY di.id, di.project_id, di.valid_from DESC
+      ORDER BY di.id, di.valid_from DESC
     )
     SELECT COUNT(*) as count
     FROM latest_items di
@@ -1057,7 +1050,7 @@ function buildDatasetItemsLatestCountGroupedQuery(
 ): Prisma.Sql {
   return Prisma.sql`
     WITH latest_items AS (
-      SELECT DISTINCT ON (di.id, di.project_id)
+      SELECT DISTINCT ON (di.id)
         di.id,
         di.project_id,
         di.dataset_id,
@@ -1066,7 +1059,7 @@ function buildDatasetItemsLatestCountGroupedQuery(
       FROM dataset_items di
       WHERE di.project_id = ${projectId}
         AND di.dataset_id = ANY(${datasetIds})
-      ORDER BY di.id, di.project_id, di.valid_from DESC
+      ORDER BY di.id, di.valid_from DESC
     )
     SELECT
       di.dataset_id,
@@ -1122,13 +1115,6 @@ function convertLatestRowToDomain<
   return withDatasetName as any;
 }
 
-/**
- * Counts dataset items at a specific version timestamp.
- * Uses the same logic as getDatasetItemsByVersion but returns only the count.
- *
- * @param params.filters - Optional filters to apply (defaults to ACTIVE status)
- * @returns Number of items matching filters at the specified version
- */
 /**
  * Internal function to get latest dataset items using raw SQL.
  * Returns DatasetItemDomain objects with optional IO fields.
@@ -1226,7 +1212,7 @@ async function getDatasetItemsCountByLatestGroupedInternal(params: {
  * Used by API layers to fetch current state before merging partial updates.
  *
  * @param props.datasetId - Optional to ensure item belongs to correct dataset
- * @param props.status - Filter by status ('ACTIVE' for active items only, 'ALL' to include archived items). Default is "ALL"
+ * @param props.status - Optional status filter: 'ACTIVE' for active items only, undefined (default) for all statuses
  * @returns The dataset item or null if not found/deleted
  */
 export async function getDatasetItemById<
@@ -1234,7 +1220,7 @@ export async function getDatasetItemById<
 >(props: {
   projectId: string;
   datasetItemId: string;
-  status: "ACTIVE" | "ALL";
+  status?: "ACTIVE";
   datasetId?: string;
   includeIO?: IncludeIO;
 }): Promise<
@@ -1272,41 +1258,39 @@ export async function getDatasetItemById<
       return item ? toDomainType(item, includeIO) : null;
     },
     [Implementation.VERSIONED]: async () => {
-      // NEW: Get latest version from dataset_items by validFrom DESC
-      const item = await prisma.datasetItem.findFirst({
-        select: includeIO
-          ? undefined
-          : {
-              id: true,
-              projectId: true,
-              datasetId: true,
-              sourceTraceId: true,
-              sourceObservationId: true,
-              status: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-        where: {
-          id: props.datasetItemId,
-          projectId: props.projectId,
-          ...(props.datasetId ? { datasetId: props.datasetId } : {}),
-        },
-        orderBy: {
-          validFrom: "desc",
-        },
-      });
+      // Get latest version using raw SQL with subquery to filter after ordering
+      const selectFields = includeIO
+        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt"'
+        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt"';
 
-      // Get latest version first, then check if it matches status and is not deleted
-      if (!item || item.isDeleted) {
-        return null;
-      }
+      const datasetFilter = props.datasetId
+        ? Prisma.sql`AND dataset_id = ${props.datasetId}`
+        : Prisma.empty;
 
-      // Check status filter AFTER getting latest version
-      if (status === "ACTIVE" && item.status !== DatasetStatus.ACTIVE) {
-        return null;
-      }
+      const statusFilter =
+        status === "ACTIVE"
+          ? Prisma.sql`AND status = ${DatasetStatus.ACTIVE}`
+          : Prisma.empty;
 
-      return toDomainType(item, includeIO);
+      const result = await prisma.$queryRaw<DatasetItem[]>(
+        Prisma.sql`
+          SELECT ${Prisma.raw(selectFields)}
+          FROM (
+            SELECT *
+            FROM dataset_items
+            WHERE project_id = ${props.projectId}
+              AND id = ${props.datasetItemId}
+              ${datasetFilter}
+            ORDER BY valid_from DESC
+            LIMIT 1
+          ) latest
+          WHERE is_deleted = false
+            ${statusFilter}
+        `,
+      );
+
+      const item = result[0];
+      return item ? toDomainType(item, includeIO) : null;
     },
   });
 }

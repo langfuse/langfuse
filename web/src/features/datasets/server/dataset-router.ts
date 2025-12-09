@@ -659,7 +659,6 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         datasetItemId: input.datasetItemId,
         datasetId: input.datasetId,
-        status: "ALL",
       });
       if (!item) {
         throw new LangfuseNotFoundError("Dataset item not found");
@@ -1234,7 +1233,6 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         datasetItemId: datasetItemId,
         datasetId: datasetId,
-        status: "ALL",
       });
       if (!datasetItem) {
         throw new TRPCError({
@@ -1484,7 +1482,12 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
           sourceTraceId: input.traceId,
-          sourceObservationId: input.observationId ?? null, // null -> should not include observations from the same trace
+          // if no observationId is passed -> should not include observations from the same trace
+          ...(input.observationId
+            ? { sourceObservationId: input.observationId }
+            : {
+                sourceObservationIdIsNull: true,
+              }),
         }),
         includeDatasetName: true,
       });

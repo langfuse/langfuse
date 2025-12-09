@@ -276,7 +276,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const databaseDatasetItem = await getDatasetItemById({
       projectId,
       datasetItemId: datasetItemId,
-      status: "ALL",
       includeIO: true,
     });
     expect(databaseDatasetItem).toMatchObject({
@@ -711,7 +710,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const dbDatasetItem = await getDatasetItemById({
       projectId,
       datasetItemId: "dataset-item-id",
-      status: "ALL",
       includeIO: true,
     });
     expect(dbDatasetItem).not.toBeNull();
@@ -1255,13 +1253,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const dbItem1 = await getDatasetItemById({
       projectId: apiDataset.body.projectId,
       datasetItemId: datasetItemBody.id,
-      status: "ALL",
       includeIO: true,
     });
     const dbItem2 = await getDatasetItemById({
       projectId: otherProject.id,
       datasetItemId: datasetItemBody.id,
-      status: "ALL",
       includeIO: true,
     });
     const dbItems = [dbItem1, dbItem2].filter((item) => item !== null);
@@ -1373,7 +1369,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const dbItem = await getDatasetItemById({
       projectId: dataset.body.projectId,
       datasetItemId: itemId,
-      status: "ALL",
       includeIO: true,
     });
     expect(dbItem).toBeNull();

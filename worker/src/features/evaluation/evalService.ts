@@ -428,22 +428,24 @@ export const createEvalJobs = async ({
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
         const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string; is_deleted: boolean }>
+          Array<{ id: string }>
         >(Prisma.sql`
-          SELECT id, is_deleted
-          FROM dataset_items as di
-          WHERE project_id = ${event.projectId}
-            AND id = ${event.datasetItemId}
-            ${condition}
-          ORDER BY valid_from DESC
-          LIMIT 1
+          SELECT id
+          FROM (
+            SELECT id, is_deleted
+            FROM dataset_items as di
+            WHERE project_id = ${event.projectId}
+              AND id = ${event.datasetItemId}
+              ${condition}
+            ORDER BY valid_from DESC
+            LIMIT 1
+          ) latest
+          WHERE is_deleted = false
         `);
         const latestDatasetItem = datasetItems.shift();
-        if (latestDatasetItem && latestDatasetItem.is_deleted === false) {
-          datasetItem = { id: latestDatasetItem.id };
-        } else {
-          datasetItem = undefined;
-        }
+        datasetItem = latestDatasetItem
+          ? { id: latestDatasetItem.id }
+          : undefined;
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.
         // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
