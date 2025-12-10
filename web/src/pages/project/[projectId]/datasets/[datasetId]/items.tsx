@@ -26,12 +26,14 @@ import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/D
 import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/DatasetVersionWarningBanner";
 import { useState } from "react";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 function DatasetItemsView() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
 
+  const isVersioningEnabled = useIsFeatureEnabled("datasetVersioning");
   const { selectedVersion, resetToLatest } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
@@ -147,14 +149,16 @@ function DatasetItemsView() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="outline"
-              onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
-              title="Version History"
-            >
-              <PanelRight className="mr-2 h-4 w-4" />
-              Version History
-            </Button>
+            {isVersioningEnabled && (
+              <Button
+                variant="outline"
+                onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
+                title="Version History"
+              >
+                <PanelRight className="mr-2 h-4 w-4" />
+                Version History
+              </Button>
+            )}
           </>
         ),
       }}

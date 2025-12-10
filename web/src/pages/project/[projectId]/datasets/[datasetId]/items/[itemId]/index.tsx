@@ -9,7 +9,11 @@ import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
+import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { useState } from "react";
 
 function DatasetItemContent() {
   const router = useRouter();
@@ -17,6 +21,7 @@ function DatasetItemContent() {
   const datasetId = router.query.datasetId as string;
   const itemId = router.query.itemId as string;
 
+  const isVersioningEnabled = useIsFeatureEnabled("datasetVersioning");
   const { selectedVersion, resetToLatest } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
@@ -24,6 +29,8 @@ function DatasetItemContent() {
     "datasetItem-showDiff",
     false,
   );
+  const [isVersionPanelOpen, setIsVersionPanelOpen] =
+    useState(!!selectedVersion);
 
   // Fetch current item
   const item = api.datasets.itemByIdAtVersion.useQuery(
@@ -80,12 +87,40 @@ function DatasetItemContent() {
         {/* Main content area */}
         <div className="relative flex flex-1 flex-col overflow-auto">
           {/* Sticky banner without padding */}
-          {isViewingOldVersion && selectedVersion && (
+          {isVersioningEnabled && isViewingOldVersion && selectedVersion && (
             <div className="sticky top-0 z-10">
               <DatasetVersionWarningBanner
                 selectedVersion={selectedVersion}
                 resetToLatest={resetToLatest}
               />
+            </div>
+          )}
+
+          {/* Version panel toggle button */}
+          {isVersioningEnabled && (
+            <div className="sticky top-0 z-10 flex justify-end border-b bg-background p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsVersionPanelOpen(!isVersionPanelOpen)}
+                title={
+                  isVersionPanelOpen
+                    ? "Hide version history"
+                    : "Show version history"
+                }
+              >
+                {isVersionPanelOpen ? (
+                  <>
+                    <PanelRightClose className="mr-2 h-4 w-4" />
+                    Hide Version History
+                  </>
+                ) : (
+                  <>
+                    <PanelRightOpen className="mr-2 h-4 w-4" />
+                    Show Version History
+                  </>
+                )}
+              </Button>
             </div>
           )}
 
@@ -215,13 +250,15 @@ function DatasetItemContent() {
         </div>
 
         {/* Version history sidebar */}
-        <div className="w-80 shrink-0 border-l">
-          <DatasetVersionHistoryPanel
-            projectId={projectId}
-            datasetId={datasetId}
-            itemVersions={itemVersionHistory.data}
-          />
-        </div>
+        {isVersioningEnabled && isVersionPanelOpen && (
+          <div className="w-1/4 shrink-0 border-l">
+            <DatasetVersionHistoryPanel
+              projectId={projectId}
+              datasetId={datasetId}
+              itemVersions={itemVersionHistory.data}
+            />
+          </div>
+        )}
       </div>
     </DatasetItemDetailPage>
   );
