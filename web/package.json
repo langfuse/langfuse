@@ -198,6 +198,7 @@
     "dotenv-cli": "^7.4.2",
     "eslint": "^8.57.0",
     "eslint-config-next": "15.5.7",
+    "fast-check": "^4.4.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "node-mocks-http": "^1.14.1",
