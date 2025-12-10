@@ -85,7 +85,6 @@ function DatasetItemContent() {
               <DatasetVersionWarningBanner
                 selectedVersion={selectedVersion}
                 resetToLatest={resetToLatest}
-                variant="inline"
               />
             </div>
           )}

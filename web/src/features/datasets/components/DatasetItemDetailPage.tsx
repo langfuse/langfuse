@@ -53,7 +53,7 @@ export const DatasetItemDetailPage = ({
     datasetId,
     projectId,
   });
-  const item = api.datasets.itemById.useQuery(
+  const item = api.datasets.itemByIdAtVersion.useQuery(
     {
       datasetId,
       projectId,
@@ -226,7 +226,7 @@ export const DatasetItemDetailPage = ({
               <DropdownMenuContent className="flex flex-col [&>*]:w-full [&>*]:justify-start">
                 <DropdownMenuItem
                   onClick={() => setEditDialogOpen(true)}
-                  disabled={!hasAccess || isViewingOldVersion}
+                  disabled={!hasAccess || isViewingOldVersion || !item.data}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit
@@ -234,7 +234,10 @@ export const DatasetItemDetailPage = ({
                 <DropdownMenuItem
                   onClick={handleDelete}
                   disabled={
-                    !hasAccess || mutDelete.isPending || isViewingOldVersion
+                    !hasAccess ||
+                    mutDelete.isPending ||
+                    isViewingOldVersion ||
+                    !item.data
                   }
                   className="text-destructive"
                 >

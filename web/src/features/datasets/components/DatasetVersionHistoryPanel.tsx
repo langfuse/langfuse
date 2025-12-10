@@ -168,7 +168,6 @@ export function DatasetVersionHistoryPanel({
         <DatasetVersionWarningBanner
           selectedVersion={selectedVersion}
           resetToLatest={resetToLatest}
-          variant="compact"
         />
       )}
 

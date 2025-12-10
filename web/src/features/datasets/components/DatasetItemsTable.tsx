@@ -85,7 +85,7 @@ export function DatasetItemsTable({
     useFullTextSearch();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
-  const { selectedVersion, resetToLatest } = useDatasetVersion();
+  const { selectedVersion } = useDatasetVersion();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItemForEdit, setSelectedItemForEdit] = useState<string | null>(
     null,
@@ -390,18 +390,8 @@ export function DatasetItemsTable({
   const setFilterStateWithDebounce = useDebounce(setFilterState);
   const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
 
-  const isViewingOldVersion = selectedVersion !== null;
-
   return (
     <>
-      {isViewingOldVersion && selectedVersion && (
-        <DatasetVersionWarningBanner
-          selectedVersion={selectedVersion}
-          resetToLatest={resetToLatest}
-          variant="inline"
-          className="mb-4"
-        />
-      )}
       <DataTableToolbar
         columns={columns}
         filterColumnDefinition={datasetItemFilterColumns}

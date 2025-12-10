@@ -168,7 +168,6 @@ function DatasetItemsView() {
               <DatasetVersionWarningBanner
                 selectedVersion={selectedVersion}
                 resetToLatest={resetToLatest}
-                variant="compact"
                 changeCounts={changeCounts.data}
               />
             )}
