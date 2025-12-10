@@ -4,7 +4,7 @@ import { z } from "zod/v4";
  * Schema for tool/function definitions in ChatML.
  * Used to define available tools for LLM function calling.
  */
-const ToolDefinitionSchema = z.object({
+export const ToolDefinitionSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   parameters: z.record(z.string(), z.any()).optional(),
@@ -14,7 +14,7 @@ const ToolDefinitionSchema = z.object({
  * Schema for tool/function call invocations in ChatML.
  * Represents an LLM's request to call a specific tool.
  */
-const ToolCallSchema = z.object({
+export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
   arguments: z.string(), // JSON string of arguments
