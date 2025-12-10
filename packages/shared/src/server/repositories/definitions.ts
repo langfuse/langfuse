@@ -256,6 +256,7 @@ const datasetRunItemRecordBaseSchema = z.object({
 
 const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
   dataset_run_created_at: clickhouseStringDateSchema,
+  dataset_version: clickhouseStringDateSchema.nullish(),
   created_at: clickhouseStringDateSchema,
   updated_at: clickhouseStringDateSchema,
   event_ts: clickhouseStringDateSchema,
@@ -281,6 +282,7 @@ export const datasetRunItemRecordInsertSchema =
     updated_at: z.number(),
     event_ts: z.number(),
     dataset_run_created_at: z.number(),
+    dataset_version: z.number().nullish(),
   });
 export type DatasetRunItemRecordInsertType = z.infer<
   typeof datasetRunItemRecordInsertSchema
@@ -672,6 +674,7 @@ export const eventRecordBaseSchema = z.object({
   experiment_metadata_values: z.array(z.string().nullish()).default([]),
   experiment_description: z.string().nullish(),
   experiment_dataset_id: z.string().nullish(),
+  experiment_dataset_version: clickhouseStringDateSchema.nullish(),
   experiment_item_id: z.string().nullish(),
   experiment_item_expected_output: z.string().nullish(),
   experiment_item_metadata_names: z.array(z.string()).default([]),

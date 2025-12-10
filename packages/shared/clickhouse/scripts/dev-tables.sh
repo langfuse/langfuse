@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS events
       experiment_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
       experiment_description String,
       experiment_dataset_id String,
+      experiment_dataset_version Nullable(DateTime64(3)),
       experiment_item_id String,
       experiment_item_expected_output String,
       experiment_item_metadata_names Array(String),
