@@ -90,6 +90,21 @@ export function StatusStep({
               !isSuccess &&
               `${processedCount} observations added, ${failedCount} failed`}
           </p>
+          {!isComplete && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              You can safely close this dialog. The action is running in the
+              background and you can track its progress in the{" "}
+              <Link
+                href={`/project/${projectId}/settings/batch-actions`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline hover:no-underline"
+              >
+                batch actions table
+              </Link>
+              .
+            </p>
+          )}
         </div>
 
         {/* Progress/Results Card */}
