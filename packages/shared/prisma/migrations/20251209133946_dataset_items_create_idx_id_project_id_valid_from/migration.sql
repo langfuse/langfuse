@@ -5,5 +5,5 @@
 
 */
 -- CreateIndex
-CREATE UNIQUE INDEX CONCURRENTLY "dataset_items_id_project_id_valid_from_key" ON "dataset_items"("id", "project_id", "valid_from");
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "dataset_items_id_project_id_valid_from_key" ON "dataset_items"("id", "project_id", "valid_from");
 
