@@ -27,7 +27,7 @@ export interface DatasetRunItem {
   dataset_run_description: string;
   dataset_run_metadata: Record<string, unknown>;
   dataset_id: string;
-  dataset_version: string;
+  dataset_item_version: string;
   dataset_item_id: string;
   dataset_item_expected_output: string;
   dataset_item_metadata: Record<string, unknown>;
@@ -82,7 +82,7 @@ export interface EnrichedSpan extends SpanRecord {
   experiment_metadata_values: Array<string | null | undefined>;
   experiment_description: string;
   experiment_dataset_id: string;
-  experiment_dataset_version: string | null;
+  experiment_item_version: string | null;
   experiment_item_id: string;
   experiment_item_root_span_id: string;
   experiment_item_expected_output: string;
@@ -131,7 +131,7 @@ export async function getDatasetRunItemsSinceLastRun(
       dri.dataset_run_description,
       dri.dataset_run_metadata,
       dri.dataset_id,
-      dri.dataset_version,
+      dri.dataset_item_version,
       dri.dataset_item_id,
       dri.dataset_item_expected_output,
       dri.dataset_item_metadata,
@@ -383,7 +383,7 @@ function convertToEnrichedSpanWithoutExperiment(
     experiment_metadata_values: [],
     experiment_description: "",
     experiment_dataset_id: "",
-    experiment_dataset_version: null,
+    experiment_item_version: null,
     experiment_item_id: "",
     experiment_item_root_span_id: "",
     experiment_item_expected_output: "",
@@ -428,7 +428,7 @@ export function enrichSpansWithExperiment(
     experiment_metadata_values: experimentMetadataFlattened.values,
     experiment_description: dri.dataset_run_description,
     experiment_dataset_id: dri.dataset_id,
-    experiment_dataset_version: dri.dataset_version,
+    experiment_item_version: dri.dataset_item_version,
     experiment_item_id: dri.dataset_item_id,
     experiment_item_root_span_id: rootSpan.span_id,
     experiment_item_expected_output: dri.dataset_item_expected_output,
@@ -453,7 +453,7 @@ export function enrichSpansWithExperiment(
       experiment_metadata_values: experimentMetadataFlattened.values,
       experiment_description: dri.dataset_run_description,
       experiment_dataset_id: dri.dataset_id,
-      experiment_dataset_version: dri.dataset_version,
+      experiment_item_version: dri.dataset_item_version,
       experiment_item_id: dri.dataset_item_id,
       experiment_item_root_span_id: rootSpan.span_id,
       experiment_item_expected_output: dri.dataset_item_expected_output,
