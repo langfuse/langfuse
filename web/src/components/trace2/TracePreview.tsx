@@ -8,7 +8,7 @@ import {
 import { AggUsageBadge } from "@/src/components/token-usage-badge";
 import { Badge } from "@/src/components/ui/badge";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { IOPreview } from "@/src/components/trace/IOPreview";
+import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { withDefault, StringParam, useQueryParam } from "use-query-params";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -28,7 +28,7 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
 import { ExternalLinkIcon, InfoIcon } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -36,9 +36,11 @@ import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useRouter } from "next/router";
-import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
-import { useJsonExpansion } from "@/src/components/trace/JsonExpansionContext";
-import { TraceLogView } from "@/src/components/trace/TraceLogView";
+import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
+import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
+import { TraceLogView } from "@/src/components/trace2/components/TraceLogView/TraceLogView";
+import { TraceDataProvider } from "@/src/components/trace2/contexts/TraceDataContext";
+import { ViewPreferencesProvider } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import {
   Tooltip,
   TooltipContent,
@@ -434,13 +436,20 @@ export const TracePreview = ({
             </div>
           </TabsBarContent>
           <TabsBarContent value="log">
-            <TraceLogView
-              observations={observations}
-              traceId={trace.id}
-              projectId={trace.projectId}
-              currentView={currentView}
+            <TraceDataProvider
               trace={trace}
-            />
+              observations={observations}
+              scores={scores}
+              comments={commentCounts ?? new Map()}
+            >
+              <ViewPreferencesProvider>
+                <TraceLogView
+                  traceId={trace.id}
+                  projectId={trace.projectId}
+                  currentView={currentView}
+                />
+              </ViewPreferencesProvider>
+            </TraceDataProvider>
           </TabsBarContent>
           {showScoresTab && (
             <TabsBarContent

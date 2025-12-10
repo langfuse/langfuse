@@ -93,12 +93,22 @@ export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;
 export const GetPromptSchema = z.object({
   name: z.string().transform((v) => decodeURIComponent(v)),
   version: z.coerce.number().int().nullish(),
+  resolve: z
+    .enum(["true", "false"])
+    .nullish()
+    .default("true")
+    .transform((v) => v === "true"), // Optional, defaults to true for backward compatibility
 });
 
 export const GetPromptByNameSchema = z.object({
   promptName: z.string(),
   version: z.coerce.number().int().nullish(),
   label: z.string().optional(),
+  resolve: z
+    .enum(["true", "false"])
+    .nullish()
+    .default("true")
+    .transform((v) => v === "true"), // Optional, defaults to true for backward compatibility
 });
 
 const BaseTextPromptSchema = z.object({

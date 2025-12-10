@@ -65,6 +65,7 @@ export async function handleMcpRequest(
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode
       enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
+      enableDnsRebindingProtection: true, // CVE-2025-66414: Protect against DNS rebinding attacks
     });
 
     // Connect server to transport

@@ -118,6 +118,7 @@ const createTraceWithObservations = async (
       trace_id: trace.id,
       project_id: trace.project_id,
       name: trace.name ?? "trace",
+      trace_name: trace.name ?? "trace",
       type: "GENERATION", // Trace events are typically GENERATION type
       start_time: trace.timestamp * 1000, // Convert ms to microseconds
       end_time: null,
@@ -139,6 +140,7 @@ const createTraceWithObservations = async (
         environment: rootTraceEvent.environment,
         user_id: rootTraceEvent.user_id,
         session_id: rootTraceEvent.session_id,
+        trace_name: rootTraceEvent.name,
       }),
     );
 

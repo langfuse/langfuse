@@ -632,7 +632,6 @@ model DatasetItem {
   sysId               String?           @default(dbgenerated()) @map("sys_id")
   validFrom           DateTime          @default(now()) @map("valid_from")
   isDeleted           Boolean           @default(false) @map("is_deleted")
-  datasetRunItems     DatasetRunItems[]
 
   @@id([id, projectId])
   @@index([sourceTraceId], type: Hash)
@@ -693,7 +692,6 @@ model DatasetRunItems {
   datasetRunId  String      @map("dataset_run_id")
   datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
   datasetItemId String      @map("dataset_item_id")
-  datasetItem   DatasetItem @relation(fields: [datasetItemId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId       String      @map("trace_id")
   observationId String?     @map("observation_id")
   createdAt     DateTime    @default(now()) @map("created_at")
@@ -1479,6 +1477,7 @@ model Automation {
 enum ActionType {
   WEBHOOK
   SLACK
+  GITHUB_DISPATCH
   // More action types can be added as needed
 }
 
