@@ -112,9 +112,9 @@ export function MappingStep({
   };
 
   return (
-    <div className="grid h-[62vh] grid-cols-[1fr,1fr] gap-6 overflow-auto p-6">
+    <div className="grid h-[62vh] grid-cols-[minmax(0,1fr),minmax(0,1fr)] gap-6 overflow-auto p-6">
       {/* Left: Configuration */}
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <div>
           <div className="flex items-center gap-2">
             <h3 className="flex-grow text-lg font-semibold">
@@ -154,7 +154,7 @@ export function MappingStep({
       </div>
 
       {/* Right: Preview */}
-      <div className="h-full border-l pl-6">
+      <div className="min-w-0 border-l pl-6">
         <MappingPreviewPanel
           fieldLabel={fieldLabel}
           defaultSourceField={defaultSourceField}
