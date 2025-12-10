@@ -78,7 +78,6 @@ export function JsonPathInput({
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
 
-  const [resolvedValue, setResolvedValue] = useState<unknown>(undefined);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
   // Parse source data once
@@ -104,34 +103,16 @@ export function JsonPathInput({
       // Try to resolve the JSON path
       if (newValue && newValue.startsWith("$") && parsedSourceData) {
         try {
-          const result = evaluateJsonPath(parsedSourceData, newValue);
-          setResolvedValue(result);
-          setResolveError(null);
+          evaluateJsonPath(parsedSourceData, newValue);
         } catch (e) {
-          setResolvedValue(undefined);
           setResolveError(e instanceof Error ? e.message : "Invalid JSON path");
         }
       } else {
-        setResolvedValue(undefined);
         setResolveError(null);
       }
     },
     [onChange, parsedSourceData],
   );
-
-  // Resolve initial value
-  useMemo(() => {
-    if (value && value.startsWith("$") && parsedSourceData) {
-      try {
-        const result = evaluateJsonPath(parsedSourceData, value);
-        setResolvedValue(result);
-        setResolveError(null);
-      } catch (e) {
-        setResolvedValue(undefined);
-        setResolveError(e instanceof Error ? e.message : "Invalid JSON path");
-      }
-    }
-  }, [value, parsedSourceData]);
 
   const displayError = error || resolveError;
 
@@ -173,17 +154,6 @@ export function JsonPathInput({
           className,
         )}
       />
-      {value && value.startsWith("$") && resolvedValue !== undefined && (
-        <div className="text-xs text-muted-foreground">
-          <span className="font-medium">Resolves to: </span>
-          <code className="break-all rounded bg-muted px-1">
-            {typeof resolvedValue === "string"
-              ? `"${resolvedValue.length > 50 ? resolvedValue.slice(0, 50) + "..." : resolvedValue}"`
-              : JSON.stringify(resolvedValue)?.slice(0, 60) +
-                (JSON.stringify(resolvedValue)?.length > 60 ? "..." : "")}
-          </code>
-        </div>
-      )}
       {displayError && (
         <p className="text-xs text-destructive">{displayError}</p>
       )}

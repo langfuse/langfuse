@@ -16,31 +16,27 @@ export function MappingModeSelector({
   fieldName,
 }: MappingModeSelectorProps) {
   return (
-    <RadioGroup
-      value={value}
-      onValueChange={(v) => onChange(v as MappingMode)}
-      className="space-y-2"
-    >
-      <div className="flex items-center space-x-3 rounded-md border p-3 hover:bg-muted/50">
+    <RadioGroup value={value} onValueChange={(v) => onChange(v as MappingMode)}>
+      <div className="flex items-center space-x-3 rounded-md border px-3 hover:bg-muted/50">
         <RadioGroupItem value="full" id={`${fieldName}-full`} />
         <Label
           htmlFor={`${fieldName}-full`}
-          className="flex-1 cursor-pointer text-sm font-medium"
+          className="flex-1 cursor-pointer py-3 text-sm font-medium"
         >
           {fullLabel}
         </Label>
       </div>
-      <div className="flex items-center space-x-3 rounded-md border p-3 hover:bg-muted/50">
+      <div className="flex items-center space-x-3 rounded-md border px-3 hover:bg-muted/50">
         <RadioGroupItem value="custom" id={`${fieldName}-custom`} />
         <Label
           htmlFor={`${fieldName}-custom`}
-          className="flex-1 cursor-pointer text-sm font-medium"
+          className="flex-1 cursor-pointer py-3 text-sm font-medium"
         >
           Custom mapping
         </Label>
       </div>
       {fieldName !== "input" && (
-        <div className="flex items-center space-x-3 rounded-md border p-3 hover:bg-muted/50">
+        <div className="flex items-center space-x-3 rounded-md border px-3 hover:bg-muted/50">
           <RadioGroupItem
             value="none"
             id={`${fieldName}-none`}
@@ -48,7 +44,7 @@ export function MappingModeSelector({
           />
           <Label
             htmlFor={`${fieldName}-none`}
-            className="flex-1 cursor-pointer text-sm font-medium"
+            className="flex-1 cursor-pointer py-3 text-sm font-medium"
           >
             None
           </Label>

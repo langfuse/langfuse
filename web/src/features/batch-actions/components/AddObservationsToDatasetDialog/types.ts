@@ -94,7 +94,12 @@ export type DatasetSelectStepProps = {
 
 export type DatasetCreateStepProps = {
   projectId: string;
-  onDatasetCreated: (id: string, name: string) => void;
+  onDatasetCreated: (params: {
+    id: string;
+    name: string;
+    inputSchema: unknown;
+    expectedOutputSchema: unknown;
+  }) => void;
   onValidationChange?: (isValid: boolean, isSubmitting: boolean) => void;
   onSubmitHandlerReady?: (handler: () => void) => void;
 };

@@ -56,7 +56,7 @@ export function StatusStep(props: StatusStepProps) {
     status.data?.status === "PARTIAL" || status.data?.status === "COMPLETED";
 
   return (
-    <div className="flex flex-col items-center justify-center p-12">
+    <div className="flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-2xl space-y-8">
         {/* Status Icon and Title */}
         <div className="flex flex-col items-center text-center">
@@ -88,7 +88,7 @@ export function StatusStep(props: StatusStepProps) {
               `${processedCount} observations have been added to ${datasetName}`}
             {isComplete &&
               !isSuccess &&
-              `${processedCount - failedCount} observations added, ${failedCount} failed`}
+              `${processedCount} observations added, ${failedCount} failed`}
           </p>
         </div>
 
@@ -141,9 +141,7 @@ export function StatusStep(props: StatusStepProps) {
                     <span className="text-muted-foreground">
                       Successfully processed
                     </span>
-                    <span className="font-semibold">
-                      {processedCount - failedCount}
-                    </span>
+                    <span className="font-semibold">{processedCount}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-muted-foreground">Failed</span>
@@ -173,7 +171,6 @@ export function StatusStep(props: StatusStepProps) {
           <div className="flex gap-3">
             <Button
               variant="outline"
-              size="lg"
               onClick={onClose}
               className={isComplete && hasPartialSuccess ? "flex-1" : "w-full"}
             >
@@ -184,9 +181,7 @@ export function StatusStep(props: StatusStepProps) {
                 href={`/project/${projectId}/datasets/${datasetId}/items`}
                 className="flex-1"
               >
-                <Button size="lg" className="w-full">
-                  Go to Dataset
-                </Button>
+                <Button className="w-full">Go to Dataset</Button>
               </Link>
             )}
           </div>

@@ -161,14 +161,14 @@ export const DatasetActionButton = forwardRef<
           <DatasetForm
             mode="create"
             projectId={props.projectId}
-            onFormSuccess={() => setOpen(false)}
+            onCreateDatasetSuccess={() => setOpen(false)}
             folderPrefix={props.folderPrefix}
           />
         ) : props.mode === "delete" ? (
           <DatasetForm
             mode="delete"
             projectId={props.projectId}
-            onFormSuccess={() => setOpen(false)}
+            onCreateDatasetSuccess={() => setOpen(false)}
             datasetId={props.datasetId}
             datasetName={props.datasetName}
           />
@@ -176,7 +176,7 @@ export const DatasetActionButton = forwardRef<
           <DatasetForm
             mode="update"
             projectId={props.projectId}
-            onFormSuccess={() => setOpen(false)}
+            onCreateDatasetSuccess={() => setOpen(false)}
             datasetId={props.datasetId}
             datasetName={props.datasetName}
             datasetDescription={props.datasetDescription}

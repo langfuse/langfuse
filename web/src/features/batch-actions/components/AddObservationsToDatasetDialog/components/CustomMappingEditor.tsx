@@ -33,7 +33,7 @@ export function CustomMappingEditor({
         type: "root",
         rootConfig: config.rootConfig ?? {
           sourceField: defaultSourceField,
-          jsonPath: "$",
+          jsonPath: "$.",
         },
         keyValueMapConfig: config.keyValueMapConfig,
       });
@@ -47,7 +47,7 @@ export function CustomMappingEditor({
               id: crypto.randomUUID(),
               key: "value",
               sourceField: defaultSourceField,
-              value: "$",
+              value: "$.",
             },
           ],
         },
@@ -67,7 +67,7 @@ export function CustomMappingEditor({
             ? (value as SourceField)
             : (config.rootConfig?.sourceField ?? defaultSourceField),
         jsonPath:
-          field === "jsonPath" ? value : (config.rootConfig?.jsonPath ?? "$"),
+          field === "jsonPath" ? value : (config.rootConfig?.jsonPath ?? "$."),
       },
     });
   };
@@ -91,7 +91,7 @@ export function CustomMappingEditor({
             id: crypto.randomUUID(),
             key: newKey,
             sourceField: defaultSourceField,
-            value: "$",
+            value: "$.",
           },
         ],
       },
@@ -141,7 +141,7 @@ export function CustomMappingEditor({
   };
 
   return (
-    <div className="space-y-4 rounded-md border bg-muted/30 p-4">
+    <div className="space-y-2 rounded-md border bg-muted/30 p-4">
       <div>
         <Label className="text-sm font-medium">Target</Label>
         <Tabs
@@ -171,7 +171,7 @@ export function CustomMappingEditor({
             <Label className="text-sm font-medium">JSON Path</Label>
             <div className="mt-1">
               <JsonPathInput
-                value={config.rootConfig?.jsonPath ?? "$"}
+                value={config.rootConfig?.jsonPath ?? "$."}
                 onChange={(v) => handleRootConfigChange("jsonPath", v)}
                 sourceData={getSourceData(
                   config.rootConfig?.sourceField ?? defaultSourceField,
@@ -179,6 +179,9 @@ export function CustomMappingEditor({
                 placeholder="$.path.to.field"
               />
             </div>
+            <p className="p-1 text-xs text-muted-foreground">
+              Start with $. to use a JSON path (e.g., $.field)
+            </p>
           </div>
         </div>
       )}
@@ -306,7 +309,7 @@ function KeyValueEntryRow({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-[38fr,62fr] gap-2">
         <div>
           <Label className="text-xs text-muted-foreground">Source</Label>
           <div className="mt-1">
@@ -338,14 +341,13 @@ function KeyValueEntryRow({
                 className="h-9"
               />
             )}
+
+            <p className="pt-1 text-xs text-muted-foreground">
+              Start with $. to use a JSON path (e.g., $.field)
+            </p>
           </div>
         </div>
       </div>
-      {!isPath && (
-        <p className="text-xs text-muted-foreground">
-          Start with $ to use a JSON path (e.g., $.field)
-        </p>
-      )}
     </div>
   );
 }

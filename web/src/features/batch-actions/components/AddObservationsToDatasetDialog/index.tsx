@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -84,6 +84,13 @@ export function AddObservationsToDatasetDialog(
   const [inputMappingValid, setInputMappingValid] = useState(true);
   const [outputMappingValid, setOutputMappingValid] = useState(true);
 
+  // Reset mapping config when dataset changes
+  useEffect(() => {
+    setMappingConfig(DEFAULT_MAPPING_CONFIG);
+    setInputMappingValid(true);
+    setOutputMappingValid(true);
+  }, [datasetId]);
+
   // Get example observation for preview
   const observationQuery = api.observations.byId.useQuery(
     {
@@ -140,9 +147,18 @@ export function AddObservationsToDatasetDialog(
     setDatasetExpectedOutputSchema(expectedOutputSchema);
   };
 
-  const handleDatasetCreated = (id: string, name: string) => {
+  const handleDatasetCreated = (params: {
+    id: string;
+    name: string;
+    inputSchema: unknown;
+    expectedOutputSchema: unknown;
+  }) => {
+    const { id, name, inputSchema, expectedOutputSchema } = params;
+
     setDatasetId(id);
     setDatasetName(name);
+    setDatasetInputSchema(inputSchema);
+    setDatasetExpectedOutputSchema(expectedOutputSchema);
     setStep("input-mapping");
   };
 
@@ -370,7 +386,7 @@ export function AddObservationsToDatasetDialog(
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="flex-1 overflow-y-auto">
+        <DialogBody className="flex-1 overflow-y-auto p-0">
           {step === "choice" && (
             <DatasetChoiceStep onSelectMode={handleSelectMode} />
           )}

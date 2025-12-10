@@ -402,12 +402,19 @@ export async function createManyDatasetItems(props: {
       success: true;
       datasetItems: CreateManyItemsInsert;
       validationErrors?: CreateManyValidationError[];
+      successCount: number;
+      failedCount: number;
     }
   | {
       success: false;
       validationErrors: CreateManyValidationError[];
+      successCount: number;
+      failedCount: number;
     }
 > {
+  let successCount = 0;
+  let failedCount = 0;
+
   // 1. Group items by datasetId and add original index (preserves CSV row mapping)
   const itemsByDataset = props.items.reduce(
     (acc, item, index) => {
@@ -478,6 +485,8 @@ export async function createManyDatasetItems(props: {
       });
 
       if (!result.success) {
+        failedCount++;
+
         // Validation failed - add errors with original index
         if (result.cause?.inputErrors) {
           validationErrors.push({
@@ -494,6 +503,8 @@ export async function createManyDatasetItems(props: {
           });
         }
       } else {
+        successCount++;
+
         // Validation passed - prepare for insert
         preparedItems.push({
           itemId: v4(),
@@ -516,6 +527,8 @@ export async function createManyDatasetItems(props: {
     return {
       success: false,
       validationErrors,
+      successCount,
+      failedCount,
     };
   }
 
@@ -533,11 +546,15 @@ export async function createManyDatasetItems(props: {
       success: true,
       datasetItems: preparedItems,
       validationErrors,
+      successCount,
+      failedCount,
     };
   }
 
   return {
     success: true,
     datasetItems: preparedItems,
+    successCount,
+    failedCount,
   };
 }

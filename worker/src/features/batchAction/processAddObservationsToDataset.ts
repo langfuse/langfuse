@@ -66,7 +66,6 @@ async function processChunk(params: {
     }
 
     // Success (possibly partial)
-    const failedCount = result.validationErrors?.length ?? 0;
     const errors = result.validationErrors
       ? result.validationErrors.map(
           (e) =>
@@ -75,8 +74,8 @@ async function processChunk(params: {
       : [];
 
     return {
-      processed: result.datasetItems.length,
-      failed: failedCount,
+      processed: result.successCount,
+      failed: result.failedCount,
       errors,
     };
   } catch (error) {

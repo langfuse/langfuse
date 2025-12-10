@@ -165,7 +165,7 @@ export function MappingPreviewPanel({
   }
 
   return (
-    <div className="h-full space-y-4">
+    <div className="space-y-2">
       <div>
         <h3 className="text-sm font-semibold">Preview</h3>
         <p className="text-xs text-muted-foreground">
@@ -178,14 +178,14 @@ export function MappingPreviewPanel({
         <p className="text-xs font-medium text-muted-foreground">
           Source: {sourceLabel}
         </p>
-        <div className="max-h-[22vh] overflow-auto rounded-md border bg-muted/30">
+        <div className="max-h-[21vh] overflow-auto rounded-md border bg-muted/30">
           <JSONView json={sourceData} className="text-xs" />
         </div>
       </div>
 
       {/* Arrow */}
       <div className="flex justify-center">
-        <ArrowDown className="h-5 w-5 text-muted-foreground" />
+        <ArrowDown className="h-6 w-6 text-muted-foreground" />
       </div>
 
       {/* Result data */}
@@ -206,7 +206,7 @@ export function MappingPreviewPanel({
           )}
         </div>
         <div
-          className={`max-h-[22vh] overflow-auto rounded-md border bg-background ${
+          className={`max-h-[21vh] overflow-auto rounded-md border bg-background ${
             hasSchema && !validationResult.isValid && config.mode !== "none"
               ? "border-destructive"
               : ""
@@ -223,7 +223,7 @@ export function MappingPreviewPanel({
         {hasSchema &&
           !validationResult.isValid &&
           validationResult.errors.length > 0 && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-2">
+            <div className="max-h-[5vh] overflow-y-auto rounded-md border border-destructive/50 bg-destructive/10 p-2">
               <p className="mb-1 text-xs font-medium text-destructive">
                 Schema validation errors:
               </p>

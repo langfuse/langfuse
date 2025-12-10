@@ -41,7 +41,12 @@ type ServerSideSchemaValidationErrors = {
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
   projectId: string;
-  onFormSuccess?: (datasetId?: string, datasetName?: string) => void;
+  onCreateDatasetSuccess?: (params: {
+    id: string;
+    name: string;
+    inputSchema: unknown;
+    expectedOutputSchema: unknown;
+  }) => void;
   className?: string;
   redirectOnSuccess?: boolean;
   showFooter?: boolean;
@@ -244,7 +249,7 @@ export const DatasetForm = (props: DatasetFormProps) => {
           if (result.success) {
             // Success - navigate to dataset items
             void utils.datasets.invalidate();
-            props.onFormSuccess?.(result.dataset.id, result.dataset.name);
+            props.onCreateDatasetSuccess?.(result.dataset);
             form.reset();
             if (props.redirectOnSuccess !== false) {
               router.push(
@@ -275,7 +280,6 @@ export const DatasetForm = (props: DatasetFormProps) => {
           if (result.success) {
             // Success - close dialog
             void utils.datasets.invalidate();
-            props.onFormSuccess?.();
             form.reset();
           } else {
             // Validation failed - show errors
@@ -311,7 +315,6 @@ export const DatasetForm = (props: DatasetFormProps) => {
       })
       .then(() => {
         void utils.datasets.invalidate();
-        props.onFormSuccess?.();
         form.reset();
       })
       .catch((error: Error) => {

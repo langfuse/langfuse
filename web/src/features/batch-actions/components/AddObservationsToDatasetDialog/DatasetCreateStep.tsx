@@ -9,12 +9,6 @@ export function DatasetCreateStep(props: DatasetCreateStepProps) {
     onSubmitHandlerReady,
   } = props;
 
-  const handleFormSuccess = (datasetId?: string, datasetName?: string) => {
-    if (datasetId && datasetName) {
-      onDatasetCreated(datasetId, datasetName);
-    }
-  };
-
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -29,7 +23,7 @@ export function DatasetCreateStep(props: DatasetCreateStepProps) {
         mode="create"
         redirectOnSuccess={false}
         showFooter={false}
-        onFormSuccess={handleFormSuccess}
+        onCreateDatasetSuccess={onDatasetCreated}
         onValidationChange={onValidationChange}
         onSubmitHandlerReady={onSubmitHandlerReady}
       />
