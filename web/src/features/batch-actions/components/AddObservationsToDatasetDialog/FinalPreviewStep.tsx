@@ -2,11 +2,7 @@ import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Pencil } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import type {
-  FinalPreviewStepProps,
-  DialogStep,
-  FieldMappingConfig,
-} from "./types";
+import type { FinalPreviewStepProps, DialogStep } from "./types";
 import { applyFullMapping } from "@langfuse/shared";
 
 export function FinalPreviewStep({
@@ -29,34 +25,6 @@ export function FinalPreviewStep({
       mapping: mappingConfig,
     });
   }, [observationData, mappingConfig]);
-
-  const getModeLabel = (config: FieldMappingConfig): string => {
-    switch (config.mode) {
-      case "full":
-        return "Full";
-      case "none":
-        return "None";
-      case "custom":
-        return config.custom?.type === "keyValueMap"
-          ? "Custom (Key-value map)"
-          : "Custom (Root)";
-      default:
-        return "Unknown";
-    }
-  };
-
-  const getModeVariant = (
-    mode: string,
-  ): "default" | "secondary" | "outline" => {
-    switch (mode) {
-      case "full":
-        return "default";
-      case "none":
-        return "outline";
-      default:
-        return "secondary";
-    }
-  };
 
   return (
     <div className="h-[62vh] space-y-6 p-6">
@@ -84,8 +52,6 @@ export function FinalPreviewStep({
           {/* Input Preview */}
           <PreviewCard
             label="Input"
-            mode={getModeLabel(mappingConfig.input)}
-            modeVariant={getModeVariant(mappingConfig.input.mode)}
             data={previewResult?.input}
             onEdit={() => onEditStep("input-mapping" as DialogStep)}
           />
@@ -93,8 +59,6 @@ export function FinalPreviewStep({
           {/* Expected Output Preview */}
           <PreviewCard
             label="Expected Output"
-            mode={getModeLabel(mappingConfig.expectedOutput)}
-            modeVariant={getModeVariant(mappingConfig.expectedOutput.mode)}
             data={previewResult?.expectedOutput}
             onEdit={() => onEditStep("output-mapping" as DialogStep)}
           />
@@ -102,8 +66,6 @@ export function FinalPreviewStep({
           {/* Metadata Preview */}
           <PreviewCard
             label="Metadata"
-            mode={getModeLabel(mappingConfig.metadata)}
-            modeVariant={getModeVariant(mappingConfig.metadata.mode)}
             data={previewResult?.metadata}
             onEdit={() => onEditStep("metadata-mapping" as DialogStep)}
           />
@@ -115,8 +77,6 @@ export function FinalPreviewStep({
 
 type PreviewCardProps = {
   label: string;
-  mode: string;
-  modeVariant: "default" | "secondary" | "outline";
   data: unknown;
   onEdit: () => void;
 };

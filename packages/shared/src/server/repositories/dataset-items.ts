@@ -388,8 +388,12 @@ export async function deleteDatasetItem(props: {
  * to original CSV rows or API payloads for user-friendly error reporting.
  *
  * @param props.items - Can contain items from multiple datasets
- * @param props.allowPartialSuccess - If true, create valid items even if some fail validation
- * @returns Success with all created items, or validation errors with indices
+ * @param props.allowPartialSuccess - If true, create valid items even if some fail validation.
+ *   When enabled, the return type changes:
+ *   - `success: true` with `validationErrors` array (partial success)
+ *   - `successCount` and `failedCount` indicate how many items were created vs failed
+ * @returns When allowPartialSuccess=false: success with all items OR failure with all errors.
+ *          When allowPartialSuccess=true: success with created items AND any validation errors.
  */
 export async function createManyDatasetItems(props: {
   projectId: string;

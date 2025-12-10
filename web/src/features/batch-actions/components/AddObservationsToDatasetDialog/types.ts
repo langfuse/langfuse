@@ -1,4 +1,21 @@
-// Step definitions - now includes separate mapping steps and final preview
+// Re-export base types from shared
+export type {
+  SourceField,
+  MappingMode,
+  MappingTarget,
+  RootMappingConfig,
+  AddToDatasetMapping,
+} from "@langfuse/shared";
+
+import type {
+  SourceField,
+  MappingMode,
+  RootMappingConfig,
+  KeyValueMappingEntry as SharedKeyValueMappingEntry,
+  MappingTarget,
+} from "@langfuse/shared";
+
+// Step definitions - dialog-specific
 export type DialogStep =
   | "choice"
   | "select"
@@ -9,34 +26,15 @@ export type DialogStep =
   | "preview"
   | "status";
 
-// Mapping mode for each field
-export type MappingMode = "full" | "custom" | "none";
-
-// Source field type
-export type SourceField = "input" | "output" | "metadata";
-
-// Mapping target type: "root" extracts single value, "keyValueMap" builds an object
-export type MappingTarget = "root" | "keyValueMap";
-
-// Root mapping configuration - single JSON path extraction
-export type RootMappingConfig = {
-  sourceField: SourceField;
-  jsonPath: string;
-};
-
-// Entry for key-value map type mapping
-export type KeyValueMappingEntry = {
-  id: string; // for react-hook-form
-  key: string;
-  sourceField: SourceField;
-  value: string; // JSON path if starts with $, else literal string
+// Extended KeyValueMappingEntry with UI-specific properties
+export type KeyValueMappingEntry = SharedKeyValueMappingEntry & {
   /** Whether this entry was generated from schema (UI only, not persisted) */
   fromSchema?: boolean;
   /** Whether this is a required field per schema (UI only, not persisted) */
   isRequired?: boolean;
 };
 
-// Custom mapping configuration
+// Custom mapping configuration using UI-extended KeyValueMappingEntry
 export type CustomMappingConfig = {
   type: MappingTarget;
   rootConfig?: RootMappingConfig;
@@ -45,13 +43,13 @@ export type CustomMappingConfig = {
   };
 };
 
-// Per-field mapping config
+// Per-field mapping config using UI-extended CustomMappingConfig
 export type FieldMappingConfig = {
   mode: MappingMode;
   custom?: CustomMappingConfig;
 };
 
-// Complete mapping config for all three fields
+// Complete mapping config for all three fields (UI version with extended types)
 export type MappingConfig = {
   input: FieldMappingConfig;
   expectedOutput: FieldMappingConfig;
@@ -144,6 +142,7 @@ export type StatusStepProps = {
   batchActionId: string;
   datasetId: string;
   datasetName: string;
+  expectedCount: number;
   onClose: () => void;
 };
 

@@ -47,7 +47,7 @@ export const addToDatasetRouter = createTRPCRouter({
 
         // Check observation count doesn't exceed maximum
         const queryOpts = {
-          projectId: ctx.session.projectId,
+          projectId,
           filter: query.filter ?? [],
           limit: 1,
           offset: 0,

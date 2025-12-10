@@ -7,7 +7,11 @@ import {
   type ObservationAddToDatasetConfig,
 } from "@langfuse/shared";
 
-const CHUNK_SIZE = 100; // Smaller chunks for complex processing with mapping
+// Chunk size for batch processing. Smaller than the default 1000 because:
+// 1. Each observation requires JSON path evaluation and mapping transformation
+// 2. Dataset item validation with schema checking is CPU-intensive
+// 3. Smaller chunks provide more frequent progress updates to the UI
+const CHUNK_SIZE = 100;
 
 type ObservationForMapping = {
   id: string;
