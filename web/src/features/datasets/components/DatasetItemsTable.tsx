@@ -62,7 +62,6 @@ export function DatasetItemsTable({
   datasetId: string;
   menuItems?: React.ReactNode;
 }) {
-  const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -153,9 +152,12 @@ export function DatasetItemsTable({
       isFixedPosition: true,
       cell: ({ row }) => {
         const id: string = row.getValue("id");
+        const versionParam = selectedVersion
+          ? `?version=${encodeURIComponent(selectedVersion.toISOString())}`
+          : "";
         return (
           <TableLink
-            path={`/project/${projectId}/datasets/${datasetId}/items/${id}`}
+            path={`/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`}
             value={id}
           />
         );

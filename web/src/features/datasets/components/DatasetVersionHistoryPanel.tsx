@@ -197,7 +197,7 @@ export function DatasetVersionHistoryPanel({
               </AccordionTrigger>
               <AccordionContent>
                 <div className="flex flex-col gap-1">
-                  {groupedVersions.yesterday.map((v, i) =>
+                  {groupedVersions.yesterday.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}
                 </div>
@@ -213,7 +213,7 @@ export function DatasetVersionHistoryPanel({
               </AccordionTrigger>
               <AccordionContent>
                 <div className="flex flex-col gap-1">
-                  {groupedVersions.last7Days.map((v, i) =>
+                  {groupedVersions.last7Days.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}
                 </div>
@@ -229,7 +229,7 @@ export function DatasetVersionHistoryPanel({
               </AccordionTrigger>
               <AccordionContent>
                 <div className="flex flex-col gap-1">
-                  {groupedVersions.last30Days.map((v, i) =>
+                  {groupedVersions.last30Days.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}
                 </div>
@@ -245,7 +245,7 @@ export function DatasetVersionHistoryPanel({
               </AccordionTrigger>
               <AccordionContent>
                 <div className="flex flex-col gap-1">
-                  {groupedVersions.older.map((v, i) =>
+                  {groupedVersions.older.map((v) =>
                     renderVersionItem(v, versions.indexOf(v)),
                   )}
                 </div>

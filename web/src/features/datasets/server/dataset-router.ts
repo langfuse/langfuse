@@ -64,6 +64,7 @@ import {
   Implementation,
   listDatasetVersions,
   getDatasetItemVersionHistory,
+  getDatasetItemChangesSinceVersion,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -670,6 +671,25 @@ export const datasetRouter = createTRPCRouter({
       }
       return item;
     }),
+  itemByIdAtVersion: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetItemId: z.string(),
+        version: z.date().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const item = await getDatasetItemById({
+        projectId: input.projectId,
+        datasetItemId: input.datasetItemId,
+        datasetId: input.datasetId,
+        version: input.version ?? new Date(),
+      });
+      // Return null if item doesn't exist at this version (not created yet or deleted)
+      return item;
+    }),
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input }) => {
@@ -703,6 +723,21 @@ export const datasetRouter = createTRPCRouter({
         itemId: input.itemId,
       });
     }),
+  countChangesSinceVersion: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        sinceVersion: z.date(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await getDatasetItemChangesSinceVersion({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        sinceVersion: input.sinceVersion,
+      });
+    }),
   itemsByDatasetId: protectedProjectProcedure
     .input(
       z.object({
@@ -720,6 +755,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         datasetId: input.datasetId,
         filter: input.filter ?? [],
+        version: input.version,
         limit: input.limit,
         page: input.page,
         prisma: ctx.prisma,

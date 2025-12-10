@@ -6,10 +6,7 @@ import { DatasetItemDiffView } from "@/src/features/datasets/components/DatasetI
 import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/DatasetVersionHistoryPanel";
 import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/DatasetVersionWarningBanner";
 import { api } from "@/src/utils/api";
-import {
-  DatasetVersionProvider,
-  useDatasetVersion,
-} from "@/src/features/datasets/hooks/useDatasetVersion";
+import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
 import useSessionStorage from "@/src/components/useSessionStorage";
@@ -29,7 +26,7 @@ function DatasetItemContent() {
   );
 
   // Fetch current item
-  const item = api.datasets.itemById.useQuery(
+  const item = api.datasets.itemByIdAtVersion.useQuery(
     {
       datasetId,
       projectId,
@@ -41,12 +38,12 @@ function DatasetItemContent() {
   );
 
   // Fetch item at selected version if viewing old version
-  const itemAtVersion = api.datasets.itemById.useQuery(
+  const itemAtVersion = api.datasets.itemByIdAtVersion.useQuery(
     {
       projectId,
       datasetId,
       datasetItemId: itemId,
-      // validFrom: selectedVersion!,
+      version: selectedVersion!,
     },
     {
       enabled: selectedVersion !== null,
@@ -66,6 +63,14 @@ function DatasetItemContent() {
     itemId,
   });
 
+  // Check if item was changed at selected version (enables diff toggle)
+  // Use 1 second tolerance to account for potential timestamp precision issues
+  const itemChangedAtVersion =
+    selectedVersion &&
+    itemVersionHistory.data?.some(
+      (v) => Math.abs(v.getTime() - selectedVersion.getTime()) < 1000,
+    );
+
   return (
     <DatasetItemDetailPage
       activeTab={DATASET_ITEM_TABS.ITEM}
@@ -73,42 +78,88 @@ function DatasetItemContent() {
     >
       <div className="flex h-full">
         {/* Main content area */}
-        <div className="flex flex-1 flex-col overflow-auto">
-          {/* Banner without padding */}
+        <div className="relative flex flex-1 flex-col overflow-auto">
+          {/* Sticky banner without padding */}
           {isViewingOldVersion && selectedVersion && (
-            <DatasetVersionWarningBanner
-              selectedVersion={selectedVersion}
-              resetToLatest={resetToLatest}
-              variant="inline"
-            />
+            <div className="sticky top-0 z-10">
+              <DatasetVersionWarningBanner
+                selectedVersion={selectedVersion}
+                resetToLatest={resetToLatest}
+                variant="inline"
+              />
+            </div>
           )}
 
           {/* Content with padding */}
           <div className="px-6 py-4">
-            {isViewingOldVersion && selectedVersion && (
-              <div className="mb-4 flex items-center space-x-2">
-                <Switch
-                  id="diff-mode"
-                  checked={showDiffMode}
-                  onCheckedChange={setShowDiffMode}
-                />
-                <Label htmlFor="diff-mode" className="cursor-pointer text-sm">
-                  Show diff with latest version
-                </Label>
+            {isViewingOldVersion && selectedVersion && itemChangedAtVersion && (
+              <div className="mb-4 flex flex-col gap-2">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="diff-mode"
+                    checked={showDiffMode}
+                    onCheckedChange={setShowDiffMode}
+                  />
+                  <Label htmlFor="diff-mode" className="cursor-pointer text-sm">
+                    Show diff with latest version
+                  </Label>
+                </div>
               </div>
             )}
+            {isViewingOldVersion &&
+              selectedVersion &&
+              !itemChangedAtVersion && (
+                <div className="mb-4 text-sm text-muted-foreground">
+                  Item unchanged in this version
+                </div>
+              )}
 
             {isViewingOldVersion ? (
-              showDiffMode ? (
+              itemAtVersion.isLoading ? (
+                <div className="text-sm text-muted-foreground">Loading...</div>
+              ) : itemAtVersion.data === null ? (
+                // Item doesn't exist at this version (not created yet or deleted)
+                <div className="flex flex-col items-center justify-center p-12 text-center">
+                  <div className="text-muted-foreground">
+                    <p className="text-lg font-medium">
+                      Item does not exist at this version
+                    </p>
+                    <p className="mt-2 text-sm">
+                      This dataset item either had not been created yet or was
+                      deleted at the selected version timestamp.
+                    </p>
+                  </div>
+                </div>
+              ) : showDiffMode && itemChangedAtVersion ? (
                 // Show diff view when diff mode is enabled
-                item.data && itemAtVersion.data ? (
+                item.isLoading || itemAtVersion.isLoading ? (
+                  <div className="text-sm text-muted-foreground">
+                    Loading...
+                  </div>
+                ) : item.data && itemAtVersion.data ? (
                   <DatasetItemDiffView
                     selectedVersion={itemAtVersion.data}
                     latestVersion={item.data}
                   />
+                ) : !itemAtVersion.data ? (
+                  <div className="flex flex-col items-center justify-center p-12 text-center">
+                    <div className="text-muted-foreground">
+                      <p className="text-lg font-medium">Cannot show diff</p>
+                      <p className="mt-2 text-sm">
+                        The selected version of this item does not exist (not
+                        yet created or was deleted at that time).
+                      </p>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">
-                    Loading...
+                  <div className="flex flex-col items-center justify-center p-12 text-center">
+                    <div className="text-muted-foreground">
+                      <p className="text-lg font-medium">Cannot show diff</p>
+                      <p className="mt-2 text-sm">
+                        The latest version of this item does not exist (has been
+                        deleted).
+                      </p>
+                    </div>
                   </div>
                 )
               ) : (
@@ -130,6 +181,18 @@ function DatasetItemContent() {
                   />
                 )
               )
+            ) : item.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : item.data === null ? (
+              // Current item not found
+              <div className="flex flex-col items-center justify-center p-12 text-center">
+                <div className="text-muted-foreground">
+                  <p className="text-lg font-medium">Dataset item not found</p>
+                  <p className="mt-2 text-sm">
+                    This dataset item does not exist or has been deleted.
+                  </p>
+                </div>
+              </div>
             ) : (
               // Show read-only view when viewing current version
               item.data && (
@@ -165,10 +228,4 @@ function DatasetItemContent() {
   );
 }
 
-export default function Dataset() {
-  return (
-    <DatasetVersionProvider>
-      <DatasetItemContent />
-    </DatasetVersionProvider>
-  );
-}
+export default DatasetItemContent;

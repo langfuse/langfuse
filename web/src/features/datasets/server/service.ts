@@ -49,6 +49,7 @@ export type DatasetRunItemsTableInput = {
   page: number;
   prisma: PrismaClient;
   filter: FilterState;
+  version?: Date;
   searchQuery?: string;
   searchType?: TracingSearchType[];
 };
@@ -69,6 +70,7 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
     getDatasetItemsByLatest({
       projectId: input.projectId,
       filterState,
+      version: input.version,
       searchQuery: input.searchQuery,
       searchType: input.searchType,
       limit: input.limit,

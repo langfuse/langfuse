@@ -2,7 +2,6 @@ import { useRouter } from "next/router";
 import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/DatasetRunItemsByItemTable";
 import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
-import { DatasetVersionProvider } from "@/src/features/datasets/hooks/useDatasetVersion";
 
 function DatasetItemRuns() {
   const router = useRouter();
@@ -24,10 +23,4 @@ function DatasetItemRuns() {
   );
 }
 
-export default function Dataset() {
-  return (
-    <DatasetVersionProvider>
-      <DatasetItemRuns />
-    </DatasetVersionProvider>
-  );
-}
+export default DatasetItemRuns;
