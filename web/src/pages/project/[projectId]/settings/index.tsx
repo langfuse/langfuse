@@ -210,7 +210,7 @@ export const getProjectSettingsPages = ({
     content: <BatchExportsSettingsPage projectId={project.id} />,
   },
   {
-    title: "Table Batch Actions",
+    title: "Batch Actions",
     slug: "batch-actions",
     cmdKKeywords: ["bulk", "batch", "action", "dataset", "delete"],
     content: <BatchActionsSettingsPage projectId={project.id} />,

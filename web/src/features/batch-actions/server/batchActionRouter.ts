@@ -43,7 +43,7 @@ export const batchActionRouter = createTRPCRouter({
       if (!batchAction) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Table batch action not found",
+          message: "Batch action not found",
         });
       }
 

@@ -12,7 +12,7 @@ export function BatchActionsSettingsPage(props: { projectId: string }) {
 
   return (
     <>
-      <Header title="Table Batch Actions" />
+      <Header title="Batch Actions" />
       <p className="mb-4 text-sm">
         Track the status of bulk operations performed on tables, such as adding
         observations to datasets, deleting traces, and adding items to
@@ -27,7 +27,7 @@ export function BatchActionsSettingsPage(props: { projectId: string }) {
         <Alert>
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
-            You do not have permission to view table batch actions.
+            You do not have permission to view batch actions.
           </AlertDescription>
         </Alert>
       )}
