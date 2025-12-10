@@ -19,6 +19,8 @@ import {
   testJsonPath,
   BatchTableNames,
   BatchActionType,
+  BatchActionStatus,
+  ActionId,
   isJsonPath,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -72,9 +74,9 @@ export const addToDatasetRouter = createTRPCRouter({
           data: {
             projectId,
             userId,
-            actionType: "observation-add-to-dataset",
-            tableName: "observations",
-            status: "QUEUED",
+            actionType: ActionId.ObservationAddToDataset,
+            tableName: BatchTableNames.Observations,
+            status: BatchActionStatus.Queued,
             query,
             config,
           },
@@ -100,7 +102,7 @@ export const addToDatasetRouter = createTRPCRouter({
             payload: {
               batchActionId: batchAction.id,
               projectId,
-              actionId: "observation-add-to-dataset" as const,
+              actionId: ActionId.ObservationAddToDataset,
               tableName: BatchTableNames.Observations,
               cutoffCreatedAt: new Date(),
               query,

@@ -294,7 +294,7 @@ describe("Unit Tests - DatasetItemValidator", () => {
 
   it("should reject null when schema doesn't allow null", () => {
     const result = defaultValidator.validateAndNormalize({
-      input: null,
+      input: "whassup",
       expectedOutput: null,
       metadata: undefined,
       validateOpts: { normalizeUndefinedToNull: true },
@@ -308,13 +308,27 @@ describe("Unit Tests - DatasetItemValidator", () => {
     }
   });
 
-  it("should pass when null is allowed in schema", () => {
+  it("should block if input is null despite allowed in schema", () => {
     const validator = new DatasetItemValidator({
       inputSchema: TEST_SCHEMAS.allowsNull,
       expectedOutputSchema: TEST_SCHEMAS.allowsNull,
     });
     const result = validator.validateAndNormalize({
       input: null,
+      expectedOutput: { text: "hello" },
+      metadata: undefined,
+      validateOpts: { normalizeUndefinedToNull: true },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("should pass when null is allowed in schema", () => {
+    const validator = new DatasetItemValidator({
+      inputSchema: TEST_SCHEMAS.allowsNull,
+      expectedOutputSchema: TEST_SCHEMAS.allowsNull,
+    });
+    const result = validator.validateAndNormalize({
+      input: { text: "hello" },
       expectedOutput: null,
       metadata: undefined,
       validateOpts: { normalizeUndefinedToNull: true },
@@ -585,6 +599,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "/api/public/dataset-items",
         {
           datasetName: "valid-output-test",
+          input: "Hello",
           expectedOutput: { value: 42 },
         },
         auth,
@@ -618,7 +633,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
       expect(res.status).toBe(200);
     });
 
-    it("should create item with null when schema allows null", async () => {
+    it("should not create item with null even when schema allows null", async () => {
       await makeZodVerifiedAPICall(
         PostDatasetsV2Response,
         "POST",
@@ -630,8 +645,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         auth,
       );
 
-      const res = await makeZodVerifiedAPICall(
-        PostDatasetItemsV1Response,
+      const res = await makeAPICall(
         "POST",
         "/api/public/dataset-items",
         {
@@ -641,7 +655,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         auth,
       );
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
     });
 
     it("should reject item with invalid input", async () => {
@@ -972,7 +986,8 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "/api/public/dataset-items",
         {
           datasetName: "null-items",
-          input: null,
+          input: "hello",
+          expectedOutput: null,
         },
         auth,
       );
@@ -983,7 +998,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
         "/api/public/v2/datasets",
         {
           name: "null-items",
-          inputSchema: TEST_SCHEMAS.simpleText, // Requires object
+          expectedOutputSchema: TEST_SCHEMAS.simpleText, // Requires object
         },
         auth,
       );

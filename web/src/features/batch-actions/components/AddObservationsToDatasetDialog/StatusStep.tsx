@@ -2,6 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { Progress } from "@/src/components/ui/progress";
 import { api } from "@/src/utils/api";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { BatchActionStatus } from "@langfuse/shared";
 import {
   Card,
   CardContent,
@@ -48,12 +49,15 @@ export function StatusStep(props: StatusStepProps) {
   const progressPercent =
     totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
 
-  const isComplete = ["COMPLETED", "FAILED", "PARTIAL"].includes(
-    status.data?.status ?? "",
-  );
-  const isSuccess = status.data?.status === "COMPLETED";
+  const isComplete = [
+    BatchActionStatus.Completed,
+    BatchActionStatus.Failed,
+    BatchActionStatus.Partial,
+  ].includes(status.data?.status as BatchActionStatus);
+  const isSuccess = status.data?.status === BatchActionStatus.Completed;
   const hasPartialSuccess =
-    status.data?.status === "PARTIAL" || status.data?.status === "COMPLETED";
+    status.data?.status === BatchActionStatus.Partial ||
+    status.data?.status === BatchActionStatus.Completed;
 
   return (
     <div className="flex flex-col items-center justify-center p-6">

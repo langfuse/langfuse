@@ -27,6 +27,7 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  ActionId,
   type TimeFilter,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -478,7 +479,7 @@ export default function ObservationsTable({
 
   const tableActions: TableAction[] = [
     {
-      id: "observation-add-to-annotation-queue",
+      id: ActionId.ObservationAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
       description: "Add selected observations to an annotation queue.",
@@ -489,7 +490,7 @@ export default function ObservationsTable({
       },
     },
     {
-      id: "observation-add-to-dataset",
+      id: ActionId.ObservationAddToDataset,
       type: BatchActionType.Create,
       label: "Add to Dataset",
       description: "Add selected observations to a dataset",
@@ -1213,7 +1214,7 @@ export default function ObservationsTable({
                 actions={tableActions}
                 tableName={BatchExportTableName.Observations}
                 onCustomAction={(actionType) => {
-                  if (actionType === "observation-add-to-dataset") {
+                  if (actionType === ActionId.ObservationAddToDataset) {
                     setShowAddToDatasetDialog(true);
                   }
                 }}

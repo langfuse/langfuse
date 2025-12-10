@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createManyDatasetItems } from "@langfuse/shared/src/server";
 import {
   applyFullMapping,
+  BatchActionStatus,
   type ObservationAddToDatasetConfig,
 } from "@langfuse/shared";
 
@@ -104,7 +105,7 @@ export async function processAddObservationsToDataset(params: {
   await prisma.batchAction.update({
     where: { id: batchActionId },
     data: {
-      status: "PROCESSING",
+      status: BatchActionStatus.Processing,
       totalCount: observations.length,
     },
   });
@@ -143,7 +144,11 @@ export async function processAddObservationsToDataset(params: {
 
   // Determine final status
   const finalStatus =
-    failed === 0 ? "COMPLETED" : processed === 0 ? "FAILED" : "PARTIAL";
+    failed === 0
+      ? BatchActionStatus.Completed
+      : processed === 0
+        ? BatchActionStatus.Failed
+        : BatchActionStatus.Partial;
 
   // Aggregate error summary
   const errorSummary =
