@@ -2,12 +2,7 @@ import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import type { DatasetCreateStepProps } from "./types";
 
 export function DatasetCreateStep(props: DatasetCreateStepProps) {
-  const {
-    projectId,
-    onDatasetCreated,
-    onValidationChange,
-    onSubmitHandlerReady,
-  } = props;
+  const { projectId, formRef, onDatasetCreated, onValidationChange } = props;
 
   return (
     <div className="space-y-6 p-6">
@@ -19,13 +14,13 @@ export function DatasetCreateStep(props: DatasetCreateStepProps) {
       </div>
 
       <DatasetForm
+        ref={formRef}
         projectId={projectId}
         mode="create"
         redirectOnSuccess={false}
         showFooter={false}
         onCreateDatasetSuccess={onDatasetCreated}
         onValidationChange={onValidationChange}
-        onSubmitHandlerReady={onSubmitHandlerReady}
       />
     </div>
   );

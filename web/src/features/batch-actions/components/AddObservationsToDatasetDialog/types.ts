@@ -1,3 +1,6 @@
+import type { RefObject } from "react";
+import type { DatasetFormRef } from "@/src/features/datasets/components/DatasetForm";
+
 // Re-export base types from shared
 export type {
   SourceField,
@@ -78,20 +81,13 @@ export type DatasetChoiceStepProps = {
 
 export type DatasetSelectStepProps = {
   projectId: string;
-  selectedDatasetId: string | null;
-  selectedDatasetName: string | null;
-  onDatasetSelect: (
-    id: string,
-    name: string,
-    inputSchema: unknown,
-    expectedOutputSchema: unknown,
-  ) => void;
-  onContinue: () => void;
-  canContinue: boolean;
+  dataset: WizardState["dataset"];
+  onDatasetSelect: (dataset: DatasetInfo) => void;
 };
 
 export type DatasetCreateStepProps = {
   projectId: string;
+  formRef: RefObject<DatasetFormRef | null>;
   onDatasetCreated: (params: {
     id: string;
     name: string;
@@ -99,7 +95,6 @@ export type DatasetCreateStepProps = {
     expectedOutputSchema: unknown;
   }) => void;
   onValidationChange?: (isValid: boolean, isSubmitting: boolean) => void;
-  onSubmitHandlerReady?: (handler: () => void) => void;
 };
 
 // Schema validation error type
@@ -128,10 +123,8 @@ export type MappingStepProps = {
 
 // Final preview step props
 export type FinalPreviewStepProps = {
-  projectId: string;
-  datasetId: string;
-  datasetName: string;
-  mappingConfig: MappingConfig;
+  dataset: { id: string; name: string };
+  mapping: MappingConfig;
   observationData: ObservationPreviewData | null;
   totalCount: number;
   onEditStep: (step: DialogStep) => void;
@@ -140,17 +133,71 @@ export type FinalPreviewStepProps = {
 export type StatusStepProps = {
   projectId: string;
   batchActionId: string;
-  datasetId: string;
-  datasetName: string;
+  dataset: { id: string; name: string };
   expectedCount: number;
   onClose: () => void;
 };
 
-// Parent component state
-export type AddObservationsDialogState = {
-  step: DialogStep;
-  datasetId: string | null;
-  datasetName: string | null;
-  mappingConfig: MappingConfig;
-  batchActionId: string | null;
+// Dataset info for selection/creation
+export type DatasetInfo = {
+  id: string;
+  name: string;
+  inputSchema: unknown;
+  expectedOutputSchema: unknown;
 };
+
+// Wizard state for useReducer
+export type WizardState = {
+  step: DialogStep;
+  dataset: {
+    id: string | null;
+    name: string | null;
+    inputSchema: unknown;
+    expectedOutputSchema: unknown;
+  };
+  mapping: MappingConfig;
+  submission: {
+    batchActionId: string | null;
+    isSubmitting: boolean;
+  };
+  validation: {
+    inputMapping: boolean;
+    outputMapping: boolean;
+  };
+  createStep: {
+    canContinue: boolean;
+    isCreating: boolean;
+  };
+};
+
+// Wizard actions for useReducer
+export type WizardAction =
+  // Navigation
+  | { type: "SELECT_MODE"; mode: "create" | "select" }
+  | { type: "NEXT_STEP" }
+  | { type: "BACK" }
+  | { type: "GO_TO_STEP"; step: DialogStep }
+  // Dataset
+  | { type: "SELECT_DATASET"; dataset: DatasetInfo }
+  | { type: "DATASET_CREATED"; dataset: DatasetInfo }
+  // Mapping
+  | {
+      type: "UPDATE_MAPPING";
+      field: "input" | "expectedOutput" | "metadata";
+      config: FieldMappingConfig;
+    }
+  // Validation
+  | {
+      type: "SET_MAPPING_VALIDATION";
+      field: "input" | "output";
+      isValid: boolean;
+    }
+  | {
+      type: "SET_CREATE_VALIDATION";
+      canContinue: boolean;
+      isCreating: boolean;
+    }
+  // Submission
+  | { type: "SUBMIT_START" }
+  | { type: "SUBMIT_SUCCESS"; batchActionId: string }
+  | { type: "SUBMIT_ERROR" };

@@ -6,8 +6,8 @@ import type { FinalPreviewStepProps, DialogStep } from "./types";
 import { applyFullMapping } from "@langfuse/shared";
 
 export function FinalPreviewStep({
-  datasetName,
-  mappingConfig,
+  dataset,
+  mapping,
   observationData,
   totalCount,
   onEditStep,
@@ -22,9 +22,9 @@ export function FinalPreviewStep({
         output: observationData.output,
         metadata: observationData.metadata,
       },
-      mapping: mappingConfig,
+      mapping,
     });
-  }, [observationData, mappingConfig]);
+  }, [observationData, mapping]);
 
   return (
     <div className="h-[62vh] space-y-6 p-6">
@@ -33,7 +33,7 @@ export function FinalPreviewStep({
         <p className="text-sm text-muted-foreground">
           Adding {totalCount} observation{totalCount !== 1 ? "s" : ""} to
           dataset &quot;
-          {datasetName}&quot;
+          {dataset.name}&quot;
         </p>
       </div>
 

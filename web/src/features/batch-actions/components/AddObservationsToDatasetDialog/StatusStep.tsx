@@ -15,22 +15,18 @@ import { Check, AlertCircle, Loader2 } from "lucide-react";
 type StatusStepProps = {
   projectId: string;
   batchActionId: string;
-  datasetId: string;
-  datasetName: string;
+  dataset: { id: string; name: string };
   expectedCount: number;
   onClose: () => void;
 };
 
-export function StatusStep(props: StatusStepProps) {
-  const {
-    projectId,
-    batchActionId,
-    datasetId,
-    datasetName,
-    expectedCount,
-    onClose,
-  } = props;
-
+export function StatusStep({
+  projectId,
+  batchActionId,
+  dataset,
+  expectedCount,
+  onClose,
+}: StatusStepProps) {
   // Poll for status updates
   const status = api.batchAction.byId.useQuery(
     {
@@ -87,9 +83,9 @@ export function StatusStep(props: StatusStepProps) {
           </h2>
           <p className="text-sm text-muted-foreground">
             {!isComplete &&
-              `Adding ${totalCount} observations to ${datasetName}`}
+              `Adding ${totalCount} observations to ${dataset.name}`}
             {isSuccess &&
-              `${processedCount} observations have been added to ${datasetName}`}
+              `${processedCount} observations have been added to ${dataset.name}`}
             {isComplete &&
               !isSuccess &&
               `${processedCount} observations added, ${failedCount} failed`}
@@ -182,7 +178,7 @@ export function StatusStep(props: StatusStepProps) {
             </Button>
             {isComplete && hasPartialSuccess && (
               <Link
-                href={`/project/${projectId}/datasets/${datasetId}/items`}
+                href={`/project/${projectId}/datasets/${dataset.id}/items`}
                 className="flex-1"
               >
                 <Button className="w-full">Go to Dataset</Button>

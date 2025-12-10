@@ -17,31 +17,17 @@ import { cn } from "@/src/utils/tailwind";
 import { api } from "@/src/utils/api";
 import type { DatasetSelectStepProps } from "./types";
 
-export function DatasetSelectStep(props: DatasetSelectStepProps) {
-  const { projectId, selectedDatasetId, selectedDatasetName, onDatasetSelect } =
-    props;
-
+export function DatasetSelectStep({
+  projectId,
+  dataset,
+  onDatasetSelect,
+}: DatasetSelectStepProps) {
   const [open, setOpen] = useState(false);
 
   // Fetch all datasets
   const datasets = api.datasets.allDatasetMeta.useQuery({
     projectId,
   });
-
-  const handleSelect = (dataset: {
-    id: string;
-    name: string;
-    inputSchema: unknown;
-    expectedOutputSchema: unknown;
-  }) => {
-    onDatasetSelect(
-      dataset.id,
-      dataset.name,
-      dataset.inputSchema,
-      dataset.expectedOutputSchema,
-    );
-    setOpen(false);
-  };
 
   return (
     <div className="space-y-6 p-6">
@@ -60,7 +46,7 @@ export function DatasetSelectStep(props: DatasetSelectStepProps) {
             aria-expanded={open}
             className="w-full justify-between py-6 text-base"
           >
-            {selectedDatasetName || "Select dataset..."}
+            {dataset.name || "Select dataset..."}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -69,23 +55,24 @@ export function DatasetSelectStep(props: DatasetSelectStepProps) {
             <CommandInput placeholder="Search datasets..." />
             <CommandEmpty>No dataset found.</CommandEmpty>
             <CommandGroup className="max-h-[300px] overflow-auto">
-              {datasets.data?.map((dataset) => (
+              {datasets.data?.map((d) => (
                 <CommandItem
-                  key={dataset.id}
-                  value={dataset.name}
-                  onSelect={() => handleSelect(dataset)}
+                  key={d.id}
+                  value={d.name}
+                  onSelect={() => {
+                    onDatasetSelect(d);
+                    setOpen(false);
+                  }}
                   className="flex items-center justify-between"
                 >
                   <div className="flex items-center">
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        selectedDatasetId === dataset.id
-                          ? "opacity-100"
-                          : "opacity-0",
+                        dataset.id === d.id ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    <span>{dataset.name}</span>
+                    <span>{d.name}</span>
                   </div>
                 </CommandItem>
               ))}

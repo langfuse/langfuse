@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { ArrowDown, AlertCircle, CheckCircle2 } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -105,10 +105,30 @@ export function MappingPreviewPanel({
     }
   }, [hasSchema, config.mode, resultData, schema]);
 
-  // Notify parent of validation state changes
+  // Track previous validation state to avoid redundant callbacks
+  const prevValidationRef = useRef<{
+    isValid: boolean;
+    errorsJson: string;
+  } | null>(null);
+
+  // Notify parent of validation state changes (only when values actually change)
   useEffect(() => {
-    onValidationChange?.(validationResult.isValid, validationResult.errors);
-  }, [validationResult, onValidationChange]);
+    const errorsJson = JSON.stringify(validationResult.errors);
+    const prev = prevValidationRef.current;
+
+    // Only call if values actually changed
+    if (
+      !prev ||
+      prev.isValid !== validationResult.isValid ||
+      prev.errorsJson !== errorsJson
+    ) {
+      prevValidationRef.current = {
+        isValid: validationResult.isValid,
+        errorsJson,
+      };
+      onValidationChange?.(validationResult.isValid, validationResult.errors);
+    }
+  }, [validationResult.isValid, validationResult.errors, onValidationChange]);
 
   // Determine source label based on config
   const sourceLabel = useMemo(() => {
