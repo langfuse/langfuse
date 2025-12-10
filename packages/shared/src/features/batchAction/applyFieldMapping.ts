@@ -1,4 +1,5 @@
 import { JSONPath } from "jsonpath-plus";
+import { set } from "lodash";
 import type {
   FieldMappingConfig,
   SourceField,
@@ -54,6 +55,7 @@ export function isJsonPath(value: string): boolean {
 /**
  * Set a value at a nested path using dot notation.
  * Creates intermediate objects as needed.
+ * Uses lodash's set which has built-in prototype pollution protection.
  *
  * @example
  * setNestedValue({}, "context.user_id", "123")
@@ -64,19 +66,7 @@ function setNestedValue(
   path: string,
   value: unknown,
 ): void {
-  const keys = path.split(".");
-  let current: Record<string, unknown> = obj;
-
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    if (!(key in current) || typeof current[key] !== "object") {
-      current[key] = {};
-    }
-    current = current[key] as Record<string, unknown>;
-  }
-
-  const lastKey = keys[keys.length - 1];
-  current[lastKey] = value;
+  set(obj, path, value);
 }
 
 /**
