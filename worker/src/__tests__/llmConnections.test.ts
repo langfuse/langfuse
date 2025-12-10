@@ -1,11 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { fetchLLMCompletion } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
-import {
-  ChatMessageType,
-  LLMAdapter,
-  VERTEXAI_USE_DEFAULT_CREDENTIALS,
-} from "@langfuse/shared";
+import { ChatMessageType, LLMAdapter } from "@langfuse/shared";
 import { z } from "zod/v3";
 
 /**
@@ -650,78 +646,6 @@ describe("LLM Connection Tests", () => {
       expect(completion.tool_calls[0].name).toBe("get_weather");
       expect(completion.tool_calls[0].args).toHaveProperty("location");
     }, 30_000);
-
-    // ADC (Application Default Credentials) tests
-    // These tests require ADC to be configured in the environment
-    // (e.g., via gcloud auth application-default login or GKE Workload Identity)
-    // Skipped by default since ADC is not available in CI environments.
-    // To run locally: set RUN_VERTEXAI_ADC_TESTS=true and configure ADC
-    describe.skip("ADC (Application Default Credentials)", () => {
-      test("simple completion with ADC", async () => {
-        const completion = await fetchLLMCompletion({
-          streaming: false,
-          messages: [
-            {
-              role: "user",
-              content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: {
-            provider: "google-vertex-ai-adc",
-            adapter: LLMAdapter.VertexAI,
-            model: MODEL,
-            temperature: 0,
-            max_tokens: 10,
-          },
-          llmConnection: {
-            secretKey: encrypt(VERTEXAI_USE_DEFAULT_CREDENTIALS),
-            config: { location: "us-central1" },
-          },
-        });
-
-        expect(typeof completion).toBe("string");
-        expect(completion).toContain("4");
-      }, 30_000);
-
-      test("simple completion with ADC and explicit projectId", async () => {
-        // Skip if no project ID is configured
-        if (!process.env.LANGFUSE_VERTEXAI_ADC_PROJECT_ID) {
-          console.log(
-            "Skipping test: LANGFUSE_VERTEXAI_ADC_PROJECT_ID not set",
-          );
-          return;
-        }
-
-        const completion = await fetchLLMCompletion({
-          streaming: false,
-          messages: [
-            {
-              role: "user",
-              content: "What is 3+3? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: {
-            provider: "google-vertex-ai-adc",
-            adapter: LLMAdapter.VertexAI,
-            model: MODEL,
-            temperature: 0,
-            max_tokens: 10,
-          },
-          llmConnection: {
-            secretKey: encrypt(VERTEXAI_USE_DEFAULT_CREDENTIALS),
-            config: {
-              location: "us-central1",
-              projectId: process.env.LANGFUSE_VERTEXAI_ADC_PROJECT_ID,
-            },
-          },
-        });
-
-        expect(typeof completion).toBe("string");
-        expect(completion).toContain("6");
-      }, 30_000);
-    });
   });
 
   describe("GoogleAIStudio", () => {

@@ -818,7 +818,21 @@ export function CreateLLMApiKeyForm({
                       <FormDescription className="text-dark-yellow">
                         Paste your GCP service account JSON key here. The
                         service account must have `Vertex AI User` role
-                        permissions.
+                        permissions. Example JSON:
+                        <pre className="text-xs">
+                          {`{
+  "type": "service_account",
+  "project_id": "<project_id>",
+  "private_key_id": "<private_key_id>",
+  "private_key": "<private_key>",
+  "client_email": "<client_email>",
+  "client_id": "<client_id>",
+  "auth_uri": "<auth_uri>",
+  "token_uri": "<token_uri>",
+  "auth_provider_x509_cert_url": "<auth_provider_x509_cert_url>",
+  "client_x509_cert_url": "<client_x509_cert_url>",
+}`}
+                        </pre>
                       </FormDescription>
                       <FormControl>
                         <Input

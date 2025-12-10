@@ -359,10 +359,8 @@ export async function fetchLLMCompletion(
 
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features
-    const isSelfHosted = !isLangfuseCloud;
     const shouldUseDefaultCredentials =
-      apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS &&
-      (isSelfHosted || shouldUseLangfuseAPIKey);
+      apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud;
 
     // When using ADC, authOptions must be undefined to use google-auth-library's default credential chain
     // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
@@ -370,15 +368,11 @@ export async function fetchLLMCompletion(
     // privilege escalation attacks where users could access other GCP projects via the server's credentials
     const authOptions = shouldUseDefaultCredentials
       ? undefined // Always use ADC auto-detection, never allow user-specified projectId
-      : (() => {
-          const credentials = GCPServiceAccountKeySchema.parse(
-            JSON.parse(apiKey),
-          );
-          return {
-            projectId: credentials.project_id,
-            credentials,
-          };
-        })();
+      : {
+          credentials: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey)),
+          projectId: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey))
+            .project_id,
+        };
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request

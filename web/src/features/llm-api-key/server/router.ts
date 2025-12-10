@@ -87,19 +87,13 @@ async function testLLMConnection(
     let parsedConfig: Record<string, string> | null = null;
     if (params.config && params.adapter === LLMAdapter.Bedrock) {
       const bedrockConfig = BedrockConfigSchema.parse(params.config);
+
       parsedConfig = { region: bedrockConfig.region };
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
       const vertexAIConfig = VertexAIConfigSchema.parse(params.config);
-      parsedConfig = {};
-      if (vertexAIConfig.location) {
-        parsedConfig.location = vertexAIConfig.location;
-      }
-      if (vertexAIConfig.projectId) {
-        parsedConfig.projectId = vertexAIConfig.projectId;
-      }
-      if (Object.keys(parsedConfig).length === 0) {
-        parsedConfig = null;
-      }
+      parsedConfig = vertexAIConfig.location
+        ? { location: vertexAIConfig.location }
+        : null;
     }
 
     await fetchLLMCompletion({
