@@ -124,6 +124,7 @@ export class ClickHouseClientManager {
           ...(env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE !== "alter_update"
             ? {
                 lightweight_delete_mode: env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE,
+                update_parallel_mode: env.CLICKHOUSE_UPDATE_PARALLEL_MODE,
               }
             : {}),
           ...cloudOptions,
