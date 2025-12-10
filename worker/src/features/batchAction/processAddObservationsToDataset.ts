@@ -44,7 +44,7 @@ async function processChunk(params: {
       input: mapped.input,
       expectedOutput: mapped.expectedOutput ?? undefined,
       metadata: mapped.metadata ?? undefined,
-      sourceTraceId: obs.traceId ?? undefined,
+      sourceTraceId: obs.traceId,
       sourceObservationId: obs.id,
     };
   });
