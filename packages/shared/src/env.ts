@@ -63,6 +63,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  CLICKHOUSE_UPDATE_PARALLEL_MODE: z
+    .enum(["sync", "async", "auto"])
+    .default("auto"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
