@@ -530,6 +530,12 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
            AND (o.project_id, o.trace_id) < ('${todo.upperBound.projectId}', '${todo.upperBound.traceId}')`
       : `WHERE (o.project_id, o.trace_id) >= ('${todo.lowerBound.projectId}', '${todo.lowerBound.traceId}')`;
 
+    // Conditionally filter out 'attributes' key from metadata
+    const metadataExpr =
+      env.LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY === "true"
+        ? `mapFilter((k, v) -> k != 'attributes', o.metadata)`
+        : `o.metadata`;
+
     return `
       INSERT INTO events (
         project_id, trace_id, span_id, parent_span_id, start_time, end_time,
@@ -574,9 +580,9 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.cost_details,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
-        CAST(o.metadata, 'JSON(max_dynamic_paths=0)') AS metadata,
-        mapKeys(o.metadata) AS metadata_names,
-        mapValues(o.metadata) AS metadata_raw_values,
+        CAST(${metadataExpr}, 'JSON(max_dynamic_paths=0)') AS metadata,
+        mapKeys(${metadataExpr}) AS metadata_names,
+        mapValues(${metadataExpr}) AS metadata_raw_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
         '' AS blob_storage_file_path,
         0 AS event_bytes,
