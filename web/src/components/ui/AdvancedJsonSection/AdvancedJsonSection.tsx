@@ -14,8 +14,6 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  FoldVertical,
-  UnfoldVertical,
   ChevronUp,
   WrapText,
   Minus,
@@ -204,24 +202,15 @@ export function AdvancedJsonSection({
     setCurrentMatchIndex(0);
   }, []);
 
-  // Collapse/expand all state (managed via storage write)
-  const [allExpanded, setAllExpanded] = useState(true);
-
-  // Handle collapse/expand all (write to storage, AdvancedJsonViewer will read on next mount/rebuild)
-  const handleToggleExpandAll = () => {
-    const newExpansion = !allExpanded;
-    setAllExpanded(newExpansion);
-
-    // Write to storage directly (no context)
-    const {
-      writeExpansionToStorage,
-    } = require("@/src/components/trace2/contexts/JsonExpansionContext");
-    writeExpansionToStorage(field, newExpansion);
-
-    // Force AdvancedJsonViewer to rebuild by changing key
-    // This is necessary because we're writing to storage and need viewer to re-read
-    setSearchQuery((prev) => prev); // Trigger re-render
-  };
+  // TODO: Expand all / collapse all functionality currently disabled
+  // The expandAllDescendants/collapseAllDescendants utilities cause tree offset
+  // validation errors. Needs investigation into offset recalculation in treeExpansion.ts
+  // before this can be re-enabled.
+  //
+  // Previous implementation attempted to:
+  // 1. Write expansion state to storage
+  // 2. Trigger tree rebuild to read new state
+  // But this caused childOffsets corruption in the tree structure.
 
   // Handle string wrap mode cycling: truncate → wrap → nowrap → truncate
   const handleCycleWrapMode = () => {
@@ -403,7 +392,7 @@ export function AdvancedJsonSection({
                 </Button>
               )}
 
-              {/* Collapse/Expand All */}
+              {/* TODO: Collapse/Expand All button hidden - see comment above for details
               {!sectionCollapsed && (
                 <Button
                   variant="ghost"
@@ -419,6 +408,7 @@ export function AdvancedJsonSection({
                   )}
                 </Button>
               )}
+              */}
             </>
           }
         />
