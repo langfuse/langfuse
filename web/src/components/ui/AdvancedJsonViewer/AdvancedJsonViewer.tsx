@@ -42,8 +42,6 @@ export function AdvancedJsonViewer({
   currentMatchIndex: controlledCurrentMatchIndex,
   onCurrentMatchIndexChange,
   matchCounts,
-  onAllExpandedChange,
-  toggleExpandAllRef,
   showLineNumbers = false,
   enableCopy = true,
   stringWrapMode = "truncate",
@@ -83,9 +81,7 @@ export function AdvancedJsonViewer({
     isBuilding,
     buildError,
     expansionVersion,
-    allExpanded,
     handleToggleExpansion: treeHandleToggleExpansion,
-    handleToggleExpandAll: treeHandleToggleExpandAll,
   } = useTreeState(data, field, initialExpansion, {
     rootKey: "root",
     indentSizePx: theme.indentSize,
@@ -137,25 +133,6 @@ export function AdvancedJsonViewer({
 
   // Use tree's built-in toggle (already O(log n), no spinner needed)
   const handleToggleExpansion = treeHandleToggleExpansion;
-
-  // Handle expand all / collapse all
-  // Calls tree's handler and notifies parent of new state
-  const handleToggleExpandAll = useCallback(() => {
-    treeHandleToggleExpandAll();
-
-    // Notify parent of new state if callback provided
-    if (onAllExpandedChange) {
-      // After toggle, allExpanded will be the opposite of what it was
-      onAllExpandedChange(!allExpanded);
-    }
-  }, [treeHandleToggleExpandAll, onAllExpandedChange, allExpanded]);
-
-  // Expose toggleExpandAll function to parent via ref
-  useEffect(() => {
-    if (toggleExpandAllRef) {
-      toggleExpandAllRef.current = handleToggleExpandAll;
-    }
-  }, [toggleExpandAllRef, handleToggleExpandAll]);
 
   // Search navigation
   const {

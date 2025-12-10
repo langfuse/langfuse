@@ -23,9 +23,6 @@ import {
 import {
   toggleNodeExpansion,
   exportExpansionState,
-  expandAllDescendants,
-  collapseAllDescendants,
-  getExpansionStats,
 } from "../utils/treeExpansion";
 import { debugLog, debugError } from "../utils/debug";
 import {
@@ -53,9 +50,7 @@ interface UseTreeStateReturn {
   buildTime: number | undefined;
   buildError: string | null;
   expansionVersion: number; // Counter that increments on every expansion change
-  allExpanded: boolean; // Whether all expandable nodes are currently expanded
   handleToggleExpansion: (nodeId: string) => void;
-  handleToggleExpandAll: () => void;
 }
 
 /**
@@ -279,49 +274,6 @@ export function useTreeState(
     [saveExpansionToStorage],
   );
 
-  // Handle expand all / collapse all toggle
-  const handleToggleExpandAll = useCallback(() => {
-    if (!treeRef.current) return;
-
-    debugLog("[useTreeState] Toggling expand all");
-    const startTime = performance.now();
-
-    // Check current expansion state
-    const stats = getExpansionStats(treeRef.current);
-    const shouldExpandAll = stats.totalExpanded < stats.totalExpandable;
-
-    if (shouldExpandAll) {
-      // Expand all descendants of root (mutates tree in place)
-      expandAllDescendants(treeRef.current, treeRef.current.rootNode.id);
-      debugLog("[useTreeState] Expanded all nodes");
-    } else {
-      // Collapse all descendants of root (mutates tree in place)
-      collapseAllDescendants(treeRef.current, treeRef.current.rootNode.id);
-      debugLog("[useTreeState] Collapsed all nodes");
-    }
-
-    const toggleTime = performance.now() - startTime;
-    debugLog(
-      `[useTreeState] Toggle expand all completed in ${toggleTime.toFixed(2)}ms`,
-    );
-
-    // Increment expansion version to trigger React re-render
-    setExpansionVersion((v) => v + 1);
-
-    // Save to storage immediately (user expects this to persist)
-    if (field && treeRef.current) {
-      const state = exportExpansionState(treeRef.current);
-      writeExpansionToStorage(field, state);
-    }
-  }, [field]);
-
-  // Compute allExpanded state from tree
-  const allExpanded = useMemo(() => {
-    if (!tree) return false;
-    const stats = getExpansionStats(tree);
-    return stats.totalExpanded === stats.totalExpandable;
-  }, [tree, expansionVersion]); // eslint-disable-line react-hooks/exhaustive-deps
-
   return {
     tree,
     isBuilding,
@@ -329,9 +281,7 @@ export function useTreeState(
     buildTime,
     buildError,
     expansionVersion,
-    allExpanded,
     handleToggleExpansion,
-    handleToggleExpandAll,
   };
 }
 

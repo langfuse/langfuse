@@ -229,12 +229,6 @@ export interface AdvancedJsonViewerProps {
   /** Match counts per row (including descendants) for visual indicators */
   matchCounts?: Map<string, number>;
 
-  /** Callback when expand all / collapse all state changes (receives new allExpanded state) */
-  onAllExpandedChange?: (allExpanded: boolean) => void;
-
-  /** Ref to receive the toggleExpandAll function from AdvancedJsonViewer */
-  toggleExpandAllRef?: RefObject<(() => void) | null>;
-
   /** Show line numbers */
   showLineNumbers?: boolean;
 
