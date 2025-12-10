@@ -6,7 +6,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type ActionId,
+  ActionId,
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
@@ -37,20 +37,20 @@ const isItemLocked = (item: AnnotationQueueItem) => {
 const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   AnnotationQueueObjectType,
   {
-    actionId: Exclude<ActionId, "observation-add-to-dataset">;
+    actionId: Exclude<ActionId, ActionId.ObservationAddToDataset>;
     tableName: BatchTableNames;
   }
 > = {
   [AnnotationQueueObjectType.TRACE]: {
-    actionId: "trace-add-to-annotation-queue",
+    actionId: ActionId.TraceAddToAnnotationQueue,
     tableName: BatchExportTableName.Traces,
   },
   [AnnotationQueueObjectType.SESSION]: {
-    actionId: "session-add-to-annotation-queue",
+    actionId: ActionId.SessionAddToAnnotationQueue,
     tableName: BatchExportTableName.Sessions,
   },
   [AnnotationQueueObjectType.OBSERVATION]: {
-    actionId: "observation-add-to-annotation-queue",
+    actionId: ActionId.ObservationAddToAnnotationQueue,
     tableName: BatchExportTableName.Observations,
   },
 };

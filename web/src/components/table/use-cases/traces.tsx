@@ -37,6 +37,7 @@ import {
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  ActionId,
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
@@ -471,7 +472,7 @@ export default function TracesTable({
     ...(hasTraceDeletionEntitlement
       ? [
           {
-            id: "trace-delete",
+            id: ActionId.TraceDelete,
             type: BatchActionType.Delete,
             label: "Delete Traces",
             description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
@@ -484,7 +485,7 @@ export default function TracesTable({
         ]
       : []),
     {
-      id: "trace-add-to-annotation-queue",
+      id: ActionId.TraceAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
       description: "Add selected traces to an annotation queue.",
