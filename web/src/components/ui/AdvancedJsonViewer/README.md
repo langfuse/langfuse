@@ -93,7 +93,7 @@ Memory: O(n) for tree + O(n) for allNodes = 2n total
 
 ### Tree Building: Four-Pass Algorithm
 
-All passes use **iterative traversal** (explicit stack) to avoid stack overflow on deeply nested JSON (1000+ levels) that would occure with recursion.
+All passes use **iterative traversal** (explicit stack) to avoid stack overflow on deeply nested JSON (1000+ levels) that would happen with recursion.
 
 **Pass 1: Structure** (`buildTreeStructureIterative`)
 
