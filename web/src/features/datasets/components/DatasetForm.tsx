@@ -53,6 +53,7 @@ export interface DatasetFormRef {
 interface BaseDatasetFormProps {
   mode: "create" | "update" | "delete";
   projectId: string;
+  onFormSuccess?: () => void;
   onCreateDatasetSuccess?: (params: {
     id: string;
     name: string;
@@ -284,6 +285,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
               // Success - navigate to dataset items
               void utils.datasets.invalidate();
               props.onCreateDatasetSuccess?.(result.dataset);
+              props.onFormSuccess?.();
               form.reset();
               if (props.redirectOnSuccess !== false) {
                 router.push(
@@ -314,6 +316,7 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
             if (result.success) {
               // Success - close dialog
               void utils.datasets.invalidate();
+              props.onFormSuccess?.();
               form.reset();
             } else {
               // Validation failed - show errors
