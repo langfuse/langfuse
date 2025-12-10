@@ -82,8 +82,8 @@ export interface EnrichedSpan extends SpanRecord {
   experiment_metadata_values: Array<string | null | undefined>;
   experiment_description: string;
   experiment_dataset_id: string;
-  experiment_item_version: string | null;
   experiment_item_id: string;
+  experiment_item_version: string | null;
   experiment_item_root_span_id: string;
   experiment_item_expected_output: string;
   experiment_item_metadata_names: string[];
@@ -383,8 +383,8 @@ function convertToEnrichedSpanWithoutExperiment(
     experiment_metadata_values: [],
     experiment_description: "",
     experiment_dataset_id: "",
-    experiment_item_version: null,
     experiment_item_id: "",
+    experiment_item_version: null,
     experiment_item_root_span_id: "",
     experiment_item_expected_output: "",
     experiment_item_metadata_names: [],
@@ -428,8 +428,8 @@ export function enrichSpansWithExperiment(
     experiment_metadata_values: experimentMetadataFlattened.values,
     experiment_description: dri.dataset_run_description,
     experiment_dataset_id: dri.dataset_id,
-    experiment_item_version: dri.dataset_item_version,
     experiment_item_id: dri.dataset_item_id,
+    experiment_item_version: dri.dataset_item_version,
     experiment_item_root_span_id: rootSpan.span_id,
     experiment_item_expected_output: dri.dataset_item_expected_output,
     experiment_item_metadata_names: experimentItemMetadataFlattened.names,
@@ -453,8 +453,8 @@ export function enrichSpansWithExperiment(
       experiment_metadata_values: experimentMetadataFlattened.values,
       experiment_description: dri.dataset_run_description,
       experiment_dataset_id: dri.dataset_id,
-      experiment_item_version: dri.dataset_item_version,
       experiment_item_id: dri.dataset_item_id,
+      experiment_item_version: dri.dataset_item_version,
       experiment_item_root_span_id: rootSpan.span_id,
       experiment_item_expected_output: dri.dataset_item_expected_output,
       experiment_item_metadata_names: experimentItemMetadataFlattened.names,
@@ -553,6 +553,7 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       experimentDescription: span.experiment_description,
       experimentDatasetId: span.experiment_dataset_id,
       experimentItemId: span.experiment_item_id,
+      experimentItemVersion: span.experiment_item_version || undefined,
       experimentItemRootSpanId: span.experiment_item_root_span_id,
       experimentItemExpectedOutput: span.experiment_item_expected_output,
       experimentItemMetadataNames: span.experiment_item_metadata_names,
