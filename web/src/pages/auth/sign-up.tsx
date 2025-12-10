@@ -127,7 +127,15 @@ export default function SignIn({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        void signIn(providerId);
+        const ssoCallbackUrl =
+          targetPath ??
+          (isLangfuseCloud && region !== "DEV"
+            ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+            : undefined);
+        void signIn(
+          providerId,
+          ssoCallbackUrl ? { callbackUrl: ssoCallbackUrl } : undefined,
+        );
         return; // stop further execution – page redirect expected
       }
 
@@ -297,6 +305,12 @@ export default function SignIn({
             action="sign up"
             lastUsedMethod={lastUsedAuthMethod}
             onProviderSelect={setLastUsedAuthMethod}
+            callbackUrl={
+              targetPath ??
+              (isLangfuseCloud && region !== "DEV"
+                ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+                : undefined)
+            }
           />
           <p className="mt-10 text-center text-sm text-muted-foreground">
             Already have an account?{" "}

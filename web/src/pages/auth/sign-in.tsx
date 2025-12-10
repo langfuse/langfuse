@@ -181,11 +181,13 @@ export function SSOButtons({
   action = "sign in",
   lastUsedMethod,
   onProviderSelect,
+  callbackUrl,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
   lastUsedMethod?: NextAuthProvider | null;
   onProviderSelect?: (provider: NextAuthProvider) => void;
+  callbackUrl?: string;
 }) {
   const capture = usePostHogClientCapture();
   const [providerSigningIn, setProviderSigningIn] =
@@ -204,7 +206,7 @@ export function SSOButtons({
     // Notify parent component about provider selection
     onProviderSelect?.(provider);
 
-    signIn(provider)
+    signIn(provider, callbackUrl ? { callbackUrl } : undefined)
       .then(() => {
         // do not reset loadingProvider here, as the page will reload
       })
@@ -354,7 +356,10 @@ export function SSOButtons({
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
                 onProviderSelect?.("keycloak");
-                void signIn("keycloak");
+                void signIn(
+                  "keycloak",
+                  callbackUrl ? { callbackUrl } : undefined,
+                );
               }}
               loading={providerSigningIn === "keycloak"}
               showLastUsedBadge={
@@ -370,11 +375,15 @@ export function SSOButtons({
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
                   onProviderSelect?.("workos");
-                  void signIn("workos", undefined, {
-                    connection: (
-                      authProviders.workos as { connectionId: string }
-                    ).connectionId,
-                  });
+                  void signIn(
+                    "workos",
+                    callbackUrl ? { callbackUrl } : undefined,
+                    {
+                      connection: (
+                        authProviders.workos as { connectionId: string }
+                      ).connectionId,
+                    },
+                  );
                 }}
                 loading={providerSigningIn === "workos"}
                 showLastUsedBadge={
@@ -390,11 +399,15 @@ export function SSOButtons({
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
                   onProviderSelect?.("workos");
-                  void signIn("workos", undefined, {
-                    organization: (
-                      authProviders.workos as { organizationId: string }
-                    ).organizationId,
-                  });
+                  void signIn(
+                    "workos",
+                    callbackUrl ? { callbackUrl } : undefined,
+                    {
+                      organization: (
+                        authProviders.workos as { organizationId: string }
+                      ).organizationId,
+                    },
+                  );
                 }}
                 loading={providerSigningIn === "workos"}
                 showLastUsedBadge={
@@ -414,9 +427,13 @@ export function SSOButtons({
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
-                    void signIn("workos", undefined, {
-                      organization,
-                    });
+                    void signIn(
+                      "workos",
+                      callbackUrl ? { callbackUrl } : undefined,
+                      {
+                        organization,
+                      },
+                    );
                   }
                 }}
                 loading={providerSigningIn === "workos"}
@@ -434,9 +451,13 @@ export function SSOButtons({
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
-                    void signIn("workos", undefined, {
-                      connection,
-                    });
+                    void signIn(
+                      "workos",
+                      callbackUrl ? { callbackUrl } : undefined,
+                      {
+                        connection,
+                      },
+                    );
                   }
                 }}
                 loading={providerSigningIn === "workos"}
