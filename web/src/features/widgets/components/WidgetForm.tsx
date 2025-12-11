@@ -423,6 +423,23 @@ export function WidgetForm({
     },
   );
 
+  const generationsFilterOptions = api.generations.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
       {
@@ -447,6 +464,7 @@ export function WidgetForm({
     })) || [];
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
+  const modelOptions = generationsFilterOptions.data?.model || [];
 
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -514,6 +532,15 @@ export function WidgetForm({
       internal: "internalValue",
     },
   ];
+  if (selectedView === "observations") {
+    filterColumns.push({
+      name: "Model",
+      id: "providedModelName",
+      type: "stringOptions",
+      options: modelOptions,
+      internal: "internalValue",
+    });
+  }
   if (selectedView === "scores-categorical") {
     filterColumns.push({
       name: "Score String Value",
@@ -1368,6 +1395,7 @@ export function WidgetForm({
                       "environment",
                       "traceName",
                       "tags",
+                      "providedModelName",
                     ]}
                   />
                 </div>

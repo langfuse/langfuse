@@ -121,6 +121,12 @@ export const getDatabaseReadStreamPaginated = async ({
 
   const clickhouseConfigs = {
     request_timeout: 180_000,
+    clickhouse_settings: {
+      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
+      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
+    },
   };
 
   switch (tableName) {
@@ -384,9 +390,7 @@ export const getDatabaseReadStreamPaginated = async ({
                 (min, t) => (!min || t.timestamp < min ? t.timestamp : min),
                 undefined as Date | undefined,
               ),
-              {
-                request_timeout: 180_000,
-              },
+              clickhouseConfigs,
             ),
           ]);
 
@@ -699,6 +703,12 @@ export const getTraceIdentifierStream = async (props: {
 
   const clickhouseConfigs = {
     request_timeout: 180_000,
+    clickhouse_settings: {
+      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
+      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
+    },
   };
 
   return new DatabaseReadStream<TraceIdentifiers>(

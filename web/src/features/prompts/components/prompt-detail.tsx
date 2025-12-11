@@ -7,7 +7,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod/v4";
-import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
+import { OpenAiMessageView } from "@/src/components/trace2/components/IOPreview/components/ChatMessageList";
 import {
   TabsBar,
   TabsBarList,
@@ -528,6 +528,9 @@ export const PromptDetail = ({
                   <div className="w-full">
                     <OpenAiMessageView
                       messages={chatMessages}
+                      shouldRenderMarkdown={true}
+                      currentView="pretty"
+                      messageToToolCallNumbers={new Map()}
                       collapseLongHistory={false}
                       projectIdForPromptButtons={projectId}
                     />

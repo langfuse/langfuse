@@ -20,6 +20,7 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggregationFunction: z.string().optional(),
     }),
   ),
   measures: z.record(

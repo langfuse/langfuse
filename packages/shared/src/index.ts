@@ -33,6 +33,8 @@ export * from "./features/evals/utilities";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
+export * from "./features/batchAction/addToDatasetTypes";
+export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
 
 // annotation

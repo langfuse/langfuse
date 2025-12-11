@@ -3,7 +3,7 @@ import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetMetricsV2Response } from "@/src/features/public-api/types/metrics";
+import { GetMetricsV1Response } from "@/src/features/public-api/types/metrics";
 import {
   createEvent,
   createEventsCh,
@@ -91,7 +91,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -110,7 +110,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -137,7 +137,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -208,7 +208,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       // Make the API call
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(histogramQuery))}`,
       );
@@ -243,8 +243,9 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   });
 
   maybe("Denormalized Trace Fields", () => {
-    ["traceId", "userId", "sessionId", "tags", "release"].forEach((field) => {
-      it(`should support ${field} dimension from events table`, async () => {
+    it.each([["traceId"], ["userId"], ["sessionId"], ["tags"], ["release"]])(
+      "Denormalized field: %s",
+      async (field) => {
         const query = {
           view: "observations",
           dimensions: [{ field }],
@@ -254,7 +255,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         };
 
         const response = await makeZodVerifiedAPICall(
-          GetMetricsV2Response,
+          GetMetricsV1Response,
           "GET",
           `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
         );
@@ -267,8 +268,8 @@ describe("/api/public/v2/metrics API Endpoint", () => {
             x.count_count && x[field] ? (x.count_count as number) > 0 : false,
           ).length,
         ).toBeGreaterThan(0);
-      });
-    });
+      },
+    );
 
     it("should support multiple denormalized dimensions together", async () => {
       const query = {
@@ -284,7 +285,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -294,67 +295,32 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     });
   });
 
-  maybe("Validation - Trace-JOIN Dimensions", () => {
-    it("should reject traceName dimension (requires traces JOIN)", async () => {
-      const query = {
-        view: "observations",
-        dimensions: [{ field: "traceName" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
+  maybe("Validation - Backwards-Compatible Trace Dimensions", () => {
+    it.each([["traceName"], ["traceRelease"], ["traceVersion"]])(
+      "should support %s dimension",
+      async (dimensionField) => {
+        const query = {
+          view: "observations",
+          dimensions: [{ field: dimensionField }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+          toTimestamp: new Date().toISOString(),
+        };
 
-      const response = await makeAPICall(
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
+        const response = await makeZodVerifiedAPICall(
+          GetMetricsV1Response,
+          "GET",
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+        );
 
-      expect(response.status).toBe(400);
-      // Zod validation returns generic "Invalid request data"
-      expect(response.body.message).toContain("Invalid request data");
-    });
-
-    it("should reject traceRelease dimension (requires traces JOIN)", async () => {
-      const query = {
-        view: "observations",
-        dimensions: [{ field: "traceRelease" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeAPICall(
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(400);
-      // Zod validation returns generic "Invalid request data"
-      expect(response.body.message).toContain("Invalid request data");
-    });
-
-    it("should reject traceVersion dimension (requires traces JOIN)", async () => {
-      const query = {
-        view: "observations",
-        dimensions: [{ field: "traceVersion" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeAPICall(
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(400);
-      // Zod validation returns generic "Invalid request data"
-      expect(response.body.message).toContain("Invalid request data");
-    });
+        expect(response.status).toBe(200);
+        expect(response.body.data).toBeDefined();
+      },
+    );
   });
 
   maybe("Validation - View Support", () => {
-    it("should reject traces view (not supported in V2)", async () => {
+    it("should support traces view", async () => {
       const query = {
         view: "traces",
         metrics: [{ measure: "count", aggregation: "count" }],
@@ -362,12 +328,14 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         toTimestamp: new Date().toISOString(),
       };
 
-      const response = await makeAPICall(
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
     });
 
     it("should support scores-numeric view", async () => {
@@ -379,7 +347,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -399,7 +367,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -427,7 +395,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -453,7 +421,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -575,7 +543,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       // Make the API call
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(validQuery))}`,
       );
@@ -650,7 +618,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -683,7 +651,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -714,7 +682,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -736,6 +704,8 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     const eventsScoreUserId = "events-score-user";
     const eventsScoreTags = ["events-tag-1", "events-tag-2"];
     const eventsScoreRelease = "events-v3.0.0";
+    const eventsScoreTraceName = "events-trace-name";
+    const eventsScoreVersion = "events-v1.2.3";
 
     beforeAll(async () => {
       if (!hasEvents) return;
@@ -750,6 +720,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
           span_id: eventsObservationId,
           trace_id: eventsScoreTraceId,
           project_id: projectId,
+          trace_name: eventsScoreTraceName,
           name: "test-observation-for-score",
           provided_model_name: "gpt-4-turbo",
           start_time: Date.now() * 1000,
@@ -757,6 +728,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
           session_id: eventsScoreSessionId,
           tags: eventsScoreTags,
           release: eventsScoreRelease,
+          version: eventsScoreVersion,
         }),
       ]);
 
@@ -777,135 +749,64 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    it("should support userId dimension via events JOIN", async () => {
-      const query = {
-        view: "scores-numeric",
-        dimensions: [{ field: "userId" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [
-          {
-            column: "name",
-            operator: "=",
-            value: "score-with-events",
-            type: "string",
-          },
-        ],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-
-      const userData = response.body.data.find(
+    it.each([
+      [
+        "traceName",
+        eventsScoreTraceName,
+        (row: any) => row.traceName === eventsScoreTraceName,
+      ],
+      [
+        "userId",
+        eventsScoreUserId,
         (row: any) => row.userId === eventsScoreUserId,
-      );
-      expect(userData).toBeDefined();
-    });
+      ],
+      ["tags", eventsScoreTags, (row: any) => Array.isArray(row.tags)],
+      [
+        "traceRelease",
+        eventsScoreRelease,
+        (row: any) => row.traceRelease === eventsScoreRelease,
+      ],
+      [
+        "traceVersion",
+        eventsScoreVersion,
+        (row: any) => row.traceVersion === eventsScoreVersion,
+      ],
+    ])(
+      "should support %s dimension via events JOIN",
+      async (dimensionField, expectedValue, findRowFn) => {
+        const query = {
+          view: "scores-numeric",
+          dimensions: [{ field: dimensionField }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "name",
+              operator: "=",
+              value: "score-with-events",
+              type: "string",
+            },
+          ],
+          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+          toTimestamp: new Date().toISOString(),
+        };
 
-    it("should support tags dimension via events JOIN", async () => {
-      const query = {
-        view: "scores-numeric",
-        dimensions: [{ field: "tags" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [
-          {
-            column: "name",
-            operator: "=",
-            value: "score-with-events",
-            type: "string",
-          },
-        ],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
+        const response = await makeZodVerifiedAPICall(
+          GetMetricsV1Response,
+          "GET",
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+        );
 
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
+        expect(response.status).toBe(200);
+        expect(response.body.data).toBeDefined();
 
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-      expect(response.body.data.length).toBeGreaterThan(0);
-    });
-
-    it("should support release dimension via events JOIN", async () => {
-      const query = {
-        view: "scores-numeric",
-        dimensions: [{ field: "release" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [
-          {
-            column: "name",
-            operator: "=",
-            value: "score-with-events",
-            type: "string",
-          },
-        ],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-
-      const releaseData = response.body.data.find(
-        (row: any) => row.release === eventsScoreRelease,
-      );
-      expect(releaseData).toBeDefined();
-    });
-  });
-
-  maybe("Scores Views - Validation (Reject traceName)", () => {
-    it("should reject traceName dimension in scores-numeric (not on events table)", async () => {
-      const query = {
-        view: "scores-numeric",
-        dimensions: [{ field: "traceName" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeAPICall(
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(400);
-      expect(response.body.message).toContain("Invalid request data");
-    });
-
-    it("should reject traceName in scores-categorical view", async () => {
-      const query = {
-        view: "scores-categorical",
-        dimensions: [{ field: "traceName" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeAPICall(
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(400);
-      expect(response.body.message).toContain("Invalid request data");
-    });
+        if (dimensionField === "tags") {
+          expect(response.body.data.length).toBeGreaterThan(0);
+        } else {
+          const foundRow = response.body.data.find(findRowFn);
+          expect(foundRow).toBeDefined();
+        }
+      },
+    );
   });
 
   maybe("Scores Views - Observation Dimensions via Events", () => {
@@ -947,58 +848,145 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    it("should support observationModelName dimension via events table JOIN", async () => {
-      const query = {
-        view: "scores-numeric",
-        dimensions: [{ field: "observationModelName" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [
-          {
-            column: "name",
-            operator: "=",
-            value: "score-with-observation-v2",
-            type: "string",
-          },
-        ],
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date().toISOString(),
-      };
-
-      const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
-        "GET",
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
-      );
-
-      expect(response.status).toBe(200);
-      expect(response.body.data).toBeDefined();
-
-      // Should be able to access observation fields via events table JOIN
-      const modelData = response.body.data.find(
+    it.each([
+      [
+        "observationModelName",
+        "gpt-4-turbo",
         (row: any) => row.observationModelName === "gpt-4-turbo",
-      );
-      expect(modelData).toBeDefined();
+      ],
+      [
+        "observationName",
+        "test-observation-for-score-v2",
+        (row: any) => row.observationName === "test-observation-for-score-v2",
+      ],
+    ])(
+      "should support %s dimension via events table",
+      async (dimensionField, expectedValue, findRowFn) => {
+        const query = {
+          view: "scores-numeric",
+          dimensions: [{ field: dimensionField }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "name",
+              operator: "=",
+              value: "score-with-observation-v2",
+              type: "string",
+            },
+          ],
+          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+          toTimestamp: new Date().toISOString(),
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          GetMetricsV1Response,
+          "GET",
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toBeDefined();
+
+        // Should be able to access observation fields via events table JOIN
+        const foundRow = response.body.data.find(findRowFn);
+        expect(foundRow).toBeDefined();
+      },
+    );
+  });
+
+  maybe("Traces View - V2 Events Table", () => {
+    let testTraceId: string;
+    const nowMs = Date.now();
+    const now = nowMs * 1000; // microseconds
+
+    beforeAll(async () => {
+      if (!hasEvents) return;
+
+      testTraceId = randomUUID();
+
+      // Create multiple observations with different tags to test aggregation
+      const traceEvents = [
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: testTraceId,
+          project_id: projectId,
+          trace_name: "test-trace-v2",
+          type: "GENERATION",
+          name: "observation-1",
+          start_time: now,
+          end_time: now + 1000000, // +1 second
+          user_id: "trace-user-v2",
+          session_id: "trace-session-v2",
+          tags: ["api", "prod"],
+          release: "v2.1.0",
+          version: "1.0",
+          environment: "production",
+          usage_details: { input: 100, output: 50, total: 150 },
+          total_cost: 0.01,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: testTraceId,
+          project_id: projectId,
+          trace_name: "test-trace-v2",
+          type: "SPAN",
+          name: "observation-2",
+          start_time: now + 500000, // +0.5 seconds
+          end_time: now + 2000000, // +2 seconds
+          user_id: "trace-user-v2",
+          session_id: "trace-session-v2",
+          tags: ["api", "v2"],
+          release: "v2.1.0",
+          usage_details: { input: 200, output: 100, total: 300 },
+          total_cost: 0.02,
+        }),
+      ];
+
+      await createEventsCh(traceEvents);
+
+      // Create a trace-level score
+      await createScoresCh([
+        {
+          id: randomUUID(),
+          trace_id: testTraceId,
+          project_id: projectId,
+          name: "trace-quality",
+          value: 0.95,
+          data_type: "NUMERIC",
+          source: "API",
+          timestamp: now,
+          environment: "production",
+          metadata: { quality: "high" },
+          is_deleted: 0,
+          created_at: now,
+          updated_at: now,
+          event_ts: now,
+        },
+      ]);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
-    it("should support observationName dimension from events table", async () => {
+    it.each([
+      ["name", "test-trace-v2"],
+      ["userId", "trace-user-v2"],
+      ["sessionId", "trace-session-v2"],
+      ["release", "v2.1.0"],
+      ["version", "1.0"],
+      ["environment", "production"],
+    ])("should support %s dimension", async (dimension, expectedValue) => {
       const query = {
-        view: "scores-numeric",
-        dimensions: [{ field: "observationName" }],
+        view: "traces",
+        dimensions: [{ field: dimension }],
         metrics: [{ measure: "count", aggregation: "count" }],
-        filters: [
-          {
-            column: "name",
-            operator: "=",
-            value: "score-with-observation-v2",
-            type: "string",
-          },
-        ],
         fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
         toTimestamp: new Date().toISOString(),
       };
 
       const response = await makeZodVerifiedAPICall(
-        GetMetricsV2Response,
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -1006,10 +994,158 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       expect(response.status).toBe(200);
       expect(response.body.data).toBeDefined();
 
-      const obsNameData = response.body.data.find(
-        (row: any) => row.observationName === "test-observation-for-score-v2",
+      const row = response.body.data.find(
+        (r: any) => r[dimension] === expectedValue,
       );
-      expect(obsNameData).toBeDefined();
+      expect(row).toBeDefined();
+      expect(row?.count_count).toBeGreaterThan(0);
+    });
+
+    it("should aggregate tags from all observations in trace", async () => {
+      const query = {
+        view: "traces",
+        dimensions: [{ field: "tags" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      // Tags should be union of all tags from observations: ["api", "prod", "v2"]
+      const traceRow = response.body.data.find(
+        (r: any) => Array.isArray(r.tags) && r.tags.includes("api"),
+      );
+      expect(traceRow).toBeDefined();
+      expect(traceRow?.tags).toContain("api");
+      // Should contain tags from both observations (deduped)
+      expect(traceRow?.tags.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it.each([
+      ["count", "count"],
+      ["observationsCount", "sum"],
+      ["scoresCount", "sum"],
+      ["totalTokens", "sum"],
+      ["totalCost", "sum"],
+      ["latency", "avg"],
+    ])("should support %s measure", async (measure, aggregation) => {
+      const query = {
+        view: "traces",
+        metrics: [{ measure, aggregation }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+      expect(response.body.data.length).toBeGreaterThan(0);
+
+      const metricKey = `${aggregation}_${measure}`;
+      expect(response.body.data[0]).toHaveProperty(metricKey);
+    });
+
+    it("should convert latency from microseconds to milliseconds", async () => {
+      const query = {
+        view: "traces",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "test-trace-v2",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(nowMs - 86400000).toISOString(),
+        toTimestamp: new Date(nowMs + 1000).toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      const traceData = response.body.data.find(
+        (r: any) => r.name === "test-trace-v2",
+      );
+      expect(traceData).toBeDefined();
+
+      // Latency should be in milliseconds (2 seconds based on test data)
+      const avgLatency = traceData?.avg_latency as number;
+      expect(avgLatency).toBeGreaterThan(1000); // At least 1 second
+      expect(avgLatency).toBeLessThan(3000); // Less than 3 seconds
+    });
+
+    it("should count trace-level scores only (not observation-level)", async () => {
+      const query = {
+        view: "traces",
+        metrics: [{ measure: "scoresCount", aggregation: "sum" }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      // Should have trace-level scores counted
+      const totalScores = response.body.data[0]?.sum_scoresCount;
+      expect(totalScores).toBeGreaterThan(0);
+    });
+
+    it("should support multiple dimensions and metrics together", async () => {
+      const query = {
+        view: "traces",
+        dimensions: [{ field: "environment" }, { field: "release" }],
+        metrics: [
+          { measure: "count", aggregation: "count" },
+          { measure: "totalCost", aggregation: "sum" },
+          { measure: "observationsCount", aggregation: "sum" },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+
+      const prodRow = response.body.data.find(
+        (r: any) => r.environment === "production" && r.release === "v2.1.0",
+      );
+      expect(prodRow).toBeDefined();
+      expect(prodRow?.count_count).toBeGreaterThan(0);
+      expect(prodRow?.sum_totalCost).toBeGreaterThan(0);
+      expect(prodRow?.sum_observationsCount).toBeGreaterThanOrEqual(2);
     });
   });
 });
