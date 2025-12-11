@@ -8,6 +8,7 @@ const statusCategories = {
   inactive: ["disabled", "inactive"],
   completed: ["completed", "done", "finished"],
   error: ["error", "failed"],
+  partial: ["partial"],
 };
 
 export type Status =
@@ -49,6 +50,9 @@ export const StatusBadge = ({
   } else if (statusCategories.completed.includes(type.toLowerCase())) {
     badgeColor = "bg-light-green text-dark-green";
     showDot = false;
+  } else if (statusCategories.partial.includes(type.toLowerCase())) {
+    badgeColor = "bg-light-yellow text-dark-yellow";
+    showDot = false;
   }
 
   return (
@@ -75,7 +79,7 @@ export const StatusBadge = ({
           ></span>
         </span>
       )}
-      {showText && <span>{type}</span>}
+      {showText && <span>{type[0].toUpperCase() + type.slice(1)}</span>}
       {children}
     </div>
   );

@@ -190,6 +190,26 @@ export class DatasetItemValidator {
     normalizeOpts?: { sanitizeControlChars?: boolean };
     validateOpts: { normalizeUndefinedToNull?: boolean };
   }): ValidateAndNormalizeResult {
+    // If we have a create operation, input cannot be undefined / null
+    // Use explicit null check (not falsy) to allow valid JSON values like 0, false, ""
+    if (
+      params.validateOpts.normalizeUndefinedToNull &&
+      (params.input === null || params.input === undefined)
+    ) {
+      return {
+        success: false,
+        message: "Dataset item input cannot be null",
+        cause: {
+          inputErrors: [
+            {
+              message: "Dataset item input cannot be null",
+              path: "/",
+            },
+          ],
+        },
+      };
+    }
+
     // 1. Normalize IO
     const normalizedInput = this.normalize(params.input, params.normalizeOpts);
     const normalizedExpectedOutput = this.normalize(
