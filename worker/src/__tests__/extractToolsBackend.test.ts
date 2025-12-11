@@ -3,6 +3,8 @@ import {
   extractToolsFromObservation,
   ClickhouseToolDefinitionSchema,
   ClickhouseToolArgumentSchema,
+  convertDefinitionsToMap,
+  convertCallsToMap,
 } from "@langfuse/shared/src/server";
 
 describe("extractToolsFromObservation", () => {
@@ -509,6 +511,131 @@ describe("extractToolsFromObservation", () => {
         "get_pun_suggestion",
         "get_dad_joke_suggestion",
       ]);
+    });
+  });
+
+  describe("Transformation functions", () => {
+    describe("convertDefinitionsToMap", () => {
+      it("converts array to map format", () => {
+        const defs = [
+          { name: "get_weather", description: "Get weather", parameters: "{}" },
+          { name: "search", description: "Search" },
+        ];
+        const map = convertDefinitionsToMap(defs);
+
+        expect(Object.keys(map)).toEqual(["get_weather", "search"]);
+        expect(JSON.parse(map["get_weather"])).toEqual({
+          description: "Get weather",
+          parameters: "{}",
+        });
+        expect(JSON.parse(map["search"])).toEqual({
+          description: "Search",
+          parameters: "",
+        });
+      });
+
+      it("returns empty map for empty array", () => {
+        expect(convertDefinitionsToMap([])).toEqual({});
+      });
+
+      it("handles missing optional fields with empty strings", () => {
+        const defs = [{ name: "test_tool" }];
+        const map = convertDefinitionsToMap(defs);
+
+        expect(JSON.parse(map["test_tool"])).toEqual({
+          description: "",
+          parameters: "",
+        });
+      });
+    });
+
+    describe("convertCallsToMap", () => {
+      it("groups calls by tool name", () => {
+        const calls = [
+          {
+            id: "c1",
+            name: "get_weather",
+            arguments: '{"city":"NYC"}',
+            type: "function",
+            index: 0,
+          },
+          {
+            id: "c2",
+            name: "search",
+            arguments: '{"q":"test"}',
+            type: "function",
+            index: 1,
+          },
+          {
+            id: "c3",
+            name: "get_weather",
+            arguments: '{"city":"LA"}',
+            type: "function",
+            index: 2,
+          },
+        ];
+        const map = convertCallsToMap(calls);
+
+        expect(Object.keys(map).sort()).toEqual(["get_weather", "search"]);
+        expect(map["get_weather"]).toHaveLength(2);
+        expect(map["search"]).toHaveLength(1);
+
+        // Verify JSON structure
+        const call1 = JSON.parse(map["get_weather"][0]);
+        expect(call1).toEqual({
+          id: "c1",
+          arguments: '{"city":"NYC"}',
+          type: "function",
+          index: 0,
+        });
+      });
+
+      it("returns empty map for empty array", () => {
+        expect(convertCallsToMap([])).toEqual({});
+      });
+
+      it("handles missing optional fields with defaults", () => {
+        const calls = [{ id: "c1", name: "test_tool", arguments: "" }];
+        const map = convertCallsToMap(calls);
+
+        const call = JSON.parse(map["test_tool"][0]);
+        expect(call).toEqual({
+          id: "c1",
+          arguments: "",
+          type: "",
+          index: 0,
+        });
+      });
+
+      it("groups multiple calls to same tool", () => {
+        const calls = [
+          {
+            id: "c1",
+            name: "tool1",
+            arguments: "{}",
+            type: "function",
+            index: 0,
+          },
+          {
+            id: "c2",
+            name: "tool1",
+            arguments: "{}",
+            type: "function",
+            index: 1,
+          },
+          {
+            id: "c3",
+            name: "tool1",
+            arguments: "{}",
+            type: "function",
+            index: 2,
+          },
+        ];
+        const map = convertCallsToMap(calls);
+
+        expect(Object.keys(map)).toEqual(["tool1"]);
+        expect(map["tool1"]).toHaveLength(3);
+      });
     });
   });
 });

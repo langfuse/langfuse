@@ -53,26 +53,8 @@ export const observationRecordBaseSchema = z.object({
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
-  tool_definitions: z
-    .array(
-      z.object({
-        name: z.string(),
-        description: z.string().optional(),
-        parameters: z.string().optional(),
-      }),
-    )
-    .optional(),
-  tool_arguments: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        arguments: z.string().optional(),
-        type: z.string().optional(),
-        index: z.number().optional(),
-      }),
-    )
-    .optional(),
+  tool_definitions: z.record(z.string(), z.string()).optional(),
+  tool_calls: z.record(z.string(), z.array(z.string())).optional(),
   is_deleted: z.number(),
 });
 
@@ -438,7 +420,7 @@ export const convertTraceToStagingObservation = (
 
     // undefine tool fields because they only exist on observations
     tool_definitions: undefined,
-    tool_arguments: undefined,
+    tool_calls: undefined,
 
     // System fields
     created_at: traceRecord.created_at,
@@ -595,7 +577,7 @@ export const convertPostgresObservationToInsert = (
     prompt_name: observation.prompt_name,
     prompt_version: observation.prompt_version,
     tool_definitions: undefined,
-    tool_arguments: undefined,
+    tool_calls: undefined,
     created_at: observation.created_at?.getTime(),
     updated_at: observation.updated_at?.getTime(),
     event_ts: observation.start_time?.getTime(),

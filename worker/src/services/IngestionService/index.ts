@@ -46,6 +46,8 @@ import {
   traceException,
   flattenJsonToPathArrays,
   extractToolsFromObservation,
+  convertDefinitionsToMap,
+  convertCallsToMap,
   getDatasetItemById,
 } from "@langfuse/shared/src/server";
 
@@ -857,24 +859,36 @@ export class IngestionService {
         ?.input;
       const rawOutput = reversedRawRecords.find((r) => r?.body?.output)?.body
         ?.output;
-      const rawMetadata = reversedRawRecords.find((r) => r?.body?.metadata)
-        ?.body?.metadata;
+
+      // Parse JSON strings if needed (input/output might already be stringified)
+      const parsedInput =
+        typeof rawInput === "string" ? JSON.parse(rawInput) : rawInput;
+      const parsedOutput =
+        typeof rawOutput === "string" ? JSON.parse(rawOutput) : rawOutput;
+
+      // Use raw metadata from merged record (before flattening)
+      const rawMetadataForExtraction = (mergedObservationRecord as any)
+        ._rawMetadata;
 
       const { toolDefinitions, toolArguments } = extractToolsFromObservation(
-        rawInput,
-        rawOutput,
-        rawMetadata,
+        parsedInput,
+        parsedOutput,
+        rawMetadataForExtraction,
       );
-      mergedObservationRecord.tool_definitions = toolDefinitions;
-      mergedObservationRecord.tool_arguments = toolArguments;
+      mergedObservationRecord.tool_definitions =
+        convertDefinitionsToMap(toolDefinitions);
+      mergedObservationRecord.tool_calls = convertCallsToMap(toolArguments);
     } catch (e) {
       logger.warn("Failed to extract tools from observation", {
         observationId: entityId,
         error: e,
       });
-      mergedObservationRecord.tool_definitions = [];
-      mergedObservationRecord.tool_arguments = [];
+      mergedObservationRecord.tool_definitions = {};
+      mergedObservationRecord.tool_calls = {};
     }
+
+    // Clean up temporary raw metadata
+    delete (mergedObservationRecord as any)._rawMetadata;
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
@@ -997,13 +1011,19 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
-    // If metadata exists, it is an object due to previous parsing
+    // Keep raw metadata for tool extraction (temporary)
+    const rawMetadata = mergedRecord.metadata;
+
+    // Flatten metadata for validation/return
     mergedRecord.metadata = convertRecordValuesToString(
       (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
 
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
+
+    // Attach raw metadata for later tool extraction
+    (parsedObservationRecord as any)._rawMetadata = rawMetadata;
 
     // Override endTimes that are before startTimes with the startTime
     if (
@@ -1686,9 +1706,7 @@ export class IngestionService {
           "completionStartTime" in obs.body && obs.body.completionStartTime
             ? this.getMillisecondTimestamp(obs.body.completionStartTime)
             : undefined,
-        metadata: obs.body.metadata
-          ? convertJsonSchemaToRecord(obs.body.metadata)
-          : {},
+        metadata: obs.body.metadata ?? {}, // Keep raw for tool extraction
         provided_model_name: "model" in obs.body ? obs.body.model : undefined,
         model_parameters:
           "modelParameters" in obs.body
