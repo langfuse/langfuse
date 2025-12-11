@@ -3,7 +3,6 @@ import TableLink from "@/src/components/table/table-link";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type RouterOutput } from "@/src/utils/types";
-import { useRouter } from "next/router";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +36,6 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
-import { DatasetVersionWarningBanner } from "./DatasetVersionWarningBanner";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
 
 type RowData = {
