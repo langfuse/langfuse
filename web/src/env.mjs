@@ -339,6 +339,10 @@ export const env = createEnv({
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
       .enum(["true", "false"])
       .default("false"),
+
+    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST: z
+      .enum(["true", "false"])
+      .default("false"),
   },
 
   /**
@@ -664,6 +668,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
+    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST:
+      process.env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

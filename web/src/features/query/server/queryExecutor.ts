@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType, type ViewVersion } from "@/src/features/query/types";
+import { env } from "@/src/env.mjs";
 
 /**
  * Compares two query results for equivalence.
@@ -97,8 +98,11 @@ export async function executeQuery(
     },
   ];
 
-  // Add shadow test query if optimization is OFF
-  if (!enableSingleLevelOptimization) {
+  // Add shadow test query if optimization is OFF and shadow testing is enabled
+  const shadowTestEnabled =
+    env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST === "true";
+
+  if (!enableSingleLevelOptimization && shadowTestEnabled) {
     const { query: optimizedQuery, parameters: optimizedParams } =
       await queryBuilder.build(query, projectId, true);
 
