@@ -35,6 +35,7 @@ export function JSONView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
+  borderless?: boolean;
   projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   externalJsonCollapsed?: boolean;
@@ -86,21 +87,26 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex gap-2 whitespace-pre-wrap break-words p-2 text-xs",
+          "io-message-content flex gap-2 whitespace-pre-wrap break-words text-xs",
+          props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
             : "",
           props.title === "system" || props.title === "Input"
             ? "bg-primary-foreground"
             : "",
-          props.scrollable ? "" : "rounded-sm border",
+          props.scrollable || props.borderless ? "" : "rounded-sm border",
           props.codeClassName,
         )}
       >
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : props.projectIdForPromptButtons ? (
-          <code className="whitespace-pre-wrap break-words">
+          <code
+            className="whitespace-pre-wrap break-words"
+            dir="auto"
+            style={{ unicodeBidi: "plaintext" }}
+          >
             {renderRichPromptContent(
               props.projectIdForPromptButtons,
               String(parsedJson),
@@ -272,10 +278,12 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
+            "relative flex-1 whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}
+          dir="auto"
+          style={{ unicodeBidi: "plaintext" }}
         >
           {props.content}
         </code>

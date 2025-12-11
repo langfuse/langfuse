@@ -22,6 +22,7 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  ActionId,
   type TimeFilter,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -346,7 +347,7 @@ export default function SessionsTable({
 
   const tableActions: TableAction[] = [
     {
-      id: "session-add-to-annotation-queue",
+      id: ActionId.SessionAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
       description: "Add selected sessions to an annotation queue.",

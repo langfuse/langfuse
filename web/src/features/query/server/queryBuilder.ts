@@ -24,6 +24,7 @@ type AppliedDimensionType = {
   sql: string;
   alias?: string;
   relationTable?: string;
+  aggregationFunction?: string;
 };
 
 type AppliedMetricType = {
@@ -265,7 +266,7 @@ export class QueryBuilder {
       uiTableId: "project_id",
       clickhouseTableName: actualTableName,
       clickhouseSelect: "project_id",
-      queryPrefix: view.name,
+      queryPrefix: actualTableName,
       type: "string",
     };
 
@@ -274,7 +275,7 @@ export class QueryBuilder {
       uiTableId: view.timeDimension,
       clickhouseTableName: actualTableName,
       clickhouseSelect: view.timeDimension,
-      queryPrefix: view.name,
+      queryPrefix: actualTableName,
       type: "datetime",
     };
 
@@ -515,10 +516,14 @@ export class QueryBuilder {
     // Add regular dimensions
     if (appliedDimensions.length > 0) {
       dimensions += `${appliedDimensions
-        .map(
-          (dimension) =>
-            `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`,
-        )
+        .map((dimension) => {
+          // Use custom aggregation function if specified (e.g., argMaxIf for events table traces)
+          if (dimension.aggregationFunction) {
+            return `${dimension.aggregationFunction} as ${dimension.alias ?? dimension.sql}`;
+          }
+          // Default: wrap in any()
+          return `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
+        })
         .join(",\n")},`;
     }
 
@@ -554,9 +559,10 @@ export class QueryBuilder {
     innerMetricsPart: string,
     fromClause: string,
   ) {
+    const actualTableName = this.actualTableName(view);
     // Use actual SQL from view definition for id column (handles events.span_id -> id mapping)
-    const idSql = view.dimensions.id?.sql || `${view.name}.id`;
-    const projectIdSql = `${view.name}.project_id`;
+    const idSql = view.dimensions.id?.sql || `${actualTableName}.id`;
+    const projectIdSql = `${actualTableName}.project_id`;
 
     return `
       SELECT

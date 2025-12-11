@@ -22,6 +22,7 @@ import {
   InternalServerError,
   BatchActionQuerySchema,
   BatchActionType,
+  ActionId,
   BatchExportTableName,
   type ScoreDomain,
   CreateAnnotationScoreData,
@@ -251,7 +252,7 @@ export const scoresRouter = createTRPCRouter({
       if (input.isBatchAction && input.query) {
         return createBatchActionJob({
           projectId: input.projectId,
-          actionId: "score-delete",
+          actionId: ActionId.ScoreDelete,
           actionType: BatchActionType.Delete,
           tableName: BatchExportTableName.Scores,
           session: ctx.session,

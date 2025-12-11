@@ -158,6 +158,7 @@ export type DashboardWidgetChartType =
 export const ActionType = {
   WEBHOOK: "WEBHOOK",
   SLACK: "SLACK",
+  GITHUB_DISPATCH: "GITHUB_DISPATCH",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 export const ActionExecutionStatus = {
@@ -296,6 +297,23 @@ export type BackgroundMigration = {
   failed_reason: string | null;
   worker_id: string | null;
   locked_at: Timestamp | null;
+};
+export type BatchAction = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  project_id: string;
+  user_id: string;
+  action_type: string;
+  table_name: string;
+  status: string;
+  finished_at: Timestamp | null;
+  query: unknown;
+  config: unknown | null;
+  total_count: number | null;
+  processed_count: number | null;
+  failed_count: number | null;
+  log: string | null;
 };
 export type BatchExport = {
   id: string;
@@ -925,6 +943,7 @@ export type DB = {
   automation_executions: AutomationExecution;
   automations: Automation;
   background_migrations: BackgroundMigration;
+  batch_actions: BatchAction;
   batch_exports: BatchExport;
   billing_meter_backups: BillingMeterBackup;
   blob_storage_integrations: BlobStorageIntegration;

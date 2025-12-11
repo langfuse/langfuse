@@ -3,6 +3,7 @@ import { type FieldValues } from "react-hook-form";
 import { type BaseActionHandler } from "./BaseActionHandler";
 import { WebhookActionHandler } from "./WebhookActionHandler";
 import { SlackActionHandler } from "./SlackActionHandler";
+import { GitHubDispatchActionHandler } from "./GitHubDispatchActionHandler";
 
 export class ActionHandlerRegistry {
   private static handlers: Map<ActionType, BaseActionHandler<FieldValues>> =
@@ -12,6 +13,7 @@ export class ActionHandlerRegistry {
     // Initialize handlers in static block
     this.handlers.set("WEBHOOK", new WebhookActionHandler());
     this.handlers.set("SLACK", new SlackActionHandler());
+    this.handlers.set("GITHUB_DISPATCH", new GitHubDispatchActionHandler());
   }
 
   static getHandler<T extends FieldValues = FieldValues>(
