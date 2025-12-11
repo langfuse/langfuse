@@ -320,6 +320,10 @@ const EnvSchema = z.object({
     .positive()
     .default(1),
 
+  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
     .enum(["true", "false"])
