@@ -558,7 +558,7 @@ export async function createManyDatasetItems(props: {
   // 5. Bulk insert all valid items
   if (preparedItems.length > 0) {
     await prisma.datasetItem.createMany({
-     data: preparedItems,
+      data: preparedItems,
     });
   }
 
