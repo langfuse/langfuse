@@ -17,12 +17,8 @@ import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
 
-const defaultNormalizeOpts: { sanitizeControlChars?: boolean } = {
-  sanitizeControlChars: true,
-};
-const defaultValidateOpts: { normalizeUndefinedToNull?: boolean } = {
-  normalizeUndefinedToNull: true,
-};
+const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};
+const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
 
 /**
  * Repository for dataset item CRUD operations.
@@ -196,8 +192,6 @@ function mergeItemData(
  *
  * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
  *
- * @param props.normalizeOpts - Defaults to { sanitizeControlChars: true }
- * @param props.validateOpts - Defaults to { normalizeUndefinedToNull: true }
  * @returns Success with created item, or validation error with details
  */
 export async function createDatasetItem(props: {
@@ -457,8 +451,6 @@ export async function deleteDatasetItem(props: {
  * to original CSV rows or API payloads for user-friendly error reporting.
  *
  * @param props.items - Can contain items from multiple datasets. Each item can optionally include an `id` field.
- * @param props.normalizeOpts - Defaults to { sanitizeControlChars: true }
- * @param props.validateOpts - Defaults to { normalizeUndefinedToNull: true }
  * @param props.allowPartialSuccess - If true, create valid items even if some fail validation.
  *   When enabled, the return type changes:
  *   - `success: true` with `validationErrors` array (partial success)
@@ -555,8 +547,8 @@ export async function createManyDatasetItems(props: {
         input: item.input,
         expectedOutput: item.expectedOutput,
         metadata: item.metadata,
-        normalizeOpts: props.normalizeOpts ?? defaultNormalizeOpts,
-        validateOpts: props.validateOpts ?? defaultValidateOpts,
+        normalizeOpts: props.normalizeOpts ?? emptyNormalizeOpts,
+        validateOpts: props.validateOpts ?? emptyValidateOpts,
       });
 
       if (!result.success) {
