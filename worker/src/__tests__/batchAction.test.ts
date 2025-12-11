@@ -3,10 +3,7 @@ import { BatchActionType } from "@langfuse/shared";
 import { expect, describe, it, vi } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
-import {
-  getDatabaseReadStreamPaginated,
-  getTraceIdentifierStream,
-} from "../features/database-read-stream/getDatabaseReadStream";
+import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import {
   createOrgProjectAndApiKey,
   createTraceScore,
@@ -26,14 +23,15 @@ import { Decimal } from "decimal.js";
 import waitForExpect from "wait-for-expect";
 
 describe("select all test suite", () => {
-  it("should process items in chunks", async () => {
+  it("should schedule trace deletions via pending_deletions table", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     // Create test traces
-    const traces = Array.from({ length: 2500 }).map(() =>
+    const traceIds = Array.from({ length: 2500 }).map(() => uuidv4());
+    const traces = traceIds.map((id) =>
       createTrace({
         project_id: projectId,
-        id: uuidv4(),
+        id,
         timestamp: new Date("2024-01-01").getTime(),
       }),
     );
@@ -55,58 +53,37 @@ describe("select all test suite", () => {
 
     await handleBatchActionJob(selectAllJob);
 
-    // Verify traces were deleted
-    const stream = await getDatabaseReadStreamPaginated({
-      projectId,
-      tableName: BatchExportTableName.Traces,
-      cutoffCreatedAt: new Date("2024-01-02"),
-      filter: [],
-      orderBy: { column: "id", order: "DESC" },
+    // Verify pending_deletions records were created for all traces
+    const pendingDeletions = await prisma.pendingDeletion.findMany({
+      where: {
+        projectId,
+        object: "trace",
+      },
     });
 
-    const remainingRows: any[] = [];
-    for await (const chunk of stream) {
-      remainingRows.push({
-        id: chunk.id,
-        timestamp: chunk.timestamp,
-        projectId: chunk.projectId,
-      });
-    }
+    expect(pendingDeletions).toHaveLength(2500);
+    expect(pendingDeletions.every((pd) => pd.isDeleted === false)).toBe(true);
 
-    const ideStream = await getTraceIdentifierStream({
-      projectId: projectId,
-      cutoffCreatedAt: new Date("2024-01-02"),
-      filter: [],
-      orderBy: { column: "id", order: "DESC" },
-      exportLimit: 1000,
-    });
-
-    const remainingRows2: any[] = [];
-    for await (const chunk of ideStream) {
-      remainingRows2.push({
-        id: chunk.id,
-        timestamp: chunk.timestamp,
-        projectId: chunk.projectId,
-      });
-    }
-
-    expect(remainingRows2).toHaveLength(0);
-    expect(remainingRows).toHaveLength(0);
+    // Verify all trace IDs are scheduled for deletion
+    const scheduledTraceIds = pendingDeletions.map((pd) => pd.objectId).sort();
+    expect(scheduledTraceIds).toEqual(traceIds.sort());
   }, 30000);
 
-  it("should handle filtered queries", async () => {
+  it("should schedule only filtered traces for deletion", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
+    const traceId1 = uuidv4();
+    const traceId2 = uuidv4();
     const traces = [
       createTrace({
         project_id: projectId,
-        id: uuidv4(),
+        id: traceId1,
         user_id: "user1",
         timestamp: new Date("2024-01-01").getTime(),
       }),
       createTrace({
         project_id: projectId,
-        id: uuidv4(),
+        id: traceId2,
         user_id: "user2",
         timestamp: new Date("2024-01-01").getTime(),
       }),
@@ -136,21 +113,17 @@ describe("select all test suite", () => {
 
     await handleBatchActionJob(selectAllJob);
 
-    // Verify only filtered traces were processed
-    const stream = await getDatabaseReadStreamPaginated({
-      projectId,
-      tableName: BatchExportTableName.Traces,
-      cutoffCreatedAt: new Date("2024-01-02"),
-      filter: [],
-      orderBy: { column: "timestamp", order: "DESC" },
+    // Verify only the filtered trace was scheduled for deletion
+    const pendingDeletions = await prisma.pendingDeletion.findMany({
+      where: {
+        projectId,
+        object: "trace",
+      },
     });
 
-    const remainingRows: any[] = [];
-    for await (const chunk of stream) {
-      remainingRows.push(chunk);
-    }
-    expect(remainingRows).toHaveLength(1);
-    expect(remainingRows[0].userId).toBe("user2");
+    expect(pendingDeletions).toHaveLength(1);
+    expect(pendingDeletions[0].objectId).toBe(traceId1);
+    expect(pendingDeletions[0].isDeleted).toBe(false);
   });
 
   it("should handle score deletions", async () => {
@@ -183,19 +156,21 @@ describe("select all test suite", () => {
     expect(scores).toHaveLength(0);
   });
 
-  it("should handle trace deletions with search query", async () => {
+  it("should schedule only traces matching search query for deletion", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
+    const traceId1 = uuidv4();
+    const traceId2 = uuidv4();
     const traces = [
       createTrace({
         project_id: projectId,
-        id: uuidv4(),
+        id: traceId1,
         name: "search-target-trace",
         timestamp: new Date("2024-01-01").getTime(),
       }),
       createTrace({
         project_id: projectId,
-        id: uuidv4(),
+        id: traceId2,
         name: "other-trace",
         timestamp: new Date("2024-01-01").getTime(),
       }),
@@ -221,22 +196,17 @@ describe("select all test suite", () => {
 
     await handleBatchActionJob(selectAllJob);
 
-    // Verify only the trace matching the search query was deleted
-    const stream = await getDatabaseReadStreamPaginated({
-      projectId,
-      tableName: BatchExportTableName.Traces,
-      cutoffCreatedAt: new Date("2024-01-02"),
-      filter: [],
-      orderBy: { column: "timestamp", order: "DESC" },
+    // Verify only the matching trace was scheduled for deletion
+    const pendingDeletions = await prisma.pendingDeletion.findMany({
+      where: {
+        projectId,
+        object: "trace",
+      },
     });
 
-    const remainingRows: any[] = [];
-    for await (const chunk of stream) {
-      remainingRows.push(chunk);
-    }
-
-    expect(remainingRows).toHaveLength(1);
-    expect(remainingRows[0].name).toBe("other-trace");
+    expect(pendingDeletions).toHaveLength(1);
+    expect(pendingDeletions[0].objectId).toBe(traceId1);
+    expect(pendingDeletions[0].isDeleted).toBe(false);
   });
 
   it("should create eval jobs for historic traces", async () => {
