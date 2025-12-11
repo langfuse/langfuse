@@ -1,39 +1,31 @@
-jest.mock("@langfuse/shared", () => {
-  const { z } = require("zod/v4");
+import { describe, it, expect } from "vitest";
+import {
+  microsoftAgentAdapter,
+  selectAdapter,
+  SimpleChatMlArraySchema,
+  type NormalizerContext,
+} from "@langfuse/shared";
 
-  return {
-    ChatMessageRole: {
-      System: "system",
-      Developer: "developer",
-      User: "user",
-      Assistant: "assistant",
-      Tool: "tool",
-      Model: "model",
-    },
-    BaseChatMlMessageSchema: z
-      .object({
-        role: z.string().optional(),
-        name: z.string().optional(),
-        content: z
-          .union([
-            z.record(z.string(), z.any()),
-            z.string(),
-            z.array(z.any()),
-            z.any(), // Simplified - was OpenAIContentSchema
-          ])
-          .nullish(),
-        audio: z.any().optional(),
-        additional_kwargs: z.record(z.string(), z.any()).optional(),
-        tools: z.array(z.any()).optional(),
-        tool_calls: z.array(z.any()).optional(),
-        tool_call_id: z.string().optional(),
-      })
-      .passthrough(),
-  };
-});
+// Test helpers
+function normalizeInput(input: unknown, ctx: NormalizerContext = {}) {
+  const adapter = selectAdapter({
+    ...ctx,
+    metadata: ctx.metadata ?? input,
+    data: input,
+  });
+  const preprocessed = adapter.preprocess(input, "input", ctx);
+  return SimpleChatMlArraySchema.safeParse(preprocessed);
+}
 
-import { normalizeInput, normalizeOutput } from "./index";
-import { microsoftAgentAdapter } from "./microsoft-agent";
+function normalizeOutput(output: unknown, ctx: NormalizerContext = {}) {
+  const adapter = selectAdapter({
+    ...ctx,
+    metadata: ctx.metadata ?? output,
+    data: output,
+  });
+  const preprocessed = adapter.preprocess(output, "output", ctx);
+  return SimpleChatMlArraySchema.safeParse(preprocessed);
+}
 
 describe("Microsoft Agent Framework Adapter", () => {
   describe("detection", () => {

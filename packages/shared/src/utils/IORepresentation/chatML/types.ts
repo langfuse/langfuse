@@ -246,3 +246,49 @@ const SimpleChatMessageSchema = z
  * Used for backend extraction - validates array has at least one message.
  */
 export const SimpleChatMlArraySchema = z.array(SimpleChatMessageSchema).min(1);
+
+/**
+ * Full ChatML message schema with frontend transforms.
+ *
+ * NOTE: Moved to shared package to enable testing.
+ * Reason: Worker tests cannot import from web package and
+ * in the current setup web tests cannot import from shared.
+ * Therefore, we moved frontend specific transformation logic to the
+ * shared package for now, until web tests can import from shared.
+ *
+ * Includes transforms for frontend rendering:
+ * - Spreads additional_kwargs into message (makes fields accessible)
+ * - Moves unknown fields to json property (enables PrettyJsonView)
+ */
+export const ChatMlMessageSchema = BaseChatMlMessageSchema.refine(
+  (value) => value.content !== null || value.role !== undefined,
+)
+  .transform(({ additional_kwargs, ...other }) => ({
+    ...other,
+    ...additional_kwargs,
+  }))
+  .transform(
+    ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      ...other
+    }) => ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      ...(Object.keys(other).length === 0 ? {} : { json: other }),
+    }),
+  );
+
+export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);
