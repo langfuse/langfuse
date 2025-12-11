@@ -3501,5 +3501,112 @@ describe("queryBuilder", () => {
       expect(Number(resultWithOpt[0].sum_totalCost)).toBeCloseTo(0.2, 2);
       expect(Number(resultWithOpt[0].avg_totalCost)).toBeCloseTo(0.1, 2);
     });
+
+    it("should optimize queries with dimensions from relation tables", async () => {
+      const projectId = randomUUID();
+
+      // Create traces
+      const traces = [
+        createTrace({
+          project_id: projectId,
+          name: "trace-alpha",
+          timestamp: new Date().getTime(),
+        }),
+        createTrace({
+          project_id: projectId,
+          name: "trace-beta",
+          timestamp: new Date().getTime(),
+        }),
+      ];
+      await createTracesCh(traces);
+
+      // Create observations linked to traces
+      const observations = [
+        createObservation({
+          project_id: projectId,
+          trace_id: traces[0].id,
+          name: "obs-1",
+          start_time: new Date().getTime(),
+          end_time: new Date().getTime() + 1000,
+        }),
+        createObservation({
+          project_id: projectId,
+          trace_id: traces[1].id,
+          name: "obs-2",
+          start_time: new Date().getTime(),
+          end_time: new Date().getTime() + 2000,
+        }),
+      ];
+      await createObservationsCh(observations);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "traceName" }], // Dimension from relation table!
+        metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      // Execute with optimization
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Results should match
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+      expect(resultWithOpt).toHaveLength(2);
+
+      // Verify we got the trace names
+      const traceNames = resultWithOpt.map((r) => r.traceName).sort();
+      expect(traceNames).toEqual(["trace-alpha", "trace-beta"]);
+    });
+
+    it("should optimize queries with computed dimensions like startTimeMonth", async () => {
+      const projectId = randomUUID();
+
+      // Create observations in March 2024
+      const marchDate = new Date("2024-03-15T12:00:00.000Z");
+      const observations = [
+        createObservation({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          name: "obs-march",
+          start_time: marchDate.getTime(),
+        }),
+      ];
+      await createObservationsCh(observations);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "startTimeMonth" }], // Computed dimension!
+        metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: "2024-03-01T00:00:00.000Z",
+        toTimestamp: "2024-03-31T23:59:59.999Z",
+        orderBy: null,
+      };
+
+      // Execute with optimization
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Results should match
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+      expect(resultWithOpt).toHaveLength(1);
+      expect(resultWithOpt[0].startTimeMonth).toBe("2024-03");
+    });
   });
 });

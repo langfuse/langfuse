@@ -541,6 +541,34 @@ export class QueryBuilder {
     }
   }
 
+  private buildTimeDimensionSql(
+    view: ViewDeclarationType,
+    query: QueryType,
+    wrapInAgg?: string,
+  ): string {
+    if (!query.timeDimension) {
+      return "";
+    }
+
+    const actualTableName = this.actualTableName(view);
+    const granularity =
+      query.timeDimension.granularity === "auto"
+        ? this.determineTimeGranularity(query.fromTimestamp, query.toTimestamp)
+        : query.timeDimension.granularity;
+
+    const timeDimensionSql = this.getTimeDimensionSql(
+      `${actualTableName}.${view.timeDimension}`,
+      granularity,
+    );
+
+    // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT)
+    const wrappedSql = wrapInAgg
+      ? `${wrapInAgg}(${timeDimensionSql})`
+      : timeDimensionSql;
+
+    return `${wrappedSql} as time_dimension`;
+  }
+
   private buildInnerDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
     query: QueryType,
@@ -562,21 +590,10 @@ export class QueryBuilder {
         .join(",\n")},`;
     }
 
-    // Add time dimension if specified
-    if (query.timeDimension) {
-      const granularity =
-        query.timeDimension.granularity === "auto"
-          ? this.determineTimeGranularity(
-              query.fromTimestamp,
-              query.toTimestamp,
-            )
-          : query.timeDimension.granularity;
-
-      const timeDimensionSql = this.getTimeDimensionSql(
-        `${view.name}.${view.timeDimension}`,
-        granularity,
-      );
-      dimensions += `any(${timeDimensionSql}) as time_dimension,`;
+    // Add time dimension if specified - reuse unified builder with any() wrapper
+    const timeDimensionSql = this.buildTimeDimensionSql(view, query, "any");
+    if (timeDimensionSql) {
+      dimensions += `${timeDimensionSql},`;
     }
 
     return dimensions;
@@ -782,6 +799,28 @@ export class QueryBuilder {
       .join(",\n");
   }
 
+  private buildSingleLevelDimensionsPart(
+    appliedDimensions: AppliedDimensionType[],
+    query: QueryType,
+    view: ViewDeclarationType,
+  ): string {
+    let dimensionsPart = "";
+    if (appliedDimensions.length > 0) {
+      dimensionsPart =
+        appliedDimensions
+          .map((d) => `${d.sql} as ${d.alias ?? d.sql}`)
+          .join(",\n") + ",\n";
+    }
+
+    // Reuse unified time dimension builder (no wrapper for single-level)
+    const timeDimensionSql = this.buildTimeDimensionSql(view, query);
+    if (timeDimensionSql) {
+      dimensionsPart += `${timeDimensionSql},\n`;
+    }
+
+    return dimensionsPart;
+  }
+
   private buildSingleLevelSelect(
     view: ViewDeclarationType,
     appliedDimensions: AppliedDimensionType[],
@@ -792,10 +831,11 @@ export class QueryBuilder {
     orderByClause: string,
     withFillClause: string,
   ): string {
-    // Reuse outer dimension building logic
-    const outerDimensionsPart = this.buildOuterDimensionsPart(
+    // Build dimensions using dedicated helper
+    const dimensionsPart = this.buildSingleLevelDimensionsPart(
       appliedDimensions,
-      !!query.timeDimension,
+      query,
+      view,
     );
 
     // Build optimized metrics (strip templates, apply user aggregation)
@@ -803,8 +843,7 @@ export class QueryBuilder {
 
     return `
       SELECT
-        ${outerDimensionsPart}
-        ${metricsPart}
+        ${dimensionsPart}${metricsPart}
       ${fromClause}
       ${groupByClause}
       ${orderByClause}
