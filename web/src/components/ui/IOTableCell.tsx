@@ -84,7 +84,12 @@ export const IOTableCell = ({
   enableExpandOnHover?: boolean;
 }) => {
   if (isLoading) {
-    return <JsonSkeleton className="h-full w-full overflow-hidden px-2 py-1" />;
+    return (
+      <JsonSkeleton
+        borderless
+        className="h-full w-full overflow-hidden px-2 py-1"
+      />
+    );
   }
 
   if (!enableExpandOnHover) {
