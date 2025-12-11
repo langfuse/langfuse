@@ -12,11 +12,13 @@ import {
   executeWithDatasetServiceStrategy,
   Implementation,
   OperationType,
-  toPostgresDatasetItem,
 } from "../datasets/executeWithDatasetServiceStrategy";
 import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
+
+const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};
+const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
 
 /**
  * Repository for dataset item CRUD operations.
@@ -98,7 +100,7 @@ async function getDatasetByName(props: {
 
 /**
  * Converts a DatasetItem to Domain types with optional IO fields and dataset name.
- * Automatically excludes version columns (validFrom, isDeleted).
+ * Automatically excludes internal version columns (sysId, isDeleted) from domain types.
  */
 function toDomainType<
   IncludeIO extends boolean = true,
@@ -123,6 +125,7 @@ function toDomainType<
     sourceObservationId: item.sourceObservationId ?? null,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    validFrom: item.validFrom,
   };
 
   // Add IO fields if requested (or if not specified and they're present)
@@ -199,10 +202,10 @@ export async function createDatasetItem(props: {
   metadata?: string | unknown | null;
   sourceTraceId?: string;
   sourceObservationId?: string;
-  normalizeOpts: {
+  normalizeOpts?: {
     sanitizeControlChars?: boolean;
   };
-  validateOpts: {
+  validateOpts?: {
     normalizeUndefinedToNull?: boolean;
   };
 }): Promise<{ success: true; datasetItem: DatasetItemDomain } | PayloadError> {
@@ -285,8 +288,12 @@ export async function upsertDatasetItem(
     existingItem = await getDatasetItemById({
       projectId: props.projectId,
       datasetItemId: props.datasetItemId,
-      datasetId: dataset.id,
     });
+    if (!!existingItem && existingItem.datasetId !== dataset.id) {
+      throw new LangfuseNotFoundError(
+        `Dataset item with id ${props.datasetItemId} not found for project ${props.projectId}`,
+      );
+    }
   }
 
   // 3. Merge incoming data with existing data
@@ -320,7 +327,7 @@ export async function upsertDatasetItem(
 
   // 5. Prepare full item data for writing
   const itemData = {
-    itemId: itemId,
+    id: itemId,
     input: itemPayload.input,
     expectedOutput: itemPayload.expectedOutput,
     metadata: itemPayload.metadata,
@@ -331,24 +338,46 @@ export async function upsertDatasetItem(
 
   let item: DatasetItem | null = null;
   // 6. Update item
-  const res = await prisma.datasetItem.upsert({
-    where: {
-      id_projectId: {
-        id: itemId,
-        projectId: props.projectId,
-      },
-      datasetId: dataset.id,
+  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+    [Implementation.STATEFUL]: async () => {
+      if (existingItem) {
+        const res = await prisma.datasetItem.update({
+          where: {
+            id_projectId_validFrom: {
+              id: existingItem.id,
+              projectId: props.projectId,
+              validFrom: existingItem.validFrom,
+            },
+            datasetId: dataset.id,
+          },
+          data: {
+            ...itemData,
+          },
+        });
+        item = res;
+      } else {
+        const res = await prisma.datasetItem.create({
+          data: {
+            ...itemData,
+            datasetId: dataset.id,
+            projectId: props.projectId,
+          },
+        });
+        item = res;
+      }
     },
-    create: {
-      ...toPostgresDatasetItem(itemData),
-      datasetId: dataset.id,
-      projectId: props.projectId,
-    },
-    update: {
-      ...toPostgresDatasetItem(itemData),
+    [Implementation.VERSIONED]: async () => {
+      // Write full item state to event table
+      const res = await prisma.datasetItem.create({
+        data: {
+          ...itemData,
+          projectId: props.projectId,
+          datasetId: dataset.id,
+        },
+      });
+      item = res;
     },
   });
-  item = res;
 
   if (!item) {
     throw new InternalServerError("Failed to upsert dataset item");
@@ -379,12 +408,27 @@ export async function deleteDatasetItem(props: {
     );
   }
 
-  await prisma.datasetItem.delete({
-    where: {
-      id_projectId: {
-        id: props.datasetItemId,
-        projectId: props.projectId,
-      },
+  await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+    [Implementation.STATEFUL]: async () => {
+      await prisma.datasetItem.delete({
+        where: {
+          id_projectId_validFrom: {
+            id: item.id,
+            validFrom: item.validFrom,
+            projectId: props.projectId,
+          },
+        },
+      });
+    },
+    [Implementation.VERSIONED]: async () => {
+      await prisma.datasetItem.create({
+        data: {
+          projectId: props.projectId,
+          id: props.datasetItemId,
+          isDeleted: true,
+          datasetId: item.datasetId,
+        },
+      });
     },
   });
 
@@ -406,7 +450,7 @@ export async function deleteDatasetItem(props: {
  * **Index preservation:** Validation errors include `itemIndex` to map back
  * to original CSV rows or API payloads for user-friendly error reporting.
  *
- * @param props.items - Can contain items from multiple datasets
+ * @param props.items - Can contain items from multiple datasets. Each item can optionally include an `id` field.
  * @param props.allowPartialSuccess - If true, create valid items even if some fail validation.
  *   When enabled, the return type changes:
  *   - `success: true` with `validationErrors` array (partial success)
@@ -417,8 +461,8 @@ export async function deleteDatasetItem(props: {
 export async function createManyDatasetItems(props: {
   projectId: string;
   items: CreateManyItemsPayload;
-  normalizeOpts: { sanitizeControlChars?: boolean };
-  validateOpts: { normalizeUndefinedToNull?: boolean };
+  normalizeOpts?: { sanitizeControlChars?: boolean };
+  validateOpts?: { normalizeUndefinedToNull?: boolean };
   allowPartialSuccess?: boolean;
 }): Promise<
   | {
@@ -481,7 +525,7 @@ export async function createManyDatasetItems(props: {
   // 3. Validate all items, collect errors with original index
   const validationErrors: CreateManyValidationError[] = [];
   const preparedItems: CreateManyItemsInsert = [];
-  const createdAt = new Date();
+  const validFrom = new Date();
 
   for (const datasetId of datasetIds) {
     const datasetItems = itemsByDataset[datasetId];
@@ -503,8 +547,8 @@ export async function createManyDatasetItems(props: {
         input: item.input,
         expectedOutput: item.expectedOutput,
         metadata: item.metadata,
-        normalizeOpts: props.normalizeOpts,
-        validateOpts: props.validateOpts,
+        normalizeOpts: props.normalizeOpts ?? emptyNormalizeOpts,
+        validateOpts: props.validateOpts ?? emptyValidateOpts,
       });
 
       if (!result.success) {
@@ -530,7 +574,7 @@ export async function createManyDatasetItems(props: {
 
         // Validation passed - prepare for insert
         preparedItems.push({
-          id: v4(),
+          id: item.id ?? v4(),
           projectId: props.projectId,
           status: DatasetStatus.ACTIVE,
           datasetId: item.datasetId,
@@ -539,7 +583,7 @@ export async function createManyDatasetItems(props: {
           metadata: result.metadata,
           sourceTraceId: item.sourceTraceId,
           sourceObservationId: item.sourceObservationId,
-          createdAt,
+          validFrom,
         });
       }
     }
@@ -557,8 +601,17 @@ export async function createManyDatasetItems(props: {
 
   // 5. Bulk insert all valid items
   if (preparedItems.length > 0) {
-    await prisma.datasetItem.createMany({
-      data: preparedItems,
+    await executeWithDatasetServiceStrategy(OperationType.WRITE, {
+      [Implementation.STATEFUL]: async () => {
+        await prisma.datasetItem.createMany({
+          data: preparedItems,
+        });
+      },
+      [Implementation.VERSIONED]: async () => {
+        await prisma.datasetItem.createMany({
+          data: preparedItems,
+        });
+      },
     });
   }
 
@@ -595,6 +648,7 @@ export type PayloadError = {
 
 export type CreateManyItemsPayload = {
   datasetId: string;
+  id?: string;
   input?: string | unknown | null;
   expectedOutput?: string | unknown | null;
   metadata?: string | unknown | null;
@@ -612,7 +666,7 @@ export type CreateManyItemsInsert = {
   metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
   sourceTraceId?: string;
   sourceObservationId?: string;
-  createdAt: Date;
+  validFrom: Date;
 }[];
 
 /**
@@ -655,6 +709,7 @@ export type ItemWithDatasetName<T> = T & {
  */
 type QueryGetLatestDatasetItemRow = {
   id: string;
+  valid_from: Date;
   project_id: string;
   dataset_id: string;
   input?: Prisma.JsonValue | null;
@@ -1012,6 +1067,7 @@ function buildDatasetItemsLatestQuery(
     SELECT
       di.id,
       di.project_id,
+      di.valid_from,
       di.dataset_id,
       ${ioFieldsOuter}
       di.source_trace_id,
@@ -1054,6 +1110,7 @@ function buildDatasetItemsLatestCountQuery(
     WITH latest_items AS (
       SELECT DISTINCT ON (di.id)
         di.id,
+        di.valid_from,
         di.project_id,
         di.dataset_id,
         di.input,
@@ -1133,6 +1190,7 @@ function convertLatestRowToDomain<
     status: row.status ?? DatasetStatus.ACTIVE,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    validFrom: row.valid_from,
   };
 
   const withIO = includeIO
@@ -1269,7 +1327,7 @@ export async function getDatasetItemById<
   return executeWithDatasetServiceStrategy(OperationType.READ, {
     [Implementation.STATEFUL]: async () => {
       // OLD: Simple lookup in dataset_items
-      const item = await prisma.datasetItem.findUnique({
+      const item = await prisma.datasetItem.findFirst({
         select: includeIO
           ? undefined
           : {
@@ -1281,16 +1339,20 @@ export async function getDatasetItemById<
               status: true,
               createdAt: true,
               updatedAt: true,
+              validFrom: true,
+              isDeleted: true,
             },
         where: {
-          id_projectId: {
-            id: props.datasetItemId,
-            projectId: props.projectId,
-          },
+          id: props.datasetItemId,
+          projectId: props.projectId,
           ...(props.datasetId ? { datasetId: props.datasetId } : {}),
           ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
         },
+        orderBy: {
+          validFrom: "desc",
+        },
       });
+      if (item?.isDeleted) return null;
       return item ? toDomainType(item, includeIO) : null;
     },
     [Implementation.VERSIONED]: async () => {
@@ -1412,6 +1474,7 @@ export async function getDatasetItemsByLatest<
             status: true,
             createdAt: true,
             updatedAt: true,
+            validFrom: true,
           };
 
       const items = await prisma.datasetItem.findMany({
