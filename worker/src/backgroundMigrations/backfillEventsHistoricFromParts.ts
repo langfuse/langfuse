@@ -156,6 +156,7 @@ export default class BackfillEventsHistoricFromParts
         FROM system.parts
         WHERE database = 'default'
         AND table = 'observations_pid_tid_sorting'
+        and active = 1
         ORDER BY rand()
       `,
       tags: {
