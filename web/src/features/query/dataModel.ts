@@ -160,74 +160,76 @@ export const eventsTracesView: ViewDeclarationType = {
     "Traces built from events table aggregation - mirrors v1 traces view with 100% API compatibility.",
   dimensions: {
     id: {
-      sql: "events.trace_id",
+      sql: "events_traces.trace_id",
       alias: "id",
       type: "string",
       description: "Unique identifier of the trace.",
       // This is the GROUP BY identity column
     },
     name: {
-      sql: "events.trace_name",
+      sql: "events_traces.trace_name",
       alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
       aggregationFunction:
-        "argMaxIf(events.trace_name, events.event_ts, events.trace_name <> '')",
+        "argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> '')",
     },
     tags: {
-      sql: "events.tags",
+      sql: "events_traces.tags",
       alias: "tags",
       type: "string[]",
       description: "User-defined tags associated with the trace.",
-      aggregationFunction: "arrayDistinct(flatten(groupArray(events.tags)))",
+      aggregationFunction:
+        "arrayDistinct(flatten(groupArray(events_traces.tags)))",
     },
     userId: {
-      sql: "events.user_id",
+      sql: "events_traces.user_id",
       alias: "userId",
       type: "string",
       description: "Identifier of the user triggering the trace.",
       aggregationFunction:
-        "argMaxIf(events.user_id, events.event_ts, events.user_id <> '')",
+        "argMaxIf(events_traces.user_id, events_traces.event_ts, events_traces.user_id <> '')",
     },
     sessionId: {
-      sql: "events.session_id",
+      sql: "events_traces.session_id",
       alias: "sessionId",
       type: "string",
       description: "Identifier of the session triggering the trace.",
       aggregationFunction:
-        "argMaxIf(events.session_id, events.event_ts, events.session_id <> '')",
+        "argMaxIf(events_traces.session_id, events_traces.event_ts, events_traces.session_id <> '')",
     },
     release: {
-      sql: "events.release",
+      sql: "events_traces.release",
       alias: "release",
       type: "string",
       description: "Release version of the trace.",
       aggregationFunction:
-        "argMaxIf(events.release, events.event_ts, events.release <> '')",
+        "argMaxIf(events_traces.release, events_traces.event_ts, events_traces.release <> '')",
     },
     version: {
-      sql: "events.version",
+      sql: "events_traces.version",
       alias: "version",
       type: "string",
       description: "Version of the trace.",
       aggregationFunction:
-        "argMaxIf(events.version, events.event_ts, events.version <> '')",
+        "argMaxIf(events_traces.version, events_traces.event_ts, events_traces.version <> '')",
     },
     environment: {
-      sql: "events.environment",
+      sql: "events_traces.environment",
       alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
       aggregationFunction:
-        "argMaxIf(events.environment, events.event_ts, events.environment <> '')",
+        "argMaxIf(events_traces.environment, events_traces.event_ts, events_traces.environment <> '')",
     },
     timestampMonth: {
-      sql: "events.start_time",
+      sql: "events_traces.start_time",
       alias: "timestampMonth",
       type: "string",
       description: "Month of the trace timestamp in YYYY-MM format.",
-      aggregationFunction: "formatDateTime(min(events.start_time), '%Y-%m')",
+      aggregationFunction:
+        "formatDateTime(min(events_traces.start_time), '%Y-%m')",
     },
   },
   measures: {
@@ -239,7 +241,7 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "traces",
     },
     observationsCount: {
-      sql: "uniq(events.span_id)",
+      sql: "uniq(events_traces.span_id)",
       alias: "observationsCount",
       type: "integer",
       description: "Unique observations linked to the trace.",
@@ -254,36 +256,36 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "scores",
     },
     uniqueUserIds: {
-      sql: "uniq(events.user_id)",
+      sql: "uniq(events_traces.user_id)",
       alias: "uniqueUserIds",
       type: "integer",
       description: "Count of unique userIds.",
       unit: "users",
     },
     uniqueSessionIds: {
-      sql: "uniq(events.session_id)",
+      sql: "uniq(events_traces.session_id)",
       alias: "uniqueSessionIds",
       type: "integer",
       description: "Count of unique sessionIds.",
       unit: "sessions",
     },
     latency: {
-      sql: "date_diff('microsecond', min(events.start_time), max(events.end_time)) / 1000",
+      sql: "date_diff('millisecond', min(events_traces.start_time), max(events_traces.end_time))",
       alias: "latency",
       type: "integer",
       description:
-        "Elapsed time between the first and last observation inside the trace (converted from microseconds to milliseconds).",
+        "Elapsed time between the first and last observation inside the trace.",
       unit: "millisecond",
     },
     totalTokens: {
-      sql: "sumMap(events.usage_details)['total']",
+      sql: "sumMap(events_traces.usage_details)['total']",
       alias: "totalTokens",
       type: "integer",
       description: "Sum of tokens consumed by all observations in the trace.",
       unit: "tokens",
     },
     totalCost: {
-      sql: "sum(events.total_cost)",
+      sql: "sum(events_traces.total_cost)",
       alias: "totalCost",
       type: "decimal",
       description: "Total cost accumulated across observations in the trace.",
@@ -294,13 +296,13 @@ export const eventsTracesView: ViewDeclarationType = {
     scores: {
       name: "scores",
       joinConditionSql:
-        "ON events.trace_id = scores.trace_id AND events.project_id = scores.project_id",
+        "ON events_traces.trace_id = scores.trace_id AND events_traces.project_id = scores.project_id",
       timeDimension: "timestamp",
     },
   },
   segments: [],
   timeDimension: "start_time",
-  baseCte: `events`,
+  baseCte: `events events_traces`,
 };
 
 export const observationsView: ViewDeclarationType = {
@@ -1017,7 +1019,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Version of the prompt used for the observation.",
     },
     startTimeMonth: {
-      sql: "formatDateTime(events.start_time, '%Y-%m')",
+      sql: "formatDateTime(events_observations.start_time, '%Y-%m')",
       alias: "startTimeMonth",
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
@@ -1031,9 +1033,8 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Total number of observations.",
       unit: "observations",
     },
-    // Convert microseconds to milliseconds for consistency
     latency: {
-      sql: "date_diff('microsecond', any(events.start_time), any(events.end_time)) / 1000",
+      sql: "date_diff('millisecond', any(events_observations.start_time), any(events_observations.end_time))",
       alias: "latency",
       type: "integer",
       description:
@@ -1041,7 +1042,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "millisecond",
     },
     streamingLatency: {
-      sql: "if(isNull(any(events.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('microsecond', any(events.completion_start_time), any(events.end_time)) / 1000)",
+      sql: "if(isNull(any(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(events_observations.completion_start_time), any(events_observations.end_time)))",
       alias: "streamingLatency",
       type: "integer",
       description:
@@ -1070,7 +1071,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "tokens",
     },
     outputTokensPerSecond: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))) / nullIf(date_diff('second', any(events.completion_start_time), any(events.end_time)), 0)",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))) / nullIf(date_diff('second', any(events_observations.completion_start_time), any(events_observations.end_time)), 0)",
       alias: "outputTokensPerSecond",
       type: "decimal",
       description:
@@ -1078,7 +1079,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     tokensPerSecond: {
-      sql: "sumMap(usage_details)['total'] / date_diff('second', any(events.start_time), any(events.end_time))",
+      sql: "sumMap(usage_details)['total'] / date_diff('second', any(events_observations.start_time), any(events_observations.end_time))",
       alias: "tokensPerSecond",
       type: "decimal",
       description:
@@ -1107,7 +1108,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "USD",
     },
     timeToFirstToken: {
-      sql: "if(isNull(any(events.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('microsecond', any(events.start_time), any(events.completion_start_time)) / 1000)",
+      sql: "if(isNull(any(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(events_observations.start_time), any(events_observations.completion_start_time)))",
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
