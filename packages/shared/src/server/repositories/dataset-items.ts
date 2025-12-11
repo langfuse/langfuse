@@ -1347,7 +1347,11 @@ export async function getDatasetItemById<
           ...(props.datasetId ? { datasetId: props.datasetId } : {}),
           ...(status === "ACTIVE" && { status: DatasetStatus.ACTIVE }),
         },
+        orderBy: {
+          validFrom: "desc",
+        },
       });
+      if (item?.isDeleted) return null;
       return item ? toDomainType(item, includeIO) : null;
     },
     [Implementation.VERSIONED]: async () => {
