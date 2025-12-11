@@ -5,7 +5,7 @@ import { pruneDatabase } from "./utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
-import { logger } from "@langfuse/shared/src/server";
+import { createDatasetItem, logger } from "@langfuse/shared/src/server";
 
 // Mock the logger to capture log calls
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -38,7 +38,6 @@ describe("create experiment jobs", () => {
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
-    const datasetItemId = randomUUID();
 
     // Create required prompt
     await prisma.prompt.create({
@@ -78,13 +77,12 @@ describe("create experiment jobs", () => {
     });
 
     // Create dataset item
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        projectId,
-        datasetId,
-        input: { name: "World" },
-      },
+    const res = await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { name: "World" },
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: true },
     });
     // Create API key
     await prisma.llmApiKeys.create({
@@ -123,7 +121,6 @@ describe("create experiment jobs", () => {
     const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
     const datasetId = randomUUID();
     const runId = randomUUID();
-    const datasetItemId = randomUUID();
 
     // Create dataset
     await prisma.dataset.create({
@@ -150,13 +147,12 @@ describe("create experiment jobs", () => {
     });
 
     // Create dataset item so there's something to create error run items for
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        projectId,
-        datasetId,
-        input: { name: "World" },
-      },
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { name: "World" },
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     const payload = {
@@ -182,7 +178,6 @@ describe("create experiment jobs", () => {
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
-    const datasetItemId = randomUUID();
 
     // Create dataset
     await prisma.dataset.create({
@@ -223,13 +218,12 @@ describe("create experiment jobs", () => {
     });
 
     // Create dataset item
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        projectId,
-        datasetId,
-        input: { name: "test" },
-      },
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { name: "test" },
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Create API key
@@ -299,13 +293,12 @@ describe("create experiment jobs", () => {
     });
 
     // Create dataset item with mismatched variables
-    await prisma.datasetItem.create({
-      data: {
-        id: randomUUID(),
-        projectId,
-        datasetId,
-        input: { wrongVariable: "World" }, // doesn't have "name" variable
-      },
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { wrongVariable: "World" }, // doesn't have "name" variable
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Create API key
@@ -386,13 +379,12 @@ describe("create experiment jobs with placeholders", () => {
     });
 
     // Create dataset item
-    await prisma.datasetItem.create({
-      data: {
-        id: randomUUID(),
-        projectId,
-        datasetId,
-        input: datasetItemInput,
-      },
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: datasetItemInput,
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: true },
     });
     // Create API key
     await prisma.llmApiKeys.create({
@@ -501,7 +493,6 @@ describe("experiment processing integration", () => {
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = "03f834cc-c089-4bcb-9add-b14cadcdf47c";
-    const datasetItemId = randomUUID();
 
     // Create required prompt
     await prisma.prompt.create({
@@ -542,13 +533,12 @@ describe("experiment processing integration", () => {
     });
 
     // Create dataset item
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        projectId,
-        datasetId,
-        input: { name: "World" },
-      },
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { name: "World" },
+      normalizeOpts: { sanitizeControlChars: true },
+      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Create API key
