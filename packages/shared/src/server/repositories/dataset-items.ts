@@ -1040,9 +1040,10 @@ function buildDatasetItemsAtVersionQuery(
  * Builds the SQL query for counting latest dataset items.
  * Same logic as buildDatasetItemsLatestQuery but returns COUNT(*) instead.
  */
-function buildDatasetItemsLatestCountQuery(
+function buildDatasetItemsCountQuery(
   projectId: string,
   filter: FilterState,
+  version?: Date,
   searchQuery?: string,
   searchType?: ("id" | "content")[],
 ): Prisma.Sql {
@@ -1056,6 +1057,10 @@ function buildDatasetItemsLatestCountQuery(
     searchQuery,
     searchType,
   );
+
+  const versionCondition = version
+    ? Prisma.sql`AND di.valid_from <= ${version}`
+    : Prisma.empty;
 
   return Prisma.sql`
     WITH latest_items AS (
@@ -1074,6 +1079,7 @@ function buildDatasetItemsLatestCountQuery(
         di.is_deleted
       FROM dataset_items di
       WHERE di.project_id = ${projectId}
+      ${versionCondition}
       ${filterCondition}
       ORDER BY di.id, di.valid_from DESC
     )
@@ -1212,15 +1218,17 @@ async function getDatasetItemsAtVersionInternal<
 /**
  * Internal function to count latest dataset items using raw SQL.
  */
-async function getDatasetItemsCountByLatestInternal(params: {
+async function getDatasetItemsCountAtVersionInternal(params: {
   projectId: string;
   filterState: FilterState;
+  version?: Date;
   searchQuery?: string;
   searchType?: ("id" | "content")[];
 }): Promise<number> {
-  const query = buildDatasetItemsLatestCountQuery(
+  const query = buildDatasetItemsCountQuery(
     params.projectId,
     params.filterState,
+    params.version,
     params.searchQuery,
     params.searchType,
   );
@@ -1233,7 +1241,7 @@ async function getDatasetItemsCountByLatestInternal(params: {
 /**
  * Internal function to count latest dataset items grouped by dataset_id using raw SQL.
  */
-async function getDatasetItemsCountByLatestGroupedInternal(params: {
+async function getDatasetItemsCountAtVersionGroupedInternal(params: {
   projectId: string;
   datasetIds: string[];
 }): Promise<Array<{ datasetId: string; count: number }>> {
@@ -1346,14 +1354,14 @@ export async function getDatasetItemById<
 }
 
 /**
- * Retrieves the latest version of dataset items.
+ * Retrieves the requested version of dataset items.
  * For each unique item ID, returns the latest non-deleted version.
  *
  * @param filterState - FilterState array for filtering (use createDatasetItemFilterState for simple cases)
  * @param searchQuery - Optional full-text search query (searches id, input, expectedOutput, metadata)
  * @param searchType - Search types: ["id"], ["content"], or ["id", "content"]
  */
-export async function getDatasetItemsByLatest<
+export async function getDatasetItemsAtVersion<
   IncludeIO extends boolean = true,
   IncludeDatasetName extends boolean = false,
 >(props: {
@@ -1468,10 +1476,12 @@ export async function getDatasetItemsByLatest<
  * @param filterState - FilterState array for filtering (use createDatasetItemFilterState for simple cases)
  * @param searchQuery - Optional full-text search query
  * @param searchType - Search types: ["id"], ["content"], or ["id", "content"]
+ * @param version - Optional version to count items at. Defaults to latest version if no version is provided.
  */
-export async function getDatasetItemsCountByLatest(props: {
+export async function getDatasetItemsCountAtVersion(props: {
   projectId: string;
   filterState: FilterState;
+  version?: Date;
   searchQuery?: string;
   searchType?: ("id" | "content")[];
 }): Promise<number> {
@@ -1505,8 +1515,9 @@ export async function getDatasetItemsCountByLatest(props: {
     },
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: FilterState → SQL directly
-      return getDatasetItemsCountByLatestInternal({
+      return getDatasetItemsCountAtVersionInternal({
         projectId: props.projectId,
+        version: props.version,
         filterState: props.filterState,
         searchQuery: props.searchQuery,
         searchType: props.searchType,
@@ -1515,7 +1526,7 @@ export async function getDatasetItemsCountByLatest(props: {
   });
 }
 
-export async function getDatasetItemsCountByLatestGrouped(props: {
+export async function getDatasetItemsCountAtVersionGrouped(props: {
   projectId: string;
   datasetIds: string[];
 }): Promise<Array<{ datasetId: string; count: number }>> {
@@ -1537,7 +1548,7 @@ export async function getDatasetItemsCountByLatestGrouped(props: {
       }));
     },
     [Implementation.VERSIONED]: async () => {
-      const results = await getDatasetItemsCountByLatestGroupedInternal({
+      const results = await getDatasetItemsCountAtVersionGroupedInternal({
         projectId: props.projectId,
         datasetIds: props.datasetIds,
       });

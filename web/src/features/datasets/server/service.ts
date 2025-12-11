@@ -15,8 +15,8 @@ import {
   getObservationsGroupedByTraceId,
   getScoresForTraces,
   traceException,
-  getDatasetItemsByLatest,
-  getDatasetItemsCountByLatest,
+  getDatasetItemsAtVersion,
+  getDatasetItemsCountAtVersion,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { groupBy } from "lodash";
@@ -67,7 +67,7 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   ];
 
   const [datasetItems, totalCount] = await Promise.all([
-    getDatasetItemsByLatest({
+    getDatasetItemsAtVersion({
       projectId: input.projectId,
       filterState,
       version: input.version,
@@ -76,9 +76,10 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
       limit: input.limit,
       page: input.page,
     }),
-    getDatasetItemsCountByLatest({
+    getDatasetItemsCountAtVersion({
       projectId: input.projectId,
       filterState,
+      version: input.version,
       searchQuery: input.searchQuery,
       searchType: input.searchType,
     }),

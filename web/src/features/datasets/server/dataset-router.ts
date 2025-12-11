@@ -55,9 +55,9 @@ import {
   type DatasetMutationResult,
   toPostgresDatasetItem,
   getDatasetItemById,
-  getDatasetItemsByLatest,
-  getDatasetItemsCountByLatest,
-  getDatasetItemsCountByLatestGrouped,
+  getDatasetItemsAtVersion,
+  getDatasetItemsCountAtVersion,
+  getDatasetItemsCountAtVersionGrouped,
   createDatasetItemFilterState,
   executeWithDatasetServiceStrategy,
   OperationType,
@@ -399,7 +399,7 @@ export const datasetRouter = createTRPCRouter({
       >(compiledQuery.sql, ...compiledQuery.parameters);
 
       // Get dataset items count for all datasets
-      const itemsCounts = await getDatasetItemsCountByLatestGrouped({
+      const itemsCounts = await getDatasetItemsCountAtVersionGrouped({
         projectId: input.projectId,
         datasetIds: input.datasetIds,
       });
@@ -693,7 +693,7 @@ export const datasetRouter = createTRPCRouter({
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input }) => {
-      return await getDatasetItemsCountByLatest({
+      return await getDatasetItemsCountAtVersion({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
           datasetIds: [input.datasetId],
@@ -1110,7 +1110,7 @@ export const datasetRouter = createTRPCRouter({
       const createdAt = new Date();
 
       while (true) {
-        const itemsBatch = await getDatasetItemsByLatest({
+        const itemsBatch = await getDatasetItemsAtVersion({
           projectId: input.projectId,
           filterState: createDatasetItemFilterState({
             datasetIds: [input.datasetId],
@@ -1484,7 +1484,7 @@ export const datasetRouter = createTRPCRouter({
 
       const [runData, items] = await Promise.all([
         enrichAndMapToDatasetItemId(projectId, datasetRunItems),
-        getDatasetItemsByLatest({
+        getDatasetItemsAtVersion({
           projectId: input.projectId,
           filterState: createDatasetItemFilterState({
             datasetIds: [datasetId],
@@ -1543,7 +1543,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const items = await getDatasetItemsByLatest({
+      const items = await getDatasetItemsAtVersion({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
           sourceTraceId: input.traceId,
