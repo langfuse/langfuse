@@ -16,8 +16,6 @@ type DatasetItemFieldsProps = {
   onInputChange?: (value: string) => void;
   onExpectedOutputChange?: (value: string) => void;
   onMetadataChange?: (value: string) => void;
-  hasInteractedWithInput?: boolean;
-  hasInteractedWithExpectedOutput?: boolean;
 };
 
 /**
@@ -25,8 +23,8 @@ type DatasetItemFieldsProps = {
  * Handles validation and error display for all fields.
  *
  * Can be used in two modes:
- * - View mode: read-only display with validation
- * - Edit mode: editable fields within a form with real-time validation
+ * - View mode: read-only display with validation errors shown
+ * - Edit mode: editable fields within a form (validation errors hidden during editing)
  */
 export const DatasetItemFields = ({
   inputValue,
@@ -38,8 +36,6 @@ export const DatasetItemFields = ({
   onInputChange,
   onExpectedOutputChange,
   onMetadataChange,
-  hasInteractedWithInput = true,
-  hasInteractedWithExpectedOutput = true,
 }: DatasetItemFieldsProps) => {
   // Create dataset array for validation hook
   const datasets = useMemo(() => {
@@ -61,6 +57,8 @@ export const DatasetItemFields = ({
   );
 
   const isFormMode = !!control;
+  // In form mode, don't show validation errors (only used for submit button state)
+  const showErrors = !isFormMode;
 
   return (
     <div className="flex h-full flex-col space-y-4">
@@ -82,7 +80,7 @@ export const DatasetItemFields = ({
                   field.onChange(v);
                 }}
                 errors={inputErrors}
-                hasInteracted={hasInteractedWithInput}
+                showErrors={showErrors}
                 hasSchemas={validation.hasSchemas}
                 isFormField
               />
@@ -117,7 +115,7 @@ export const DatasetItemFields = ({
                   field.onChange(v);
                 }}
                 errors={expectedOutputErrors}
-                hasInteracted={hasInteractedWithExpectedOutput}
+                showErrors={showErrors}
                 hasSchemas={validation.hasSchemas}
                 isFormField
               />

@@ -27,8 +27,8 @@ type DatasetItemFieldProps = {
   editable: boolean;
   onChange?: (value: string) => void;
   errors?: DatasetError[];
-  hasInteracted?: boolean;
   hasSchemas?: boolean;
+  showErrors?: boolean;
   // For form integration
   isFormField?: boolean;
 };
@@ -45,8 +45,8 @@ export const DatasetItemField = ({
   editable,
   onChange,
   errors = [],
-  hasInteracted = true,
   hasSchemas = false,
+  showErrors = true,
   isFormField = false,
 }: DatasetItemFieldProps) => {
   const content = (
@@ -84,7 +84,7 @@ export const DatasetItemField = ({
         />
       )}
       {isFormField && <FormMessage />}
-      {hasSchemas && errors.length > 0 && hasInteracted && (
+      {showErrors && hasSchemas && errors.length > 0 && (
         <DatasetItemFieldSchemaErrors errors={errors} showDatasetName={false} />
       )}
     </>

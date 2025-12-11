@@ -86,7 +86,6 @@ export const EditDatasetItemDialog = ({
   dataset,
 }: EditDatasetItemDialogProps) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const [hasChanges, setHasChanges] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "datasets:CUD",
@@ -109,7 +108,6 @@ export const EditDatasetItemDialog = ({
         expectedOutput: stringifyDatasetItemData(datasetItem.expectedOutput),
         metadata: stringifyDatasetItemData(datasetItem.metadata),
       });
-      setHasChanges(false);
       setFormError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,12 +115,6 @@ export const EditDatasetItemDialog = ({
 
   const inputValue = form.watch("input");
   const expectedOutputValue = form.watch("expectedOutput");
-
-  // Track if fields have been touched or modified
-  const { touchedFields, dirtyFields } = form.formState;
-  const hasInteractedWithInput = touchedFields.input || dirtyFields.input;
-  const hasInteractedWithExpectedOutput =
-    touchedFields.expectedOutput || dirtyFields.expectedOutput;
 
   // Create dataset array for validation hook
   const datasets = useMemo(() => {
@@ -141,7 +133,6 @@ export const EditDatasetItemDialog = ({
     onSuccess: () => {
       utils.datasets.invalidate();
       onOpenChange(false);
-      setHasChanges(false);
     },
     onError: (error) => setFormError(error.message),
   });
@@ -169,7 +160,6 @@ export const EditDatasetItemDialog = ({
             // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex h-full flex-col"
-            onChange={() => setHasChanges(true)}
           >
             <DialogBody>
               {formError ? (
@@ -184,13 +174,6 @@ export const EditDatasetItemDialog = ({
                 dataset={dataset}
                 editable={hasAccess}
                 control={form.control}
-                onInputChange={() => setHasChanges(true)}
-                onExpectedOutputChange={() => setHasChanges(true)}
-                onMetadataChange={() => setHasChanges(true)}
-                hasInteractedWithInput={hasInteractedWithInput}
-                hasInteractedWithExpectedOutput={
-                  hasInteractedWithExpectedOutput
-                }
               />
             </DialogBody>
             <DialogFooter>
@@ -206,7 +189,7 @@ export const EditDatasetItemDialog = ({
                 type="submit"
                 loading={updateDatasetItemMutation.isPending}
                 disabled={
-                  !hasChanges ||
+                  !form.formState.isDirty ||
                   !hasAccess ||
                   (validation.hasSchemas && !validation.isValid)
                 }
