@@ -286,7 +286,7 @@ export default class BackfillEventsHistoricFromParts
         o.cost_details,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
-        CAST(o.metadata, 'JSON(max_dynamic_paths=0)') AS metadata,
+        CAST(mapApply((k, v) -> (k, if(isValidUTF8(v), v, toValidUTF8(v))), o.metadata), 'JSON(max_dynamic_paths=0)') AS metadata,
         mapKeys(o.metadata) AS metadata_names,
         mapValues(o.metadata) AS metadata_raw_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
@@ -591,10 +591,10 @@ export default class BackfillEventsHistoricFromParts
           err,
         );
         state.todos[todoIndex].status = "pending"; // Will retry on next scheduleNext
-        state.todos[todoIndex].queryId = undefined;
         state.activeQueries = state.activeQueries.filter(
           (q) => q !== state.todos[todoIndex].queryId,
         );
+        state.todos[todoIndex].queryId = undefined;
         await this.updateState(state);
       }
     };
