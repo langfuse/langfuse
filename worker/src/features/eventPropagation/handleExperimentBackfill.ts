@@ -27,7 +27,7 @@ export interface DatasetRunItem {
   dataset_run_description: string;
   dataset_run_metadata: Record<string, unknown>;
   dataset_id: string;
-  dataset_item_version: string;
+  dataset_item_version: string | null;
   dataset_item_id: string;
   dataset_item_expected_output: string;
   dataset_item_metadata: Record<string, unknown>;
