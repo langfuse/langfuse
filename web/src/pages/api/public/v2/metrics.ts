@@ -2,8 +2,8 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { logger } from "@langfuse/shared/src/server";
 import {
-  GetMetricsV2Query,
-  GetMetricsV2Response,
+  GetMetricsV1Query,
+  GetMetricsV1Response,
 } from "@/src/features/public-api/types/metrics";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
@@ -11,8 +11,8 @@ export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
     rateLimitResource: "public-api-metrics", // Same rate limit as v1
-    querySchema: GetMetricsV2Query,
-    responseSchema: GetMetricsV2Response,
+    querySchema: GetMetricsV1Query,
+    responseSchema: GetMetricsV1Response,
     fn: async ({ query, auth }) => {
       try {
         const queryParams = query.query;

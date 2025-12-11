@@ -15,9 +15,6 @@ export class InMemoryFilterService {
     filter: FilterState,
     fieldMapper: (data: T, column: string) => unknown, // eslint-disable-line no-unused-vars
   ): boolean {
-    logger.debug(
-      `Evaluating filter ${JSON.stringify(filter)} for data ${JSON.stringify(data)}`,
-    );
     try {
       // If no filters, data matches
       if (!filter || filter.length === 0) {

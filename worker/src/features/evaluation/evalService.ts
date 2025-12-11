@@ -259,9 +259,11 @@ export const createEvalJobs = async ({
         traceId: event.traceId,
         projectId: event.projectId,
         timestamp:
-          "timestamp" in event
-            ? new Date(event.timestamp)
-            : new Date(jobTimestamp),
+          "exactTimestamp" in event && event.exactTimestamp
+            ? new Date(event.exactTimestamp)
+            : "timestamp" in event
+              ? new Date(event.timestamp)
+              : new Date(jobTimestamp),
         clickhouseFeatureTag: "eval-create",
         excludeInputOutput: true,
       });

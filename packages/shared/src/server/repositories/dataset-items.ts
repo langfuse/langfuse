@@ -393,7 +393,7 @@ export async function deleteDatasetItem(props: {
 
 /**
  * Bulk creates multiple dataset items with validation.
- * Validates all items before insertion - if any fail, none are inserted.
+ * Validates all items before insertion - if any fail, none are inserted (unless allowPartialSuccess is true).
  *
  * **Performance:** Compiles schemas once per dataset (not per item), providing
  * 3800x+ speedup over individual validations.
@@ -407,23 +407,37 @@ export async function deleteDatasetItem(props: {
  * to original CSV rows or API payloads for user-friendly error reporting.
  *
  * @param props.items - Can contain items from multiple datasets
- * @returns Success with all created items, or validation errors with indices
+ * @param props.allowPartialSuccess - If true, create valid items even if some fail validation.
+ *   When enabled, the return type changes:
+ *   - `success: true` with `validationErrors` array (partial success)
+ *   - `successCount` and `failedCount` indicate how many items were created vs failed
+ * @returns When allowPartialSuccess=false: success with all items OR failure with all errors.
+ *          When allowPartialSuccess=true: success with created items AND any validation errors.
  */
 export async function createManyDatasetItems(props: {
   projectId: string;
   items: CreateManyItemsPayload;
   normalizeOpts: { sanitizeControlChars?: boolean };
   validateOpts: { normalizeUndefinedToNull?: boolean };
+  allowPartialSuccess?: boolean;
 }): Promise<
   | {
       success: true;
       datasetItems: CreateManyItemsInsert;
+      validationErrors?: CreateManyValidationError[];
+      successCount: number;
+      failedCount: number;
     }
   | {
       success: false;
       validationErrors: CreateManyValidationError[];
+      successCount: number;
+      failedCount: number;
     }
 > {
+  let successCount = 0;
+  let failedCount = 0;
+
   // 1. Group items by datasetId and add original index (preserves CSV row mapping)
   const itemsByDataset = props.items.reduce(
     (acc, item, index) => {
@@ -494,6 +508,8 @@ export async function createManyDatasetItems(props: {
       });
 
       if (!result.success) {
+        failedCount++;
+
         // Validation failed - add errors with original index
         if (result.cause?.inputErrors) {
           validationErrors.push({
@@ -510,6 +526,8 @@ export async function createManyDatasetItems(props: {
           });
         }
       } else {
+        successCount++;
+
         // Validation passed - prepare for insert
         preparedItems.push({
           id: v4(),
@@ -527,22 +545,40 @@ export async function createManyDatasetItems(props: {
     }
   }
 
-  // 4. If any validation errors, return early
-  if (validationErrors.length > 0) {
+  // 4. If any validation errors and partial success not allowed, return early
+  if (validationErrors.length > 0 && !props.allowPartialSuccess) {
     return {
       success: false,
       validationErrors,
+      successCount,
+      failedCount,
     };
   }
 
   // 5. Bulk insert all valid items
-  await prisma.datasetItem.createMany({
-    data: preparedItems,
-  });
+  if (preparedItems.length > 0) {
+    await prisma.datasetItem.createMany({
+     data: preparedItems,
+    });
+  }
+
+  // 6. Return appropriate response
+  if (validationErrors.length > 0 && props.allowPartialSuccess) {
+    // Partial success: some items created, some failed
+    return {
+      success: true,
+      datasetItems: preparedItems,
+      validationErrors,
+      successCount,
+      failedCount,
+    };
+  }
 
   return {
     success: true,
     datasetItems: preparedItems,
+    successCount,
+    failedCount,
   };
 }
 

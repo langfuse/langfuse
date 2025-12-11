@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Trace } from "@/src/components/trace";
+import { Trace } from "@/src/components/trace2/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
