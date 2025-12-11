@@ -10,15 +10,24 @@ export enum BatchActionType {
   Delete = "delete",
 }
 
-const ActionIdSchema = z.enum([
-  "score-delete",
-  "trace-delete",
-  "trace-add-to-annotation-queue",
-  "session-add-to-annotation-queue",
-  "observation-add-to-annotation-queue",
-]);
+export enum BatchActionStatus {
+  Queued = "QUEUED",
+  Processing = "PROCESSING",
+  Completed = "COMPLETED",
+  Failed = "FAILED",
+  Partial = "PARTIAL",
+}
 
-export type ActionId = z.infer<typeof ActionIdSchema>;
+export enum ActionId {
+  ScoreDelete = "score-delete",
+  TraceDelete = "trace-delete",
+  TraceAddToAnnotationQueue = "trace-add-to-annotation-queue",
+  SessionAddToAnnotationQueue = "session-add-to-annotation-queue",
+  ObservationAddToAnnotationQueue = "observation-add-to-annotation-queue",
+  ObservationAddToDataset = "observation-add-to-dataset",
+}
+
+const ActionIdSchema = z.nativeEnum(ActionId);
 
 export const BatchActionQuerySchema = z.object({
   filter: z.array(singleFilter).nullable(),
