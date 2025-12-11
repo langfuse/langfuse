@@ -1129,8 +1129,6 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is AI?" },
         expectedOutput: { answer: "Artificial Intelligence" },
         metadata: { category: "tech" },
@@ -1140,7 +1138,6 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
         status: DatasetStatus.ARCHIVED,
         input: { question: "What is ML?" },
         expectedOutput: { answer: "Machine Learning" },
@@ -1151,8 +1148,6 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
@@ -1162,8 +1157,6 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId: datasetId2,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
