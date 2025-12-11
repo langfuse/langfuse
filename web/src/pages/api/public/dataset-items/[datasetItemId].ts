@@ -10,7 +10,10 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { deleteDatasetItem } from "@langfuse/shared/src/server";
+import {
+  deleteDatasetItem,
+  getDatasetItemById,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -21,26 +24,30 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       const { datasetItemId } = query;
 
-      const datasetItem = await prisma.datasetItem.findUnique({
-        where: {
-          id_projectId: {
-            projectId: auth.scope.projectId,
-            id: datasetItemId,
-          },
-        },
-        include: {
-          dataset: {
-            select: {
-              name: true,
-            },
-          },
-        },
+      const datasetItem = await getDatasetItemById({
+        projectId: auth.scope.projectId,
+        datasetItemId: datasetItemId,
       });
       if (!datasetItem) {
         throw new LangfuseNotFoundError("Dataset item not found");
       }
 
-      const { dataset } = datasetItem;
+      const dataset = await prisma.dataset.findUnique({
+        where: {
+          id_projectId: {
+            projectId: auth.scope.projectId,
+            id: datasetItem.datasetId,
+          },
+        },
+        select: {
+          name: true,
+        },
+      });
+
+      // Note that we cascade items on delete, so returning a 404 here is expected
+      if (!dataset) {
+        throw new LangfuseNotFoundError("Dataset item not found");
+      }
 
       return transformDbDatasetItemDomainToAPIDatasetItem({
         id: datasetItem.id,
