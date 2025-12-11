@@ -178,6 +178,46 @@ export default class BackfillEventsHistoricFromParts
   }
 
   // ============================================================================
+  // Part Verification
+  // ============================================================================
+
+  private async verifyPartStillActive(partId: string): Promise<boolean> {
+    const result = await queryClickhouse<{ count: string }>({
+      query: `
+        SELECT count() as count
+        FROM system.parts
+        WHERE database = 'default'
+        AND table = 'observations_pid_tid_sorting'
+        AND name = '${partId}'
+        AND active = 1
+      `,
+      tags: {
+        feature: "background-migration",
+        operation: "verifyPartStillActive",
+      },
+    });
+
+    return result.length > 0 && parseInt(result[0].count, 10) > 0;
+  }
+
+  private async getActivePartIds(): Promise<Set<string>> {
+    const parts = await queryClickhouse<{ name: string }>({
+      query: `
+        SELECT name
+        FROM system.parts
+        WHERE database = 'default'
+        AND table = 'observations_pid_tid_sorting'
+        AND active = 1
+      `,
+      tags: {
+        feature: "background-migration",
+        operation: "getActivePartIds",
+      },
+    });
+    return new Set(parts.map((p) => p.name));
+  }
+
+  // ============================================================================
   // Recovery Logic
   // ============================================================================
 
@@ -370,9 +410,10 @@ export default class BackfillEventsHistoricFromParts
     // Verify query is running on server
     const status = await pollQueryStatus(queryId);
     if (status === "not_found") {
-      // Query may have completed very quickly or failed to start
-      // Wait a bit more and check again
-      await sleep(15000);
+      // Query may have completed very quickly or failed to start.
+      // Wait longer to allow query_log to flush (default flush interval is ~7.5s,
+      // plus time for cluster replication across shards).
+      await sleep(30000);
       const retryStatus = await pollQueryStatus(queryId);
       if (retryStatus === "not_found") {
         throw new Error(`Query ${queryId} failed to start on server`);
@@ -614,6 +655,22 @@ export default class BackfillEventsHistoricFromParts
       );
 
       if (success) {
+        // Verify the part still exists before marking as completed
+        const partStillActive = await this.verifyPartStillActive(todo.partId);
+
+        if (!partStillActive) {
+          logger.error(
+            `[Backfill Events] CRITICAL: Part ${todo.partId} no longer exists after processing! ` +
+              `Data may be incomplete. Aborting migration.`,
+          );
+          state.todos[todoIndex].status = "failed";
+          state.todos[todoIndex].error =
+            "Part no longer active after processing - possible data loss";
+          await this.updateState(state);
+          this.isAborted = true;
+          return;
+        }
+
         state.todos[todoIndex].status = "completed";
         state.todos[todoIndex].completedAt = new Date().toISOString();
         const completed = state.todos.filter(
@@ -684,6 +741,35 @@ export default class BackfillEventsHistoricFromParts
     if (failed.length > 0) {
       logger.error(
         `[Backfill Events] Migration completed with ${failed.length} failed chunks`,
+      );
+    }
+
+    // Final verification: ensure all processed parts still exist
+    const completedTodos = state.todos.filter((t) => t.status === "completed");
+    if (completedTodos.length > 0) {
+      logger.info(
+        `[Backfill Events] Running final verification for ${completedTodos.length} completed parts...`,
+      );
+      const activePartIds = await this.getActivePartIds();
+      const missingParts = completedTodos.filter(
+        (t) => !activePartIds.has(t.partId),
+      );
+
+      if (missingParts.length > 0) {
+        logger.error(
+          `[Backfill Events] CRITICAL: ${missingParts.length} parts no longer exist after migration! ` +
+            `Missing parts: ${missingParts
+              .slice(0, 10)
+              .map((p) => p.partId)
+              .join(", ")}` +
+            `${missingParts.length > 10 ? ` (and ${missingParts.length - 10} more)` : ""}`,
+        );
+        throw new Error(
+          `Migration completed but ${missingParts.length} parts are no longer active - data integrity compromised`,
+        );
+      }
+      logger.info(
+        `[Backfill Events] Final verification passed - all ${completedTodos.length} parts still active`,
       );
     }
 
