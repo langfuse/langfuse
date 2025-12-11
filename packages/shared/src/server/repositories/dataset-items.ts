@@ -530,7 +530,7 @@ export async function createManyDatasetItems(props: {
 
         // Validation passed - prepare for insert
         preparedItems.push({
-          id: v4(),
+          id: item.id ?? v4(),
           projectId: props.projectId,
           status: DatasetStatus.ACTIVE,
           datasetId: item.datasetId,
@@ -595,6 +595,7 @@ export type PayloadError = {
 
 export type CreateManyItemsPayload = {
   datasetId: string;
+  id?: string;
   input?: string | unknown | null;
   expectedOutput?: string | unknown | null;
   metadata?: string | unknown | null;
