@@ -32,12 +32,13 @@ jest.mock("@langfuse/shared", () => {
   };
 });
 
-import { normalizeInput, normalizeOutput } from "./adapters";
 import {
+  normalizeInput,
+  normalizeOutput,
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
-} from "./core";
+} from "@langfuse/shared/src/utils/chatml";
 
 describe("ChatML Integration", () => {
   it("should handle OpenAI multimodal format", () => {
