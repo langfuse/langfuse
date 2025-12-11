@@ -201,7 +201,6 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
       type: "function",
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { type: _type, name: _name, args: _args, ...rest } = normalized;
     normalized = {
       ...rest,
@@ -318,7 +317,6 @@ function preprocessData(data: unknown): unknown {
     const candidates = obj.candidates as Array<Record<string, unknown>>;
     if (candidates[0]?.content) {
       // Unwrap: merge first candidate's content with other top-level fields
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { candidates: _candidates, ...otherFields } = obj;
       return normalizeGeminiMessage({
         ...candidates[0].content,
@@ -335,7 +333,6 @@ function preprocessData(data: unknown): unknown {
     const obj = data as Record<string, unknown>;
     const content = obj.content as Record<string, unknown>;
     if ("parts" in content && Array.isArray(content.parts)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { content: _content, ...otherFields } = obj;
       return normalizeGeminiMessage({ ...content, ...otherFields });
     }

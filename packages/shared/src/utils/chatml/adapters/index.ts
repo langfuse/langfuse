@@ -1,5 +1,4 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
-import { SimpleChatMlArraySchema } from "../../IORepresentation/chatML/types";
 import { langgraphAdapter } from "./langgraph";
 import { aisdkAdapter } from "./aisdk";
 import { openAIAdapter } from "./openai";

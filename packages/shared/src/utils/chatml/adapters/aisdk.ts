@@ -95,9 +95,11 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   let working = msg as Record<string, unknown>;
 
   // Strip provider-specific metadata (Bedrock, OpenAI, etc.)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { providerMetadata, providerOptions, ...withoutProviderFields } =
-    working;
+  const {
+    providerMetadata: _providerMetadata,
+    providerOptions: _providerOptions,
+    ...withoutProviderFields
+  } = working;
   working = withoutProviderFields;
 
   let normalized = removeNullFields(working);
@@ -137,7 +139,6 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
         // Handle tool-call content item
         // {type: "tool-call", toolCallId, toolName, input|args, providerOptions}
         if (contentItem.type === "tool-call") {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { providerOptions: _po, ...cleanedItem } = contentItem;
 
           // Normalize args|input to arguments

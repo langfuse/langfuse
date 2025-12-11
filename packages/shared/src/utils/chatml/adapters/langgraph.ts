@@ -141,7 +141,6 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // 2. LangChain format: top-level tool_calls already exists, prevent overwrite
       // Don't mutate original object - JSON view needs to show original data
       // Filter out null fields to prevent them from creating extra json blocks in UI
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { tool_calls: _removed, ...restKwargs } = additionalKwargs;
       normalized.additional_kwargs = removeNullFields(restKwargs);
     }

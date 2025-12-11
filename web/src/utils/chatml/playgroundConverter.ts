@@ -1,5 +1,5 @@
-import { z } from "zod/v4";
-import { ChatMlMessageSchema } from "@langfuse/shared";
+import { type z } from "zod/v4";
+import { type ChatMlMessageSchema } from "@langfuse/shared";
 import {
   ChatMessageRole,
   ChatMessageType,

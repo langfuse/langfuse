@@ -87,7 +87,6 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       type: "function",
     };
 
-    /* eslint-disable @typescript-eslint/no-unused-vars */
     const {
       type: _type,
       name: _name,
@@ -97,7 +96,6 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       status: _status,
       ...rest
     } = working;
-    /* eslint-enable @typescript-eslint/no-unused-vars */
     working = {
       ...rest,
       role: rest.role || "assistant",
@@ -114,9 +112,7 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
         ? working.output
         : JSON.stringify(working.output ?? "");
 
-    /* eslint-disable @typescript-eslint/no-unused-vars */
     const { type: _type, call_id, output: _output, ...rest } = working;
-    /* eslint-enable @typescript-eslint/no-unused-vars */
 
     working = {
       ...rest,
