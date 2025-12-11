@@ -6,4 +6,4 @@
 */
 -- AlterTable
 ALTER TABLE "dataset_items" DROP CONSTRAINT "dataset_items_pkey",
-ADD CONSTRAINT "dataset_items_pkey" PRIMARY KEY ("id", "project_id", "valid_from");
+ADD CONSTRAINT "dataset_items_pkey" PRIMARY KEY USING INDEX "dataset_items_id_project_id_valid_from_key";
