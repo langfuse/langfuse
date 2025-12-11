@@ -1340,6 +1340,7 @@ export async function getDatasetItemById<
               createdAt: true,
               updatedAt: true,
               validFrom: true,
+              isDeleted: true,
             },
         where: {
           id: props.datasetItemId,
