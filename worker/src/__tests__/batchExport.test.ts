@@ -14,6 +14,9 @@ import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
+// Set environment variable before any imports to ensure it's picked up by env module
+process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+  "true";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
@@ -1176,10 +1179,10 @@ describe("batch export test suite", () => {
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
-          type: "string",
-          operator: "=",
+          type: "stringOptions",
+          operator: "any of",
           column: "datasetId",
-          value: datasetId,
+          value: [datasetId],
         },
       ],
       orderBy: { column: "createdAt", order: "DESC" },
