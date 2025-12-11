@@ -1,12 +1,13 @@
 import { useRouter } from "next/router";
 import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
-import { ViewDatasetItem } from "@/src/features/datasets/components/ViewDatasetItem";
-import { DatasetItemDiffView } from "@/src/features/datasets/components/DatasetItemDiffView";
+import { DatasetItemViewModeContent } from "@/src/features/datasets/components/DatasetItemViewModeContent";
+import { DatasetItemVersionedContent } from "@/src/features/datasets/components/DatasetItemVersionedContent";
 import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/DatasetVersionHistoryPanel";
 import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/DatasetVersionWarningBanner";
 import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
+import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
@@ -126,6 +127,7 @@ function DatasetItemContent() {
 
           {/* Content with padding */}
           <div className="px-6 py-4">
+            {/* Diff mode toggle */}
             {isViewingOldVersion && selectedVersion && itemChangedAtVersion && (
               <div className="mb-4 flex flex-col gap-2">
                 <div className="flex items-center space-x-2">
@@ -140,6 +142,8 @@ function DatasetItemContent() {
                 </div>
               </div>
             )}
+
+            {/* Item unchanged message */}
             {isViewingOldVersion &&
               selectedVersion &&
               !itemChangedAtVersion && (
@@ -148,103 +152,23 @@ function DatasetItemContent() {
                 </div>
               )}
 
+            {/* Main content area */}
             {isViewingOldVersion ? (
-              itemAtVersion.isLoading ? (
-                <div className="text-sm text-muted-foreground">Loading...</div>
-              ) : itemAtVersion.data === null ? (
-                // Item doesn't exist at this version (not created yet or deleted)
-                <div className="flex flex-col items-center justify-center p-12 text-center">
-                  <div className="text-muted-foreground">
-                    <p className="text-lg font-medium">
-                      Item does not exist at this version
-                    </p>
-                    <p className="mt-2 text-sm">
-                      This dataset item either had not been created yet or was
-                      deleted at the selected version timestamp.
-                    </p>
-                  </div>
-                </div>
-              ) : showDiffMode && itemChangedAtVersion ? (
-                // Show diff view when diff mode is enabled
-                item.isLoading || itemAtVersion.isLoading ? (
-                  <div className="text-sm text-muted-foreground">
-                    Loading...
-                  </div>
-                ) : item.data && itemAtVersion.data ? (
-                  <DatasetItemDiffView
-                    selectedVersion={itemAtVersion.data}
-                    latestVersion={item.data}
-                  />
-                ) : !itemAtVersion.data ? (
-                  <div className="flex flex-col items-center justify-center p-12 text-center">
-                    <div className="text-muted-foreground">
-                      <p className="text-lg font-medium">Cannot show diff</p>
-                      <p className="mt-2 text-sm">
-                        The selected version of this item does not exist (not
-                        yet created or was deleted at that time).
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-12 text-center">
-                    <div className="text-muted-foreground">
-                      <p className="text-lg font-medium">Cannot show diff</p>
-                      <p className="mt-2 text-sm">
-                        The latest version of this item does not exist (has been
-                        deleted).
-                      </p>
-                    </div>
-                  </div>
-                )
-              ) : (
-                // Show normal view of selected version when diff mode is off
-                itemAtVersion.data && (
-                  <ViewDatasetItem
-                    datasetItem={itemAtVersion.data}
-                    dataset={
-                      dataset.data
-                        ? {
-                            id: dataset.data.id,
-                            name: dataset.data.name,
-                            inputSchema: dataset.data.inputSchema ?? null,
-                            expectedOutputSchema:
-                              dataset.data.expectedOutputSchema ?? null,
-                          }
-                        : null
-                    }
-                  />
-                )
-              )
-            ) : item.isLoading ? (
-              <div className="text-sm text-muted-foreground">Loading...</div>
-            ) : item.data === null ? (
-              // Current item not found
-              <div className="flex flex-col items-center justify-center p-12 text-center">
-                <div className="text-muted-foreground">
-                  <p className="text-lg font-medium">Dataset item not found</p>
-                  <p className="mt-2 text-sm">
-                    This dataset item does not exist or has been deleted.
-                  </p>
-                </div>
-              </div>
+              <DatasetItemVersionedContent
+                itemAtVersion={itemAtVersion.data ?? null}
+                latestItem={item.data ?? null}
+                isLoadingVersioned={itemAtVersion.isLoading}
+                isLoadingLatest={item.isLoading}
+                showDiffMode={showDiffMode}
+                itemChangedAtVersion={!!itemChangedAtVersion}
+                dataset={toDatasetSchema(dataset.data ?? null)}
+              />
             ) : (
-              // Show read-only view when viewing current version
-              item.data && (
-                <ViewDatasetItem
-                  datasetItem={item.data}
-                  dataset={
-                    dataset.data
-                      ? {
-                          id: dataset.data.id,
-                          name: dataset.data.name,
-                          inputSchema: dataset.data.inputSchema ?? null,
-                          expectedOutputSchema:
-                            dataset.data.expectedOutputSchema ?? null,
-                        }
-                      : null
-                  }
-                />
-              )
+              <DatasetItemViewModeContent
+                item={item.data ?? null}
+                isLoading={item.isLoading}
+                dataset={toDatasetSchema(dataset.data ?? null)}
+              />
             )}
           </div>
         </div>

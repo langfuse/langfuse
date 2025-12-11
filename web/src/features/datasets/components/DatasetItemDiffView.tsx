@@ -6,6 +6,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
+import { stringifyDatasetItemData } from "../utils/datasetItemUtils";
 
 type DatasetItemDiffViewProps = {
   selectedVersion: DatasetItemDomain;
@@ -27,16 +28,8 @@ export const DatasetItemDiffView = ({
           <AccordionTrigger>Input</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
-              oldString={
-                selectedVersion.input
-                  ? JSON.stringify(selectedVersion.input, null, 2)
-                  : ""
-              }
-              newString={
-                latestVersion.input
-                  ? JSON.stringify(latestVersion.input, null, 2)
-                  : ""
-              }
+              oldString={stringifyDatasetItemData(selectedVersion.input)}
+              newString={stringifyDatasetItemData(latestVersion.input)}
               oldLabel="Selected Version"
               newLabel="Latest Version"
             />
@@ -47,16 +40,10 @@ export const DatasetItemDiffView = ({
           <AccordionTrigger>Expected Output</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
-              oldString={
-                selectedVersion.expectedOutput
-                  ? JSON.stringify(selectedVersion.expectedOutput, null, 2)
-                  : ""
-              }
-              newString={
-                latestVersion.expectedOutput
-                  ? JSON.stringify(latestVersion.expectedOutput, null, 2)
-                  : ""
-              }
+              oldString={stringifyDatasetItemData(
+                selectedVersion.expectedOutput,
+              )}
+              newString={stringifyDatasetItemData(latestVersion.expectedOutput)}
               oldLabel="Selected Version"
               newLabel="Latest Version"
             />
@@ -67,16 +54,8 @@ export const DatasetItemDiffView = ({
           <AccordionTrigger>Metadata</AccordionTrigger>
           <AccordionContent>
             <DiffViewer
-              oldString={
-                selectedVersion.metadata
-                  ? JSON.stringify(selectedVersion.metadata, null, 2)
-                  : ""
-              }
-              newString={
-                latestVersion.metadata
-                  ? JSON.stringify(latestVersion.metadata, null, 2)
-                  : ""
-              }
+              oldString={stringifyDatasetItemData(selectedVersion.metadata)}
+              newString={stringifyDatasetItemData(latestVersion.metadata)}
               oldLabel="Selected Version"
               newLabel="Latest Version"
             />

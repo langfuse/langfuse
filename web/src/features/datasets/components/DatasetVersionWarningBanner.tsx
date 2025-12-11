@@ -4,7 +4,6 @@ import { format } from "date-fns";
 type DatasetVersionWarningBannerProps = {
   selectedVersion: Date;
   resetToLatest: () => void;
-  variant?: "inline" | "compact";
   className?: string;
   changeCounts?: {
     upserts: number;

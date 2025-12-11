@@ -3,14 +3,7 @@ import * as z from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useEffect, useState, useMemo } from "react";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
+import { Form } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -21,11 +14,13 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { CodeMirrorEditor } from "@/src/components/editor";
-import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
-import type { DatasetItemDomain, Prisma } from "@langfuse/shared";
-import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
+import type { DatasetItemDomain } from "@langfuse/shared";
+import { DatasetItemFields } from "./DatasetItemFields";
+import {
+  stringifyDatasetItemData,
+  type DatasetSchema,
+} from "../utils/datasetItemUtils";
 
 const formSchema = z.object({
   input: z.string().refine(
@@ -75,19 +70,12 @@ const formSchema = z.object({
   ),
 });
 
-type Dataset = {
-  id: string;
-  name: string;
-  inputSchema: Prisma.JsonValue | null;
-  expectedOutputSchema: Prisma.JsonValue | null;
-};
-
 type EditDatasetItemDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
   datasetItem: DatasetItemDomain | null;
-  dataset: Dataset | null;
+  dataset: DatasetSchema | null;
 };
 
 export const EditDatasetItemDialog = ({
@@ -117,15 +105,9 @@ export const EditDatasetItemDialog = ({
   useEffect(() => {
     if (datasetItem && open) {
       form.reset({
-        input: datasetItem.input
-          ? JSON.stringify(datasetItem.input, null, 2)
-          : "",
-        expectedOutput: datasetItem.expectedOutput
-          ? JSON.stringify(datasetItem.expectedOutput, null, 2)
-          : "",
-        metadata: datasetItem.metadata
-          ? JSON.stringify(datasetItem.metadata, null, 2)
-          : "",
+        input: stringifyDatasetItemData(datasetItem.input),
+        expectedOutput: stringifyDatasetItemData(datasetItem.expectedOutput),
+        metadata: stringifyDatasetItemData(datasetItem.metadata),
       });
       setHasChanges(false);
       setFormError(null);
@@ -153,12 +135,6 @@ export const EditDatasetItemDialog = ({
     inputValue,
     expectedOutputValue,
     datasets,
-  );
-
-  // Filter validation errors by field
-  const inputErrors = validation.errors.filter((e) => e.field === "input");
-  const expectedOutputErrors = validation.errors.filter(
-    (e) => e.field === "expectedOutput",
   );
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
@@ -201,111 +177,21 @@ export const EditDatasetItemDialog = ({
                   <span className="font-bold">Error:</span> {formError}
                 </p>
               ) : null}
-              <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="input"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center gap-2">
-                          <FormLabel>Input</FormLabel>
-                          {dataset?.inputSchema && (
-                            <DatasetSchemaHoverCard
-                              schema={dataset.inputSchema}
-                              schemaType="input"
-                              showLabel
-                            />
-                          )}
-                        </div>
-                        <FormControl>
-                          <CodeMirrorEditor
-                            mode="json"
-                            value={field.value}
-                            onChange={(v) => {
-                              setHasChanges(true);
-                              field.onChange(v);
-                            }}
-                            editable={hasAccess}
-                            minHeight={200}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                        {validation.hasSchemas &&
-                          inputErrors.length > 0 &&
-                          hasInteractedWithInput && (
-                            <DatasetItemFieldSchemaErrors
-                              errors={inputErrors}
-                              showDatasetName={false}
-                            />
-                          )}
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="expectedOutput"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center gap-2">
-                          <FormLabel>Expected output</FormLabel>
-                          {dataset?.expectedOutputSchema && (
-                            <DatasetSchemaHoverCard
-                              schema={dataset.expectedOutputSchema}
-                              schemaType="expectedOutput"
-                              showLabel
-                            />
-                          )}
-                        </div>
-                        <FormControl>
-                          <CodeMirrorEditor
-                            mode="json"
-                            value={field.value}
-                            onChange={(v) => {
-                              setHasChanges(true);
-                              field.onChange(v);
-                            }}
-                            editable={hasAccess}
-                            minHeight={200}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                        {validation.hasSchemas &&
-                          expectedOutputErrors.length > 0 &&
-                          hasInteractedWithExpectedOutput && (
-                            <DatasetItemFieldSchemaErrors
-                              errors={expectedOutputErrors}
-                              showDatasetName={false}
-                            />
-                          )}
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="metadata"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Metadata</FormLabel>
-                      <FormControl>
-                        <CodeMirrorEditor
-                          mode="json"
-                          value={field.value}
-                          onChange={(v) => {
-                            setHasChanges(true);
-                            field.onChange(v);
-                          }}
-                          editable={hasAccess}
-                          minHeight={100}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <DatasetItemFields
+                inputValue={inputValue}
+                expectedOutputValue={expectedOutputValue}
+                metadataValue={form.watch("metadata")}
+                dataset={dataset}
+                editable={hasAccess}
+                control={form.control}
+                onInputChange={() => setHasChanges(true)}
+                onExpectedOutputChange={() => setHasChanges(true)}
+                onMetadataChange={() => setHasChanges(true)}
+                hasInteractedWithInput={hasInteractedWithInput}
+                hasInteractedWithExpectedOutput={
+                  hasInteractedWithExpectedOutput
+                }
+              />
             </DialogBody>
             <DialogFooter>
               <Button

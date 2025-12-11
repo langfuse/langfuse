@@ -27,6 +27,7 @@ import { type ReactNode } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
+import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
 
 export const DatasetItemDetailPage = ({
   activeTab,
@@ -256,16 +257,7 @@ export const DatasetItemDetailPage = ({
         onOpenChange={setEditDialogOpen}
         projectId={projectId}
         datasetItem={item.data ?? null}
-        dataset={
-          dataset.data
-            ? {
-                id: dataset.data.id,
-                name: dataset.data.name,
-                inputSchema: dataset.data.inputSchema ?? null,
-                expectedOutputSchema: dataset.data.expectedOutputSchema ?? null,
-              }
-            : null
-        }
+        dataset={toDatasetSchema(dataset.data ?? null)}
       />
     </Page>
   );
