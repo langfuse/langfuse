@@ -81,8 +81,6 @@ describe("create experiment jobs", () => {
       projectId,
       datasetId,
       input: { name: "World" },
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
     // Create API key
     await prisma.llmApiKeys.create({
@@ -151,8 +149,6 @@ describe("create experiment jobs", () => {
       projectId,
       datasetId,
       input: { name: "World" },
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     const payload = {
@@ -222,8 +218,6 @@ describe("create experiment jobs", () => {
       projectId,
       datasetId,
       input: { name: "test" },
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Create API key
@@ -297,8 +291,6 @@ describe("create experiment jobs", () => {
       projectId,
       datasetId,
       input: { wrongVariable: "World" }, // doesn't have "name" variable
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Create API key
@@ -383,8 +375,6 @@ describe("create experiment jobs with placeholders", () => {
       projectId,
       datasetId,
       input: datasetItemInput,
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
     // Create API key
     await prisma.llmApiKeys.create({
@@ -537,8 +527,6 @@ describe("experiment processing integration", () => {
       projectId,
       datasetId,
       input: { name: "World" },
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Create API key

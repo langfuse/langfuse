@@ -50,8 +50,6 @@ describe("trpc.datasets", () => {
         projectId: projectId,
         datasetId: datasetId,
       })),
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     await prisma.datasetRuns.createMany({

@@ -304,8 +304,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const res = await createDatasetItem({
       projectId: projectId,
       datasetId: dataset.id,
-      validateOpts: { normalizeUndefinedToNull: true },
-      normalizeOpts: { sanitizeControlChars: true },
     });
 
     if (!res.success) {
@@ -1231,8 +1229,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       expectedOutput: "other-proj",
       projectId: otherProject.id,
       datasetId: otherProjDbDataset.id,
-      validateOpts: { normalizeUndefinedToNull: true },
-      normalizeOpts: { sanitizeControlChars: true },
     });
     if (!res.success) {
       throw new Error("Failed to create dataset item");

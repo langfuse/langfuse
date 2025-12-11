@@ -367,16 +367,12 @@ describe("select all test suite", () => {
       projectId,
       datasetId: dataset.id,
       input: "Hello, world!",
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     const res2 = await createDatasetItem({
       projectId,
       datasetId: dataset.id,
       input: "Hello, world!",
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     if (!res1.success || !res2.success) {

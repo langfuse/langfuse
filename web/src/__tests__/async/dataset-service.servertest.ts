@@ -85,8 +85,6 @@ describe("Fetch datasets for UI presentation", () => {
         { id: datasetItemId3, datasetId, metadata: {} },
         { id: datasetItemId4, datasetId, metadata: {} },
       ],
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     const datasetRunItemId = v4();
@@ -369,8 +367,6 @@ describe("Fetch datasets for UI presentation", () => {
       datasetId,
       metadata: {},
       projectId,
-      validateOpts: { normalizeUndefinedToNull: true },
-      normalizeOpts: { sanitizeControlChars: true },
     });
     if (!res.success) {
       throw new Error("Failed to create dataset item");
@@ -556,8 +552,6 @@ describe("Fetch datasets for UI presentation", () => {
           { id: itemId2, datasetId, metadata: {} },
           { id: itemId3, datasetId, metadata: {} },
         ],
-        normalizeOpts: { sanitizeControlChars: true },
-        validateOpts: { normalizeUndefinedToNull: true },
       });
 
       // Create traces and observations
@@ -769,8 +763,6 @@ describe("Fetch datasets for UI presentation", () => {
           datasetId,
           metadata: {},
         })),
-        validateOpts: { normalizeUndefinedToNull: true },
-        normalizeOpts: { sanitizeControlChars: true },
       });
 
       // Create dataset run items
@@ -989,8 +981,6 @@ describe("Fetch datasets for UI presentation", () => {
           datasetId,
           metadata: {},
         })),
-        normalizeOpts: { sanitizeControlChars: true },
-        validateOpts: { normalizeUndefinedToNull: true },
       });
 
       // Create dataset run items
@@ -1142,16 +1132,12 @@ describe("Fetch datasets for UI presentation", () => {
       datasetId,
       metadata: {},
       projectId,
-      validateOpts: { normalizeUndefinedToNull: true },
-      normalizeOpts: { sanitizeControlChars: true },
     });
 
     const res2 = await createDatasetItem({
       datasetId,
       metadata: {},
       projectId,
-      validateOpts: { normalizeUndefinedToNull: true },
-      normalizeOpts: { sanitizeControlChars: true },
     });
 
     if (!res.success || !res2.success) {
@@ -1366,8 +1352,6 @@ describe("Fetch datasets for UI presentation", () => {
               difficulty: index % 2 === 0 ? "easy" : "hard",
             },
           })),
-          normalizeOpts: { sanitizeControlChars: true },
-          validateOpts: { normalizeUndefinedToNull: true },
         });
 
         // Create traces
@@ -2063,8 +2047,6 @@ describe("Fetch datasets for UI presentation", () => {
             expectedOutput: { response: `Expected response ${index + 1}` },
             metadata: { category: `category-${index % 3}` },
           })),
-          normalizeOpts: { sanitizeControlChars: true },
-          validateOpts: { normalizeUndefinedToNull: true },
         });
 
         // Create traces

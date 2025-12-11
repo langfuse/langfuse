@@ -563,16 +563,12 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         projectId,
         datasetId,
         input: { item: 1 },
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       await createDatasetItem({
         projectId,
         datasetId,
         input: { item: 2 },
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       const items = await getDatasetItemsByLatest({
@@ -780,8 +776,6 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         projectId,
         datasetId,
         input: { key: "value" },
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       expect(result.success).toBe(true);
@@ -806,8 +800,6 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         projectId,
         datasetId,
         input: { order: 1 },
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       await delay(10);
@@ -816,8 +808,6 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         projectId,
         datasetId,
         input: { order: 2 },
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       expect(result1.success && result2.success).toBe(true);
@@ -1129,7 +1119,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         data: { id: datasetId, name: v4(), projectId },
       });
 
-      const beforeCreate = new Date();
+      // const beforeCreate = new Date();
       await delay(5);
 
       const result = await createManyDatasetItems({
@@ -1139,8 +1129,6 @@ describe("Dataset Items Repository - Versioning Tests", () => {
           { datasetId, input: { item: 2 } },
           { datasetId, input: { item: 3 } },
         ],
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       expect(result.success).toBe(true);
@@ -1163,8 +1151,6 @@ describe("Dataset Items Repository - Versioning Tests", () => {
           { datasetId, input: { batch: 1, item: 1 } },
           { datasetId, input: { batch: 1, item: 2 } },
         ],
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       await delay(10);
@@ -1175,8 +1161,6 @@ describe("Dataset Items Repository - Versioning Tests", () => {
           { datasetId, input: { batch: 2, item: 1 } },
           { datasetId, input: { batch: 2, item: 2 } },
         ],
-        normalizeOpts: {},
-        validateOpts: {},
       });
 
       expect(result1.success && result2.success).toBe(true);

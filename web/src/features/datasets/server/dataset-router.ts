@@ -53,7 +53,6 @@ import {
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
-  toPostgresDatasetItem,
   getDatasetItemById,
   getDatasetItemsByLatest,
   getDatasetItemsCountByLatest,

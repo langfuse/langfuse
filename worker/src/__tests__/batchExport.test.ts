@@ -1175,8 +1175,6 @@ describe("batch export test suite", () => {
     await createManyDatasetItems({
       projectId,
       items: datasetItems,
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Export dataset items
@@ -1320,8 +1318,6 @@ describe("batch export test suite", () => {
     await createManyDatasetItems({
       projectId,
       items: datasetItems,
-      normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: true },
     });
 
     // Export dataset items
