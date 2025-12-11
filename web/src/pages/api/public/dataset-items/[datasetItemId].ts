@@ -51,6 +51,7 @@ export default withMiddlewares({
 
       return transformDbDatasetItemDomainToAPIDatasetItem({
         id: datasetItem.id,
+        validFrom: datasetItem.validFrom,
         projectId: datasetItem.projectId,
         datasetId: datasetItem.datasetId,
         status: datasetItem.status ?? "ACTIVE",

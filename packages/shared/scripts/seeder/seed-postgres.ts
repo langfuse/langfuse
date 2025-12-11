@@ -523,6 +523,7 @@ export async function createDatasets(
         }));
 
       const datasetItemIds: string[] = [];
+
       for (let index = 0; index < data.items.length; index++) {
         const item = data.items[index];
         const sourceTraceId =
