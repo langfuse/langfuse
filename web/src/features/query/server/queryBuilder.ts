@@ -32,6 +32,7 @@ type AppliedMetricType = {
   aggregation: z.infer<typeof metricAggregations>;
   alias?: string;
   relationTable?: string;
+  aggs?: Record<string, string>;
 };
 
 export class QueryBuilder {
@@ -118,6 +119,7 @@ export class QueryBuilder {
       return {
         ...view.measures[metric.measure],
         aggregation: metric.aggregation,
+        aggs: view.measures[metric.measure].aggs,
       };
     });
   }
@@ -374,6 +376,39 @@ export class QueryBuilder {
     return relationTables;
   }
 
+  private canUseSingleLevelQuery(
+    appliedDimensions: AppliedDimensionType[],
+    appliedMetrics: AppliedMetricType[],
+  ): boolean {
+    // Single-level query requires:
+    // 1. All metrics have aggs configuration
+    // 2. No custom aggregation functions on dimensions
+    // Measures without .aggs: {} (like uniq(scores.id)) must use two-level approach
+    const allMetricsHaveAggs =
+      appliedMetrics.length === 0 ||
+      appliedMetrics.every((m) => m.aggs !== undefined);
+
+    // Check if any dimension has custom aggregation
+    const hasCustomDimensionAgg = appliedDimensions.some(
+      (d) => d.aggregationFunction !== undefined,
+    );
+
+    return allMetricsHaveAggs && !hasCustomDimensionAgg;
+  }
+
+  private substituteAggTemplates(
+    sql: string,
+    aggs: Record<string, string>,
+  ): string {
+    let result = sql;
+    // Replace each @@AGGN@@ placeholder with its corresponding aggregation function
+    for (const [placeholder, aggFunc] of Object.entries(aggs)) {
+      const marker = `@@${placeholder.toUpperCase()}@@`;
+      result = result.replaceAll(marker, aggFunc);
+    }
+    return result;
+  }
+
   private buildJoins(
     relationTables: Set<string>,
     view: ViewDeclarationType,
@@ -548,9 +583,22 @@ export class QueryBuilder {
   }
 
   private buildInnerMetricsPart(appliedMetrics: AppliedMetricType[]) {
-    return appliedMetrics.length > 0
-      ? `${appliedMetrics.map((metric) => `${metric.sql} as ${metric.alias || metric.sql}`).join(",\n")}`
-      : "count(*) as count";
+    if (appliedMetrics.length === 0) {
+      return "count(*) as count";
+    }
+
+    return appliedMetrics
+      .map((metric) => {
+        let sql = metric.sql;
+
+        // For two-level queries, substitute ${aggN} with actual agg function from template
+        if (metric.aggs) {
+          sql = this.substituteAggTemplates(sql, metric.aggs);
+        }
+
+        return `${sql} as ${metric.alias || metric.sql}`;
+      })
+      .join(",\n");
   }
 
   private buildInnerSelect(
@@ -705,6 +753,64 @@ export class QueryBuilder {
       ${withFillClause}`;
   }
 
+  private buildSingleLevelMetricsPart(
+    appliedMetrics: AppliedMetricType[],
+  ): string {
+    if (appliedMetrics.length === 0) {
+      return "count(*) as count";
+    }
+
+    return appliedMetrics
+      .map((m) => {
+        // For single-level: REMOVE @@AGGN@@ markers (strip template aggregations)
+        let baseSql = m.sql;
+        if (m.aggs) {
+          for (const placeholder of Object.keys(m.aggs)) {
+            const marker = `@@${placeholder.toUpperCase()}@@`;
+            baseSql = baseSql.replaceAll(marker, "");
+          }
+        }
+        // Apply user-requested aggregation to the stripped SQL
+        // Important: Clear alias so translateAggregation uses the sql directly
+        const aggregatedSql = this.translateAggregation({
+          ...m,
+          sql: baseSql,
+          alias: undefined, // Force use of sql instead of alias
+        });
+        return `${aggregatedSql} as ${m.aggregation}_${m.alias || m.sql}`;
+      })
+      .join(",\n");
+  }
+
+  private buildSingleLevelSelect(
+    view: ViewDeclarationType,
+    appliedDimensions: AppliedDimensionType[],
+    appliedMetrics: AppliedMetricType[],
+    query: QueryType,
+    fromClause: string,
+    groupByClause: string,
+    orderByClause: string,
+    withFillClause: string,
+  ): string {
+    // Reuse outer dimension building logic
+    const outerDimensionsPart = this.buildOuterDimensionsPart(
+      appliedDimensions,
+      !!query.timeDimension,
+    );
+
+    // Build optimized metrics (strip templates, apply user aggregation)
+    const metricsPart = this.buildSingleLevelMetricsPart(appliedMetrics);
+
+    return `
+      SELECT
+        ${outerDimensionsPart}
+        ${metricsPart}
+      ${fromClause}
+      ${groupByClause}
+      ${orderByClause}
+      ${withFillClause}`;
+  }
+
   /**
    * Validates that the provided orderBy fields exist in the dimensions or metrics
    * and returns the processed orderBy array with fully qualified field names.
@@ -798,7 +904,8 @@ export class QueryBuilder {
 
   /**
    * We want to build a ClickHouse query based on the query provided and the viewDeclaration that was selected.
-   * The final query should always follow this pattern:
+   *
+   * When enableSingleLevelOptimization is false (default), the query follows a two-level pattern:
    * ```
    *   SELECT
    *     <...dimensions>,
@@ -817,10 +924,28 @@ export class QueryBuilder {
    *   GROUP BY <...dimensions>
    *   ORDER BY <fields with directions>
    * ```
+   *
+   * When `enableSingleLevelOptimization` is true AND `canUseSingleLevelQuery()` returns true,
+   * the query uses a single-level pattern (skips high-cardinality GROUP BY):
+   * ```
+   *   SELECT
+   *     <...dimensions>,
+   *     <...metrics.map(metric => `${metric.aggregation}(stripped ${metric.sql})`>
+   *   FROM <baseCte>
+   *   (...tableRelations.joinConditionSql)
+   *   WHERE <...filters>
+   *   GROUP BY <...dimensions>
+   *   ORDER BY <fields with directions>
+   * ```
+   *
+   * Note: Template placeholders @@AGGN@@ in metric SQL are substituted with:
+   * - Two-level mode: Actual aggregation from aggs config (e.g., sum, any, sumMap)
+   * - Single-level mode: Stripped out, user's aggregation applied directly to raw expression
    */
   public async build(
     query: QueryType,
     projectId: string,
+    enableSingleLevelOptimization: boolean = false,
   ): Promise<{ query: string; parameters: Record<string, unknown> }> {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);
@@ -890,28 +1015,13 @@ export class QueryBuilder {
     // Build WHERE clause with parameters
     fromClause += this.buildWhereClause(filterList, parameters);
 
-    // Build inner SELECT parts
-    const innerDimensionsPart = this.buildInnerDimensionsPart(
-      appliedDimensions,
-      query,
-      view,
-    );
-    const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
+    // Check if single-level optimization is applicable
+    // Note: Relation tables are OK as long as measures have aggs configuration
+    const canOptimize =
+      enableSingleLevelOptimization &&
+      this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics);
 
-    // Build inner SELECT
-    const innerQuery = this.buildInnerSelect(
-      view,
-      innerDimensionsPart,
-      innerMetricsPart,
-      fromClause,
-    );
-
-    // Build outer SELECT parts
-    const outerDimensionsPart = this.buildOuterDimensionsPart(
-      appliedDimensions,
-      !!query.timeDimension,
-    );
-    const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
+    // Build GROUP BY clause (used by both single-level and two-level queries)
     const groupByClause = this.buildGroupByClause(
       appliedDimensions,
       !!query.timeDimension,
@@ -937,15 +1047,54 @@ export class QueryBuilder {
       parameters,
     );
 
-    // Build final query
-    const sql = this.buildOuterSelect(
-      outerDimensionsPart,
-      outerMetricsPart,
-      innerQuery,
-      groupByClause,
-      orderByClause,
-      withFillClause,
-    );
+    // Build final query - branch based on optimization
+    let sql: string;
+    if (canOptimize) {
+      // Single-level query: Skip inner SELECT
+      sql = this.buildSingleLevelSelect(
+        view,
+        appliedDimensions,
+        appliedMetrics,
+        query,
+        fromClause,
+        groupByClause,
+        orderByClause,
+        withFillClause,
+      );
+    } else {
+      // Two-level query: Original approach
+      // Build inner SELECT parts
+      const innerDimensionsPart = this.buildInnerDimensionsPart(
+        appliedDimensions,
+        query,
+        view,
+      );
+      const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
+
+      // Build inner SELECT
+      const innerQuery = this.buildInnerSelect(
+        view,
+        innerDimensionsPart,
+        innerMetricsPart,
+        fromClause,
+      );
+
+      // Build outer SELECT parts
+      const outerDimensionsPart = this.buildOuterDimensionsPart(
+        appliedDimensions,
+        !!query.timeDimension,
+      );
+      const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
+
+      sql = this.buildOuterSelect(
+        outerDimensionsPart,
+        outerMetricsPart,
+        innerQuery,
+        groupByClause,
+        orderByClause,
+        withFillClause,
+      );
+    }
 
     return {
       query: sql,

@@ -8,17 +8,19 @@ import { type QueryType, type ViewVersion } from "@/src/features/query/types";
  * @param projectId - The project ID
  * @param query - The query configuration as defined in QueryType
  * @param version - The view version to use (v1 or v2), defaults to v1
+ * @param enableSingleLevelOptimization - Enable single-level SELECT optimization (default: false)
  * @returns The query result data
  */
 export async function executeQuery(
   projectId: string,
   query: QueryType,
   version: ViewVersion = "v1",
+  enableSingleLevelOptimization: boolean = false,
 ): Promise<Array<Record<string, unknown>>> {
   const { query: compiledQuery, parameters } = await new QueryBuilder(
     query.chartConfig,
     version,
-  ).build(query, projectId);
+  ).build(query, projectId, enableSingleLevelOptimization);
 
   // Check if the query contains trace table references
   const usesTraceTable = compiledQuery.includes("traces");
