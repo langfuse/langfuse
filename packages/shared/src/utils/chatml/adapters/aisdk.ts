@@ -108,7 +108,7 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     Array.isArray(normalized.content) &&
     normalized.content.length > 0
   ) {
-    // all text already or do owe need to normalize further?
+    // all text already or do we need to normalize further?
     const allTextItems = normalized.content.every(
       (item: unknown) =>
         item &&
