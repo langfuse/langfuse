@@ -360,4 +360,157 @@ describe("extractToolsFromObservation", () => {
       expect(result.toolArguments[0].name).toBe("calculator");
     });
   });
+
+  describe("real world data tests", () => {
+    it("should extract tools from OpenAI format (tools in input.tools)", () => {
+      const input = {
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "get_weather",
+              description: "Get current weather",
+              parameters: {
+                type: "object",
+                properties: { location: { type: "string" } },
+                required: ["location"],
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "search_web",
+              description: "Search",
+            },
+          },
+        ],
+        messages: [{ role: "user", content: "Weather in NYC?" }],
+      };
+
+      const output = {
+        model: "gpt-4",
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              tool_calls: [
+                {
+                  id: "call_123",
+                  type: "function",
+                  function: {
+                    name: "get_weather",
+                    arguments: '{"location":"NYC"}',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      const result = extractToolsFromObservation(input, output, undefined);
+
+      expect(result.toolDefinitions).toHaveLength(2);
+      expect(result.toolDefinitions.map((t) => t.name)).toEqual([
+        "get_weather",
+        "search_web",
+      ]);
+      expect(result.toolArguments).toHaveLength(1);
+      expect(result.toolArguments[0].name).toBe("get_weather");
+      expect(result.toolArguments[0].id).toBe("call_123");
+      expect(result.toolArguments[0].arguments).toBe('{"location": "NYC"}');
+    });
+
+    it("should extract tool definitions from OTel metadata structure i.e. pydantic-ai", () => {
+      const metadata = {
+        attributes: {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          model_request_parameters: {
+            function_tools: [
+              {
+                name: "get_pun_suggestion",
+                parameters_json_schema: {
+                  type: "object",
+                  properties: { topic: { type: "string" } },
+                  required: ["topic"],
+                },
+                description:
+                  "Get a pun-style joke suggestion for the given topic.",
+              },
+              {
+                name: "get_dad_joke_suggestion",
+                parameters_json_schema: {
+                  type: "object",
+                  properties: { topic: { type: "string" } },
+                },
+                description:
+                  "Get a dad joke style suggestion for the given topic.",
+              },
+              {
+                name: "get_one_liner_suggestion",
+                description:
+                  "Get a one-liner joke suggestion for the given topic.",
+              },
+            ],
+          },
+        },
+        scope: {
+          name: "pydantic-ai",
+          version: "1.26.0",
+        },
+      };
+
+      const input = [
+        {
+          role: "system",
+          parts: [{ type: "text", content: "You are a creative joke writer." }],
+        },
+        {
+          role: "user",
+          parts: [
+            { type: "text", content: "Tell me a joke about programming." },
+          ],
+        },
+      ];
+
+      const output = {
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "call_1",
+            name: "get_pun_suggestion",
+            arguments: '{"topic":"programming"}',
+          },
+          {
+            id: "call_2",
+            name: "get_dad_joke_suggestion",
+            arguments: '{"topic":"programming"}',
+          },
+        ],
+      };
+
+      // Also test with explicit framework hint
+      const result = extractToolsFromObservation(input, output, metadata);
+
+      console.log("Adapter selected for input:", result);
+
+      // Should extract 3 available tools
+      expect(result.toolDefinitions).toHaveLength(5);
+      expect(result.toolDefinitions.map((t) => t.name)).toEqual([
+        "get_pun_suggestion",
+        "get_dad_joke_suggestion",
+        "get_one_liner_suggestion",
+      ]);
+
+      // Should extract 2 called tools
+      expect(result.toolArguments).toHaveLength(3);
+      expect(result.toolArguments.map((t) => t.name)).toEqual([
+        "get_pun_suggestion",
+        "get_dad_joke_suggestion",
+      ]);
+    });
+  });
 });
