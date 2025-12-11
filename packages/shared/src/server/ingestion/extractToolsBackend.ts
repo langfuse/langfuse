@@ -63,47 +63,20 @@ export function extractToolsFromObservation(
     const toolDefinitions: ClickhouseToolDefinition[] = [];
     const toolArguments: ClickhouseToolArgument[] = [];
 
-    // Debug logging
-    console.log("Extracting tools from:", {
-      hasInput: !!input,
-      hasOutput: !!output,
-      hasMetadata: !!metadata,
-      inputType: typeof input,
-      outputType: typeof output,
-    });
-
     // Extract tool definitions from input using adapters
     const inputAdapter = selectAdapter({ ...ctx, data: input });
-    console.log("Selected input adapter:", inputAdapter.id);
     const preprocessedInput = inputAdapter.preprocess(input, "input", ctx);
-    console.log(
-      "Preprocessed input:",
-      JSON.stringify(preprocessedInput).substring(0, 200),
-    );
     // Wrap single message in array if needed
     const inputArray = Array.isArray(preprocessedInput)
       ? preprocessedInput
-      : [preprocessedInput];
+      : preprocessedInput != null
+        ? [preprocessedInput]
+        : [];
     const inputResult = SimpleChatMlArraySchema.safeParse(inputArray);
-    console.log("Input validation:", {
-      success: inputResult.success,
-      error: inputResult.success ? undefined : inputResult.error.message,
-    });
 
     if (inputResult.success) {
-      console.log("Input messages count:", inputResult.data.length);
-      for (let i = 0; i < inputResult.data.length; i++) {
-        const msg = inputResult.data[i] as any; // Access fields from loose schema
-        console.log(`Message ${i}:`, {
-          role: msg.role,
-          hasTools: !!msg.tools,
-          toolsCount: msg.tools?.length,
-          hasContent: !!msg.content,
-        });
+      for (const msg of inputResult.data) {
         if (msg.tools && Array.isArray(msg.tools)) {
-          console.log(
-            `  Found ${msg.tools.length} tool definitions in message ${i}`,
-          );
           for (const tool of msg.tools) {
             const normalized: ClickhouseToolDefinition = {
               name: tool.name,
@@ -123,29 +96,16 @@ export function extractToolsFromObservation(
 
     // Extract tool calls from output using adapters
     const outputAdapter = selectAdapter({ ...ctx, data: output });
-    console.log("Selected output adapter:", outputAdapter.id);
     const preprocessedOutput = outputAdapter.preprocess(output, "output", ctx);
-    console.log(
-      "Preprocessed output:",
-      JSON.stringify(preprocessedOutput).substring(0, 200),
-    );
     // Wrap single message in array if needed
     const outputArray = Array.isArray(preprocessedOutput)
       ? preprocessedOutput
-      : [preprocessedOutput];
+      : preprocessedOutput != null
+        ? [preprocessedOutput]
+        : [];
     const outputResult = SimpleChatMlArraySchema.safeParse(outputArray);
-    console.log("Output validation:", {
-      success: outputResult.success,
-      error: outputResult.success ? undefined : outputResult.error.message,
-    });
 
     if (outputResult.success) {
-      console.log(
-        "Output messages:",
-        outputResult.data.length,
-        "First msg has tool_calls:",
-        !!outputResult.data[0]?.tool_calls,
-      );
       for (const msg of outputResult.data) {
         if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
           for (const call of msg.tool_calls) {
@@ -160,11 +120,6 @@ export function extractToolsFromObservation(
         }
       }
     }
-
-    console.log("Extraction result:", {
-      toolDefinitionsCount: toolDefinitions.length,
-      toolArgumentsCount: toolArguments.length,
-    });
     return { toolDefinitions, toolArguments };
   } catch (error) {
     console.error("Tool extraction error:", error);

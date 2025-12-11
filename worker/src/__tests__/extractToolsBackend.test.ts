@@ -419,7 +419,7 @@ describe("extractToolsFromObservation", () => {
       expect(result.toolArguments).toHaveLength(1);
       expect(result.toolArguments[0].name).toBe("get_weather");
       expect(result.toolArguments[0].id).toBe("call_123");
-      expect(result.toolArguments[0].arguments).toBe('{"location": "NYC"}');
+      expect(result.toolArguments[0].arguments).toBe('{"location":"NYC"}');
     });
 
     it("should extract tool definitions from OTel metadata structure i.e. pydantic-ai", () => {
@@ -495,10 +495,8 @@ describe("extractToolsFromObservation", () => {
       // Also test with explicit framework hint
       const result = extractToolsFromObservation(input, output, metadata);
 
-      console.log("Adapter selected for input:", result);
-
       // Should extract 3 available tools
-      expect(result.toolDefinitions).toHaveLength(5);
+      expect(result.toolDefinitions).toHaveLength(3);
       expect(result.toolDefinitions.map((t) => t.name)).toEqual([
         "get_pun_suggestion",
         "get_dad_joke_suggestion",
@@ -506,7 +504,7 @@ describe("extractToolsFromObservation", () => {
       ]);
 
       // Should extract 2 called tools
-      expect(result.toolArguments).toHaveLength(3);
+      expect(result.toolArguments).toHaveLength(2);
       expect(result.toolArguments.map((t) => t.name)).toEqual([
         "get_pun_suggestion",
         "get_dad_joke_suggestion",
