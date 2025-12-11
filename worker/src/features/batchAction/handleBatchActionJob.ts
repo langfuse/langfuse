@@ -6,6 +6,7 @@ import {
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
@@ -16,7 +17,6 @@ import {
   getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
-import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
 import {
@@ -24,7 +24,6 @@ import {
   processAddSessionsToQueue,
   processAddTracesToQueue,
 } from "./processAddToQueue";
-import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
@@ -52,13 +51,7 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
-        await Promise.all([
-          processPostgresTraceDelete(projectId, chunkIds),
-          processClickhouseTraceDelete(projectId, chunkIds),
-        ]);
-        logger.info(
-          `Deleted ${chunkIds.length} traces for project ${projectId}`,
-        );
+        await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
         break;
 
       case "trace-add-to-annotation-queue":
