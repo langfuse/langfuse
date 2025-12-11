@@ -17,6 +17,13 @@ import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
 
+const defaultNormalizeOpts: { sanitizeControlChars?: boolean } = {
+  sanitizeControlChars: true,
+};
+const defaultValidateOpts: { normalizeUndefinedToNull?: boolean } = {
+  normalizeUndefinedToNull: true,
+};
+
 /**
  * Repository for dataset item CRUD operations.
  *
@@ -189,6 +196,8 @@ function mergeItemData(
  *
  * **Flexible input:** Accepts both JSON strings (tRPC) and objects (Public API).
  *
+ * @param props.normalizeOpts - Defaults to { sanitizeControlChars: true }
+ * @param props.validateOpts - Defaults to { normalizeUndefinedToNull: true }
  * @returns Success with created item, or validation error with details
  */
 export async function createDatasetItem(props: {
@@ -199,10 +208,10 @@ export async function createDatasetItem(props: {
   metadata?: string | unknown | null;
   sourceTraceId?: string;
   sourceObservationId?: string;
-  normalizeOpts: {
+  normalizeOpts?: {
     sanitizeControlChars?: boolean;
   };
-  validateOpts: {
+  validateOpts?: {
     normalizeUndefinedToNull?: boolean;
   };
 }): Promise<{ success: true; datasetItem: DatasetItemDomain } | PayloadError> {
@@ -447,7 +456,9 @@ export async function deleteDatasetItem(props: {
  * **Index preservation:** Validation errors include `itemIndex` to map back
  * to original CSV rows or API payloads for user-friendly error reporting.
  *
- * @param props.items - Can contain items from multiple datasets
+ * @param props.items - Can contain items from multiple datasets. Each item can optionally include an `id` field.
+ * @param props.normalizeOpts - Defaults to { sanitizeControlChars: true }
+ * @param props.validateOpts - Defaults to { normalizeUndefinedToNull: true }
  * @param props.allowPartialSuccess - If true, create valid items even if some fail validation.
  *   When enabled, the return type changes:
  *   - `success: true` with `validationErrors` array (partial success)
@@ -458,8 +469,8 @@ export async function deleteDatasetItem(props: {
 export async function createManyDatasetItems(props: {
   projectId: string;
   items: CreateManyItemsPayload;
-  normalizeOpts: { sanitizeControlChars?: boolean };
-  validateOpts: { normalizeUndefinedToNull?: boolean };
+  normalizeOpts?: { sanitizeControlChars?: boolean };
+  validateOpts?: { normalizeUndefinedToNull?: boolean };
   allowPartialSuccess?: boolean;
 }): Promise<
   | {
@@ -544,8 +555,8 @@ export async function createManyDatasetItems(props: {
         input: item.input,
         expectedOutput: item.expectedOutput,
         metadata: item.metadata,
-        normalizeOpts: props.normalizeOpts,
-        validateOpts: props.validateOpts,
+        normalizeOpts: props.normalizeOpts ?? defaultNormalizeOpts,
+        validateOpts: props.validateOpts ?? defaultValidateOpts,
       });
 
       if (!result.success) {
@@ -571,7 +582,7 @@ export async function createManyDatasetItems(props: {
 
         // Validation passed - prepare for insert
         preparedItems.push({
-          id: v4(),
+          id: item.id ?? v4(),
           projectId: props.projectId,
           status: DatasetStatus.ACTIVE,
           datasetId: item.datasetId,
@@ -645,6 +656,7 @@ export type PayloadError = {
 
 export type CreateManyItemsPayload = {
   datasetId: string;
+  id?: string;
   input?: string | unknown | null;
   expectedOutput?: string | unknown | null;
   metadata?: string | unknown | null;
