@@ -576,7 +576,7 @@ export async function createManyDatasetItems(props: {
         preparedItems.push({
           id: item.id ?? v4(),
           projectId: props.projectId,
-          status: DatasetStatus.ACTIVE,
+          status: item.status ?? DatasetStatus.ACTIVE,
           datasetId: item.datasetId,
           input: result.input,
           expectedOutput: result.expectedOutput,
@@ -649,6 +649,7 @@ export type PayloadError = {
 export type CreateManyItemsPayload = {
   datasetId: string;
   id?: string;
+  status?: DatasetStatus;
   input?: string | unknown | null;
   expectedOutput?: string | unknown | null;
   metadata?: string | unknown | null;
