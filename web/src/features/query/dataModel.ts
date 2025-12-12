@@ -429,14 +429,16 @@ export const observationsView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "count(*)",
+      sql: "@@AGG@@(id)",
+      aggs: { agg: "count" },
       alias: "count",
       type: "integer",
       description: "Total number of observations.",
       unit: "observations",
     },
     latency: {
-      sql: "date_diff('millisecond', any(observations.start_time), any(observations.end_time))",
+      sql: "date_diff('millisecond', @@AGG1@@(observations.start_time), @@AGG1@@(observations.end_time))",
+      aggs: { agg1: "any" },
       alias: "latency",
       type: "integer",
       description:
@@ -445,7 +447,8 @@ export const observationsView: ViewDeclarationType = {
     },
     streamingLatency: {
       // Return NULL if `completion_start_time` is NULL to avoid misleading latency values
-      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time)))",
+      sql: "if(isNull(@@AGG1@@(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(observations.completion_start_time), @@AGG1@@(observations.end_time)))",
+      aggs: { agg1: "any" },
       alias: "streamingLatency",
       type: "integer",
       description:
@@ -453,21 +456,24 @@ export const observationsView: ViewDeclarationType = {
       unit: "millisecond",
     },
     inputTokens: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(usage_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
       alias: "inputTokens",
       type: "integer",
       description: "Sum of input tokens consumed by the observation.",
       unit: "tokens",
     },
     outputTokens: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
       alias: "outputTokens",
       type: "integer",
       description: "Sum of output tokens produced by the observation.",
       unit: "tokens",
     },
     totalTokens: {
-      sql: "sumMap(usage_details)['total']",
+      sql: "@@AGG1@@(usage_details)['total']",
+      aggs: { agg1: "sumMap" },
       alias: "totalTokens",
       type: "integer",
       description: "Sum of tokens consumed by the observation.",
@@ -477,7 +483,8 @@ export const observationsView: ViewDeclarationType = {
       // Calculate average output tokens per second. Denominator uses seconds to align
       // with the `tokens/s` unit; NULL values avoided by guarding against a 0-second
       // duration.
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))) / nullIf(date_diff('second', any(observations.completion_start_time), any(observations.end_time)), 0)",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details)))) / nullIf(date_diff('second', @@AGG1@@(observations.completion_start_time), @@AGG1@@(observations.end_time)), 0)",
+      aggs: { agg1: "any" },
       alias: "outputTokensPerSecond",
       type: "decimal",
       description:
@@ -485,7 +492,8 @@ export const observationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     tokensPerSecond: {
-      sql: "sumMap(usage_details)['total'] / date_diff('second', any(observations.start_time), any(observations.end_time))",
+      sql: "@@AGG1@@(usage_details)['total'] / date_diff('second', @@AGG2@@(observations.start_time), @@AGG2@@(observations.end_time))",
+      aggs: { agg1: "sumMap", agg2: "any" },
       alias: "tokensPerSecond",
       type: "decimal",
       description:
@@ -493,21 +501,24 @@ export const observationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     inputCost: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(cost_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
       alias: "inputCost",
       type: "decimal",
       description: "Sum of input cost incurred by the observation.",
       unit: "USD",
     },
     outputCost: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(cost_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
       alias: "outputCost",
       type: "decimal",
       description: "Sum of output cost incurred by the observation.",
       unit: "USD",
     },
     totalCost: {
-      sql: "sum(total_cost)",
+      sql: "@@AGG1@@(total_cost)",
+      aggs: { agg1: "sum" },
       alias: "totalCost",
       type: "decimal",
       description: "Total cost incurred by the observation.",
@@ -515,7 +526,8 @@ export const observationsView: ViewDeclarationType = {
     },
     timeToFirstToken: {
       // Return NULL if `completion_start_time` is NULL to represent unknown TTFT
-      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time)))",
+      sql: "if(isNull(@@AGG1@@(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(observations.start_time), @@AGG1@@(observations.completion_start_time)))",
+      aggs: { agg1: "any" },
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
@@ -1027,14 +1039,16 @@ export const eventsObservationsView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "count(*)",
+      sql: "@@AGG@@(events_observations.span_id)",
+      aggs: { agg: "count" },
       alias: "count",
       type: "integer",
       description: "Total number of observations.",
       unit: "observations",
     },
     latency: {
-      sql: "date_diff('millisecond', any(events_observations.start_time), any(events_observations.end_time))",
+      sql: "date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.end_time))",
+      aggs: { agg1: "any" },
       alias: "latency",
       type: "integer",
       description:
@@ -1042,7 +1056,8 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "millisecond",
     },
     streamingLatency: {
-      sql: "if(isNull(any(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(events_observations.completion_start_time), any(events_observations.end_time)))",
+      sql: "if(isNull(@@AGG1@@(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(events_observations.completion_start_time), @@AGG1@@(events_observations.end_time)))",
+      aggs: { agg1: "any" },
       alias: "streamingLatency",
       type: "integer",
       description:
@@ -1050,28 +1065,32 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "millisecond",
     },
     inputTokens: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(usage_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
       alias: "inputTokens",
       type: "integer",
       description: "Sum of input tokens consumed by the observation.",
       unit: "tokens",
     },
     outputTokens: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
       alias: "outputTokens",
       type: "integer",
       description: "Sum of output tokens produced by the observation.",
       unit: "tokens",
     },
     totalTokens: {
-      sql: "sumMap(usage_details)['total']",
+      sql: "@@AGG1@@(usage_details)['total']",
+      aggs: { agg1: "sumMap" },
       alias: "totalTokens",
       type: "integer",
       description: "Sum of tokens consumed by the observation.",
       unit: "tokens",
     },
     outputTokensPerSecond: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))) / nullIf(date_diff('second', any(events_observations.completion_start_time), any(events_observations.end_time)), 0)",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details)))) / nullIf(date_diff('second', @@AGG1@@(events_observations.completion_start_time), @@AGG1@@(events_observations.end_time)), 0)",
+      aggs: { agg1: "any" },
       alias: "outputTokensPerSecond",
       type: "decimal",
       description:
@@ -1079,7 +1098,8 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     tokensPerSecond: {
-      sql: "sumMap(usage_details)['total'] / date_diff('second', any(events_observations.start_time), any(events_observations.end_time))",
+      sql: "@@AGG1@@(usage_details)['total'] / date_diff('second', @@AGG2@@(events_observations.start_time), @@AGG2@@(events_observations.end_time))",
+      aggs: { agg1: "sumMap", agg2: "any" },
       alias: "tokensPerSecond",
       type: "decimal",
       description:
@@ -1087,28 +1107,32 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     inputCost: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(cost_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
       alias: "inputCost",
       type: "decimal",
       description: "Sum of input cost incurred by the observation.",
       unit: "USD",
     },
     outputCost: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(cost_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
       alias: "outputCost",
       type: "decimal",
       description: "Sum of output cost incurred by the observation.",
       unit: "USD",
     },
     totalCost: {
-      sql: "sum(total_cost)",
+      sql: "@@AGG1@@(total_cost)",
+      aggs: { agg1: "sum" },
       alias: "totalCost",
       type: "decimal",
       description: "Total cost incurred by the observation.",
       unit: "USD",
     },
     timeToFirstToken: {
-      sql: "if(isNull(any(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(events_observations.start_time), any(events_observations.completion_start_time)))",
+      sql: "if(isNull(@@AGG1@@(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.completion_start_time)))",
+      aggs: { agg1: "any" },
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
