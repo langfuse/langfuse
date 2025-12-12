@@ -373,10 +373,17 @@ export default class BackfillEventsHistoricFromParts
           }
         : retryCount > 0
           ? {
+              min_insert_block_size_rows: "5485450",
+              min_insert_block_size_bytes: "2Gi",
               max_threads: 8,
               max_block_size: "4096",
             }
-          : {};
+          : retryCount === 0
+            ? {
+                min_insert_block_size_rows: "10485450",
+                min_insert_block_size_bytes: "4Gi",
+              }
+            : {};
 
     if (retryCount > 0) {
       logger.info(
