@@ -2108,6 +2108,7 @@ export class OtelIngestionProcessor {
     experimentDescription?: string;
     experimentDatasetId?: string;
     experimentItemId?: string;
+    experimentItemVersion?: string;
     experimentItemRootSpanId?: string;
     experimentItemExpectedOutput?: string;
     experimentMetadataNames?: string[];
@@ -2130,6 +2131,8 @@ export class OtelIngestionProcessor {
       ];
     const experimentItemExpectedOutput =
       attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_EXPECTED_OUTPUT];
+    const experimentItemVersion =
+      attributes[LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_VERSION];
 
     // Extract experiment metadata
     const experimentMetadataStr =
@@ -2173,6 +2176,9 @@ export class OtelIngestionProcessor {
         ? String(experimentDatasetId)
         : undefined,
       experimentItemId: experimentItemId ? String(experimentItemId) : undefined,
+      experimentItemVersion: experimentItemVersion
+        ? String(experimentItemVersion)
+        : undefined,
       experimentItemRootSpanId: experimentItemRootSpanId
         ? String(experimentItemRootSpanId)
         : undefined,

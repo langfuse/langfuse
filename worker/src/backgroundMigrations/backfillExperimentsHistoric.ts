@@ -133,6 +133,7 @@ export default class BackfillExperimentsHistoric
           dri.dataset_run_metadata,
           dri.dataset_id,
           dri.dataset_item_id,
+          dri.dataset_item_version,
           dri.dataset_item_expected_output,
           dri.dataset_item_metadata,
           dri.created_at
@@ -156,6 +157,7 @@ export default class BackfillExperimentsHistoric
           dri.dataset_run_metadata,
           dri.dataset_id,
           dri.dataset_item_id,
+          dri.dataset_item_version,
           dri.dataset_item_expected_output,
           dri.dataset_item_metadata,
           dri.created_at
