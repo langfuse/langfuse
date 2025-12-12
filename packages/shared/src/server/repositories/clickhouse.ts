@@ -501,7 +501,17 @@ export async function commandClickhouse(opts: {
 }
 
 export function parseClickhouseUTCDateTimeFormat(dateStr: string): Date {
-  return new Date(`${dateStr.replace(" ", "T")}Z`);
+  // ClickHouse may store datetime in local timezone or UTC depending on deployment
+  // Check CLICKHOUSE_USE_LOCAL_TIMEZONE env var to determine how to parse
+  const useLocalTimezone = process.env.CLICKHOUSE_USE_LOCAL_TIMEZONE === "true";
+
+  if (useLocalTimezone) {
+    // Parse as local time (don't add 'Z' suffix)
+    return new Date(dateStr.replace(" ", "T"));
+  } else {
+    // Parse as UTC time (add 'Z' suffix)
+    return new Date(`${dateStr.replace(" ", "T")}Z`);
+  }
 }
 
 export function clickhouseCompliantRandomCharacters() {

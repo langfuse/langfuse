@@ -170,8 +170,31 @@ export const clickhouseClient = (
 
 /**
  * Accepts a JavaScript date and returns the DateTime in format YYYY-MM-DD HH:MM:SS
+ *
+ * IMPORTANT: This function is primarily used for query parameters, NOT for data insertion.
+ * When CLICKHOUSE_USE_LOCAL_TIMEZONE=true, ClickHouse interprets DateTime strings as local time.
+ * So we need to convert the Date object to local time representation.
+ *
+ * For data insertion, the schema transformation handles timezone conversion automatically.
  */
 export const convertDateToClickhouseDateTime = (date: Date): string => {
-  // 2024-11-06T20:37:00.123Z -> 2024-11-06 21:37:00.123
-  return date.toISOString().replace("T", " ").replace("Z", "");
+  const useLocalTimezone = process.env.CLICKHOUSE_USE_LOCAL_TIMEZONE === "true";
+
+  if (useLocalTimezone) {
+    // When ClickHouse uses local timezone, we need to format as local time
+    // JavaScript Date methods return local time values when not using UTC variants
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+    const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+  } else {
+    // When ClickHouse uses UTC timezone (default), format as UTC time
+    // 2024-11-06T20:37:00.123Z -> 2024-11-06 20:37:00.123
+    return date.toISOString().replace("T", " ").replace("Z", "");
+  }
 };

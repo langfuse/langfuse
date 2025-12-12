@@ -1,10 +1,12 @@
 import z from "zod/v4";
+import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 
 export const clickhouseStringDateSchema = z
   .string()
-  // clickhouse stores UTC like '2024-05-23 18:33:41.602000'
-  // we need to convert it to '2024-05-23T18:33:41.602000Z'
-  .transform((str) => str.replace(" ", "T") + "Z")
+  // clickhouse stores datetime like '2024-05-23 18:33:41.602000'
+  // we need to parse it correctly considering the server timezone
+  // parseClickhouseUTCDateTimeFormat handles both UTC and local timezone based on CLICKHOUSE_USE_LOCAL_TIMEZONE env var
+  .transform((str) => parseClickhouseUTCDateTimeFormat(str).toISOString())
   .pipe(z.string().datetime());
 
 //https://clickhouse.com/docs/en/integrations/javascript#integral-types-int64-int128-int256-uint64-uint128-uint256

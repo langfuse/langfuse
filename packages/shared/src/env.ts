@@ -66,6 +66,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
+  // When true, ClickHouse DateTime values are stored and retrieved in local timezone
+  // instead of UTC. Set to "true" for self-hosted ClickHouse instances using local timezone.
+  CLICKHOUSE_USE_LOCAL_TIMEZONE: z.enum(["true", "false"]).default("false"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()

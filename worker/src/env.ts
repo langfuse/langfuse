@@ -100,6 +100,7 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+  CLICKHOUSE_USE_LOCAL_TIMEZONE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
     .number()
     .positive()
