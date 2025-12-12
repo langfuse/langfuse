@@ -276,7 +276,7 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("true"),
+    .default("false"),
 });
 
 export const env: z.infer<typeof EnvSchema> =
