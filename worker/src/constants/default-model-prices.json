@@ -1356,9 +1356,9 @@
   {
     "id": "cluv2sjeo000008ih0fv23hi0",
     "modelName": "gemini-1.0-pro-latest",
-    "matchPattern": "(?i)^(gemini-1.0-pro-latest)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.0-pro-latest)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2sjeo000008ih0fv23hi0_tier_default",
@@ -1376,9 +1376,9 @@
   {
     "id": "cluv2subq000108ih2mlrga6a",
     "modelName": "gemini-1.0-pro",
-    "matchPattern": "(?i)^(gemini-1.0-pro)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.0-pro)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2subq000108ih2mlrga6a_tier_default",
@@ -1396,9 +1396,9 @@
   {
     "id": "cluv2sx04000208ihbek75lsz",
     "modelName": "gemini-1.0-pro-001",
-    "matchPattern": "(?i)^(gemini-1.0-pro-001)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.0-pro-001)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2sx04000208ihbek75lsz_tier_default",
@@ -1416,9 +1416,9 @@
   {
     "id": "cluv2szw0000308ihch3n79x7",
     "modelName": "gemini-pro",
-    "matchPattern": "(?i)^(gemini-pro)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-pro)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2szw0000308ihch3n79x7_tier_default",
@@ -1436,9 +1436,9 @@
   {
     "id": "cluv2t2x0000408ihfytl45l1",
     "modelName": "gemini-1.5-pro-latest",
-    "matchPattern": "(?i)^(gemini-1.5-pro-latest)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.5-pro-latest)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2t2x0000408ihfytl45l1_tier_default",
@@ -2099,9 +2099,9 @@
   {
     "id": "cm6l8jdef0000tymz52sh0ql0",
     "modelName": "gemini-2.0-flash-001",
-    "matchPattern": "(?i)^(gemini-2.0-flash-001)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash-001)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-02-06T11:11:35.241Z",
-    "updatedAt": "2025-02-10T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8jdef0000tymz52sh0ql0_tier_default",
@@ -2119,9 +2119,9 @@
   {
     "id": "cm6l8jfgh0000tymz52sh0ql1",
     "modelName": "gemini-2.0-flash-lite-preview-02-05",
-    "matchPattern": "(?i)^(gemini-2.0-flash-lite-preview-02-05)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash-lite-preview-02-05)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-02-06T11:11:35.241Z",
-    "updatedAt": "2025-02-10T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8jfgh0000tymz52sh0ql1_tier_default",
@@ -2451,9 +2451,9 @@
   {
     "id": "cm7zsrs1327124dhjtb95w8f74",
     "modelName": "gemini-2.0-flash",
-    "matchPattern": "(?i)^(gemini-2.0-flash)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-04-22T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7zsrs1327124dhjtb95w8f74_tier_default",
@@ -2471,9 +2471,9 @@
   {
     "id": "cm7ztrs1327124dhjtb95w8f19",
     "modelName": "gemini-2.0-flash-lite-preview",
-    "matchPattern": "(?i)^(gemini-2.0-flash-lite-preview)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash-lite-preview)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-04-22T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7ztrs1327124dhjtb95w8f19_tier_default",
@@ -2769,9 +2769,9 @@
   {
     "id": "cmcnjkfwn000107l43bf5e8ax",
     "modelName": "gemini-2.5-flash",
-    "matchPattern": "(?i)^(gemini-2.5-flash)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-11-14T13:15:31.034Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -2801,9 +2801,9 @@
   {
     "id": "cmcnjkrfa000207l4fpnh5mnv",
     "modelName": "gemini-2.5-flash-lite",
-    "matchPattern": "(?i)^(gemini-2.5-flash-lite)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-11-14T13:15:31.034Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -3241,9 +3241,9 @@
   {
     "id": "cmig1hb7i000104l72qrzgc6h",
     "modelName": "gemini-2.5-pro",
-    "matchPattern": "(?i)^(gemini-2.5-pro)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2025-11-26T13:27:53.545Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -3301,9 +3301,9 @@
   {
     "id": "cmig1wmep000404l7fh6q5uog",
     "modelName": "gemini-3-pro-preview",
-    "matchPattern": "(?i)^(gemini-3-pro-preview)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-3-pro-preview)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2025-11-26T13:27:53.545Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmig1wmep000404l7fh6q5uog_tier_default",
