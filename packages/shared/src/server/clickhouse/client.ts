@@ -178,7 +178,7 @@ export const clickhouseClient = (
  * For data insertion, the schema transformation handles timezone conversion automatically.
  */
 export const convertDateToClickhouseDateTime = (date: Date): string => {
-  const useLocalTimezone = process.env.CLICKHOUSE_USE_LOCAL_TIMEZONE === "true";
+  const useLocalTimezone = env.CLICKHOUSE_USE_LOCAL_TIMEZONE === "true";
 
   if (useLocalTimezone) {
     // When ClickHouse uses local timezone, we need to format as local time
