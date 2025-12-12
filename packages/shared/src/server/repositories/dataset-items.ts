@@ -1367,7 +1367,7 @@ export async function getDatasetItemById<
 
       const statusFilter =
         status === "ACTIVE"
-          ? Prisma.sql`AND status = ${DatasetStatus.ACTIVE}::"DatasetStatus"`
+          ? Prisma.sql`AND status = 'ACTIVE'::"DatasetStatus"`
           : Prisma.empty;
 
       const result = await prisma.$queryRaw<DatasetItem[]>(
