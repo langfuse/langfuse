@@ -272,7 +272,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation1, observation2]);
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       // Focus on testing columns that require joins to other tables
       // (columns from traces table: userId, traceName, sessionId, traceTags, traceEnvironment)
