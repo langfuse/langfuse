@@ -157,7 +157,7 @@ export default class BackfillEventsHistoricFromParts
         WHERE database = 'default'
         AND table = 'observations_pid_tid_sorting'
         and active = 1
-        ORDER BY rand()
+        ORDER BY partition_id DESC
       `,
       tags: {
         feature: "background-migration",
