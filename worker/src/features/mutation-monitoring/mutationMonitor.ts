@@ -41,18 +41,12 @@ export class MutationMonitor {
   private static timeoutId: NodeJS.Timeout | null = null;
   private static pausedQueues: Set<QueueName> = new Set();
   private static isRunning = false;
-  private static readonly TABLES_TO_MONITOR = [
-    "traces",
-    "observations",
-    "scores",
-    "dataset_run_items_rmt",
-  ];
 
   // Mapping of which ClickHouse tables each deletion queue affects
   private static readonly QUEUE_TABLE_MAPPING: Partial<
     Record<QueueName, string[]>
   > = {
-    [QueueName.TraceDelete]: ["traces", "observations", "scores"],
+    [QueueName.TraceDelete]: ["traces", "observations", "scores", "events"],
     [QueueName.ScoreDelete]: ["scores"],
     [QueueName.DatasetDelete]: ["dataset_run_items_rmt"],
     [QueueName.ProjectDelete]: [
@@ -60,14 +54,19 @@ export class MutationMonitor {
       "observations",
       "scores",
       "dataset_run_items_rmt",
+      "events",
     ],
     [QueueName.DataRetentionProcessingQueue]: [
       "traces",
       "observations",
       "scores",
+      "events",
     ],
-    [QueueName.BatchActionQueue]: ["traces", "observations", "scores"],
   };
+
+  private static readonly TABLES_TO_MONITOR = Array.from(
+    new Set(Object.values(this.QUEUE_TABLE_MAPPING).flat()).values(),
+  );
 
   /**
    * Start the mutation monitoring service

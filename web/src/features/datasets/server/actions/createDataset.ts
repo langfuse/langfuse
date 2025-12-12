@@ -84,7 +84,6 @@ export const upsertDataset = async ({
             string,
             unknown
           > | null,
-          prisma,
         });
 
         if (!validationResult.isValid) {

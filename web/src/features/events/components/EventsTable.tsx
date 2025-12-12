@@ -22,6 +22,7 @@ import {
   type ObservationType,
   TableViewPresetTableName,
   BatchActionType,
+  ActionId,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -285,7 +286,7 @@ export default function ObservationsEventsTable({
 
   const tableActions: TableAction[] = [
     {
-      id: "observation-add-to-annotation-queue",
+      id: ActionId.ObservationAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
       description: "Add selected observations to an annotation queue.",
