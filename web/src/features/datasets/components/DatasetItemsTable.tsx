@@ -279,7 +279,7 @@ export function DatasetItemsTable({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
-                disabled={!hasAccess}
+                disabled={!hasAccess || !!selectedVersion}
                 onClick={() => {
                   setSelectedItemForEdit(id);
                   setEditDialogOpen(true);
@@ -289,7 +289,7 @@ export function DatasetItemsTable({
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={!hasAccess}
+                disabled={!hasAccess || !!selectedVersion}
                 onClick={() => {
                   capture("dataset_item:archive_toggle", {
                     status:
@@ -312,7 +312,7 @@ export function DatasetItemsTable({
                 {status === DatasetStatus.ARCHIVED ? "Unarchive" : "Archive"}
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={!hasAccess}
+                disabled={!hasAccess || !!selectedVersion}
                 className="text-destructive"
                 onClick={() => {
                   if (
