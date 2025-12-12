@@ -1358,8 +1358,8 @@ export async function getDatasetItemById<
     [Implementation.VERSIONED]: async () => {
       // Get latest version using raw SQL with subquery to filter after ordering
       const selectFields = includeIO
-        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt"'
-        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt"';
+        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt, valid_from AS "validFrom"'
+        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt, valid_from AS "validFrom"';
 
       const datasetFilter = props.datasetId
         ? Prisma.sql`AND dataset_id = ${props.datasetId}`
