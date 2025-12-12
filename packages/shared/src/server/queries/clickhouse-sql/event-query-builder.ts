@@ -218,9 +218,8 @@ const EVENTS_AGGREGATION_FIELDS = {
   default_count: "countIf(level = 'DEFAULT') as default_count",
   debug_count: "countIf(level = 'DEBUG') as debug_count",
 
-  // Legacy fields for backward compatibility
-  tags: "array() AS tags",
-  release: "'' AS release",
+  tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
+  release: "argMaxIf(release, event_ts, release <> '') AS release",
 } as const;
 
 /**

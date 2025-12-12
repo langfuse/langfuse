@@ -8,6 +8,7 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
+  createManyDatasetItems,
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -17,6 +18,7 @@ import { getTraceStream } from "../features/database-read-stream/trace-stream";
 // Set environment variable before any imports to ensure it's picked up by env module
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
+process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
@@ -1127,18 +1129,15 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is AI?" },
         expectedOutput: { answer: "Artificial Intelligence" },
         metadata: { category: "tech" },
-        sourceTraceId: null,
-        sourceObservationId: null,
+        sourceTraceId: undefined,
+        sourceObservationId: undefined,
       },
       {
         id: randomUUID(),
         datasetId,
-        projectId,
         status: DatasetStatus.ARCHIVED,
         input: { question: "What is ML?" },
         expectedOutput: { answer: "Machine Learning" },
@@ -1149,28 +1148,27 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
         sourceTraceId: randomUUID(),
-        sourceObservationId: null,
+        sourceObservationId: undefined,
       },
       {
         id: randomUUID(),
         datasetId: datasetId2,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
         sourceTraceId: randomUUID(),
-        sourceObservationId: null,
+        sourceObservationId: undefined,
       },
     ];
 
-    await prisma.datasetItem.createMany({ data: datasetItems });
+    await createManyDatasetItems({
+      projectId,
+      items: datasetItems,
+    });
 
     // Export dataset items
     const stream = await getDatabaseReadStreamPaginated({
@@ -1296,7 +1294,7 @@ describe("batch export test suite", () => {
         projectId,
         status: DatasetStatus.ACTIVE,
         sourceTraceId: traceId2,
-        sourceObservationId: null,
+        sourceObservationId: undefined,
         input: { from: "trace_only" },
       },
       {
@@ -1304,13 +1302,16 @@ describe("batch export test suite", () => {
         datasetId,
         projectId,
         status: DatasetStatus.ACTIVE,
-        sourceTraceId: null,
-        sourceObservationId: null,
+        sourceTraceId: undefined,
+        sourceObservationId: undefined,
         input: { from: "manual" },
       },
     ];
 
-    await prisma.datasetItem.createMany({ data: datasetItems });
+    await createManyDatasetItems({
+      projectId,
+      items: datasetItems,
+    });
 
     // Export dataset items
     const stream = await getDatabaseReadStreamPaginated({
