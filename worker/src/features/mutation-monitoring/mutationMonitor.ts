@@ -62,12 +62,6 @@ export class MutationMonitor {
       "scores",
       "events",
     ],
-    [QueueName.BatchActionQueue]: [
-      "traces",
-      "observations",
-      "scores",
-      "events",
-    ],
   };
 
   private static readonly TABLES_TO_MONITOR = Array.from(

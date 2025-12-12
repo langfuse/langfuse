@@ -7,7 +7,6 @@ import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
   setNoJobConfigsCache,
@@ -31,6 +30,7 @@ import {
   mapDatasetRunItemFilterColumn,
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -433,12 +433,21 @@ export const createEvalJobs = async ({
           Array<{ id: string }>
         >(Prisma.sql`
           SELECT id
-          FROM dataset_items as di
-          WHERE project_id = ${event.projectId}
-            AND id = ${event.datasetItemId}
-            ${condition}
+          FROM (
+            SELECT id, is_deleted
+            FROM dataset_items as di
+            WHERE project_id = ${event.projectId}
+              AND id = ${event.datasetItemId}
+              ${condition}
+            ORDER BY valid_from DESC
+            LIMIT 1
+          ) latest
+          WHERE is_deleted = false
         `);
-        datasetItem = datasetItems.shift();
+        const latestDatasetItem = datasetItems.shift();
+        datasetItem = latestDatasetItem
+          ? { id: latestDatasetItem.id }
+          : undefined;
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.
         // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.

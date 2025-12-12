@@ -304,14 +304,22 @@ export function CodeView(props: {
 }
 
 export const JsonSkeleton = ({
-  className,
   numRows = 10,
+  borderless = false,
+  className,
 }: {
   numRows?: number;
+  borderless?: boolean;
   className?: string;
 }) => {
   return (
-    <div className={cn("w-[400px] rounded-md border", className)}>
+    <div
+      className={cn(
+        "w-[400px] rounded-md",
+        borderless ? "" : "border",
+        className,
+      )}
+    >
       <div className="flex flex-col gap-1">
         {[...Array<number>(numRows)].map((_, i) => (
           <Skeleton

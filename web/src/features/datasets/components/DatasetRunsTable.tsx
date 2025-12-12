@@ -372,7 +372,7 @@ export function DatasetRunsTable(props: {
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
             aria-label="Select row"
-            className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
+            className="opacity-60"
           />
         );
       },
