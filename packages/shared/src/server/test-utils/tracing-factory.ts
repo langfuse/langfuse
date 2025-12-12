@@ -260,6 +260,7 @@ export const createEvent = (
     experiment_description: null,
     experiment_dataset_id: null,
     experiment_item_id: null,
+    experiment_item_version: null,
     experiment_item_expected_output: null,
     experiment_item_metadata_names: [],
     experiment_item_metadata_values: [],

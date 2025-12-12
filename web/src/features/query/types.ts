@@ -32,6 +32,7 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggs: z.record(z.string(), z.string()).optional(),
     }),
   ),
   tableRelations: z.record(
