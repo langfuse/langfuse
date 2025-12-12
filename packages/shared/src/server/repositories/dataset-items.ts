@@ -1160,7 +1160,6 @@ function buildDatasetItemsLatestCountGroupedQuery(
       COUNT(*) as count
     FROM latest_items di
     WHERE di.is_deleted = false
-      AND di.status = 'ACTIVE'
     GROUP BY di.dataset_id
   `;
 }
@@ -1368,7 +1367,7 @@ export async function getDatasetItemById<
 
       const statusFilter =
         status === "ACTIVE"
-          ? Prisma.sql`AND status = ${DatasetStatus.ACTIVE}`
+          ? Prisma.sql`AND status = ${DatasetStatus.ACTIVE}::"DatasetStatus"`
           : Prisma.empty;
 
       const result = await prisma.$queryRaw<DatasetItem[]>(

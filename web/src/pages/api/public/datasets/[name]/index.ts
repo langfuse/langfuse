@@ -44,7 +44,6 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         filterState: createDatasetItemFilterState({
           datasetIds: [dataset.id],
-          status: "ACTIVE",
         }),
         includeDatasetName: true,
       });
