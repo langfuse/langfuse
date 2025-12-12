@@ -1,9 +1,4 @@
 import { z } from "zod/v4";
-import {
-  selectAdapter,
-  SimpleChatMlArraySchema,
-  type NormalizerContext,
-} from "../../utils/chatml";
 
 /**
  * ClickHouse storage schema for tool definitions.
@@ -279,82 +274,30 @@ function extractToolCallsFromMessage(
 
 /**
  * Extract tool definitions and arguments from observation input/output.
- * Uses chatml adapters for consistent parsing across frontend and backend.
- * Also extracts directly from raw formats for robustness.
- * Returns arrays ready for ClickHouse storage.
- * Returns empty arrays if extraction fails or no tools found.
+ * Extracts directly from raw input/output formats.
  *
  * @param input - Raw observation input (before stringification)
  * @param output - Raw observation output (before stringification)
- * @param metadata - Optional observation metadata (may contain OTel tool definitions)
  * @returns Object with toolDefinitions and toolArguments arrays
  */
 export function extractToolsFromObservation(
   input: unknown,
   output: unknown,
-  metadata?: unknown,
 ): {
   toolDefinitions: ClickhouseToolDefinition[];
   toolArguments: ClickhouseToolArgument[];
 } {
   try {
-    const ctx: NormalizerContext = { metadata };
     const toolDefinitions: ClickhouseToolDefinition[] = [];
     const toolArguments: ClickhouseToolArgument[] = [];
 
-    // 1. Extract tool definitions from OTel metadata (highest priority)
-    extractToolsFromMetadata(metadata, toolDefinitions);
-
-    // 2. Extract tool definitions from raw input (handles cases adapters miss)
+    // Extract tool definitions from raw input
     extractToolsFromRawInput(input, toolDefinitions);
 
-    // 3. Extract via adapter preprocessing (handles complex formats)
-    const inputAdapter = selectAdapter({ ...ctx, data: input });
-    const preprocessedInput = inputAdapter.preprocess(input, "input", ctx);
-    const inputArray = Array.isArray(preprocessedInput)
-      ? preprocessedInput
-      : preprocessedInput != null
-        ? [preprocessedInput]
-        : [];
-    const inputResult = SimpleChatMlArraySchema.safeParse(inputArray);
-
-    if (inputResult.success) {
-      for (const msg of inputResult.data) {
-        // Access tools from the loosely-typed message
-        const msgAny = msg as Record<string, unknown>;
-        if (msgAny.tools && Array.isArray(msgAny.tools)) {
-          for (const tool of msgAny.tools) {
-            addToolDefinition(toolDefinitions, tool);
-          }
-        }
-      }
-    }
-
-    // 4. Extract tool calls from raw output (handles cases adapters miss)
+    // Extract tool calls from raw output
     extractToolCallsFromRawOutput(output, toolArguments);
 
-    // 5. Extract via adapter preprocessing (handles complex formats)
-    const outputAdapter = selectAdapter({ ...ctx, data: output });
-    const preprocessedOutput = outputAdapter.preprocess(output, "output", ctx);
-    const outputArray = Array.isArray(preprocessedOutput)
-      ? preprocessedOutput
-      : preprocessedOutput != null
-        ? [preprocessedOutput]
-        : [];
-    const outputResult = SimpleChatMlArraySchema.safeParse(outputArray);
-
-    if (outputResult.success) {
-      for (const msg of outputResult.data) {
-        const msgAny = msg as Record<string, unknown>;
-        if (msgAny.tool_calls && Array.isArray(msgAny.tool_calls)) {
-          for (const call of msgAny.tool_calls) {
-            addToolArgument(toolArguments, call);
-          }
-        }
-      }
-    }
-
-    // Deduplicate tool arguments by id (in case both raw and adapter extraction found same calls)
+    // Deduplicate tool arguments by id
     const seenIds = new Set<string>();
     const uniqueArgs = toolArguments.filter((arg) => {
       const key = arg.id || `${arg.name}-${arg.arguments}`;
@@ -366,7 +309,6 @@ export function extractToolsFromObservation(
     return { toolDefinitions, toolArguments: uniqueArgs };
   } catch (error) {
     console.error("Tool extraction error:", error);
-    // Fail gracefully - return empty arrays (caller handles logging)
     return { toolDefinitions: [], toolArguments: [] };
   }
 }

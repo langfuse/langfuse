@@ -866,14 +866,9 @@ export class IngestionService {
       const parsedOutput =
         typeof rawOutput === "string" ? JSON.parse(rawOutput) : rawOutput;
 
-      // Use raw metadata from merged record (before flattening)
-      const rawMetadataForExtraction = (mergedObservationRecord as any)
-        ._rawMetadata;
-
       const { toolDefinitions, toolArguments } = extractToolsFromObservation(
         parsedInput,
         parsedOutput,
-        rawMetadataForExtraction,
       );
       mergedObservationRecord.tool_definitions =
         convertDefinitionsToMap(toolDefinitions);
@@ -886,9 +881,6 @@ export class IngestionService {
       mergedObservationRecord.tool_definitions = {};
       mergedObservationRecord.tool_calls = {};
     }
-
-    // Clean up temporary raw metadata
-    delete (mergedObservationRecord as any)._rawMetadata;
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
@@ -1011,19 +1003,13 @@ export class IngestionService {
       immutableEntityKeys[TableName.Observations],
     );
 
-    // Keep raw metadata for tool extraction (temporary)
-    const rawMetadata = mergedRecord.metadata;
-
-    // Flatten metadata for validation/return
+    // If metadata exists, it is an object due to previous parsing
     mergedRecord.metadata = convertRecordValuesToString(
       (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
 
     const parsedObservationRecord =
       observationRecordInsertSchema.parse(mergedRecord);
-
-    // Attach raw metadata for later tool extraction
-    (parsedObservationRecord as any)._rawMetadata = rawMetadata;
 
     // Override endTimes that are before startTimes with the startTime
     if (
@@ -1706,7 +1692,9 @@ export class IngestionService {
           "completionStartTime" in obs.body && obs.body.completionStartTime
             ? this.getMillisecondTimestamp(obs.body.completionStartTime)
             : undefined,
-        metadata: obs.body.metadata ?? {}, // Keep raw for tool extraction
+        metadata: obs.body.metadata
+          ? convertJsonSchemaToRecord(obs.body.metadata)
+          : {},
         provided_model_name: "model" in obs.body ? obs.body.model : undefined,
         model_parameters:
           "modelParameters" in obs.body
