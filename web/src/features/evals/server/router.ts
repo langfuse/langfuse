@@ -789,7 +789,6 @@ export const evalRouter = createTRPCRouter({
           model: modelConfig.config.model,
           apiKey: modelConfig.config.apiKey,
           modelConfig: input.modelParams,
-          prompt: input.prompt,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
