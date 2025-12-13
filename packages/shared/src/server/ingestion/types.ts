@@ -219,15 +219,10 @@ export const UsageDetails = z
 const INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
   "Only alphanumeric lower case characters, hyphens, and underscores are allowed";
 
-const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
-  INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE +
-  " and it must not start with 'langfuse'";
-
 const PublicEnvironmentName = z
   .string()
   .toLowerCase()
   .max(40, "Maximum length is 40 characters")
-  .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
   .default("default");
 
 const InternalEnvironmentName = z
