@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    metrics:
+      docs: |
+        Get metrics from the Langfuse project using a query object. V2 endpoint with optimized performance.
+
+        ## V2 Differences
+        - Supports `observations`, `scores-numeric`, and `scores-categorical` views only (traces view not supported)
+        - Direct access to userId, sessionId, tags, and release fields on observations
+        - Does not support trace-specific dimensions: traceName, traceRelease, traceVersion
+
+        For more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).
+      method: GET
+      path: /v2/metrics
+      request:
+        name: GetMetricsV2Request
+        query-parameters:
+          query:
+            type: string
+            docs: |
+              JSON string containing the query parameters with the following structure:
+              ```json
+              {
+                "view": string,           // Required. One of "observations", "scores-numeric", "scores-categorical"
+                "dimensions": [           // Optional. Default: []
+                  {
+                    "field": string       // Field to group by, e.g. "name", "userId", "sessionId", "type"
+                  }
+                ],
+                "metrics": [              // Required. At least one metric must be provided
+                  {
+                    "measure": string,    // What to measure, e.g. "count", "latency", "value"
+                    "aggregation": string // How to aggregate, e.g. "count", "sum", "avg", "p95", "histogram"
+                  }
+                ],
+                "filters": [              // Optional. Default: []
+                  {
+                    "column": string,     // Column to filter on
+                    "operator": string,   // Operator, e.g. "=", ">", "<", "contains"
+                    "value": any,         // Value to compare against
+                    "type": string,       // Data type, e.g. "string", "number", "stringObject"
+                    "key": string         // Required only when filtering on metadata
+                  }
+                ],
+                "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                  "granularity": string   // One of "minute", "hour", "day", "week", "month", "auto"
+                },
+                "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+                "toTimestamp": string,    // Required. ISO datetime string for end of time range
+                "orderBy": [              // Optional. Default: null
+                  {
+                    "field": string,      // Field to order by
+                    "direction": string   // "asc" or "desc"
+                  }
+                ],
+                "config": {               // Optional. Query-specific configuration
+                  "bins": number,         // Optional. Number of bins for histogram (1-100), default: 10
+                  "row_limit": number     // Optional. Row limit for results (1-1000)
+                }
+              }
+              ```
+      response: MetricsV2Response
+types:
+  MetricsV2Response:
+    properties:
+      data:
+        type: list<map<string, unknown>>
+        docs: |
+          The metrics data. Each item in the list contains the metric values and dimensions requested in the query.
+          Format varies based on the query parameters.
+          Histograms will return an array with [lower, upper, height] tuples.
