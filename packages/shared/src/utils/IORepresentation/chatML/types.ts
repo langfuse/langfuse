@@ -4,7 +4,7 @@ import { z } from "zod/v4";
  * Schema for tool/function definitions in ChatML.
  * Used to define available tools for LLM function calling.
  */
-const ToolDefinitionSchema = z.object({
+export const ToolDefinitionSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   parameters: z.record(z.string(), z.any()).optional(),
@@ -14,7 +14,7 @@ const ToolDefinitionSchema = z.object({
  * Schema for tool/function call invocations in ChatML.
  * Represents an LLM's request to call a specific tool.
  */
-const ToolCallSchema = z.object({
+export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
   arguments: z.string(), // JSON string of arguments
@@ -246,3 +246,49 @@ const SimpleChatMessageSchema = z
  * Used for backend extraction - validates array has at least one message.
  */
 export const SimpleChatMlArraySchema = z.array(SimpleChatMessageSchema).min(1);
+
+/**
+ * Full ChatML message schema with frontend transforms.
+ *
+ * NOTE: Moved to shared package to enable testing.
+ * Reason: Worker tests cannot import from web package and
+ * in the current setup web tests cannot import from shared.
+ * Therefore, we moved frontend specific transformation logic to the
+ * shared package for now, until web tests can import from shared.
+ *
+ * Includes transforms for frontend rendering:
+ * - Spreads additional_kwargs into message (makes fields accessible)
+ * - Moves unknown fields to json property (enables PrettyJsonView)
+ */
+export const ChatMlMessageSchema = BaseChatMlMessageSchema.refine(
+  (value) => value.content !== null || value.role !== undefined,
+)
+  .transform(({ additional_kwargs, ...other }) => ({
+    ...other,
+    ...additional_kwargs,
+  }))
+  .transform(
+    ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      ...other
+    }) => ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      ...(Object.keys(other).length === 0 ? {} : { json: other }),
+    }),
+  );
+
+export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);

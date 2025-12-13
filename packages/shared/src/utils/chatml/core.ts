@@ -1,8 +1,18 @@
+/**
+ * ChatML core normalization functions.
+ *
+ * NOTE: Moved to shared package to enable testing
+ * because web can't import from worker. Also, web tests
+ * can't import from shared, so tested FE logic
+ */
 import { z } from "zod/v4";
 import {
   ChatMlArraySchema,
-  type ChatMlMessageSchema,
-} from "@/src/components/schemas/ChatMlSchema";
+  ChatMlMessageSchema,
+} from "../IORepresentation/chatML/types";
+import { selectAdapter, type NormalizerContext } from "./adapters";
+
+type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
 export function mapToChatMl(
   input: unknown,
@@ -88,7 +98,7 @@ export function combineInputOutputMessages(
   inputResult: ReturnType<typeof mapToChatMl>,
   outputResult: ReturnType<typeof mapOutputToChatMl>,
   cleanOutput: unknown,
-): ChatMlMessageSchema[] {
+): ChatMlMessage[] {
   if (!inputResult.success) {
     return [];
   }
@@ -106,9 +116,43 @@ export function combineInputOutputMessages(
             ...(typeof cleanOutput === "string"
               ? { content: cleanOutput }
               : { json: cleanOutput }),
-          } as ChatMlMessageSchema,
+          } as ChatMlMessage,
         ]),
   ];
 
   return combinedMessages;
+}
+
+/**
+ * Normalize input using shared adapters with frontend schema validation.
+ * Uses adapters from shared package but validates with strict frontend schema.
+ */
+export function normalizeInput(
+  input: unknown,
+  ctx: NormalizerContext = {},
+): ReturnType<typeof ChatMlArraySchema.safeParse> {
+  const adapter = selectAdapter({
+    ...ctx,
+    metadata: ctx.metadata ?? input,
+    data: input,
+  });
+  const preprocessed = adapter.preprocess(input, "input", ctx);
+  return mapToChatMl(preprocessed);
+}
+
+/**
+ * Normalize output using shared adapters with frontend schema validation.
+ * Uses adapters from shared package but validates with strict frontend schema.
+ */
+export function normalizeOutput(
+  output: unknown,
+  ctx: NormalizerContext = {},
+): ReturnType<typeof ChatMlArraySchema.safeParse> {
+  const adapter = selectAdapter({
+    ...ctx,
+    metadata: ctx.metadata ?? output,
+    data: output,
+  });
+  const preprocessed = adapter.preprocess(output, "output", ctx);
+  return mapOutputToChatMl(preprocessed);
 }

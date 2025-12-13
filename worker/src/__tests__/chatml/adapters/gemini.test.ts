@@ -1,40 +1,21 @@
-jest.mock("@langfuse/shared", () => {
-  const { z } = require("zod/v4");
+import { describe, it, expect } from "vitest";
+import {
+  geminiAdapter,
+  selectAdapter,
+  SimpleChatMlArraySchema,
+  type NormalizerContext,
+} from "@langfuse/shared";
 
-  return {
-    ChatMessageRole: {
-      System: "system",
-      Developer: "developer",
-      User: "user",
-      Assistant: "assistant",
-      Tool: "tool",
-      Model: "model",
-    },
-    BaseChatMlMessageSchema: z
-      .object({
-        role: z.string().optional(),
-        name: z.string().optional(),
-        content: z
-          .union([
-            z.record(z.string(), z.any()),
-            z.string(),
-            z.array(z.any()),
-            z.any(), // Simplified - was OpenAIContentSchema
-          ])
-          .nullish(),
-        audio: z.any().optional(),
-        additional_kwargs: z.record(z.string(), z.any()).optional(),
-        tools: z.array(z.any()).optional(),
-        tool_calls: z.array(z.any()).optional(),
-        tool_call_id: z.string().optional(),
-      })
-      .passthrough(),
-  };
-});
-
-import { geminiAdapter } from "./gemini";
-import type { NormalizerContext } from "../types";
-import { normalizeInput } from "./index";
+// Test helper
+function normalizeInput(input: unknown, ctx: NormalizerContext = {}) {
+  const adapter = selectAdapter({
+    ...ctx,
+    metadata: ctx.metadata ?? input,
+    data: input,
+  });
+  const preprocessed = adapter.preprocess(input, "input", ctx);
+  return SimpleChatMlArraySchema.safeParse(preprocessed);
+}
 
 describe("geminiAdapter", () => {
   describe("detect", () => {

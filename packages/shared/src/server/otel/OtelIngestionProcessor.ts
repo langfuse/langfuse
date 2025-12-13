@@ -1192,6 +1192,10 @@ export class OtelIngestionProcessor {
       ]),
     );
 
+    // TODO: Map gen_ai.tool.definitions to input.tools for backend extraction
+    // const toolDefs = attributes["gen_ai.tool.definitions"] || attributes["model_request_parameters"]?.function_tools;
+    // if (toolDefs && input && typeof input === "object") { input = { ...input, tools: toolDefs }; }
+
     // Langfuse
     input =
       domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]

@@ -45,6 +45,9 @@ import {
   hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
+  extractToolsFromObservation,
+  convertDefinitionsToMap,
+  convertCallsToMap,
   getDatasetItemById,
 } from "@langfuse/shared/src/server";
 
@@ -849,6 +852,35 @@ export class IngestionService {
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
         clickhouseObservationRecord?.output,
     );
+
+    // Extract tool definitions and arguments to store in clickhouse
+    try {
+      const rawInput = reversedRawRecords.find((r) => r?.body?.input)?.body
+        ?.input;
+      const rawOutput = reversedRawRecords.find((r) => r?.body?.output)?.body
+        ?.output;
+
+      // Parse JSON strings if needed (input/output might already be stringified)
+      const parsedInput =
+        typeof rawInput === "string" ? JSON.parse(rawInput) : rawInput;
+      const parsedOutput =
+        typeof rawOutput === "string" ? JSON.parse(rawOutput) : rawOutput;
+
+      const { toolDefinitions, toolArguments } = extractToolsFromObservation(
+        parsedInput,
+        parsedOutput,
+      );
+      mergedObservationRecord.tool_definitions =
+        convertDefinitionsToMap(toolDefinitions);
+      mergedObservationRecord.tool_calls = convertCallsToMap(toolArguments);
+    } catch (e) {
+      logger.warn("Failed to extract tools from observation", {
+        observationId: entityId,
+        error: e,
+      });
+      mergedObservationRecord.tool_definitions = {};
+      mergedObservationRecord.tool_calls = {};
+    }
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
