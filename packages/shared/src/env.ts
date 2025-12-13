@@ -273,10 +273,10 @@ const EnvSchema = z.object({
   // Dataset Service
   LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
 });
 
 export const env: z.infer<typeof EnvSchema> =
