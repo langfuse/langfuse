@@ -1173,7 +1173,6 @@ function buildDatasetItemsLatestCountGroupedQuery(
       COUNT(*) as count
     FROM latest_items di
     WHERE di.is_deleted = false
-      AND di.status = 'ACTIVE'
     GROUP BY di.dataset_id
   `;
 }
@@ -1385,9 +1384,7 @@ export async function getDatasetItemById<
         : Prisma.empty;
 
       const statusFilter =
-        status === "ACTIVE"
-          ? Prisma.sql`AND status = ${DatasetStatus.ACTIVE}`
-          : Prisma.empty;
+        status === "ACTIVE" ? Prisma.sql`AND status = 'ACTIVE'` : Prisma.empty;
 
       // Version filter: get item at or before specified timestamp
       const versionFilter = props.version
@@ -1461,7 +1458,9 @@ export async function getDatasetItemsAtVersion<
       // Use raw SQL if search or metadata filters are present
       const hasSearch = props.searchQuery && props.searchQuery !== "";
       const hasMetadataFilter = props.filterState.some(
-        (f) => f.column === "metadata" && f.type === "stringObject",
+        (f) =>
+          (f.column === "metadata" || f.column === "Metadata") &&
+          f.type === "stringObject",
       );
 
       if (hasSearch || hasMetadataFilter) {
@@ -1556,7 +1555,9 @@ export async function getDatasetItemsCountAtVersion(props: {
       // STATEFUL: Use raw SQL if search or metadata filters are present
       const hasSearch = props.searchQuery && props.searchQuery !== "";
       const hasMetadataFilter = props.filterState.some(
-        (f) => f.column === "metadata" && f.type === "stringObject",
+        (f) =>
+          (f.column === "metadata" || f.column === "Metadata") &&
+          f.type === "stringObject",
       );
 
       if (hasSearch || hasMetadataFilter) {

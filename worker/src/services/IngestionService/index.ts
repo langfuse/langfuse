@@ -482,6 +482,10 @@ export class IngestionService {
               ? new Date(event.body.createdAt).getTime()
               : new Date().getTime();
 
+            const datasetItemVersion = itemData.validFrom
+              ? itemData.validFrom.getTime()
+              : null;
+
             return [
               {
                 id: entityId,
@@ -504,6 +508,7 @@ export class IngestionService {
                   : {},
                 dataset_run_created_at: runData.createdAt.getTime(),
                 // enriched with item data
+                dataset_item_version: datasetItemVersion,
                 dataset_item_input: JSON.stringify(itemData.input),
                 dataset_item_expected_output: JSON.stringify(
                   itemData.expectedOutput,
