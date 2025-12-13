@@ -1433,7 +1433,9 @@ export async function getDatasetItemsByLatest<
       // STATEFUL: Use raw SQL if search or metadata filters are present
       const hasSearch = props.searchQuery && props.searchQuery !== "";
       const hasMetadataFilter = props.filterState.some(
-        (f) => f.column === "metadata" && f.type === "stringObject",
+        (f) =>
+          (f.column === "metadata" || f.column === "Metadata") &&
+          f.type === "stringObject",
       );
 
       if (hasSearch || hasMetadataFilter) {
@@ -1525,7 +1527,9 @@ export async function getDatasetItemsCountByLatest(props: {
       // STATEFUL: Use raw SQL if search or metadata filters are present
       const hasSearch = props.searchQuery && props.searchQuery !== "";
       const hasMetadataFilter = props.filterState.some(
-        (f) => f.column === "metadata" && f.type === "stringObject",
+        (f) =>
+          (f.column === "metadata" || f.column === "Metadata") &&
+          f.type === "stringObject",
       );
 
       if (hasSearch || hasMetadataFilter) {
