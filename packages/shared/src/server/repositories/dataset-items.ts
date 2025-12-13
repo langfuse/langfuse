@@ -1160,7 +1160,6 @@ function buildDatasetItemsLatestCountGroupedQuery(
       COUNT(*) as count
     FROM latest_items di
     WHERE di.is_deleted = false
-      AND di.status = 'ACTIVE'
     GROUP BY di.dataset_id
   `;
 }
