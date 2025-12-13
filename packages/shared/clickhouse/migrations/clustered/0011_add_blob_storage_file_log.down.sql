@@ -1,1 +1,1 @@
-DROP TABLE blob_storage_file_log ON CLUSTER default;
+DROP TABLE blob_storage_file_log ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME};
