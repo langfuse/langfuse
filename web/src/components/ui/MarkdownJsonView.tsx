@@ -13,7 +13,7 @@ import { type z } from "zod/v4";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 
 type MarkdownJsonViewHeaderProps = {
-  title: string;
+  title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
   handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;

@@ -38,9 +38,62 @@ const JsonExpansionContext = createContext<JsonExpansionContextValue>({
 
 export const useJsonExpansion = () => useContext(JsonExpansionContext);
 
+/**
+ * Storage key for JSON expansion state in sessionStorage
+ */
+const STORAGE_KEY = "trace2-jsonExpansionState";
+
+/**
+ * Read expansion state for a specific field directly from sessionStorage
+ * without subscribing to React context (avoids re-renders).
+ *
+ * @param field - Field name (e.g., "input", "output", "metadata")
+ * @returns Expansion state for the field, or {} if not found
+ */
+export function readExpansionFromStorage(field: string): ExpandedState {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (!stored) return {};
+
+    const parsed = JSON.parse(stored) as JsonExpansionState;
+    return parsed[field] ?? {};
+  } catch (error) {
+    console.error("Failed to read expansion state from storage", error);
+    return {};
+  }
+}
+
+/**
+ * Write expansion state for a specific field directly to sessionStorage
+ * without going through React context (avoids triggering re-renders).
+ *
+ * @param field - Field name (e.g., "input", "output", "metadata")
+ * @param state - Expansion state to save
+ */
+export function writeExpansionToStorage(
+  field: string,
+  state: ExpandedState,
+): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    const parsed: JsonExpansionState = stored
+      ? (JSON.parse(stored) as JsonExpansionState)
+      : { input: {}, output: {}, metadata: {}, log: {} };
+
+    (parsed as Record<string, ExpandedState>)[field] = state;
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+  } catch (error) {
+    console.error("Failed to write expansion state to storage", error);
+  }
+}
+
 export function JsonExpansionProvider({ children }: { children: ReactNode }) {
   const [expansionState, setExpansionState] =
-    useSessionStorage<JsonExpansionState>("trace2-jsonExpansionState", {
+    useSessionStorage<JsonExpansionState>(STORAGE_KEY, {
       input: {},
       output: {},
       metadata: {},

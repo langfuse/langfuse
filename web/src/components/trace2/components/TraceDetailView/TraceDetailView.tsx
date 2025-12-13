@@ -27,10 +27,10 @@ import {
 
 // Preview tab components
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import TagList from "@/src/features/tag/components/TagList";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
+import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
@@ -73,6 +73,15 @@ export function TraceDetailView({
 
   // Data fetching
   const traceMedia = useMedia({ projectId, traceId: trace.id });
+
+  // Parse trace I/O in background (Web Worker)
+  const { parsedInput, parsedOutput, parsedMetadata, isParsing } =
+    useParsedTrace({
+      traceId: trace.id,
+      input: trace.input,
+      output: trace.output,
+      metadata: trace.metadata,
+    });
 
   // Derived state
   const traceScores = useMemo(
@@ -202,11 +211,22 @@ export function TraceDetailView({
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
           <div className="flex w-full flex-col gap-2 overflow-y-auto">
-            {/* I/O Preview */}
+            {/* Tags Section */}
+            <div className="px-2 text-sm font-medium">Tags</div>
+            <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
+              <TagList selectedTags={trace.tags} isLoading={false} />
+            </div>
+
+            {/* I/O Preview (includes metadata in JSON view) */}
             <IOPreview
               key={trace.id + "-io"}
               input={trace.input ?? undefined}
               output={trace.output ?? undefined}
+              metadata={trace.metadata ?? undefined}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              parsedMetadata={parsedMetadata}
+              isParsing={isParsing}
               media={traceMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -217,29 +237,6 @@ export function TraceDetailView({
                 setFieldExpansion("output", exp)
               }
             />
-
-            {/* Tags Section */}
-            <div className="px-2 text-sm font-medium">Tags</div>
-            <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
-              <TagList selectedTags={trace.tags} isLoading={false} />
-            </div>
-
-            {/* Metadata Section */}
-            {trace.metadata && (
-              <div className="px-2">
-                <PrettyJsonView
-                  key={trace.id + "-metadata"}
-                  title="Metadata"
-                  json={trace.metadata}
-                  media={traceMedia.data?.filter((m) => m.field === "metadata")}
-                  currentView={currentView}
-                  externalExpansionState={expansionState.metadata}
-                  onExternalExpansionChange={(exp) =>
-                    setFieldExpansion("metadata", exp)
-                  }
-                />
-              </div>
-            )}
           </div>
         </TabsBarContent>
 
