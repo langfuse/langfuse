@@ -598,8 +598,8 @@ function TableBodyComponent<TData>({
         ))
       ) : (
         <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-y-1/2 items-center justify-center">
+          <TableCell colSpan={columns.length} className="h-24 text-center">
+            <div className="pointer-events-none flex h-full items-center justify-center">
               No results.{" "}
               {help && (
                 <DocPopup description={help.description} href={help.href} />
