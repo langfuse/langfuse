@@ -1,4 +1,4 @@
-import { env } from "../env";
+import { getEnv } from "../env";
 import winston from "winston";
 import { getCurrentSpan } from "./instrumentation";
 import { propagation, context } from "@opentelemetry/api";
@@ -28,6 +28,7 @@ const getWinstonLogger = (
   nodeEnv: "development" | "production" | "test",
   minLevel = "info",
 ) => {
+  const env = getEnv(); // Use lazy env loading
   const textLoggerFormat = winston.format.combine(
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
@@ -54,4 +55,21 @@ const getWinstonLogger = (
   });
 };
 
-export const logger = getWinstonLogger(env.NODE_ENV, env.LANGFUSE_LOG_LEVEL);
+let _logger: winston.Logger | null = null;
+
+export function getLogger(): winston.Logger {
+  if (_logger === null) {
+    const env = getEnv();
+    _logger = getWinstonLogger(env.NODE_ENV, env.LANGFUSE_LOG_LEVEL);
+  }
+  return _logger;
+}
+
+// For backward compatibility, create a getter proxy
+export const logger = new Proxy({} as winston.Logger, {
+  get(target, prop) {
+    const actualLogger = getLogger();
+    const value = actualLogger[prop as keyof winston.Logger];
+    return typeof value === "function" ? value.bind(actualLogger) : value;
+  },
+});
