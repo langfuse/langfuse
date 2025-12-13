@@ -66,9 +66,14 @@ export default withMiddlewares({
         where: {
           projectId: auth.scope.projectId,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [
+          {
+            id: "desc",
+          },
+          {
+            createdAt: "desc",
+          },
+        ],
         take: query.limit,
         skip: (query.page - 1) * query.limit,
       });
