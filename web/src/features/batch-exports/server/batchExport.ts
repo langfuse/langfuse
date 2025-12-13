@@ -76,6 +76,25 @@ export const batchExportRouter = createTRPCRouter({
         });
       }
     }),
+  cancel: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        batchExportId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "batchExports:create",
+      });
+
+      await ctx.prisma.batchExport.update({
+        where: { id: input.batchExportId, projectId: input.projectId },
+        data: { status: BatchExportStatus.CANCELLED },
+      });
+    }),
   all: protectedProjectProcedure
     .input(
       z.object({
