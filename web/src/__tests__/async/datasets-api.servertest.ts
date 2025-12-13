@@ -38,7 +38,7 @@ import {
   createDatasetRunItemsCh,
   createDatasetRunItem,
   getDatasetItemById,
-  getDatasetItemsByLatest,
+  getDatasetItemsAtVersion,
   createDatasetItemFilterState,
   createDatasetItem,
 } from "@langfuse/shared/src/server";
@@ -472,7 +472,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const dataset1 = await prisma.dataset.findUnique({
       where: { projectId_name: { projectId, name: "dataset-name" } },
     });
-    const dbDatasetItems = await getDatasetItemsByLatest({
+    const dbDatasetItems = await getDatasetItemsAtVersion({
       projectId: projectId,
       filterState: createDatasetItemFilterState({
         datasetIds: [dataset1!.id],
@@ -518,7 +518,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const dataset2 = await prisma.dataset.findUnique({
       where: { projectId_name: { projectId, name: "dataset-name-other" } },
     });
-    const dbDatasetItemsOther = await getDatasetItemsByLatest({
+    const dbDatasetItemsOther = await getDatasetItemsAtVersion({
       projectId: projectId,
       filterState: createDatasetItemFilterState({
         datasetIds: [dataset2!.id],
