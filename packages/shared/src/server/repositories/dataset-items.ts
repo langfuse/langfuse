@@ -1358,17 +1358,15 @@ export async function getDatasetItemById<
     [Implementation.VERSIONED]: async () => {
       // Get latest version using raw SQL with subquery to filter after ordering
       const selectFields = includeIO
-        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt"'
-        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt"';
+        ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"'
+        : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"';
 
       const datasetFilter = props.datasetId
         ? Prisma.sql`AND dataset_id = ${props.datasetId}`
         : Prisma.empty;
 
       const statusFilter =
-        status === "ACTIVE"
-          ? Prisma.sql`AND status = 'ACTIVE'::"DatasetStatus"`
-          : Prisma.empty;
+        status === "ACTIVE" ? Prisma.sql`AND status = 'ACTIVE'` : Prisma.empty;
 
       const result = await prisma.$queryRaw<DatasetItem[]>(
         Prisma.sql`
@@ -1434,7 +1432,9 @@ export async function getDatasetItemsByLatest<
       // STATEFUL: Use raw SQL if search or metadata filters are present
       const hasSearch = props.searchQuery && props.searchQuery !== "";
       const hasMetadataFilter = props.filterState.some(
-        (f) => f.column === "metadata" && f.type === "stringObject",
+        (f) =>
+          (f.column === "metadata" || f.column === "Metadata") &&
+          f.type === "stringObject",
       );
 
       if (hasSearch || hasMetadataFilter) {
@@ -1526,7 +1526,9 @@ export async function getDatasetItemsCountByLatest(props: {
       // STATEFUL: Use raw SQL if search or metadata filters are present
       const hasSearch = props.searchQuery && props.searchQuery !== "";
       const hasMetadataFilter = props.filterState.some(
-        (f) => f.column === "metadata" && f.type === "stringObject",
+        (f) =>
+          (f.column === "metadata" || f.column === "Metadata") &&
+          f.type === "stringObject",
       );
 
       if (hasSearch || hasMetadataFilter) {
