@@ -228,6 +228,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           project_id: newProjectId,
           user_id: userId,
           tags: traceTags,
+          session_id: sessionId,
         });
 
         const trace_2 = createTrace({
@@ -393,16 +394,19 @@ describe("/api/public/v2/scores API Endpoint", () => {
               sessionId: null,
             });
           } else {
+            if (val.sessionId === sessionId) {
+              expect(val.trace).toMatchObject({ userId });
+            } else {
+              expect(val.trace).toBeNull();
+            }
             expect(val).toEqual(
               expect.objectContaining({
-                trace: null,
                 ...(val.sessionId === sessionId ? { sessionId } : {}),
                 ...(val.datasetRunId
                   ? { datasetRunId: expect.any(String) }
                   : {}),
               }),
             );
-            // Check that one of the two conditions is true
             expect(
               val.sessionId === sessionId || val.datasetRunId,
             ).toBeTruthy();
@@ -479,6 +483,38 @@ describe("/api/public/v2/scores API Endpoint", () => {
           expect(val.trace?.tags?.sort()).toEqual(["prod", "test"].sort());
           expect(val.trace?.userId).toBe("user-name");
         }
+      });
+
+      it("should include session scores when filtering by user ID", async () => {
+        const getAllScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?userId=${userId}`,
+          undefined,
+          authentication,
+        );
+
+        expect(getAllScore.status).toBe(200);
+        expect(getAllScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 7,
+          totalPages: 1,
+        });
+        expect(getAllScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_6,
+              sessionId,
+              trace: expect.objectContaining({ userId }),
+            }),
+            expect.objectContaining({
+              id: scoreId_7,
+              sessionId,
+              trace: expect.objectContaining({ userId }),
+            }),
+          ]),
+        );
       });
 
       it("get all scores for environment 'production'", async () => {
@@ -609,9 +645,14 @@ describe("/api/public/v2/scores API Endpoint", () => {
           expect(getScore.body.meta).toMatchObject({
             page: 1,
             limit: 50,
-            totalItems: 3,
+            totalItems: 4,
             totalPages: 1,
           });
+          expect(getScore.body.data).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ id: scoreId_6 }),
+            ]),
+          );
         });
 
         it("test only value", async () => {
@@ -626,9 +667,14 @@ describe("/api/public/v2/scores API Endpoint", () => {
           expect(getScore.body.meta).toMatchObject({
             page: 1,
             limit: 50,
-            totalItems: 3,
+            totalItems: 4,
             totalPages: 1,
           });
+          expect(getScore.body.data).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ id: scoreId_6 }),
+            ]),
+          );
         });
 
         it("test operator <", async () => {
@@ -667,16 +713,23 @@ describe("/api/public/v2/scores API Endpoint", () => {
           expect(getScore.body.meta).toMatchObject({
             page: 1,
             limit: 50,
-            totalItems: 1,
+            totalItems: 2,
             totalPages: 1,
           });
-          expect(getScore.body.data).toMatchObject([
-            {
-              id: scoreId_3,
-              name: scoreName,
-              value: 100.8,
-            },
-          ]);
+          expect(getScore.body.data).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                id: scoreId_3,
+                name: scoreName,
+                value: 100.8,
+              }),
+              expect.objectContaining({
+                id: scoreId_6,
+                name: scoreName,
+                value: 100.5,
+              }),
+            ]),
+          );
         });
 
         it("test operator <=", async () => {
@@ -722,7 +775,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           expect(getScore.body.meta).toMatchObject({
             page: 1,
             limit: 50,
-            totalItems: 2,
+            totalItems: 3,
             totalPages: 1,
           });
           expect(getScore.body.data).toEqual(
@@ -736,6 +789,11 @@ describe("/api/public/v2/scores API Endpoint", () => {
                 id: scoreId_2,
                 name: scoreName,
                 value: 50.5,
+              }),
+              expect.objectContaining({
+                id: scoreId_6,
+                name: scoreName,
+                value: 100.5,
               }),
             ]),
           );
@@ -753,7 +811,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           expect(getScore.body.meta).toMatchObject({
             page: 1,
             limit: 50,
-            totalItems: 2,
+            totalItems: 3,
             totalPages: 1,
           });
           expect(getScore.body.data).toEqual(
@@ -767,6 +825,11 @@ describe("/api/public/v2/scores API Endpoint", () => {
                 id: scoreId_1,
                 name: scoreName,
                 value: 10.5,
+              }),
+              expect.objectContaining({
+                id: scoreId_6,
+                name: scoreName,
+                value: 100.5,
               }),
             ]),
           );
@@ -888,12 +951,14 @@ describe("/api/public/v2/scores API Endpoint", () => {
               sessionId: sessionId,
               name: scoreName,
               value: 100.5,
+              trace: expect.objectContaining({ userId }),
             }),
             expect.objectContaining({
               id: scoreId_7,
               sessionId: sessionId,
               name: "session-score-name",
               value: 100.5,
+              trace: expect.objectContaining({ userId }),
             }),
           ]),
         );

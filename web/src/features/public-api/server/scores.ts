@@ -41,13 +41,14 @@ export const _handleGenerateScoresForPublicApi = async ({
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
 }) => {
-  const { scoresFilter, tracesFilter } = generateScoreFilter(props);
+  const { scoresFilter, tracesFilter, userIdFilter } =
+    generateScoreFilter(props);
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
   const query = `
       SELECT
-          t.user_id as user_id,
+          COALESCE(t.user_id, st.session_user_id) as user_id,
           t.tags as tags,
           t.environment as trace_environment,
           s.id as id,
@@ -74,6 +75,17 @@ export const _handleGenerateScoresForPublicApi = async ({
           scores s
           LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
+          LEFT JOIN (
+            SELECT
+              session_id,
+              project_id,
+              anyLast(user_id) AS session_user_id
+            FROM __TRACE_TABLE__
+            WHERE session_id IS NOT NULL
+              AND project_id = {projectId: String}
+            GROUP BY session_id, project_id
+          ) st ON s.session_id = st.session_id
+          AND s.project_id = st.project_id
       WHERE
           s.project_id = {projectId: String}
           AND (
@@ -97,6 +109,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
           ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
           ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+          ${userIdFilter ? `AND COALESCE(t.user_id, st.session_user_id) = {userIdFilter: String}` : ""}
       ORDER BY
           s.timestamp desc, s.event_ts desc
       LIMIT
@@ -116,6 +129,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         ...(props.page !== undefined
           ? { offset: (props.page - 1) * props.limit }
           : {}),
+        ...(userIdFilter ? { userIdFilter } : {}),
       },
       tags: {
         feature: "scoring",
@@ -128,12 +142,12 @@ export const _handleGenerateScoresForPublicApi = async ({
     fn: async (input) => {
       const records = await queryClickhouse<
         ScoreRecordReadType & {
-          tags: string[];
-          user_id: string;
-          trace_environment: string;
+          tags: string[] | null;
+          user_id: string | null;
+          trace_environment: string | null;
         }
       >({
-        query: query.replace("__TRACE_TABLE__", "traces"),
+        query: query.replaceAll("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: input.tags,
         preferredClickhouseService: "ReadOnly",
@@ -142,7 +156,7 @@ export const _handleGenerateScoresForPublicApi = async ({
       return records.map((record) => ({
         ...convertClickhouseScoreToDomain(record),
         trace:
-          record.trace_id !== null
+          record.trace_id !== null || record.user_id !== null
             ? {
                 userId: record.user_id,
                 tags: record.tags,
@@ -166,7 +180,8 @@ export const _handleGetScoresCountForPublicApi = async ({
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
 }) => {
-  const { scoresFilter, tracesFilter } = generateScoreFilter(props);
+  const { scoresFilter, tracesFilter, userIdFilter } =
+    generateScoreFilter(props);
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
@@ -178,6 +193,17 @@ export const _handleGetScoresCountForPublicApi = async ({
         scores s
           LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
           AND s.project_id = t.project_id
+          LEFT JOIN (
+            SELECT
+              session_id,
+              project_id,
+              anyLast(user_id) AS session_user_id
+            FROM __TRACE_TABLE__
+            WHERE session_id IS NOT NULL
+              AND project_id = {projectId: String}
+            GROUP BY session_id, project_id
+          ) st ON s.session_id = st.session_id
+          AND s.project_id = st.project_id
       WHERE
         s.project_id = {projectId: String}
       AND (
@@ -200,6 +226,7 @@ export const _handleGetScoresCountForPublicApi = async ({
       )
       ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+      ${userIdFilter ? `AND COALESCE(t.user_id, st.session_user_id) = {userIdFilter: String}` : ""}
       `;
 
   return measureAndReturn({
@@ -210,6 +237,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         ...appliedScoresFilter.params,
         ...appliedTracesFilter.params,
         projectId: props.projectId,
+        ...(userIdFilter ? { userIdFilter } : {}),
       },
       tags: {
         feature: "scoring",
@@ -221,7 +249,7 @@ export const _handleGetScoresCountForPublicApi = async ({
     },
     fn: async (input) => {
       const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
+        query: query.replaceAll("__TRACE_TABLE__", "traces"),
         params: input.params,
         tags: input.tags,
         preferredClickhouseService: "ReadOnly",
@@ -365,10 +393,15 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
     }),
   );
 
-  const tracesFilter = convertApiProvidedFilterToClickhouseFilter(
+  const tracesFilterWithUser = convertApiProvidedFilterToClickhouseFilter(
     filter,
     secureTraceFilterOptions,
   );
 
-  return { scoresFilter, tracesFilter };
+  const userIdFilter = filter.userId ?? undefined;
+  const tracesFilter = userIdFilter
+    ? tracesFilterWithUser.filter((f) => f.field !== "user_id")
+    : tracesFilterWithUser;
+
+  return { scoresFilter, tracesFilter, userIdFilter };
 };
