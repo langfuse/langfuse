@@ -20,7 +20,7 @@
       "https://staging.langfuse.com/api/public/slack/oauth"
     ],
     "scopes": {
-      "bot": ["channels:read", "chat:write", "chat:write.public"]
+      "bot": ["channels:read", "chat:write", "chat:write.public", "groups:read"]
     }
   },
   "settings": {
