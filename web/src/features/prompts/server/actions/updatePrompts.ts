@@ -52,13 +52,18 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
       touchedPromptIds.push(prompt.id);
 
-      const newLabelsSet = new Set([...newLabels, ...prompt.labels]);
+      // Preserve "latest" label if it exists in the current labels
+      // This ensures "latest" cannot be removed by the user
+      const finalLabels = new Set(newLabels);
+      if (prompt.labels.includes("latest")) {
+        finalLabels.add("latest");
+      }
+
       const removedLabels = [];
 
-      // Prompt labels cannot be removed here since the newLabelsSet includes the old labels
-      // Keeping this dependent check below as a safeguard in case the above changes
+      // Identify labels that are being removed
       for (const oldLabel of prompt.labels) {
-        if (!newLabelsSet.has(oldLabel)) {
+        if (!finalLabels.has(oldLabel)) {
           removedLabels.push(oldLabel);
         }
       }
@@ -103,7 +108,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
       logger.info(
         `Setting labels for prompt: ${prompt.id}, ${prompt.name}, ${prompt.version}, ${JSON.stringify(
-          Array.from(newLabelsSet),
+          Array.from(finalLabels),
         )}`,
       );
 
@@ -130,7 +135,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
           },
           data: {
             labels: {
-              set: Array.from(newLabelsSet),
+              set: Array.from(finalLabels),
             },
           },
         }),
