@@ -59,6 +59,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 
 export interface ObservationDetailViewProps {
@@ -258,6 +259,12 @@ export function ObservationDetailView({
             />
             <LevelBadge level={observation.level} />
             <StatusMessageBadge statusMessage={observation.statusMessage} />
+            {observation.promptId && (
+              <PromptBadge
+                promptId={observation.promptId}
+                projectId={projectId}
+              />
+            )}
           </div>
         </div>
       </div>
