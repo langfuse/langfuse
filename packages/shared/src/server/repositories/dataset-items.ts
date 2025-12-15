@@ -1226,7 +1226,7 @@ function convertLatestRowToDomain<
  * Internal function to get latest dataset items using raw SQL.
  * Returns DatasetItemDomain objects with optional IO fields.
  */
-async function getDatasetItemsAtVersionInternal<
+async function getDatasetItemsInternal<
   IncludeIO extends boolean,
   IncludeDatasetName extends boolean = false,
 >(params: {
@@ -1294,27 +1294,6 @@ async function getDatasetItemsCountAtVersionInternal(params: {
   const result = await prisma.$queryRaw<Array<{ count: bigint }>>(query);
 
   return result.length > 0 ? Number(result[0].count) : 0;
-}
-
-/**
- * Internal function to count latest dataset items grouped by dataset_id using raw SQL.
- */
-async function getDatasetItemsCountAtVersionGroupedInternal(params: {
-  projectId: string;
-  datasetIds: string[];
-}): Promise<Array<{ datasetId: string; count: number }>> {
-  const query = buildDatasetItemsLatestCountGroupedQuery(
-    params.projectId,
-    params.datasetIds,
-  );
-
-  const result =
-    await prisma.$queryRaw<Array<{ dataset_id: string; count: bigint }>>(query);
-
-  return result.map((row) => ({
-    datasetId: row.dataset_id,
-    count: Number(row.count),
-  }));
 }
 
 /**
@@ -1423,7 +1402,7 @@ export async function getDatasetItemById<
  * @param searchQuery - Optional full-text search query (searches id, input, expectedOutput, metadata)
  * @param searchType - Search types: ["id"], ["content"], or ["id", "content"]
  */
-export async function getDatasetItemsAtVersion<
+export async function getDatasetItems<
   IncludeIO extends boolean = true,
   IncludeDatasetName extends boolean = false,
 >(props: {
@@ -1520,7 +1499,7 @@ export async function getDatasetItemsAtVersion<
     },
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: FilterState → SQL directly, version-aware
-      return getDatasetItemsAtVersionInternal({
+      return getDatasetItemsInternal({
         projectId: props.projectId,
         includeIO,
         includeDatasetName,
@@ -1543,7 +1522,7 @@ export async function getDatasetItemsAtVersion<
  * @param searchType - Search types: ["id"], ["content"], or ["id", "content"]
  * @param version - Optional version to count items at. Defaults to latest version if no version is provided.
  */
-export async function getDatasetItemsCountAtVersion(props: {
+export async function getDatasetItemsCount(props: {
   projectId: string;
   filterState: FilterState;
   version?: Date;
@@ -1593,7 +1572,7 @@ export async function getDatasetItemsCountAtVersion(props: {
   });
 }
 
-export async function getDatasetItemsCountAtVersionGrouped(props: {
+export async function getDatasetItemsCountGrouped(props: {
   projectId: string;
   datasetIds: string[];
 }): Promise<Array<{ datasetId: string; count: number }>> {
@@ -1615,11 +1594,20 @@ export async function getDatasetItemsCountAtVersionGrouped(props: {
       }));
     },
     [Implementation.VERSIONED]: async () => {
-      const results = await getDatasetItemsCountAtVersionGroupedInternal({
-        projectId: props.projectId,
-        datasetIds: props.datasetIds,
-      });
-      return results;
+      const query = buildDatasetItemsLatestCountGroupedQuery(
+        props.projectId,
+        props.datasetIds,
+      );
+
+      const result =
+        await prisma.$queryRaw<Array<{ dataset_id: string; count: bigint }>>(
+          query,
+        );
+
+      return result.map((row) => ({
+        datasetId: row.dataset_id,
+        count: Number(row.count),
+      }));
     },
   });
 }

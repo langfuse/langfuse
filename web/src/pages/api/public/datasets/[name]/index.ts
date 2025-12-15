@@ -10,7 +10,7 @@ import {
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import {
   createDatasetItemFilterState,
-  getDatasetItemsAtVersion,
+  getDatasetItems,
 } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
@@ -40,7 +40,7 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Dataset not found");
       }
 
-      const datasetItems = await getDatasetItemsAtVersion({
+      const datasetItems = await getDatasetItems({
         projectId: auth.scope.projectId,
         filterState: createDatasetItemFilterState({
           datasetIds: [dataset.id],

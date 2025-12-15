@@ -15,7 +15,7 @@ import {
   listDatasetVersions,
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
-  getDatasetItemsAtVersion,
+  getDatasetItems,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -552,7 +552,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
     });
   });
 
-  describe("getDatasetItemsAtVersion() with version parameter", () => {
+  describe("getDatasetItems() with version parameter", () => {
     it("should return current items when no version specified", async () => {
       const datasetId = v4();
       await prisma.dataset.create({
@@ -571,7 +571,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         input: { item: 2 },
       });
 
-      const items = await getDatasetItemsAtVersion({
+      const items = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
       });
@@ -608,7 +608,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         validateOpts: {},
       });
 
-      const items = await getDatasetItemsAtVersion({
+      const items = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
         version: midpointTimestamp,
@@ -644,7 +644,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         validateOpts: {},
       });
 
-      const items = await getDatasetItemsAtVersion({
+      const items = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
         version: versionTimestamp,
@@ -691,7 +691,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       await delay(10);
       const afterDeleteTimestamp = new Date();
 
-      const items = await getDatasetItemsAtVersion({
+      const items = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
         version: afterDeleteTimestamp,
@@ -751,7 +751,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         datasetId,
       });
 
-      const items = await getDatasetItemsAtVersion({
+      const items = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
         version: versionTimestamp,
@@ -1323,7 +1323,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       const t2 = new Date();
 
       // Verify dataset state at T0: 2 items
-      const itemsAtT0 = await getDatasetItemsAtVersion({
+      const itemsAtT0 = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
         version: t0,
@@ -1331,7 +1331,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(itemsAtT0.length).toBe(2);
 
       // Verify dataset state at T1: 3 items
-      const itemsAtT1 = await getDatasetItemsAtVersion({
+      const itemsAtT1 = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
         version: t1,
@@ -1339,7 +1339,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(itemsAtT1.length).toBe(3);
 
       // Verify dataset state at T2: 2 items (one deleted)
-      const itemsAtT2 = await getDatasetItemsAtVersion({
+      const itemsAtT2 = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
         version: t2,

@@ -6,7 +6,7 @@ import {
   eventTypes,
   ExperimentCreateEventSchema,
   fetchLLMCompletion,
-  getDatasetItemsAtVersion,
+  getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
@@ -209,7 +209,7 @@ async function getItemsToProcess(
   config: PromptExperimentConfig,
 ) {
   // Fetch all dataset items
-  const datasetItems = await getDatasetItemsAtVersion({
+  const datasetItems = await getDatasetItems({
     projectId,
     filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],
@@ -348,7 +348,7 @@ async function createAllDatasetRunItemsWithConfigError(
   errorMessage: string,
 ) {
   // Fetch all dataset items
-  const datasetItems = await getDatasetItemsAtVersion({
+  const datasetItems = await getDatasetItems({
     projectId,
     filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],

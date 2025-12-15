@@ -12,7 +12,7 @@ import { upsertDataset } from "@/src/features/datasets/server/actions/createData
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createDatasetItemFilterState,
-  getDatasetItemsAtVersion,
+  getDatasetItems,
 } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
@@ -91,7 +91,7 @@ export default withMiddlewares({
         skip: (page - 1) * limit,
       });
 
-      const datasetItems = await getDatasetItemsAtVersion({
+      const datasetItems = await getDatasetItems({
         projectId: auth.scope.projectId,
         filterState: createDatasetItemFilterState({
           datasetIds: datasets.map(({ id }) => id),

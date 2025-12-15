@@ -1,7 +1,4 @@
-import {
-  createDatasetItemFilterState,
-  getDatasetItemsAtVersion,
-} from "../repositories";
+import { createDatasetItemFilterState, getDatasetItems } from "../repositories";
 import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
 import type { DatasetSchemaValidationError } from "./schemaTypes";
 
@@ -55,7 +52,7 @@ export async function validateAllDatasetItems(params: {
 
   while (errors.length < MAX_ERRORS) {
     // Fetch batch
-    const items = await getDatasetItemsAtVersion({
+    const items = await getDatasetItems({
       projectId,
       filterState: createDatasetItemFilterState({
         datasetIds: [datasetId],

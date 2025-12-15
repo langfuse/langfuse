@@ -15,7 +15,7 @@ import {
   getObservationsGroupedByTraceId,
   getScoresForTraces,
   traceException,
-  getDatasetItemsAtVersion,
+  getDatasetItems,
   getDatasetItemsCountAtVersion,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
@@ -67,7 +67,7 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   ];
 
   const [datasetItems, totalCount] = await Promise.all([
-    getDatasetItemsAtVersion({
+    getDatasetItems({
       projectId: input.projectId,
       filterState,
       version: input.version,

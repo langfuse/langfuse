@@ -11,7 +11,7 @@ import {
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import {
   createDatasetItemFilterState,
-  getDatasetItemsAtVersion,
+  getDatasetItems,
   getDatasetItemsCountAtVersion,
   logger,
   upsertDatasetItem,
@@ -121,7 +121,7 @@ export default withMiddlewares({
         sourceTraceId: sourceTraceId ?? undefined,
         sourceObservationId: sourceObservationId ?? undefined,
       });
-      const items = await getDatasetItemsAtVersion({
+      const items = await getDatasetItems({
         projectId: auth.scope.projectId,
         filterState,
         includeDatasetName: true,

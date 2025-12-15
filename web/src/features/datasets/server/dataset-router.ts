@@ -54,7 +54,7 @@ import {
   DatasetJSONSchema,
   type DatasetMutationResult,
   getDatasetItemById,
-  getDatasetItemsAtVersion,
+  getDatasetItems,
   getDatasetItemsCountAtVersion,
   getDatasetItemsCountAtVersionGrouped,
   createDatasetItemFilterState,
@@ -1109,7 +1109,7 @@ export const datasetRouter = createTRPCRouter({
       const validFrom = new Date();
 
       while (true) {
-        const itemsBatch = await getDatasetItemsAtVersion({
+        const itemsBatch = await getDatasetItems({
           projectId: input.projectId,
           filterState: createDatasetItemFilterState({
             datasetIds: [input.datasetId],
@@ -1492,7 +1492,7 @@ export const datasetRouter = createTRPCRouter({
 
       const [runData, items] = await Promise.all([
         enrichAndMapToDatasetItemId(projectId, datasetRunItems),
-        getDatasetItemsAtVersion({
+        getDatasetItems({
           projectId: input.projectId,
           filterState: createDatasetItemFilterState({
             datasetIds: [datasetId],
@@ -1551,7 +1551,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const items = await getDatasetItemsAtVersion({
+      const items = await getDatasetItems({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
           sourceTraceId: input.traceId,
