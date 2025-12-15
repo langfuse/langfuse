@@ -17,6 +17,7 @@ import {
   logger,
   createDatasetRunItemsCh,
   createDatasetRunItem,
+  createDatasetItem,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
@@ -362,23 +363,23 @@ describe("select all test suite", () => {
       },
     });
 
-    const datasetItem1 = await prisma.datasetItem.create({
-      data: {
-        id: uuidv4(),
-        datasetId: dataset.id,
-        input: "Hello, world!",
-        projectId,
-      },
+    const res1 = await createDatasetItem({
+      projectId,
+      datasetId: dataset.id,
+      input: "Hello, world!",
     });
 
-    const datasetItem2 = await prisma.datasetItem.create({
-      data: {
-        id: uuidv4(),
-        datasetId: dataset.id,
-        input: "Hello, world!",
-        projectId,
-      },
+    const res2 = await createDatasetItem({
+      projectId,
+      datasetId: dataset.id,
+      input: "Hello, world!",
     });
+
+    if (!res1.success || !res2.success) {
+      throw new Error("Failed to create dataset item");
+    }
+    const datasetItem1 = res1.datasetItem;
+    const datasetItem2 = res2.datasetItem;
 
     const runId = uuidv4();
 

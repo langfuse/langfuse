@@ -44,6 +44,7 @@ import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
 
 export const ObservationPreview = ({
   observations,
@@ -525,29 +526,5 @@ export const ObservationPreview = ({
         </TabsBar>
       </div>
     </div>
-  );
-};
-
-const PromptBadge = (props: { promptId: string; projectId: string }) => {
-  const prompt = api.prompts.byId.useQuery({
-    id: props.promptId,
-    projectId: props.projectId,
-  });
-
-  if (prompt.isLoading || !prompt.data) return null;
-  return (
-    <Link
-      href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
-      className="inline-flex"
-    >
-      <Badge variant="tertiary">
-        <span className="truncate">
-          Prompt: {prompt.data.name}
-          {" - v"}
-          {prompt.data.version}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
   );
 };

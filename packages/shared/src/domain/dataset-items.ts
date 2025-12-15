@@ -12,6 +12,7 @@ export type DatasetItemDomain = Pick<
   | "sourceObservationId"
   | "createdAt"
   | "updatedAt"
+  | "validFrom"
 > & {
   status: DatasetStatus;
 };

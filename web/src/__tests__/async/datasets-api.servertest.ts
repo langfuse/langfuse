@@ -2,6 +2,7 @@
 // Set environment variable before any imports to ensure it's picked up by env module
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
+process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -37,8 +38,9 @@ import {
   createDatasetRunItemsCh,
   createDatasetRunItem,
   getDatasetItemById,
-  getDatasetItemsByLatest,
   createDatasetItemFilterState,
+  createDatasetItem,
+  getDatasetItems,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
@@ -285,8 +287,6 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
   });
 
   it("should return 404 when trying to update dataset item that exists in different dataset of the same project", async () => {
-    const datasetItemId = v4();
-
     const dataset = await prisma.dataset.create({
       data: {
         name: "dataset-name-1",
@@ -301,13 +301,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
 
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        datasetId: dataset.id,
-        projectId: projectId,
-      },
+    const res = await createDatasetItem({
+      projectId: projectId,
+      datasetId: dataset.id,
     });
+
+    if (!res.success) {
+      throw new Error("Failed to create dataset item");
+    }
+    const datasetItemId = res.datasetItem.id;
 
     const response = await makeAPICall(
       "POST",
@@ -470,7 +472,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const dataset1 = await prisma.dataset.findUnique({
       where: { projectId_name: { projectId, name: "dataset-name" } },
     });
-    const dbDatasetItems = await getDatasetItemsByLatest({
+    const dbDatasetItems = await getDatasetItems({
       projectId: projectId,
       filterState: createDatasetItemFilterState({
         datasetIds: [dataset1!.id],
@@ -516,7 +518,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const dataset2 = await prisma.dataset.findUnique({
       where: { projectId_name: { projectId, name: "dataset-name-other" } },
     });
-    const dbDatasetItemsOther = await getDatasetItemsByLatest({
+    const dbDatasetItemsOther = await getDatasetItems({
       projectId: projectId,
       filterState: createDatasetItemFilterState({
         datasetIds: [dataset2!.id],
@@ -593,15 +595,15 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       }),
     });
     // Get filtered list by datasetName
-    const getDatasetItems = await makeZodVerifiedAPICall(
+    const getDatasetItemsByDatasetName = await makeZodVerifiedAPICall(
       GetDatasetItemsV1Response,
       "GET",
       `/api/public/dataset-items?datasetName=dataset-name`,
       undefined,
       auth,
     );
-    expect(getDatasetItems.status).toBe(200);
-    expect(getDatasetItems.body).toMatchObject({
+    expect(getDatasetItemsByDatasetName.status).toBe(200);
+    expect(getDatasetItemsByDatasetName.body).toMatchObject({
       data: dbDatasetItemsApiResponseFormat,
       meta: expect.objectContaining({
         totalItems: 5,
@@ -1221,16 +1223,17 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     // item ids can be set by the user
     const datasetItemBody = {
       input: "item-input",
-      id: uuidv4(),
     };
-    await prisma.datasetItem.create({
-      data: {
-        ...datasetItemBody,
-        expectedOutput: "other-proj",
-        projectId: otherProject.id,
-        datasetId: otherProjDbDataset.id,
-      },
+    const res = await createDatasetItem({
+      ...datasetItemBody,
+      expectedOutput: "other-proj",
+      projectId: otherProject.id,
+      datasetId: otherProjDbDataset.id,
     });
+    if (!res.success) {
+      throw new Error("Failed to create dataset item");
+    }
+    const datasetItemId = res.datasetItem.id;
 
     // dataset item, id is set
     await makeZodVerifiedAPICall(
@@ -1239,6 +1242,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       "/api/public/dataset-items",
       {
         ...datasetItemBody,
+        id: datasetItemId,
         expectedOutput: "api-item",
         datasetName: datasetBody.name,
         metadata: "api-item",
@@ -1247,17 +1251,17 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     const getApiDatasetItem = await makeZodVerifiedAPICall(
       GetDatasetItemV1Response,
       "GET",
-      `/api/public/dataset-items/${datasetItemBody.id}`,
+      `/api/public/dataset-items/${datasetItemId}`,
     );
     expect(getApiDatasetItem.body.metadata).toBe("api-item");
     const dbItem1 = await getDatasetItemById({
       projectId: apiDataset.body.projectId,
-      datasetItemId: datasetItemBody.id,
+      datasetItemId: datasetItemId,
       includeIO: true,
     });
     const dbItem2 = await getDatasetItemById({
       projectId: otherProject.id,
-      datasetItemId: datasetItemBody.id,
+      datasetItemId: datasetItemId,
       includeIO: true,
     });
     const dbItems = [dbItem1, dbItem2].filter((item) => item !== null);
@@ -1267,11 +1271,11 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       expect.arrayContaining([
         expect.objectContaining({
           metadata: "api-item",
-          id: datasetItemBody.id,
+          id: datasetItemId,
         }),
         expect.objectContaining({
           metadata: null,
-          id: datasetItemBody.id,
+          id: datasetItemId,
         }),
       ]),
     );
