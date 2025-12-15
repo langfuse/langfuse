@@ -24,7 +24,7 @@ import {
   getDatasetRunItemsCh,
   getTracesByIds,
   getScoresForTraces,
-  getDatasetItemsByLatest,
+  getDatasetItems,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -513,7 +513,7 @@ export const getDatabaseReadStreamPaginated = async ({
     case "dataset_items": {
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const items = await getDatasetItemsByLatest<true, true>({
+          const items = await getDatasetItems<true, true>({
             projectId,
             filterState: filter
               ? [...filter, createdAtCutoffFilter]
