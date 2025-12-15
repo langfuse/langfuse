@@ -11,11 +11,11 @@ import {
   deleteDatasetItem,
   createManyDatasetItems,
   getDatasetItemById,
-  getDatasetItemsByLatest,
-  // listDatasetVersions,
-  // getDatasetItemVersionHistory,
-  // getDatasetItemChangesSinceVersion,
   createDatasetItemFilterState,
+  listDatasetVersions,
+  getDatasetItemVersionHistory,
+  getDatasetItemChangesSinceVersion,
+  getDatasetItemsAtVersion,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -25,374 +25,374 @@ const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("Dataset Items Repository - Versioning Tests", () => {
-  // describe("listDatasetVersions()", () => {
-  //   it("should return empty array for new dataset", async () => {
-  //     const datasetId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+  describe("listDatasetVersions()", () => {
+    it("should return empty array for new dataset", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     const versions = await listDatasetVersions({ projectId, datasetId });
-  //     expect(versions).toEqual([]);
-  //   });
+      const versions = await listDatasetVersions({ projectId, datasetId });
+      expect(versions).toEqual([]);
+    });
 
-  //   it("should return version timestamps after creating items", async () => {
-  //     const datasetId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should return version timestamps after creating items", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     await createDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       input: { key: "value1" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { key: "value1" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     await createDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       input: { key: "value2" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { key: "value2" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     const versions = await listDatasetVersions({ projectId, datasetId });
-  //     expect(versions.length).toBe(2);
-  //     expect(versions[0].getTime()).toBeGreaterThan(versions[1].getTime());
-  //   });
+      const versions = await listDatasetVersions({ projectId, datasetId });
+      expect(versions.length).toBe(2);
+      expect(versions[0].getTime()).toBeGreaterThan(versions[1].getTime());
+    });
 
-  //   it("should return versions in descending order", async () => {
-  //     const datasetId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should return versions in descending order", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     for (let i = 0; i < 3; i++) {
-  //       await createDatasetItem({
-  //         projectId,
-  //         datasetId,
-  //         input: { iteration: i },
-  //         normalizeOpts: {},
-  //         validateOpts: {},
-  //       });
-  //       await delay(10);
-  //     }
+      for (let i = 0; i < 3; i++) {
+        await createDatasetItem({
+          projectId,
+          datasetId,
+          input: { iteration: i },
+          normalizeOpts: {},
+          validateOpts: {},
+        });
+        await delay(10);
+      }
 
-  //     const versions = await listDatasetVersions({ projectId, datasetId });
-  //     expect(versions.length).toBe(3);
+      const versions = await listDatasetVersions({ projectId, datasetId });
+      expect(versions.length).toBe(3);
 
-  //     for (let i = 0; i < versions.length - 1; i++) {
-  //       expect(versions[i].getTime()).toBeGreaterThan(
-  //         versions[i + 1].getTime(),
-  //       );
-  //     }
-  //   });
-  // });
+      for (let i = 0; i < versions.length - 1; i++) {
+        expect(versions[i].getTime()).toBeGreaterThan(
+          versions[i + 1].getTime(),
+        );
+      }
+    });
+  });
 
-  // describe("getDatasetItemVersionHistory()", () => {
-  //   it("should return empty array for non-existent item", async () => {
-  //     const datasetId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+  describe("getDatasetItemVersionHistory()", () => {
+    it("should return empty array for non-existent item", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     const history = await getDatasetItemVersionHistory({
-  //       projectId,
-  //       datasetId,
-  //       itemId: "non-existent",
-  //     });
-  //     expect(history).toEqual([]);
-  //   });
+      const history = await getDatasetItemVersionHistory({
+        projectId,
+        datasetId,
+        itemId: "non-existent",
+      });
+      expect(history).toEqual([]);
+    });
 
-  //   it("should return single version for newly created item", async () => {
-  //     const datasetId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should return single version for newly created item", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     const result = await createDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       input: { key: "value" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      const result = await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     if (!result.success) throw new Error("Failed to create item");
+      if (!result.success) throw new Error("Failed to create item");
 
-  //     const history = await getDatasetItemVersionHistory({
-  //       projectId,
-  //       datasetId,
-  //       itemId: result.datasetItem.id,
-  //     });
+      const history = await getDatasetItemVersionHistory({
+        projectId,
+        datasetId,
+        itemId: result.datasetItem.id,
+      });
 
-  //     expect(history.length).toBe(1);
-  //     expect(history[0]).toBeInstanceOf(Date);
-  //   });
+      expect(history.length).toBe(1);
+      expect(history[0]).toBeInstanceOf(Date);
+    });
 
-  //   it("should return multiple versions after updates", async () => {
-  //     const datasetId = v4();
-  //     const itemId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should return multiple versions after updates", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId,
-  //       input: { version: 1 },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 1 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId,
-  //       input: { version: 2 },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 2 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId,
-  //       input: { version: 3 },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 3 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     const history = await getDatasetItemVersionHistory({
-  //       projectId,
-  //       datasetId,
-  //       itemId,
-  //     });
+      const history = await getDatasetItemVersionHistory({
+        projectId,
+        datasetId,
+        itemId,
+      });
 
-  //     expect(history.length).toBe(3);
-  //     expect(history[0].getTime()).toBeGreaterThan(history[1].getTime());
-  //     expect(history[1].getTime()).toBeGreaterThan(history[2].getTime());
-  //   });
+      expect(history.length).toBe(3);
+      expect(history[0].getTime()).toBeGreaterThan(history[1].getTime());
+      expect(history[1].getTime()).toBeGreaterThan(history[2].getTime());
+    });
 
-  //   it("should include version when item is deleted", async () => {
-  //     const datasetId = v4();
-  //     const itemId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should include version when item is deleted", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId,
-  //       input: { key: "value" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     await deleteDatasetItem({
-  //       projectId,
-  //       datasetItemId: itemId,
-  //       datasetId,
-  //     });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+        datasetId,
+      });
 
-  //     const history = await getDatasetItemVersionHistory({
-  //       projectId,
-  //       datasetId,
-  //       itemId,
-  //     });
+      const history = await getDatasetItemVersionHistory({
+        projectId,
+        datasetId,
+        itemId,
+      });
 
-  //     expect(history.length).toBe(2);
-  //   });
-  // });
+      expect(history.length).toBe(2);
+    });
+  });
 
-  // describe("getDatasetItemChangesSinceVersion()", () => {
-  //   it("should return zero counts for latest version", async () => {
-  //     const datasetId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+  describe("getDatasetItemChangesSinceVersion()", () => {
+    it("should return zero counts for latest version", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     await createDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       input: { key: "value" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     const now = new Date();
-  //     const changes = await getDatasetItemChangesSinceVersion({
-  //       projectId,
-  //       datasetId,
-  //       sinceVersion: now,
-  //     });
+      const now = new Date();
+      const changes = await getDatasetItemChangesSinceVersion({
+        projectId,
+        datasetId,
+        sinceVersion: now,
+      });
 
-  //     expect(changes).toEqual({ upserts: 0, deletes: 0 });
-  //   });
+      expect(changes).toEqual({ upserts: 0, deletes: 0 });
+    });
 
-  //   it("should count upserts correctly after creating items", async () => {
-  //     const datasetId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should count upserts correctly after creating items", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     const versionTimestamp = new Date();
-  //     await delay(10);
+      const versionTimestamp = new Date();
+      await delay(10);
 
-  //     await createDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       input: { key: "value1" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { key: "value1" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     await createDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       input: { key: "value2" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { key: "value2" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     const changes = await getDatasetItemChangesSinceVersion({
-  //       projectId,
-  //       datasetId,
-  //       sinceVersion: versionTimestamp,
-  //     });
+      const changes = await getDatasetItemChangesSinceVersion({
+        projectId,
+        datasetId,
+        sinceVersion: versionTimestamp,
+      });
 
-  //     expect(changes.upserts).toBe(2);
-  //     expect(changes.deletes).toBe(0);
-  //   });
+      expect(changes.upserts).toBe(2);
+      expect(changes.deletes).toBe(0);
+    });
 
-  //   it("should count deletes correctly after deleting items", async () => {
-  //     const datasetId = v4();
-  //     const itemId1 = v4();
-  //     const itemId2 = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should count deletes correctly after deleting items", async () => {
+      const datasetId = v4();
+      const itemId1 = v4();
+      const itemId2 = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId1,
-  //       input: { key: "value1" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { key: "value1" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId2,
-  //       input: { key: "value2" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId2,
+        input: { key: "value2" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
-  //     const versionTimestamp = new Date();
-  //     await delay(10);
+      await delay(10);
+      const versionTimestamp = new Date();
+      await delay(10);
 
-  //     await deleteDatasetItem({
-  //       projectId,
-  //       datasetItemId: itemId1,
-  //       datasetId,
-  //     });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId1,
+        datasetId,
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     await deleteDatasetItem({
-  //       projectId,
-  //       datasetItemId: itemId2,
-  //       datasetId,
-  //     });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId2,
+        datasetId,
+      });
 
-  //     const changes = await getDatasetItemChangesSinceVersion({
-  //       projectId,
-  //       datasetId,
-  //       sinceVersion: versionTimestamp,
-  //     });
+      const changes = await getDatasetItemChangesSinceVersion({
+        projectId,
+        datasetId,
+        sinceVersion: versionTimestamp,
+      });
 
-  //     expect(changes.upserts).toBe(0);
-  //     expect(changes.deletes).toBe(2);
-  //   });
+      expect(changes.upserts).toBe(0);
+      expect(changes.deletes).toBe(2);
+    });
 
-  //   it("should count both upserts and deletes in mixed scenarios", async () => {
-  //     const datasetId = v4();
-  //     const itemId1 = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should count both upserts and deletes in mixed scenarios", async () => {
+      const datasetId = v4();
+      const itemId1 = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId1,
-  //       input: { key: "value1" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { key: "value1" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
-  //     const versionTimestamp = new Date();
-  //     await delay(10);
+      await delay(10);
+      const versionTimestamp = new Date();
+      await delay(10);
 
-  //     // Update existing item (upsert)
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId1,
-  //       input: { key: "updated" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      // Update existing item (upsert)
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { key: "updated" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     // Create new item
-  //     await createDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       input: { key: "value2" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      // Create new item
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { key: "value2" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
+      await delay(10);
 
-  //     // Delete the first item
-  //     await deleteDatasetItem({
-  //       projectId,
-  //       datasetItemId: itemId1,
-  //       datasetId,
-  //     });
+      // Delete the first item
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId1,
+        datasetId,
+      });
 
-  //     const changes = await getDatasetItemChangesSinceVersion({
-  //       projectId,
-  //       datasetId,
-  //       sinceVersion: versionTimestamp,
-  //     });
+      const changes = await getDatasetItemChangesSinceVersion({
+        projectId,
+        datasetId,
+        sinceVersion: versionTimestamp,
+      });
 
-  //     expect(changes.upserts).toBe(2); // 1 update + 1 create
-  //     expect(changes.deletes).toBe(1);
-  //   });
-  // });
+      expect(changes.upserts).toBe(2); // 1 update + 1 create
+      expect(changes.deletes).toBe(1);
+    });
+  });
 
   describe("getDatasetItemById() with version parameter", () => {
     it("should return latest item when no version specified", async () => {
@@ -431,128 +431,128 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(item?.input).toEqual({ version: "updated" });
     });
 
-    // it("should return item at specific version timestamp", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should return item at specific version timestamp", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { version: "v1" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: "v1" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   const midpointTimestamp = new Date();
-    //   await delay(10);
+      await delay(10);
+      const midpointTimestamp = new Date();
+      await delay(10);
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { version: "v2" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: "v2" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   const item = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     version: midpointTimestamp,
-    //   });
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: midpointTimestamp,
+      });
 
-    //   expect(item).not.toBeNull();
-    //   expect(item?.input).toEqual({ version: "v1" });
-    // });
+      expect(item).not.toBeNull();
+      expect(item?.input).toEqual({ version: "v1" });
+    });
 
-    // it("should return null when item doesn't exist at version (created after)", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should return null when item doesn't exist at version (created after)", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   const beforeCreation = new Date();
-    //   await delay(10);
+      const beforeCreation = new Date();
+      await delay(10);
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { key: "value" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   const item = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     version: beforeCreation,
-    //   });
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: beforeCreation,
+      });
 
-    //   expect(item).toBeNull();
-    // });
+      expect(item).toBeNull();
+    });
 
-    // it("should return null when item was deleted before version", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should return null when item was deleted before version", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { key: "value" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
+      await delay(10);
 
-    //   await deleteDatasetItem({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     datasetId,
-    //   });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+        datasetId,
+      });
 
-    //   await delay(10);
-    //   const afterDeletion = new Date();
+      await delay(10);
+      const afterDeletion = new Date();
 
-    //   const item = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     version: afterDeletion,
-    //   });
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: afterDeletion,
+      });
 
-    //   expect(item).toBeNull();
-    // });
+      expect(item).toBeNull();
+    });
 
-    // it("should handle version before any item exists", async () => {
-    //   const datasetId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should handle version before any item exists", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   const veryOldTimestamp = new Date("2020-01-01");
+      const veryOldTimestamp = new Date("2020-01-01");
 
-    //   const item = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: "any-id",
-    //     version: veryOldTimestamp,
-    //   });
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: "any-id",
+        version: veryOldTimestamp,
+      });
 
-    //   expect(item).toBeNull();
-    // });
+      expect(item).toBeNull();
+    });
   });
 
-  describe("getDatasetItemsByLatest() with version parameter", () => {
+  describe("getDatasetItemsAtVersion() with version parameter", () => {
     it("should return current items when no version specified", async () => {
       const datasetId = v4();
       await prisma.dataset.create({
@@ -571,7 +571,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         input: { item: 2 },
       });
 
-      const items = await getDatasetItemsByLatest({
+      const items = await getDatasetItemsAtVersion({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
       });
@@ -579,187 +579,187 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(items.length).toBe(2);
     });
 
-    // it("should return items as they existed at version timestamp", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should return items as they existed at version timestamp", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { state: "initial" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { state: "initial" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   const midpointTimestamp = new Date();
-    //   await delay(10);
+      await delay(10);
+      const midpointTimestamp = new Date();
+      await delay(10);
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { state: "updated" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { state: "updated" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   const items = await getDatasetItemsByLatest({
-    //     projectId,
-    //     filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
-    //     version: midpointTimestamp,
-    //   });
+      const items = await getDatasetItemsAtVersion({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        version: midpointTimestamp,
+      });
 
-    //   expect(items.length).toBe(1);
-    //   expect(items[0].input).toEqual({ state: "initial" });
-    // });
+      expect(items.length).toBe(1);
+      expect(items[0].input).toEqual({ state: "initial" });
+    });
 
-    // it("should exclude items created after version", async () => {
-    //   const datasetId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should exclude items created after version", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await createDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     input: { item: "before" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { item: "before" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   const versionTimestamp = new Date();
-    //   await delay(10);
+      await delay(10);
+      const versionTimestamp = new Date();
+      await delay(10);
 
-    //   await createDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     input: { item: "after" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await createDatasetItem({
+        projectId,
+        datasetId,
+        input: { item: "after" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   const items = await getDatasetItemsByLatest({
-    //     projectId,
-    //     filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
-    //     version: versionTimestamp,
-    //   });
+      const items = await getDatasetItemsAtVersion({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        version: versionTimestamp,
+      });
 
-    //   expect(items.length).toBe(1);
-    //   expect(items[0].input).toEqual({ item: "before" });
-    // });
+      expect(items.length).toBe(1);
+      expect(items[0].input).toEqual({ item: "before" });
+    });
 
-    // it("should exclude deleted items at version", async () => {
-    //   const datasetId = v4();
-    //   const itemId1 = v4();
-    //   const itemId2 = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should exclude deleted items at version", async () => {
+      const datasetId = v4();
+      const itemId1 = v4();
+      const itemId2 = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId1,
-    //     input: { item: 1 },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { item: 1 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId2,
-    //     input: { item: 2 },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId2,
+        input: { item: 2 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
+      await delay(10);
 
-    //   await deleteDatasetItem({
-    //     projectId,
-    //     datasetItemId: itemId1,
-    //     datasetId,
-    //   });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId1,
+        datasetId,
+      });
 
-    //   await delay(10);
-    //   const afterDeleteTimestamp = new Date();
+      await delay(10);
+      const afterDeleteTimestamp = new Date();
 
-    //   const items = await getDatasetItemsByLatest({
-    //     projectId,
-    //     filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
-    //     version: afterDeleteTimestamp,
-    //   });
+      const items = await getDatasetItemsAtVersion({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        version: afterDeleteTimestamp,
+      });
 
-    //   expect(items.length).toBe(1);
-    //   expect(items[0].input).toEqual({ item: 2 });
-    // });
+      expect(items.length).toBe(1);
+      expect(items[0].input).toEqual({ item: 2 });
+    });
 
-    // it("should handle multiple items with mixed version states", async () => {
-    //   const datasetId = v4();
-    //   const itemId1 = v4();
-    //   const itemId2 = v4();
-    //   const itemId3 = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should handle multiple items with mixed version states", async () => {
+      const datasetId = v4();
+      const itemId1 = v4();
+      const itemId2 = v4();
+      const itemId3 = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   // Item 1: exists before version
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId1,
-    //     input: { item: 1 },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      // Item 1: exists before version
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { item: 1 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   const versionTimestamp = new Date();
-    //   await delay(10);
+      await delay(10);
+      const versionTimestamp = new Date();
+      await delay(10);
 
-    //   // Item 2: created after version
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId2,
-    //     input: { item: 2 },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      // Item 2: created after version
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId2,
+        input: { item: 2 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   // Item 3: created before but deleted after
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId3,
-    //     input: { item: 3 },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      // Item 3: created before but deleted after
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId3,
+        input: { item: 3 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   await deleteDatasetItem({
-    //     projectId,
-    //     datasetItemId: itemId3,
-    //     datasetId,
-    //   });
+      await delay(10);
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId3,
+        datasetId,
+      });
 
-    //   const items = await getDatasetItemsByLatest({
-    //     projectId,
-    //     filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
-    //     version: versionTimestamp,
-    //   });
+      const items = await getDatasetItemsAtVersion({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        version: versionTimestamp,
+      });
 
-    //   expect(items.length).toBe(1);
-    //   expect(items[0].id).toBe(itemId1);
-    // });
+      expect(items.length).toBe(1);
+      expect(items[0].id).toBe(itemId1);
+    });
   });
 
   describe("createDatasetItem()", () => {
@@ -850,85 +850,85 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(item.input).toEqual({ key: "value" });
     });
 
-    // it("should create new version on update with same ID", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should create new version on update with same ID", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { version: 1 },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 1 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
+      await delay(10);
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { version: 2 },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 2 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   const history = await getDatasetItemVersionHistory({
-    //     projectId,
-    //     datasetId,
-    //     itemId,
-    //   });
+      const history = await getDatasetItemVersionHistory({
+        projectId,
+        datasetId,
+        itemId,
+      });
 
-    //   expect(history.length).toBe(2);
-    // });
+      expect(history.length).toBe(2);
+    });
 
-    // it("should preserve old versions after update", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should preserve old versions after update", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { state: "v1" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { state: "v1" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   const v1Timestamp = new Date();
-    //   await delay(10);
+      await delay(10);
+      const v1Timestamp = new Date();
+      await delay(10);
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { state: "v2" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { state: "v2" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   const oldVersion = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     version: v1Timestamp,
-    //   });
+      const oldVersion = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: v1Timestamp,
+      });
 
-    //   const newVersion = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //   });
+      const newVersion = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+      });
 
-    //   expect(oldVersion?.input).toEqual({ state: "v1" });
-    //   expect(newVersion?.input).toEqual({ state: "v2" });
-    // });
+      expect(oldVersion?.input).toEqual({ state: "v1" });
+      expect(newVersion?.input).toEqual({ state: "v2" });
+    });
 
     it("should return merged data correctly", async () => {
       const datasetId = v4();
@@ -998,118 +998,118 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(item).toBeNull();
     });
 
-    // it("should preserve item history after delete", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should preserve item history after delete", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { key: "value" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   const beforeDelete = new Date();
-    //   await delay(10);
+      await delay(10);
+      const beforeDelete = new Date();
+      await delay(10);
 
-    //   await deleteDatasetItem({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     datasetId,
-    //   });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+        datasetId,
+      });
 
-    //   const itemAtOldVersion = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     version: beforeDelete,
-    //   });
+      const itemAtOldVersion = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: beforeDelete,
+      });
 
-    //   expect(itemAtOldVersion).not.toBeNull();
-    //   expect(itemAtOldVersion?.input).toEqual({ key: "value" });
-    // });
+      expect(itemAtOldVersion).not.toBeNull();
+      expect(itemAtOldVersion?.input).toEqual({ key: "value" });
+    });
 
-    // it("should make item inaccessible at later versions", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should make item inaccessible at later versions", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { key: "value" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
+      await delay(10);
 
-    //   await deleteDatasetItem({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     datasetId,
-    //   });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+        datasetId,
+      });
 
-    //   await delay(10);
-    //   const afterDelete = new Date();
+      await delay(10);
+      const afterDelete = new Date();
 
-    //   const item = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     version: afterDelete,
-    //   });
+      const item = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: afterDelete,
+      });
 
-    //   expect(item).toBeNull();
-    // });
+      expect(item).toBeNull();
+    });
 
-    // it("should still return item at versions before delete", async () => {
-    //   const datasetId = v4();
-    //   const itemId = v4();
-    //   await prisma.dataset.create({
-    //     data: { id: datasetId, name: v4(), projectId },
-    //   });
+    it("should still return item at versions before delete", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-    //   await upsertDatasetItem({
-    //     projectId,
-    //     datasetId,
-    //     datasetItemId: itemId,
-    //     input: { key: "value" },
-    //     normalizeOpts: {},
-    //     validateOpts: {},
-    //   });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-    //   await delay(10);
-    //   const beforeDelete = new Date();
-    //   await delay(10);
+      await delay(10);
+      const beforeDelete = new Date();
+      await delay(10);
 
-    //   await deleteDatasetItem({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     datasetId,
-    //   });
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+        datasetId,
+      });
 
-    //   const beforeItem = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //     version: beforeDelete,
-    //   });
+      const beforeItem = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: beforeDelete,
+      });
 
-    //   const afterItem = await getDatasetItemById({
-    //     projectId,
-    //     datasetItemId: itemId,
-    //   });
+      const afterItem = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+      });
 
-    //   expect(beforeItem).not.toBeNull();
-    //   expect(afterItem).toBeNull();
-    // });
+      expect(beforeItem).not.toBeNull();
+      expect(afterItem).toBeNull();
+    });
   });
 
   describe("createManyDatasetItems()", () => {
@@ -1119,7 +1119,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         data: { id: datasetId, name: v4(), projectId },
       });
 
-      // const beforeCreate = new Date();
+      const beforeCreate = new Date();
       await delay(5);
 
       const result = await createManyDatasetItems({
@@ -1134,9 +1134,9 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(result.success).toBe(true);
       if (!result.success) return;
 
-      // const versions = await listDatasetVersions({ projectId, datasetId });
-      // expect(versions.length).toBe(1);
-      // expect(versions[0].getTime()).toBeGreaterThan(beforeCreate.getTime());
+      const versions = await listDatasetVersions({ projectId, datasetId });
+      expect(versions.length).toBe(1);
+      expect(versions[0].getTime()).toBeGreaterThan(beforeCreate.getTime());
     });
 
     it("should create distinct items each time with unique IDs", async () => {
@@ -1175,227 +1175,227 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(uniqueIds.size).toBe(4);
 
       // Should have 2 version timestamps (one per batch)
-      // const versions = await listDatasetVersions({ projectId, datasetId });
-      // expect(versions.length).toBe(2);
+      const versions = await listDatasetVersions({ projectId, datasetId });
+      expect(versions.length).toBe(2);
     });
   });
 
-  // describe("Time-travel integration tests", () => {
-  //   it("should support complete lifecycle: create → update → delete with time-travel", async () => {
-  //     const datasetId = v4();
-  //     const itemId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+  describe("Time-travel integration tests", () => {
+    it("should support complete lifecycle: create → update → delete with time-travel", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     // Phase 1: Create
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId,
-  //       input: { phase: "created" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      // Phase 1: Create
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { phase: "created" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
-  //     const afterCreate = new Date();
-  //     await delay(10);
+      await delay(10);
+      const afterCreate = new Date();
+      await delay(10);
 
-  //     // Phase 2: Update
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId,
-  //       input: { phase: "updated" },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      // Phase 2: Update
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { phase: "updated" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
-  //     const afterUpdate = new Date();
-  //     await delay(10);
+      await delay(10);
+      const afterUpdate = new Date();
+      await delay(10);
 
-  //     // Phase 3: Delete
-  //     await deleteDatasetItem({
-  //       projectId,
-  //       datasetItemId: itemId,
-  //       datasetId,
-  //     });
+      // Phase 3: Delete
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+        datasetId,
+      });
 
-  //     await delay(10);
-  //     const afterDelete = new Date();
+      await delay(10);
+      const afterDelete = new Date();
 
-  //     // Verify item at each point in time
-  //     const atCreate = await getDatasetItemById({
-  //       projectId,
-  //       datasetItemId: itemId,
-  //       version: afterCreate,
-  //     });
-  //     expect(atCreate?.input).toEqual({ phase: "created" });
+      // Verify item at each point in time
+      const atCreate = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: afterCreate,
+      });
+      expect(atCreate?.input).toEqual({ phase: "created" });
 
-  //     const atUpdate = await getDatasetItemById({
-  //       projectId,
-  //       datasetItemId: itemId,
-  //       version: afterUpdate,
-  //     });
-  //     expect(atUpdate?.input).toEqual({ phase: "updated" });
+      const atUpdate = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: afterUpdate,
+      });
+      expect(atUpdate?.input).toEqual({ phase: "updated" });
 
-  //     const atDelete = await getDatasetItemById({
-  //       projectId,
-  //       datasetItemId: itemId,
-  //       version: afterDelete,
-  //     });
-  //     expect(atDelete).toBeNull();
+      const atDelete = await getDatasetItemById({
+        projectId,
+        datasetItemId: itemId,
+        version: afterDelete,
+      });
+      expect(atDelete).toBeNull();
 
-  //     // Verify version history
-  //     const history = await getDatasetItemVersionHistory({
-  //       projectId,
-  //       datasetId,
-  //       itemId,
-  //     });
-  //     expect(history.length).toBe(3); // create, update, delete
-  //   });
+      // Verify version history
+      const history = await getDatasetItemVersionHistory({
+        projectId,
+        datasetId,
+        itemId,
+      });
+      expect(history.length).toBe(3); // create, update, delete
+    });
 
-  //   it("should handle multiple items versioned together with dataset view", async () => {
-  //     const datasetId = v4();
-  //     const itemId1 = v4();
-  //     const itemId2 = v4();
-  //     const itemId3 = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should handle multiple items versioned together with dataset view", async () => {
+      const datasetId = v4();
+      const itemId1 = v4();
+      const itemId2 = v4();
+      const itemId3 = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     // T0: Create two items
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId1,
-  //       input: { item: 1 },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      // T0: Create two items
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { item: 1 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId2,
-  //       input: { item: 2 },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId2,
+        input: { item: 2 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
-  //     const t0 = new Date();
-  //     await delay(10);
+      await delay(10);
+      const t0 = new Date();
+      await delay(10);
 
-  //     // T1: Add third item, update first
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId3,
-  //       input: { item: 3 },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      // T1: Add third item, update first
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId3,
+        input: { item: 3 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await upsertDatasetItem({
-  //       projectId,
-  //       datasetId,
-  //       datasetItemId: itemId1,
-  //       input: { item: 1, updated: true },
-  //       normalizeOpts: {},
-  //       validateOpts: {},
-  //     });
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { item: 1, updated: true },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
 
-  //     await delay(10);
-  //     const t1 = new Date();
-  //     await delay(10);
+      await delay(10);
+      const t1 = new Date();
+      await delay(10);
 
-  //     // T2: Delete second item
-  //     await deleteDatasetItem({
-  //       projectId,
-  //       datasetItemId: itemId2,
-  //       datasetId,
-  //     });
+      // T2: Delete second item
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId2,
+        datasetId,
+      });
 
-  //     await delay(10);
-  //     const t2 = new Date();
+      await delay(10);
+      const t2 = new Date();
 
-  //     // Verify dataset state at T0: 2 items
-  //     const itemsAtT0 = await getDatasetItemsByLatest({
-  //       projectId,
-  //       filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
-  //       version: t0,
-  //     });
-  //     expect(itemsAtT0.length).toBe(2);
+      // Verify dataset state at T0: 2 items
+      const itemsAtT0 = await getDatasetItemsAtVersion({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        version: t0,
+      });
+      expect(itemsAtT0.length).toBe(2);
 
-  //     // Verify dataset state at T1: 3 items
-  //     const itemsAtT1 = await getDatasetItemsByLatest({
-  //       projectId,
-  //       filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
-  //       version: t1,
-  //     });
-  //     expect(itemsAtT1.length).toBe(3);
+      // Verify dataset state at T1: 3 items
+      const itemsAtT1 = await getDatasetItemsAtVersion({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        version: t1,
+      });
+      expect(itemsAtT1.length).toBe(3);
 
-  //     // Verify dataset state at T2: 2 items (one deleted)
-  //     const itemsAtT2 = await getDatasetItemsByLatest({
-  //       projectId,
-  //       filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
-  //       version: t2,
-  //     });
-  //     expect(itemsAtT2.length).toBe(2);
+      // Verify dataset state at T2: 2 items (one deleted)
+      const itemsAtT2 = await getDatasetItemsAtVersion({
+        projectId,
+        filterState: createDatasetItemFilterState({ datasetIds: [datasetId] }),
+        version: t2,
+      });
+      expect(itemsAtT2.length).toBe(2);
 
-  //     // Verify change counts
-  //     const changesFromT0 = await getDatasetItemChangesSinceVersion({
-  //       projectId,
-  //       datasetId,
-  //       sinceVersion: t0,
-  //     });
-  //     expect(changesFromT0.upserts).toBe(2); // item3 created, item1 updated
-  //     expect(changesFromT0.deletes).toBe(1); // item2 deleted
-  //   });
+      // Verify change counts
+      const changesFromT0 = await getDatasetItemChangesSinceVersion({
+        projectId,
+        datasetId,
+        sinceVersion: t0,
+      });
+      expect(changesFromT0.upserts).toBe(2); // item3 created, item1 updated
+      expect(changesFromT0.deletes).toBe(1); // item2 deleted
+    });
 
-  //   it("should maintain version history accuracy across multiple operations", async () => {
-  //     const datasetId = v4();
-  //     const itemId = v4();
-  //     await prisma.dataset.create({
-  //       data: { id: datasetId, name: v4(), projectId },
-  //     });
+    it("should maintain version history accuracy across multiple operations", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
 
-  //     const expectedVersionCount = 5;
+      const expectedVersionCount = 5;
 
-  //     for (let i = 1; i <= expectedVersionCount; i++) {
-  //       await upsertDatasetItem({
-  //         projectId,
-  //         datasetId,
-  //         datasetItemId: itemId,
-  //         input: { version: i },
-  //         normalizeOpts: {},
-  //         validateOpts: {},
-  //       });
-  //       await delay(10);
-  //     }
+      for (let i = 1; i <= expectedVersionCount; i++) {
+        await upsertDatasetItem({
+          projectId,
+          datasetId,
+          datasetItemId: itemId,
+          input: { version: i },
+          normalizeOpts: {},
+          validateOpts: {},
+        });
+        await delay(10);
+      }
 
-  //     const history = await getDatasetItemVersionHistory({
-  //       projectId,
-  //       datasetId,
-  //       itemId,
-  //     });
+      const history = await getDatasetItemVersionHistory({
+        projectId,
+        datasetId,
+        itemId,
+      });
 
-  //     expect(history.length).toBe(expectedVersionCount);
+      expect(history.length).toBe(expectedVersionCount);
 
-  //     // Verify we can retrieve each version
-  //     for (let i = 0; i < history.length; i++) {
-  //       const item = await getDatasetItemById({
-  //         projectId,
-  //         datasetItemId: itemId,
-  //         version: history[i],
-  //       });
+      // Verify we can retrieve each version
+      for (let i = 0; i < history.length; i++) {
+        const item = await getDatasetItemById({
+          projectId,
+          datasetItemId: itemId,
+          version: history[i],
+        });
 
-  //       expect(item).not.toBeNull();
-  //       expect(item?.input).toHaveProperty("version");
-  //     }
-  //   });
-  // });
+        expect(item).not.toBeNull();
+        expect(item?.input).toHaveProperty("version");
+      }
+    });
+  });
 });
