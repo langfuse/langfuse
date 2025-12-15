@@ -606,7 +606,6 @@ model Dataset {
   updatedAt               DateTime           @default(now()) @updatedAt @map("updated_at")
   datasetItems            DatasetItem[]
   datasetRuns             DatasetRuns[]
-  datasetItemEvents       DatasetItemEvent[]
 
   @@id([id, projectId])
   @@unique([projectId, name])
@@ -646,7 +645,6 @@ model DatasetItemEvent {
   itemId              String         @map("item_id")
   projectId           String         @map("project_id")
   datasetId           String         @map("dataset_id")
-  dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
   status              DatasetStatus?
   input               Json?
   expectedOutput      Json?          @map("expected_output")
