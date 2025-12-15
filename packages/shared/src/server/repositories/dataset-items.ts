@@ -989,6 +989,11 @@ function buildStatefulDatasetItemsCountQuery(
   `;
 }
 
+// Split filters: Only id/datasetId/validFrom should be inside CTE (before DISTINCT ON)
+// All other filters (status, sourceTraceId, sourceObservationId, metadata, createdAt)
+// must be applied AFTER getting latest version to ensure we're filtering on the latest state
+const filterColumnsInsideCTE = ["id", "datasetId", "validFrom"];
+
 /**
  * Builds the SQL query for fetching latest dataset items.
  * Uses DISTINCT ON to get the most recent version (by validFrom DESC) for each (id, projectId).
@@ -1031,8 +1036,21 @@ function buildDatasetItemsAtVersionQuery(
     ? Prisma.sql`, d.name as dataset_name`
     : Prisma.empty;
 
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    filter,
+  const filtersInsideCTE = filter.filter((f) =>
+    filterColumnsInsideCTE.includes(f.column),
+  );
+  const filtersOutsideCTE = filter.filter(
+    (f) => !filterColumnsInsideCTE.includes(f.column),
+  );
+
+  const filterConditionInside = tableColumnsToSqlFilterAndPrefix(
+    filtersInsideCTE,
+    datasetItemsFilterCols,
+    "dataset_item_events",
+  );
+
+  const filterConditionOutside = tableColumnsToSqlFilterAndPrefix(
+    filtersOutsideCTE,
     datasetItemsFilterCols,
     "dataset_item_events",
   );
@@ -1068,7 +1086,7 @@ function buildDatasetItemsAtVersionQuery(
       FROM dataset_items di
       WHERE di.project_id = ${projectId}
       ${versionCondition}
-      ${filterCondition}
+      ${filterConditionInside}
       ORDER BY di.id, di.valid_from DESC
     )
     SELECT
@@ -1086,6 +1104,7 @@ function buildDatasetItemsAtVersionQuery(
     FROM latest_items di
     ${datasetJoin}
     WHERE di.is_deleted = false
+    ${filterConditionOutside}
     ${searchCondition}
     ORDER BY di.valid_from DESC, di.id ASC
     ${paginationClause}
@@ -1103,8 +1122,21 @@ function buildDatasetItemsCountQuery(
   searchQuery?: string,
   searchType?: ("id" | "content")[],
 ): Prisma.Sql {
-  const filterCondition = tableColumnsToSqlFilterAndPrefix(
-    filter,
+  const filtersInsideCTE = filter.filter((f) =>
+    filterColumnsInsideCTE.includes(f.column),
+  );
+  const filtersOutsideCTE = filter.filter(
+    (f) => !filterColumnsInsideCTE.includes(f.column),
+  );
+
+  const filterConditionInside = tableColumnsToSqlFilterAndPrefix(
+    filtersInsideCTE,
+    datasetItemsFilterCols,
+    "dataset_item_events",
+  );
+
+  const filterConditionOutside = tableColumnsToSqlFilterAndPrefix(
+    filtersOutsideCTE,
     datasetItemsFilterCols,
     "dataset_item_events",
   );
@@ -1137,12 +1169,13 @@ function buildDatasetItemsCountQuery(
       FROM dataset_items di
       WHERE di.project_id = ${projectId}
       ${versionCondition}
-      ${filterCondition}
+      ${filterConditionInside}
       ORDER BY di.id, di.valid_from DESC
     )
     SELECT COUNT(*) as count
     FROM latest_items di
     WHERE di.is_deleted = false
+    ${filterConditionOutside}
     ${searchCondition}
   `;
 }

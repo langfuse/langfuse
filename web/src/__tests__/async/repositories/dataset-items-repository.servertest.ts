@@ -1180,6 +1180,205 @@ describe("Dataset Items Repository - Versioning Tests", () => {
     });
   });
 
+  describe("Status filter tests (filtering on latest version)", () => {
+    it("should filter by ACTIVE status on latest version, not historical versions", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      // Create item with ACTIVE status
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        status: "ACTIVE",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      await delay(10);
+
+      // Update to ARCHIVED status
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "updated" },
+        status: "ARCHIVED",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      // Filter by ACTIVE - should return 0 items (latest version is ARCHIVED)
+      const activeItems = await getDatasetItems({
+        projectId,
+        filterState: createDatasetItemFilterState({
+          datasetIds: [datasetId],
+          status: "ACTIVE",
+        }),
+      });
+
+      expect(activeItems.length).toBe(0);
+    });
+
+    it("should count only items with ACTIVE status in latest version", async () => {
+      const datasetId = v4();
+      const itemId1 = v4();
+      const itemId2 = v4();
+      const itemId3 = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      // Item 1: ACTIVE initially, then ARCHIVED
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { item: 1 },
+        status: "ACTIVE",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+      await delay(10);
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId1,
+        input: { item: 1 },
+        status: "ARCHIVED",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      // Item 2: ACTIVE and stays ACTIVE
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId2,
+        input: { item: 2 },
+        status: "ACTIVE",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      // Item 3: ARCHIVED initially, then ACTIVE
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId3,
+        input: { item: 3 },
+        status: "ARCHIVED",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+      await delay(10);
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId3,
+        input: { item: 3 },
+        status: "ACTIVE",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      // Get ACTIVE items - should be 2 (item2, item3)
+      const activeItems = await getDatasetItems({
+        projectId,
+        filterState: createDatasetItemFilterState({
+          datasetIds: [datasetId],
+          status: "ACTIVE",
+        }),
+      });
+
+      expect(activeItems.length).toBe(2);
+      expect(activeItems.map((i) => i.id).sort()).toEqual(
+        [itemId2, itemId3].sort(),
+      );
+    });
+
+    it("should apply all filters (status, sourceTraceId, etc.) to latest version only", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      const traceId1 = v4();
+      const traceId2 = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      // Version 1: ACTIVE with traceId1
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 1 },
+        status: "ACTIVE",
+        sourceTraceId: traceId1,
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      await delay(10);
+
+      // Version 2: ARCHIVED with traceId2 (latest)
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 2 },
+        status: "ARCHIVED",
+        sourceTraceId: traceId2,
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      // Filter by ACTIVE + traceId1 - should return 0 (latest is ARCHIVED with traceId2)
+      const items = await getDatasetItems({
+        projectId,
+        filterState: createDatasetItemFilterState({
+          datasetIds: [datasetId],
+          status: "ACTIVE",
+          sourceTraceId: traceId1,
+        }),
+      });
+
+      expect(items.length).toBe(0);
+
+      // Filter by ARCHIVED + traceId2 - should return 1 (matches latest)
+      const archivedItems = await getDatasetItems({
+        projectId,
+        filterState: [
+          {
+            type: "stringOptions",
+            column: "datasetId",
+            operator: "any of",
+            value: [datasetId],
+          },
+          {
+            type: "stringOptions",
+            column: "status",
+            operator: "any of",
+            value: ["ARCHIVED"],
+          },
+          {
+            type: "string",
+            column: "sourceTraceId",
+            operator: "=",
+            value: traceId2,
+          },
+        ],
+      });
+
+      expect(archivedItems.length).toBe(1);
+      expect(archivedItems[0].sourceTraceId).toBe(traceId2);
+      expect(archivedItems[0].status).toBe("ARCHIVED");
+    });
+  });
+
   describe("Time-travel integration tests", () => {
     it("should support complete lifecycle: create → update → delete with time-travel", async () => {
       const datasetId = v4();
