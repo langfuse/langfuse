@@ -449,6 +449,7 @@ export type DatasetItem = {
   updated_at: Generated<Timestamp>;
   sys_id: Generated<string | null>;
   valid_from: Generated<Timestamp>;
+  valid_to: Timestamp | null;
   is_deleted: Generated<boolean>;
 };
 export type DatasetItemEvent = {
