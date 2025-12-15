@@ -38,7 +38,6 @@ import {
   createDatasetRunItemsCh,
   createDatasetRunItem,
   getDatasetItemById,
-  getDatasetItems,
   createDatasetItemFilterState,
   createDatasetItem,
 } from "@langfuse/shared/src/server";
