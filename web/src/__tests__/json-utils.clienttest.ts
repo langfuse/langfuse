@@ -918,6 +918,127 @@ describe("Performance Comparison", () => {
       });
     });
   });
+  describe("Prototype Pollution Protection", () => {
+    it("should filter out __proto__ keys in deepParseJson", () => {
+      const input: any = { normal: "value" };
+      input["__proto__"] = { polluted: true };
+
+      const result = deepParseJson(input) as any;
+
+      expect(result.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result, "__proto__")).toBe(false);
+      expect(Object.prototype).not.toHaveProperty("polluted");
+    });
+
+    it("should filter out constructor keys in deepParseJson", () => {
+      const input: any = { normal: "value" };
+      input.constructor = { polluted: true };
+
+      const result = deepParseJson(input) as any;
+
+      expect(result.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result, "constructor")).toBe(false);
+    });
+
+    it("should filter out prototype keys in deepParseJson", () => {
+      const input: any = { normal: "value" };
+      input.prototype = { polluted: true };
+
+      const result = deepParseJson(input) as any;
+
+      expect(result.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result, "prototype")).toBe(false);
+    });
+
+    it("should filter out __proto__ keys in deepParseJsonIterative", () => {
+      const input: any = { normal: "value" };
+      input["__proto__"] = { polluted: true };
+
+      const result = deepParseJsonIterative(input) as any;
+
+      expect(result.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result, "__proto__")).toBe(false);
+      expect(Object.prototype).not.toHaveProperty("polluted");
+    });
+
+    it("should filter out constructor keys in deepParseJsonIterative", () => {
+      const input: any = { normal: "value" };
+      input.constructor = { polluted: true };
+
+      const result = deepParseJsonIterative(input) as any;
+
+      expect(result.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result, "constructor")).toBe(false);
+    });
+
+    it("should filter out prototype keys in deepParseJsonIterative", () => {
+      const input: any = { normal: "value" };
+      input.prototype = { polluted: true };
+
+      const result = deepParseJsonIterative(input) as any;
+
+      expect(result.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result, "prototype")).toBe(false);
+    });
+
+    it("should filter dangerous keys in nested objects (recursive)", () => {
+      const nested: any = { normal: "value" };
+      nested["__proto__"] = { polluted: true };
+      nested.constructor = { bad: true };
+
+      const input = {
+        outer: JSON.stringify(nested),
+      };
+
+      const result = deepParseJson(input) as any;
+
+      expect(result.outer.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result.outer, "__proto__")).toBe(false);
+      expect(Object.hasOwnProperty.call(result.outer, "constructor")).toBe(
+        false,
+      );
+    });
+
+    it("should filter dangerous keys in nested objects (iterative)", () => {
+      const nested: any = { normal: "value" };
+      nested["__proto__"] = { polluted: true };
+      nested.constructor = { bad: true };
+
+      const input = {
+        outer: JSON.stringify(nested),
+      };
+
+      const result = deepParseJsonIterative(input) as any;
+
+      expect(result.outer.normal).toBe("value");
+      expect(Object.hasOwnProperty.call(result.outer, "__proto__")).toBe(false);
+      expect(Object.hasOwnProperty.call(result.outer, "constructor")).toBe(
+        false,
+      );
+    });
+
+    it("should preserve normal keys that are not dangerous", () => {
+      const input = {
+        __proto: "this is ok (no trailing underscore)",
+        _constructor: "this is ok",
+        myprototype: "this is ok",
+        normal: "value",
+      };
+
+      const result1 = deepParseJson(input) as any;
+      const result2 = deepParseJsonIterative(input) as any;
+
+      expect(result1.__proto).toBe("this is ok (no trailing underscore)");
+      expect(result1._constructor).toBe("this is ok");
+      expect(result1.myprototype).toBe("this is ok");
+      expect(result1.normal).toBe("value");
+
+      expect(result2.__proto).toBe("this is ok (no trailing underscore)");
+      expect(result2._constructor).toBe("this is ok");
+      expect(result2.myprototype).toBe("this is ok");
+      expect(result2.normal).toBe("value");
+    });
+  });
 
   it("custom user-defined test object", () => {
     console.log("\n=== Testing USER_DEFINED_TEST_OBJECT ===");

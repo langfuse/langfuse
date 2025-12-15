@@ -1,6 +1,9 @@
 import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
+// Dangerous keys that could lead to prototype pollution
+const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 // attempts to parse Python dict/list string to JSON object
 // LangChain/LangGraph v1 tool calls are logged as python dicts for example
 function tryParsePythonDict(str: string): unknown {
@@ -111,11 +114,16 @@ function deepParseJsonRecursive(
       for (const key in json) {
         // Ensure we only iterate over the object's own properties
         if (Object.prototype.hasOwnProperty.call(json, key)) {
-          (json as Record<string, unknown>)[key] = deepParseJsonRecursive(
-            (json as Record<string, unknown>)[key],
-            currentDepth + 1,
-            maxDepth,
-          );
+          // Filter out dangerous keys to prevent prototype pollution
+          if (DANGEROUS_KEYS.has(key)) {
+            delete (json as Record<string, unknown>)[key];
+          } else {
+            (json as Record<string, unknown>)[key] = deepParseJsonRecursive(
+              (json as Record<string, unknown>)[key],
+              currentDepth + 1,
+              maxDepth,
+            );
+          }
         }
       }
     }
@@ -336,8 +344,13 @@ export function deepParseJsonIterative(
         (child) => child.output !== child.input,
       );
 
-      if (!anyChildChanged) {
-        // No children changed, reuse input
+      // Check if input object has dangerous keys that need filtering
+      const hasDangerousKeys =
+        !isArray &&
+        Object.keys(input as object).some((key) => DANGEROUS_KEYS.has(key));
+
+      if (!anyChildChanged && !hasDangerousKeys) {
+        // No children changed and no dangerous keys, reuse input
         entry.output = input;
       } else {
         // Reconstruct with new children
@@ -346,7 +359,11 @@ export function deepParseJsonIterative(
         } else {
           const newObj: Record<string, unknown> = {};
           for (const child of childrenResults) {
-            newObj[child.key as string] = child.output;
+            const key = child.key as string;
+            // Filter out dangerous keys to prevent prototype pollution
+            if (!DANGEROUS_KEYS.has(key)) {
+              newObj[key] = child.output;
+            }
           }
           entry.output = newObj;
         }
