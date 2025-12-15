@@ -552,7 +552,7 @@ export const observationsView: ViewDeclarationType = {
       aggs: { agg1: "any" },
       alias: "toolDefinitions",
       type: "integer",
-      description: "Number of available tool per observation.",
+      description: "Number of available tools per observation.",
       unit: "tools",
     },
     toolCalls: {

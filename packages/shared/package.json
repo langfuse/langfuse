@@ -25,6 +25,10 @@
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
     },
+    "./src/utils/chatml": {
+      "import": "./dist/src/utils/chatml/index.js",
+      "require": "./dist/src/utils/chatml/index.js"
+    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
