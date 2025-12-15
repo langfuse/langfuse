@@ -640,24 +640,6 @@ model DatasetItem {
   @@map("dataset_items")
 }
 
-model DatasetItemEvent {
-  id                  String         @id @default(cuid())
-  itemId              String         @map("item_id")
-  projectId           String         @map("project_id")
-  datasetId           String         @map("dataset_id")
-  status              DatasetStatus?
-  input               Json?
-  expectedOutput      Json?          @map("expected_output")
-  metadata            Json?
-  sourceTraceId       String?        @map("source_trace_id")
-  sourceObservationId String?        @map("source_observation_id")
-  createdAt           DateTime?      @map("created_at")
-  deletedAt           DateTime?      @map("deleted_at")
-
-  @@index([projectId, datasetId, itemId, createdAt])
-  @@map("dataset_item_events")
-}
-
 enum DatasetStatus {
   ACTIVE
   ARCHIVED
