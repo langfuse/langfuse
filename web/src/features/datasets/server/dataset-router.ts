@@ -727,14 +727,14 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        sinceVersion: z.date(),
+        version: z.date(),
       }),
     )
     .query(async ({ input }) => {
       return await getDatasetItemChangesSinceVersion({
         projectId: input.projectId,
         datasetId: input.datasetId,
-        sinceVersion: input.sinceVersion,
+        sinceVersion: input.version,
       });
     }),
   itemsByDatasetId: protectedProjectProcedure

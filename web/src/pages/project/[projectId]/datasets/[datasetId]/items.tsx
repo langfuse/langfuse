@@ -55,7 +55,7 @@ function DatasetItemsView() {
     {
       projectId,
       datasetId,
-      sinceVersion: selectedVersion!,
+      version: selectedVersion!,
     },
     {
       enabled: selectedVersion !== null,
