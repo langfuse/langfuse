@@ -195,6 +195,10 @@ CREATE TABLE IF NOT EXISTS events
       usage_pricing_tier_id Nullable(String),
       usage_pricing_tier_name Nullable(String),
 
+      -- Tools
+      tool_definitions Map(String, String),
+      tool_calls Map(String, Array(String)),
+
       -- I/O
       input String CODEC(ZSTD(3)),
       input_truncated String MATERIALIZED leftUTF8(input, 1024),
