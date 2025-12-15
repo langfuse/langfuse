@@ -1645,9 +1645,9 @@
   {
     "id": "cm10ivcdp0000gix7lelmbw80",
     "modelName": "o1-preview",
-    "matchPattern": "(?i)^(o1-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-preview)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2024-12-03T10:34:05.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10ivcdp0000gix7lelmbw80_tier_default",
@@ -1669,9 +1669,9 @@
   {
     "id": "cm10ivo130000n8x7qopcjjcg",
     "modelName": "o1-preview-2024-09-12",
-    "matchPattern": "(?i)^(o1-preview-2024-09-12)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-preview-2024-09-12)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2024-12-03T10:38:51.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10ivo130000n8x7qopcjjcg_tier_default",
@@ -1693,9 +1693,9 @@
   {
     "id": "cm10ivwo40000r1x7gg3syjq0",
     "modelName": "o1-mini",
-    "matchPattern": "(?i)^(o1-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-mini)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-02-01T12:41:55.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10ivwo40000r1x7gg3syjq0_tier_default",
@@ -1717,9 +1717,9 @@
   {
     "id": "cm10iw6p20000wgx7it1hlb22",
     "modelName": "o1-mini-2024-09-12",
-    "matchPattern": "(?i)^(o1-mini-2024-09-12)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-mini-2024-09-12)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-02-01T12:41:55.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10iw6p20000wgx7it1hlb22_tier_default",
@@ -2003,9 +2003,9 @@
   {
     "id": "cm48cjxtc000108jrcsso3avv",
     "modelName": "o1",
-    "matchPattern": "(?i)^(o1)$",
+    "matchPattern": "(?i)^(openai\/)?(o1)$",
     "createdAt": "2025-01-17T00:01:35.373Z",
-    "updatedAt": "2025-01-17T00:01:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48cjxtc000108jrcsso3avv_tier_default",
@@ -2027,9 +2027,9 @@
   {
     "id": "cm48cjxtc000208jrcsso3avv",
     "modelName": "o1-2024-12-17",
-    "matchPattern": "(?i)^(o1-2024-12-17)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-2024-12-17)$",
     "createdAt": "2025-01-17T00:01:35.373Z",
-    "updatedAt": "2025-01-17T00:01:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48cjxtc000208jrcsso3avv_tier_default",
@@ -2051,9 +2051,9 @@
   {
     "id": "cm6l8j7vs0000tymz9vk7ew8t",
     "modelName": "o3-mini",
-    "matchPattern": "(?i)^(o3-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-mini)$",
     "createdAt": "2025-01-31T20:41:35.373Z",
-    "updatedAt": "2025-01-31T20:41:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8j7vs0000tymz9vk7ew8t_tier_default",
@@ -2075,9 +2075,9 @@
   {
     "id": "cm6l8jan90000tymz52sh0ql8",
     "modelName": "o3-mini-2025-01-31",
-    "matchPattern": "(?i)^(o3-mini-2025-01-31)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-mini-2025-01-31)$",
     "createdAt": "2025-01-31T20:41:35.373Z",
-    "updatedAt": "2025-01-31T20:41:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8jan90000tymz52sh0ql8_tier_default",
@@ -2355,9 +2355,9 @@
   {
     "id": "cm7wmny967124dhjtb95w8f81",
     "modelName": "o3",
-    "matchPattern": "(?i)^(o3)$",
+    "matchPattern": "(?i)^(openai\/)?(o3)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-06-10T23:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7wmny967124dhjtb95w8f81_tier_default",
@@ -2379,9 +2379,9 @@
   {
     "id": "cm7wopq3327124dhjtb95w8f81",
     "modelName": "o3-2025-04-16",
-    "matchPattern": "(?i)^(o3-2025-04-16)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-2025-04-16)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-06-10T23:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7wopq3327124dhjtb95w8f81_tier_default",
@@ -2681,9 +2681,9 @@
   {
     "id": "cmz9x72kq55721pqrs83y4n2bx",
     "modelName": "o3-pro",
-    "matchPattern": "(?i)^(o3-pro)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-pro)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmz9x72kq55721pqrs83y4n2bx_tier_default",
@@ -2703,9 +2703,9 @@
   {
     "id": "cmz9x72kq55721pqrs83y4n2by",
     "modelName": "o3-pro-2025-06-10",
-    "matchPattern": "(?i)^(o3-pro-2025-06-10)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-pro-2025-06-10)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmz9x72kq55721pqrs83y4n2by_tier_default",
@@ -2725,9 +2725,9 @@
   {
     "id": "cmbrold5b000107lbftb9fdoo",
     "modelName": "o1-pro",
-    "matchPattern": "(?i)^(o1-pro)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-pro)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmbrold5b000107lbftb9fdoo_tier_default",
@@ -2747,9 +2747,9 @@
   {
     "id": "cmbrolpax000207lb3xkedysz",
     "modelName": "o1-pro-2025-03-19",
-    "matchPattern": "(?i)^(o1-pro-2025-03-19)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-pro-2025-03-19)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmbrolpax000207lb3xkedysz_tier_default",
