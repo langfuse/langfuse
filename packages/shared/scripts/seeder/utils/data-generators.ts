@@ -1121,6 +1121,8 @@ export class DataGenerator {
           updated_at: end,
           event_ts: start,
           is_deleted: 0,
+          tool_definitions: undefined,
+          tool_calls: undefined,
         };
 
         if (!d.tool) return [baseGen];
@@ -1157,6 +1159,8 @@ export class DataGenerator {
           updated_at: start - 5,
           event_ts: start - 40,
           is_deleted: 0,
+          tool_definitions: undefined,
+          tool_calls: undefined,
         };
 
         return [toolObs, baseGen];

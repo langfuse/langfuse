@@ -98,6 +98,8 @@ export const createObservation = (
     prompt_version: 1,
     end_time: Date.now(),
     completion_start_time: Date.now(),
+    tool_definitions: undefined,
+    tool_calls: undefined,
     ...observation,
   };
 };
