@@ -165,14 +165,6 @@ export function DatasetVersionHistoryPanel({
         </p>
       </div>
 
-      {/* Warning Banner */}
-      {isViewingOldVersion && selectedVersion && (
-        <DatasetVersionWarningBanner
-          selectedVersion={selectedVersion}
-          resetToLatest={resetToLatest}
-        />
-      )}
-
       {/* Versions List */}
       <div className="flex-1 overflow-y-auto">
         <Accordion type="multiple" defaultValue={["today"]}>
