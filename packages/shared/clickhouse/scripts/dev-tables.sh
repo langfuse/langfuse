@@ -102,6 +102,8 @@ CREATE TABLE IF NOT EXISTS observations_batch_staging
     total_cost Nullable(Decimal64(12)),
     usage_pricing_tier_id Nullable(String),
     usage_pricing_tier_name Nullable(String),
+    tool_definitions Map(String, String),
+    tool_calls Map(String, Array(String)),
     completion_start_time Nullable(DateTime64(3)),
     prompt_id Nullable(String),
     prompt_name Nullable(String),
