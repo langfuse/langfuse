@@ -1,3 +1,4 @@
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { Prisma } from "@langfuse/shared";
 
 /**
@@ -5,7 +6,17 @@ import type { Prisma } from "@langfuse/shared";
  * Returns empty string for null/undefined values.
  */
 export const stringifyDatasetItemData = (data: unknown): string => {
-  return data ? JSON.stringify(data, null, 2) : "";
+  if (!data) return "";
+
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch (_error) {
+    showErrorToast(
+      "Failed to stringify data",
+      "We are working on fixing this issue.",
+    );
+    return "";
+  }
 };
 
 /**
