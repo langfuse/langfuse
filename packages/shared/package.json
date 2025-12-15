@@ -59,7 +59,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@aws-sdk/client-cloudwatch": "^3.675.0",
     "@aws-sdk/client-s3": "^3.675.0",
-    "@aws-sdk/lib-storage": "^3.675.0",
+    "@aws-sdk/lib-storage": "^3.952.0",
     "@aws-sdk/s3-request-presigner": "^3.679.0",
     "@azure/storage-blob": "^12.26.0",
     "@clickhouse/client": "^1.13.0",
