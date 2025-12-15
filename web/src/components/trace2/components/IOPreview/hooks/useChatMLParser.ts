@@ -29,6 +29,7 @@ export interface ChatMLParserResult {
   toolCallCounts: Map<string, number>;
   messageToToolCallNumbers: Map<number, number[]>;
   toolNameToDefinitionNumber: Map<string, number>;
+  inputMessageCount: number;
 }
 
 /**
@@ -156,6 +157,7 @@ export function useChatMLParser(
       toolCallCounts,
       messageToToolCallNumbers,
       toolNameToDefinitionNumber,
+      inputMessageCount,
     };
   }, [parsedInput, parsedOutput, parsedMetadata, observationName]);
 }
