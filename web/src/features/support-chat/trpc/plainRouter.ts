@@ -290,6 +290,8 @@ export const plainRouter = createTRPCRouter({
           "",
           "To help us move faster, feel free to reply to this email with:",
           "- any error messages or screenshots",
+          "- SDK/framework versions you're using (Langfuse SDK, LangChain, OpenAI, etc.)",
+          "- logs with LANGFUSE_DEBUG=True (if available)",
           "- links to where you're seeing the issue (trace, page, dataset)",
           "- steps to reproduce (if relevant)",
           "",
