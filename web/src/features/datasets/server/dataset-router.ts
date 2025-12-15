@@ -55,8 +55,7 @@ import {
   type DatasetMutationResult,
   getDatasetItemById,
   getDatasetItems,
-  getDatasetItemsCountAtVersion,
-  getDatasetItemsCountAtVersionGrouped,
+  getDatasetItemsCount,
   createDatasetItemFilterState,
   executeWithDatasetServiceStrategy,
   OperationType,
@@ -64,6 +63,7 @@ import {
   listDatasetVersions,
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
+  getDatasetItemsCountGrouped,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -398,7 +398,7 @@ export const datasetRouter = createTRPCRouter({
       >(compiledQuery.sql, ...compiledQuery.parameters);
 
       // Get dataset items count for all datasets
-      const itemsCounts = await getDatasetItemsCountAtVersionGrouped({
+      const itemsCounts = await getDatasetItemsCountGrouped({
         projectId: input.projectId,
         datasetIds: input.datasetIds,
       });
@@ -692,7 +692,7 @@ export const datasetRouter = createTRPCRouter({
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input }) => {
-      return await getDatasetItemsCountAtVersion({
+      return await getDatasetItemsCount({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
           datasetIds: [input.datasetId],
