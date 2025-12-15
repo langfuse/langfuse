@@ -138,13 +138,9 @@ function extractToolsFromRawInput(
 ): void {
   if (!input || typeof input !== "object") return;
 
-  // Handle array of messages or single input object
-  const inputObj = Array.isArray(input)
-    ? input.find((item) => item && typeof item === "object" && "tools" in item)
-    : input;
-
-  if (!inputObj || typeof inputObj !== "object") return;
-  const obj = inputObj as Record<string, unknown>;
+  const obj = Array.isArray(input)
+    ? { messages: input }
+    : (input as Record<string, unknown>);
 
   // Top-level tools array (OpenAI request format)
   if (Array.isArray(obj.tools)) {
@@ -153,12 +149,25 @@ function extractToolsFromRawInput(
     }
   }
 
-  // Messages array with tools
+  // Messages array with tools on individual messages
   if (Array.isArray(obj.messages)) {
     for (const msg of obj.messages) {
-      if (msg && typeof msg === "object" && Array.isArray(msg.tools)) {
-        for (const tool of msg.tools) {
-          addToolDefinition(definitions, tool);
+      if (msg && typeof msg === "object") {
+        // Standard tools array on message
+        if (Array.isArray((msg as any).tools)) {
+          for (const tool of (msg as any).tools) {
+            addToolDefinition(definitions, tool);
+          }
+        }
+
+        // LangGraph format: tool definition in role:"tool" message content
+        // TODO: This should be handled by langgraph adapter preprocessing in the future
+        if (
+          (msg as any).role === "tool" &&
+          (msg as any).content?.type === "function" &&
+          (msg as any).content?.function
+        ) {
+          addToolDefinition(definitions, (msg as any).content);
         }
       }
     }

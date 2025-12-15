@@ -130,6 +130,32 @@ describe("extractToolsFromObservation", () => {
 
       expect(toolDefinitions).toHaveLength(1);
     });
+
+    it("extracts tools from LangGraph role:tool message content", () => {
+      const input = [
+        { role: "user", content: "Search for something" },
+        {
+          role: "tool",
+          content: {
+            type: "function",
+            function: {
+              name: "web_search",
+              description: "Search the web",
+              parameters: {
+                type: "object",
+                properties: { query: { type: "string" } },
+              },
+            },
+          },
+        },
+      ];
+
+      const { toolDefinitions } = extractToolsFromObservation(input, null);
+
+      expect(toolDefinitions).toHaveLength(1);
+      expect(toolDefinitions[0].name).toBe("web_search");
+      expect(toolDefinitions[0].description).toBe("Search the web");
+    });
   });
 
   describe("Tool Arguments extraction", () => {
