@@ -15,6 +15,8 @@ type AdditionalObservationFields = {
   traceName: string | null;
   traceTags: Array<string>;
   traceTimestamp: Date | null;
+  toolDefinitions: number | null;
+  toolCalls: number | null;
 } & ObservationPriceFields;
 
 export type FullObservation = AdditionalObservationFields & Observation;

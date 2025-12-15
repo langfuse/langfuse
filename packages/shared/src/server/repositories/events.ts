@@ -182,6 +182,8 @@ async function enrichObservationsWithTraceFields(
       traceName: o.name ?? null,
       traceTags: [], // TODO pull from PG
       traceTimestamp: null,
+      toolDefinitions: null, // Events table doesn't have tool columns yet
+      toolCalls: null,
     };
   });
 }

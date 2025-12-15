@@ -135,6 +135,25 @@ export const observationFilterConfig: FilterConfig = {
       unit: "$",
     },
     {
+      type: "categorical" as const,
+      column: "toolNames",
+      label: "Tool Names",
+    },
+    {
+      type: "numeric" as const,
+      column: "toolDefinitions",
+      label: "Available Tools",
+      min: 0,
+      max: 25,
+    },
+    {
+      type: "numeric" as const,
+      column: "toolCalls",
+      label: "Tool Calls",
+      min: 0,
+      max: 25,
+    },
+    {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",

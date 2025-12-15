@@ -227,4 +227,24 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: "o.prompt_version",
   },
+  {
+    uiTableName: "Available Tools",
+    uiTableId: "toolDefinitions",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "length(mapKeys(o.tool_definitions))",
+  },
+  {
+    uiTableName: "Tool Calls",
+    uiTableId: "toolCalls",
+    clickhouseTableName: "observations",
+    // flatten because the column looks like this:
+    // Map<String, Array<String>> , with tool name, tool invocations
+    clickhouseSelect: "length(arrayFlatten(mapValues(o.tool_calls)))",
+  },
+  {
+    uiTableName: "Tool Names",
+    uiTableId: "toolNames",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "mapKeys(o.tool_definitions)",
+  },
 ];

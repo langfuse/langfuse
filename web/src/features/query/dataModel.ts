@@ -426,6 +426,12 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
     },
+    toolNames: {
+      sql: "mapKeys(observations.tool_definitions)",
+      alias: "toolNames",
+      type: "string[]",
+      description: "Names of tools available to the observation.",
+    },
   },
   measures: {
     count: {
@@ -540,6 +546,22 @@ export const observationsView: ViewDeclarationType = {
       relationTable: "scores",
       description: "Unique scores attached to the observation.",
       unit: "scores",
+    },
+    toolDefinitions: {
+      sql: "length(mapKeys(@@AGG1@@(tool_definitions)))",
+      aggs: { agg1: "any" },
+      alias: "toolDefinitions",
+      type: "integer",
+      description: "Number of available tool per observation.",
+      unit: "tools",
+    },
+    toolCalls: {
+      sql: "length(arrayFlatten(mapValues(@@AGG1@@(tool_calls))))",
+      aggs: { agg1: "any" },
+      alias: "toolCalls",
+      type: "integer",
+      description: "Number of tool calls per observation.",
+      unit: "calls",
     },
   },
   tableRelations: {
@@ -1036,6 +1058,12 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
     },
+    toolNames: {
+      sql: "mapKeys(events_observations.tool_definitions)",
+      alias: "toolNames",
+      type: "string[]",
+      description: "Names of tools available to the observation.",
+    },
   },
   measures: {
     count: {
@@ -1145,6 +1173,22 @@ export const eventsObservationsView: ViewDeclarationType = {
       relationTable: "scores",
       description: "Unique scores attached to the observation.",
       unit: "scores",
+    },
+    toolDefinitions: {
+      sql: "length(mapKeys(@@AGG1@@(events_observations.tool_definitions)))",
+      aggs: { agg1: "any" },
+      alias: "toolDefinitions",
+      type: "integer",
+      description: "Number of available tool definitions per observation.",
+      unit: "tools",
+    },
+    toolCalls: {
+      sql: "length(arrayFlatten(mapValues(@@AGG1@@(events_observations.tool_calls))))",
+      aggs: { agg1: "any" },
+      alias: "toolCalls",
+      type: "integer",
+      description: "Number of tool calls per observation.",
+      unit: "calls",
     },
   },
   tableRelations: {

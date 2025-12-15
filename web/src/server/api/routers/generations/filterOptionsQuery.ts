@@ -8,6 +8,7 @@ import {
   getObservationsGroupedByModelId,
   getObservationsGroupedByName,
   getObservationsGroupedByPromptName,
+  getObservationsGroupedByToolName,
   getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
@@ -65,6 +66,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       traceNames,
       tags,
       modelId,
+      toolNames,
     ] = await Promise.all([
       // numeric scores
       getNumericScoresGroupedByName(input.projectId, traceTimestampFilters),
@@ -85,6 +87,8 @@ export const filterOptionsQuery = protectedProjectProcedure
       getClickhouseTraceTags(),
       // modelId
       getObservationsGroupedByModelId(input.projectId, startTimeFilter ?? []),
+      // tool names
+      getObservationsGroupedByToolName(input.projectId, startTimeFilter ?? []),
     ]);
 
     // typecheck filter options, needs to include all columns with options
@@ -116,6 +120,11 @@ export const filterOptionsQuery = protectedProjectProcedure
         .filter((i) => i.tag !== null)
         .map((i) => ({
           value: i.tag as string,
+        })),
+      toolNames: toolNames
+        .filter((i) => i.toolName !== null)
+        .map((i) => ({
+          value: i.toolName as string,
         })),
       type: [
         "GENERATION",
