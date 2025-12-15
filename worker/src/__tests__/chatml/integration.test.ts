@@ -1,4 +1,4 @@
-jest.mock("@langfuse/shared", () => {
+vi.mock("@langfuse/shared", () => {
   const { z } = require("zod/v4");
 
   return {
