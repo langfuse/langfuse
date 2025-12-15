@@ -1076,7 +1076,6 @@ function buildDatasetItemsAtVersionQuery(
       di.project_id,
       di.valid_from,
       di.dataset_id,
-      di.valid_from,
       ${ioFieldsOuter}
       di.source_trace_id,
       di.source_observation_id,
