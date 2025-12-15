@@ -19,7 +19,6 @@ import {
   formatDistanceToNow,
 } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
-import { DatasetVersionWarningBanner } from "./DatasetVersionWarningBanner";
 
 type DatasetVersionHistoryPanelProps = {
   projectId: string;
@@ -95,7 +94,6 @@ export function DatasetVersionHistoryPanel({
   }
 
   const latestVersion = versions[0];
-  const isViewingOldVersion = selectedVersion !== null;
   const groupedVersions = groupVersionsByTime(versions);
 
   const renderVersionItem = (version: Date, index: number) => {
