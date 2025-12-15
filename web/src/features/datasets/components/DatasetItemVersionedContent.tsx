@@ -1,7 +1,10 @@
-import { ViewDatasetItem } from "./ViewDatasetItem";
 import { DatasetItemDiffView } from "./DatasetItemDiffView";
 import type { DatasetItemDomain } from "@langfuse/shared";
-import type { DatasetSchema } from "../utils/datasetItemUtils";
+import {
+  stringifyDatasetItemData,
+  type DatasetSchema,
+} from "../utils/datasetItemUtils";
+import { DatasetItemFields } from "@/src/features/datasets/components/DatasetItemFields";
 
 type DatasetItemVersionedContentProps = {
   itemAtVersion: DatasetItemDomain | null;
@@ -78,5 +81,15 @@ export const DatasetItemVersionedContent = ({
   }
 
   // Show normal view of selected version
-  return <ViewDatasetItem datasetItem={itemAtVersion} dataset={dataset} />;
+  return (
+    <DatasetItemFields
+      inputValue={stringifyDatasetItemData(itemAtVersion.input)}
+      expectedOutputValue={stringifyDatasetItemData(
+        itemAtVersion.expectedOutput,
+      )}
+      metadataValue={stringifyDatasetItemData(itemAtVersion.metadata)}
+      dataset={dataset}
+      editable={false}
+    />
+  );
 };

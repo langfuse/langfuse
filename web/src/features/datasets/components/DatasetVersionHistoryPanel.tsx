@@ -5,6 +5,7 @@ import {
   AccordionTrigger,
 } from "@/src/components/ui/accordion";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { Clock } from "lucide-react";
@@ -109,7 +110,7 @@ export function DatasetVersionHistoryPanel({
     );
 
     return (
-      <button
+      <Button
         key={version.toISOString()}
         onClick={() => {
           if (isLatest) {
@@ -118,8 +119,9 @@ export function DatasetVersionHistoryPanel({
             setSelectedVersion(version);
           }
         }}
+        variant="ghost"
         className={cn(
-          "flex w-full flex-col items-start gap-1 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50",
+          "flex h-auto w-full flex-col items-start gap-1 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50",
           isSelected && "bg-muted font-medium hover:bg-muted",
         )}
       >
@@ -149,7 +151,7 @@ export function DatasetVersionHistoryPanel({
         >
           {formatDistanceToNow(version, { addSuffix: true })}
         </span>
-      </button>
+      </Button>
     );
   };
 

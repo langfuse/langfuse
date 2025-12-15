@@ -1,5 +1,6 @@
 import { Info } from "lucide-react";
 import { format } from "date-fns";
+import { Button } from "@/src/components/ui/button";
 
 type DatasetVersionWarningBannerProps = {
   selectedVersion: Date;
@@ -35,12 +36,13 @@ export function DatasetVersionWarningBanner({
               {format(selectedVersion, "MMM d, yyyy 'at' h:mm a")}
             </span>
           </p>
-          <button
+          <Button
             onClick={resetToLatest}
-            className="shrink-0 text-sm underline underline-offset-4 hover:text-foreground"
+            variant="link"
+            className="h-auto shrink-0 p-0 text-sm underline-offset-4"
           >
             Return to latest
-          </button>
+          </Button>
         </div>
         {changeCounts && hasChanges && (
           <p className="text-xs text-muted-foreground">

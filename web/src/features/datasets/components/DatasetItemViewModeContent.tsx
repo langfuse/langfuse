@@ -1,6 +1,9 @@
-import { ViewDatasetItem } from "./ViewDatasetItem";
 import type { DatasetItemDomain } from "@langfuse/shared";
-import type { DatasetSchema } from "../utils/datasetItemUtils";
+import {
+  stringifyDatasetItemData,
+  type DatasetSchema,
+} from "../utils/datasetItemUtils";
+import { DatasetItemFields } from "@/src/features/datasets/components/DatasetItemFields";
 
 type DatasetItemViewModeContentProps = {
   item: DatasetItemDomain | null;
@@ -34,5 +37,13 @@ export const DatasetItemViewModeContent = ({
     );
   }
 
-  return <ViewDatasetItem datasetItem={item} dataset={dataset} />;
+  return (
+    <DatasetItemFields
+      inputValue={stringifyDatasetItemData(item.input)}
+      expectedOutputValue={stringifyDatasetItemData(item.expectedOutput)}
+      metadataValue={stringifyDatasetItemData(item.metadata)}
+      dataset={dataset}
+      editable={false}
+    />
+  );
 };
