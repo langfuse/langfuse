@@ -164,6 +164,7 @@ export function IOPreview({
     toolCallCounts,
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
+    inputMessageCount,
   } = useChatMLParser(input, output, metadata, observationName);
 
   // Notify parent about pretty view availability
@@ -251,6 +252,7 @@ export function IOPreview({
               media={media ?? []}
               currentView={selectedView}
               messageToToolCallNumbers={messageToToolCallNumbers}
+              inputMessageCount={inputMessageCount}
             />
           </div>
         ) : (

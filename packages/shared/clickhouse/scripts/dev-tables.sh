@@ -224,6 +224,7 @@ CREATE TABLE IF NOT EXISTS events
       experiment_description String,
       experiment_dataset_id String,
       experiment_item_id String,
+      experiment_item_version Nullable(DateTime64(6)),
       experiment_item_expected_output String,
       experiment_item_metadata_names Array(String),
       experiment_item_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
@@ -356,7 +357,7 @@ clickhouse client \
          o.updated_at,
          o.event_ts,
          o.is_deleted
-  FROM observations o
+  FROM observations o FINAL
   LEFT JOIN traces t ON o.trace_id = t.id
   WHERE (o.is_deleted = 0);
   -- Backfill events from traces table as well
@@ -409,7 +410,7 @@ clickhouse client \
          t.updated_at,
          t.event_ts,
          t.is_deleted
-  FROM traces t
+  FROM traces t FINAL
   WHERE (t.is_deleted = 0);
 
 EOF

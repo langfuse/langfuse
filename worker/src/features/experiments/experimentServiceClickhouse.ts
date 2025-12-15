@@ -1,11 +1,12 @@
-import { DatasetItemDomain, DatasetStatus, Prisma } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { DatasetItemDomain, Prisma } from "@langfuse/shared";
 import {
   ChatMessage,
+  createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
   fetchLLMCompletion,
+  getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
@@ -208,26 +209,13 @@ async function getItemsToProcess(
   config: PromptExperimentConfig,
 ) {
   // Fetch all dataset items
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
-      projectId,
-      status: DatasetStatus.ACTIVE,
-    },
-    select: {
-      id: true,
-      projectId: true,
-      datasetId: true,
-      status: true,
-      input: true,
-      expectedOutput: true,
-      metadata: true,
-      sourceTraceId: true,
-      sourceObservationId: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+  const datasetItems = await getDatasetItems({
+    projectId,
+    filterState: createDatasetItemFilterState({
+      datasetIds: [datasetId],
+      status: "ACTIVE",
+    }),
+    includeIO: true,
   });
 
   // Filter and validate dataset items
@@ -360,26 +348,13 @@ async function createAllDatasetRunItemsWithConfigError(
   errorMessage: string,
 ) {
   // Fetch all dataset items
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
-      projectId,
-      status: DatasetStatus.ACTIVE,
-    },
-    select: {
-      id: true,
-      projectId: true,
-      datasetId: true,
-      status: true,
-      input: true,
-      expectedOutput: true,
-      metadata: true,
-      sourceTraceId: true,
-      sourceObservationId: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+  const datasetItems = await getDatasetItems({
+    projectId,
+    filterState: createDatasetItemFilterState({
+      datasetIds: [datasetId],
+      status: "ACTIVE",
+    }),
+    includeIO: true,
   });
 
   // Check for existing run items' dataset item ids to avoid duplicates
