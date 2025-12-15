@@ -4,7 +4,7 @@ import {
   type ExperimentMetadata,
   createDatasetItemFilterState,
   ExperimentCreateQueue,
-  getDatasetItemsByLatest,
+  getDatasetItems,
   PromptService,
   QueueJobs,
   QueueName,
@@ -141,7 +141,7 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const items = await getDatasetItemsByLatest({
+      const items = await getDatasetItems({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
           datasetIds: [input.datasetId],
