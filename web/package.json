@@ -42,7 +42,7 @@
     "@langchain/core": "^0.3.58",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
-    "@lezer/highlight": "^1.2.1",
+    "@lezer/highlight": "^1.2.3",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "@mui/material": "^7.3.1",
     "@mui/x-tree-view": "^8.17.0",

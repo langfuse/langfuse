@@ -398,8 +398,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/shared
       '@lezer/highlight':
-        specifier: ^1.2.1
-        version: 1.2.1
+        specifier: ^1.2.3
+        version: 1.2.3
       '@modelcontextprotocol/sdk':
         specifier: ^1.24.3
         version: 1.24.3(@cfworker/json-schema@4.1.1)(zod@3.25.62)
@@ -3178,14 +3178,8 @@ packages:
     peerDependencies:
       '@langchain/core': '>=0.2.21 <0.4.0'
 
-  '@lezer/common@1.2.3':
-    resolution: {integrity: sha512-w7ojc8ejBqr2REPsWxJjrMFsA/ysDCFICn8zEOR9mrqzOu2amhITYuLD8ag6XZf0CFXDrhKqw7+tW8cX66NaDA==}
-
   '@lezer/common@1.4.0':
     resolution: {integrity: sha512-DVeMRoGrgn/k45oQNu189BoW4SZwgZFzJ1+1TV5j2NJ/KFC83oa/enRqZSGshyeMk5cPWMhsKs9nx+8o0unwGg==}
-
-  '@lezer/highlight@1.2.1':
-    resolution: {integrity: sha512-Z5duk4RN/3zuVO7Jq0pGLJ3qynpxUVsh7IbUbGj88+uV2ApSAn6kWg2au3iJb+0Zi7kKtqffIESgNcRXWZWmSA==}
 
   '@lezer/highlight@1.2.3':
     resolution: {integrity: sha512-qXdH7UqTvGfdVBINrgKhDsVTJTxactNNxLk7+UMwZhU13lMHaOBlJe9Vqp907ya56Y3+ed2tlqzys7jDkTmW0g==}
@@ -16667,7 +16661,7 @@ snapshots:
       '@codemirror/state': 6.5.2
       '@codemirror/view': 6.38.8
       '@lezer/common': 1.4.0
-      '@lezer/highlight': 1.2.1
+      '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.4
       style-mod: 4.1.3
 
@@ -17870,13 +17864,7 @@ snapshots:
       '@langchain/core': 0.3.58(openai@5.12.2(zod@3.25.62))
       js-tiktoken: 1.0.21
 
-  '@lezer/common@1.2.3': {}
-
   '@lezer/common@1.4.0': {}
-
-  '@lezer/highlight@1.2.1':
-    dependencies:
-      '@lezer/common': 1.2.3
 
   '@lezer/highlight@1.2.3':
     dependencies:
@@ -17885,7 +17873,7 @@ snapshots:
   '@lezer/json@1.0.3':
     dependencies:
       '@lezer/common': 1.4.0
-      '@lezer/highlight': 1.2.1
+      '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.4
 
   '@lezer/lr@1.4.4':
