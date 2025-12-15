@@ -631,9 +631,11 @@ model DatasetItem {
   // dataset version cols
   sysId               String?        @default(dbgenerated()) @map("sys_id")
   validFrom           DateTime       @default(now()) @map("valid_from")
+  validTo             DateTime?      @map("valid_to")
   isDeleted           Boolean        @default(false) @map("is_deleted")
 
   @@id([id, projectId, validFrom])
+  @@index([projectId, validTo])
   @@index([projectId, id, validFrom])
   @@index([sourceTraceId], type: Hash)
   @@index([sourceObservationId], type: Hash)
