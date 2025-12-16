@@ -210,12 +210,20 @@ export function TraceDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-            {/* Tags Section */}
-            <div className="flex-shrink-0 px-2 pt-2 text-sm font-medium">
+          <div
+            className={`flex min-h-0 w-full flex-1 flex-col ${
+              currentView === "pretty" ? "overflow-auto" : "overflow-hidden"
+            }`}
+          >
+            {/* Tags Section - scrolls with content in pretty view, fixed in JSON view */}
+            <div
+              className={`px-2 pt-2 text-sm font-medium ${currentView === "json" ? "flex-shrink-0" : ""}`}
+            >
               Tags
             </div>
-            <div className="flex flex-shrink-0 flex-wrap gap-x-1 gap-y-1 px-2 pb-2">
+            <div
+              className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView === "json" ? "flex-shrink-0" : ""}`}
+            >
               <TagList selectedTags={trace.tags} isLoading={false} />
             </div>
 
