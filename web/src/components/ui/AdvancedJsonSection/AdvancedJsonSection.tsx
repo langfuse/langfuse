@@ -281,19 +281,11 @@ export function AdvancedJsonSection({
         <AdvancedJsonSectionHeader
           title={
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleToggleSectionCollapse}
-                className="inline-flex items-center justify-center rounded-sm p-0.5 transition-colors hover:bg-accent"
-                aria-label={
-                  sectionCollapsed ? "Expand section" : "Collapse section"
-                }
-              >
-                {sectionCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </button>
+              {sectionCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
               <span>{title}</span>
               <span className="text-xs font-normal text-muted-foreground">
                 {totalRowCount} rows{isVirtualized ? " (virtualized)" : ""}
@@ -302,6 +294,7 @@ export function AdvancedJsonSection({
           }
           handleOnCopy={handleCopy}
           backgroundColor={headerBackgroundColor}
+          onToggleCollapse={handleToggleSectionCollapse}
           controlButtons={
             <>
               {/* Search */}

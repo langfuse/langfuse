@@ -27,6 +27,9 @@ export interface AdvancedJsonSectionHeaderProps {
 
   /** Background color for the header */
   backgroundColor?: string;
+
+  /** Callback when header title area is clicked (for expand/collapse) */
+  onToggleCollapse?: () => void;
 }
 
 export function AdvancedJsonSectionHeader({
@@ -35,6 +38,7 @@ export function AdvancedJsonSectionHeader({
   handleOnCopy,
   controlButtons,
   backgroundColor,
+  onToggleCollapse,
 }: AdvancedJsonSectionHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -43,7 +47,18 @@ export function AdvancedJsonSectionHeader({
       className="io-message-header flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors group-hover:bg-muted/80"
       style={{ backgroundColor }}
     >
-      <div className="flex items-center gap-2">
+      <div
+        className="flex flex-1 cursor-pointer items-center gap-2"
+        onClick={onToggleCollapse}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggleCollapse?.();
+          }
+        }}
+      >
         {titleIcon}
         {title}
       </div>
