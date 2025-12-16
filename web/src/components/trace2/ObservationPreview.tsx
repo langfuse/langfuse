@@ -73,10 +73,9 @@ export const ObservationPreview = ({
     "view",
     withDefault(StringParam, "preview"),
   );
-  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
-    "jsonViewPreference",
-    "pretty",
-  );
+  const [currentView, setCurrentView] = useLocalStorage<
+    "pretty" | "json" | "json-beta"
+  >("jsonViewPreference", "pretty");
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
 
@@ -426,7 +425,7 @@ export const ObservationPreview = ({
                   value={currentView}
                   onValueChange={(value) => {
                     capture("trace_detail:io_mode_switch", { view: value });
-                    setCurrentView(value as "pretty" | "json");
+                    setCurrentView(value as "pretty" | "json" | "json-beta");
                   }}
                 >
                   <TabsList className="h-fit py-0.5">
@@ -435,6 +434,12 @@ export const ObservationPreview = ({
                     </TabsTrigger>
                     <TabsTrigger value="json" className="h-fit px-1 text-xs">
                       JSON
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="json-beta"
+                      className="h-fit px-1 text-xs"
+                    >
+                      JSON Beta
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -445,7 +450,11 @@ export const ObservationPreview = ({
             value="preview"
             className="mt-0 flex max-h-full min-h-0 w-full flex-1 pr-2"
           >
-            <div className="mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto">
+            <div
+              className={`mb-2 flex max-h-full min-h-0 w-full flex-col gap-2 overflow-y-auto ${
+                currentView === "json-beta" ? "" : "pb-4"
+              }`}
+            >
               <div>
                 <IOPreview
                   key={preloadedObservation.id + "-input"}
@@ -477,7 +486,9 @@ export const ObservationPreview = ({
                     key={preloadedObservation.id + "-status"}
                     title="Status Message"
                     json={preloadedObservation.statusMessage}
-                    currentView={currentView}
+                    currentView={
+                      currentView === "json-beta" ? "pretty" : currentView
+                    }
                   />
                 )}
               </div>
@@ -490,7 +501,9 @@ export const ObservationPreview = ({
                     media={observationMedia.data?.filter(
                       (m) => m.field === "metadata",
                     )}
-                    currentView={currentView}
+                    currentView={
+                      currentView === "json-beta" ? "pretty" : currentView
+                    }
                     externalExpansionState={expansionState.metadata}
                     onExternalExpansionChange={(expansion) =>
                       setFieldExpansion("metadata", expansion)

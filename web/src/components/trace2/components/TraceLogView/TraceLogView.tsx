@@ -56,7 +56,7 @@ import { useLogViewColumns } from "./useLogViewColumns";
 export interface TraceLogViewProps {
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "json";
+  currentView?: "pretty" | "json" | "json-beta";
 }
 
 // Import configuration constants
@@ -307,22 +307,24 @@ export const TraceLogView = ({
       )}
 
       {/* Table view mode - render as expandable table */}
-      {flatItems.length > 0 && currentView === "pretty" && (
-        <JSONTableView
-          items={flatItems}
-          columns={columns}
-          getItemKey={(item) => item.node.id}
-          expandable
-          renderExpanded={renderExpanded}
-          expandedKeys={expandedKeys}
-          onExpandedKeysChange={setExpandedKeys}
-          virtualized={isVirtualized}
-          overscan={100}
-          collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
-          expandedRowHeight={EXPANDED_ROW_HEIGHT}
-          renderRowPrefix={renderRowPrefix}
-        />
-      )}
+      {/* "json-beta" uses table mode since advanced I/O viewer works in expandable rows */}
+      {flatItems.length > 0 &&
+        (currentView === "pretty" || currentView === "json-beta") && (
+          <JSONTableView
+            items={flatItems}
+            columns={columns}
+            getItemKey={(item) => item.node.id}
+            expandable
+            renderExpanded={renderExpanded}
+            expandedKeys={expandedKeys}
+            onExpandedKeysChange={setExpandedKeys}
+            virtualized={isVirtualized}
+            overscan={100}
+            collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
+            expandedRowHeight={EXPANDED_ROW_HEIGHT}
+            renderRowPrefix={renderRowPrefix}
+          />
+        )}
     </div>
   );
 };
