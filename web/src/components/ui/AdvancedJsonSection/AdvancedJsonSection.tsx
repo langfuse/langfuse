@@ -13,7 +13,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   WrapText,
   Minus,
@@ -47,9 +46,6 @@ export interface AdvancedJsonSectionProps {
 
   /** Callback when section collapse state changes */
   onToggleCollapse?: () => void;
-
-  /** Max height for the JSON viewer */
-  maxHeight?: string;
 
   /** Background color for the JSON viewer body */
   backgroundColor?: string;
@@ -95,7 +91,6 @@ export function AdvancedJsonSection({
   parsedData,
   collapsed: controlledCollapsed,
   onToggleCollapse,
-  maxHeight = "500px",
   backgroundColor,
   headerBackgroundColor,
   className,
@@ -265,7 +260,7 @@ export function AdvancedJsonSection({
 
   return (
     <div
-      className={`border-b border-t ${className || ""}`}
+      className={`flex flex-col border-b border-t ${sectionCollapsed ? "" : "min-h-0 overflow-hidden"} ${className || ""}`}
       style={{
         backgroundColor: headerBackgroundColor || backgroundColor,
       }}
@@ -281,19 +276,6 @@ export function AdvancedJsonSection({
         <AdvancedJsonSectionHeader
           title={
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleToggleSectionCollapse}
-                className="inline-flex items-center justify-center rounded-sm p-0.5 transition-colors hover:bg-accent"
-                aria-label={
-                  sectionCollapsed ? "Expand section" : "Collapse section"
-                }
-              >
-                {sectionCollapsed ? (
-                  <ChevronRight className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </button>
               <span>{title}</span>
               <span className="text-xs font-normal text-muted-foreground">
                 {totalRowCount} rows{isVirtualized ? " (virtualized)" : ""}
@@ -302,6 +284,8 @@ export function AdvancedJsonSection({
           }
           handleOnCopy={handleCopy}
           backgroundColor={headerBackgroundColor}
+          onToggleCollapse={handleToggleSectionCollapse}
+          sectionCollapsed={sectionCollapsed}
           controlButtons={
             <>
               {/* Search */}
@@ -418,12 +402,9 @@ export function AdvancedJsonSection({
       {!sectionCollapsed && (
         <div
           ref={scrollContainerRef}
+          className="min-h-0 flex-1 overflow-auto"
           style={{
-            minHeight: "100px",
-            maxHeight: maxHeight,
-            overflow: "auto", // Single scroll container for both X and Y
             backgroundColor: headerBackgroundColor || backgroundColor,
-            height: "100%",
           }}
         >
           {!hasData ? (

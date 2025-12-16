@@ -16,7 +16,7 @@ export function JsonValue({
   theme,
   isExpandable = false,
   childCount: _childCount,
-  stringWrapMode = "truncate",
+  stringWrapMode = "wrap",
   truncateStringsAt = null,
   highlightStart,
   highlightEnd,

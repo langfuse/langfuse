@@ -42,7 +42,7 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
   matchCounts,
   showLineNumbers = false,
   enableCopy = false,
-  stringWrapMode = "truncate",
+  stringWrapMode = "wrap",
   truncateStringsAt = null,
   onToggleExpansion,
   className,
