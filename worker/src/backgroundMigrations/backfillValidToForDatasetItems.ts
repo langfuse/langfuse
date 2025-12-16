@@ -4,7 +4,7 @@ import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { parseArgs } from "node:util";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
-const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b9";
+const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b8";
 
 /**
  * Background migration to backfill valid_to timestamps for dataset_items.
