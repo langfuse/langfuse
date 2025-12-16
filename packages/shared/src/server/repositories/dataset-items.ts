@@ -367,15 +367,35 @@ export async function upsertDatasetItem(
       }
     },
     [Implementation.VERSIONED]: async () => {
-      // Write full item state to event table
-      const res = await prisma.datasetItem.create({
-        data: {
-          ...itemData,
-          projectId: props.projectId,
-          datasetId: dataset.id,
-        },
+      // VERSIONED: Invalidate old row by setting valid_to, then create new row
+      await prisma.$transaction(async (tx) => {
+        const newValidFrom = new Date();
+
+        // 1. If updating existing item, invalidate the current version
+        if (existingItem) {
+          await tx.datasetItem.updateMany({
+            where: {
+              id: existingItem.id,
+              projectId: props.projectId,
+              validTo: null, // Only update the current version
+            },
+            data: {
+              validTo: newValidFrom,
+            },
+          });
+        }
+
+        // 2. Create new version
+        const res = await tx.datasetItem.create({
+          data: {
+            ...itemData,
+            projectId: props.projectId,
+            datasetId: dataset.id,
+            validFrom: newValidFrom,
+          },
+        });
+        item = res;
       });
-      item = res;
     },
   });
 
@@ -421,13 +441,32 @@ export async function deleteDatasetItem(props: {
       });
     },
     [Implementation.VERSIONED]: async () => {
-      await prisma.datasetItem.create({
-        data: {
-          projectId: props.projectId,
-          id: props.datasetItemId,
-          isDeleted: true,
-          datasetId: item.datasetId,
-        },
+      // VERSIONED: Invalidate old row, then create delete marker
+      await prisma.$transaction(async (tx) => {
+        const newValidFrom = new Date();
+
+        // 1. Invalidate the current version
+        await tx.datasetItem.updateMany({
+          where: {
+            id: props.datasetItemId,
+            projectId: props.projectId,
+            validTo: null, // Only update current version
+          },
+          data: {
+            validTo: newValidFrom,
+          },
+        });
+
+        // 2. Create delete marker
+        await tx.datasetItem.create({
+          data: {
+            projectId: props.projectId,
+            id: props.datasetItemId,
+            isDeleted: true,
+            datasetId: item.datasetId,
+            validFrom: newValidFrom,
+          },
+        });
       });
     },
   });
@@ -525,7 +564,6 @@ export async function createManyDatasetItems(props: {
   // 3. Validate all items, collect errors with original index
   const validationErrors: CreateManyValidationError[] = [];
   const preparedItems: CreateManyItemsInsert = [];
-  const validFrom = new Date();
 
   for (const datasetId of datasetIds) {
     const datasetItems = itemsByDataset[datasetId];
@@ -583,7 +621,6 @@ export async function createManyDatasetItems(props: {
           metadata: result.metadata,
           sourceTraceId: item.sourceTraceId,
           sourceObservationId: item.sourceObservationId,
-          validFrom,
         });
       }
     }
@@ -608,8 +645,32 @@ export async function createManyDatasetItems(props: {
         });
       },
       [Implementation.VERSIONED]: async () => {
-        await prisma.datasetItem.createMany({
-          data: preparedItems,
+        // VERSIONED: Invalidate old rows for existing items, then create new rows
+        await prisma.$transaction(async (tx) => {
+          const newValidFrom = new Date();
+
+          // 1. Get unique IDs from preparedItems
+          const itemIds = [...new Set(preparedItems.map((item) => item.id))];
+
+          // 2. Invalidate all current versions of items being upserted
+          await tx.datasetItem.updateMany({
+            where: {
+              id: { in: itemIds },
+              projectId: props.projectId,
+              validTo: null, // Only update current versions
+            },
+            data: {
+              validTo: newValidFrom,
+            },
+          });
+
+          // 3. Create all new versions with the same validFrom timestamp
+          await tx.datasetItem.createMany({
+            data: preparedItems.map((item) => ({
+              ...item,
+              validFrom: newValidFrom,
+            })),
+          });
         });
       },
     });
@@ -667,7 +728,6 @@ export type CreateManyItemsInsert = {
   metadata: Prisma.NullTypes.DbNull | Prisma.InputJsonValue | undefined;
   sourceTraceId?: string;
   sourceObservationId?: string;
-  validFrom: Date;
 }[];
 
 /**
