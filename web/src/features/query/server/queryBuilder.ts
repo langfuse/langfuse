@@ -429,7 +429,9 @@ export class QueryBuilder {
       const shouldUseFinal = !(
         relation.name === "observations" && skipObservationsFinal
       );
-      let joinStatement = `LEFT JOIN ${relation.name}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
+      const alias =
+        relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
+      let joinStatement = `LEFT JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
