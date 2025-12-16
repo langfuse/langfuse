@@ -352,10 +352,7 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: this.extractCostDetails(
-                    spanAttributes,
-                    isLangfuseSDKSpans,
-                  ),
+                  providedCostDetails: this.extractCostDetails(spanAttributes),
 
                   // Properties
                   tags: this.extractTags(spanAttributes),
@@ -1997,9 +1994,8 @@ export class OtelIngestionProcessor {
 
   private extractCostDetails(
     attributes: Record<string, unknown>,
-    isLangfuseSDKSpan: boolean,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS]) {
       try {
         return JSON.parse(
           attributes[
