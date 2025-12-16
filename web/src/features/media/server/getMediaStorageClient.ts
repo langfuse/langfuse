@@ -15,6 +15,7 @@ export const getMediaStorageServiceClient = (
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
       endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+      externalEndpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
       awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,

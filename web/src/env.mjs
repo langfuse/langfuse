@@ -247,6 +247,7 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+    LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
