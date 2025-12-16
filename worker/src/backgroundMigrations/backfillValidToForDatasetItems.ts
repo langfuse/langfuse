@@ -80,18 +80,25 @@ export default class BackfillValidToForDatasetItems
 
     // @ts-ignore
     const initialMigrationState: {
-      state: {
-        lastProcessedProjectId: string | undefined;
-        lastProcessedId: string | undefined;
-      };
+      state:
+        | {
+            lastProcessedProjectId: string;
+            lastProcessedId: string;
+          }
+        | {};
     } = await prisma.backgroundMigration.findUniqueOrThrow({
       where: { id: backgroundMigrationId },
       select: { state: true },
     });
 
     let lastProcessedProjectId =
-      initialMigrationState.state?.lastProcessedProjectId ?? "";
-    let lastProcessedId = initialMigrationState.state?.lastProcessedId ?? "";
+      "lastProcessedProjectId" in initialMigrationState.state
+        ? initialMigrationState.state.lastProcessedProjectId
+        : "";
+    let lastProcessedId =
+      "lastProcessedId" in initialMigrationState.state
+        ? initialMigrationState.state.lastProcessedId
+        : "";
 
     while (!this.isAborted) {
       const result = await backfillValidToForDatasetItems(
