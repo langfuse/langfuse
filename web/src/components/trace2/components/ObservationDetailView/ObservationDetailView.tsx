@@ -313,7 +313,11 @@ export function ObservationDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto">
+          <div
+            className={`flex min-h-0 w-full flex-1 flex-col ${
+              currentView === "pretty" ? "overflow-auto" : "overflow-hidden"
+            }`}
+          >
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
@@ -334,6 +338,7 @@ export function ObservationDetailView({
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
               }
+              showMetadata
             />
           </div>
         </TabsBarContent>
