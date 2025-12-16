@@ -65,11 +65,11 @@ export function IOPreviewJSON({
   const showMetadata = !(hideIfNull && !parsedMetadata && !metadata);
 
   // Accordion state: only one section can be expanded at a time
-  // Default to first visible section
-  const defaultExpanded = showInput
-    ? "input"
-    : showOutput
-      ? "output"
+  // Default to output first (as it's crucial for generations), then input
+  const defaultExpanded = showOutput
+    ? "output"
+    : showInput
+      ? "input"
       : showMetadata
         ? "metadata"
         : null;
@@ -78,17 +78,18 @@ export function IOPreviewJSON({
   >(defaultExpanded);
 
   // Ensure expandedSection is always valid (if current is hidden, switch to first visible)
+  // Priority: output > input > metadata
   useEffect(() => {
-    if (expandedSection === "input" && !showInput) {
-      setExpandedSection(
-        showOutput ? "output" : showMetadata ? "metadata" : null,
-      );
-    } else if (expandedSection === "output" && !showOutput) {
+    if (expandedSection === "output" && !showOutput) {
       setExpandedSection(
         showInput ? "input" : showMetadata ? "metadata" : null,
       );
+    } else if (expandedSection === "input" && !showInput) {
+      setExpandedSection(
+        showOutput ? "output" : showMetadata ? "metadata" : null,
+      );
     } else if (expandedSection === "metadata" && !showMetadata) {
-      setExpandedSection(showInput ? "input" : showOutput ? "output" : null);
+      setExpandedSection(showOutput ? "output" : showInput ? "input" : null);
     }
   }, [showInput, showOutput, showMetadata, expandedSection]);
 
