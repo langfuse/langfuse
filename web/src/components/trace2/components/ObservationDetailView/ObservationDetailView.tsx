@@ -32,7 +32,8 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
@@ -147,6 +148,64 @@ export function ObservationDetailView({
     observationId: observation.id,
   });
 
+  const observationComments = api.comments.getByObjectId.useQuery(
+    {
+      projectId,
+      objectId: observation.id,
+      objectType: "OBSERVATION",
+    },
+    {
+      refetchOnMount: false,
+    },
+  );
+
+  // Build Maps of JSON paths with comment ranges, keyed by field
+  const commentedPathsByField = useMemo(() => {
+    if (!observationComments.data) return undefined;
+
+    const inputMap = new Map<string, Array<{ start: number; end: number }>>();
+    const outputMap = new Map<string, Array<{ start: number; end: number }>>();
+    const metadataMap = new Map<
+      string,
+      Array<{ start: number; end: number }>
+    >();
+
+    for (const comment of observationComments.data) {
+      // Only process comments with position data (inline comments)
+      if (
+        comment.dataField &&
+        comment.path &&
+        comment.path.length > 0 &&
+        comment.rangeStart &&
+        comment.rangeEnd
+      ) {
+        // Build ranges from rangeStart/rangeEnd arrays (supports multi-selection)
+        const ranges = comment.rangeStart.map((start, i) => ({
+          start,
+          end: comment.rangeEnd[i]!,
+        }));
+
+        // path is an array of JSON path strings (e.g., ["$.messages[0].content"])
+        for (const jsonPath of comment.path) {
+          let targetMap;
+          if (comment.dataField === "input") targetMap = inputMap;
+          else if (comment.dataField === "output") targetMap = outputMap;
+          else if (comment.dataField === "metadata") targetMap = metadataMap;
+          else continue;
+
+          const existing = targetMap.get(jsonPath) || [];
+          targetMap.set(jsonPath, [...existing, ...ranges]);
+        }
+      }
+    }
+
+    return {
+      input: inputMap.size > 0 ? inputMap : undefined,
+      output: outputMap.size > 0 ? outputMap : undefined,
+      metadata: metadataMap.size > 0 ? metadataMap : undefined,
+    };
+  }, [observationComments.data]);
+
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
     if (observation.latency) {
@@ -238,6 +297,10 @@ export function ObservationDetailView({
               objectType="OBSERVATION"
               count={comments.get(observation.id)}
               size="sm"
+              pendingSelection={pendingSelection}
+              onSelectionUsed={handleSelectionUsed}
+              isOpen={isCommentDrawerOpen}
+              onOpenChange={setIsCommentDrawerOpen}
             />
           </div>
         </div>
@@ -349,6 +412,9 @@ export function ObservationDetailView({
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
               }
+              enableInlineComments={true}
+              onAddInlineComment={handleAddInlineComment}
+              commentedPathsByField={commentedPathsByField}
             />
           </div>
         </TabsBarContent>

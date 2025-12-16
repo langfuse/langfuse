@@ -5670,6 +5670,36 @@ components:
           type: string
           nullable: true
           description: The id of the user who created the comment.
+        dataField:
+          type: string
+          nullable: true
+          description: >-
+            For inline comments on IO, specifies which field (input, output, or
+            metadata). Must be set together with path, rangeStart, and rangeEnd.
+        path:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: >-
+            JSON Path expressions specifying comment location within the
+            dataField. Must have same length as rangeStart and rangeEnd.
+        rangeStart:
+          type: array
+          items:
+            type: integer
+          nullable: true
+          description: >-
+            Start character offsets (inclusive, UTF-16 code units) for each path
+            entry.
+        rangeEnd:
+          type: array
+          items:
+            type: integer
+          nullable: true
+          description: >-
+            End character offsets (exclusive, UTF-16 code units) for each path
+            entry.
       required:
         - projectId
         - objectType
@@ -6463,6 +6493,28 @@ components:
         authorUserId:
           type: string
           nullable: true
+        dataField:
+          type: string
+          nullable: true
+          description: For inline comments, the IO field (input, output, metadata)
+        path:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: JSON Path expressions for comment location
+        rangeStart:
+          type: array
+          items:
+            type: integer
+          nullable: true
+          description: Start character offsets (inclusive, UTF-16)
+        rangeEnd:
+          type: array
+          items:
+            type: integer
+          nullable: true
+          description: End character offsets (exclusive, UTF-16)
       required:
         - id
         - projectId
