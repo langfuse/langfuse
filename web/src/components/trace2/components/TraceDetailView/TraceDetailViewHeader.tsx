@@ -49,7 +49,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   commentCount,
 }: TraceDetailViewHeaderProps) {
   return (
-    <div className="flex-shrink-0 space-y-2 border-b p-4 @container">
+    <div className="flex-shrink-0 space-y-2 border-b p-2 @container">
       {/* Title row with actions */}
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
         <div className="flex w-full flex-row items-start gap-1">

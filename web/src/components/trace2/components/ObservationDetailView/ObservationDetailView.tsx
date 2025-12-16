@@ -154,7 +154,7 @@ export function ObservationDetailView({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header section */}
-      <div className="flex-shrink-0 space-y-2 border-b p-4">
+      <div className="flex-shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
