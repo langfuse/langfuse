@@ -475,7 +475,7 @@ export default function TracesTable({
             id: ActionId.TraceDelete,
             type: BatchActionType.Delete,
             label: "Delete Traces",
-            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
+            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
