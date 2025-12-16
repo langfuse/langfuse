@@ -10,17 +10,16 @@ const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b8";
  * Background migration to backfill valid_to timestamps for dataset_items.
  *
  * Background:
- * - Currently, the dataset_items table uses append-only writes where new versions
- *   are created with valid_from timestamps but old versions never get their valid_to set
- * - This migration sets valid_to on old rows to equal the valid_from of the next version
+ * - Backfills historical data where old versions have valid_to = NULL
+ * - Sets valid_to on old rows to equal the valid_from of the next version
  * - This enables proper temporal queries and ensures old versions are marked as superseded
  *
  * Performance Strategy:
- * - Uses correlated subquery (not window functions) to find next version
- * - Correlated subquery only searches within batch and uses indexes efficiently
- * - Cursor-based pagination with composite key (id, project_id, valid_from)
- * - Processes rows directly in batches for optimal performance
- * - Uses indexed columns for efficient scanning
+ * - Processes one project at a time to leverage composite index (project_id, id, valid_from)
+ * - Batches up to 100 distinct (id) pairs per project
+ * - Fetches ALL versions for those IDs and computes LEAD() window function
+ * - Window function only processes versions for the batch (not entire table)
+ * - Cursor-based pagination prevents re-processing
  *
  */
 
