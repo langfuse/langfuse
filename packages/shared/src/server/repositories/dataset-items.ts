@@ -1091,11 +1091,7 @@ function buildDatasetItemsAtVersionQuery(
   limit?: number,
   offset?: number,
 ): Prisma.Sql {
-  const ioFieldsCTE = includeIO
-    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
-    : Prisma.empty;
-
-  const ioFieldsOuter = includeIO
+  const ioFields = includeIO
     ? Prisma.sql`di.input, di.expected_output, di.metadata,`
     : Prisma.empty;
 
@@ -1107,21 +1103,8 @@ function buildDatasetItemsAtVersionQuery(
     ? Prisma.sql`, d.name as dataset_name`
     : Prisma.empty;
 
-  const filtersInsideCTE = filter.filter((f) =>
-    filterColumnsInsideCTE.includes(f.column),
-  );
-  const filtersOutsideCTE = filter.filter(
-    (f) => !filterColumnsInsideCTE.includes(f.column),
-  );
-
-  const filterConditionInside = tableColumnsToSqlFilterAndPrefix(
-    filtersInsideCTE,
-    datasetItemsFilterCols,
-    "dataset_item_events",
-  );
-
-  const filterConditionOutside = tableColumnsToSqlFilterAndPrefix(
-    filtersOutsideCTE,
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
     datasetItemsFilterCols,
     "dataset_item_events",
   );
@@ -1136,8 +1119,7 @@ function buildDatasetItemsAtVersionQuery(
       ? Prisma.sql`LIMIT ${limit}${offset !== undefined ? Prisma.sql` OFFSET ${offset}` : Prisma.empty}`
       : Prisma.empty;
 
-  // New temporal query using valid_from and valid_to
-  // Much simpler and more performant - no DISTINCT ON needed!
+  // Temporal query using valid_from and valid_to
   const versionCondition = version
     ? Prisma.sql`
         AND di.valid_from <= ${version}
@@ -1151,7 +1133,7 @@ function buildDatasetItemsAtVersionQuery(
       di.project_id,
       di.valid_from,
       di.dataset_id,
-      ${ioFieldsOuter}
+      ${ioFields}
       di.source_trace_id,
       di.source_observation_id,
       di.status,
@@ -1163,8 +1145,7 @@ function buildDatasetItemsAtVersionQuery(
     WHERE di.project_id = ${projectId}
       AND di.is_deleted = false
       ${versionCondition}
-      ${filterConditionInside}
-      ${filterConditionOutside}
+      ${filterCondition}
       ${searchCondition}
     ORDER BY di.valid_from DESC, di.id ASC
     ${paginationClause}
@@ -1182,21 +1163,8 @@ function buildDatasetItemsCountQuery(
   searchQuery?: string,
   searchType?: ("id" | "content")[],
 ): Prisma.Sql {
-  const filtersInsideCTE = filter.filter((f) =>
-    filterColumnsInsideCTE.includes(f.column),
-  );
-  const filtersOutsideCTE = filter.filter(
-    (f) => !filterColumnsInsideCTE.includes(f.column),
-  );
-
-  const filterConditionInside = tableColumnsToSqlFilterAndPrefix(
-    filtersInsideCTE,
-    datasetItemsFilterCols,
-    "dataset_item_events",
-  );
-
-  const filterConditionOutside = tableColumnsToSqlFilterAndPrefix(
-    filtersOutsideCTE,
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
     datasetItemsFilterCols,
     "dataset_item_events",
   );
@@ -1221,15 +1189,13 @@ function buildDatasetItemsCountQuery(
     WHERE di.project_id = ${projectId}
       AND di.is_deleted = false
       ${versionCondition}
-      ${filterConditionInside}
-      ${filterConditionOutside}
+      ${filterCondition}
       ${searchCondition}
   `;
 }
 
 /**
  * Builds the SQL query for counting latest dataset items grouped by dataset_id.
- * Uses valid_to IS NULL to identify current versions - much more efficient!
  */
 function buildDatasetItemsLatestCountGroupedQuery(
   projectId: string,
@@ -1424,7 +1390,7 @@ export async function getDatasetItemById<
       return item ? toDomainType(item, includeIO) : null;
     },
     [Implementation.VERSIONED]: async () => {
-      // VERSIONED: Use valid_to for temporal queries - much simpler and faster!
+      // VERSIONED: Get version at or before specified timestamp, returns null if doesn't exist
       const selectFields = includeIO
         ? 'id, project_id AS "projectId", dataset_id AS "datasetId", input, expected_output AS "expectedOutput", metadata, source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"'
         : 'id, project_id AS "projectId", dataset_id AS "datasetId", source_trace_id AS "sourceTraceId", source_observation_id AS "sourceObservationId", status, created_at AS "createdAt", updated_at AS "updatedAt", valid_from AS "validFrom"';
