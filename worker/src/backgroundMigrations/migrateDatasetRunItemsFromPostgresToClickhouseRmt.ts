@@ -103,7 +103,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
         Array<Record<string, any>>
       >(Prisma.sql`
         WITH latest_dataset_items AS (
-          SELECT DISTINCT ON project_id
+          SELECT DISTINCT ON (project_id)
             id,
             project_id,
             dataset_id,
