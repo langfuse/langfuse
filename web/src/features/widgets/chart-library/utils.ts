@@ -63,6 +63,62 @@ export const formatAxisLabel = (label: string): string =>
   label.length > 13 ? label.slice(0, 13).concat("…") : label;
 
 /**
+ * Sorts data points by dimension, detecting if the dimension values are date-like
+ * and sorting chronologically if so, otherwise falling back to localeCompare.
+ */
+export const sortDataByDimension = (data: DataPoint[]): DataPoint[] => {
+  if (data.length === 0) return data;
+
+  // Patterns for common date formats
+  const monthPattern = /^\d{4}-\d{2}$/; // YYYY-MM
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD
+  const isoPattern = /^\d{4}-\d{2}-\d{2}T/; // ISO datetime
+
+  // Check if dimension values look like dates
+  const sampleDimensions = data
+    .slice(0, 5)
+    .map((d) => d.dimension)
+    .filter((d): d is string => typeof d === "string");
+
+  const isDateLike = sampleDimensions.some(
+    (d) => monthPattern.test(d) || datePattern.test(d) || isoPattern.test(d),
+  );
+
+  return [...data].sort((a, b) => {
+    const dimA = a.dimension ?? "";
+    const dimB = b.dimension ?? "";
+
+    if (isDateLike) {
+      // Parse as dates for chronological sorting
+      let dateA: Date;
+      let dateB: Date;
+
+      if (monthPattern.test(dimA)) {
+        dateA = new Date(`${dimA}-01T00:00:00.000Z`);
+      } else {
+        dateA = new Date(dimA);
+      }
+
+      if (monthPattern.test(dimB)) {
+        dateB = new Date(`${dimB}-01T00:00:00.000Z`);
+      } else {
+        dateB = new Date(dimB);
+      }
+
+      // If parsing fails, fall back to string comparison
+      if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+        return dimA.localeCompare(dimB);
+      }
+
+      return dateA.getTime() - dateB.getTime();
+    }
+
+    // Default: alphabetical sort
+    return dimA.localeCompare(dimB);
+  });
+};
+
+/**
  * Maps chart types to their human-readable display names.
  */
 export function getChartTypeDisplayName(

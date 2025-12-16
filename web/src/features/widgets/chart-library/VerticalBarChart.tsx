@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { sortDataByDimension } from "@/src/features/widgets/chart-library/utils";
 
 /**
  * VerticalBarChart component
@@ -21,9 +22,12 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
 }) => {
+  // Sort data by dimension, handling date-like values chronologically
+  const sortedData = useMemo(() => sortDataByDimension(data), [data]);
+
   return (
     <ChartContainer config={config}>
-      <BarChart accessibilityLayer={accessibilityLayer} data={data}>
+      <BarChart accessibilityLayer={accessibilityLayer} data={sortedData}>
         <XAxis
           type="category"
           dataKey="dimension"
