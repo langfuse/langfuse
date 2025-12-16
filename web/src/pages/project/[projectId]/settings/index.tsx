@@ -171,7 +171,7 @@ export const getProjectSettingsPages = ({
     show: showProtectedLabelsSettings,
   },
   {
-    title: "Scores / Evaluation",
+    title: "Scores Configs",
     slug: "scores",
     cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,

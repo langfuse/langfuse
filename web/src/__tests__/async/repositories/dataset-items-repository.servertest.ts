@@ -1597,4 +1597,97 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       }
     });
   });
+
+  describe("valid_to timestamp tests", () => {
+    it("should set valid_to on old version when upserting", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      // Create v1
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 1 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      await delay(10);
+
+      // Create v2 - should invalidate v1
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { version: 2 },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      // Check database directly
+      const allVersions = await prisma.datasetItem.findMany({
+        where: { id: itemId, projectId },
+        orderBy: { validFrom: "asc" },
+      });
+
+      expect(allVersions.length).toBe(2);
+
+      // v1 should have valid_to set
+      expect(allVersions[0].validTo).not.toBeNull();
+      expect(allVersions[0].validTo?.getTime()).toBe(
+        allVersions[1].validFrom.getTime(),
+      );
+
+      // v2 (current) should have valid_to as null
+      expect(allVersions[1].validTo).toBeNull();
+    });
+
+    it("should set valid_to on old version when deleting", async () => {
+      const datasetId = v4();
+      const itemId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+
+      // Create item
+      await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: itemId,
+        input: { key: "value" },
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      await delay(10);
+
+      // Delete item - should invalidate old version
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: itemId,
+      });
+
+      // Check database directly
+      const allVersions = await prisma.datasetItem.findMany({
+        where: { id: itemId, projectId },
+        orderBy: { validFrom: "asc" },
+      });
+
+      expect(allVersions.length).toBe(2);
+
+      // Old version should have valid_to set
+      expect(allVersions[0].validTo).not.toBeNull();
+      expect(allVersions[0].validTo?.getTime()).toBe(
+        allVersions[1].validFrom.getTime(),
+      );
+
+      // Delete marker should have valid_to as null
+      expect(allVersions[1].validTo).toBeNull();
+      expect(allVersions[1].isDeleted).toBe(true);
+    });
+  });
 });
