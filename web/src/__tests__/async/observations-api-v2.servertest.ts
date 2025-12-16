@@ -290,11 +290,11 @@ describe("/api/public/v2/observations API Endpoint", () => {
         10,
       );
 
-      // Focus on testing columns that require joins to other tables
-      // (columns from traces table: userId, traceName, sessionId, traceTags, traceEnvironment)
+      // Focus on testing filter columns that may have complex handling
+      // (trace-level fields now read directly from events table: userId, traceName, sessionId, traceTags, traceEnvironment)
       // and score-related columns that may require special handling
       const filterTestCases = [
-        // Trace table columns (require join)
+        // Trace-level fields (now read directly from events table)
         {
           description: "trace field: userId",
           filter: [
@@ -397,7 +397,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       expect(userIdFilterResponse.status).toBe(200);
-      expect(userIdFilterResponse.body.data.length).toEqual(2);
+      // Only observation1 has user_id: "test-user-123"
+      expect(userIdFilterResponse.body.data.length).toEqual(1);
       const userFilteredObs = userIdFilterResponse.body.data.find(
         (obs: any) => obs.id === observationId1,
       );
