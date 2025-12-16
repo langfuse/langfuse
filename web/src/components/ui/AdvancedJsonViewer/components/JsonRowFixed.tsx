@@ -32,7 +32,7 @@ export function JsonRowFixed({
   searchMatch,
   isCurrentMatch = false,
   onToggleExpansion,
-  stringWrapMode = "truncate",
+  stringWrapMode = "wrap",
   className,
   isToggling = false,
 }: JsonRowFixedProps) {
