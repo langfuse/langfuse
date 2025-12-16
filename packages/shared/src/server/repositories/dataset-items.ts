@@ -1060,11 +1060,6 @@ function buildStatefulDatasetItemsCountQuery(
   `;
 }
 
-// Split filters: Only id/datasetId/validFrom should be inside CTE (before DISTINCT ON)
-// All other filters (status, sourceTraceId, sourceObservationId, metadata, createdAt)
-// must be applied AFTER getting latest version to ensure we're filtering on the latest state
-const filterColumnsInsideCTE = ["id", "datasetId", "validFrom"];
-
 /**
  * Builds the SQL query for fetching latest dataset items.
  * Uses DISTINCT ON to get the most recent version (by validFrom DESC) for each (id, projectId).
