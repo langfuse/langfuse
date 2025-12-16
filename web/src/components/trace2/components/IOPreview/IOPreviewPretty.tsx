@@ -188,20 +188,6 @@ export function IOPreviewPretty({
 
     const shouldRender = totalSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
 
-    const elapsed = performance.now() - startTime;
-
-    // Performance logging
-    console.log(
-      `[IOPreviewPretty] shouldRenderMarkdown check:`,
-      `\n  - Input size: ${(inputSize / 1024).toFixed(2)}KB`,
-      `\n  - Output size: ${(outputSize / 1024).toFixed(2)}KB`,
-      `\n  - Messages size: ${(messagesSize / 1024).toFixed(2)}KB`,
-      `\n  - Total size: ${(totalSize / 1024).toFixed(2)}KB`,
-      `\n  - Limit: ${(MARKDOWN_RENDER_CHARACTER_LIMIT / 1024).toFixed(2)}KB`,
-      `\n  - Decision: ${shouldRender ? "RENDER MARKDOWN" : "SKIP MARKDOWN"}`,
-      `\n  - Time taken: ${elapsed.toFixed(2)}ms`,
-    );
-
     return shouldRender;
   }, [parsedInput, parsedOutput, allMessages]);
 
