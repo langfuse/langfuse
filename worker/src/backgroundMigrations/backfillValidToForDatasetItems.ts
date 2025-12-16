@@ -24,7 +24,7 @@ const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b8";
  *
  */
 
-const DEFAULT_BATCH_SIZE = 100;
+const DEFAULT_BATCH_SIZE = 1000;
 
 export default class BackfillValidToForDatasetItems
   implements IBackgroundMigration
@@ -76,7 +76,7 @@ export default class BackfillValidToForDatasetItems
     );
 
     const batchSize = Number(args.batchSize ?? DEFAULT_BATCH_SIZE);
-    const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 500);
+    const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 200);
 
     // @ts-ignore
     const initialMigrationState: {
