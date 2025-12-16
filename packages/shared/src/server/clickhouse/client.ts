@@ -107,6 +107,9 @@ export class ClickHouseClientManager {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
         max_open_connections: env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
+        log: {
+          level: 3, // WARN
+        },
         clickhouse_settings: {
           // Overwrite async insert settings to tune throughput
           ...(env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE
