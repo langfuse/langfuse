@@ -1,6 +1,11 @@
 import { v4 } from "uuid";
+import { randomUUID } from "crypto";
 import { createEvent, createTraceScore } from "@langfuse/shared/src/server";
-import { createEventsCh, createScoresCh } from "@langfuse/shared/src/server";
+import {
+  createEventsCh,
+  createScoresCh,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
 import {
   getEventList,
   getEventCount,
@@ -8,6 +13,12 @@ import {
 } from "@/src/features/events/server/eventsService";
 import { type ObservationType } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { prisma } from "@langfuse/shared/src/db";
+import type { Session } from "next-auth";
+
+const __orgIds: string[] = [];
 
 // Helper to wait for ClickHouse to process data
 const waitForClickHouse = (ms = 2000) =>
@@ -18,7 +29,64 @@ const maybe =
     ? describe
     : describe.skip;
 
+async function prepare() {
+  const { project, org } = await createOrgProjectAndApiKey();
+
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: true,
+      name: "Demo User",
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          projects: [
+            {
+              id: project.id,
+              role: "ADMIN",
+              retentionDays: 30,
+              deletedAt: null,
+              name: project.name,
+              metadata: {},
+            },
+          ],
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      },
+      admin: true,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:hobby",
+    },
+  };
+
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  const caller = appRouter.createCaller({ ...ctx, prisma });
+
+  __orgIds.push(org.id);
+
+  return { project, org, session, ctx, caller };
+}
+
 describe("Events Service", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: {
+        id: { in: __orgIds },
+      },
+    });
+  });
+
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
@@ -458,13 +526,13 @@ describe("Events Service", () => {
       await createEventsCh(events);
       await waitForClickHouse();
 
-      // Get first page
+      // Get first page (1-indexed pagination)
       const page1 = await getEventList({
         projectId,
         filter: [],
         searchType: [],
         orderBy: null,
-        page: 0,
+        page: 1,
         limit: 5,
       });
 
@@ -474,7 +542,7 @@ describe("Events Service", () => {
         filter: [],
         searchType: [],
         orderBy: null,
-        page: 1,
+        page: 2,
         limit: 5,
       });
 
@@ -848,6 +916,343 @@ describe("Events Service", () => {
       expect(list.observations).toHaveLength(0);
       expect(options.name).toHaveLength(0);
       expect(options.type).toHaveLength(0);
+    });
+  });
+
+  maybe("getEventBatchIO", () => {
+    it("should require authentication", async () => {
+      const { project } = await prepare();
+
+      // Create caller without session
+      const unauthCtx = createInnerTRPCContext({
+        session: null,
+        headers: {},
+      });
+      const unauthCaller = appRouter.createCaller({ ...unauthCtx, prisma });
+
+      await expect(
+        unauthCaller.events.batchIO({
+          projectId: project.id,
+          observations: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should fetch I/O and metadata for multiple observations", async () => {
+      const { project, caller } = await prepare();
+      const traceId = randomUUID();
+      const observation1Id = randomUUID();
+      const observation2Id = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create events with I/O and metadata
+      const events = [
+        createEvent({
+          id: observation1Id,
+          span_id: observation1Id,
+          project_id: project.id,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-observation-1",
+          input: "Input for observation 1",
+          output: "Output for observation 1",
+          metadata: { key1: "value1", test: true },
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: observation2Id,
+          span_id: observation2Id,
+          project_id: project.id,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-observation-2",
+          input: "Input for observation 2",
+          output: "Output for observation 2",
+          metadata: { key2: "value2", environment: "staging" },
+          start_time: nowMicro + 1000,
+        }),
+      ];
+
+      await createEventsCh(events);
+      await waitForClickHouse();
+
+      // Call batchIO endpoint
+      const result = await caller.events.batchIO({
+        projectId: project.id,
+        observations: [
+          { id: observation1Id, traceId, startTime: timestamp },
+          { id: observation2Id, traceId, startTime: timestamp },
+        ],
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(2);
+
+      const io1 = result.find((r) => r.id === observation1Id);
+      expect(io1).toBeDefined();
+      expect(io1?.input).toBe("Input for observation 1");
+      expect(io1?.output).toBe("Output for observation 1");
+      expect(io1?.metadata).toBeDefined();
+      expect(io1?.metadata?.key1).toBe("value1");
+      expect(io1?.metadata?.test).toBe(true);
+
+      const io2 = result.find((r) => r.id === observation2Id);
+      expect(io2).toBeDefined();
+      expect(io2?.input).toBe("Input for observation 2");
+      expect(io2?.output).toBe("Output for observation 2");
+      expect(io2?.metadata).toBeDefined();
+      expect(io2?.metadata?.key2).toBe("value2");
+      expect(io2?.metadata?.environment).toBe("staging");
+    });
+
+    it("should handle empty observations array", async () => {
+      const { project, caller } = await prepare();
+
+      const result = await caller.events.batchIO({
+        projectId: project.id,
+        observations: [],
+      });
+
+      expect(result).toBeDefined();
+      expect(result).toEqual([]);
+    });
+
+    it("should validate projectId authorization", async () => {
+      const { caller } = await prepare();
+      const unauthorizedProjectId = randomUUID();
+
+      // This should fail because the user doesn't have access to this project
+      await expect(
+        caller.events.batchIO({
+          projectId: unauthorizedProjectId,
+          observations: [
+            {
+              id: randomUUID(),
+              traceId: randomUUID(),
+              startTime: new Date(),
+            },
+          ],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should return data structure for observations without explicitly set I/O", async () => {
+      const { project, caller } = await prepare();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create event without explicitly setting I/O
+      const event = createEvent({
+        id: observationId,
+        span_id: observationId,
+        project_id: project.id,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "test-no-explicit-io",
+        // No input/output explicitly set
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+      await waitForClickHouse();
+
+      const result = await caller.events.batchIO({
+        projectId: project.id,
+        observations: [{ id: observationId, traceId, startTime: timestamp }],
+      });
+
+      // Verify the response structure is correct
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(result[0]?.id).toBe(observationId);
+      // Input/output fields should exist (may be null, empty, or have default values)
+      expect(result[0]).toHaveProperty("input");
+      expect(result[0]).toHaveProperty("output");
+      expect(result[0]).toHaveProperty("metadata");
+      expect(result[0]?.metadata).toBeDefined();
+    });
+
+    it("should truncate I/O to character limit", async () => {
+      const { project, caller } = await prepare();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create very long input and output (> 1000 chars)
+      const longInput = "x".repeat(2000);
+      const longOutput = "y".repeat(2000);
+
+      const event = createEvent({
+        id: observationId,
+        span_id: observationId,
+        project_id: project.id,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-long-io",
+        input: longInput,
+        output: longOutput,
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+      await waitForClickHouse();
+
+      const result = await caller.events.batchIO({
+        projectId: project.id,
+        observations: [{ id: observationId, traceId, startTime: timestamp }],
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(result[0]?.id).toBe(observationId);
+      // Input/output may be returned as strings or objects, ensure truncation works
+      const inputLength =
+        typeof result[0]?.input === "string"
+          ? result[0]?.input.length
+          : JSON.stringify(result[0]?.input).length;
+      const outputLength =
+        typeof result[0]?.output === "string"
+          ? result[0]?.output.length
+          : JSON.stringify(result[0]?.output).length;
+      // Verify truncation occurred (should be 1000 chars, not 2000)
+      expect(inputLength).toBe(1000);
+      expect(outputLength).toBe(1000);
+    });
+
+    it("should handle partial results when some observations not found", async () => {
+      const { project, caller } = await prepare();
+      const traceId = randomUUID();
+      const existingId = randomUUID();
+      const nonExistentId = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create only one event
+      const event = createEvent({
+        id: existingId,
+        span_id: existingId,
+        project_id: project.id,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-existing",
+        input: "Existing input",
+        output: "Existing output",
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+      await waitForClickHouse();
+
+      // Request I/O for both existing and non-existent
+      const result = await caller.events.batchIO({
+        projectId: project.id,
+        observations: [
+          { id: existingId, traceId, startTime: timestamp },
+          { id: nonExistentId, traceId, startTime: timestamp },
+        ],
+      });
+
+      // Should only return the existing one
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(result[0]?.id).toBe(existingId);
+      expect(result[0]?.input).toBe("Existing input");
+      expect(result[0]?.output).toBe("Existing output");
+    });
+
+    it("should handle JSON input/output correctly", async () => {
+      const { project, caller } = await prepare();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create event with JSON input/output
+      const jsonInput = JSON.stringify({
+        prompt: "Hello",
+        params: { temp: 0.7 },
+      });
+      const jsonOutput = JSON.stringify({ response: "Hi there!", tokens: 10 });
+
+      const event = createEvent({
+        id: observationId,
+        span_id: observationId,
+        project_id: project.id,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-json-io",
+        input: jsonInput,
+        output: jsonOutput,
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+      await waitForClickHouse();
+
+      const result = await caller.events.batchIO({
+        projectId: project.id,
+        observations: [{ id: observationId, traceId, startTime: timestamp }],
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(result[0]?.id).toBe(observationId);
+      // Input/output may be returned as strings or objects depending on storage format
+      const resultInput =
+        typeof result[0]?.input === "string"
+          ? result[0]?.input
+          : JSON.stringify(result[0]?.input);
+      const resultOutput =
+        typeof result[0]?.output === "string"
+          ? result[0]?.output
+          : JSON.stringify(result[0]?.output);
+      expect(resultInput).toBe(jsonInput);
+      expect(resultOutput).toBe(jsonOutput);
+    });
+
+    it("should filter by projectId correctly - should not return data from other projects", async () => {
+      const { project: project1, caller } = await prepare();
+      const { project: project2 } = await prepare();
+
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create event in project2
+      const event = createEvent({
+        id: observationId,
+        span_id: observationId,
+        project_id: project2.id,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-different-project",
+        input: "Secret input",
+        output: "Secret output",
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+      await waitForClickHouse();
+
+      // Try to fetch with project1 (should not return anything)
+      const result = await caller.events.batchIO({
+        projectId: project1.id,
+        observations: [{ id: observationId, traceId, startTime: timestamp }],
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(0);
     });
   });
 });
