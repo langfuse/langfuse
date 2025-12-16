@@ -142,6 +142,7 @@ export function IOPreviewPretty({
     toolCallCounts,
     messageToToolCallNumbers,
     toolNameToDefinitionNumber,
+    inputMessageCount,
   } = useChatMLParser(
     input,
     output,
@@ -245,6 +246,7 @@ export function IOPreviewPretty({
             media={media ?? []}
             currentView="pretty"
             messageToToolCallNumbers={messageToToolCallNumbers}
+            inputMessageCount={inputMessageCount}
           />
         </div>
       ) : (
