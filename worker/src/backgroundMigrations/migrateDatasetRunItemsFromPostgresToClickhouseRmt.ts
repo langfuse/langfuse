@@ -103,7 +103,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
         Array<Record<string, any>>
       >(Prisma.sql`
         WITH latest_dataset_items AS (
-          SELECT DISTINCT ON (id, project_id)
+          SELECT DISTINCT ON project_id
             id,
             project_id,
             dataset_id,
@@ -114,7 +114,7 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
             valid_from,
             is_deleted
           FROM dataset_items
-          ORDER BY id, project_id, valid_from DESC
+          WHERE valid_to IS NULL 
         )
         SELECT
           dri.id as id,
