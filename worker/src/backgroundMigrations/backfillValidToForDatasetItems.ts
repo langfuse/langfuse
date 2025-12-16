@@ -1,0 +1,247 @@
+import { IBackgroundMigration } from "./IBackgroundMigration";
+import { logger } from "@langfuse/shared/src/server";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
+import { parseArgs } from "node:util";
+
+// This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
+const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b9";
+
+/**
+ * Background migration to backfill valid_to timestamps for dataset_items.
+ *
+ * Background:
+ * - Currently, the dataset_items table uses append-only writes where new versions
+ *   are created with valid_from timestamps but old versions never get their valid_to set
+ * - This migration sets valid_to on old rows to equal the valid_from of the next version
+ * - This enables proper temporal queries and ensures old versions are marked as superseded
+ *
+ * Performance Strategy:
+ * - Uses correlated subquery (not window functions) to find next version
+ * - Correlated subquery only searches within batch and uses indexes efficiently
+ * - Cursor-based pagination with composite key (id, project_id, valid_from)
+ * - Processes rows directly in batches for optimal performance
+ * - Uses indexed columns for efficient scanning
+ *
+ */
+
+const DEFAULT_BATCH_SIZE = 100;
+
+export default class BackfillValidToForDatasetItems
+  implements IBackgroundMigration
+{
+  private isAborted = false;
+
+  async validate(
+    // eslint-disable-next-line no-unused-vars
+    args: Record<string, unknown>,
+  ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+    // validate that the background migration record exists
+    const migration = await prisma.backgroundMigration.findUnique({
+      where: { id: backgroundMigrationId },
+    });
+
+    if (!migration) {
+      return {
+        valid: false,
+        invalidReason: "Background migration record does not exist",
+      };
+    }
+
+    // Check that valid_to column exists
+    const columnExists = await prisma.$queryRaw<{ exists: boolean }[]>(
+      Prisma.sql`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'dataset_items'
+          AND column_name = 'valid_to'
+        ) AS exists;
+      `,
+    );
+
+    if (!columnExists[0]?.exists) {
+      return {
+        valid: false,
+        invalidReason: "valid_to column does not exist on dataset_items table",
+      };
+    }
+
+    return { valid: true, invalidReason: undefined };
+  }
+
+  async run(args: Record<string, unknown>): Promise<void> {
+    const start = Date.now();
+    logger.info(
+      `Backfilling valid_to for dataset_items with ${JSON.stringify(args)}`,
+    );
+
+    const batchSize = Number(args.batchSize ?? DEFAULT_BATCH_SIZE);
+    const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 500);
+
+    let totalUpdated = 0;
+    let lastProcessedProjectId = "";
+    let lastProcessedId = "";
+
+    while (!this.isAborted) {
+      const batchStart = Date.now();
+
+      // Cursor condition for pagination
+      const cursorCondition =
+        lastProcessedProjectId === ""
+          ? Prisma.sql``
+          : Prisma.sql`
+            AND (
+              project_id > ${lastProcessedProjectId}
+              OR (project_id = ${lastProcessedProjectId} AND id > ${lastProcessedId})
+            )
+          `;
+
+      // 1. Get the next project_id to process
+      const nextProject = await prisma.$queryRaw<
+        Array<{ project_id: string }>
+      >(Prisma.sql`
+        SELECT DISTINCT project_id
+        FROM dataset_items
+        WHERE valid_to IS NULL
+          ${cursorCondition}
+        ORDER BY project_id
+        LIMIT 1
+      `);
+
+      if (nextProject.length === 0) {
+        logger.info("No more projects to process. Migration complete.");
+        break;
+      }
+
+      const projectId = nextProject[0].project_id;
+
+      // 2. Get batch of item IDs for this project
+      const idCursor =
+        lastProcessedProjectId === projectId && lastProcessedId !== ""
+          ? Prisma.sql`AND id > ${lastProcessedId}`
+          : Prisma.sql``;
+
+      const itemIds = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT DISTINCT id
+        FROM dataset_items
+        WHERE project_id = ${projectId}
+          AND valid_to IS NULL
+          ${idCursor}
+        ORDER BY id
+        LIMIT ${batchSize}
+      `);
+
+      if (itemIds.length === 0) {
+        // Move to next project
+        lastProcessedProjectId = projectId;
+        lastProcessedId = "";
+        continue;
+      }
+
+      const idArray = itemIds.map((item) => item.id);
+
+      // 3. Fetch ALL versions for these IDs in this project and compute LEAD
+      const result = await prisma.$queryRaw<
+        Array<{
+          id: string;
+          project_id: string;
+          valid_from: Date;
+          next_valid_from: Date | null;
+        }>
+      >(Prisma.sql`
+        WITH all_versions AS (
+          SELECT id, project_id, valid_from, valid_to
+          FROM dataset_items
+          WHERE project_id = ${projectId}
+            AND id = ANY(${idArray}::text[])
+          ORDER BY id, valid_from
+        )
+        SELECT
+          id,
+          project_id,
+          valid_from,
+          LEAD(valid_from) OVER (PARTITION BY id ORDER BY valid_from ASC) as next_valid_from
+        FROM all_versions
+        WHERE valid_to IS NULL
+      `);
+
+      // 4. Update all rows that need valid_to set
+      const rowsToUpdate = result.filter((row) => row.next_valid_from !== null);
+
+      if (rowsToUpdate.length > 0) {
+        for (const row of rowsToUpdate) {
+          await prisma.datasetItem.updateMany({
+            where: {
+              projectId: row.project_id,
+              id: row.id,
+              validFrom: row.valid_from,
+              validTo: null,
+            },
+            data: {
+              validTo: row.next_valid_from,
+            },
+          });
+        }
+      }
+
+      totalUpdated += rowsToUpdate.length;
+
+      // Update cursor
+      lastProcessedProjectId = projectId;
+      lastProcessedId = itemIds[itemIds.length - 1].id;
+
+      logger.info(
+        `Project ${projectId}: Processed ${itemIds.length} items (${rowsToUpdate.length} rows updated) in ${Date.now() - batchStart}ms. Total: ${totalUpdated}`,
+      );
+
+      // Delay between batches
+      if (delayBetweenBatchesMs > 0 && !this.isAborted) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, delayBetweenBatchesMs),
+        );
+      }
+    }
+
+    const duration = Date.now() - start;
+    logger.info(
+      `Backfill ${this.isAborted ? "aborted" : "completed"}. Updated ${totalUpdated} rows in ${duration}ms`,
+    );
+  }
+
+  abort(): Promise<void> {
+    logger.info("Aborting dataset_items valid_to backfill migration...");
+    this.isAborted = true;
+    return Promise.resolve();
+  }
+}
+
+async function main() {
+  const args = parseArgs({
+    options: {},
+  });
+
+  const migration = new BackfillValidToForDatasetItems();
+  const { valid, invalidReason } = await migration.validate(args.values);
+
+  if (!valid) {
+    logger.error(`[Background Migration] Validation failed: ${invalidReason}`);
+    throw new Error(`Validation failed: ${invalidReason}`);
+  }
+
+  await migration.run(args.values);
+}
+
+// If the script is being executed directly (not imported), run the main function
+if (require.main === module) {
+  main()
+    .then(() => {
+      logger.info("[Background Migration] Migration completed successfully");
+      process.exit(0);
+    })
+    .catch((error) => {
+      logger.error(
+        `[Background Migration] Migration execution failed: ${error}`,
+      );
+      process.exit(1); // Exit with an error code
+    });
+}
