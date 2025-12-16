@@ -46,7 +46,7 @@ function JsonInputOutputView({
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
 
   return (
-    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+    <div className="min-h-0 flex-1 overflow-auto [&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
       {showInput && (
         <PrettyJsonView
           title="Input"
@@ -217,10 +217,10 @@ export function IOPreviewPretty({
   };
 
   // Determine if metadata should be shown
-  const shouldShowMetadata = showMetadata && parsedMetadata;
+  const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
 
   return (
-    <>
+    <div className="min-h-0 flex-1 overflow-auto">
       <SectionToolDefinitions
         tools={allTools}
         toolCallCounts={toolCallCounts}
@@ -256,6 +256,6 @@ export function IOPreviewPretty({
           />
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -47,9 +47,6 @@ export interface AdvancedJsonSectionProps {
   /** Callback when section collapse state changes */
   onToggleCollapse?: () => void;
 
-  /** Max height for the JSON viewer */
-  maxHeight?: string;
-
   /** Background color for the JSON viewer body */
   backgroundColor?: string;
 
@@ -94,7 +91,6 @@ export function AdvancedJsonSection({
   parsedData,
   collapsed: controlledCollapsed,
   onToggleCollapse,
-  maxHeight = "500px",
   backgroundColor,
   headerBackgroundColor,
   className,
