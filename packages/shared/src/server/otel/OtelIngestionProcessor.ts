@@ -191,8 +191,6 @@ export class OtelIngestionProcessor {
             const events: any[] = [];
 
             for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
-              const isLangfuseSDKSpans =
-                scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
@@ -907,7 +905,7 @@ export class OtelIngestionProcessor {
         attributes,
         instrumentationScopeName,
       ),
-      costDetails: this.extractCostDetails(attributes, isLangfuseSDKSpans),
+      costDetails: this.extractCostDetails(attributes),
       input,
       output,
     };
