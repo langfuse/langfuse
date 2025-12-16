@@ -27,7 +27,7 @@ export const backfillValidToForDatasetItems = async (
         FROM dataset_items
         WHERE valid_to IS NULL
           ${cursorCondition}
-        ORDER BY project_id
+        ORDER BY project_id ASC
         LIMIT 1
       `);
 
@@ -51,7 +51,7 @@ export const backfillValidToForDatasetItems = async (
         WHERE project_id = ${projectId}
           AND valid_to IS NULL
           ${idCursor}
-        ORDER BY id
+        ORDER BY id ASC
         LIMIT ${batchSize}
       `);
 
