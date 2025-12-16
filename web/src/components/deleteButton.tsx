@@ -179,7 +179,7 @@ export function DeleteTraceButton(props: DeleteButtonProps) {
     showSuccessToast({
       title: "Trace deleted",
       description:
-        "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
+        "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
     });
     onSuccess();
   };

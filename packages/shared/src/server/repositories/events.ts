@@ -33,7 +33,6 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
-  eventsTableLegacyTraceUiColumnDefinitions,
   eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
 } from "../tableMappings/mapEventsTable";
@@ -345,20 +344,9 @@ async function getObservationsFromEventsTableInternal<T>(
   );
 
   // Query optimization: joining traces onto observations is expensive.
-  // Hence, only join if the UI table contains filters on traces.
-  const traceTableFilter = filter.filter((f) =>
-    eventsTableLegacyTraceUiColumnDefinitions.some(
-      (c) => c.uiTableId === f.column || c.uiTableName === f.column,
-    ),
-  );
-  const orderByTraces = orderBy
-    ? eventsTableLegacyTraceUiColumnDefinitions.some(
-        (c) =>
-          c.uiTableId === orderBy.column || c.uiTableName === orderBy.column,
-      )
-    : undefined;
-  const needsTraceJoin =
-    traceTableFilter.length > 0 || orderByTraces || search.query;
+  // Only join if search query requires it.
+  // TODO further optimize by checking if specific trace fields are filtered on.
+  const needsTraceJoin = search.query;
 
   const chOrderBy = orderByToClickhouseSql(
     [orderBy ?? null],
@@ -713,10 +701,7 @@ type PublicApiObservationsQuery = {
 
 function buildObservationsQueryBase(
   opts: PublicApiObservationsQuery,
-  eventsTableUiColumnDefinitions: UiColumnMappings = [
-    ...eventsTableLegacyTraceUiColumnDefinitions,
-    ...eventsTableNativeUiColumnDefinitions,
-  ],
+  columnDefinitions: UiColumnMappings = eventsTableNativeUiColumnDefinitions,
 ): EventsQueryBuilder {
   const { projectId, advancedFilters, ...filterParams } = opts;
 
@@ -725,7 +710,7 @@ function buildObservationsQueryBase(
     { ...filterParams, projectId },
     PUBLIC_API_EVENTS_COLUMN_MAPPING,
     advancedFilters,
-    eventsTableUiColumnDefinitions,
+    columnDefinitions,
   );
 
   // Determine if we need to join traces (check both simple params and advanced filters)
@@ -916,10 +901,10 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   const { projectId } = opts;
 
   // Build query with filters and common CTEs
-  let queryBuilder = buildObservationsQueryBase(opts, [
-    ...eventsTableLegacyTraceUiColumnDefinitions,
-    ...eventsTableNativeUiColumnDefinitions,
-  ]);
+  let queryBuilder = buildObservationsQueryBase(
+    opts,
+    eventsTableNativeUiColumnDefinitions,
+  );
 
   // Determine which field groups to include
   // If fields are not specified (null), include "default" groups: core + basic

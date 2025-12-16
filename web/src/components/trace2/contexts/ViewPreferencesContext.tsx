@@ -21,8 +21,8 @@ export type LogViewMode = "chronological" | "tree-order";
 /** Log view tree visualization style (only applies in tree-order mode) */
 export type LogViewTreeStyle = "flat" | "indented";
 
-/** JSON view preference (formatted/pretty vs raw JSON) */
-export type JsonViewPreference = "pretty" | "json";
+/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta) */
+export type JsonViewPreference = "pretty" | "json" | "json-beta";
 
 interface ViewPreferencesContextValue {
   showDuration: boolean;
