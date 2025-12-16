@@ -1,0 +1,257 @@
+import { useMemo } from "react";
+import { type Prisma, deepParseJson } from "@langfuse/shared";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
+import { type MediaReturnType } from "@/src/features/media/validation";
+
+import { useChatMLParser } from "./hooks/useChatMLParser";
+import { ChatMessageList } from "./components/ChatMessageList";
+import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
+import { type ExpansionStateProps } from "./IOPreview";
+
+interface JsonInputOutputViewProps {
+  parsedInput: unknown;
+  parsedOutput: unknown;
+  isLoading: boolean;
+  isParsing?: boolean;
+  media?: MediaReturnType[];
+  hideIfNull: boolean;
+  hideInput: boolean;
+  hideOutput: boolean;
+  inputExpansionState?: Record<string, boolean> | boolean;
+  outputExpansionState?: Record<string, boolean> | boolean;
+  onInputExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+  onOutputExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+}
+
+function JsonInputOutputView({
+  parsedInput,
+  parsedOutput,
+  isLoading,
+  isParsing,
+  media,
+  hideIfNull,
+  hideInput,
+  hideOutput,
+  inputExpansionState,
+  outputExpansionState,
+  onInputExpansionChange,
+  onOutputExpansionChange,
+}: JsonInputOutputViewProps) {
+  const showInput = !hideInput && !(hideIfNull && !parsedInput);
+  const showOutput = !hideOutput && !(hideIfNull && !parsedOutput);
+
+  return (
+    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+      {showInput && (
+        <PrettyJsonView
+          title="Input"
+          json={parsedInput ?? null}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          media={media?.filter((m) => m.field === "input") ?? []}
+          currentView="pretty"
+          externalExpansionState={inputExpansionState}
+          onExternalExpansionChange={onInputExpansionChange}
+        />
+      )}
+      {showOutput && (
+        <PrettyJsonView
+          title="Output"
+          json={parsedOutput}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          media={media?.filter((m) => m.field === "output") ?? []}
+          currentView="pretty"
+          externalExpansionState={outputExpansionState}
+          onExternalExpansionChange={onOutputExpansionChange}
+        />
+      )}
+    </div>
+  );
+}
+
+export interface IOPreviewPrettyProps extends ExpansionStateProps {
+  input?: Prisma.JsonValue;
+  output?: Prisma.JsonValue;
+  metadata?: Prisma.JsonValue;
+  // Pre-parsed data (optional, from useParsedObservation hook for performance)
+  parsedInput?: unknown;
+  parsedOutput?: unknown;
+  parsedMetadata?: unknown;
+  observationName?: string;
+  isLoading?: boolean;
+  isParsing?: boolean;
+  hideIfNull?: boolean;
+  media?: MediaReturnType[];
+  hideOutput?: boolean;
+  hideInput?: boolean;
+}
+
+/**
+ * IOPreviewPretty - Renders input/output in pretty view mode.
+ *
+ * Features:
+ * - ChatML message format detection and rendering
+ * - Tool definitions and invocations display
+ * - Large content safety (markdown rendering limit)
+ * - Accepts pre-parsed data to avoid duplicate parsing
+ *
+ * This component performs ChatML parsing which is only needed for pretty view.
+ * For JSON view, use IOPreviewJSON instead.
+ */
+export function IOPreviewPretty({
+  input,
+  output,
+  metadata,
+  parsedInput: preParsedInput,
+  parsedOutput: preParsedOutput,
+  parsedMetadata: preParsedMetadata,
+  observationName,
+  isLoading = false,
+  isParsing = false,
+  hideIfNull = false,
+  hideOutput = false,
+  hideInput = false,
+  media,
+  inputExpansionState,
+  outputExpansionState,
+  onInputExpansionChange,
+  onOutputExpansionChange,
+}: IOPreviewPrettyProps) {
+  // Use pre-parsed data if available (from useParsedObservation hook),
+  // otherwise parse with size/depth limits to prevent UI freeze
+  const parsedInput =
+    preParsedInput ?? deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
+  const parsedOutput =
+    preParsedOutput ?? deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
+  const parsedMetadata =
+    preParsedMetadata ??
+    deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 });
+
+  // Parse ChatML format
+  const {
+    canDisplayAsChat,
+    allMessages,
+    additionalInput,
+    allTools,
+    toolCallCounts,
+    messageToToolCallNumbers,
+    toolNameToDefinitionNumber,
+    inputMessageCount,
+  } = useChatMLParser(
+    input,
+    output,
+    metadata,
+    observationName,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+  );
+
+  // Determine if markdown is safe to render (content size check)
+  const shouldRenderMarkdown = useMemo(() => {
+    const startTime = performance.now();
+
+    // Fast byte estimation without expensive JSON.stringify
+    // Estimate: count string lengths + rough object overhead
+    const estimateSize = (obj: unknown): number => {
+      if (obj === null || obj === undefined) return 4; // "null" or "undefined"
+      if (typeof obj === "string") return obj.length;
+      if (typeof obj === "number") return obj.toString().length;
+      if (typeof obj === "boolean") return obj ? 4 : 5; // "true" or "false"
+
+      if (Array.isArray(obj)) {
+        // Rough estimate: sum of elements + commas + brackets
+        return obj.reduce((sum, item) => sum + estimateSize(item) + 1, 2);
+      }
+
+      if (typeof obj === "object") {
+        // Rough estimate: keys + values + colons + commas + braces
+        return Object.entries(obj).reduce(
+          (sum, [key, value]) => sum + key.length + estimateSize(value) + 3, // 3 for ":", "," and quotes
+          2, // 2 for opening and closing braces
+        );
+      }
+
+      return 0;
+    };
+
+    const inputSize = estimateSize(parsedInput);
+    const outputSize = estimateSize(parsedOutput);
+    const messagesSize = estimateSize(allMessages);
+    const totalSize = inputSize + outputSize + messagesSize;
+
+    const shouldRender = totalSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
+
+    const elapsed = performance.now() - startTime;
+
+    // Performance logging
+    console.log(
+      `[IOPreviewPretty] shouldRenderMarkdown check:`,
+      `\n  - Input size: ${(inputSize / 1024).toFixed(2)}KB`,
+      `\n  - Output size: ${(outputSize / 1024).toFixed(2)}KB`,
+      `\n  - Messages size: ${(messagesSize / 1024).toFixed(2)}KB`,
+      `\n  - Total size: ${(totalSize / 1024).toFixed(2)}KB`,
+      `\n  - Limit: ${(MARKDOWN_RENDER_CHARACTER_LIMIT / 1024).toFixed(2)}KB`,
+      `\n  - Decision: ${shouldRender ? "RENDER MARKDOWN" : "SKIP MARKDOWN"}`,
+      `\n  - Time taken: ${elapsed.toFixed(2)}ms`,
+    );
+
+    return shouldRender;
+  }, [parsedInput, parsedOutput, allMessages]);
+
+  // Prepare additional input (only if non-empty)
+  const additionalInputToShow = useMemo(() => {
+    if (!additionalInput || Object.keys(additionalInput).length === 0) {
+      return undefined;
+    }
+    return additionalInput;
+  }, [additionalInput]);
+
+  // Shared props for JsonInputOutputView
+  const jsonViewProps = {
+    parsedInput,
+    parsedOutput,
+    isLoading,
+    isParsing,
+    media,
+    hideIfNull,
+    hideInput,
+    hideOutput,
+    inputExpansionState,
+    outputExpansionState,
+    onInputExpansionChange,
+    onOutputExpansionChange,
+  };
+
+  return (
+    <>
+      <SectionToolDefinitions
+        tools={allTools}
+        toolCallCounts={toolCallCounts}
+        toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+      />
+
+      {canDisplayAsChat ? (
+        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+          <ChatMessageList
+            messages={allMessages}
+            shouldRenderMarkdown={shouldRenderMarkdown}
+            additionalInput={additionalInputToShow}
+            media={media ?? []}
+            currentView="pretty"
+            messageToToolCallNumbers={messageToToolCallNumbers}
+            inputMessageCount={inputMessageCount}
+          />
+        </div>
+      ) : (
+        <JsonInputOutputView {...jsonViewProps} />
+      )}
+    </>
+  );
+}
