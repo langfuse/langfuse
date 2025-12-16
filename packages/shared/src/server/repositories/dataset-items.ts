@@ -373,11 +373,13 @@ export async function upsertDatasetItem(
 
         // 1. If updating existing item, invalidate the current version
         if (existingItem) {
-          await tx.datasetItem.updateMany({
+          await tx.datasetItem.update({
             where: {
-              id: existingItem.id,
-              projectId: props.projectId,
-              validTo: null, // Only update the current version
+              id_projectId_validFrom: {
+                id: existingItem.id,
+                projectId: props.projectId,
+                validFrom: existingItem.validFrom,
+              },
             },
             data: {
               validTo: newValidFrom,
@@ -446,11 +448,13 @@ export async function deleteDatasetItem(props: {
         const newValidFrom = new Date();
 
         // 1. Invalidate the current version
-        await tx.datasetItem.updateMany({
+        await tx.datasetItem.update({
           where: {
-            id: props.datasetItemId,
-            projectId: props.projectId,
-            validTo: null, // Only update current version
+            id_projectId_validFrom: {
+              id: props.datasetItemId,
+              projectId: props.projectId,
+              validFrom: item.validFrom,
+            },
           },
           data: {
             validTo: newValidFrom,
@@ -645,14 +649,21 @@ export async function createManyDatasetItems(props: {
         });
       },
       [Implementation.VERSIONED]: async () => {
-        // VERSIONED: Invalidate old rows for existing items, then create new rows
+        // VERSIONED: Bulk create/replace with optional user-provided IDs
+        //
+        // API contract allows optional IDs (for test fixtures, future CSV re-imports).
+        // Behavior:
+        // - New IDs: Creates new items (invalidation updates 0 rows)
+        // - Existing IDs: Replaces with new version (invalidates old, creates new)
+        //
+        // Note: This is replace semantics, NOT merge. Existing items are fully overwritten.
         await prisma.$transaction(async (tx) => {
           const newValidFrom = new Date();
 
           // 1. Get unique IDs from preparedItems
           const itemIds = [...new Set(preparedItems.map((item) => item.id))];
 
-          // 2. Invalidate all current versions of items being upserted
+          // 2. Invalidate current versions if IDs already exist (no-op for new IDs)
           await tx.datasetItem.updateMany({
             where: {
               id: { in: itemIds },
