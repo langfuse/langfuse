@@ -96,7 +96,7 @@
       "glob": "^10.5.0"
     },
     "patchedDependencies": {
-      "next-auth@4.24.12": "patches/next-auth@4.24.12.patch"
+      "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"
     }
   }
 }
