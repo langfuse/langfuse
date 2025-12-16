@@ -264,7 +264,7 @@ export function AdvancedJsonSection({
 
   return (
     <div
-      className={`border-b border-t ${className || ""}`}
+      className={`flex flex-col border-b border-t ${sectionCollapsed ? "" : "min-h-0 overflow-hidden"} ${className || ""}`}
       style={{
         backgroundColor: headerBackgroundColor || backgroundColor,
       }}
@@ -406,12 +406,9 @@ export function AdvancedJsonSection({
       {!sectionCollapsed && (
         <div
           ref={scrollContainerRef}
+          className="min-h-0 flex-1 overflow-auto"
           style={{
-            minHeight: "100px",
-            maxHeight: maxHeight,
-            overflow: "auto", // Single scroll container for both X and Y
             backgroundColor: headerBackgroundColor || backgroundColor,
-            height: "100%",
           }}
         >
           {!hasData ? (

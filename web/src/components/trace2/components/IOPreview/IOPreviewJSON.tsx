@@ -55,11 +55,6 @@ export function IOPreviewJSON({
   const outputBgColor = isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)"; // Dark blue-gray vs light green
   const metadataBgColor = isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)"; // Dark purple vs light purple
 
-  // Height constants for accordion layout
-  // AdvancedJsonSection header has minHeight: 38px
-  const HEADER_HEIGHT = 38; // px
-  const BODY_MAX_HEIGHT = `calc(100% - ${HEADER_HEIGHT}px)`;
-
   const showInput = !hideInput && !(hideIfNull && !parsedInput && !input);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput && !output);
   const showMetadata = !(hideIfNull && !parsedMetadata && !metadata);
@@ -94,7 +89,7 @@ export function IOPreviewJSON({
   }, [showInput, showOutput, showMetadata, expandedSection]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {showInput && (
         <AdvancedJsonSection
           title="Input"
@@ -109,7 +104,6 @@ export function IOPreviewJSON({
           media={media?.filter((m) => m.field === "input")}
           enableSearch={true}
           searchPlaceholder="Search input"
-          maxHeight={BODY_MAX_HEIGHT}
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
@@ -132,7 +126,6 @@ export function IOPreviewJSON({
           media={media?.filter((m) => m.field === "output")}
           enableSearch={true}
           searchPlaceholder="Search output"
-          maxHeight={BODY_MAX_HEIGHT}
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
@@ -157,7 +150,6 @@ export function IOPreviewJSON({
           media={media?.filter((m) => m.field === "metadata")}
           enableSearch={true}
           searchPlaceholder="Search metadata"
-          maxHeight={BODY_MAX_HEIGHT}
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}

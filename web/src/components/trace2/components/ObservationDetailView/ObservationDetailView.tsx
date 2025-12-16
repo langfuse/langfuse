@@ -313,7 +313,7 @@ export function ObservationDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto">
+          <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
