@@ -2,6 +2,7 @@ import { IBackgroundMigration } from "./IBackgroundMigration";
 import { logger } from "@langfuse/shared/src/server";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { parseArgs } from "node:util";
+import { backfillValidToForDatasetItems } from "./utils/datasetItems";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "d4f5a6b7-c8d9-4e1f-a2b3-c4d5e6f7a8b8";
@@ -77,121 +78,43 @@ export default class BackfillValidToForDatasetItems
     const batchSize = Number(args.batchSize ?? DEFAULT_BATCH_SIZE);
     const delayBetweenBatchesMs = Number(args.delayBetweenBatchesMs ?? 500);
 
-    let totalUpdated = 0;
-    let lastProcessedProjectId = "";
-    let lastProcessedId = "";
+    // @ts-ignore
+    const initialMigrationState: {
+      state: {
+        lastProcessedProjectId: string | undefined;
+        lastProcessedId: string | undefined;
+      };
+    } = await prisma.backgroundMigration.findUniqueOrThrow({
+      where: { id: backgroundMigrationId },
+      select: { state: true },
+    });
+
+    let lastProcessedProjectId =
+      initialMigrationState.state?.lastProcessedProjectId ?? "";
+    let lastProcessedId = initialMigrationState.state?.lastProcessedId ?? "";
 
     while (!this.isAborted) {
-      const batchStart = Date.now();
+      const result = await backfillValidToForDatasetItems(
+        lastProcessedProjectId,
+        lastProcessedId,
+        batchSize,
+      );
 
-      // Cursor condition for pagination
-      const cursorCondition =
-        lastProcessedProjectId === ""
-          ? Prisma.sql``
-          : Prisma.sql`
-            AND (
-              project_id > ${lastProcessedProjectId}
-              OR (project_id = ${lastProcessedProjectId} AND id > ${lastProcessedId})
-            )
-          `;
-
-      // 1. Get the next project_id to process
-      const nextProject = await prisma.$queryRaw<
-        Array<{ project_id: string }>
-      >(Prisma.sql`
-        SELECT DISTINCT project_id
-        FROM dataset_items
-        WHERE valid_to IS NULL
-          ${cursorCondition}
-        ORDER BY project_id
-        LIMIT 1
-      `);
-
-      if (nextProject.length === 0) {
-        logger.info("No more projects to process. Migration complete.");
+      if (result.completed) {
         break;
       }
 
-      const projectId = nextProject[0].project_id;
-
-      // 2. Get batch of item IDs for this project
-      const idCursor =
-        lastProcessedProjectId === projectId && lastProcessedId !== ""
-          ? Prisma.sql`AND id > ${lastProcessedId}`
-          : Prisma.sql``;
-
-      const itemIds = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        SELECT DISTINCT id
-        FROM dataset_items
-        WHERE project_id = ${projectId}
-          AND valid_to IS NULL
-          ${idCursor}
-        ORDER BY id
-        LIMIT ${batchSize}
-      `);
-
-      if (itemIds.length === 0) {
-        // Move to next project
-        lastProcessedProjectId = projectId;
-        lastProcessedId = "";
-        continue;
-      }
-
-      const idArray = itemIds.map((item) => item.id);
-
-      // 3. Fetch ALL versions for these IDs in this project and compute LEAD
-      const result = await prisma.$queryRaw<
-        Array<{
-          id: string;
-          project_id: string;
-          valid_from: Date;
-          next_valid_from: Date | null;
-        }>
-      >(Prisma.sql`
-        WITH all_versions AS (
-          SELECT id, project_id, valid_from, valid_to
-          FROM dataset_items
-          WHERE project_id = ${projectId}
-            AND id = ANY(${idArray}::text[])
-          ORDER BY id, valid_from
-        )
-        SELECT
-          id,
-          project_id,
-          valid_from,
-          LEAD(valid_from) OVER (PARTITION BY id ORDER BY valid_from ASC) as next_valid_from
-        FROM all_versions
-        WHERE valid_to IS NULL
-      `);
-
-      // 4. Update all rows that need valid_to set
-      const rowsToUpdate = result.filter((row) => row.next_valid_from !== null);
-
-      if (rowsToUpdate.length > 0) {
-        for (const row of rowsToUpdate) {
-          await prisma.datasetItem.updateMany({
-            where: {
-              projectId: row.project_id,
-              id: row.id,
-              validFrom: row.valid_from,
-              validTo: null,
-            },
-            data: {
-              validTo: row.next_valid_from,
-            },
-          });
-        }
-      }
-
-      totalUpdated += rowsToUpdate.length;
-
       // Update cursor
-      lastProcessedProjectId = projectId;
-      lastProcessedId = itemIds[itemIds.length - 1].id;
+      lastProcessedProjectId = result.lastProcessedProjectId!;
+      lastProcessedId = result.lastProcessedId!;
 
-      logger.info(
-        `Project ${projectId}: Processed ${itemIds.length} items (${rowsToUpdate.length} rows updated) in ${Date.now() - batchStart}ms. Total: ${totalUpdated}`,
-      );
+      // Update migration state
+      await prisma.backgroundMigration.update({
+        where: { id: backgroundMigrationId },
+        data: {
+          state: { lastProcessedProjectId, lastProcessedId },
+        },
+      });
 
       // Delay between batches
       if (delayBetweenBatchesMs > 0 && !this.isAborted) {
@@ -203,7 +126,7 @@ export default class BackfillValidToForDatasetItems
 
     const duration = Date.now() - start;
     logger.info(
-      `Backfill ${this.isAborted ? "aborted" : "completed"}. Updated ${totalUpdated} rows in ${duration}ms`,
+      `Backfill ${this.isAborted ? "aborted" : "completed"} in ${duration}ms`,
     );
   }
 
