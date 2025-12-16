@@ -1140,6 +1140,7 @@ export const datasetRouter = createTRPCRouter({
             });
           },
           [Implementation.VERSIONED]: async () => {
+            // always creates new dataset; hence no need to invalidate old rows
             await ctx.prisma.datasetItem.createMany({
               data: preparedItems,
             });
