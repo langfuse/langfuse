@@ -155,8 +155,6 @@ export function IOPreviewPretty({
 
   // Determine if markdown is safe to render (content size check)
   const shouldRenderMarkdown = useMemo(() => {
-    const startTime = performance.now();
-
     // Fast byte estimation without expensive JSON.stringify
     // Estimate: count string lengths + rough object overhead
     const estimateSize = (obj: unknown): number => {
