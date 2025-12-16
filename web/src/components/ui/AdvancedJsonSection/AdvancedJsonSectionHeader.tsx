@@ -10,7 +10,7 @@
 
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Check, Copy } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
 
 export interface AdvancedJsonSectionHeaderProps {
   /** Section title (can be string or React node for custom rendering) */
@@ -30,6 +30,9 @@ export interface AdvancedJsonSectionHeaderProps {
 
   /** Callback when header title area is clicked (for expand/collapse) */
   onToggleCollapse?: () => void;
+
+  /** Whether the section is currently collapsed */
+  sectionCollapsed?: boolean;
 }
 
 export function AdvancedJsonSectionHeader({
@@ -39,6 +42,7 @@ export function AdvancedJsonSectionHeader({
   controlButtons,
   backgroundColor,
   onToggleCollapse,
+  sectionCollapsed,
 }: AdvancedJsonSectionHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
@@ -59,6 +63,24 @@ export function AdvancedJsonSectionHeader({
           }
         }}
       >
+        {onToggleCollapse && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCollapse();
+            }}
+            className="inline-flex items-center justify-center rounded-sm p-0.5 transition-colors hover:bg-accent"
+            aria-label={
+              sectionCollapsed ? "Expand section" : "Collapse section"
+            }
+          >
+            {sectionCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
+        )}
         {titleIcon}
         {title}
       </div>

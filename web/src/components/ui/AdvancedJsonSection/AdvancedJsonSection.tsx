@@ -13,7 +13,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   WrapText,
   Minus,
@@ -281,11 +280,6 @@ export function AdvancedJsonSection({
         <AdvancedJsonSectionHeader
           title={
             <div className="flex items-center gap-2">
-              {sectionCollapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
               <span>{title}</span>
               <span className="text-xs font-normal text-muted-foreground">
                 {totalRowCount} rows{isVirtualized ? " (virtualized)" : ""}
@@ -295,6 +289,7 @@ export function AdvancedJsonSection({
           handleOnCopy={handleCopy}
           backgroundColor={headerBackgroundColor}
           onToggleCollapse={handleToggleSectionCollapse}
+          sectionCollapsed={sectionCollapsed}
           controlButtons={
             <>
               {/* Search */}
