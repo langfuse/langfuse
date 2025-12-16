@@ -1,8 +1,13 @@
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  queryClickhouse,
+} from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -272,7 +277,18 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation1, observation2]);
 
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: { projectId, ids: [observationId1, observationId2] },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
+        },
+        5000,
+        10,
+      );
 
       // Focus on testing columns that require joins to other tables
       // (columns from traces table: userId, traceName, sessionId, traceTags, traceEnvironment)
