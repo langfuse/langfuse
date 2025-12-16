@@ -9,8 +9,10 @@ import {
   createEventsCh,
   createScoresCh,
   createTraceScore,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import waitForExpect from "wait-for-expect";
 
 const hasEvents = env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
 const maybe = hasEvents ? describe : describe.skip;
@@ -72,8 +74,20 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
     await createEventsCh(observations);
 
-    // Wait a bit for ClickHouse to process
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Wait for ClickHouse to process
+    await waitForExpect(
+      async () => {
+        const result = await queryClickhouse<{ count: string }>({
+          query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+          params: { projectId, ids: observationIds },
+        });
+        expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(
+          observationIds.length,
+        );
+      },
+      5000,
+      10,
+    );
   });
 
   it("should kill redis connection", () => {
@@ -605,7 +619,21 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       }
 
       await createScoresCh(scores);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM scores WHERE project_id = {projectId: String} AND id IN ({ids: Array(String)})`,
+            params: { projectId, ids: scoreIds },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(
+            scoreIds.length,
+          );
+        },
+        5000,
+        10,
+      );
     });
 
     it("should support sessionId dimension from scores table", async () => {
@@ -700,6 +728,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   maybe("Scores Views - Denormalized Trace Fields via Events", () => {
     let eventsScoreTraceId: string;
     let eventsObservationId: string;
+    let eventsScoreId: string;
     const eventsScoreSessionId = "events-score-session";
     const eventsScoreUserId = "events-score-user";
     const eventsScoreTags = ["events-tag-1", "events-tag-2"];
@@ -712,6 +741,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       eventsScoreTraceId = randomUUID();
       eventsObservationId = randomUUID();
+      eventsScoreId = randomUUID();
 
       // Create observation in events table (v2 source)
       await createEventsCh([
@@ -734,7 +764,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       await createScoresCh([
         createTraceScore({
-          id: randomUUID(),
+          id: eventsScoreId,
           project_id: projectId,
           trace_id: eventsScoreTraceId,
           observation_id: eventsObservationId,
@@ -746,7 +776,18 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         }),
       ]);
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM scores WHERE project_id = {projectId: String} AND id IN ({ids: Array(String)})`,
+            params: { projectId, ids: [eventsScoreId] },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
     });
 
     it.each([
@@ -812,12 +853,14 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   maybe("Scores Views - Observation Dimensions via Events", () => {
     let obsEventsTraceId: string;
     let obsEventsObservationId: string;
+    let obsEventsScoreId: string;
 
     beforeAll(async () => {
       if (!hasEvents) return;
 
       obsEventsTraceId = randomUUID();
       obsEventsObservationId = randomUUID();
+      obsEventsScoreId = randomUUID();
 
       await createEventsCh([
         createEvent({
@@ -833,7 +876,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       await createScoresCh([
         createTraceScore({
-          id: randomUUID(),
+          id: obsEventsScoreId,
           project_id: projectId,
           trace_id: obsEventsTraceId,
           observation_id: obsEventsObservationId,
@@ -845,7 +888,18 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         }),
       ]);
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM scores WHERE project_id = {projectId: String} AND id IN ({ids: Array(String)})`,
+            params: { projectId, ids: [obsEventsScoreId] },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
     });
 
     it.each([
@@ -896,6 +950,8 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
   maybe("Traces View - V2 Events Table", () => {
     let testTraceId: string;
+    let traceEventIds: string[];
+    let traceScoreId: string;
     const nowMs = Date.now();
     const now = nowMs * 1000; // microseconds
 
@@ -903,12 +959,14 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       if (!hasEvents) return;
 
       testTraceId = randomUUID();
+      traceEventIds = [randomUUID(), randomUUID()];
+      traceScoreId = randomUUID();
 
       // Create multiple observations with different tags to test aggregation
       const traceEvents = [
         createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
+          id: traceEventIds[0],
+          span_id: traceEventIds[0],
           trace_id: testTraceId,
           project_id: projectId,
           trace_name: "test-trace-v2",
@@ -926,8 +984,8 @@ describe("/api/public/v2/metrics API Endpoint", () => {
           total_cost: 0.01,
         }),
         createEvent({
-          id: randomUUID(),
-          span_id: randomUUID(),
+          id: traceEventIds[1],
+          span_id: traceEventIds[1],
           trace_id: testTraceId,
           project_id: projectId,
           trace_name: "test-trace-v2",
@@ -949,7 +1007,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       // Create a trace-level score
       await createScoresCh([
         {
-          id: randomUUID(),
+          id: traceScoreId,
           trace_id: testTraceId,
           project_id: projectId,
           name: "trace-quality",
@@ -966,7 +1024,31 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         },
       ]);
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Wait for ClickHouse to process events and scores
+      await waitForExpect(
+        async () => {
+          const eventsResult = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: { projectId, ids: traceEventIds },
+          });
+          expect(Number(eventsResult[0]?.count)).toBeGreaterThanOrEqual(
+            traceEventIds.length,
+          );
+        },
+        5000,
+        10,
+      );
+      await waitForExpect(
+        async () => {
+          const scoresResult = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM scores WHERE project_id = {projectId: String} AND id IN ({ids: Array(String)})`,
+            params: { projectId, ids: [traceScoreId] },
+          });
+          expect(Number(scoresResult[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
     });
 
     it.each([
