@@ -219,7 +219,7 @@ export function TraceDetailView({
               <TagList selectedTags={trace.tags} isLoading={false} />
             </div>
 
-            {/* I/O Preview (includes metadata in JSON view) */}
+            {/* I/O Preview (includes metadata in both views) */}
             <IOPreview
               key={trace.id + "-io"}
               input={trace.input ?? undefined}
@@ -238,6 +238,7 @@ export function TraceDetailView({
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
               }
+              showMetadata
             />
           </div>
         </TabsBarContent>

@@ -90,6 +90,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  // Whether to show metadata section (default: false)
+  showMetadata?: boolean;
 }
 
 /**
@@ -122,6 +124,7 @@ export function IOPreviewPretty({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  showMetadata = false,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -213,6 +216,9 @@ export function IOPreviewPretty({
     onOutputExpansionChange,
   };
 
+  // Determine if metadata should be shown
+  const shouldShowMetadata = showMetadata && parsedMetadata;
+
   return (
     <>
       <SectionToolDefinitions
@@ -235,6 +241,20 @@ export function IOPreviewPretty({
         </div>
       ) : (
         <JsonInputOutputView {...jsonViewProps} />
+      )}
+
+      {/* Metadata Section */}
+      {shouldShowMetadata && (
+        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+          <PrettyJsonView
+            title="Metadata"
+            json={parsedMetadata}
+            isLoading={isLoading}
+            isParsing={isParsing}
+            media={media?.filter((m) => m.field === "metadata") ?? []}
+            currentView="pretty"
+          />
+        </div>
       )}
     </>
   );

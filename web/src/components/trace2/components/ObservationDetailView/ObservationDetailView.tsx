@@ -334,6 +334,7 @@ export function ObservationDetailView({
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
               }
+              showMetadata
             />
           </div>
         </TabsBarContent>
