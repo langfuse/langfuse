@@ -191,8 +191,6 @@ export class OtelIngestionProcessor {
             const events: any[] = [];
 
             for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
-              const isLangfuseSDKSpans =
-                scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
@@ -352,10 +350,7 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: this.extractCostDetails(
-                    spanAttributes,
-                    isLangfuseSDKSpans,
-                  ),
+                  providedCostDetails: this.extractCostDetails(spanAttributes),
 
                   // Properties
                   tags: this.extractTags(spanAttributes),
@@ -910,7 +905,7 @@ export class OtelIngestionProcessor {
         attributes,
         instrumentationScopeName,
       ),
-      costDetails: this.extractCostDetails(attributes, isLangfuseSDKSpans),
+      costDetails: this.extractCostDetails(attributes),
       input,
       output,
     };
@@ -1997,9 +1992,8 @@ export class OtelIngestionProcessor {
 
   private extractCostDetails(
     attributes: Record<string, unknown>,
-    isLangfuseSDKSpan: boolean,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS]) {
       try {
         return JSON.parse(
           attributes[
