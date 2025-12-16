@@ -5,7 +5,7 @@
  * - Tracks selected node ID (synced to URL query param)
  * - Manages collapsed/expanded state for tree nodes
  * - Handles search query with debounced input
- * - Tracks selected tab (preview/log/scores) - synced to URL query param
+ * - Tracks selected tab (preview/log/scores) - synced to URL query param `traceTab`
  * - Tracks view preference (formatted/json) - synced to URL query param AND localStorage
  *
  * View Preference Behavior:
@@ -79,7 +79,7 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     "observation",
     StringParam,
   );
-  const [tabParam, setTabParam] = useQueryParam("tab", StringParam);
+  const [tabParam, setTabParam] = useQueryParam("traceTab", StringParam);
   const [prefParam, setPrefParam] = useQueryParam("pref", StringParam);
 
   // Get localStorage default for view preference
