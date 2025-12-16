@@ -153,7 +153,7 @@ model Project {
   BlobStorageIntegration    BlobStorageIntegration[]
   scoreConfig               ScoreConfig[]
   BatchExport               BatchExport[]
-  BatchAction          BatchAction[]
+  BatchAction               BatchAction[]
   comment                   Comment[]
   commentReactions          CommentReaction[]
   annotationQueue           AnnotationQueue[]
@@ -631,9 +631,12 @@ model DatasetItem {
   // dataset version cols
   sysId               String?        @default(dbgenerated()) @map("sys_id")
   validFrom           DateTime       @default(now()) @map("valid_from")
+  validTo             DateTime?      @map("valid_to")
   isDeleted           Boolean        @default(false) @map("is_deleted")
 
   @@id([id, projectId, validFrom])
+  @@index([projectId, validTo])
+  @@index([projectId, id, validFrom])
   @@index([sourceTraceId], type: Hash)
   @@index([sourceObservationId], type: Hash)
   @@index([datasetId], type: Hash)
@@ -1194,9 +1197,9 @@ model BatchAction {
   query  Json
   config Json?
 
-  totalCount     Int? @map("total_count")
-  processedCount Int? @map("processed_count")
-  failedCount    Int? @map("failed_count")
+  totalCount     Int?    @map("total_count")
+  processedCount Int?    @map("processed_count")
+  failedCount    Int?    @map("failed_count")
   log            String?
 
   @@index([projectId, userId])

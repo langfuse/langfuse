@@ -741,10 +741,12 @@ function JsonPrettyTable({
 
 export function PrettyJsonView(props: {
   json?: unknown;
+  parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
+  isParsing?: boolean;
   codeClassName?: string;
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
@@ -760,17 +762,31 @@ export function PrettyJsonView(props: {
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
 }) {
-  const jsonDependency = useMemo(
-    () =>
-      typeof props.json === "string" ? props.json : JSON.stringify(props.json),
-    [props.json],
-  );
-
+  // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
-    return deepParseJson(props.json);
-    // We want to use jsonDependency as dep because it's more stable than props.json
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jsonDependency]);
+    // If pre-parsed data is provided, use it directly (skip parsing)
+    if (props.parsedJson !== undefined) {
+      return props.parsedJson;
+    }
+
+    // If still parsing in Web Worker, return null (will show loading state)
+    if (props.isParsing) {
+      return null;
+    }
+
+    // Fast path: if already an object, likely no parsing needed
+    if (typeof props.json !== "string") {
+      return props.json;
+    }
+
+    // Only parse strings, with size/depth limits
+    const result = deepParseJson(props.json, {
+      maxSize: 500_000,
+      maxDepth: 2,
+    });
+
+    return result;
+  }, [props.json, props.parsedJson, props.isParsing]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -841,13 +857,18 @@ export function PrettyJsonView(props: {
           return rows;
         };
 
+        let result: JsonTableRow[];
+
         // top-level is an object, start with its properties directly
         if (parsedJson?.constructor === Object) {
-          return createTopLevelRows(parsedJson as Record<string, unknown>);
+          result = createTopLevelRows(parsedJson as Record<string, unknown>);
+        } else {
+          result = transformJsonToTableData(parsedJson, "", 0, "", true);
         }
 
-        return transformJsonToTableData(parsedJson, "", 0, "", true);
+        return result;
       }
+
       return [];
     } catch (error) {
       console.error("Error transforming JSON to table data:", error);
@@ -884,6 +905,7 @@ export function PrettyJsonView(props: {
 
     if (optimalLevel > 0) {
       const smartExpanded: ExpandedState = {};
+
       const expandRowsToLevel = (
         rows: JsonTableRow[],
         currentLevel: number,
@@ -901,6 +923,7 @@ export function PrettyJsonView(props: {
         });
       };
       expandRowsToLevel(baseTableData, 0);
+
       return smartExpanded;
     }
 
@@ -1093,7 +1116,30 @@ export function PrettyJsonView(props: {
 
   const body = (
     <>
-      {emptyValueDisplay && isPrettyView ? (
+      {props.isLoading || props.isParsing ? (
+        <div className="io-message-content">
+          <div
+            className={cn(
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+              ),
+            )}
+          >
+            <div className="space-y-2 p-3">
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-2/3" />
+              {props.isParsing && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Parsing in background...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : emptyValueDisplay && isPrettyView ? (
         <div className="io-message-content">
           <div
             className={cn(
@@ -1105,22 +1151,14 @@ export function PrettyJsonView(props: {
               ),
             )}
           >
-            {props.isLoading ? (
-              <Skeleton className="h-3 w-3/4" />
-            ) : (
-              <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
-                {emptyValueDisplay}
-              </span>
-            )}
+            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
+              {emptyValueDisplay}
+            </span>
           </div>
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          {props.isLoading ? (
-            <Skeleton className="h-3 w-3/4" />
-          ) : (
-            <MarkdownView markdown={markdownContent || ""} />
-          )}
+          <MarkdownView markdown={markdownContent || ""} />
         </div>
       ) : (
         <>

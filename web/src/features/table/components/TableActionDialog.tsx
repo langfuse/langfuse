@@ -81,7 +81,9 @@ export function TableActionDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{action.label}</DialogTitle>
-          <DialogDescription>{action.description}</DialogDescription>
+          <DialogDescription className="mt-2">
+            {action.description}
+          </DialogDescription>
         </DialogHeader>
 
         {action.type === "create" && (
