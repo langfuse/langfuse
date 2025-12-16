@@ -6,7 +6,7 @@ import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 import { type MediaReturnType } from "@/src/features/media/validation";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
-import { IOPreviewJSON } from "./IOPreviewJSON";
+import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -45,6 +45,11 @@ export interface IOPreviewProps extends ExpansionStateProps {
   hideInput?: boolean;
   currentView?: ViewMode;
   setIsPrettyViewAvailable?: (value: boolean) => void;
+  enableInlineComments?: boolean; // to only enable for JSON view
+  // callback when user wants to add an inline comment
+  onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
+  // sets of JSON paths that have comments
+  commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
 }
 
 /**
@@ -80,6 +85,9 @@ export function IOPreview({
   onInputExpansionChange,
   onOutputExpansionChange,
   setIsPrettyViewAvailable,
+  enableInlineComments,
+  onAddInlineComment,
+  commentedPathsByField,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -129,6 +137,14 @@ export function IOPreview({
     onOutputExpansionChange,
   };
 
+  // add only JSON props because inline comments only work in JSON view for now
+  const jsonProps = {
+    ...sharedProps,
+    enableInlineComments,
+    onAddInlineComment,
+    commentedPathsByField,
+  };
+
   const showEmptyState =
     (parsedInput === null || parsedInput === undefined) &&
     (parsedOutput === null || parsedOutput === undefined) &&
@@ -156,7 +172,7 @@ export function IOPreview({
        * but this eliminates UI freeze with large observations.
        */}
       {selectedView === "json" ? (
-        <IOPreviewJSON {...sharedProps} />
+        <IOPreviewJSON {...jsonProps} />
       ) : (
         <IOPreviewPretty {...sharedProps} observationName={observationName} />
       )}

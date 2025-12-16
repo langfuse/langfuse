@@ -25,7 +25,14 @@ import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
-import { ArrowUpToLine, LoaderCircle, Search, Trash, X } from "lucide-react";
+import {
+  ArrowUpToLine,
+  LoaderCircle,
+  MapPin,
+  Search,
+  Trash,
+  X,
+} from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
   useCallback,
@@ -43,6 +50,7 @@ import { ReactionPicker } from "@/src/features/comments/ReactionPicker";
 import { ReactionBar } from "@/src/features/comments/ReactionBar";
 import { stripMarkdown } from "@/src/utils/markdown";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
+import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
@@ -56,6 +64,8 @@ export function CommentList({
   onDraftChange,
   onMentionDropdownChange,
   isDrawerOpen = false,
+  pendingSelection,
+  onSelectionUsed,
 }: {
   projectId: string;
   objectId: string;
@@ -65,6 +75,8 @@ export function CommentList({
   onDraftChange?: (hasDraft: boolean) => void;
   onMentionDropdownChange?: (isOpen: boolean) => void;
   isDrawerOpen?: boolean;
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
 }) {
   const session = useSession();
   const router = useRouter();
@@ -253,6 +265,9 @@ export function CommentList({
       await Promise.all([utils.comments.invalidate()]);
       form.reset();
 
+      // Clear pending selection after successful comment creation
+      onSelectionUsed?.();
+
       // Reset textarea height
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
@@ -364,6 +379,10 @@ export function CommentList({
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation.mutateAsync({
       ...values,
+      dataField: pendingSelection?.dataField,
+      path: pendingSelection?.path,
+      rangeStart: pendingSelection?.rangeStart,
+      rangeEnd: pendingSelection?.rangeEnd,
     });
   }
 
@@ -537,6 +556,20 @@ export function CommentList({
                     markdown={comment.content}
                     className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
                   />
+
+                  {/* TODO: remomve this Inline comment position indicator */}
+                  {"dataField" in comment &&
+                    comment.dataField &&
+                    "path" in comment &&
+                    Array.isArray(comment.path) &&
+                    comment.path.length > 0 && (
+                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        <span className="font-mono">
+                          {comment.dataField}: {comment.path[0]}
+                        </span>
+                      </div>
+                    )}
 
                   {/* Reactions */}
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">

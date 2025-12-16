@@ -60,6 +60,7 @@ import { JumpToPlaygroundButton } from "@/src/features/playground/page/component
 import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
+import { api } from "@/src/utils/api";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -94,6 +95,20 @@ export function ObservationDetailView({
   const currentView = viewPref === "json" ? "json" : "pretty";
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+
+  // states for the inline comments
+  const [pendingSelection, setPendingSelection] =
+    useState<SelectionData | null>(null);
+  const [isCommentDrawerOpen, setIsCommentDrawerOpen] = useState(false);
+
+  const handleAddInlineComment = useCallback((selection: SelectionData) => {
+    setPendingSelection(selection);
+    setIsCommentDrawerOpen(true);
+  }, []);
+
+  const handleSelectionUsed = useCallback(() => {
+    setPendingSelection(null);
+  }, []);
 
   // Get comments, scores, and expansion state from contexts
   const { comments, scores } = useTraceData();

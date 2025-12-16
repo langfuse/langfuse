@@ -255,6 +255,8 @@ export interface AdvancedJsonViewerProps {
 
   /** Ref to the scroll container (for proper scroll-to behavior) */
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+
+  commentedPaths?: Map<string, Array<{ start: number; end: number }>>;
 }
 
 /**
@@ -332,6 +334,8 @@ export interface JsonValueProps {
   /** Search highlight positions */
   highlightStart?: number;
   highlightEnd?: number;
+
+  commentRanges?: Array<{ start: number; end: number }>;
 
   /** Custom CSS class */
   className?: string;

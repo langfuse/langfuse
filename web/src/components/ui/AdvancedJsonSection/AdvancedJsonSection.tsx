@@ -86,6 +86,8 @@ export interface AdvancedJsonSectionProps {
 
   /** Additional control buttons in header */
   controlButtons?: React.ReactNode;
+
+  commentedPaths?: Map<string, Array<{ start: number; end: number }>>;
 }
 
 export function AdvancedJsonSection({
@@ -108,6 +110,7 @@ export function AdvancedJsonSection({
   isLoading = false,
   media: _media, // TODO: Implement media attachment support
   controlButtons,
+  commentedPaths,
 }: AdvancedJsonSectionProps) {
   // String wrap mode state (persisted in localStorage)
   const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
@@ -447,6 +450,7 @@ export function AdvancedJsonSection({
               isLoading={isLoading}
               scrollContainerRef={scrollContainerRef}
               className="h-full"
+              commentedPaths={commentedPaths}
             />
           )}
         </div>

@@ -7,7 +7,7 @@
 
 import { type JsonValueProps } from "../types";
 import { formatValuePreview } from "../utils/jsonTypes";
-import { highlightText } from "../utils/searchJson";
+import { highlightTextWithComments } from "../utils/highlightText";
 import { TruncatedString } from "./TruncatedString";
 
 export function JsonValue({
@@ -20,6 +20,7 @@ export function JsonValue({
   truncateStringsAt = null,
   highlightStart,
   highlightEnd,
+  commentRanges,
   className,
 }: JsonValueProps) {
   // For expandable values, show preview text
@@ -77,13 +78,19 @@ export function JsonValue({
             theme={theme}
             highlightStart={highlightStart}
             highlightEnd={highlightEnd}
+            commentRanges={commentRanges}
           />
         );
       }
     }
 
     // Mode 2: "nowrap" or Mode 3: "wrap" - render with appropriate whiteSpace
-    const segments = highlightText(str, highlightStart, highlightEnd);
+    const segments = highlightTextWithComments(
+      str,
+      highlightStart,
+      highlightEnd,
+      commentRanges,
+    );
 
     return (
       <span
@@ -99,18 +106,21 @@ export function JsonValue({
         }}
       >
         &quot;
-        {segments.map((segment, index) => (
-          <span
-            key={index}
-            style={{
-              backgroundColor: segment.isHighlight
-                ? theme.searchMatchBackground
-                : "transparent",
-            }}
-          >
-            {segment.text}
-          </span>
-        ))}
+        {segments.map((segment, index) => {
+          const backgroundColor =
+            segment.type === "search"
+              ? theme.searchMatchBackground
+              : segment.type === "comment"
+                ? // TODO: change highlight color!
+                  "rgba(147, 112, 219, 0.25)" // Purple highlight for comments
+                : "transparent";
+
+          return (
+            <span key={index} style={{ backgroundColor }}>
+              {segment.text}
+            </span>
+          );
+        })}
         &quot;
       </span>
     );
@@ -132,8 +142,13 @@ export function JsonValue({
     }
   })();
 
-  // Apply search highlighting
-  const segments = highlightText(displayValue, highlightStart, highlightEnd);
+  // Apply search and comment highlighting
+  const segments = highlightTextWithComments(
+    displayValue,
+    highlightStart,
+    highlightEnd,
+    commentRanges,
+  );
 
   return (
     <span
@@ -143,18 +158,21 @@ export function JsonValue({
         fontFamily: "monospace",
       }}
     >
-      {segments.map((segment, index) => (
-        <span
-          key={index}
-          style={{
-            backgroundColor: segment.isHighlight
-              ? theme.searchMatchBackground
-              : "transparent",
-          }}
-        >
-          {segment.text}
-        </span>
-      ))}
+      {segments.map((segment, index) => {
+        const backgroundColor =
+          segment.type === "search"
+            ? theme.searchMatchBackground
+            : segment.type === "comment"
+              ? // TODO: change color
+                "rgba(147, 112, 219, 0.25)" // Purple highlight for comments
+              : "transparent";
+
+        return (
+          <span key={index} style={{ backgroundColor }}>
+            {segment.text}
+          </span>
+        );
+      })}
     </span>
   );
 }

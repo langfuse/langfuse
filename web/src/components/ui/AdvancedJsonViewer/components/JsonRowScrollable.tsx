@@ -21,6 +21,8 @@ export interface JsonRowScrollableProps {
   searchMatch?: SearchMatch;
   isCurrentMatch?: boolean;
   className?: string;
+  jsonPath?: string;
+  commentRanges?: Array<{ start: number; end: number }>;
 }
 
 export function JsonRowScrollable({
@@ -34,11 +36,13 @@ export function JsonRowScrollable({
   searchMatch,
   isCurrentMatch = false,
   className,
+  jsonPath,
+  commentRanges,
 }: JsonRowScrollableProps) {
   const isKey = searchMatch?.matchType === "key";
   const isValue = searchMatch?.matchType === "value";
 
-  // Calculate background based on search match
+  // Calculate background based on search match only (comment highlighting is now character-level)
   const backgroundColor = isCurrentMatch
     ? theme.searchCurrentBackground
     : searchMatch
@@ -48,6 +52,8 @@ export function JsonRowScrollable({
   return (
     <div
       className={className}
+      data-json-path={jsonPath}
+      data-json-key-value="true"
       style={{
         display: "flex",
         alignItems: "start",
@@ -93,6 +99,7 @@ export function JsonRowScrollable({
         truncateStringsAt={truncateStringsAt}
         highlightStart={isValue ? searchMatch?.highlightStart : undefined}
         highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
+        commentRanges={commentRanges}
       />
 
       {/* Match count badge (for collapsed rows or leaf nodes with multiple matches) */}

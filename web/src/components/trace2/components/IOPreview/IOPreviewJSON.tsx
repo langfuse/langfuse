@@ -1,9 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { type Prisma } from "@langfuse/shared";
 import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection/AdvancedJsonSection";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
+import {
+  InlineCommentSelectionProvider,
+  useInlineCommentSelectionOptional,
+  type SelectionData,
+} from "@/src/features/comments/contexts/InlineCommentSelectionContext";
+import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
+import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
@@ -19,6 +26,13 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  enableInlineComments?: boolean;
+  onAddInlineComment?: (selection: SelectionData) => void;
+  commentedPathsByField?: {
+    input?: Map<string, Array<{ start: number; end: number }>>;
+    output?: Map<string, Array<{ start: number; end: number }>>;
+    metadata?: Map<string, Array<{ start: number; end: number }>>;
+  };
 }
 
 /**
@@ -33,7 +47,8 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
  * This component is ~150ms faster than the full IOPreview for large data
  * because it skips all ChatML processing.
  */
-export function IOPreviewJSON({
+// inner component that uses the selection context so that inline comments can be made
+function IOPreviewJSONInner({
   input,
   output,
   metadata,
@@ -46,7 +61,17 @@ export function IOPreviewJSON({
   hideOutput = false,
   hideInput = false,
   media,
+  enableInlineComments = false,
+  onAddInlineComment,
+  commentedPathsByField,
 }: IOPreviewJSONProps) {
+  const selectionContext = useInlineCommentSelectionOptional();
+
+  const handleAddComment = useCallback(() => {
+    if (selectionContext?.selection && onAddInlineComment) {
+      onAddInlineComment(selectionContext.selection);
+    }
+  }, [selectionContext?.selection, onAddInlineComment]);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
@@ -92,79 +117,139 @@ export function IOPreviewJSON({
     }
   }, [showInput, showOutput, showMetadata, expandedSection]);
 
+  const wrapWithCommentable = (
+    children: React.ReactNode,
+    dataField: "input" | "output" | "metadata",
+    className?: string,
+  ) => {
+    if (!enableInlineComments) {
+      return <div className={className}>{children}</div>;
+    }
+    return (
+      <CommentableJsonView
+        dataField={dataField}
+        enabled={enableInlineComments}
+        className={className}
+      >
+        {children}
+      </CommentableJsonView>
+    );
+  };
+
   return (
     <div className="flex h-full flex-col">
-      {showInput && (
-        <AdvancedJsonSection
-          title="Input"
-          field="input"
-          data={input}
-          parsedData={parsedInput}
-          collapsed={expandedSection !== "input"}
-          onToggleCollapse={() =>
-            setExpandedSection(expandedSection === "input" ? null : "input")
-          }
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "input")}
-          enableSearch={true}
-          searchPlaceholder="Search input"
-          maxHeight={BODY_MAX_HEIGHT}
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
-          enableCopy={true}
-          backgroundColor={inputBgColor}
-          headerBackgroundColor={inputBgColor}
-          className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
-        />
+      {/* Inline comment bubble - shows when text is selected */}
+      {enableInlineComments && (
+        <InlineCommentBubble onAddComment={handleAddComment} />
       )}
-      {showOutput && (
-        <AdvancedJsonSection
-          title="Output"
-          field="output"
-          data={output}
-          parsedData={parsedOutput}
-          collapsed={expandedSection !== "output"}
-          onToggleCollapse={() =>
-            setExpandedSection(expandedSection === "output" ? null : "output")
-          }
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "output")}
-          enableSearch={true}
-          searchPlaceholder="Search output"
-          maxHeight={BODY_MAX_HEIGHT}
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
-          enableCopy={true}
-          backgroundColor={outputBgColor}
-          headerBackgroundColor={outputBgColor}
-          className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
-        />
-      )}
-      {showMetadata && (
-        <AdvancedJsonSection
-          title="Metadata"
-          field="metadata"
-          data={metadata}
-          parsedData={parsedMetadata}
-          collapsed={expandedSection !== "metadata"}
-          onToggleCollapse={() =>
-            setExpandedSection(
-              expandedSection === "metadata" ? null : "metadata",
-            )
-          }
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "metadata")}
-          enableSearch={true}
-          searchPlaceholder="Search metadata"
-          maxHeight={BODY_MAX_HEIGHT}
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
-          enableCopy={true}
-          backgroundColor={metadataBgColor}
-          headerBackgroundColor={metadataBgColor}
-          className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
-        />
-      )}
+
+      {showInput &&
+        wrapWithCommentable(
+          <AdvancedJsonSection
+            title="Input"
+            field="input"
+            data={input}
+            parsedData={parsedInput}
+            collapsed={expandedSection !== "input"}
+            onToggleCollapse={() =>
+              setExpandedSection(expandedSection === "input" ? null : "input")
+            }
+            isLoading={isLoading || isParsing}
+            media={media?.filter((m) => m.field === "input")}
+            enableSearch={true}
+            searchPlaceholder="Search input"
+            maxHeight={BODY_MAX_HEIGHT}
+            hideIfNull={hideIfNull}
+            truncateStringsAt={100}
+            enableCopy={true}
+            backgroundColor={inputBgColor}
+            headerBackgroundColor={inputBgColor}
+            className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
+            commentedPaths={commentedPathsByField?.input}
+          />,
+          "input",
+          expandedSection === "input" ? "min-h-0 flex-1" : "",
+        )}
+      {showOutput &&
+        wrapWithCommentable(
+          <AdvancedJsonSection
+            title="Output"
+            field="output"
+            data={output}
+            parsedData={parsedOutput}
+            collapsed={expandedSection !== "output"}
+            onToggleCollapse={() =>
+              setExpandedSection(expandedSection === "output" ? null : "output")
+            }
+            isLoading={isLoading || isParsing}
+            media={media?.filter((m) => m.field === "output")}
+            enableSearch={true}
+            searchPlaceholder="Search output"
+            maxHeight={BODY_MAX_HEIGHT}
+            hideIfNull={hideIfNull}
+            truncateStringsAt={100}
+            enableCopy={true}
+            backgroundColor={outputBgColor}
+            headerBackgroundColor={outputBgColor}
+            className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
+            commentedPaths={commentedPathsByField?.output}
+          />,
+          "output",
+          expandedSection === "output" ? "min-h-0 flex-1" : "",
+        )}
+      {showMetadata &&
+        wrapWithCommentable(
+          <AdvancedJsonSection
+            title="Metadata"
+            field="metadata"
+            data={metadata}
+            parsedData={parsedMetadata}
+            collapsed={expandedSection !== "metadata"}
+            onToggleCollapse={() =>
+              setExpandedSection(
+                expandedSection === "metadata" ? null : "metadata",
+              )
+            }
+            isLoading={isLoading || isParsing}
+            media={media?.filter((m) => m.field === "metadata")}
+            enableSearch={true}
+            searchPlaceholder="Search metadata"
+            maxHeight={BODY_MAX_HEIGHT}
+            hideIfNull={hideIfNull}
+            truncateStringsAt={100}
+            enableCopy={true}
+            backgroundColor={metadataBgColor}
+            headerBackgroundColor={metadataBgColor}
+            className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
+            commentedPaths={commentedPathsByField?.metadata}
+          />,
+          "metadata",
+          expandedSection === "metadata" ? "min-h-0 flex-1" : "",
+        )}
     </div>
   );
+}
+
+/**
+ * IOPreviewJSON - Renders input/output in JSON view mode only.
+ *
+ * Optimizations:
+ * - No ChatML parsing (not needed for JSON view)
+ * - No markdown rendering checks (not applicable)
+ * - No tool definitions (only visible in pretty view)
+ * - Accepts pre-parsed data to avoid duplicate parsing
+ *
+ * This component is ~150ms faster than the full IOPreview for large data
+ * because it skips all ChatML processing.
+ */
+export function IOPreviewJSON(props: IOPreviewJSONProps) {
+  // Wrap with selection provider if inline comments are enabled
+  if (props.enableInlineComments) {
+    return (
+      <InlineCommentSelectionProvider>
+        <IOPreviewJSONInner {...props} />
+      </InlineCommentSelectionProvider>
+    );
+  }
+  return <IOPreviewJSONInner {...props} />;
 }
