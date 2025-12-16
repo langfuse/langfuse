@@ -49,6 +49,7 @@ import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPrevie
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
 import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
+import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 
 // Header action components
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -77,8 +78,6 @@ export function ObservationDetailView({
   const {
     selectedTab: globalSelectedTab,
     setSelectedTab: setGlobalSelectedTab,
-    viewPref,
-    setViewPref,
   } = useSelection();
 
   // Map global tab to observation-specific tabs (preview, scores)
@@ -90,8 +89,11 @@ export function ObservationDetailView({
     setGlobalSelectedTab(tab);
   };
 
-  // Map viewPref to currentView format expected by child components
-  const currentView = viewPref === "json" ? "json" : "pretty";
+  // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
+  const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
+
+  // Map jsonViewPreference to currentView format expected by child components
+  const currentView = jsonViewPreference;
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
@@ -287,13 +289,13 @@ export function ObservationDetailView({
           <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
           <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-          {/* View toggle (Formatted/JSON) - show for preview tab when pretty view is available */}
+          {/* View toggle (Formatted/JSON/JSON Beta) - show for preview tab when pretty view is available */}
           {selectedTab === "preview" && isPrettyViewAvailable && (
             <Tabs
               className="ml-auto mr-1 h-fit px-2 py-0.5"
               value={currentView}
               onValueChange={(value) => {
-                setViewPref(value === "json" ? "json" : "formatted");
+                setJsonViewPreference(value as "pretty" | "json" | "json-beta");
               }}
             >
               <TabsList className="h-fit py-0.5">
@@ -302,6 +304,9 @@ export function ObservationDetailView({
                 </TabsTrigger>
                 <TabsTrigger value="json" className="h-fit px-1 text-xs">
                   JSON
+                </TabsTrigger>
+                <TabsTrigger value="json-beta" className="h-fit px-1 text-xs">
+                  JSON Beta
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -315,7 +320,9 @@ export function ObservationDetailView({
         >
           <div
             className={`flex min-h-0 w-full flex-1 flex-col ${
-              currentView === "pretty" ? "overflow-auto" : "overflow-hidden"
+              currentView === "json-beta"
+                ? "overflow-hidden"
+                : "overflow-auto pb-4"
             }`}
           >
             <IOPreview

@@ -7,6 +7,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import { IOPreviewJSON } from "./IOPreviewJSON";
+import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -152,15 +153,18 @@ export function IOPreview({
 
       {/*
        * Conditional rendering based on view mode:
-       * - JSON view: IOPreviewJSON (no ChatML parsing, ~150ms faster)
+       * - JSON Beta view: IOPreviewJSON (advanced viewer with virtualization, search)
+       * - JSON view: IOPreviewJSONSimple (simple react18-json-view, no virtualization)
        * - Pretty view: IOPreviewPretty (with ChatML parsing, markdown, tools)
        *
        * Only render the active view to prevent dual DOM tree construction.
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {selectedView === "json" ? (
+      {selectedView === "json-beta" ? (
         <IOPreviewJSON {...sharedProps} />
+      ) : selectedView === "json" ? (
+        <IOPreviewJSONSimple {...sharedProps} />
       ) : (
         <IOPreviewPretty
           {...sharedProps}
