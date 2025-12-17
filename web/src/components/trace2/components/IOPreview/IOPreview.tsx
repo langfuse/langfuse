@@ -134,9 +134,14 @@ export function IOPreview({
     onOutputExpansionChange,
   };
 
+  // Only show empty state popup for traces (not observations) when there's no input/output
+  // Check both parsed and raw props since not all callers provide parsedInput/parsedOutput
+  const hasInput = input !== null && input !== undefined;
+  const hasOutput = output !== null && output !== undefined;
   const showEmptyState =
-    (parsedInput === null || parsedInput === undefined) &&
-    (parsedOutput === null || parsedOutput === undefined) &&
+    !hasInput &&
+    !hasOutput &&
+    !observationName && // Only show for traces, not observations
     !isLoading &&
     !hideIfNull &&
     !dismissedTraceViewNotifications.includes(EMPTY_IO_ALERT_ID);
