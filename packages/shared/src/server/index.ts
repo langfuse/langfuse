@@ -40,7 +40,7 @@ export * from "../server/ingestion/types";
 export * from "../server/ingestion/modelMatch";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
-export * from "../server/ingestion/extractToolsBackend";
+export * from "./ingestion/extractToolsBackend";
 export * from "../server/queries/public-api-filter-builder";
 export * from "../server/pricing-tiers";
 export * from "./redis/redis";

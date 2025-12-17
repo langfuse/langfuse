@@ -429,8 +429,14 @@ export const observationsView: ViewDeclarationType = {
     toolNames: {
       sql: "mapKeys(observations.tool_definitions)",
       alias: "toolNames",
-      type: "string[]",
-      description: "Names of tools available to the observation.",
+      type: "arrayString",
+      description: "Names of available tools defined for the observation.",
+    },
+    calledToolNames: {
+      sql: "observations.tool_call_names",
+      alias: "calledToolNames",
+      type: "arrayString",
+      description: "Names of tools that were called by the observation.",
     },
   },
   measures: {
@@ -548,7 +554,7 @@ export const observationsView: ViewDeclarationType = {
       unit: "scores",
     },
     toolDefinitions: {
-      sql: "length(mapKeys(@@AGG1@@(tool_definitions)))",
+      sql: "nullIf(length(mapKeys(@@AGG1@@(tool_definitions))), 0)",
       aggs: { agg1: "any" },
       alias: "toolDefinitions",
       type: "integer",
@@ -556,7 +562,7 @@ export const observationsView: ViewDeclarationType = {
       unit: "tools",
     },
     toolCalls: {
-      sql: "length(arrayFlatten(mapValues(@@AGG1@@(tool_calls))))",
+      sql: "nullIf(length(@@AGG1@@(tool_calls)), 0)",
       aggs: { agg1: "any" },
       alias: "toolCalls",
       type: "integer",
@@ -1067,8 +1073,14 @@ export const eventsObservationsView: ViewDeclarationType = {
     toolNames: {
       sql: "mapKeys(events_observations.tool_definitions)",
       alias: "toolNames",
-      type: "string[]",
-      description: "Names of tools available to the observation.",
+      type: "arrayString",
+      description: "Names of available tools defined for the observation.",
+    },
+    calledToolNames: {
+      sql: "events_observations.tool_call_names",
+      alias: "calledToolNames",
+      type: "arrayString",
+      description: "Names of tools that were called by the observation.",
     },
   },
   measures: {
@@ -1181,15 +1193,15 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "scores",
     },
     toolDefinitions: {
-      sql: "length(mapKeys(@@AGG1@@(events_observations.tool_definitions)))",
+      sql: "nullIf(length(mapKeys(@@AGG1@@(events_observations.tool_definitions))), 0)",
       aggs: { agg1: "any" },
       alias: "toolDefinitions",
       type: "integer",
-      description: "Number of available tool definitions per observation.",
+      description: "Number of available tools per observation.",
       unit: "tools",
     },
     toolCalls: {
-      sql: "length(arrayFlatten(mapValues(@@AGG1@@(events_observations.tool_calls))))",
+      sql: "nullIf(length(@@AGG1@@(events_observations.tool_calls)), 0)",
       aggs: { agg1: "any" },
       alias: "toolCalls",
       type: "integer",

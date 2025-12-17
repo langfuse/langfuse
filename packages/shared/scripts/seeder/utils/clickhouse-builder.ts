@@ -197,7 +197,9 @@ export class ClickHouseQueryBuilder {
         '' AS usage_pricing_tier_id,
         '' AS usage_pricing_tier_name,
         map() AS tool_definitions,
-        map() AS tool_calls
+        [] AS tool_calls,
+        [] AS tool_call_names
+
       FROM numbers(${totalObservations});
     `;
   }

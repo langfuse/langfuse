@@ -808,9 +808,8 @@ export class DataGenerator {
           WeatherForecastTool: "Get weather forecasts and data",
           EmailSenderTool: "Send emails to recipients",
         },
-        tool_calls: {
-          [toolName]: ["call_workflow_1"],
-        },
+        tool_calls: ["call_workflow_1"],
+        tool_call_names: [toolName],
       }),
     );
 
@@ -1140,11 +1139,8 @@ export class DataGenerator {
                   "Issue refunds for duplicate or erroneous charges",
               }
             : undefined,
-          tool_calls: d.tool
-            ? {
-                [d.tool.name]: [`call_${index}`],
-              }
-            : undefined,
+          tool_calls: d.tool ? [`call_${index}`] : undefined,
+          tool_call_names: d.tool ? [d.tool.name] : undefined,
         };
 
         if (!d.tool) return [baseGen];

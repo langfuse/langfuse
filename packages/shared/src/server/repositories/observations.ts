@@ -650,7 +650,7 @@ const getObservationsTableInternal = async <T>(
         if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token",
         length(mapKeys(o.tool_definitions)) as "tool_definitions",
-        length(arrayFlatten(mapValues(o.tool_calls))) as "tool_calls"`;
+        length(o.tool_calls) as "tool_calls"`;
 
   const {
     projectId,

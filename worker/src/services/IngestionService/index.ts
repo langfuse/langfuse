@@ -45,10 +45,10 @@ import {
   hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
+  getDatasetItemById,
   extractToolsFromObservation,
   convertDefinitionsToMap,
-  convertCallsToMap,
-  getDatasetItemById,
+  convertCallsToArrays,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -858,33 +858,33 @@ export class IngestionService {
         clickhouseObservationRecord?.output,
     );
 
-    // Extract tool definitions and arguments to store in clickhouse
+    // Extract tool definitions and calls from raw input/output
     try {
-      const rawInput = reversedRawRecords.find((r) => r?.body?.input)?.body
-        ?.input;
-      const rawOutput = reversedRawRecords.find((r) => r?.body?.output)?.body
-        ?.output;
-
-      // Parse JSON strings if needed (input/output might already be stringified)
-      const parsedInput =
-        typeof rawInput === "string" ? JSON.parse(rawInput) : rawInput;
-      const parsedOutput =
-        typeof rawOutput === "string" ? JSON.parse(rawOutput) : rawOutput;
+      const rawInput = reversedRawRecords.find((record) => record?.body?.input)
+        ?.body?.input;
+      const rawOutput = reversedRawRecords.find(
+        (record) => record?.body?.output,
+      )?.body?.output;
 
       const { toolDefinitions, toolArguments } = extractToolsFromObservation(
-        parsedInput,
-        parsedOutput,
+        rawInput,
+        rawOutput,
       );
-      mergedObservationRecord.tool_definitions =
-        convertDefinitionsToMap(toolDefinitions);
-      mergedObservationRecord.tool_calls = convertCallsToMap(toolArguments);
-    } catch (e) {
-      logger.warn("Failed to extract tools from observation", {
-        observationId: entityId,
-        error: e,
-      });
-      mergedObservationRecord.tool_definitions = {};
-      mergedObservationRecord.tool_calls = {};
+
+      if (toolDefinitions.length > 0) {
+        mergedObservationRecord.tool_definitions =
+          convertDefinitionsToMap(toolDefinitions);
+      }
+
+      if (toolArguments.length > 0) {
+        const { tool_calls, tool_call_names } =
+          convertCallsToArrays(toolArguments);
+        mergedObservationRecord.tool_calls = tool_calls;
+        mergedObservationRecord.tool_call_names = tool_call_names;
+      }
+    } catch (error) {
+      logger.error("Tool extraction failed", { error, projectId, entityId });
+      // Don't fail ingestion - just skip tool data
     }
 
     const generationUsage = await this.getGenerationUsage({

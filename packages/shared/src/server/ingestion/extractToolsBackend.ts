@@ -282,11 +282,26 @@ function extractToolCallsFromMessage(
 }
 
 /**
+ * Parse input that might be a JSON string or already an object.
+ */
+function parseIfString(data: unknown): unknown {
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return data; // Return original if not valid JSON
+    }
+  }
+  return data;
+}
+
+/**
  * Extract tool definitions and arguments from observation input/output.
  * Extracts directly from raw input/output formats.
+ * Handles both object and JSON string inputs.
  *
- * @param input - Raw observation input (before stringification)
- * @param output - Raw observation output (before stringification)
+ * @param input - Raw observation input (object or JSON string)
+ * @param output - Raw observation output (object or JSON string)
  * @returns Object with toolDefinitions and toolArguments arrays
  */
 export function extractToolsFromObservation(
@@ -300,11 +315,15 @@ export function extractToolsFromObservation(
     const toolDefinitions: ClickhouseToolDefinition[] = [];
     const toolArguments: ClickhouseToolArgument[] = [];
 
+    // Parse strings to objects if needed
+    const parsedInput = parseIfString(input);
+    const parsedOutput = parseIfString(output);
+
     // Extract tool definitions from raw input
-    extractToolsFromRawInput(input, toolDefinitions);
+    extractToolsFromRawInput(parsedInput, toolDefinitions);
 
     // Extract tool calls from raw output
-    extractToolCallsFromRawOutput(output, toolArguments);
+    extractToolCallsFromRawOutput(parsedOutput, toolArguments);
 
     // Deduplicate tool arguments by id
     const seenIds = new Set<string>();
@@ -341,24 +360,33 @@ export function convertDefinitionsToMap(
 }
 
 /**
- * Convert array of tool calls to Map format for ClickHouse.
- * Key: tool name, Value: Array of JSON strings [{id, arguments, type, index}, ...]
+ * Convert array of tool calls to parallel arrays for ClickHouse.
+ *
+ * Returns:
+ * - tool_calls: Array of JSON strings containing {id, arguments, type, index} (NO name)
+ * - tool_call_names: Array of names in the same order as tool_calls
+ *
+ * This structure enables efficient filtering by name using has(tool_call_names, 'name')
+ * without needing to parse JSON.
  */
-export function convertCallsToMap(
-  args: ClickhouseToolArgument[],
-): Record<string, string[]> {
-  const map: Record<string, string[]> = {};
+export function convertCallsToArrays(args: ClickhouseToolArgument[]): {
+  tool_calls: string[];
+  tool_call_names: string[];
+} {
+  const tool_calls: string[] = [];
+  const tool_call_names: string[] = [];
+
   for (const arg of args) {
-    const callJson = JSON.stringify({
-      id: arg.id,
-      arguments: arg.arguments ?? "{}",
-      type: arg.type ?? "",
-      index: arg.index ?? 0,
-    });
-    if (!map[arg.name]) {
-      map[arg.name] = [];
-    }
-    map[arg.name].push(callJson);
+    tool_call_names.push(arg.name);
+    tool_calls.push(
+      JSON.stringify({
+        id: arg.id,
+        arguments: arg.arguments ?? "{}",
+        type: arg.type ?? "",
+        index: arg.index ?? 0,
+      }),
+    );
   }
-  return map;
+
+  return { tool_calls, tool_call_names };
 }
