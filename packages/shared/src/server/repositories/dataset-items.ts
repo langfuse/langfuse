@@ -1294,13 +1294,24 @@ async function getDatasetItemsInternal<
 
   const result = await prisma.$queryRaw<QueryGetLatestDatasetItemRow[]>(query);
 
-  const items = result.map((row) =>
-    convertLatestRowToDomain(
-      row,
-      params.includeIO,
-      params.includeDatasetName ?? false,
-    ),
-  );
+  // Deduplicate by id in application code (keep first occurrence, which is most recent due to ORDER BY valid_from DESC)
+  // This is needed because during migration transition, there may be multiple rows with valid_to IS NULL for the same id.
+  const seenIds = new Set<string>();
+  const items = result
+    .filter((row) => {
+      if (seenIds.has(row.id)) {
+        return false;
+      }
+      seenIds.add(row.id);
+      return true;
+    })
+    .map((row) =>
+      convertLatestRowToDomain(
+        row,
+        params.includeIO,
+        params.includeDatasetName ?? false,
+      ),
+    );
 
   return items as any;
 }
