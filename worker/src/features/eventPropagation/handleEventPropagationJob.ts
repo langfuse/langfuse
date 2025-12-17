@@ -9,6 +9,7 @@ import {
   EventPropagationQueue,
   QueueJobs,
   redis,
+  recordGauge,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { env } from "../../env";
@@ -141,6 +142,12 @@ export const handleEventPropagationJob = async (
         operation_name: "getPartitions",
       },
     });
+
+    // Record backlog metric for observability
+    recordGauge(
+      "langfuse.event_propagation.partition_backlog",
+      partitions.length,
+    );
 
     if (partitions.length === 0) {
       logger.info(
@@ -394,13 +401,21 @@ export const handleEventPropagationJob = async (
         }
 
         additionalSchedules--;
-        await queue.add(QueueJobs.EventPropagationJob, {
-          timestamp: new Date(),
-          id: randomUUID(),
-          payload: {
-            partition: internalPartition.partition,
+        await queue.add(
+          QueueJobs.EventPropagationJob,
+          {
+            timestamp: new Date(),
+            id: randomUUID(),
+            payload: {
+              partition: internalPartition.partition,
+            },
           },
-        });
+          {
+            deduplication: {
+              id: `partition:${internalPartition.partition}`,
+            },
+          },
+        );
         logger.info(
           `[DUAL WRITE] Scheduled additional event propagation job for partition ${internalPartition.partition}. ` +
             `Remaining partitions: ${partitions.length}`,

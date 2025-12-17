@@ -255,16 +255,20 @@ export function TraceDetailView({
             }`}
           >
             {/* Tags Section - scrolls with content except in JSON Beta (virtualized) */}
-            <div
-              className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
-            >
-              Tags
-            </div>
-            <div
-              className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
-            >
-              <TagList selectedTags={trace.tags} isLoading={false} />
-            </div>
+            {trace.tags.length > 0 && (
+              <>
+                <div
+                  className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+                >
+                  Tags
+                </div>
+                <div
+                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+                >
+                  <TagList selectedTags={trace.tags} isLoading={false} />
+                </div>
+              </>
+            )}
 
             {/* I/O Preview (includes metadata in both views) */}
             <IOPreview
