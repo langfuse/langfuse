@@ -585,9 +585,9 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.usage_details,
         o.provided_cost_details,
         o.cost_details,
-        map() AS tool_definitions,
-        [] AS tool_calls,
-        [] AS tool_call_names,
+        o.tool_definitions,
+        o.tool_calls,
+        o.tool_call_names,
 
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
