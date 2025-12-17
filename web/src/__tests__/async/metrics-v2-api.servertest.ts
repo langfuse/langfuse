@@ -350,7 +350,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   });
 
   maybe("Denormalized Trace Fields", () => {
-    it.each([["traceId"], ["userId"], ["sessionId"], ["tags"], ["release"]])(
+    it.each([["tags"], ["release"]])(
       "Denormalized field: %s",
       async (field) => {
         const query = {
@@ -381,12 +381,74 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     it("should support multiple denormalized dimensions together", async () => {
       const query = {
         view: "observations",
-        dimensions: [
-          { field: "userId" },
-          { field: "sessionId" },
-          { field: "tags" },
-        ],
+        dimensions: [{ field: "tags" }, { field: "release" }],
         metrics: [{ measure: "count", aggregation: "count" }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+    });
+  });
+
+  maybe("High Cardinality Dimension Validation", () => {
+    it.each([
+      ["id", "observations"],
+      ["traceId", "observations"],
+      ["userId", "observations"],
+      ["sessionId", "observations"],
+      ["parentObservationId", "observations"],
+      ["id", "scores-numeric"],
+      ["traceId", "scores-numeric"],
+      ["userId", "scores-numeric"],
+      ["sessionId", "scores-numeric"],
+      ["observationId", "scores-numeric"],
+    ])(
+      "should reject high cardinality dimension %s in %s view",
+      async (dimensionField, viewName) => {
+        const query = {
+          view: viewName,
+          dimensions: [{ field: dimensionField }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+          toTimestamp: new Date().toISOString(),
+        };
+
+        const response = await makeAPICall(
+          "GET",
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+        );
+
+        expect(response.status).toBe(400);
+        expect(response.body).toMatchObject({
+          error: "InvalidRequestError",
+          message: expect.stringContaining(
+            `Dimension '${dimensionField}' has high cardinality`,
+          ),
+        });
+      },
+    );
+
+    it("should allow high cardinality fields in filters", async () => {
+      const query = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+            type: "string",
+          },
+        ],
         fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
         toTimestamp: new Date().toISOString(),
       };
@@ -736,11 +798,19 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       );
     });
 
-    it("should support sessionId dimension from scores table", async () => {
+    it("should support filtering by sessionId from scores table", async () => {
       const query = {
         view: "scores-numeric",
-        dimensions: [{ field: "sessionId" }],
+        dimensions: [{ field: "name" }],
         metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "sessionId",
+            operator: "=",
+            value: scoreSessionId,
+            type: "string",
+          },
+        ],
         fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
         toTimestamp: new Date().toISOString(),
       };
@@ -753,12 +823,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.data).toBeDefined();
-
-      // Find our test session
-      const nonEmptyRows = response.body.data.filter(
-        (row: any) => row.sessionId && row.count_count > 0,
-      );
-      expect(nonEmptyRows.length).toBeGreaterThanOrEqual(1);
+      expect(response.body.data.length).toBeGreaterThan(0);
     });
 
     it("should support filtering by sessionId", async () => {
@@ -895,11 +960,6 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         "traceName",
         eventsScoreTraceName,
         (row: any) => row.traceName === eventsScoreTraceName,
-      ],
-      [
-        "userId",
-        eventsScoreUserId,
-        (row: any) => row.userId === eventsScoreUserId,
       ],
       ["tags", eventsScoreTags, (row: any) => Array.isArray(row.tags)],
       [

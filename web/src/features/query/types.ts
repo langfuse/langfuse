@@ -21,6 +21,7 @@ export const viewDeclaration = z.object({
       type: z.string().optional(),
       unit: z.string().optional(),
       aggregationFunction: z.string().optional(),
+      highCardinality: z.boolean().optional(),
     }),
   ),
   measures: z.record(
