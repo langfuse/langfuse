@@ -42,7 +42,7 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
   matchCounts,
   showLineNumbers = false,
   enableCopy = false,
-  stringWrapMode = "truncate",
+  stringWrapMode = "wrap",
   truncateStringsAt = null,
   onToggleExpansion,
   className,
