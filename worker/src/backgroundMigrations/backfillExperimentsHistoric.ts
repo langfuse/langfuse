@@ -247,6 +247,8 @@ export default class BackfillExperimentsHistoric
       FROM observations o
       WHERE o.project_id IN {projectIds: Array(String)}
         AND o.trace_id IN {traceIds: Array(String)}
+      ORDER BY o.event_ts DESC
+      LIMIT 1 BY o.project_id, o.trace_id, o.id
     `;
 
     return queryClickhouse<SpanRecord>({
@@ -307,6 +309,8 @@ export default class BackfillExperimentsHistoric
       FROM traces t
       WHERE t.project_id IN {projectIds: Array(String)}
         AND t.id IN {traceIds: Array(String)}
+      ORDER BY t.event_ts DESC
+      LIMIT 1 BY t.project_id, t.id
     `;
 
     return queryClickhouse<SpanRecord>({
