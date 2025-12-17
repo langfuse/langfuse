@@ -96,6 +96,99 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   });
 
   maybe("Basic Functionality", () => {
+    it("should apply default row_limit of 100 when not specified", async () => {
+      // Create enough observations to exceed default limit
+      const rowLimitTraceId = randomUUID();
+      const rowLimitObservations = Array.from({ length: 150 }, (_, i) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: rowLimitTraceId,
+          project_id: projectId,
+          type: "SPAN",
+          name: `row-limit-test-observation-${i}`,
+          start_time: timeValue + i * 1000,
+        }),
+      );
+
+      await createEventsCh(rowLimitObservations);
+
+      // Query without specifying row_limit - should default to 100
+      const query = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: rowLimitTraceId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+      // Should be limited to 100 rows (default) despite having 150 observations
+      expect(response.body.data.length).toBeLessThanOrEqual(100);
+    });
+
+    it("should respect custom row_limit when specified", async () => {
+      // Create observations for this test
+      const customLimitTraceId = randomUUID();
+      const customLimitObservations = Array.from({ length: 20 }, (_, i) =>
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          trace_id: customLimitTraceId,
+          project_id: projectId,
+          type: "SPAN",
+          name: `custom-limit-observation-${i}`,
+          start_time: timeValue + i * 1000,
+        }),
+      );
+
+      await createEventsCh(customLimitObservations);
+
+      // Query with custom row_limit of 5
+      const query = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: customLimitTraceId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+        config: { row_limit: 5 },
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+      // Should be limited to 5 rows as specified
+      expect(response.body.data.length).toBeLessThanOrEqual(5);
+    });
+
     it("should return correct count metrics", async () => {
       const query = {
         view: "observations",
@@ -257,7 +350,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   });
 
   maybe("Denormalized Trace Fields", () => {
-    it.each([["traceId"], ["userId"], ["sessionId"], ["tags"], ["release"]])(
+    it.each([["tags"], ["release"]])(
       "Denormalized field: %s",
       async (field) => {
         const query = {
@@ -288,12 +381,74 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     it("should support multiple denormalized dimensions together", async () => {
       const query = {
         view: "observations",
-        dimensions: [
-          { field: "userId" },
-          { field: "sessionId" },
-          { field: "tags" },
-        ],
+        dimensions: [{ field: "tags" }, { field: "release" }],
         metrics: [{ measure: "count", aggregation: "count" }],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+    });
+  });
+
+  maybe("High Cardinality Dimension Validation", () => {
+    it.each([
+      ["id", "observations"],
+      ["traceId", "observations"],
+      ["userId", "observations"],
+      ["sessionId", "observations"],
+      ["parentObservationId", "observations"],
+      ["id", "scores-numeric"],
+      ["traceId", "scores-numeric"],
+      ["userId", "scores-numeric"],
+      ["sessionId", "scores-numeric"],
+      ["observationId", "scores-numeric"],
+    ])(
+      "should reject high cardinality dimension %s in %s view",
+      async (dimensionField, viewName) => {
+        const query = {
+          view: viewName,
+          dimensions: [{ field: dimensionField }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+          toTimestamp: new Date().toISOString(),
+        };
+
+        const response = await makeAPICall(
+          "GET",
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+        );
+
+        expect(response.status).toBe(400);
+        expect(response.body).toMatchObject({
+          error: "InvalidRequestError",
+          message: expect.stringContaining(
+            `Dimension '${dimensionField}' has high cardinality`,
+          ),
+        });
+      },
+    );
+
+    it("should allow high cardinality fields in filters", async () => {
+      const query = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+            type: "string",
+          },
+        ],
         fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
         toTimestamp: new Date().toISOString(),
       };
@@ -643,11 +798,19 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       );
     });
 
-    it("should support sessionId dimension from scores table", async () => {
+    it("should support filtering by sessionId from scores table", async () => {
       const query = {
         view: "scores-numeric",
-        dimensions: [{ field: "sessionId" }],
+        dimensions: [{ field: "name" }],
         metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "sessionId",
+            operator: "=",
+            value: scoreSessionId,
+            type: "string",
+          },
+        ],
         fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
         toTimestamp: new Date().toISOString(),
       };
@@ -660,12 +823,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.data).toBeDefined();
-
-      // Find our test session
-      const nonEmptyRows = response.body.data.filter(
-        (row: any) => row.sessionId && row.count_count > 0,
-      );
-      expect(nonEmptyRows.length).toBeGreaterThanOrEqual(1);
+      expect(response.body.data.length).toBeGreaterThan(0);
     });
 
     it("should support filtering by sessionId", async () => {
@@ -802,11 +960,6 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         "traceName",
         eventsScoreTraceName,
         (row: any) => row.traceName === eventsScoreTraceName,
-      ],
-      [
-        "userId",
-        eventsScoreUserId,
-        (row: any) => row.userId === eventsScoreUserId,
       ],
       ["tags", eventsScoreTags, (row: any) => Array.isArray(row.tags)],
       [
