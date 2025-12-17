@@ -7,6 +7,8 @@ import {
 } from "@/src/features/public-api/types/metrics";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 
+const DEFAULT_ROW_LIMIT = 100;
+
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
@@ -15,7 +17,14 @@ export default withMiddlewares({
     responseSchema: GetMetricsV2Response,
     fn: async ({ query, auth }) => {
       try {
-        const queryParams = query.query;
+        const queryParams = {
+          ...query.query,
+          // Apply default row_limit if not specified
+          config: {
+            ...query.query.config,
+            row_limit: query.query.config?.row_limit ?? DEFAULT_ROW_LIMIT,
+          },
+        };
 
         logger.info("Received v2 metrics query", {
           query: queryParams,
