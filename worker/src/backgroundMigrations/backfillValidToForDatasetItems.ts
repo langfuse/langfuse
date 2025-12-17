@@ -146,7 +146,10 @@ export default class BackfillValidToForDatasetItems
 
 async function main() {
   const args = parseArgs({
-    options: {},
+    options: {
+      batchSize: { type: "string", short: "b", default: "1000" },
+      delayBetweenBatchesMs: { type: "string", short: "d", default: "200" },
+    },
   });
 
   const migration = new BackfillValidToForDatasetItems();
