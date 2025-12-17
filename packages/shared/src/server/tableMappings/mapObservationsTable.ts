@@ -250,6 +250,5 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "calledToolNames",
     clickhouseTableName: "observations",
     clickhouseSelect: "o.tool_call_names",
-
   },
 ];

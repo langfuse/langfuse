@@ -1,10 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   extractToolsFromObservation,
-  ClickhouseToolDefinitionSchema,
-  ClickhouseToolArgumentSchema,
   convertDefinitionsToMap,
-  convertCallsToMap,
+  convertCallsToArrays,
 } from "@langfuse/shared/src/server";
 
 describe("extractToolsFromObservation", () => {
@@ -337,6 +335,38 @@ describe("extractToolsFromObservation", () => {
       expect(result.toolArguments).toEqual([]);
     });
 
+    it("parses JSON string input and extracts tools", () => {
+      const input = JSON.stringify([
+        { role: "user", content: "hi" },
+        {
+          role: "tool",
+          content: {
+            type: "function",
+            function: {
+              name: "search",
+              description: "Search function",
+            },
+          },
+        },
+      ]);
+
+      const { toolDefinitions } = extractToolsFromObservation(input, null);
+
+      expect(toolDefinitions).toHaveLength(1);
+      expect(toolDefinitions[0].name).toBe("search");
+    });
+
+    it("parses JSON string output and extracts tool calls", () => {
+      const output = JSON.stringify({
+        tool_calls: [{ id: "c1", name: "get_weather", args: { city: "NYC" } }],
+      });
+
+      const { toolArguments } = extractToolsFromObservation(null, output);
+
+      expect(toolArguments).toHaveLength(1);
+      expect(toolArguments[0].name).toBe("get_weather");
+    });
+
     it("handles circular references gracefully", () => {
       const circular: any = { tools: [] };
       circular.tools.push(circular);
@@ -392,6 +422,123 @@ describe("extractToolsFromObservation", () => {
   });
 
   describe("real world data tests", () => {
+    it("should extract LangGraph tool definitions and tool calls and prase them correctly", () => {
+      // Exact format from user's observation that wasn't being extracted
+      const input = [
+        {
+          role: "system",
+          content:
+            "You are a creative joke writer. Select and call THREE of the available tools to get joke suggestions about 'programming'.",
+        },
+        {
+          role: "user",
+          content: "Generate a joke about programming",
+        },
+        {
+          role: "tool",
+          content: {
+            type: "function",
+            function: {
+              name: "get_pun_suggestion",
+              description:
+                "Get a pun-style joke suggestion for the given topic.\n\nArgs:\n    topic: The topic for the joke",
+              parameters: {
+                properties: { topic: { type: "string" } },
+                required: ["topic"],
+                type: "object",
+              },
+            },
+          },
+        },
+        {
+          role: "tool",
+          content: {
+            type: "function",
+            function: {
+              name: "get_dad_joke_suggestion",
+              description:
+                "Get a dad joke style suggestion for the given topic.\n\nArgs:\n    topic: The topic for the joke",
+              parameters: {
+                properties: { topic: { type: "string" } },
+                required: ["topic"],
+                type: "object",
+              },
+            },
+          },
+        },
+        {
+          role: "tool",
+          content: {
+            type: "function",
+            function: {
+              name: "get_one_liner_suggestion",
+              description:
+                "Get a one-liner joke suggestion for the given topic.\n\nArgs:\n    topic: The topic for the joke",
+              parameters: {
+                properties: { topic: { type: "string" } },
+                required: ["topic"],
+                type: "object",
+              },
+            },
+          },
+        },
+      ];
+
+      const output = {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            name: "get_pun_suggestion",
+            args: { topic: "programming" },
+            id: "call_mock_1",
+            type: "tool_call",
+          },
+          {
+            name: "get_dad_joke_suggestion",
+            args: { topic: "programming" },
+            id: "call_mock_2",
+            type: "tool_call",
+          },
+          {
+            name: "get_one_liner_suggestion",
+            args: { topic: "programming" },
+            id: "call_mock_3",
+            type: "tool_call",
+          },
+        ],
+        additional_kwargs: { refusal: null },
+      };
+
+      const result = extractToolsFromObservation(input, output);
+
+      // Should extract 3 tool definitions from role:tool messages
+      expect(result.toolDefinitions).toHaveLength(3);
+      expect(result.toolDefinitions.map((t) => t.name)).toEqual([
+        "get_pun_suggestion",
+        "get_dad_joke_suggestion",
+        "get_one_liner_suggestion",
+      ]);
+
+      // Should extract 3 tool calls from output.tool_calls
+      expect(result.toolArguments).toHaveLength(3);
+      expect(result.toolArguments.map((t) => t.name)).toEqual([
+        "get_pun_suggestion",
+        "get_dad_joke_suggestion",
+        "get_one_liner_suggestion",
+      ]);
+
+      // Verify tool call structure
+      expect(result.toolArguments[0]).toMatchObject({
+        id: "call_mock_1",
+        name: "get_pun_suggestion",
+        type: "tool_call",
+      });
+      expect(result.toolArguments[0].arguments).toBe(
+        JSON.stringify({ topic: "programming" }),
+      );
+    });
+
     it("should extract tools from OpenAI format (tools in input.tools)", () => {
       const input = {
         tools: [
@@ -578,8 +725,8 @@ describe("extractToolsFromObservation", () => {
       });
     });
 
-    describe("convertCallsToMap", () => {
-      it("groups calls by tool name", () => {
+    describe("convertCallsToArrays", () => {
+      it("converts calls to parallel arrays", () => {
         const calls = [
           {
             id: "c1",
@@ -603,14 +750,18 @@ describe("extractToolsFromObservation", () => {
             index: 2,
           },
         ];
-        const map = convertCallsToMap(calls);
+        const { tool_calls, tool_call_names } = convertCallsToArrays(calls);
 
-        expect(Object.keys(map).sort()).toEqual(["get_weather", "search"]);
-        expect(map["get_weather"]).toHaveLength(2);
-        expect(map["search"]).toHaveLength(1);
+        // Names array should match the order of calls
+        expect(tool_call_names).toEqual([
+          "get_weather",
+          "search",
+          "get_weather",
+        ]);
+        expect(tool_calls).toHaveLength(3);
 
-        // Verify JSON structure
-        const call1 = JSON.parse(map["get_weather"][0]);
+        // Verify JSON structure (should NOT include name)
+        const call1 = JSON.parse(tool_calls[0]);
         expect(call1).toEqual({
           id: "c1",
           arguments: '{"city":"NYC"}',
@@ -619,15 +770,18 @@ describe("extractToolsFromObservation", () => {
         });
       });
 
-      it("returns empty map for empty array", () => {
-        expect(convertCallsToMap([])).toEqual({});
+      it("returns empty arrays for empty input", () => {
+        const result = convertCallsToArrays([]);
+        expect(result.tool_calls).toEqual([]);
+        expect(result.tool_call_names).toEqual([]);
       });
 
       it("handles missing optional fields with defaults", () => {
         const calls = [{ id: "c1", name: "test_tool", arguments: "" }];
-        const map = convertCallsToMap(calls);
+        const { tool_calls, tool_call_names } = convertCallsToArrays(calls);
 
-        const call = JSON.parse(map["test_tool"][0]);
+        expect(tool_call_names).toEqual(["test_tool"]);
+        const call = JSON.parse(tool_calls[0]);
         expect(call).toEqual({
           id: "c1",
           arguments: "",
@@ -636,7 +790,7 @@ describe("extractToolsFromObservation", () => {
         });
       });
 
-      it("groups multiple calls to same tool", () => {
+      it("preserves order for multiple calls to same tool", () => {
         const calls = [
           {
             id: "c1",
@@ -660,10 +814,26 @@ describe("extractToolsFromObservation", () => {
             index: 2,
           },
         ];
-        const map = convertCallsToMap(calls);
+        const { tool_calls, tool_call_names } = convertCallsToArrays(calls);
 
-        expect(Object.keys(map)).toEqual(["tool1"]);
-        expect(map["tool1"]).toHaveLength(3);
+        expect(tool_call_names).toEqual(["tool1", "tool1", "tool1"]);
+        expect(tool_calls).toHaveLength(3);
+      });
+
+      it("maintains parallel array correspondence", () => {
+        const calls = [
+          { id: "c1", name: "alpha", arguments: '{"a":1}' },
+          { id: "c2", name: "beta", arguments: '{"b":2}' },
+          { id: "c3", name: "alpha", arguments: '{"a":3}' },
+        ];
+        const { tool_calls, tool_call_names } = convertCallsToArrays(calls);
+
+        // Verify each index corresponds correctly
+        for (let i = 0; i < calls.length; i++) {
+          expect(tool_call_names[i]).toBe(calls[i].name);
+          const parsed = JSON.parse(tool_calls[i]);
+          expect(parsed.id).toBe(calls[i].id);
+        }
       });
     });
   });

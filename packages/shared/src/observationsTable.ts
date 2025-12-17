@@ -233,10 +233,18 @@ export const observationsTableCols: ColumnDefinition[] = [
     internal: "", // handled by comment filter helpers
   },
   {
-    name: "Tool Names",
+    name: "Available Tool Names",
     id: "toolNames",
     type: "arrayOptions",
-    internal: 'o."tool_calls"',
+    internal: "", // ClickHouse only - uses mapKeys(tool_definitions)
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "", // ClickHouse only - uses tool_call_names
     options: [], // to be added at runtime
     nullable: true,
   },
@@ -244,14 +252,14 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Available Tools",
     id: "toolDefinitions",
     type: "number",
-    internal: 'o."tool_definitions"',
+    internal: "", // ClickHouse only
     nullable: true,
   },
   {
     name: "Tool Calls",
     id: "toolCalls",
     type: "number",
-    internal: 'o."tool_calls"',
+    internal: "", // ClickHouse only
     nullable: true,
   },
 ];
@@ -270,6 +278,7 @@ export type ObservationOptions = {
   tags: Array<SingleValueOption>;
   type: Array<SingleValueOption>;
   toolNames: Array<SingleValueOption>;
+  calledToolNames: Array<SingleValueOption>;
 };
 
 export function observationsTableColsWithOptions(
@@ -308,6 +317,9 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "toolNames") {
       return formatColumnOptions(col, options?.toolNames ?? []);
+    }
+    if (col.id === "calledToolNames") {
+      return formatColumnOptions(col, options?.calledToolNames ?? []);
     }
     return col;
   });
