@@ -12,7 +12,7 @@ import {
   createOrgProjectAndApiKey,
   isValidJSONSchema,
   DatasetItemValidator,
-  getDatasetItemsByLatest,
+  getDatasetItems,
   createDatasetItemFilterState,
 } from "@langfuse/shared/src/server";
 import { validateFieldAgainstSchema } from "@langfuse/shared";
@@ -1063,7 +1063,7 @@ describe("Public API - Dataset Schema Enforcement", () => {
       if (!dataset) {
         throw new Error("Dataset not found");
       }
-      const datasetItems = await getDatasetItemsByLatest({
+      const datasetItems = await getDatasetItems({
         projectId,
         filterState: createDatasetItemFilterState({ datasetIds: [dataset.id] }),
         includeIO: false,

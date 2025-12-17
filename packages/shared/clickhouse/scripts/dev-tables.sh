@@ -357,7 +357,7 @@ clickhouse client \
          o.updated_at,
          o.event_ts,
          o.is_deleted
-  FROM observations o
+  FROM observations o FINAL
   LEFT JOIN traces t ON o.trace_id = t.id
   WHERE (o.is_deleted = 0);
   -- Backfill events from traces table as well
@@ -410,7 +410,7 @@ clickhouse client \
          t.updated_at,
          t.event_ts,
          t.is_deleted
-  FROM traces t
+  FROM traces t FINAL
   WHERE (t.is_deleted = 0);
 
 EOF

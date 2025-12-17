@@ -30,6 +30,7 @@ export interface ChatMessageProps {
   currentView: ViewMode;
   toolCallNumbers?: number[];
   projectIdForPromptButtons?: string;
+  isOutputMessage?: boolean;
 }
 
 /**
@@ -47,6 +48,7 @@ export function ChatMessage({
   currentView,
   toolCallNumbers,
   projectIdForPromptButtons,
+  isOutputMessage,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -101,7 +103,7 @@ export function ChatMessage({
     return (
       <div className={cn("transition-colors hover:bg-muted")}>
         <PrettyJsonView
-          title={title || "Output"}
+          title={title || (isOutputMessage ? "Output" : "Input")}
           json={message.json}
           projectIdForPromptButtons={projectIdForPromptButtons}
           currentView={currentView}
@@ -199,7 +201,7 @@ export function ChatMessage({
     return (
       <div className={cn("transition-colors hover:bg-muted")}>
         <PrettyJsonView
-          title={title || "Message"}
+          title={title || (isOutputMessage ? "Output" : "Input")}
           json={message}
           projectIdForPromptButtons={projectIdForPromptButtons}
           currentView={currentView}

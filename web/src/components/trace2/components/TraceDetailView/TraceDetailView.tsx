@@ -27,10 +27,10 @@ import {
 
 // Preview tab components
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import TagList from "@/src/features/tag/components/TagList";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
+import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
@@ -61,11 +61,14 @@ export function TraceDetailView({
   projectId,
 }: TraceDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
-  const { selectedTab, setSelectedTab, viewPref, setViewPref } = useSelection();
+  const { selectedTab, setSelectedTab } = useSelection();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
-  // Map viewPref to currentView format expected by child components
-  const currentView = viewPref === "json" ? "json" : "pretty";
+  // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
+  const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
+
+  // Map jsonViewPreference to currentView format expected by child components
+  const currentView = jsonViewPreference;
 
   // Context hooks
   const { comments } = useTraceData();
@@ -73,6 +76,15 @@ export function TraceDetailView({
 
   // Data fetching
   const traceMedia = useMedia({ projectId, traceId: trace.id });
+
+  // Parse trace I/O in background (Web Worker)
+  const { parsedInput, parsedOutput, parsedMetadata, isParsing } =
+    useParsedTrace({
+      traceId: trace.id,
+      input: trace.input,
+      output: trace.output,
+      metadata: trace.metadata,
+    });
 
   // Derived state
   const traceScores = useMemo(
@@ -134,8 +146,8 @@ export function TraceDetailView({
               <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
             )}
 
-            {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
-            {/* JSON is disabled for virtualized log view (large traces) */}
+            {/* View toggle (Formatted/JSON/JSON Beta) - show for preview and log tabs when pretty view available */}
+            {/* JSON views are disabled for virtualized log view (large traces) */}
             {(selectedTab === "log" ||
               (selectedTab === "preview" && isPrettyViewAvailable)) && (
               <Tabs
@@ -146,15 +158,17 @@ export function TraceDetailView({
                     : currentView
                 }
                 onValueChange={(value) => {
-                  // Don't allow JSON for virtualized log view
+                  // Don't allow JSON views for virtualized log view
                   if (
                     selectedTab === "log" &&
                     isLogViewVirtualized &&
-                    value === "json"
+                    (value === "json" || value === "json-beta")
                   ) {
                     return;
                   }
-                  setViewPref(value === "json" ? "json" : "formatted");
+                  setJsonViewPreference(
+                    value as "pretty" | "json" | "json-beta",
+                  );
                 }}
               >
                 <TabsList className="h-fit py-0.5">
@@ -190,6 +204,38 @@ export function TraceDetailView({
                       JSON
                     </TabsTrigger>
                   )}
+                  {selectedTab === "log" && isLogViewVirtualized ? (
+                    <HoverCard openDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <TabsTrigger
+                          value="json-beta"
+                          className="h-fit px-1 text-xs"
+                          disabled
+                        >
+                          JSON Beta
+                        </TabsTrigger>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        align="end"
+                        className="w-64 text-sm"
+                        sideOffset={8}
+                      >
+                        <p className="font-medium">JSON Beta unavailable</p>
+                        <p className="mt-1 text-muted-foreground">
+                          Disabled for traces with{" "}
+                          {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
+                          observations to maintain performance.
+                        </p>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
+                    <TabsTrigger
+                      value="json-beta"
+                      className="h-fit px-1 text-xs"
+                    >
+                      JSON Beta
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </Tabs>
             )}
@@ -201,12 +247,35 @@ export function TraceDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto">
-            {/* I/O Preview */}
+          <div
+            className={`flex min-h-0 w-full flex-1 flex-col ${
+              currentView === "json-beta"
+                ? "overflow-hidden"
+                : "overflow-auto pb-4"
+            }`}
+          >
+            {/* Tags Section - scrolls with content except in JSON Beta (virtualized) */}
+            <div
+              className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+            >
+              Tags
+            </div>
+            <div
+              className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "flex-shrink-0" : ""}`}
+            >
+              <TagList selectedTags={trace.tags} isLoading={false} />
+            </div>
+
+            {/* I/O Preview (includes metadata in both views) */}
             <IOPreview
               key={trace.id + "-io"}
               input={trace.input ?? undefined}
               output={trace.output ?? undefined}
+              metadata={trace.metadata ?? undefined}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              parsedMetadata={parsedMetadata}
+              isParsing={isParsing}
               media={traceMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -216,30 +285,8 @@ export function TraceDetailView({
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
               }
+              showMetadata
             />
-
-            {/* Tags Section */}
-            <div className="px-2 text-sm font-medium">Tags</div>
-            <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
-              <TagList selectedTags={trace.tags} isLoading={false} />
-            </div>
-
-            {/* Metadata Section */}
-            {trace.metadata && (
-              <div className="px-2">
-                <PrettyJsonView
-                  key={trace.id + "-metadata"}
-                  title="Metadata"
-                  json={trace.metadata}
-                  media={traceMedia.data?.filter((m) => m.field === "metadata")}
-                  currentView={currentView}
-                  externalExpansionState={expansionState.metadata}
-                  onExternalExpansionChange={(exp) =>
-                    setFieldExpansion("metadata", exp)
-                  }
-                />
-              </div>
-            )}
           </div>
         </TabsBarContent>
 

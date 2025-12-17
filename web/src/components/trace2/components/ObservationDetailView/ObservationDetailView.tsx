@@ -46,11 +46,10 @@ import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { api } from "@/src/utils/api";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
 import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
+import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 
 // Header action components
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -61,6 +60,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
+import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -78,8 +78,6 @@ export function ObservationDetailView({
   const {
     selectedTab: globalSelectedTab,
     setSelectedTab: setGlobalSelectedTab,
-    viewPref,
-    setViewPref,
   } = useSelection();
 
   // Map global tab to observation-specific tabs (preview, scores)
@@ -91,8 +89,11 @@ export function ObservationDetailView({
     setGlobalSelectedTab(tab);
   };
 
-  // Map viewPref to currentView format expected by child components
-  const currentView = viewPref === "json" ? "json" : "pretty";
+  // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
+  const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
+
+  // Map jsonViewPreference to currentView format expected by child components
+  const currentView = jsonViewPreference;
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
@@ -104,18 +105,27 @@ export function ObservationDetailView({
     [scores, observation.id],
   );
 
-  // Fetch observation input/output (not included in ObservationReturnTypeWithMetadata)
-  const observationWithIO = api.observations.byId.useQuery(
-    {
-      observationId: observation.id,
-      traceId: traceId,
-      projectId: projectId,
-      startTime: observation.startTime,
-    },
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
-  );
+  // Fetch and parse observation input/output in background (Web Worker)
+  // This combines tRPC fetch + non-blocking JSON parsing
+  const {
+    observation: observationWithIO,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    isLoadingObservation,
+    isParsing,
+  } = useParsedObservation({
+    observationId: observation.id,
+    traceId: traceId,
+    projectId: projectId,
+    startTime: observation.startTime,
+  });
+
+  // For backward compatibility, create observationWithIO query-like object
+  const observationWithIOCompat = {
+    data: observationWithIO,
+    isLoading: isLoadingObservation,
+  };
 
   // Fetch media for this observation
   const observationMedia = useMedia({
@@ -146,7 +156,7 @@ export function ObservationDetailView({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header section */}
-      <div className="flex-shrink-0 space-y-2 border-b p-4">
+      <div className="flex-shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-start gap-1">
@@ -165,14 +175,14 @@ export function ObservationDetailView({
           </div>
           {/* Action buttons */}
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            {observationWithIO.data && (
+            {observationWithIOCompat.data && (
               <NewDatasetItemFromExistingObject
                 traceId={traceId}
                 observationId={observation.id}
                 projectId={projectId}
-                input={observationWithIO.data.input}
-                output={observationWithIO.data.output}
-                metadata={observationWithIO.data.metadata}
+                input={observationWithIOCompat.data.input}
+                output={observationWithIOCompat.data.output}
+                metadata={observationWithIOCompat.data.metadata}
                 key={observation.id}
                 size="sm"
               />
@@ -200,11 +210,11 @@ export function ObservationDetailView({
                 size="sm"
               />
             </div>
-            {observationWithIO.data &&
-              isGenerationLike(observationWithIO.data.type) && (
+            {observationWithIOCompat.data &&
+              isGenerationLike(observationWithIOCompat.data.type) && (
                 <JumpToPlaygroundButton
                   source="generation"
-                  generation={observationWithIO.data}
+                  generation={observationWithIOCompat.data}
                   analyticsEventName="trace_detail:test_in_playground_button_click"
                   size="sm"
                 />
@@ -279,13 +289,13 @@ export function ObservationDetailView({
           <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
           <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-          {/* View toggle (Formatted/JSON) - show for preview tab when pretty view is available */}
+          {/* View toggle (Formatted/JSON/JSON Beta) - show for preview tab when pretty view is available */}
           {selectedTab === "preview" && isPrettyViewAvailable && (
             <Tabs
               className="ml-auto mr-1 h-fit px-2 py-0.5"
               value={currentView}
               onValueChange={(value) => {
-                setViewPref(value === "json" ? "json" : "formatted");
+                setJsonViewPreference(value as "pretty" | "json" | "json-beta");
               }}
             >
               <TabsList className="h-fit py-0.5">
@@ -294,6 +304,9 @@ export function ObservationDetailView({
                 </TabsTrigger>
                 <TabsTrigger value="json" className="h-fit px-1 text-xs">
                   JSON
+                </TabsTrigger>
+                <TabsTrigger value="json-beta" className="h-fit px-1 text-xs">
+                  JSON Beta
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -305,14 +318,24 @@ export function ObservationDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto">
+          <div
+            className={`flex min-h-0 w-full flex-1 flex-col ${
+              currentView === "json-beta"
+                ? "overflow-hidden"
+                : "overflow-auto pb-4"
+            }`}
+          >
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
-              input={observationWithIO.data?.input ?? undefined}
-              output={observationWithIO.data?.output ?? undefined}
-              metadata={observationWithIO.data?.metadata ?? undefined}
-              isLoading={observationWithIO.isLoading}
+              input={observationWithIOCompat.data?.input ?? undefined}
+              output={observationWithIOCompat.data?.output ?? undefined}
+              metadata={observationWithIOCompat.data?.metadata ?? undefined}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              parsedMetadata={parsedMetadata}
+              isLoading={observationWithIOCompat.isLoading}
+              isParsing={isParsing}
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -322,24 +345,8 @@ export function ObservationDetailView({
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
               }
+              showMetadata
             />
-            {observationWithIO.data?.metadata && (
-              <div className="px-2">
-                <PrettyJsonView
-                  key={observationWithIO.data.id + "-metadata"}
-                  title="Metadata"
-                  json={observationWithIO.data.metadata}
-                  media={observationMedia.data?.filter(
-                    (m) => m.field === "metadata",
-                  )}
-                  currentView={currentView}
-                  externalExpansionState={expansionState.metadata}
-                  onExternalExpansionChange={(exp) =>
-                    setFieldExpansion("metadata", exp)
-                  }
-                />
-              </div>
-            )}
           </div>
         </TabsBarContent>
 

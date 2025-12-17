@@ -15,8 +15,8 @@ import {
   getObservationsGroupedByTraceId,
   getScoresForTraces,
   traceException,
-  getDatasetItemsByLatest,
-  getDatasetItemsCountByLatest,
+  getDatasetItems,
+  getDatasetItemsCount,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { groupBy } from "lodash";
@@ -49,6 +49,7 @@ export type DatasetRunItemsTableInput = {
   page: number;
   prisma: PrismaClient;
   filter: FilterState;
+  version?: Date;
   searchQuery?: string;
   searchType?: TracingSearchType[];
 };
@@ -66,17 +67,19 @@ export const fetchDatasetItems = async (input: DatasetRunItemsTableInput) => {
   ];
 
   const [datasetItems, totalCount] = await Promise.all([
-    getDatasetItemsByLatest({
+    getDatasetItems({
       projectId: input.projectId,
       filterState,
+      version: input.version,
       searchQuery: input.searchQuery,
       searchType: input.searchType,
       limit: input.limit,
       page: input.page,
     }),
-    getDatasetItemsCountByLatest({
+    getDatasetItemsCount({
       projectId: input.projectId,
       filterState,
+      version: input.version,
       searchQuery: input.searchQuery,
       searchType: input.searchType,
     }),

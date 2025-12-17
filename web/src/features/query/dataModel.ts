@@ -167,7 +167,7 @@ export const eventsTracesView: ViewDeclarationType = {
       // This is the GROUP BY identity column
     },
     name: {
-      sql: "events_traces.trace_name",
+      sql: "nullIf(events_traces.trace_name, '')",
       alias: "name",
       type: "string",
       description:
@@ -184,7 +184,7 @@ export const eventsTracesView: ViewDeclarationType = {
         "arrayDistinct(flatten(groupArray(events_traces.tags)))",
     },
     userId: {
-      sql: "events_traces.user_id",
+      sql: "nullIf(events_traces.user_id, '')",
       alias: "userId",
       type: "string",
       description: "Identifier of the user triggering the trace.",
@@ -192,7 +192,7 @@ export const eventsTracesView: ViewDeclarationType = {
         "argMaxIf(events_traces.user_id, events_traces.event_ts, events_traces.user_id <> '')",
     },
     sessionId: {
-      sql: "events_traces.session_id",
+      sql: "nullIf(events_traces.session_id, '')",
       alias: "sessionId",
       type: "string",
       description: "Identifier of the session triggering the trace.",
@@ -200,7 +200,7 @@ export const eventsTracesView: ViewDeclarationType = {
         "argMaxIf(events_traces.session_id, events_traces.event_ts, events_traces.session_id <> '')",
     },
     release: {
-      sql: "events_traces.release",
+      sql: "nullIf(events_traces.release, '')",
       alias: "release",
       type: "string",
       description: "Release version of the trace.",
@@ -208,7 +208,7 @@ export const eventsTracesView: ViewDeclarationType = {
         "argMaxIf(events_traces.release, events_traces.event_ts, events_traces.release <> '')",
     },
     version: {
-      sql: "events_traces.version",
+      sql: "nullIf(events_traces.version, '')",
       alias: "version",
       type: "string",
       description: "Version of the trace.",
@@ -216,7 +216,7 @@ export const eventsTracesView: ViewDeclarationType = {
         "argMaxIf(events_traces.version, events_traces.event_ts, events_traces.version <> '')",
     },
     environment: {
-      sql: "events_traces.environment",
+      sql: "nullIf(events_traces.environment, '')",
       alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
@@ -498,7 +498,7 @@ export const observationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     tokensPerSecond: {
-      sql: "@@AGG1@@(usage_details)['total'] / date_diff('second', @@AGG2@@(observations.start_time), @@AGG2@@(observations.end_time))",
+      sql: "@@AGG1@@(usage_details)['total'] / nullIf(date_diff('second', @@AGG2@@(observations.start_time), @@AGG2@@(observations.end_time)), 0)",
       aggs: { agg1: "sumMap", agg2: "any" },
       alias: "tokensPerSecond",
       type: "decimal",
@@ -664,69 +664,69 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     type: "string",
     description: "Identifier of the session.",
   },
-  // Trace metadata on events table (accessed via events JOIN)
+  // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
-    sql: "events.trace_name",
+    sql: "nullIf(events_traces.trace_name, '')",
     alias: "traceName",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_traces",
     description: "Name of the parent trace.",
   },
   userId: {
-    sql: "events.user_id",
+    sql: "nullIf(events_traces.user_id, '')",
     alias: "userId",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_traces",
     description: "Identifier of the user.",
   },
   tags: {
-    sql: "events.tags",
+    sql: "events_traces.tags",
     alias: "tags",
     type: "string[]",
-    relationTable: "events",
+    relationTable: "events_traces",
     description: "User-defined tags.",
   },
   traceRelease: {
-    sql: "events.release",
+    sql: "nullIf(events_traces.release, '')",
     alias: "traceRelease",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_traces",
     description: "Release version.",
   },
   traceVersion: {
-    sql: "events.version",
+    sql: "nullIf(events_traces.version, '')",
     alias: "traceVersion",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_traces",
     description: "Version of the parent trace.",
   },
-  // Observation fields from events table
+  // Observation fields from events table (accessed via events_observations JOIN)
   observationName: {
-    sql: "events.name",
+    sql: "events_observations.name",
     alias: "observationName",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_observations",
     description: "Name of the observation associated with the score.",
   },
   observationModelName: {
-    sql: "events.provided_model_name",
+    sql: "nullIf(events_observations.provided_model_name, '')",
     alias: "observationModelName",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_observations",
     description: "Name of the model used for the observation.",
   },
   observationPromptName: {
-    sql: "events.prompt_name",
+    sql: "nullIf(events_observations.prompt_name, '')",
     alias: "observationPromptName",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_observations",
     description: "Name of the prompt used for the observation.",
   },
   observationPromptVersion: {
-    sql: "events.prompt_version",
+    sql: "events_observations.prompt_version",
     alias: "observationPromptVersion",
     type: "string",
-    relationTable: "events",
+    relationTable: "events_observations",
     description: "Version of the prompt used for the observation.",
   },
 };
@@ -822,10 +822,16 @@ const createScoreTableRelations = (
     };
   } else {
     return {
-      events: {
+      events_traces: {
         name: "events",
         joinConditionSql:
-          "ON (scores.trace_id = events.span_id OR scores.observation_id = events.span_id) AND scores.project_id = events.project_id",
+          "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+        timeDimension: "start_time",
+      },
+      events_observations: {
+        name: "events",
+        joinConditionSql:
+          "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
         timeDimension: "start_time",
       },
     };
@@ -951,13 +957,13 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Identifier linking the observation to its parent trace.",
     },
     environment: {
-      sql: "events_observations.environment",
+      sql: "nullIf(events_observations.environment, '')",
       alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
     parentObservationId: {
-      sql: "events_observations.parent_span_id",
+      sql: "nullIf(events_observations.parent_span_id, '')",
       alias: "parentObservationId",
       type: "string",
       description:
@@ -983,20 +989,20 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Logging level of the observation.",
     },
     version: {
-      sql: "events_observations.version",
+      sql: "nullIf(events_observations.version, '')",
       alias: "version",
       type: "string",
       description: "Version of the observation.",
     },
     // Denormalized trace fields from events table
     userId: {
-      sql: "events_observations.user_id",
+      sql: "nullIf(events_observations.user_id, '')",
       alias: "userId",
       type: "string",
       description: "Identifier of the user triggering the observation.",
     },
     sessionId: {
-      sql: "events_observations.session_id",
+      sql: "nullIf(events_observations.session_id, '')",
       alias: "sessionId",
       type: "string",
       description: "Identifier of the session triggering the observation.",
@@ -1008,40 +1014,40 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "User-defined tags associated with the trace.",
     },
     release: {
-      sql: "events_observations.release",
+      sql: "nullIf(events_observations.release, '')",
       alias: "release",
       type: "string",
       description: "Release version.",
     },
     // Backwards-compatible field definitions (for API parity with v1)
     traceName: {
-      sql: "events_observations.trace_name",
+      sql: "nullIf(events_observations.trace_name, '')",
       alias: "traceName",
       type: "string",
       description: "Name of the parent trace (backwards-compatible with v1).",
     },
     traceRelease: {
-      sql: "events_observations.release",
+      sql: "nullIf(events_observations.release, '')",
       alias: "traceRelease",
       type: "string",
       description:
         "Release version of the parent trace (backwards-compatible with v1, maps to denormalized release field).",
     },
     traceVersion: {
-      sql: "events_observations.version",
+      sql: "nullIf(events_observations.version, '')",
       alias: "traceVersion",
       type: "string",
       description:
         "Version of the parent trace (backwards-compatible with v1, maps to denormalized version field).",
     },
     providedModelName: {
-      sql: "events_observations.provided_model_name",
+      sql: "nullIf(events_observations.provided_model_name, '')",
       alias: "providedModelName",
       type: "string",
       description: "Name of the model used for the observation.",
     },
     promptName: {
-      sql: "events_observations.prompt_name",
+      sql: "nullIf(events_observations.prompt_name, '')",
       alias: "promptName",
       type: "string",
       description: "Name of the prompt used for the observation.",
@@ -1126,7 +1132,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     tokensPerSecond: {
-      sql: "@@AGG1@@(usage_details)['total'] / date_diff('second', @@AGG2@@(events_observations.start_time), @@AGG2@@(events_observations.end_time))",
+      sql: "@@AGG1@@(usage_details)['total'] / nullIf(date_diff('second', @@AGG2@@(events_observations.start_time), @@AGG2@@(events_observations.end_time)), 0)",
       aggs: { agg1: "sumMap", agg2: "any" },
       alias: "tokensPerSecond",
       type: "decimal",
