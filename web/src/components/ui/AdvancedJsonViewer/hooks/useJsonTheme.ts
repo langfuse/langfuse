@@ -11,12 +11,13 @@ import { type JSONTheme, type PartialJSONTheme } from "../types";
 
 /**
  * Default light theme
+ * Colors inspired by GitHub's syntax highlighting
  */
 const defaultLightTheme: JSONTheme = {
   background: "hsl(var(--background))",
   foreground: "hsl(var(--foreground))",
-  keyColor: "hsl(var(--foreground))",
-  stringColor: "hsl(var(--foreground))",
+  keyColor: "#0550ae", // Blue for keys (GitHub property color)
+  stringColor: "#0a3069", // Dark blue for strings (GitHub string color)
   numberColor: "#0550ae", // Blue for numbers
   booleanColor: "#0550ae", // Blue for booleans
   nullColor: "hsl(var(--muted-foreground))",
@@ -35,11 +36,14 @@ const defaultLightTheme: JSONTheme = {
 
 /**
  * Default dark theme
+ * Colors inspired by GitHub's dark mode syntax highlighting
  */
 const defaultDarkTheme: JSONTheme = {
   ...defaultLightTheme,
-  numberColor: "#539bf5", // Lighter blue for dark mode
-  booleanColor: "#539bf5",
+  keyColor: "#79c0ff", // Light blue for keys (GitHub dark property color)
+  stringColor: "#a5d6ff", // Lighter blue for strings (GitHub dark string color)
+  numberColor: "#79c0ff", // Light blue for numbers
+  booleanColor: "#79c0ff", // Light blue for booleans
   searchMatchBackground: "rgba(255, 255, 0, 0.2)",
   searchCurrentBackground: "rgba(255, 255, 0, 0.35)",
 };
