@@ -662,7 +662,7 @@ export const OBSERVATION_FIELD_GROUPS = [
   "io", // input, output
   "metadata", // metadata
   "model", // providedModelName, internalModelId, modelParameters
-  "usage", // usageDetails, costDetails, totalCost, providedUsageDetails, providedCostDetails
+  "usage", // usageDetails, costDetails, totalCost
   "prompt", // promptId, promptName, promptVersion
   "metrics", // latency, timeToFirstToken
 ] as const;
