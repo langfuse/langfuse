@@ -170,7 +170,10 @@ export const otelIngestionQueueProcessor: Processor = async (
       .map((o) => ingestionSchema.safeParse(o))
       .flatMap((o) => {
         if (!o.success) {
-          logger.warn(`Failed to parse otel observation for project ${projectId} in ${fileKey}: ${o.error}`, o.error);
+          logger.warn(
+            `Failed to parse otel observation for project ${projectId} in ${fileKey}: ${o.error}`,
+            o.error,
+          );
           return [];
         }
         return [o.data];
