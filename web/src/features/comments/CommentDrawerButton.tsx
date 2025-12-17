@@ -153,14 +153,18 @@ export function CommentDrawerButton({
               <MessageCircleIcon
                 className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               />
+              <span>Add comment</span>
               <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
                 {count > 99 ? "99+" : count}
               </span>
             </div>
           ) : (
-            <MessageCircleIcon
-              className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
-            />
+            <div className="flex items-center gap-1">
+              <MessageCircleIcon
+                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+              />
+              <span>Add comment</span>
+            </div>
           )}
         </Button>
       </DrawerTrigger>

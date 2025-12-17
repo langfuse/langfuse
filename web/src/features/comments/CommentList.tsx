@@ -610,7 +610,7 @@ export function CommentList({
             <div className="relative ml-2.5 mr-4 mt-2 flex flex-row items-center justify-between text-xs text-muted-foreground">
               <span className="sr-only">New comment</span>
               <span></span>
-              <span>Markdown supported</span>
+              <span>Markdown and @-mentions support</span>
             </div>
             <div className="relative mb-2 ml-2 mr-3 mt-0.5 min-h-[70px] flex-shrink-0 rounded-lg border border-border/60 pt-1">
               {/* Visually hidden header for accessibility */}
@@ -625,7 +625,7 @@ export function CommentList({
                         <div>
                           <FormControl>
                             <Textarea
-                              placeholder="Add a comment... (Markdown supported)"
+                              placeholder="Add a comment..."
                               {...field}
                               ref={(el) => {
                                 if (textareaRef.current !== el) {
