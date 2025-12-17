@@ -103,7 +103,8 @@ CREATE TABLE IF NOT EXISTS observations_batch_staging
     usage_pricing_tier_id Nullable(String),
     usage_pricing_tier_name Nullable(String),
     tool_definitions Map(String, String),
-    tool_calls Map(String, Array(String)),
+    tool_calls Array(String),
+    tool_call_names Array(String),
     completion_start_time Nullable(DateTime64(3)),
     prompt_id Nullable(String),
     prompt_name Nullable(String),
@@ -199,7 +200,8 @@ CREATE TABLE IF NOT EXISTS events
 
       -- Tools
       tool_definitions Map(String, String),
-      tool_calls Map(String, Array(String)),
+      tool_calls Array(String),
+      tool_call_names Array(String),
 
       -- I/O
       input String CODEC(ZSTD(3)),
@@ -308,7 +310,8 @@ clickhouse client \
   INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
-                      provided_usage_details, usage_details, provided_cost_details, cost_details, tool_definitions, tool_calls, input,
+                      provided_usage_details, usage_details, provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names, input,
+
                       output, metadata, metadata_names, metadata_raw_values,
                       -- metadata_string_names, metadata_string_values, metadata_number_names, metadata_number_values, metadata_bool_names, metadata_bool_values,
                       source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
@@ -346,6 +349,8 @@ clickhouse client \
          o.cost_details,
          o.tool_definitions,
          o.tool_calls,
+         o.tool_call_names,
+
          ifNull(o.input, '')                                                             AS input,
          ifNull(o.output, '')                                                            AS output,
          CAST(o.metadata, 'JSON'),
@@ -371,7 +376,8 @@ clickhouse client \
   -- Backfill events from traces table as well
   INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level,
-                      model_parameters, provided_usage_details, usage_details, provided_cost_details, cost_details, tool_definitions, tool_calls,
+                      model_parameters, provided_usage_details, usage_details, provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names,
+
                       input, output,
                       metadata, metadata_names, metadata_raw_values,
                       source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
@@ -400,7 +406,9 @@ clickhouse client \
          map(),
          map(),
          map(),
-         map(),
+         [],
+         [],
+
          ifNull(t.input, '')                                                             AS input,
          ifNull(t.output, '')                                                            AS output,
          CAST(t.metadata, 'JSON'),
