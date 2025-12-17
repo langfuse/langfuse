@@ -224,6 +224,7 @@ CREATE TABLE IF NOT EXISTS events
       experiment_description String,
       experiment_dataset_id String,
       experiment_item_id String,
+      experiment_item_version Nullable(DateTime64(6)),
       experiment_item_expected_output String,
       experiment_item_metadata_names Array(String),
       experiment_item_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
@@ -356,9 +357,62 @@ clickhouse client \
          o.updated_at,
          o.event_ts,
          o.is_deleted
-  FROM observations o
+  FROM observations o FINAL
   LEFT JOIN traces t ON o.trace_id = t.id
   WHERE (o.is_deleted = 0);
+  -- Backfill events from traces table as well
+  INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
+                      environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level,
+                      model_parameters, provided_usage_details, usage_details, provided_cost_details, cost_details,
+                      input, output,
+                      metadata, metadata_names, metadata_raw_values,
+                      source, service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
+                      telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, event_bytes,
+                      created_at, updated_at, event_ts, is_deleted)
+  SELECT t.project_id,
+         t.id,
+         t.id                                                                            AS span_id,
+         ''                                                                       AS parent_span_id,
+         t.timestamp,
+         t.name,
+         'SPAN',
+         t.environment,
+         t.version,
+         t.release as release,
+         t.tags as tags,
+         t.name as trace_name,
+         t.user_id                                                                      AS user_id,
+         t.session_id                                                                   AS session_id,
+         t.public                                                                       AS public,
+         t.bookmarked                                                                   AS bookmarked,
+         'DEFAULT'                                                                      AS level,
+         map()                                                                           AS model_parameters,
+         map(),
+         map(),
+         map(),
+         map(),
+         ifNull(t.input, '')                                                             AS input,
+         ifNull(t.output, '')                                                            AS output,
+         CAST(t.metadata, 'JSON'),
+         mapKeys(t.metadata)                                                             AS metadata_names,
+         mapValues(t.metadata)                                                           AS metadata_raw_values,
+         multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel', 'ingestion-api') AS source,
+         NULL                                                                          AS service_name,
+         NULL                                                                          AS service_version,
+         NULL                                                                          AS scope_name,
+         NULL                                                                          AS scope_version,
+         NULL                                                                          AS telemetry_sdk_language,
+         NULL                                                                          AS telemetry_sdk_name,
+         NULL                                                                          AS telemetry_sdk_version,
+         ''                                                                            AS blob_storage_file_path,
+         0                                                                             AS event_bytes,
+         t.created_at,
+         t.updated_at,
+         t.event_ts,
+         t.is_deleted
+  FROM traces t FINAL
+  WHERE (t.is_deleted = 0);
+
 EOF
 
 echo "Development tables created successfully (or already exist)."

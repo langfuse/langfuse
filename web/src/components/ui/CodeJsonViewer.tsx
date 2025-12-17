@@ -102,7 +102,11 @@ export function JSONView(props: {
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : props.projectIdForPromptButtons ? (
-          <code className="whitespace-pre-wrap break-words">
+          <code
+            className="whitespace-pre-wrap break-words"
+            dir="auto"
+            style={{ unicodeBidi: "plaintext" }}
+          >
             {renderRichPromptContent(
               props.projectIdForPromptButtons,
               String(parsedJson),
@@ -274,10 +278,12 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
+            "relative flex-1 whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}
+          dir="auto"
+          style={{ unicodeBidi: "plaintext" }}
         >
           {props.content}
         </code>
@@ -298,14 +304,22 @@ export function CodeView(props: {
 }
 
 export const JsonSkeleton = ({
-  className,
   numRows = 10,
+  borderless = false,
+  className,
 }: {
   numRows?: number;
+  borderless?: boolean;
   className?: string;
 }) => {
   return (
-    <div className={cn("w-[400px] rounded-md border", className)}>
+    <div
+      className={cn(
+        "w-[400px] rounded-md",
+        borderless ? "" : "border",
+        className,
+      )}
+    >
       <div className="flex flex-col gap-1">
         {[...Array<number>(numRows)].map((_, i) => (
           <Skeleton

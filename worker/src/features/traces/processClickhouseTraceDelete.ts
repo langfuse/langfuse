@@ -44,7 +44,6 @@ const deleteMediaItemsForTraces = async (
   const [traceMediaItems, observationMediaItems] = await Promise.all([
     prisma.traceMedia.findMany({
       select: {
-        id: true,
         mediaId: true,
       },
       where: {
@@ -56,7 +55,6 @@ const deleteMediaItemsForTraces = async (
     }),
     prisma.observationMedia.findMany({
       select: {
-        id: true,
         mediaId: true,
       },
       where: {
@@ -72,21 +70,21 @@ const deleteMediaItemsForTraces = async (
   traceMediaItems.forEach((item) => allMediaIds.add(item.mediaId));
   observationMediaItems.forEach((item) => allMediaIds.add(item.mediaId));
 
-  // Delete the junction table records in chunks
+  // Delete the junction table records by traceId (should be covered by indexes)
   await Promise.all([
     prisma.traceMedia.deleteMany({
       where: {
         projectId,
-        id: {
-          in: traceMediaItems.map((ref) => ref.id),
+        traceId: {
+          in: traceIds,
         },
       },
     }),
     prisma.observationMedia.deleteMany({
       where: {
         projectId,
-        id: {
-          in: observationMediaItems.map((ref) => ref.id),
+        traceId: {
+          in: traceIds,
         },
       },
     }),

@@ -28,6 +28,7 @@ export default withMiddlewares({
           auth.scope.projectId,
           queryParams,
           "v2",
+          true /* always enable single-level SELECT optimization for public API v2 */,
         );
 
         return { data: result };

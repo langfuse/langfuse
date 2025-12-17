@@ -20,6 +20,7 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggregationFunction: z.string().optional(),
     }),
   ),
   measures: z.record(
@@ -31,6 +32,7 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggs: z.record(z.string(), z.string()).optional(),
     }),
   ),
   tableRelations: z.record(
@@ -55,6 +57,13 @@ export const views = z.enum([
   "scores-categorical",
   // "sessions",
   // "users",
+]);
+
+// V2 views - excludes "traces" which is not supported in v2 API
+export const viewsV2 = z.enum([
+  "observations",
+  "scores-numeric",
+  "scores-categorical",
 ]);
 
 export const viewVersions = z.enum(["v1", "v2"]);

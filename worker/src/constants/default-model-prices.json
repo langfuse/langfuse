@@ -2,9 +2,9 @@
   {
     "id": "b9854a5c92dc496b997d99d20",
     "modelName": "gpt-4o",
-    "matchPattern": "(?i)^(gpt-4o)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o)$",
     "createdAt": "2024-05-13T23:15:07.670Z",
-    "updatedAt": "2024-12-03T10:12:31.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -30,9 +30,9 @@
   {
     "id": "b9854a5c92dc496b997d99d21",
     "modelName": "gpt-4o-2024-05-13",
-    "matchPattern": "(?i)^(gpt-4o-2024-05-13)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-05-13)$",
     "createdAt": "2024-05-13T23:15:07.670Z",
-    "updatedAt": "2024-05-13T23:15:07.670Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o-2024-05-13",
@@ -56,9 +56,9 @@
   {
     "id": "clrkvq6iq000008ju6c16gynt",
     "modelName": "gpt-4-1106-preview",
-    "matchPattern": "(?i)^(gpt-4-1106-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-1106-preview)$",
     "createdAt": "2024-04-23T10:37:17.092Z",
-    "updatedAt": "2024-04-23T10:37:17.092Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-1106-preview",
@@ -82,9 +82,9 @@
   {
     "id": "clrkvx5gp000108juaogs54ea",
     "modelName": "gpt-4-turbo-vision",
-    "matchPattern": "(?i)^(gpt-4(-\\d{4})?-vision-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4(-\\d{4})?-vision-preview)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-vision-preview",
@@ -108,9 +108,9 @@
   {
     "id": "clrkvyzgw000308jue4hse4j9",
     "modelName": "gpt-4-32k",
-    "matchPattern": "(?i)^(gpt-4-32k)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-32k)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-32k",
@@ -134,9 +134,9 @@
   {
     "id": "clrkwk4cb000108l5hwwh3zdi",
     "modelName": "gpt-4-32k-0613",
-    "matchPattern": "(?i)^(gpt-4-32k-0613)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-32k-0613)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-32k-0613",
@@ -160,9 +160,9 @@
   {
     "id": "clrkwk4cb000208l59yvb9yq8",
     "modelName": "gpt-3.5-turbo-1106",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo-1106)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo-1106)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-3.5-turbo-1106",
@@ -186,9 +186,9 @@
   {
     "id": "clrkwk4cc000808l51xmk4uic",
     "modelName": "gpt-3.5-turbo-0613",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo-0613)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo-0613)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-3.5-turbo-0613",
@@ -212,9 +212,9 @@
   {
     "id": "clrkwk4cc000908l537kl0rx3",
     "modelName": "gpt-4-0613",
-    "matchPattern": "(?i)^(gpt-4-0613)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-0613)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-0613",
@@ -238,9 +238,9 @@
   {
     "id": "clrkwk4cc000a08l562uc3s9g",
     "modelName": "gpt-3.5-turbo-instruct",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo-instruct)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo-instruct)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-3.5-turbo",
@@ -448,9 +448,9 @@
   {
     "id": "clrntjt89000a08jw0gcdbd5a",
     "modelName": "gpt-3.5-turbo-16k-0613",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo-16k-0613)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo-16k-0613)$",
     "createdAt": "2024-02-03T17:29:57.350Z",
-    "updatedAt": "2024-02-03T17:29:57.350Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-3.5-turbo-16k-0613",
@@ -474,9 +474,9 @@
   {
     "id": "clrntkjgy000a08jx4e062mr0",
     "modelName": "gpt-3.5-turbo-0301",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo-0301)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo-0301)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": -1,
       "tokenizerModel": "gpt-3.5-turbo-0301",
@@ -500,9 +500,9 @@
   {
     "id": "clrntkjgy000d08jx0p4y9h4l",
     "modelName": "gpt-4-32k-0314",
-    "matchPattern": "(?i)^(gpt-4-32k-0314)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-32k-0314)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-32k-0314",
@@ -526,9 +526,9 @@
   {
     "id": "clrntkjgy000e08jx4x6uawoo",
     "modelName": "gpt-4-0314",
-    "matchPattern": "(?i)^(gpt-4-0314)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-0314)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-0314",
@@ -552,9 +552,9 @@
   {
     "id": "clrntkjgy000f08jx79v9g1xj",
     "modelName": "gpt-4",
-    "matchPattern": "(?i)^(gpt-4)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4)$",
     "createdAt": "2024-01-24T10:19:21.693Z",
-    "updatedAt": "2024-01-24T10:19:21.693Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -578,9 +578,9 @@
   {
     "id": "clrnwb41q000308jsfrac9uh6",
     "modelName": "claude-instant-1.2",
-    "matchPattern": "(?i)^(claude-instant-1.2)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-instant-1.2)$",
     "createdAt": "2024-01-30T15:44:13.447Z",
-    "updatedAt": "2024-01-30T15:44:13.447Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -599,9 +599,9 @@
   {
     "id": "clrnwb836000408jsallr6u11",
     "modelName": "claude-2.0",
-    "matchPattern": "(?i)^(claude-2.0)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-2.0)$",
     "createdAt": "2024-01-30T15:44:13.447Z",
-    "updatedAt": "2024-01-30T15:44:13.447Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -620,9 +620,9 @@
   {
     "id": "clrnwbd1m000508js4hxu6o7n",
     "modelName": "claude-2.1",
-    "matchPattern": "(?i)^(claude-2.1)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-2.1)$",
     "createdAt": "2024-01-30T15:44:13.447Z",
-    "updatedAt": "2024-01-30T15:44:13.447Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -641,9 +641,9 @@
   {
     "id": "clrnwbg2b000608jse2pp4q2d",
     "modelName": "claude-1.3",
-    "matchPattern": "(?i)^(claude-1.3)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-1.3)$",
     "createdAt": "2024-01-30T15:44:13.447Z",
-    "updatedAt": "2024-01-30T15:44:13.447Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -662,9 +662,9 @@
   {
     "id": "clrnwbi9d000708jseiy44k26",
     "modelName": "claude-1.2",
-    "matchPattern": "(?i)^(claude-1.2)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-1.2)$",
     "createdAt": "2024-01-30T15:44:13.447Z",
-    "updatedAt": "2024-01-30T15:44:13.447Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -683,9 +683,9 @@
   {
     "id": "clrnwblo0000808jsc1385hdp",
     "modelName": "claude-1.1",
-    "matchPattern": "(?i)^(claude-1.1)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-1.1)$",
     "createdAt": "2024-01-30T15:44:13.447Z",
-    "updatedAt": "2024-01-30T15:44:13.447Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -704,9 +704,9 @@
   {
     "id": "clrnwbota000908jsgg9mb1ml",
     "modelName": "claude-instant-1",
-    "matchPattern": "(?i)^(claude-instant-1)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-instant-1)$",
     "createdAt": "2024-01-30T15:44:13.447Z",
-    "updatedAt": "2024-01-30T15:44:13.447Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -819,9 +819,9 @@
   {
     "id": "clruwnahl00030al7ab9rark7",
     "modelName": "gpt-3.5-turbo-0125",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo-0125)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo-0125)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-3.5-turbo",
@@ -845,9 +845,9 @@
   {
     "id": "clruwnahl00040al78f1lb0at",
     "modelName": "gpt-3.5-turbo",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo)$",
     "createdAt": "2024-02-13T12:00:37.424Z",
-    "updatedAt": "2024-02-13T12:00:37.424Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-3.5-turbo",
@@ -871,9 +871,9 @@
   {
     "id": "clruwnahl00050al796ck3p44",
     "modelName": "gpt-4-0125-preview",
-    "matchPattern": "(?i)^(gpt-4-0125-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-0125-preview)$",
     "createdAt": "2024-01-26T17:35:21.129Z",
-    "updatedAt": "2024-01-26T17:35:21.129Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -1235,9 +1235,9 @@
   {
     "id": "clsk9lntu000008jwfc51bbqv",
     "modelName": "gpt-3.5-turbo-16k",
-    "matchPattern": "(?i)^(gpt-)(35|3.5)(-turbo-16k)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-)(35|3.5)(-turbo-16k)$",
     "createdAt": "2024-02-13T12:00:37.424Z",
-    "updatedAt": "2024-02-13T12:00:37.424Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-3.5-turbo-16k",
@@ -1261,9 +1261,9 @@
   {
     "id": "clsnq07bn000008l4e46v1ll8",
     "modelName": "gpt-4-turbo-preview",
-    "matchPattern": "(?i)^(gpt-4-turbo-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-turbo-preview)$",
     "createdAt": "2024-02-15T21:21:50.947Z",
-    "updatedAt": "2024-02-15T21:21:50.947Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -1287,9 +1287,9 @@
   {
     "id": "cltgy0iuw000008le3vod1hhy",
     "modelName": "claude-3-opus-20240229",
-    "matchPattern": "(?i)^(claude-3-opus-20240229|anthropic\\.claude-3-opus-20240229-v1:0|claude-3-opus@20240229)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-opus-20240229|anthropic\\.claude-3-opus-20240229-v1:0|claude-3-opus@20240229)$",
     "createdAt": "2024-03-07T17:55:38.139Z",
-    "updatedAt": "2024-03-07T17:55:38.139Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1308,9 +1308,9 @@
   {
     "id": "cltgy0pp6000108le56se7bl3",
     "modelName": "claude-3-sonnet-20240229",
-    "matchPattern": "(?i)^(claude-3-sonnet-20240229|anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-sonnet-20240229|anthropic\\.claude-3-sonnet-20240229-v1:0|claude-3-sonnet@20240229)$",
     "createdAt": "2024-03-07T17:55:38.139Z",
-    "updatedAt": "2024-12-03T12:20:04.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1335,9 +1335,9 @@
   {
     "id": "cltr0w45b000008k1407o9qv1",
     "modelName": "claude-3-haiku-20240307",
-    "matchPattern": "(?i)^(claude-3-haiku-20240307|anthropic\\.claude-3-haiku-20240307-v1:0|claude-3-haiku@20240307)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-haiku-20240307|anthropic\\.claude-3-haiku-20240307-v1:0|claude-3-haiku@20240307)$",
     "createdAt": "2024-03-14T09:41:18.736Z",
-    "updatedAt": "2024-03-14T09:41:18.736Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1356,9 +1356,9 @@
   {
     "id": "cluv2sjeo000008ih0fv23hi0",
     "modelName": "gemini-1.0-pro-latest",
-    "matchPattern": "(?i)^(gemini-1.0-pro-latest)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.0-pro-latest)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2sjeo000008ih0fv23hi0_tier_default",
@@ -1376,9 +1376,9 @@
   {
     "id": "cluv2subq000108ih2mlrga6a",
     "modelName": "gemini-1.0-pro",
-    "matchPattern": "(?i)^(gemini-1.0-pro)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.0-pro)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2subq000108ih2mlrga6a_tier_default",
@@ -1396,9 +1396,9 @@
   {
     "id": "cluv2sx04000208ihbek75lsz",
     "modelName": "gemini-1.0-pro-001",
-    "matchPattern": "(?i)^(gemini-1.0-pro-001)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.0-pro-001)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2sx04000208ihbek75lsz_tier_default",
@@ -1416,9 +1416,9 @@
   {
     "id": "cluv2szw0000308ihch3n79x7",
     "modelName": "gemini-pro",
-    "matchPattern": "(?i)^(gemini-pro)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-pro)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2szw0000308ihch3n79x7_tier_default",
@@ -1436,9 +1436,9 @@
   {
     "id": "cluv2t2x0000408ihfytl45l1",
     "modelName": "gemini-1.5-pro-latest",
-    "matchPattern": "(?i)^(gemini-1.5-pro-latest)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-1.5-pro-latest)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2024-04-11T10:27:46.517Z",
-    "updatedAt": "2024-04-11T10:27:46.517Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cluv2t2x0000408ihfytl45l1_tier_default",
@@ -1456,9 +1456,9 @@
   {
     "id": "cluv2t5k3000508ih5kve9zag",
     "modelName": "gpt-4-turbo-2024-04-09",
-    "matchPattern": "(?i)^(gpt-4-turbo-2024-04-09)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-turbo-2024-04-09)$",
     "createdAt": "2024-04-23T10:37:17.092Z",
-    "updatedAt": "2024-04-23T10:37:17.092Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-turbo-2024-04-09",
@@ -1482,9 +1482,9 @@
   {
     "id": "cluvpl4ls000008l6h2gx3i07",
     "modelName": "gpt-4-turbo",
-    "matchPattern": "(?i)^(gpt-4-turbo)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-turbo)$",
     "createdAt": "2024-04-11T21:13:44.989Z",
-    "updatedAt": "2024-04-11T21:13:44.989Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-1106-preview",
@@ -1508,9 +1508,9 @@
   {
     "id": "clv2o2x0p000008jsf9afceau",
     "modelName": " gpt-4-preview",
-    "matchPattern": "(?i)^(gpt-4-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4-preview)$",
     "createdAt": "2024-04-23T10:37:17.092Z",
-    "updatedAt": "2024-04-23T10:37:17.092Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-turbo-preview",
@@ -1534,9 +1534,9 @@
   {
     "id": "clxt0n0m60000pumz1j5b7zsf",
     "modelName": "claude-3-5-sonnet-20240620",
-    "matchPattern": "(?i)^(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
     "createdAt": "2024-06-25T11:47:24.475Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1561,9 +1561,9 @@
   {
     "id": "clyrjp56f0000t0mzapoocd7u",
     "modelName": "gpt-4o-mini",
-    "matchPattern": "(?i)^(gpt-4o-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-mini)$",
     "createdAt": "2024-07-18T17:56:09.591Z",
-    "updatedAt": "2024-12-03T10:28:30.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1589,9 +1589,9 @@
   {
     "id": "clyrjpbe20000t0mzcbwc42rg",
     "modelName": "gpt-4o-mini-2024-07-18",
-    "matchPattern": "(?i)^(gpt-4o-mini-2024-07-18)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-mini-2024-07-18)$",
     "createdAt": "2024-07-18T17:56:09.591Z",
-    "updatedAt": "2024-12-03T10:31:11.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1617,9 +1617,9 @@
   {
     "id": "clzjr85f70000ymmzg7hqffra",
     "modelName": "gpt-4o-2024-08-06",
-    "matchPattern": "(?i)^(gpt-4o-2024-08-06)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-08-06)$",
     "createdAt": "2024-08-07T11:54:31.298Z",
-    "updatedAt": "2024-12-03T10:15:18.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1645,9 +1645,9 @@
   {
     "id": "cm10ivcdp0000gix7lelmbw80",
     "modelName": "o1-preview",
-    "matchPattern": "(?i)^(o1-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-preview)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2024-12-03T10:34:05.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10ivcdp0000gix7lelmbw80_tier_default",
@@ -1669,9 +1669,9 @@
   {
     "id": "cm10ivo130000n8x7qopcjjcg",
     "modelName": "o1-preview-2024-09-12",
-    "matchPattern": "(?i)^(o1-preview-2024-09-12)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-preview-2024-09-12)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2024-12-03T10:38:51.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10ivo130000n8x7qopcjjcg_tier_default",
@@ -1693,9 +1693,9 @@
   {
     "id": "cm10ivwo40000r1x7gg3syjq0",
     "modelName": "o1-mini",
-    "matchPattern": "(?i)^(o1-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-mini)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-02-01T12:41:55.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10ivwo40000r1x7gg3syjq0_tier_default",
@@ -1717,9 +1717,9 @@
   {
     "id": "cm10iw6p20000wgx7it1hlb22",
     "modelName": "o1-mini-2024-09-12",
-    "matchPattern": "(?i)^(o1-mini-2024-09-12)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-mini-2024-09-12)$",
     "createdAt": "2024-09-13T10:01:35.373Z",
-    "updatedAt": "2025-02-01T12:41:55.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm10iw6p20000wgx7it1hlb22_tier_default",
@@ -1741,9 +1741,9 @@
   {
     "id": "cm2krz1uf000208jjg5653iud",
     "modelName": "claude-3.5-sonnet-20241022",
-    "matchPattern": "(?i)^(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1768,9 +1768,9 @@
   {
     "id": "cm2ks2vzn000308jjh4ze1w7q",
     "modelName": "claude-3.5-sonnet-latest",
-    "matchPattern": "(?i)^(claude-3-5-sonnet-latest)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-latest)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
-    "updatedAt": "2024-12-03T12:22:03.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1795,9 +1795,9 @@
   {
     "id": "cm34aq60d000207ml0j1h31ar",
     "modelName": "claude-3-5-haiku-20241022",
-    "matchPattern": "(?i)^(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1822,9 +1822,9 @@
   {
     "id": "cm34aqb9h000307ml6nypd618",
     "modelName": "claude-3.5-haiku-latest",
-    "matchPattern": "(?i)^(claude-3-5-haiku-latest)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-latest)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
-    "updatedAt": "2024-12-03T12:26:33.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -1875,9 +1875,9 @@
   {
     "id": "cm48akqgo000008ldbia24qg0",
     "modelName": "gpt-4o-2024-11-20",
-    "matchPattern": "(?i)^(gpt-4o-2024-11-20)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-11-20)$",
     "createdAt": "2024-12-03T10:06:12.000Z",
-    "updatedAt": "2024-12-03T10:06:12.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1903,9 +1903,9 @@
   {
     "id": "cm48b2ksh000008l0hn3u0hl3",
     "modelName": "gpt-4o-audio-preview",
-    "matchPattern": "(?i)^(gpt-4o-audio-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-audio-preview)$",
     "createdAt": "2024-12-03T10:19:56.000Z",
-    "updatedAt": "2024-12-03T10:19:56.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48b2ksh000008l0hn3u0hl3_tier_default",
@@ -1927,9 +1927,9 @@
   {
     "id": "cm48bbm0k000008l69nsdakwf",
     "modelName": "gpt-4o-audio-preview-2024-10-01",
-    "matchPattern": "(?i)^(gpt-4o-audio-preview-2024-10-01)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-audio-preview-2024-10-01)$",
     "createdAt": "2024-12-03T10:19:56.000Z",
-    "updatedAt": "2024-12-03T10:19:56.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48bbm0k000008l69nsdakwf_tier_default",
@@ -1951,9 +1951,9 @@
   {
     "id": "cm48c2qh4000008mhgy4mg2qc",
     "modelName": "gpt-4o-realtime-preview",
-    "matchPattern": "(?i)^(gpt-4o-realtime-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-realtime-preview)$",
     "createdAt": "2024-12-03T10:19:56.000Z",
-    "updatedAt": "2024-12-03T10:19:56.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48c2qh4000008mhgy4mg2qc_tier_default",
@@ -1977,9 +1977,9 @@
   {
     "id": "cm48cjxtc000008jrcsso3avv",
     "modelName": "gpt-4o-realtime-preview-2024-10-01",
-    "matchPattern": "(?i)^(gpt-4o-realtime-preview-2024-10-01)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4o-realtime-preview-2024-10-01)$",
     "createdAt": "2024-12-03T10:19:56.000Z",
-    "updatedAt": "2024-12-03T10:19:56.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48cjxtc000008jrcsso3avv_tier_default",
@@ -2003,9 +2003,9 @@
   {
     "id": "cm48cjxtc000108jrcsso3avv",
     "modelName": "o1",
-    "matchPattern": "(?i)^(o1)$",
+    "matchPattern": "(?i)^(openai\/)?(o1)$",
     "createdAt": "2025-01-17T00:01:35.373Z",
-    "updatedAt": "2025-01-17T00:01:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48cjxtc000108jrcsso3avv_tier_default",
@@ -2027,9 +2027,9 @@
   {
     "id": "cm48cjxtc000208jrcsso3avv",
     "modelName": "o1-2024-12-17",
-    "matchPattern": "(?i)^(o1-2024-12-17)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-2024-12-17)$",
     "createdAt": "2025-01-17T00:01:35.373Z",
-    "updatedAt": "2025-01-17T00:01:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm48cjxtc000208jrcsso3avv_tier_default",
@@ -2051,9 +2051,9 @@
   {
     "id": "cm6l8j7vs0000tymz9vk7ew8t",
     "modelName": "o3-mini",
-    "matchPattern": "(?i)^(o3-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-mini)$",
     "createdAt": "2025-01-31T20:41:35.373Z",
-    "updatedAt": "2025-01-31T20:41:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8j7vs0000tymz9vk7ew8t_tier_default",
@@ -2075,9 +2075,9 @@
   {
     "id": "cm6l8jan90000tymz52sh0ql8",
     "modelName": "o3-mini-2025-01-31",
-    "matchPattern": "(?i)^(o3-mini-2025-01-31)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-mini-2025-01-31)$",
     "createdAt": "2025-01-31T20:41:35.373Z",
-    "updatedAt": "2025-01-31T20:41:35.373Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8jan90000tymz52sh0ql8_tier_default",
@@ -2099,9 +2099,9 @@
   {
     "id": "cm6l8jdef0000tymz52sh0ql0",
     "modelName": "gemini-2.0-flash-001",
-    "matchPattern": "(?i)^(gemini-2.0-flash-001)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash-001)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-02-06T11:11:35.241Z",
-    "updatedAt": "2025-02-10T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8jdef0000tymz52sh0ql0_tier_default",
@@ -2119,9 +2119,9 @@
   {
     "id": "cm6l8jfgh0000tymz52sh0ql1",
     "modelName": "gemini-2.0-flash-lite-preview-02-05",
-    "matchPattern": "(?i)^(gemini-2.0-flash-lite-preview-02-05)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash-lite-preview-02-05)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-02-06T11:11:35.241Z",
-    "updatedAt": "2025-02-10T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm6l8jfgh0000tymz52sh0ql1_tier_default",
@@ -2139,9 +2139,9 @@
   {
     "id": "cm7ka7561000108js3t9tb3at",
     "modelName": "claude-3.7-sonnet-20250219",
-    "matchPattern": "(?i)^(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2166,9 +2166,9 @@
   {
     "id": "cm7ka7zob000208jsfs9h5ajj",
     "modelName": "claude-3.7-sonnet-latest",
-    "matchPattern": "(?i)^(claude-3-7-sonnet-latest)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-7-sonnet-latest)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
-    "updatedAt": "2025-02-25T09:35:39.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2193,9 +2193,9 @@
   {
     "id": "cm7nusjvk0000tvmz71o85jwg",
     "modelName": "gpt-4.5-preview",
-    "matchPattern": "(?i)^(gpt-4.5-preview)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.5-preview)$",
     "createdAt": "2025-02-27T21:26:54.132Z",
-    "updatedAt": "2025-02-27T21:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7nusjvk0000tvmz71o85jwg_tier_default",
@@ -2216,9 +2216,9 @@
   {
     "id": "cm7nusn640000tvmzf10z2x65",
     "modelName": "gpt-4.5-preview-2025-02-27",
-    "matchPattern": "(?i)^(gpt-4.5-preview-2025-02-27)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.5-preview-2025-02-27)$",
     "createdAt": "2025-02-27T21:26:54.132Z",
-    "updatedAt": "2025-02-27T21:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7nusn640000tvmzf10z2x65_tier_default",
@@ -2239,9 +2239,9 @@
   {
     "id": "cm7nusn643377tvmzh27m33kl",
     "modelName": "gpt-4.1",
-    "matchPattern": "(?i)^(gpt-4.1)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.1)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-04-15T10:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2268,9 +2268,9 @@
   {
     "id": "cm7qahw732891bpmzy45r3x70",
     "modelName": "gpt-4.1-2025-04-14",
-    "matchPattern": "(?i)^(gpt-4.1-2025-04-14)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.1-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-04-15T10:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2297,9 +2297,9 @@
   {
     "id": "cm7sglt825463kxnza72p6v81",
     "modelName": "gpt-4.1-mini-2025-04-14",
-    "matchPattern": "(?i)^(gpt-4.1-mini-2025-04-14)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.1-mini-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-04-15T10:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2326,9 +2326,9 @@
   {
     "id": "cm7vxpz967124dhjtb95w8f92",
     "modelName": "gpt-4.1-nano-2025-04-14",
-    "matchPattern": "(?i)^(gpt-4.1-nano-2025-04-14)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.1-nano-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-04-15T10:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2355,9 +2355,9 @@
   {
     "id": "cm7wmny967124dhjtb95w8f81",
     "modelName": "o3",
-    "matchPattern": "(?i)^(o3)$",
+    "matchPattern": "(?i)^(openai\/)?(o3)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-06-10T23:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7wmny967124dhjtb95w8f81_tier_default",
@@ -2379,9 +2379,9 @@
   {
     "id": "cm7wopq3327124dhjtb95w8f81",
     "modelName": "o3-2025-04-16",
-    "matchPattern": "(?i)^(o3-2025-04-16)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-2025-04-16)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-06-10T23:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7wopq3327124dhjtb95w8f81_tier_default",
@@ -2451,9 +2451,9 @@
   {
     "id": "cm7zsrs1327124dhjtb95w8f74",
     "modelName": "gemini-2.0-flash",
-    "matchPattern": "(?i)^(gemini-2.0-flash)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-04-22T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7zsrs1327124dhjtb95w8f74_tier_default",
@@ -2471,9 +2471,9 @@
   {
     "id": "cm7ztrs1327124dhjtb95w8f19",
     "modelName": "gemini-2.0-flash-lite-preview",
-    "matchPattern": "(?i)^(gemini-2.0-flash-lite-preview)(@[a-zA-Z0-9]+)?$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.0-flash-lite-preview)(@[a-zA-Z0-9]+)?$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-04-22T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cm7ztrs1327124dhjtb95w8f19_tier_default",
@@ -2491,9 +2491,9 @@
   {
     "id": "cm7zxrs1327124dhjtb95w8f45",
     "modelName": "gpt-4.1-nano",
-    "matchPattern": "(?i)^(gpt-4.1-nano)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.1-nano)$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-04-22T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2520,9 +2520,9 @@
   {
     "id": "cm7zzrs1327124dhjtb95w8p96",
     "modelName": "gpt-4.1-mini",
-    "matchPattern": "(?i)^(gpt-4.1-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-4.1-mini)$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-04-22T10:11:35.241Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2549,9 +2549,9 @@
   {
     "id": "c5qmrqolku82tra3vgdixmys",
     "modelName": "claude-sonnet-4-5-20250929",
-    "matchPattern": "(?i)^(claude-sonnet-4-5-20250929|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5-20250929|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
-    "updatedAt": "2025-11-21T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2600,9 +2600,9 @@
   {
     "id": "cmazmkzlm00000djp1e1qe4k4",
     "modelName": "claude-sonnet-4-20250514",
-    "matchPattern": "(?i)^(claude-sonnet-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2627,9 +2627,9 @@
   {
     "id": "cmazmlbnv00010djpazed91va",
     "modelName": "claude-sonnet-4-latest",
-    "matchPattern": "(?i)^(claude-sonnet-4-latest)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-latest)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2025-05-22T17:09:02.131Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2654,9 +2654,9 @@
   {
     "id": "cmazmlm2p00020djpa9s64jw5",
     "modelName": "claude-opus-4-20250514",
-    "matchPattern": "(?i)^(claude-opus-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-20250514-v1:0|claude-opus-4@20250514)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-20250514-v1:0|claude-opus-4@20250514)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2681,9 +2681,9 @@
   {
     "id": "cmz9x72kq55721pqrs83y4n2bx",
     "modelName": "o3-pro",
-    "matchPattern": "(?i)^(o3-pro)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-pro)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmz9x72kq55721pqrs83y4n2bx_tier_default",
@@ -2703,9 +2703,9 @@
   {
     "id": "cmz9x72kq55721pqrs83y4n2by",
     "modelName": "o3-pro-2025-06-10",
-    "matchPattern": "(?i)^(o3-pro-2025-06-10)$",
+    "matchPattern": "(?i)^(openai\/)?(o3-pro-2025-06-10)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmz9x72kq55721pqrs83y4n2by_tier_default",
@@ -2725,9 +2725,9 @@
   {
     "id": "cmbrold5b000107lbftb9fdoo",
     "modelName": "o1-pro",
-    "matchPattern": "(?i)^(o1-pro)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-pro)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmbrold5b000107lbftb9fdoo_tier_default",
@@ -2747,9 +2747,9 @@
   {
     "id": "cmbrolpax000207lb3xkedysz",
     "modelName": "o1-pro-2025-03-19",
-    "matchPattern": "(?i)^(o1-pro-2025-03-19)$",
+    "matchPattern": "(?i)^(openai\/)?(o1-pro-2025-03-19)$",
     "createdAt": "2025-06-10T22:26:54.132Z",
-    "updatedAt": "2025-06-10T22:26:54.132Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmbrolpax000207lb3xkedysz_tier_default",
@@ -2769,9 +2769,9 @@
   {
     "id": "cmcnjkfwn000107l43bf5e8ax",
     "modelName": "gemini-2.5-flash",
-    "matchPattern": "(?i)^(gemini-2.5-flash)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-11-14T13:15:31.034Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -2801,9 +2801,9 @@
   {
     "id": "cmcnjkrfa000207l4fpnh5mnv",
     "modelName": "gemini-2.5-flash-lite",
-    "matchPattern": "(?i)^(gemini-2.5-flash-lite)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2025-11-14T13:15:31.034Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -2833,9 +2833,9 @@
   {
     "id": "cmdysde5w0000rkmzbc1g5au3",
     "modelName": "claude-opus-4-1-20250805",
-    "matchPattern": "(?i)^(claude-opus-4-1-20250805|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-1-20250805-v1:0|claude-opus-4-1@20250805)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1-20250805|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-1-20250805-v1:0|claude-opus-4-1@20250805)$",
     "createdAt": "2025-08-05T15:00:00.000Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -2860,9 +2860,9 @@
   {
     "id": "38c3822a-09a3-457b-b200-2c6f17f7cf2f",
     "modelName": "gpt-5",
-    "matchPattern": "(?i)^(gpt-5)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-08-07T16:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2890,9 +2890,9 @@
   {
     "id": "12543803-2d5f-4189-addc-821ad71c8b55",
     "modelName": "gpt-5-2025-08-07",
-    "matchPattern": "(?i)^(gpt-5-2025-08-07)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2025-08-11T08:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2920,9 +2920,9 @@
   {
     "id": "3d6a975a-a42d-4ea2-a3ec-4ae567d5a364",
     "modelName": "gpt-5-mini",
-    "matchPattern": "(?i)^(gpt-5-mini)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-mini)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-08-07T16:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2950,9 +2950,9 @@
   {
     "id": "03b83894-7172-4e1e-8e8b-37d792484efd",
     "modelName": "gpt-5-mini-2025-08-07",
-    "matchPattern": "(?i)^(gpt-5-mini-2025-08-07)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-mini-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2025-08-11T08:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2980,9 +2980,9 @@
   {
     "id": "f0b40234-b694-4c40-9494-7b0efd860fb9",
     "modelName": "gpt-5-nano",
-    "matchPattern": "(?i)^(gpt-5-nano)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-nano)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-08-07T16:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3010,9 +3010,9 @@
   {
     "id": "4489fde4-a594-4011-948b-526989300cd3",
     "modelName": "gpt-5-nano-2025-08-07",
-    "matchPattern": "(?i)^(gpt-5-nano-2025-08-07)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-nano-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2025-08-11T08:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3040,9 +3040,9 @@
   {
     "id": "8ba72ee3-ebe8-4110-a614-bf81094447e5",
     "modelName": "gpt-5-chat-latest",
-    "matchPattern": "(?i)^(gpt-5-chat-latest)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-chat-latest)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-08-07T16:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3070,9 +3070,9 @@
   {
     "id": "cmgg9zco3000004l258um9xk8",
     "modelName": "gpt-5-pro",
-    "matchPattern": "(?i)^(gpt-5-pro)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-pro)$",
     "createdAt": "2025-10-07T08:03:54.727Z",
-    "updatedAt": "2025-10-07T08:03:54.727Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3098,9 +3098,9 @@
   {
     "id": "cmgga0vh9000104l22qe4fes4",
     "modelName": "gpt-5-pro-2025-10-06",
-    "matchPattern": "(?i)^(gpt-5-pro-2025-10-06)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5-pro-2025-10-06)$",
     "createdAt": "2025-10-07T08:03:54.727Z",
-    "updatedAt": "2025-10-07T08:03:54.727Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3126,9 +3126,9 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
-    "updatedAt": "2025-11-18T00:00:00.000Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
     "pricingTiers": [
       {
@@ -3153,9 +3153,9 @@
   {
     "id": "cmhymgpym000d04ih34rndvhr",
     "modelName": "gpt-5.1",
-    "matchPattern": "(?i)^(gpt-5.1)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.1)$",
     "createdAt": "2025-11-14T08:57:23.481Z",
-    "updatedAt": "2025-11-14T08:57:23.481Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3183,9 +3183,9 @@
   {
     "id": "cmhymgxiw000e04ihh9pw12ef",
     "modelName": "gpt-5.1-2025-11-13",
-    "matchPattern": "(?i)^(gpt-5.1-2025-11-13)$",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.1-2025-11-13)$",
     "createdAt": "2025-11-14T08:57:23.481Z",
-    "updatedAt": "2025-11-14T08:57:23.481Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3213,9 +3213,9 @@
   {
     "id": "cmieupdva000004l541kwae70",
     "modelName": "claude-opus-4-5-20251101",
-    "matchPattern": "(?i)^(claude-opus-4-5-20251101|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-5-20251101-v1:0|claude-opus-4-5@20251101)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5-20251101|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-5-20251101-v1:0|claude-opus-4-5@20251101)$",
     "createdAt": "2025-11-24T20:53:27.571Z",
-    "updatedAt": "2025-11-24T20:53:27.571Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3241,9 +3241,9 @@
   {
     "id": "cmig1hb7i000104l72qrzgc6h",
     "modelName": "gemini-2.5-pro",
-    "matchPattern": "(?i)^(gemini-2.5-pro)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2025-11-26T13:27:53.545Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -3301,9 +3301,9 @@
   {
     "id": "cmig1wmep000404l7fh6q5uog",
     "modelName": "gemini-3-pro-preview",
-    "matchPattern": "(?i)^(gemini-3-pro-preview)$",
+    "matchPattern": "(?i)^(google\/)?(gemini-3-pro-preview)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2025-11-26T13:27:53.545Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
     "pricingTiers": [
       {
         "id": "cmig1wmep000404l7fh6q5uog_tier_default",
@@ -3354,6 +3354,122 @@
           "thoughtsTokenCount": 18e-6,
           "thoughts_token_count": 18e-6,
           "output_reasoning": 18e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "cmj2n4f2a000304kz49g4c43u",
+    "modelName": "gpt-5.2",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.2)$",
+    "createdAt": "2025-12-12T09:00:06.513Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "cmj2n4f2a000304kz49g4c43u_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.75e-6,
+          "input_cached_tokens": 0.175e-6,
+          "input_cache_read": 0.175e-6,
+          "output": 14e-6,
+          "output_reasoning_tokens": 14e-6,
+          "output_reasoning": 14e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "cmj2muxg6000104kzd2tc8953",
+    "modelName": "gpt-5.2-2025-12-11",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.2-2025-12-11)$",
+    "createdAt": "2025-12-12T09:00:06.513Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "cmj2muxg6000104kzd2tc8953_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.75e-6,
+          "input_cached_tokens": 0.175e-6,
+          "input_cache_read": 0.175e-6,
+          "output": 14e-6,
+          "output_reasoning_tokens": 14e-6,
+          "output_reasoning": 14e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "cmj2n6pkq000404kz2s0b6if7",
+    "modelName": "gpt-5.2-pro",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.2-pro)$",
+    "createdAt": "2025-12-12T09:00:06.513Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "cmj2n6pkq000404kz2s0b6if7_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 21e-6,
+          "output": 168e-6,
+          "output_reasoning_tokens": 168e-6,
+          "output_reasoning": 168e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "cmj2n70oe000504kz21b76mes",
+    "modelName": "gpt-5.2-pro-2025-12-11",
+    "matchPattern": "(?i)^(openai\/)?(gpt-5.2-pro-2025-12-11)$",
+    "createdAt": "2025-12-12T09:00:06.513Z",
+    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "cmj2n70oe000504kz21b76mes_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 21e-6,
+          "output": 168e-6,
+          "output_reasoning_tokens": 168e-6,
+          "output_reasoning": 168e-6
         }
       }
     ]
