@@ -1,6 +1,6 @@
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
-export type ViewMode = "pretty" | "json";
+export type ViewMode = "pretty" | "json" | "json-beta";
 
 export interface ViewModeToggleProps {
   selectedView: ViewMode;
@@ -27,6 +27,9 @@ export function ViewModeToggle({
           </TabsTrigger>
           <TabsTrigger value="json" className="h-fit px-1 text-xs">
             JSON
+          </TabsTrigger>
+          <TabsTrigger value="json-beta" className="h-fit px-1 text-xs">
+            JSON Beta
           </TabsTrigger>
         </TabsList>
       </Tabs>
