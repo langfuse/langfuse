@@ -116,8 +116,6 @@ async function parseTraceData(
   return new Promise<ParsedData>((resolve, reject) => {
     const parseId = `${Date.now()}-${Math.random()}`;
 
-    console.log(`[useParsedTrace] Starting background parse ${parseId}`);
-
     pendingCallbacks.set(parseId, (result) => {
       pendingCallbacks.delete(parseId);
 
@@ -126,10 +124,6 @@ async function parseTraceData(
         reject(new Error(result.error));
         return;
       }
-
-      console.log(
-        `[useParsedTrace] Parse completed in ${result.parseTime?.toFixed(2)}ms`,
-      );
 
       resolve({
         input: result.parsedInput,
