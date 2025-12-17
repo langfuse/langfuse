@@ -1,1 +1,1 @@
-ALTER TABLE observations DROP COLUMN IF EXISTS tool_calls;
+ALTER TABLE observations DROP COLUMN tool_calls;
