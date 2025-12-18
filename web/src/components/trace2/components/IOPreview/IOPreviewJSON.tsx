@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTheme } from "next-themes";
 import { type Prisma } from "@langfuse/shared";
-import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection/AdvancedJsonSection";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
 import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
+import { MultiSectionJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
+import { Command, CommandInput } from "@/src/components/ui/command";
+import { Button } from "@/src/components/ui/button";
+import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
+import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
 
-const SECTION_PREFERENCE_KEY = "langfuse:io-section-preference";
 const VIRTUALIZATION_THRESHOLD = 2500;
-type SectionType = "input" | "output" | "metadata";
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
@@ -47,12 +49,12 @@ export function IOPreviewJSON({
   parsedInput,
   parsedOutput,
   parsedMetadata,
-  isLoading = false,
-  isParsing = false,
+  isLoading: _isLoading = false,
+  isParsing: _isParsing = false,
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
-  media,
+  media: _media,
   onVirtualizationChange,
 }: IOPreviewJSONProps) {
   const { resolvedTheme } = useTheme();
@@ -66,21 +68,6 @@ export function IOPreviewJSON({
   const showInput = !hideInput && !(hideIfNull && !parsedInput && !input);
   const showOutput = !hideOutput && !(hideIfNull && !parsedOutput && !output);
   const showMetadata = !(hideIfNull && !parsedMetadata && !metadata);
-
-  // Helper to check if data has content (renders rows in JSON viewer)
-  // null/undefined = 0 rows, everything else (including {} and []) = 1+ rows
-  const hasContent = (data: unknown): boolean => {
-    if (data === null || data === undefined) return false;
-    if (typeof data === "string") return data.trim().length > 0;
-    // Arrays and objects always count as content (even if empty)
-    // because they render as at least 1 row in the JSON viewer
-    return true;
-  };
-
-  // Check for non-empty content (prefer parsed data if available)
-  const outputHasContent = hasContent(parsedOutput ?? output);
-  const inputHasContent = hasContent(parsedInput ?? input);
-  const metadataHasContent = hasContent(parsedMetadata ?? metadata);
 
   // Count rows for each section to determine if virtualization is needed
   const rowCounts = useMemo(() => {
@@ -100,237 +87,245 @@ export function IOPreviewJSON({
     );
   }, [rowCounts]);
 
-  // Get user's preferred section from session storage
-  const getUserPreference = (): SectionType | null => {
-    if (typeof window === "undefined") return null;
-    const stored = sessionStorage.getItem(SECTION_PREFERENCE_KEY);
-    if (stored === "input" || stored === "output" || stored === "metadata") {
-      return stored;
-    }
-    return null;
-  };
+  // Hooks for multi-section viewer (Path B) - must be called unconditionally
+  const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [searchMatchCount, setSearchMatchCount] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Check if user's preferred section is visible and has content
-  const userPreference = getUserPreference();
-  const userPreferenceIsVisible =
-    userPreference === "output"
-      ? showOutput
-      : userPreference === "input"
-        ? showInput
-        : userPreference === "metadata"
-          ? showMetadata
-          : false;
-  const userPreferenceHasContent =
-    userPreference === "output"
-      ? showOutput && outputHasContent
-      : userPreference === "input"
-        ? showInput && inputHasContent
-        : userPreference === "metadata"
-          ? showMetadata && metadataHasContent
-          : false;
-
-  // Accordion state: only one section can be expanded at a time
-  // Default expansion priority:
-  // 1. User preference (if visible AND has content)
-  // 2. Output > Input > Metadata (first with content)
-  // 3. User preference (if visible, even without content)
-  // 4. Output > Input > Metadata (first visible)
-  const defaultExpanded = userPreferenceHasContent
-    ? userPreference
-    : showOutput && outputHasContent
-      ? "output"
-      : showInput && inputHasContent
-        ? "input"
-        : showMetadata && metadataHasContent
-          ? "metadata"
-          : userPreferenceIsVisible
-            ? userPreference
-            : showOutput
-              ? "output"
-              : showInput
-                ? "input"
-                : showMetadata
-                  ? "metadata"
-                  : null;
-  const [expandedSection, setExpandedSection] = useState<
-    "input" | "output" | "metadata" | null
-  >(defaultExpanded);
-
-  // Handle user manually selecting a section (stores preference)
-  const handleUserToggle = useCallback(
-    (section: SectionType) => {
-      const isExpanding = expandedSection !== section;
-      setExpandedSection(isExpanding ? section : null);
-
-      // Only store preference when user manually expands a section
-      if (isExpanding && typeof window !== "undefined") {
-        sessionStorage.setItem(SECTION_PREFERENCE_KEY, section);
-      }
-    },
-    [expandedSection],
-  );
-
-  // Ensure expandedSection is always valid (if current is hidden, switch to first visible)
-  // Priority: output > input > metadata
+  // Debounce search query for Path B
   useEffect(() => {
-    if (expandedSection === "output" && !showOutput) {
-      setExpandedSection(
-        showInput ? "input" : showMetadata ? "metadata" : null,
-      );
-    } else if (expandedSection === "input" && !showInput) {
-      setExpandedSection(
-        showOutput ? "output" : showMetadata ? "metadata" : null,
-      );
-    } else if (expandedSection === "metadata" && !showMetadata) {
-      setExpandedSection(showOutput ? "output" : showInput ? "input" : null);
-    }
-  }, [showInput, showOutput, showMetadata, expandedSection]);
+    if (needsVirtualization) return; // Only for Path B
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentMatchIndex(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, needsVirtualization]);
+
+  // No longer using accordion mode - MultiSectionJsonViewer shows all sections with collapsible headers
 
   // Notify parent about virtualization state
   useEffect(() => {
     onVirtualizationChange?.(needsVirtualization);
   }, [needsVirtualization, onVirtualizationChange]);
 
-  // Path A: Large data (virtualized, accordion mode - one section at a time)
-  if (needsVirtualization) {
-    const maxRows = Math.max(
-      rowCounts.input,
-      rowCounts.output,
-      rowCounts.metadata,
+  // Search navigation callbacks
+  const handleNextMatch = useCallback(() => {
+    if (searchMatchCount === 0) return;
+    setCurrentMatchIndex((prev) => (prev + 1) % searchMatchCount);
+  }, [searchMatchCount]);
+
+  const handlePreviousMatch = useCallback(() => {
+    if (searchMatchCount === 0) return;
+    setCurrentMatchIndex((prev) =>
+      prev === 0 ? searchMatchCount - 1 : prev - 1,
     );
+  }, [searchMatchCount]);
 
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        {/* Visual indicator for virtualized mode */}
-        <div className="border-b bg-muted px-3 py-1.5 text-xs text-muted-foreground">
-          ⚡ Large data detected ({maxRows.toLocaleString()} rows). Showing
-          sections separately for performance.
-        </div>
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+    setCurrentMatchIndex(0);
+  }, []);
 
-        {showInput && (
-          <AdvancedJsonSection
-            title="Input"
-            field="input"
-            data={input}
-            parsedData={parsedInput}
-            collapsed={expandedSection !== "input"}
-            onToggleCollapse={() => handleUserToggle("input")}
-            isLoading={isLoading || isParsing}
-            media={media?.filter((m) => m.field === "input")}
-            enableSearch={true}
-            searchPlaceholder="Search input"
-            hideIfNull={hideIfNull}
-            truncateStringsAt={100}
-            enableCopy={true}
-            backgroundColor={inputBgColor}
-            headerBackgroundColor={inputBgColor}
-            className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
-          />
-        )}
-        {showOutput && (
-          <AdvancedJsonSection
-            title="Output"
-            field="output"
-            data={output}
-            parsedData={parsedOutput}
-            collapsed={expandedSection !== "output"}
-            onToggleCollapse={() => handleUserToggle("output")}
-            isLoading={isLoading || isParsing}
-            media={media?.filter((m) => m.field === "output")}
-            enableSearch={true}
-            searchPlaceholder="Search output"
-            hideIfNull={hideIfNull}
-            truncateStringsAt={100}
-            enableCopy={true}
-            backgroundColor={outputBgColor}
-            headerBackgroundColor={outputBgColor}
-            className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
-          />
-        )}
-        {showMetadata && (
-          <AdvancedJsonSection
-            title="Metadata"
-            field="metadata"
-            data={metadata}
-            parsedData={parsedMetadata}
-            collapsed={expandedSection !== "metadata"}
-            onToggleCollapse={() => handleUserToggle("metadata")}
-            isLoading={isLoading || isParsing}
-            media={media?.filter((m) => m.field === "metadata")}
-            enableSearch={true}
-            searchPlaceholder="Search metadata"
-            hideIfNull={hideIfNull}
-            truncateStringsAt={100}
-            enableCopy={true}
-            backgroundColor={metadataBgColor}
-            headerBackgroundColor={metadataBgColor}
-            className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
-          />
-        )}
-      </div>
-    );
-  }
+  // Handle string wrap mode cycling for Path B
+  const handleCycleWrapMode = useCallback(() => {
+    if (stringWrapMode === "truncate") {
+      setStringWrapMode("wrap");
+    } else if (stringWrapMode === "wrap") {
+      setStringWrapMode("nowrap");
+    } else {
+      setStringWrapMode("truncate");
+    }
+  }, [stringWrapMode, setStringWrapMode]);
 
-  // Path B: Normal data (non-virtualized, continuous scroll - all sections visible)
+  // Handle copy for Path B
+  const handleCopy = useCallback(() => {
+    const dataObj: Record<string, unknown> = {};
+    if (showInput) dataObj.input = parsedInput ?? input;
+    if (showOutput) dataObj.output = parsedOutput ?? output;
+    if (showMetadata) dataObj.metadata = parsedMetadata ?? metadata;
+    const jsonString = JSON.stringify(dataObj, null, 2);
+    void navigator.clipboard.writeText(jsonString);
+  }, [
+    showInput,
+    showOutput,
+    showMetadata,
+    parsedInput,
+    input,
+    parsedOutput,
+    output,
+    parsedMetadata,
+    metadata,
+  ]);
+
+  const wrapIcon = useMemo(
+    () =>
+      stringWrapMode === "truncate" ? (
+        <Minus size={14} />
+      ) : stringWrapMode === "wrap" ? (
+        <WrapText size={14} />
+      ) : (
+        <ChevronDown size={14} className="rotate-[-90deg]" />
+      ),
+    [stringWrapMode],
+  );
+
+  // Build sections - memoized to prevent re-creation
+  // Must be defined before any conditional returns (React hooks rules)
+  const sections = useMemo(() => {
+    const result = [];
+    if (showInput) {
+      result.push({
+        key: "input",
+        title: "Input",
+        data: parsedInput ?? input,
+        backgroundColor: inputBgColor,
+        minHeight: "200px",
+      });
+    }
+    if (showOutput) {
+      result.push({
+        key: "output",
+        title: "Output",
+        data: parsedOutput ?? output,
+        backgroundColor: outputBgColor,
+        minHeight: "200px",
+      });
+    }
+    if (showMetadata) {
+      result.push({
+        key: "metadata",
+        title: "Metadata",
+        data: parsedMetadata ?? metadata,
+        backgroundColor: metadataBgColor,
+        minHeight: "200px",
+      });
+    }
+    return result;
+  }, [
+    showInput,
+    showOutput,
+    showMetadata,
+    parsedInput,
+    input,
+    parsedOutput,
+    output,
+    parsedMetadata,
+    metadata,
+    inputBgColor,
+    outputBgColor,
+    metadataBgColor,
+  ]);
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {showInput && (
-        <AdvancedJsonSection
-          title="Input"
-          field="input"
-          data={input}
-          parsedData={parsedInput}
-          collapsed={false} // Always expanded in continuous scroll mode
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "input")}
-          enableSearch={true}
-          searchPlaceholder="Search input"
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
+    <div className="flex min-h-0 flex-1 flex-col border-b border-t">
+      {/* Header - matches LogViewToolbar styling */}
+      <div className="flex h-9 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
+        {/* Search input - expands to fill available width */}
+        <Command className="flex-1 rounded-none border-0 bg-transparent">
+          <CommandInput
+            showBorder={false}
+            placeholder="Search across all sections..."
+            className="h-7 border-0 focus:ring-0"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (e.shiftKey) {
+                  handlePreviousMatch();
+                } else {
+                  handleNextMatch();
+                }
+              } else if (e.key === "Escape") {
+                handleClearSearch();
+              }
+            }}
+          />
+        </Command>
+
+        {/* Match counter - inline text (only when searching) */}
+        {searchQuery && (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {searchMatchCount > 0
+              ? `${currentMatchIndex + 1} of ${searchMatchCount}`
+              : "No matches"}
+          </span>
+        )}
+
+        {/* Navigation buttons (only when matches exist) */}
+        {searchQuery && searchMatchCount > 0 && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handlePreviousMatch}
+              title="Previous match (Shift+Enter)"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleNextMatch}
+              title="Next match (Enter)"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+
+        {/* Wrap mode toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={handleCycleWrapMode}
+          title={`String wrap mode: ${stringWrapMode}`}
+        >
+          {wrapIcon}
+        </Button>
+
+        {/* Copy button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={handleCopy}
+          title="Copy to clipboard"
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Body with MultiSectionJsonViewer */}
+      <div className="min-h-0 flex-1 overflow-auto" ref={scrollContainerRef}>
+        <MultiSectionJsonViewer
+          sections={sections}
+          virtualized={needsVirtualization}
+          showLineNumbers={true}
           enableCopy={true}
-          virtualized={false} // Force non-virtualized rendering
-          backgroundColor={inputBgColor}
-          headerBackgroundColor={inputBgColor}
+          stringWrapMode={stringWrapMode}
+          truncateStringsAt={stringWrapMode === "truncate" ? 100 : null}
+          searchQuery={debouncedSearchQuery}
+          currentMatchIndex={currentMatchIndex}
+          onSearchResults={setSearchMatchCount}
+          scrollContainerRef={
+            scrollContainerRef as React.RefObject<HTMLDivElement>
+          }
+          theme={{
+            fontSize: "0.7rem",
+            lineHeight: 14,
+            indentSize: 12,
+          }}
         />
-      )}
-      {showOutput && (
-        <AdvancedJsonSection
-          title="Output"
-          field="output"
-          data={output}
-          parsedData={parsedOutput}
-          collapsed={false} // Always expanded in continuous scroll mode
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "output")}
-          enableSearch={true}
-          searchPlaceholder="Search output"
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
-          enableCopy={true}
-          virtualized={false} // Force non-virtualized rendering
-          backgroundColor={outputBgColor}
-          headerBackgroundColor={outputBgColor}
-        />
-      )}
-      {showMetadata && (
-        <AdvancedJsonSection
-          title="Metadata"
-          field="metadata"
-          data={metadata}
-          parsedData={parsedMetadata}
-          collapsed={false} // Always expanded in continuous scroll mode
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "metadata")}
-          enableSearch={true}
-          searchPlaceholder="Search metadata"
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
-          enableCopy={true}
-          virtualized={false} // Force non-virtualized rendering
-          backgroundColor={metadataBgColor}
-          headerBackgroundColor={metadataBgColor}
-        />
-      )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,382 @@
+import {
+  useRef,
+  useEffect,
+  useMemo,
+  memo,
+  useState,
+  useLayoutEffect,
+  type RefObject,
+} from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import type {
+  JSONTheme,
+  StringWrapMode,
+  JsonSection,
+  SectionContext,
+} from "./types";
+import { MultiSectionJsonViewerHeader } from "./components/MultiSectionJsonViewerHeader";
+import type { TreeState } from "./utils/treeStructure";
+import {
+  getNodeByIndex,
+  treeNodeToFlatRow,
+  findNodeIndex,
+} from "./utils/treeNavigation";
+import { JsonRowFixed } from "./components/JsonRowFixed";
+import { JsonRowScrollable } from "./components/JsonRowScrollable";
+import { useJsonSearch } from "./hooks/useJsonSearch";
+import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
+import { searchInTree } from "./utils/searchJson";
+
+export interface VirtualizedMultiSectionViewerProps {
+  tree: TreeState;
+  sections: JsonSection[];
+  expansionVersion: number;
+  theme: JSONTheme;
+  defaultRenderHeader?: (
+    context: SectionContext & { title: string },
+  ) => React.ReactNode;
+  searchQuery?: string;
+  currentMatchIndex?: number;
+  showLineNumbers?: boolean;
+  enableCopy?: boolean;
+  stringWrapMode?: StringWrapMode;
+  truncateStringsAt?: number | null;
+  onToggleExpansion?: (nodeId: string) => void;
+  scrollContainerRef?: RefObject<HTMLDivElement>;
+}
+
+export const VirtualizedMultiSectionViewer = memo(
+  function VirtualizedMultiSectionViewer({
+    tree,
+    sections,
+    expansionVersion,
+    theme,
+    defaultRenderHeader,
+    searchQuery,
+    currentMatchIndex = 0,
+    showLineNumbers = true,
+    enableCopy = false,
+    stringWrapMode = "wrap",
+    truncateStringsAt = 100,
+    onToggleExpansion,
+    scrollContainerRef,
+  }: VirtualizedMultiSectionViewerProps) {
+    const parentRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+    // Build sections map for O(1) lookup
+    const sectionsMap = useMemo(() => {
+      return new Map(sections.map((s) => [s.key, s]));
+    }, [sections]);
+
+    // Measure scroll container width for sticky headers
+    useLayoutEffect(() => {
+      const container = scrollContainerRef?.current;
+      if (!container) return;
+
+      const updateWidth = () => {
+        setContainerWidth(container.clientWidth);
+      };
+
+      updateWidth(); // Initial measurement
+
+      if (
+        typeof window !== "undefined" &&
+        typeof ResizeObserver !== "undefined"
+      ) {
+        const resizeObserver = new ResizeObserver(updateWidth);
+        resizeObserver.observe(container);
+        return () => resizeObserver.disconnect();
+      }
+    }); // Remove dependency array - run on every render
+
+    // Row count (includes meta-root, but we skip it in rendering)
+    const rowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
+
+    // Layout calculations
+    const {
+      maxLineNumberDigits,
+      fixedColumnWidth,
+      scrollableMinWidth,
+      scrollableMaxWidth,
+      estimateSize,
+    } = useJsonViewerLayout({
+      tree,
+      expansionVersion,
+      theme,
+      showLineNumbers,
+      totalLineCount: tree?.totalNodeCount,
+      stringWrapMode,
+      truncateStringsAt,
+    });
+
+    // Search matches
+    const searchMatches = useMemo(() => {
+      if (!searchQuery || !tree) return [];
+      return searchInTree(tree, searchQuery);
+    }, [tree, searchQuery]);
+
+    const { matchMap, currentMatch, currentMatchIndexInRow } = useJsonSearch(
+      searchMatches,
+      currentMatchIndex,
+    );
+
+    // Virtualizer with custom estimateSize for different node types
+    const rowVirtualizer = useVirtualizer({
+      count: rowCount,
+      getScrollElement: () => scrollContainerRef?.current || parentRef.current,
+      estimateSize: (index) => {
+        if (!tree) return 16;
+        const node = getNodeByIndex(tree.rootNode, index);
+
+        if (!node) return 16;
+
+        // Custom heights for different node types
+        if (node.nodeType === "section-header") return 32;
+        if (node.nodeType === "section-footer") return 40;
+        if (node.nodeType === "section-spacer") return node.spacerHeight || 0;
+
+        // Regular JSON rows
+        return estimateSize(index);
+      },
+      overscan: 50,
+      measureElement:
+        typeof window !== "undefined"
+          ? (element) => element.getBoundingClientRect().height
+          : undefined,
+      getItemKey: (index) => {
+        if (!tree) return index;
+        const node = getNodeByIndex(tree.rootNode, index);
+        return node ? node.id : index;
+      },
+    });
+
+    // Scroll to current search match
+    useEffect(() => {
+      if (!currentMatch || !tree) return;
+
+      const index = findNodeIndex(tree.rootNode, currentMatch.rowId);
+
+      if (index !== -1) {
+        rowVirtualizer.scrollToIndex(index, { align: "center" });
+      }
+    }, [currentMatch, tree, rowVirtualizer]);
+
+    const virtualItems = rowVirtualizer.getVirtualItems();
+
+    return (
+      <div
+        ref={parentRef}
+        style={{
+          overflow: "auto",
+          width: "100%",
+          height: "100%",
+        }}
+      >
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualItems.map((virtualRow) => {
+            const node = getNodeByIndex(tree.rootNode, virtualRow.index);
+
+            if (!node) return null;
+
+            // Skip meta-root (depth: -1)
+            if (node.depth < 0) return null;
+
+            const searchMatch = matchMap.get(node.id);
+            const isCurrentMatch = currentMatch?.rowId === node.id;
+
+            // Render based on node type
+            if (node.nodeType === "section-header") {
+              const jsonSection = node.sectionKey
+                ? sectionsMap.get(node.sectionKey)
+                : null;
+              const sectionContext = {
+                sectionKey: node.sectionKey || "",
+                rowCount:
+                  node.totalDescendantCount ?? node.visibleDescendantCount,
+                isExpanded: node.isExpanded,
+                setExpanded: (_expanded: boolean) => {
+                  if (onToggleExpansion) {
+                    onToggleExpansion(node.id);
+                  }
+                },
+              };
+
+              // Derive title from section config or capitalize key
+              const title =
+                jsonSection?.title ||
+                (node.sectionKey
+                  ? node.sectionKey.charAt(0).toUpperCase() +
+                    node.sectionKey.slice(1)
+                  : "");
+
+              // Render header with fallback chain
+              let headerContent;
+              if (jsonSection?.renderHeader) {
+                headerContent = jsonSection.renderHeader(sectionContext);
+              } else if (defaultRenderHeader) {
+                headerContent = defaultRenderHeader({
+                  ...sectionContext,
+                  title,
+                });
+              } else {
+                headerContent = (
+                  <MultiSectionJsonViewerHeader
+                    title={title}
+                    context={sectionContext}
+                  />
+                );
+              }
+
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    left: 0,
+                    width: containerWidth ? `${containerWidth}px` : "100%",
+                    zIndex: 10,
+                    backgroundColor: node.backgroundColor || theme.background,
+                    borderBottom: "1px solid",
+                    borderColor: theme.punctuationColor || "#e5e7eb",
+                    // Note: node.minHeight not applied here - see TODO above
+                  }}
+                >
+                  {headerContent}
+                </div>
+              );
+            }
+
+            if (node.nodeType === "section-footer") {
+              const jsonSection = node.sectionKey
+                ? sectionsMap.get(node.sectionKey)
+                : null;
+              const sectionContext = {
+                sectionKey: node.sectionKey || "",
+                rowCount: 0, // Footer doesn't track row count
+                isExpanded: true, // Footers are always shown
+                setExpanded: () => {}, // No-op
+              };
+
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                    backgroundColor: node.backgroundColor || theme.background,
+                  }}
+                >
+                  {jsonSection?.renderFooter?.(sectionContext)}
+                </div>
+              );
+            }
+
+            if (node.nodeType === "section-spacer") {
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                    height: `${node.spacerHeight}px`,
+                    backgroundColor: node.backgroundColor || theme.background,
+                  }}
+                />
+              );
+            }
+
+            // Regular JSON row
+            const row = treeNodeToFlatRow(node, virtualRow.index);
+
+            return (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                  display: "grid",
+                  gridTemplateColumns: `${fixedColumnWidth}px auto`,
+                  backgroundColor: node.backgroundColor || theme.background,
+                }}
+              >
+                {/* Fixed column (line numbers + expand buttons) */}
+                <div
+                  style={{
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 1,
+                    width: `${fixedColumnWidth}px`,
+                    backgroundColor: node.backgroundColor || theme.background,
+                  }}
+                >
+                  <JsonRowFixed
+                    row={row}
+                    theme={theme}
+                    showLineNumber={showLineNumbers}
+                    lineNumber={node.sectionLineNumber ?? virtualRow.index + 1}
+                    maxLineNumberDigits={maxLineNumberDigits}
+                    searchMatch={searchMatch}
+                    isCurrentMatch={isCurrentMatch}
+                    onToggleExpansion={onToggleExpansion}
+                    stringWrapMode={stringWrapMode}
+                  />
+                </div>
+
+                {/* Scrollable column (JSON content) */}
+                <div
+                  style={{
+                    width: "fit-content",
+                    minWidth: scrollableMinWidth
+                      ? `${scrollableMinWidth}px`
+                      : 0,
+                    maxWidth: scrollableMaxWidth
+                      ? `${scrollableMaxWidth}px`
+                      : undefined,
+                    overflow:
+                      stringWrapMode === "nowrap" ? undefined : "hidden",
+                  }}
+                >
+                  <JsonRowScrollable
+                    row={row}
+                    theme={theme}
+                    searchMatch={searchMatch}
+                    isCurrentMatch={isCurrentMatch}
+                    currentMatchIndexInRow={currentMatchIndexInRow}
+                    enableCopy={enableCopy}
+                    stringWrapMode={stringWrapMode}
+                    truncateStringsAt={truncateStringsAt}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  },
+);
