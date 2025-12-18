@@ -14,11 +14,13 @@ export const ScoreDataTypeArray = [
   "NUMERIC",
   "CATEGORICAL",
   "BOOLEAN",
+  "CORRECTION",
 ] as const;
 export const ScoreDataTypeEnum = {
   NUMERIC: "NUMERIC",
   CATEGORICAL: "CATEGORICAL",
   BOOLEAN: "BOOLEAN",
+  CORRECTION: "CORRECTION",
 } as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
@@ -36,6 +38,12 @@ export const CategoricalData = z.object({
 export const BooleanData = z.object({
   stringValue: z.string(),
   dataType: z.literal("BOOLEAN"),
+});
+
+export const CorrectionData = z.object({
+  stringValue: z.null(),
+  longStringValue: z.string(),
+  dataType: z.literal("CORRECTION"),
 });
 
 // Only used for backwards compatibility with old score API schemas
@@ -74,7 +82,31 @@ const ScoreFoundationSchema = ScoreSchemaExclReferencesAndDates.and(
 );
 
 export const ScoreSchema = ScoreFoundationSchema.and(
-  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
+  z.discriminatedUnion("dataType", [
+    NumericData,
+    CategoricalData,
+    BooleanData,
+    CorrectionData,
+  ]),
 );
 
 export type ScoreDomain = z.infer<typeof ScoreSchema>;
+/**
+ * Score types that can have score configs
+ * Used in: Score config creation dialogs, config validation
+ */
+export const CONFIGURABLE_SCORE_TYPES = [
+  "NUMERIC",
+  "CATEGORICAL",
+  "BOOLEAN",
+] as const;
+
+/**
+ * Score types used in annotation queues
+ * Used in: Annotation queue displays, annotation value resolution
+ */
+export const ANNOTATION_SCORE_TYPES = [
+  "NUMERIC",
+  "CATEGORICAL",
+  "BOOLEAN",
+] as const;

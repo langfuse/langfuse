@@ -1,10 +1,10 @@
 import {
   ScoreBodyWithoutConfig,
   ScoreConfigDomain,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   type ScoreDomain,
   ScorePropsAgainstConfig,
+  ScoreDataTypeEnum,
 } from "../../../src";
 import { prisma } from "../../db";
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
@@ -149,6 +149,8 @@ function resolveScoreValueAnnotation(
       return body.value;
     case ScoreDataTypeEnum.CATEGORICAL:
       return body.stringValue;
+    case ScoreDataTypeEnum.CORRECTION:
+      throw new Error("CORRECTION type not supported in annotation drawer");
   }
 }
 
