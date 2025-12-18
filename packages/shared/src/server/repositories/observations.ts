@@ -527,8 +527,9 @@ export type ObservationsTableQueryResult = ObservationRecordReadType & {
   trace_tags?: string[];
   trace_name?: string;
   trace_user_id?: string;
-  tool_definitions?: string;
-  tool_calls?: string;
+  tool_definitions?: Record<string, string>;
+  tool_calls?: string[];
+  tool_call_names?: string[];
 };
 
 export const getObservationsTableCount = async (
@@ -602,8 +603,6 @@ export const getObservationsTableWithModelData = async (
       traceTags: trace?.tags ?? [],
       traceTimestamp: trace?.timestamp ?? null,
       userId: trace?.userId ?? null,
-      toolDefinitions: o.tool_definitions ? Number(o.tool_definitions) : null,
-      toolCalls: o.tool_calls ? Number(o.tool_calls) : null,
       ...enrichObservationWithModelData(model),
     };
   });
@@ -649,8 +648,9 @@ const getObservationsTableInternal = async <T>(
         internal_model_id as "internal_model_id",
         if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
         if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token",
-        length(mapKeys(o.tool_definitions)) as "tool_definitions",
-        length(o.tool_calls) as "tool_calls"`;
+        o.tool_definitions as "tool_definitions",
+        o.tool_calls as "tool_calls",
+        o.tool_call_names as "tool_call_names"`;
 
   const {
     projectId,
