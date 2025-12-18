@@ -36,16 +36,20 @@ import {
 import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  type WithStringifiedMetadata,
+  type MetadataDomainClient,
+} from "@/src/utils/clientSideDomainTypes";
 import { type ScoreDomain } from "@langfuse/shared";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
   observationWithIO:
-    | (ObservationReturnTypeWithMetadata & {
+    | (Omit<ObservationReturnTypeWithMetadata, "traceId" | "metadata"> & {
+        traceId: string | null;
         input: string | null;
         output: string | null;
-        metadata: string | null;
+        metadata: MetadataDomainClient;
       })
     | undefined;
   projectId: string;
