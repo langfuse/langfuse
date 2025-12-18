@@ -625,7 +625,10 @@ export const getScoresGroupedByNameSourceType = async ({
   return rows.map((row) => ({
     name: row.name,
     source: row.source as ScoreSourceType,
-    dataType: row.data_type as ScoreDataTypeType,
+    dataType: row.data_type as Extract<
+      ScoreDataTypeType,
+      "NUMERIC" | "BOOLEAN" | "CATEGORICAL"
+    >,
   }));
 };
 
@@ -871,7 +874,12 @@ export async function getScoresUiTable<
   const includeMetadataPayload = excludeMetadata ? false : true;
   return rows.map((row) => {
     const score = convertClickhouseScoreToDomain(
-      { ...row, metadata: excludeMetadata ? {} : row.metadata },
+      {
+        ...row,
+        metadata: excludeMetadata ? {} : row.metadata,
+        // Long string value is never required for scores UI table, so we always return an empty string
+        long_string_value: "",
+      },
       includeMetadataPayload,
     );
     return {

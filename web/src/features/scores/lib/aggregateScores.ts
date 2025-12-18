@@ -22,7 +22,7 @@ export const composeAggregateScoreKey = ({
 }: {
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataTypeType;
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">;
   keyPrefix?: string;
 }): string => {
   const formattedName = normalizeScoreName(name);
@@ -34,13 +34,16 @@ export const decomposeAggregateScoreKey = (
 ): {
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataTypeType;
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">;
 } => {
   const [name, source, dataType] = key.split("-");
   return {
     name,
     source: source as ScoreSourceType,
-    dataType: dataType as ScoreDataTypeType,
+    dataType: dataType as Extract<
+      ScoreDataTypeType,
+      "NUMERIC" | "BOOLEAN" | "CATEGORICAL"
+    >,
   };
 };
 
@@ -49,9 +52,17 @@ export const getScoreLabelFromKey = (key: string): string => {
   return `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
 };
 
-type ScoreToAggregate = (ScoreDomain | ScoreSimplified) & {
-  hasMetadata?: boolean;
-};
+type ScoreToAggregate =
+  | (Omit<ScoreDomain, "dataType"> & {
+      dataType: Extract<
+        ScoreDataTypeType,
+        "NUMERIC" | "BOOLEAN" | "CATEGORICAL"
+      >;
+      hasMetadata?: boolean;
+    })
+  | (ScoreSimplified & {
+      hasMetadata?: boolean;
+    });
 
 /**
  * Maps score data types to aggregate types for processing.
@@ -59,7 +70,7 @@ type ScoreToAggregate = (ScoreDomain | ScoreSimplified) & {
  * aggregation logic (value counting vs numeric averaging).
  */
 export const resolveAggregateType = (
-  dataType: ScoreDataTypeType,
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">,
 ): "NUMERIC" | "CATEGORICAL" => {
   return dataType === "BOOLEAN" ? "CATEGORICAL" : dataType;
 };

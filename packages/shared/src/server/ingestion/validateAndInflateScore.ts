@@ -93,6 +93,7 @@ function inflateScoreBody(
   const relevantDataType = config?.dataType ?? body.dataType;
   const scoreProps = {
     ...body,
+    longStringValue: "",
     source: body.source ?? "API",
     id: scoreId,
     projectId,
@@ -113,6 +114,16 @@ function inflateScoreBody(
       value: body.value,
       stringValue: null,
       dataType: ScoreDataTypeEnum.NUMERIC,
+    };
+  }
+
+  if (relevantDataType && relevantDataType === ScoreDataTypeEnum.CORRECTION) {
+    return {
+      ...scoreProps,
+      value: 0,
+      longStringValue: body.value,
+      stringValue: null,
+      dataType: ScoreDataTypeEnum.CORRECTION,
     };
   }
 

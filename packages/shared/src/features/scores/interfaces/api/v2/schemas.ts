@@ -1,6 +1,7 @@
 import {
   BooleanData,
   CategoricalData,
+  CorrectionData,
   NumericData,
   ScoreSchemaExclReferencesAndDates,
 } from "../../../../../domain";
@@ -13,6 +14,7 @@ import z from "zod/v4";
  * @see {@link NumericData}, {@link CategoricalData}, {@link BooleanData}
  */
 const ScoreFoundationSchemaV2 = ScoreSchemaExclReferencesAndDates.extend({
+  longStringValue: z.string(),
   // Timestamps
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -25,7 +27,12 @@ const ScoreFoundationSchemaV2 = ScoreSchemaExclReferencesAndDates.extend({
 });
 
 export const APIScoreSchemaV2 = ScoreFoundationSchemaV2.and(
-  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
+  z.discriminatedUnion("dataType", [
+    NumericData,
+    CategoricalData,
+    BooleanData,
+    CorrectionData,
+  ]),
 );
 
 export type APIScoreV2 = z.infer<typeof APIScoreSchemaV2>;
