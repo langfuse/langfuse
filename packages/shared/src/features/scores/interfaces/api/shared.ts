@@ -70,6 +70,11 @@ export const PostScoresBody = applyScoreValidation(
         configId: z.string().nullish(),
       }),
       z.object({
+        value: z.string(), // Corrected output text
+        dataType: z.literal("CORRECTION"),
+        configId: z.undefined().nullish(), // Cannot have config
+      }),
+      z.object({
         value: z.union([z.string(), z.number()]),
         dataType: z.undefined(),
         configId: z.string().nullish(),
