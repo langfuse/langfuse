@@ -428,10 +428,14 @@ export const TracePreview = ({
                 }
               />
 
-              <div className="px-2 text-sm font-medium">{"Tags"}</div>
-              <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
-                <TagList selectedTags={trace.tags} isLoading={false} />
-              </div>
+              {trace.tags.length > 0 && (
+                <>
+                  <div className="px-2 text-sm font-medium">{"Tags"}</div>
+                  <div className="flex flex-wrap gap-x-1 gap-y-1 px-2">
+                    <TagList selectedTags={trace.tags} isLoading={false} />
+                  </div>
+                </>
+              )}
 
               <div className="px-2">
                 <PrettyJsonView

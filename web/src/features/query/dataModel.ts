@@ -164,6 +164,7 @@ export const eventsTracesView: ViewDeclarationType = {
       alias: "id",
       type: "string",
       description: "Unique identifier of the trace.",
+      highCardinality: true,
       // This is the GROUP BY identity column
     },
     name: {
@@ -190,6 +191,7 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "Identifier of the user triggering the trace.",
       aggregationFunction:
         "argMaxIf(events_traces.user_id, events_traces.event_ts, events_traces.user_id <> '')",
+      highCardinality: true,
     },
     sessionId: {
       sql: "nullIf(events_traces.session_id, '')",
@@ -198,6 +200,7 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "Identifier of the session triggering the trace.",
       aggregationFunction:
         "argMaxIf(events_traces.session_id, events_traces.event_ts, events_traces.session_id <> '')",
+      highCardinality: true,
     },
     release: {
       sql: "nullIf(events_traces.release, '')",
@@ -669,6 +672,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     alias: "sessionId",
     type: "string",
     description: "Identifier of the session.",
+    highCardinality: true,
   },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
@@ -684,6 +688,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     type: "string",
     relationTable: "events_traces",
     description: "Identifier of the user.",
+    highCardinality: true,
   },
   tags: {
     sql: "events_traces.tags",
@@ -740,12 +745,14 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
 // Factory for shared score-specific dimensions (both numeric and categorical)
 const createScoreSpecificDimensions = (
   tableAlias: string,
+  isV2: boolean = false,
 ): DimensionsDeclarationType => ({
   id: {
     sql: `${tableAlias}.id`,
     alias: "id",
     type: "string",
     description: "Unique identifier of the score entry.",
+    ...(isV2 && { highCardinality: true }),
   },
   environment: {
     sql: `${tableAlias}.environment`,
@@ -777,6 +784,7 @@ const createScoreSpecificDimensions = (
     alias: "traceId",
     type: "string",
     description: "Identifier of the parent trace.",
+    ...(isV2 && { highCardinality: true }),
   },
   configId: {
     sql: `${tableAlias}.config_id`,
@@ -801,6 +809,7 @@ const createScoreSpecificDimensions = (
     alias: "observationId",
     type: "string",
     description: "Identifier of the observation associated with the score.",
+    ...(isV2 && { highCardinality: true }),
   },
 });
 
@@ -853,7 +862,7 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
       "Scores are flexible objects that are used for evaluations. This view contains numeric and boolean scores.",
     dimensions: {
       ...baseDimensions, // v1 keeps trace-JOIN dimensions
-      ...createScoreSpecificDimensions("scores_numeric"),
+      ...createScoreSpecificDimensions("scores_numeric", version === "v2"),
       value: {
         sql: "scores_numeric.value",
         alias: "value",
@@ -900,7 +909,7 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
       "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
     dimensions: {
       ...baseDimensions,
-      ...createScoreSpecificDimensions("scores_categorical"),
+      ...createScoreSpecificDimensions("scores_categorical", version === "v2"),
       stringValue: {
         sql: "string_value",
         alias: "stringValue",
@@ -955,12 +964,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "id",
       type: "string",
       description: "Unique identifier for the observation.",
+      highCardinality: true,
     },
     traceId: {
       sql: "events_observations.trace_id",
       alias: "traceId",
       type: "string",
       description: "Identifier linking the observation to its parent trace.",
+      highCardinality: true,
     },
     environment: {
       sql: "nullIf(events_observations.environment, '')",
@@ -974,6 +985,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Identifier of the parent observation. Empty for the root span.",
+      highCardinality: true,
     },
     type: {
       sql: "events_observations.type",
@@ -1006,12 +1018,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "userId",
       type: "string",
       description: "Identifier of the user triggering the observation.",
+      highCardinality: true,
     },
     sessionId: {
       sql: "nullIf(events_observations.session_id, '')",
       alias: "sessionId",
       type: "string",
       description: "Identifier of the session triggering the observation.",
+      highCardinality: true,
     },
     tags: {
       sql: "events_observations.tags",

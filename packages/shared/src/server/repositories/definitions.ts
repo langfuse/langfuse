@@ -671,6 +671,11 @@ export const eventRecordBaseSchema = z.object({
   usage_pricing_tier_id: z.string().nullish(),
   usage_pricing_tier_name: z.string().nullish(),
 
+  // Tool calls
+  tool_definitions: z.record(z.string(), z.string()).default({}),
+  tool_calls: z.array(z.string()).default([]),
+  tool_call_names: z.array(z.string()).default([]),
+
   // I/O
   input: z.string().nullish(),
   output: z.string().nullish(),
