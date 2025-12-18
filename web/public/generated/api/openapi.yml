@@ -7813,6 +7813,7 @@ components:
         - NUMERIC
         - BOOLEAN
         - CATEGORICAL
+        - CORRECTION
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object

@@ -105,6 +105,7 @@ components:
         - NUMERIC
         - CATEGORICAL
         - BOOLEAN
+        - CORRECTION
     CreateScoreValue:
       title: CreateScoreValue
       oneOf:
@@ -113,7 +114,8 @@ components:
         - type: string
       description: >-
         The value of the score. Must be passed as string for categorical scores,
-        and numeric for boolean and numeric scores
+        and numeric for boolean and numeric scores. For corrections pass value
+        as string and set data type to CORRECTION
   securitySchemes:
     BearerAuth:
       type: http

@@ -81,10 +81,11 @@ types:
       - NUMERIC
       - CATEGORICAL
       - BOOLEAN
+      - CORRECTION
 
   CreateScoreValue:
     discriminated: false
     union:
       - double
       - string
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. For corrections pass value as string and set data type to CORRECTION

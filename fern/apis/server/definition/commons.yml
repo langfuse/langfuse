@@ -735,6 +735,7 @@ types:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
+      - CORRECTION
 
 errors:
   Error:
