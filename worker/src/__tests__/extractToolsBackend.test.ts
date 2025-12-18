@@ -422,7 +422,7 @@ describe("extractToolsFromObservation", () => {
   });
 
   describe("real world data tests", () => {
-    it("should extract LangGraph tool definitions and tool calls and prase them correctly", () => {
+    it("should extract LangGraph tool definitions and tool calls and parse them correctly", () => {
       // Exact format from user's observation that wasn't being extracted
       const input = [
         {
