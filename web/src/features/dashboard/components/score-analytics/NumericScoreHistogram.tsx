@@ -3,7 +3,7 @@ import { api } from "@/src/utils/api";
 import {
   type ScoreSourceType,
   type FilterState,
-  type ScoreDataType,
+  ScoreDataTypeEnum,
 } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
@@ -18,7 +18,7 @@ export function NumericScoreHistogram(props: {
   projectId: string;
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataType;
+  dataType: (typeof ScoreDataTypeEnum)["NUMERIC"];
   globalFilterState: FilterState;
 }) {
   const histogram = api.dashboard.scoreHistogram.useQuery(
