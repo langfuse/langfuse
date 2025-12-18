@@ -16,7 +16,7 @@ export type ClickhouseToolDefinition = z.infer<
 >;
 
 /**
- * ClickHouse storage schema for tool arguments (invocations).
+ * ClickHouse storage schema for tool calls (invocations).
  *
  * Based on ToolCallSchema from packages/shared/src/utils/IORepresentation/chatML/types.ts
  * Adapted for ClickHouse Array(JSON) storage:
@@ -298,7 +298,6 @@ function parseIfString(data: unknown): unknown {
 /**
  * Extract tool definitions and arguments from observation input/output.
  * Extracts directly from raw input/output formats.
- * Handles both object and JSON string inputs.
  *
  * @param input - Raw observation input (object or JSON string)
  * @param output - Raw observation output (object or JSON string)
@@ -315,14 +314,10 @@ export function extractToolsFromObservation(
     const toolDefinitions: ClickhouseToolDefinition[] = [];
     const toolArguments: ClickhouseToolArgument[] = [];
 
-    // Parse strings to objects if needed
     const parsedInput = parseIfString(input);
     const parsedOutput = parseIfString(output);
 
-    // Extract tool definitions from raw input
     extractToolsFromRawInput(parsedInput, toolDefinitions);
-
-    // Extract tool calls from raw output
     extractToolCallsFromRawOutput(parsedOutput, toolArguments);
 
     // Deduplicate tool arguments by id
