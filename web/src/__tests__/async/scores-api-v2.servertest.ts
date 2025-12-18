@@ -215,6 +215,8 @@ describe("/api/public/v2/scores API Endpoint", () => {
       const scoreId_7 = v4();
       const scoreId_8 = v4();
       const scoreId_9 = v4();
+      const correctionScoreId_1 = v4();
+      const correctionScoreId_2 = v4();
       let authentication: string;
       let newProjectId: string;
 
@@ -323,6 +325,24 @@ describe("/api/public/v2/scores API Endpoint", () => {
           environment: "production",
         });
 
+        const correction1 = createTraceScore({
+          id: correctionScoreId_1,
+          project_id: newProjectId,
+          trace_id: traceId,
+          name: "correction-score-name-1",
+          data_type: "CORRECTION",
+          long_string_value: "correction-value-1",
+        });
+
+        const correction2 = createTraceScore({
+          id: correctionScoreId_2,
+          project_id: newProjectId,
+          trace_id: traceId,
+          name: "correction-score-name-2",
+          data_type: "CORRECTION",
+          long_string_value: "correction-value-2",
+        });
+
         const sessionScore1 = createSessionScore({
           id: scoreId_6,
           project_id: newProjectId,
@@ -369,6 +389,8 @@ describe("/api/public/v2/scores API Endpoint", () => {
           sessionScore2,
           runScore1,
           runScore2,
+          correction1,
+          correction2,
         ]);
       });
 
@@ -454,6 +476,29 @@ describe("/api/public/v2/scores API Endpoint", () => {
         for (const val of getAllScore.body.data) {
           expect(val).toMatchObject({
             dataType: "NUMERIC",
+          });
+        }
+      });
+
+      it("get all scores for correction data type", async () => {
+        const getAllScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?dataType=CORRECTION`,
+          undefined,
+          authentication,
+        );
+
+        expect(getAllScore.status).toBe(200);
+        expect(getAllScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        for (const val of getAllScore.body.data) {
+          expect(val).toMatchObject({
+            dataType: "CORRECTION",
           });
         }
       });
