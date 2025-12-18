@@ -17,17 +17,20 @@ const backgroundMigrationId = "d8cf9f5e-747e-4ffe-8156-dec0eaebce9d";
 // Types
 // ============================================================================
 
-interface ChunkTodo {
+export interface BaseChunkTodo {
   id: string; // Unique chunk identifier (e.g., "obs-202510-0")
   partition: string; // ClickHouse partition (e.g., "202510")
-  lowerBound: { projectId: string; traceId: string }; // From backfill_chunks table
-  upperBound: { projectId: string; traceId: string } | null; // null = end of partition
   status: "pending" | "in_progress" | "completed" | "failed";
   queryId?: string; // Client-generated UUID for tracking in system.query_log
   startedAt?: string;
   completedAt?: string;
   error?: string;
   retryCount?: number;
+}
+
+interface ChunkTodo extends BaseChunkTodo {
+  lowerBound: { projectId: string; traceId: string }; // From backfill_chunks table
+  upperBound: { projectId: string; traceId: string } | null; // null = end of partition
 }
 
 interface MigrationArgs {
@@ -51,9 +54,9 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
   maxRetries: 3,
 };
 
-type OnQueryCompleteCallback = (
+export type OnQueryCompleteCallback<T extends BaseChunkTodo> = (
   // eslint-disable-next-line no-unused-vars
-  todo: ChunkTodo,
+  todo: T,
   // eslint-disable-next-line no-unused-vars
   success: boolean,
   // eslint-disable-next-line no-unused-vars
@@ -66,7 +69,7 @@ type OnQueryCompleteCallback = (
 
 type QueryStatus = "running" | "completed" | "failed" | "not_found";
 
-async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
+export async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
   // First check if still running in system.processes
   const running = await queryClickhouse<{ query_id: string }>({
     query: `
@@ -142,7 +145,9 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
   throw new Error(`Unknown query log type: ${type}`);
 }
 
-async function getQueryError(queryId: string): Promise<string | undefined> {
+export async function getQueryError(
+  queryId: string,
+): Promise<string | undefined> {
   const result = await queryClickhouse<{ exception_message: string }>({
     query: `
       SELECT exception as exception_message
@@ -170,14 +175,14 @@ async function getQueryError(queryId: string): Promise<string | undefined> {
 // Concurrent Query Manager
 // ============================================================================
 
-class ConcurrentQueryManager {
-  private activeQueries: Map<string, ChunkTodo> = new Map();
+export class ConcurrentQueryManager<T extends BaseChunkTodo> {
+  private activeQueries: Map<string, T> = new Map();
   private pollInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
 
   startPolling(
     pollIntervalMs: number,
-    onComplete: OnQueryCompleteCallback,
+    onComplete: OnQueryCompleteCallback<T>,
     scheduleNext: () => Promise<void>,
   ): void {
     if (this.pollInterval) {
@@ -195,16 +200,32 @@ class ConcurrentQueryManager {
 
             if (status === "completed") {
               this.activeQueries.delete(queryId);
-              await onComplete(todo, true);
-              await scheduleNext(); // Immediately schedule next
+              try {
+                await onComplete(todo, true);
+                await scheduleNext(); // Immediately schedule next
+              } catch (err) {
+                logger.error(
+                  `[Backfill Events] Error in onComplete/scheduleNext for completed chunk ${todo.id}`,
+                  err,
+                );
+                throw err;
+              }
             } else if (status === "failed" || status === "not_found") {
               this.activeQueries.delete(queryId);
               const error =
                 status === "failed"
                   ? await getQueryError(queryId)
                   : "Query not found in query_log";
-              await onComplete(todo, false, error);
-              await scheduleNext();
+              try {
+                await onComplete(todo, false, error);
+                await scheduleNext();
+              } catch (err) {
+                logger.error(
+                  `[Backfill Events] Error in onComplete/scheduleNext for failed chunk ${todo.id}`,
+                  err,
+                );
+                throw err;
+              }
             }
             // 'running' - continue polling
           } catch (queryError) {
@@ -229,7 +250,7 @@ class ConcurrentQueryManager {
     }, pollIntervalMs);
   }
 
-  addQuery(todo: ChunkTodo, queryId: string): void {
+  addQuery(todo: T, queryId: string): void {
     this.activeQueries.set(queryId, todo);
   }
 
@@ -249,11 +270,11 @@ class ConcurrentQueryManager {
 // Helper Functions
 // ============================================================================
 
-function generateQueryId(chunkId: string): string {
+export function generateQueryId(chunkId: string): string {
   return `backfill-${chunkId}-${randomUUID().slice(0, 8)}`;
 }
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -453,33 +474,50 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const stillRunning: ChunkTodo[] = [];
 
     for (const todo of inProgress) {
-      const status = await pollQueryStatus(todo.queryId!);
+      try {
+        // Only check if query is still running in system.processes
+        // If not running, reset to pending - don't try to check query_log as it may timeout
+        const running = await queryClickhouse<{ query_id: string }>({
+          query: `
+            SELECT query_id
+            FROM clusterAllReplicas('default', 'system.processes')
+            WHERE query_id = {queryId: String}
+            LIMIT 1
+          `,
+          params: { queryId: todo.queryId! },
+          clickhouseConfigs: {
+            request_timeout: 60_000,
+          },
+          clickhouseSettings: {
+            skip_unavailable_shards: 1,
+          },
+          tags: {
+            feature: "background-migration",
+            operation: "recoverInProgressTodos",
+          },
+        });
 
-      if (status === "completed") {
-        todo.status = "completed";
-        todo.completedAt = new Date().toISOString();
-        logger.info(
-          `[Backfill Events] Recovered chunk ${todo.id} as completed`,
+        if (running.length > 0) {
+          // Query is still running on ClickHouse - track it in the manager
+          logger.info(
+            `[Backfill Events] Recovered chunk ${todo.id} as still running (query ${todo.queryId}), will continue tracking`,
+          );
+          stillRunning.push(todo);
+        } else {
+          // Query not in system.processes - reset to pending and retry
+          todo.status = "pending";
+          todo.queryId = undefined;
+          logger.warn(
+            `[Backfill Events] Recovered chunk ${todo.id} query not found in system.processes, resetting to pending`,
+          );
+        }
+      } catch (error) {
+        logger.error(
+          `[Backfill Events] Error during recovery polling for chunk ${todo.id}, resetting to pending`,
+          error,
         );
-      } else if (status === "failed") {
-        todo.status = "pending"; // Will retry
-        todo.retryCount = (todo.retryCount || 0) + 1;
-        const error = await getQueryError(todo.queryId!);
-        logger.warn(
-          `[Backfill Events] Recovered chunk ${todo.id} as failed, will retry: ${error}`,
-        );
-      } else if (status === "running") {
-        // Query is still running on ClickHouse - track it in the manager
-        logger.info(
-          `[Backfill Events] Recovered chunk ${todo.id} as still running (query ${todo.queryId}), will continue tracking`,
-        );
-        stillRunning.push(todo);
-      } else {
-        // not_found - query was lost
         todo.status = "pending";
-        logger.warn(
-          `[Backfill Events] Recovered chunk ${todo.id} as not_found, resetting to pending`,
-        );
+        todo.queryId = undefined;
       }
     }
 
@@ -496,6 +534,12 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
       ? `WHERE (o.project_id, o.trace_id) >= ('${todo.lowerBound.projectId}', '${todo.lowerBound.traceId}')
            AND (o.project_id, o.trace_id) < ('${todo.upperBound.projectId}', '${todo.upperBound.traceId}')`
       : `WHERE (o.project_id, o.trace_id) >= ('${todo.lowerBound.projectId}', '${todo.lowerBound.traceId}')`;
+
+    // Conditionally filter out 'attributes' key from metadata
+    const metadataExpr =
+      env.LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY === "true"
+        ? `mapFilter((k, v) -> k != 'attributes', o.metadata)`
+        : `o.metadata`;
 
     return `
       INSERT INTO events (
@@ -541,9 +585,9 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.cost_details,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
-        CAST(o.metadata, 'JSON(max_dynamic_paths=0)') AS metadata,
-        mapKeys(o.metadata) AS metadata_names,
-        mapValues(o.metadata) AS metadata_raw_values,
+        CAST(${metadataExpr}, 'JSON(max_dynamic_paths=0)') AS metadata,
+        mapKeys(${metadataExpr}) AS metadata_names,
+        mapValues(${metadataExpr}) AS metadata_raw_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
         '' AS blob_storage_file_path,
         0 AS event_bytes,
@@ -552,13 +596,12 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.event_ts,
         o.is_deleted
       FROM observations_pid_tid_sorting o
-      LEFT ANY JOIN traces_pid_tid_sorting t
+      LEFT ANY JOIN (select * from traces_pid_tid_sorting where _partition_id = '${todo.partition}') t
       ON o.project_id = t.project_id AND o.trace_id = t.id
       ${whereClause}
       -- Conditionally filter for partitions if not "REST"
       -- This allow us to have a catch all partition for older data
       ${todo.partition !== "REST" ? `AND o._partition_id = '${todo.partition}'` : ""}
-      ${todo.partition !== "REST" ? `AND (t._partition_id = '${todo.partition}' OR t._partition_id IS NULL)` : ""}
       SETTINGS
         join_algorithm = 'full_sorting_merge',
         type_json_skip_duplicated_paths = 1
@@ -625,15 +668,23 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     await sleep(5000);
 
     // Verify query is running on server
-    const status = await pollQueryStatus(queryId);
-    if (status === "not_found") {
-      // Query may have completed very quickly or failed to start
-      // Wait a bit more and check again
-      await sleep(15000);
-      const retryStatus = await pollQueryStatus(queryId);
-      if (retryStatus === "not_found") {
-        throw new Error(`Query ${queryId} failed to start on server`);
+    try {
+      const status = await pollQueryStatus(queryId);
+      if (status === "not_found") {
+        // Query may have completed very quickly or failed to start
+        // Wait a bit more and check again
+        await sleep(15000);
+        const retryStatus = await pollQueryStatus(queryId);
+        if (retryStatus === "not_found") {
+          throw new Error(`Query ${queryId} failed to start on server`);
+        }
       }
+    } catch (error) {
+      logger.error(
+        `[Backfill Events] Error verifying query ${queryId} started`,
+        error,
+      );
+      throw error; // Re-throw so the caller knows the query failed to start
     }
 
     // Abort the HTTP connection now that the query is confirmed running on the server.
@@ -793,7 +844,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     }
 
     // Phase 3: Execute chunks with concurrency
-    const manager = new ConcurrentQueryManager();
+    const manager = new ConcurrentQueryManager<ChunkTodo>();
 
     const scheduleNext = async (): Promise<void> => {
       if (this.isAborted) return;
@@ -957,6 +1008,26 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
 // ============================================================================
 
 async function main() {
+  // Global error handlers for better exit diagnostics
+  process.on("unhandledRejection", (reason) => {
+    logger.error(
+      "[Backfill Events] Unhandled promise rejection - process will exit",
+      {
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+      },
+    );
+    process.exit(1);
+  });
+
+  process.on("uncaughtException", (error) => {
+    logger.error(
+      "[Backfill Events] Uncaught exception - process will exit",
+      error,
+    );
+    process.exit(1);
+  });
+
   const args = parseArgs({
     options: {
       concurrency: { type: "string", short: "c", default: "4" },

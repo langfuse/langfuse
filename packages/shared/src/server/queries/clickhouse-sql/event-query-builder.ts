@@ -158,13 +158,7 @@ const FIELD_SETS = {
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: [
-    "usageDetails",
-    "costDetails",
-    "totalCost",
-    "providedUsageDetails",
-    "providedCostDetails",
-  ],
+  usage: ["usageDetails", "costDetails", "totalCost"],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
 } as const;
@@ -218,9 +212,8 @@ const EVENTS_AGGREGATION_FIELDS = {
   default_count: "countIf(level = 'DEFAULT') as default_count",
   debug_count: "countIf(level = 'DEBUG') as debug_count",
 
-  // Legacy fields for backward compatibility
-  tags: "array() AS tags",
-  release: "'' AS release",
+  tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
+  release: "argMaxIf(release, event_ts, release <> '') AS release",
 } as const;
 
 /**

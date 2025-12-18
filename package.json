@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.138.0",
+  "version": "3.140.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -40,7 +40,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "release-it": "^19.0.4",
-    "turbo": "^2.6.1"
+    "turbo": "^2.6.3"
   },
   "release-it": {
     "git": {

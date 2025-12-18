@@ -230,7 +230,7 @@ export const BaseChatMlMessageSchema = z
  */
 const SimpleChatMessageSchema = z
   .object({
-    role: z.string().optional(),
+    role: z.string(),
     content: z
       .union([
         z.string(), // Simple string content

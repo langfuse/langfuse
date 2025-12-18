@@ -63,6 +63,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  CLICKHOUSE_UPDATE_PARALLEL_MODE: z
+    .enum(["sync", "async", "auto"])
+    .default("auto"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -270,10 +273,10 @@ const EnvSchema = z.object({
   // Dataset Service
   LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

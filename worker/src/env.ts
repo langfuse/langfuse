@@ -58,6 +58,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(24),
+  BATCH_EXPORT_S3_PART_SIZE_MIB: z.coerce.number().min(5).max(100).default(10),
   BATCH_ACTION_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
     .number()
@@ -319,6 +320,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+
+  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
+    .enum(["true", "false"])
+    .default("false"),
 
   // Deprecated. Do not use!
   LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
