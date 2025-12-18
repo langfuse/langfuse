@@ -320,9 +320,7 @@ export function ObservationDetailView({
         >
           <div
             className={`flex min-h-0 w-full flex-1 flex-col ${
-              currentView === "json-beta"
-                ? "overflow-hidden"
-                : "overflow-auto pb-4"
+              currentView === "json-beta" ? "overflow-hidden" : "overflow-auto"
             }`}
           >
             <IOPreview
@@ -347,6 +345,9 @@ export function ObservationDetailView({
               }
               showMetadata
             />
+            {currentView !== "json-beta" && (
+              <div className="h-4 w-full flex-shrink-0" />
+            )}
           </div>
         </TabsBarContent>
 
