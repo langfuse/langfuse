@@ -11,11 +11,8 @@ import {
   PostScoreConfigResponse,
   PutScoreConfigResponse,
 } from "@/src/features/public-api/types/score-configs";
-import {
-  type ScoreConfig,
-  prisma,
-  type ScoreDataType,
-} from "@langfuse/shared/src/db";
+import { ScoreDataTypeType } from "@langfuse/shared";
+import { type ScoreConfig, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 const configOne = [
@@ -23,7 +20,10 @@ const configOne = [
     projectId: "<to be replaced>",
     name: "Test Boolean Config",
     description: "Test Description",
-    dataType: "BOOLEAN" as ScoreDataType,
+    dataType: "BOOLEAN" as Extract<
+      ScoreDataTypeType,
+      "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
+    >,
     categories: [
       { label: "True", value: 1 },
       { label: "False", value: 0 },
@@ -37,7 +37,10 @@ const configTwo = [
     projectId: "<to be replaced>",
     name: "Test Numeric Config",
     description: "Test Description",
-    dataType: "NUMERIC" as ScoreDataType,
+    dataType: "NUMERIC" as Extract<
+      ScoreDataTypeType,
+      "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
+    >,
     minValue: 0,
     createdAt: new Date("2024-05-11T00:00:00.000Z"),
     updatedAt: new Date("2024-05-11T00:00:00.000Z"),
@@ -49,7 +52,10 @@ const configThree = [
     projectId: "<to be replaced>",
     name: "Test Categorical Config",
     description: "Test Description",
-    dataType: "CATEGORICAL" as ScoreDataType,
+    dataType: "CATEGORICAL" as Extract<
+      ScoreDataTypeType,
+      "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
+    >,
     categories: [
       { label: "A", value: 0 },
       { label: "B", value: 1 },
