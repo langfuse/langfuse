@@ -95,8 +95,11 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     : DEFAULT_TAB;
 
   // Map localStorage JsonViewPreference to ViewPref format
+  // Both "json" and "json-beta" map to "json" ViewPref
   const localStorageViewPref: ViewPref =
-    jsonViewPreference === "json" ? "json" : "formatted";
+    jsonViewPreference === "json" || jsonViewPreference === "json-beta"
+      ? "json"
+      : "formatted";
 
   // View preference: URL param overrides localStorage default
   const viewPref: ViewPref = VALID_PREFS.includes(prefParam as ViewPref)

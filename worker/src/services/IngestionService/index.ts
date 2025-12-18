@@ -118,6 +118,11 @@ export type EventInput = {
   providedCostDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
 
+  // Tool Calls
+  toolDefinitions?: Record<string, string>;
+  toolCalls?: string[];
+  toolCallNames?: string[];
+
   // I/O
   input?: string;
   output?: string;
@@ -388,6 +393,11 @@ export class IngestionService {
 
       usage_pricing_tier_id: generationUsage?.usage_pricing_tier_id,
       usage_pricing_tier_name: generationUsage?.usage_pricing_tier_name,
+
+      // Tool Calls
+      tool_definitions: eventData.toolDefinitions ?? {},
+      tool_calls: eventData.toolCalls ?? [],
+      tool_call_names: eventData.toolCallNames ?? [],
 
       // I/O
       input: eventData.input,

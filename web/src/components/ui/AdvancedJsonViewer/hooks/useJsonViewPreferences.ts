@@ -14,7 +14,7 @@ export interface JsonViewPreferences {
 }
 
 const DEFAULT_PREFERENCES: JsonViewPreferences = {
-  stringWrapMode: "truncate",
+  stringWrapMode: "wrap",
 };
 
 /**
