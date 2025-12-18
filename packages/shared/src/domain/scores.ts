@@ -91,22 +91,3 @@ export const ScoreSchema = ScoreFoundationSchema.and(
 );
 
 export type ScoreDomain = z.infer<typeof ScoreSchema>;
-/**
- * Score types that can have score configs
- * Used in: Score config creation dialogs, config validation
- */
-export const CONFIGURABLE_SCORE_TYPES = [
-  "NUMERIC",
-  "CATEGORICAL",
-  "BOOLEAN",
-] as const;
-
-/**
- * Score types used in annotation queues
- * Used in: Annotation queue displays, annotation value resolution
- */
-export const ANNOTATION_SCORE_TYPES = [
-  "NUMERIC",
-  "CATEGORICAL",
-  "BOOLEAN",
-] as const;

@@ -69,7 +69,12 @@ export function ChartScores(props: {
               {
                 accessor: "data_type",
                 formatFct: (value) =>
-                  getScoreDataTypeIcon(value as ScoreDataTypeType),
+                  getScoreDataTypeIcon(
+                    value as Extract<
+                      ScoreDataTypeType,
+                      "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
+                    >,
+                  ),
               },
               { accessor: "name" },
               {
