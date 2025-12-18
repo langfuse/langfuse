@@ -406,7 +406,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 9,
+          totalItems: 11,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
