@@ -468,6 +468,7 @@ export const SessionIO = ({
         },
       },
       refetchOnMount: false,
+      meta: { silentHttpCodes: [404] },
     },
   );
   return (

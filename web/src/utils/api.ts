@@ -166,6 +166,7 @@ const shouldSilenceError = (
   if (Array.isArray(meta?.silentHttpCodes)) {
     return (
       error instanceof TRPCClientError &&
+      typeof error.data?.httpStatus === "number" &&
       meta.silentHttpCodes.includes(error.data.httpStatus)
     );
   }
