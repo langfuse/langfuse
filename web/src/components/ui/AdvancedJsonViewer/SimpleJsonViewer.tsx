@@ -114,7 +114,6 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
       ref={containerRef}
       className={className}
       style={{
-        height: "100%",
         width: stringWrapMode === "wrap" ? "100%" : "fit-content",
         minWidth: "100%",
         backgroundColor: theme.background,

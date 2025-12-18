@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTheme } from "next-themes";
 import { type Prisma } from "@langfuse/shared";
 import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection/AdvancedJsonSection";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
+import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
 
 const SECTION_PREFERENCE_KEY = "langfuse:io-section-preference";
+const VIRTUALIZATION_THRESHOLD = 2500;
 type SectionType = "input" | "output" | "metadata";
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
@@ -22,6 +24,8 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  // Callback to inform parent if virtualization is being used (for scroll handling)
+  onVirtualizationChange?: (isVirtualized: boolean) => void;
 }
 
 /**
@@ -49,6 +53,7 @@ export function IOPreviewJSON({
   hideOutput = false,
   hideInput = false,
   media,
+  onVirtualizationChange,
 }: IOPreviewJSONProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -76,6 +81,24 @@ export function IOPreviewJSON({
   const outputHasContent = hasContent(parsedOutput ?? output);
   const inputHasContent = hasContent(parsedInput ?? input);
   const metadataHasContent = hasContent(parsedMetadata ?? metadata);
+
+  // Count rows for each section to determine if virtualization is needed
+  const rowCounts = useMemo(() => {
+    return {
+      input: countJsonRows(parsedInput ?? input),
+      output: countJsonRows(parsedOutput ?? output),
+      metadata: countJsonRows(parsedMetadata ?? metadata),
+    };
+  }, [parsedInput, input, parsedOutput, output, parsedMetadata, metadata]);
+
+  // Determine if virtualization is needed based on threshold
+  const needsVirtualization = useMemo(() => {
+    return (
+      rowCounts.input > VIRTUALIZATION_THRESHOLD ||
+      rowCounts.output > VIRTUALIZATION_THRESHOLD ||
+      rowCounts.metadata > VIRTUALIZATION_THRESHOLD
+    );
+  }, [rowCounts]);
 
   // Get user's preferred section from session storage
   const getUserPreference = (): SectionType | null => {
@@ -163,6 +186,92 @@ export function IOPreviewJSON({
     }
   }, [showInput, showOutput, showMetadata, expandedSection]);
 
+  // Notify parent about virtualization state
+  useEffect(() => {
+    onVirtualizationChange?.(needsVirtualization);
+  }, [needsVirtualization, onVirtualizationChange]);
+
+  // Path A: Large data (virtualized, accordion mode - one section at a time)
+  if (needsVirtualization) {
+    const maxRows = Math.max(
+      rowCounts.input,
+      rowCounts.output,
+      rowCounts.metadata,
+    );
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Visual indicator for virtualized mode */}
+        <div className="border-b bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+          ⚡ Large data detected ({maxRows.toLocaleString()} rows). Showing
+          sections separately for performance.
+        </div>
+
+        {showInput && (
+          <AdvancedJsonSection
+            title="Input"
+            field="input"
+            data={input}
+            parsedData={parsedInput}
+            collapsed={expandedSection !== "input"}
+            onToggleCollapse={() => handleUserToggle("input")}
+            isLoading={isLoading || isParsing}
+            media={media?.filter((m) => m.field === "input")}
+            enableSearch={true}
+            searchPlaceholder="Search input"
+            hideIfNull={hideIfNull}
+            truncateStringsAt={100}
+            enableCopy={true}
+            backgroundColor={inputBgColor}
+            headerBackgroundColor={inputBgColor}
+            className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
+          />
+        )}
+        {showOutput && (
+          <AdvancedJsonSection
+            title="Output"
+            field="output"
+            data={output}
+            parsedData={parsedOutput}
+            collapsed={expandedSection !== "output"}
+            onToggleCollapse={() => handleUserToggle("output")}
+            isLoading={isLoading || isParsing}
+            media={media?.filter((m) => m.field === "output")}
+            enableSearch={true}
+            searchPlaceholder="Search output"
+            hideIfNull={hideIfNull}
+            truncateStringsAt={100}
+            enableCopy={true}
+            backgroundColor={outputBgColor}
+            headerBackgroundColor={outputBgColor}
+            className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
+          />
+        )}
+        {showMetadata && (
+          <AdvancedJsonSection
+            title="Metadata"
+            field="metadata"
+            data={metadata}
+            parsedData={parsedMetadata}
+            collapsed={expandedSection !== "metadata"}
+            onToggleCollapse={() => handleUserToggle("metadata")}
+            isLoading={isLoading || isParsing}
+            media={media?.filter((m) => m.field === "metadata")}
+            enableSearch={true}
+            searchPlaceholder="Search metadata"
+            hideIfNull={hideIfNull}
+            truncateStringsAt={100}
+            enableCopy={true}
+            backgroundColor={metadataBgColor}
+            headerBackgroundColor={metadataBgColor}
+            className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Path B: Normal data (non-virtualized, continuous scroll - all sections visible)
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showInput && (
@@ -171,8 +280,7 @@ export function IOPreviewJSON({
           field="input"
           data={input}
           parsedData={parsedInput}
-          collapsed={expandedSection !== "input"}
-          onToggleCollapse={() => handleUserToggle("input")}
+          collapsed={false} // Always expanded in continuous scroll mode
           isLoading={isLoading || isParsing}
           media={media?.filter((m) => m.field === "input")}
           enableSearch={true}
@@ -180,9 +288,9 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          virtualized={false} // Force non-virtualized rendering
           backgroundColor={inputBgColor}
           headerBackgroundColor={inputBgColor}
-          className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
         />
       )}
       {showOutput && (
@@ -191,8 +299,7 @@ export function IOPreviewJSON({
           field="output"
           data={output}
           parsedData={parsedOutput}
-          collapsed={expandedSection !== "output"}
-          onToggleCollapse={() => handleUserToggle("output")}
+          collapsed={false} // Always expanded in continuous scroll mode
           isLoading={isLoading || isParsing}
           media={media?.filter((m) => m.field === "output")}
           enableSearch={true}
@@ -200,9 +307,9 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          virtualized={false} // Force non-virtualized rendering
           backgroundColor={outputBgColor}
           headerBackgroundColor={outputBgColor}
-          className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
         />
       )}
       {showMetadata && (
@@ -211,8 +318,7 @@ export function IOPreviewJSON({
           field="metadata"
           data={metadata}
           parsedData={parsedMetadata}
-          collapsed={expandedSection !== "metadata"}
-          onToggleCollapse={() => handleUserToggle("metadata")}
+          collapsed={false} // Always expanded in continuous scroll mode
           isLoading={isLoading || isParsing}
           media={media?.filter((m) => m.field === "metadata")}
           enableSearch={true}
@@ -220,9 +326,9 @@ export function IOPreviewJSON({
           hideIfNull={hideIfNull}
           truncateStringsAt={100}
           enableCopy={true}
+          virtualized={false} // Force non-virtualized rendering
           backgroundColor={metadataBgColor}
           headerBackgroundColor={metadataBgColor}
-          className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
         />
       )}
     </div>

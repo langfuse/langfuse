@@ -49,6 +49,8 @@ export interface IOPreviewProps extends ExpansionStateProps {
   // Whether to show metadata section in pretty view (default: false)
   // JSON view always shows metadata
   showMetadata?: boolean;
+  // Callback to inform parent if virtualization is being used (for scroll handling)
+  onVirtualizationChange?: (isVirtualized: boolean) => void;
 }
 
 /**
@@ -85,6 +87,7 @@ export function IOPreview({
   onOutputExpansionChange,
   setIsPrettyViewAvailable,
   showMetadata = false,
+  onVirtualizationChange,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -167,7 +170,10 @@ export function IOPreview({
        * but this eliminates UI freeze with large observations.
        */}
       {selectedView === "json-beta" ? (
-        <IOPreviewJSON {...sharedProps} />
+        <IOPreviewJSON
+          {...sharedProps}
+          onVirtualizationChange={onVirtualizationChange}
+        />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple {...sharedProps} />
       ) : (

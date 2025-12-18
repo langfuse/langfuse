@@ -96,6 +96,7 @@ export function ObservationDetailView({
   const currentView = jsonViewPreference;
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
   // Get comments, scores, and expansion state from contexts
   const { comments, scores } = useTraceData();
@@ -320,7 +321,7 @@ export function ObservationDetailView({
         >
           <div
             className={`flex min-h-0 w-full flex-1 flex-col ${
-              currentView === "json-beta"
+              currentView === "json-beta" && isJSONBetaVirtualized
                 ? "overflow-hidden"
                 : "overflow-auto pb-4"
             }`}
@@ -346,6 +347,7 @@ export function ObservationDetailView({
                 setFieldExpansion("output", exp)
               }
               showMetadata
+              onVirtualizationChange={setIsJSONBetaVirtualized}
             />
           </div>
         </TabsBarContent>
