@@ -21,7 +21,7 @@ service:
             docs: Limit of items per page. If you encounter api issues due to too large page sizes, try to reduce the limit.
           userId:
             type: optional<string>
-            docs: Retrieve only scores with this userId associated to the trace.
+            docs: Retrieve only scores where this userId matches the related trace or session.
           name:
             type: optional<string>
             docs: Retrieve only scores with this name.
