@@ -44,7 +44,7 @@ export function AdvancedJsonViewer({
   matchCounts,
   showLineNumbers = false,
   enableCopy = true,
-  stringWrapMode = "truncate",
+  stringWrapMode = "wrap",
   onStringWrapModeChange: _onStringWrapModeChange,
   truncateStringsAt = 100,
   className,

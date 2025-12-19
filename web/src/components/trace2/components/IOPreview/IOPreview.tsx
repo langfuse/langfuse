@@ -7,6 +7,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import { IOPreviewJSON } from "./IOPreviewJSON";
+import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -45,6 +46,9 @@ export interface IOPreviewProps extends ExpansionStateProps {
   hideInput?: boolean;
   currentView?: ViewMode;
   setIsPrettyViewAvailable?: (value: boolean) => void;
+  // Whether to show metadata section in pretty view (default: false)
+  // JSON view always shows metadata
+  showMetadata?: boolean;
 }
 
 /**
@@ -80,6 +84,7 @@ export function IOPreview({
   onInputExpansionChange,
   onOutputExpansionChange,
   setIsPrettyViewAvailable,
+  showMetadata = false,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -129,9 +134,14 @@ export function IOPreview({
     onOutputExpansionChange,
   };
 
+  // Only show empty state popup for traces (not observations) when there's no input/output
+  // Check both parsed and raw props since not all callers provide parsedInput/parsedOutput
+  const hasInput = input !== null && input !== undefined;
+  const hasOutput = output !== null && output !== undefined;
   const showEmptyState =
-    (parsedInput === null || parsedInput === undefined) &&
-    (parsedOutput === null || parsedOutput === undefined) &&
+    !hasInput &&
+    !hasOutput &&
+    !observationName && // Only show for traces, not observations
     !isLoading &&
     !hideIfNull &&
     !dismissedTraceViewNotifications.includes(EMPTY_IO_ALERT_ID);
@@ -148,59 +158,68 @@ export function IOPreview({
 
       {/*
        * Conditional rendering based on view mode:
-       * - JSON view: IOPreviewJSON (no ChatML parsing, ~150ms faster)
+       * - JSON Beta view: IOPreviewJSON (advanced viewer with virtualization, search)
+       * - JSON view: IOPreviewJSONSimple (simple react18-json-view, no virtualization)
        * - Pretty view: IOPreviewPretty (with ChatML parsing, markdown, tools)
        *
        * Only render the active view to prevent dual DOM tree construction.
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {selectedView === "json" ? (
+      {selectedView === "json-beta" ? (
         <IOPreviewJSON {...sharedProps} />
+      ) : selectedView === "json" ? (
+        <IOPreviewJSONSimple {...sharedProps} />
       ) : (
-        <IOPreviewPretty {...sharedProps} observationName={observationName} />
+        <IOPreviewPretty
+          {...sharedProps}
+          observationName={observationName}
+          showMetadata={showMetadata}
+        />
       )}
 
       {showEmptyState && (
-        <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
-            onClick={() => {
-              capture("notification:dismiss_notification", {
-                notification_id: EMPTY_IO_ALERT_ID,
-              });
-              setDismissedTraceViewNotifications((prev) =>
-                prev.includes(EMPTY_IO_ALERT_ID)
-                  ? prev
-                  : [...prev, EMPTY_IO_ALERT_ID],
-              );
-            }}
-            title="Dismiss"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-          <div className="flex w-full flex-row items-center gap-2 pr-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
+        <div className="py-2">
+          <div className="relative mx-2 flex flex-col items-start gap-2 rounded-lg border border-dashed p-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-1.5 top-1.5 h-5 w-5 p-0"
+              onClick={() => {
+                capture("notification:dismiss_notification", {
+                  notification_id: EMPTY_IO_ALERT_ID,
+                });
+                setDismissedTraceViewNotifications((prev) =>
+                  prev.includes(EMPTY_IO_ALERT_ID)
+                    ? prev
+                    : [...prev, EMPTY_IO_ALERT_ID],
+                );
+              }}
+              title="Dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+            <div className="flex w-full flex-row items-center gap-2 pr-6">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
+                <BookOpen className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <h3 className="text-sm font-semibold">
+                Looks like this trace didn&apos;t receive an input or output.
+              </h3>
             </div>
-            <h3 className="text-sm font-semibold">
-              Looks like this trace didn&apos;t receive an input or output.
-            </h3>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Add it in your code to make debugging a lot easier.
+            </p>
+            <ActionButton
+              variant="outline"
+              size="sm"
+              href="https://langfuse.com/faq/all/empty-trace-input-and-output"
+              trackingEventName="notification:click_link"
+              trackingProps={{ notification_id: EMPTY_IO_ALERT_ID }}
+            >
+              View Documentation
+            </ActionButton>
           </div>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Add it in your code to make debugging a lot easier.
-          </p>
-          <ActionButton
-            variant="outline"
-            size="sm"
-            href="https://langfuse.com/faq/all/empty-trace-input-and-output"
-            trackingEventName="notification:click_link"
-            trackingProps={{ notification_id: EMPTY_IO_ALERT_ID }}
-          >
-            View Documentation
-          </ActionButton>
         </div>
       )}
     </>

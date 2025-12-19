@@ -367,6 +367,19 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
         },
       ]);
     });
+
+    it("should decode stringOptions with empty string value", () => {
+      // This URL is generated when filtering for empty trace names (clicking "Only" on empty name)
+      const result = decodeFilters("name;stringOptions;;any of;");
+      expect(result).toEqual([
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: [""],
+        },
+      ]);
+    });
   });
 
   describe("Round-trip consistency", () => {
@@ -424,6 +437,23 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       const deserialized = decodeFilters(serialized);
 
       expect(deserialized).toEqual(exclusiveFilters);
+    });
+
+    it("should maintain consistency for stringOptions with empty string value", () => {
+      // This tests filtering by empty trace names (e.g., clicking "Only" on an empty name)
+      const filterWithEmptyString: FilterState = [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: [""],
+        },
+      ];
+
+      const serialized = encodeFilters(filterWithEmptyString);
+      const deserialized = decodeFilters(serialized);
+
+      expect(deserialized).toEqual(filterWithEmptyString);
     });
 
     it("should maintain consistency for mixed filter types", () => {
