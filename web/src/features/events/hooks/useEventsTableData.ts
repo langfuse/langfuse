@@ -72,16 +72,23 @@ export function useEventsTableData({
     refetchOnWindowFocus: true,
   });
 
-  // Memoize observations for IO query to prevent infinite loops
   const observationsForIO = useMemo(
     () =>
       observations.data?.observations
         ?.filter((o) => o.id && o.traceId && o.startTime)
-        .map((o) => ({
-          id: o.id,
-          traceId: o.traceId!,
-          startTime: o.startTime!, // Use startTime field name as per schema
-        })) ?? [],
+        .map((o) => {
+          if (!o.traceId) {
+            throw new Error("Trace ID is required");
+          }
+          if (!o.startTime) {
+            throw new Error("Start time is required");
+          }
+          return {
+            id: o.id,
+            traceId: o.traceId,
+            startTime: o.startTime,
+          };
+        }) ?? [],
     [observations.data?.observations],
   );
 
