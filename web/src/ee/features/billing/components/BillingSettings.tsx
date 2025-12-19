@@ -14,7 +14,6 @@ import { BillingDiscountView } from "./BillingDiscountView";
 import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/BillingPlanPeriodView";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
-import { BillingTransitionInfoCard } from "./BillingTransitionInfoCard";
 import { useBillingInformation } from "./useBillingInformation";
 
 export const BillingSettings = () => {
@@ -62,7 +61,6 @@ export const BillingSettings = () => {
         <BillingPlanPeriodView />
         <BillingDiscountView />
         <BillingActionButtons />
-        <BillingTransitionInfoCard />
         <BillingInvoiceTable />
         {isSpendAlertEntitled && orgId && hasActiveSubscription && (
           <SpendAlertsSection orgId={orgId} />

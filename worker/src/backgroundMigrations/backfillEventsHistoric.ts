@@ -17,17 +17,20 @@ const backgroundMigrationId = "d8cf9f5e-747e-4ffe-8156-dec0eaebce9d";
 // Types
 // ============================================================================
 
-interface ChunkTodo {
+export interface BaseChunkTodo {
   id: string; // Unique chunk identifier (e.g., "obs-202510-0")
   partition: string; // ClickHouse partition (e.g., "202510")
-  lowerBound: { projectId: string; traceId: string }; // From backfill_chunks table
-  upperBound: { projectId: string; traceId: string } | null; // null = end of partition
   status: "pending" | "in_progress" | "completed" | "failed";
   queryId?: string; // Client-generated UUID for tracking in system.query_log
   startedAt?: string;
   completedAt?: string;
   error?: string;
   retryCount?: number;
+}
+
+interface ChunkTodo extends BaseChunkTodo {
+  lowerBound: { projectId: string; traceId: string }; // From backfill_chunks table
+  upperBound: { projectId: string; traceId: string } | null; // null = end of partition
 }
 
 interface MigrationArgs {
@@ -51,9 +54,9 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
   maxRetries: 3,
 };
 
-type OnQueryCompleteCallback = (
+export type OnQueryCompleteCallback<T extends BaseChunkTodo> = (
   // eslint-disable-next-line no-unused-vars
-  todo: ChunkTodo,
+  todo: T,
   // eslint-disable-next-line no-unused-vars
   success: boolean,
   // eslint-disable-next-line no-unused-vars
@@ -66,7 +69,7 @@ type OnQueryCompleteCallback = (
 
 type QueryStatus = "running" | "completed" | "failed" | "not_found";
 
-async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
+export async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
   // First check if still running in system.processes
   const running = await queryClickhouse<{ query_id: string }>({
     query: `
@@ -142,7 +145,9 @@ async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
   throw new Error(`Unknown query log type: ${type}`);
 }
 
-async function getQueryError(queryId: string): Promise<string | undefined> {
+export async function getQueryError(
+  queryId: string,
+): Promise<string | undefined> {
   const result = await queryClickhouse<{ exception_message: string }>({
     query: `
       SELECT exception as exception_message
@@ -170,14 +175,14 @@ async function getQueryError(queryId: string): Promise<string | undefined> {
 // Concurrent Query Manager
 // ============================================================================
 
-class ConcurrentQueryManager {
-  private activeQueries: Map<string, ChunkTodo> = new Map();
+export class ConcurrentQueryManager<T extends BaseChunkTodo> {
+  private activeQueries: Map<string, T> = new Map();
   private pollInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
 
   startPolling(
     pollIntervalMs: number,
-    onComplete: OnQueryCompleteCallback,
+    onComplete: OnQueryCompleteCallback<T>,
     scheduleNext: () => Promise<void>,
   ): void {
     if (this.pollInterval) {
@@ -245,7 +250,7 @@ class ConcurrentQueryManager {
     }, pollIntervalMs);
   }
 
-  addQuery(todo: ChunkTodo, queryId: string): void {
+  addQuery(todo: T, queryId: string): void {
     this.activeQueries.set(queryId, todo);
   }
 
@@ -265,11 +270,11 @@ class ConcurrentQueryManager {
 // Helper Functions
 // ============================================================================
 
-function generateQueryId(chunkId: string): string {
+export function generateQueryId(chunkId: string): string {
   return `backfill-${chunkId}-${randomUUID().slice(0, 8)}`;
 }
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -839,7 +844,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     }
 
     // Phase 3: Execute chunks with concurrency
-    const manager = new ConcurrentQueryManager();
+    const manager = new ConcurrentQueryManager<ChunkTodo>();
 
     const scheduleNext = async (): Promise<void> => {
       if (this.isAborted) return;

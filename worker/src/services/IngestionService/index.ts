@@ -149,6 +149,7 @@ export type EventInput = {
   experimentDescription?: string;
   experimentDatasetId?: string;
   experimentItemId?: string;
+  experimentItemVersion?: string;
   experimentItemRootSpanId?: string;
   experimentItemExpectedOutput?: string;
   experimentItemMetadataNames?: string[];
@@ -419,6 +420,7 @@ export class IngestionService {
       experiment_description: eventData.experimentDescription,
       experiment_dataset_id: eventData.experimentDatasetId,
       experiment_item_id: eventData.experimentItemId,
+      experiment_item_version: eventData.experimentItemVersion,
       experiment_item_root_span_id: eventData.experimentItemRootSpanId,
       experiment_item_expected_output: eventData.experimentItemExpectedOutput,
       experiment_item_metadata_names:
@@ -480,6 +482,10 @@ export class IngestionService {
               ? new Date(event.body.createdAt).getTime()
               : new Date().getTime();
 
+            const datasetItemVersion = itemData.validFrom
+              ? itemData.validFrom.getTime()
+              : null;
+
             return [
               {
                 id: entityId,
@@ -502,6 +508,7 @@ export class IngestionService {
                   : {},
                 dataset_run_created_at: runData.createdAt.getTime(),
                 // enriched with item data
+                dataset_item_version: datasetItemVersion,
                 dataset_item_input: JSON.stringify(itemData.input),
                 dataset_item_expected_output: JSON.stringify(
                   itemData.expectedOutput,
