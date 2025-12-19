@@ -158,13 +158,7 @@ const FIELD_SETS = {
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: [
-    "usageDetails",
-    "costDetails",
-    "totalCost",
-    "providedUsageDetails",
-    "providedCostDetails",
-  ],
+  usage: ["usageDetails", "costDetails", "totalCost"],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
 } as const;

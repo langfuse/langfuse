@@ -76,7 +76,12 @@ export async function executeQuery(
   version: ViewVersion = "v1",
   enableSingleLevelOptimization: boolean = false,
 ): Promise<Array<Record<string, unknown>>> {
-  const queryBuilder = new QueryBuilder(query.chartConfig, version);
+  // Remap config to chartConfig for public API compatibility
+  // Public API uses "config" while internal QueryType uses "chartConfig"
+  const chartConfig =
+    (query as unknown as { config?: QueryType["chartConfig"] }).config ??
+    query.chartConfig;
+  const queryBuilder = new QueryBuilder(chartConfig, version);
 
   // Build the primary query (with or without optimization based on flag)
   const { query: compiledQuery, parameters } = await queryBuilder.build(

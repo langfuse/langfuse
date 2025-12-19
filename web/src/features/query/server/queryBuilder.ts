@@ -754,6 +754,15 @@ export class QueryBuilder {
     return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", granularity)} STEP ${step}`;
   }
 
+  /**
+   * Builds a LIMIT clause for the query if row_limit is specified in chartConfig.
+   */
+  private buildLimitClause(): string {
+    const rowLimit = this.chartConfig?.row_limit;
+    if (!rowLimit) return "";
+    return `LIMIT ${rowLimit}`;
+  }
+
   private buildOuterSelect(
     outerDimensionsPart: string,
     outerMetricsPart: string,
@@ -761,6 +770,7 @@ export class QueryBuilder {
     groupByClause: string,
     orderByClause: string,
     withFillClause: string,
+    limitClause: string,
   ) {
     return `
       SELECT
@@ -769,7 +779,8 @@ export class QueryBuilder {
       FROM (${innerQuery})
       ${groupByClause}
       ${orderByClause}
-      ${withFillClause}`;
+      ${withFillClause}
+      ${limitClause}`;
   }
 
   private buildSingleLevelMetricsPart(
@@ -832,6 +843,7 @@ export class QueryBuilder {
     groupByClause: string,
     orderByClause: string,
     withFillClause: string,
+    limitClause: string,
   ): string {
     // Build dimensions using dedicated helper
     const dimensionsPart = this.buildSingleLevelDimensionsPart(
@@ -849,7 +861,8 @@ export class QueryBuilder {
       ${fromClause}
       ${groupByClause}
       ${orderByClause}
-      ${withFillClause}`;
+      ${withFillClause}
+      ${limitClause}`;
   }
 
   /**
@@ -1088,6 +1101,9 @@ export class QueryBuilder {
       parameters,
     );
 
+    // Build LIMIT clause for row limiting
+    const limitClause = this.buildLimitClause();
+
     // Build final query - branch based on optimization
     let sql: string;
     if (canOptimize) {
@@ -1101,6 +1117,7 @@ export class QueryBuilder {
         groupByClause,
         orderByClause,
         withFillClause,
+        limitClause,
       );
     } else {
       // Two-level query: Original approach
@@ -1134,6 +1151,7 @@ export class QueryBuilder {
         groupByClause,
         orderByClause,
         withFillClause,
+        limitClause,
       );
     }
 

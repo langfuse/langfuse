@@ -3221,6 +3221,65 @@ describe("queryBuilder", () => {
         expect(totalCount).toBe(30); // Should match our 30 observations
       });
 
+      it("should apply row_limit to query results", async () => {
+        // Setup
+        const projectId = randomUUID();
+
+        // Create a trace with multiple observations
+        const trace = createTrace({
+          project_id: projectId,
+          name: "test-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+
+        // Create 10 observations with different names to test row limiting
+        const observations = Array.from({ length: 10 }, (_, i) =>
+          createObservation({
+            project_id: projectId,
+            trace_id: trace.id,
+            type: "generation",
+            name: `observation-${i}`,
+            environment: "default",
+            start_time: new Date().getTime() + i * 1000,
+          }),
+        );
+
+        await createTracesCh([trace]);
+        await createObservationsCh(observations);
+
+        // Query with row_limit
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: [{ field: "name", direction: "asc" }],
+          chartConfig: { type: "TABLE", row_limit: 5 },
+        };
+
+        // Verify the generated SQL contains LIMIT clause
+        const queryBuilder = new QueryBuilder(query.chartConfig);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
+        expect(compiledQuery).toContain("LIMIT 5");
+
+        // Execute query and verify row limit is applied
+        const result = await executeQuery(projectId, query);
+
+        // Should return only 5 rows despite having 10 observations
+        expect(result).toHaveLength(5);
+      });
+
       it("should format startTimeMonth dimension correctly", async () => {
         // Setup
         const projectId = randomUUID();

@@ -249,8 +249,9 @@ export function convertObservationPartial(
     ...((record.end_time !== undefined || record.start_time !== undefined) && {
       latency:
         record.end_time && record.start_time
-          ? parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
-            parseClickhouseUTCDateTimeFormat(record.start_time).getTime()
+          ? (parseClickhouseUTCDateTimeFormat(record.end_time).getTime() -
+              parseClickhouseUTCDateTimeFormat(record.start_time).getTime()) /
+            1000
           : null,
     }),
     ...((record.completion_start_time !== undefined ||
