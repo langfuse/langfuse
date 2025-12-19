@@ -981,6 +981,7 @@ export async function extractVariablesFromTracingData({
         ) // query the internal column name raw
         .where("id", "=", datasetItemId)
         .where("project_id", "=", projectId)
+        .where("valid_to", "is", null)
         .executeTakeFirst()) as DatasetItem;
 
       // user facing errors
