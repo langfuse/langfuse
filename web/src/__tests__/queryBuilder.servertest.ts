@@ -1,6 +1,9 @@
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import {
+  executeQuery,
+  validateQuery,
+} from "@/src/features/query/server/queryExecutor";
 import {
   createTrace,
   createObservation,
@@ -8,6 +11,8 @@ import {
   createObservationsCh,
   createTraceScore,
   createScoresCh,
+  createEvent,
+  createEventsCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -3724,6 +3729,294 @@ describe("queryBuilder", () => {
       expect(resultWithoutOpt[0].sum_count).toBe(5);
       expect(resultWithOpt[0].sum_count).toBe(5);
       expect(resultWithOpt).toEqual(resultWithoutOpt);
+    });
+  });
+});
+
+describe("validateQuery", () => {
+  const baseQuery = {
+    view: "observations",
+    dimensions: [],
+    metrics: [{ measure: "totalCost", aggregation: "sum" }],
+    filters: [],
+    timeDimension: null,
+    fromTimestamp: "2025-01-01T00:00:00.000Z",
+    toTimestamp: "2025-03-01T00:00:00.000Z",
+    orderBy: null,
+  } as QueryType;
+
+  it("should return valid for queries without high cardinality dimensions", async () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "name" }], // name is not high cardinality
+    };
+
+    const result = await validateQuery("test-project-id", query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("should return invalid when high cardinality dimension is used without row_limit", async () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+      // no chartConfig.row_limit
+    };
+
+    const result = await validateQuery("test-project-id", query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return invalid when high cardinality dimension is used without ORDER DESC", async () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "userId" }], // high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_totalCost", direction: "asc" }], // asc, not desc
+    };
+
+    const result = await validateQuery("test-project-id", query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'userId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return invalid when ORDER BY desc field is not a measure in the query", async () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_latency", direction: "desc" }], // latency is not in metrics
+    };
+
+    const result = await validateQuery("test-project-id", query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "'sum_latency'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "not a measure in this query",
+    );
+  });
+
+  it("should return invalid when ORDER BY desc field is a dimension (not a measure)", async () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }, { field: "name" }], // traceId is high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "name", direction: "desc" }], // name is a dimension, not a measure
+    };
+
+    const result = await validateQuery("test-project-id", query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "'name'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "not a measure in this query",
+    );
+  });
+
+  it("should return invalid for multiple high cardinality dimensions without required config", async () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }, { field: "sessionId" }], // both high cardinality
+      // missing row_limit and orderBy desc
+    };
+
+    const result = await validateQuery("test-project-id", query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "traceId",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "sessionId",
+    );
+  });
+
+  it("should support public API 'config' field name for row_limit", async () => {
+    // Test that "config" field works (used by public API) vs "chartConfig" (used internally)
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const timeValue = Date.now() * 1000; // microseconds for events table
+
+    // Create test data in events table with meaningful values (v2 uses events)
+    await createEventsCh([
+      createEvent({
+        id: observationId,
+        span_id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "GENERATION",
+        name: "test-obs",
+        start_time: timeValue,
+        end_time: timeValue + 1000000,
+        cost_details: { total: 1.5 }, // non-zero cost,
+      }),
+    ]);
+
+    const query = {
+      view: "observations",
+      dimensions: [{ field: "traceId" }], // high cardinality
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      filters: [
+        {
+          column: "traceId",
+          operator: "=",
+          value: traceId,
+          type: "string",
+        },
+      ],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: [{ field: "totalCost", direction: "desc" }],
+      config: { type: "table", row_limit: 10 }, // Public API uses "config"
+    } as unknown as QueryType;
+
+    const result = await validateQuery(projectId, query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  describe("preflight query integration", () => {
+    it("should return valid when preflight finds meaningful data", async () => {
+      const projectId = randomUUID();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timeValue = Date.now() * 1000; // microseconds for events table
+
+      // Create observation in events table with non-zero cost (v2 uses events)
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          type: "GENERATION",
+          name: "test-obs",
+          start_time: timeValue,
+          end_time: timeValue + 1000000,
+          cost_details: { total: 2.5 }, // non-zero cost,
+        }),
+      ]);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "traceId" }],
+        metrics: [{ measure: "totalCost", aggregation: "sum" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+            type: "string",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: [{ field: "totalCost", direction: "desc" }],
+        chartConfig: { type: "table", row_limit: 10 },
+      };
+
+      const result = await validateQuery(projectId, query, "v2");
+
+      expect(result).toEqual({ valid: true });
+    });
+
+    it("should return invalid when preflight finds no meaningful data", async () => {
+      const projectId = randomUUID();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timeValue = Date.now() * 1000; // microseconds for events table
+
+      // Create observation in events table with zero latency and zero cost (v2 uses events)
+      // Using same start_time and end_time results in zero latency
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          type: "SPAN",
+          name: "test-obs",
+          start_time: timeValue,
+          end_time: timeValue, // Same as start_time = 0 latency
+          cost_details: { total: 0 },
+          usage_details: { total: 0 },
+        }),
+      ]);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "traceId" }],
+        metrics: [{ measure: "totalCost", aggregation: "sum" }], // Non-count metric
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+            type: "string",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: [{ field: "totalCost", direction: "desc" }],
+        chartConfig: { type: "table", row_limit: 10 },
+      };
+
+      const result = await validateQuery(projectId, query, "v2");
+
+      expect(result.valid).toBe(false);
+      expect((result as { valid: false; reason: string }).reason).toContain(
+        "Query may produce a large result set with no meaningful values",
+      );
+    });
+
+    it("should return valid for count-only metrics (preflight skipped)", async () => {
+      const projectId = randomUUID();
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "traceId" }],
+        metrics: [{ measure: "count", aggregation: "count" }], // count-only
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: [{ field: "count", direction: "desc" }],
+        chartConfig: { type: "table", row_limit: 10 },
+      };
+
+      const result = await validateQuery(projectId, query, "v2");
+
+      // Count metrics skip preflight, so should be valid
+      expect(result).toEqual({ valid: true });
     });
   });
 });
