@@ -183,6 +183,11 @@ async function enrichObservationsWithTraceFields(
       traceTimestamp: null,
       toolDefinitions: o.toolDefinitions ?? null,
       toolCalls: o.toolCalls ?? null,
+      // Compute counts from actual data for events table
+      toolDefinitionsCount: o.toolDefinitions
+        ? Object.keys(o.toolDefinitions).length
+        : null,
+      toolCallsCount: o.toolCalls ? o.toolCalls.length : null,
     };
   });
 }

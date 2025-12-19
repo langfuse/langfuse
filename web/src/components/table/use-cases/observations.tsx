@@ -344,6 +344,11 @@ export default function ObservationsTable({
           value: tn.value,
           count: tn.count !== undefined ? Number(tn.count) : undefined,
         })) ?? undefined,
+      calledToolNames:
+        filterOptions.data?.calledToolNames?.map((ctn) => ({
+          value: ctn.value,
+          count: ctn.count !== undefined ? Number(ctn.count) : undefined,
+        })) ?? undefined,
       latency: [],
       timeToFirstToken: [],
       tokensPerSecond: [],
@@ -1193,8 +1198,8 @@ export default function ObservationsTable({
             costDetails: generation.costDetails ?? {},
             usagePricingTierName: generation.usagePricingTierName ?? undefined,
             environment: generation.environment ?? undefined,
-            toolDefinitions: generation.toolDefinitions ?? undefined,
-            toolCalls: generation.toolCalls ?? undefined,
+            toolDefinitions: generation.toolDefinitionsCount ?? undefined,
+            toolCalls: generation.toolCallsCount ?? undefined,
           };
         })
       : [];
