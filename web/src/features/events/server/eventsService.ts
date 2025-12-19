@@ -213,8 +213,9 @@ interface GetEventBatchIOParams {
   observations: Array<{
     id: string;
     traceId: string;
-    startTime: Date;
   }>;
+  minStartTime: Date;
+  maxStartTime: Date;
 }
 
 /**
@@ -226,5 +227,7 @@ export async function getEventBatchIO(
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,
+    minStartTime: params.minStartTime,
+    maxStartTime: params.maxStartTime,
   });
 }
