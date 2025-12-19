@@ -1060,11 +1060,6 @@ function buildStatefulDatasetItemsCountQuery(
   `;
 }
 
-// Split filters: Only id/datasetId/validFrom should be inside CTE (before DISTINCT ON)
-// All other filters (status, sourceTraceId, sourceObservationId, metadata, createdAt)
-// must be applied AFTER getting latest version to ensure we're filtering on the latest state
-const filterColumnsInsideCTE = ["id", "datasetId", "validFrom"];
-
 /**
  * Builds the SQL query for fetching latest dataset items.
  * Uses DISTINCT ON to get the most recent version (by validFrom DESC) for each (id, projectId).
@@ -1091,11 +1086,7 @@ function buildDatasetItemsAtVersionQuery(
   limit?: number,
   offset?: number,
 ): Prisma.Sql {
-  const ioFieldsCTE = includeIO
-    ? Prisma.sql`di.input, di.expected_output, di.metadata,`
-    : Prisma.empty;
-
-  const ioFieldsOuter = includeIO
+  const ioFields = includeIO
     ? Prisma.sql`di.input, di.expected_output, di.metadata,`
     : Prisma.empty;
 
@@ -1107,21 +1098,8 @@ function buildDatasetItemsAtVersionQuery(
     ? Prisma.sql`, d.name as dataset_name`
     : Prisma.empty;
 
-  const filtersInsideCTE = filter.filter((f) =>
-    filterColumnsInsideCTE.includes(f.column),
-  );
-  const filtersOutsideCTE = filter.filter(
-    (f) => !filterColumnsInsideCTE.includes(f.column),
-  );
-
-  const filterConditionInside = tableColumnsToSqlFilterAndPrefix(
-    filtersInsideCTE,
-    datasetItemsFilterCols,
-    "dataset_item_events",
-  );
-
-  const filterConditionOutside = tableColumnsToSqlFilterAndPrefix(
-    filtersOutsideCTE,
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
     datasetItemsFilterCols,
     "dataset_item_events",
   );
@@ -1136,47 +1114,34 @@ function buildDatasetItemsAtVersionQuery(
       ? Prisma.sql`LIMIT ${limit}${offset !== undefined ? Prisma.sql` OFFSET ${offset}` : Prisma.empty}`
       : Prisma.empty;
 
+  // Temporal query using valid_from and valid_to
   const versionCondition = version
-    ? Prisma.sql`AND di.valid_from <= ${version}`
-    : Prisma.empty;
+    ? Prisma.sql`
+        AND di.valid_from <= ${version}
+        AND (di.valid_to IS NULL OR di.valid_to > ${version})
+      `
+    : Prisma.sql`AND di.valid_to IS NULL`;
 
   return Prisma.sql`
-    WITH latest_items AS (
-      SELECT DISTINCT ON (di.id)
-        di.id,
-        di.project_id,
-        di.dataset_id,
-        di.valid_from,
-        ${ioFieldsCTE}
-        di.source_trace_id,
-        di.source_observation_id,
-        di.status,
-        di.created_at,
-        di.updated_at,
-        di.is_deleted
-      FROM dataset_items di
-      WHERE di.project_id = ${projectId}
-      ${versionCondition}
-      ${filterConditionInside}
-      ORDER BY di.id, di.valid_from DESC
-    )
     SELECT
       di.id,
       di.project_id,
       di.valid_from,
       di.dataset_id,
-      ${ioFieldsOuter}
+      ${ioFields}
       di.source_trace_id,
       di.source_observation_id,
       di.status,
       di.created_at,
       di.updated_at
       ${datasetNameField}
-    FROM latest_items di
+    FROM dataset_items di
     ${datasetJoin}
-    WHERE di.is_deleted = false
-    ${filterConditionOutside}
-    ${searchCondition}
+    WHERE di.project_id = ${projectId}
+      AND di.is_deleted = false
+      ${versionCondition}
+      ${filterCondition}
+      ${searchCondition}
     ORDER BY di.valid_from DESC, di.id ASC
     ${paginationClause}
   `;
@@ -1193,21 +1158,8 @@ function buildDatasetItemsCountQuery(
   searchQuery?: string,
   searchType?: ("id" | "content")[],
 ): Prisma.Sql {
-  const filtersInsideCTE = filter.filter((f) =>
-    filterColumnsInsideCTE.includes(f.column),
-  );
-  const filtersOutsideCTE = filter.filter(
-    (f) => !filterColumnsInsideCTE.includes(f.column),
-  );
-
-  const filterConditionInside = tableColumnsToSqlFilterAndPrefix(
-    filtersInsideCTE,
-    datasetItemsFilterCols,
-    "dataset_item_events",
-  );
-
-  const filterConditionOutside = tableColumnsToSqlFilterAndPrefix(
-    filtersOutsideCTE,
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    filter,
     datasetItemsFilterCols,
     "dataset_item_events",
   );
@@ -1217,37 +1169,23 @@ function buildDatasetItemsCountQuery(
     searchType,
   );
 
+  // New temporal query using valid_from and valid_to
+  // Much simpler and more performant - no DISTINCT ON or CTE needed!
   const versionCondition = version
-    ? Prisma.sql`AND di.valid_from <= ${version}`
-    : Prisma.empty;
+    ? Prisma.sql`
+        AND di.valid_from <= ${version}
+        AND (di.valid_to IS NULL OR di.valid_to > ${version})
+      `
+    : Prisma.sql`AND di.valid_to IS NULL`;
 
   return Prisma.sql`
-    WITH latest_items AS (
-      SELECT DISTINCT ON (di.id)
-        di.id,
-        di.valid_from,
-        di.project_id,
-        di.dataset_id,
-        di.input,
-        di.expected_output,
-        di.metadata,
-        di.source_trace_id,
-        di.source_observation_id,
-        di.status,
-        di.created_at,
-        di.updated_at,
-        di.is_deleted
-      FROM dataset_items di
-      WHERE di.project_id = ${projectId}
-      ${versionCondition}
-      ${filterConditionInside}
-      ORDER BY di.id, di.valid_from DESC
-    )
     SELECT COUNT(*) as count
-    FROM latest_items di
-    WHERE di.is_deleted = false
-    ${filterConditionOutside}
-    ${searchCondition}
+    FROM dataset_items di
+    WHERE di.project_id = ${projectId}
+      AND di.is_deleted = false
+      ${versionCondition}
+      ${filterCondition}
+      ${searchCondition}
   `;
 }
 
@@ -1259,23 +1197,14 @@ function buildDatasetItemsLatestCountGroupedQuery(
   datasetIds: string[],
 ): Prisma.Sql {
   return Prisma.sql`
-    WITH latest_items AS (
-      SELECT DISTINCT ON (di.id)
-        di.id,
-        di.project_id,
-        di.dataset_id,
-        di.status,
-        di.is_deleted
-      FROM dataset_items di
-      WHERE di.project_id = ${projectId}
-        AND di.dataset_id = ANY(${datasetIds})
-      ORDER BY di.id, di.valid_from DESC
-    )
     SELECT
       di.dataset_id,
       COUNT(*) as count
-    FROM latest_items di
-    WHERE di.is_deleted = false
+    FROM dataset_items di
+    WHERE di.project_id = ${projectId}
+      AND di.dataset_id = ANY(${datasetIds})
+      AND di.is_deleted = false
+      AND di.valid_to IS NULL
     GROUP BY di.dataset_id
   `;
 }
@@ -1365,13 +1294,24 @@ async function getDatasetItemsInternal<
 
   const result = await prisma.$queryRaw<QueryGetLatestDatasetItemRow[]>(query);
 
-  const items = result.map((row) =>
-    convertLatestRowToDomain(
-      row,
-      params.includeIO,
-      params.includeDatasetName ?? false,
-    ),
-  );
+  // Deduplicate by id in application code (keep first occurrence, which is most recent due to ORDER BY valid_from DESC)
+  // This is needed because during migration transition, there may be multiple rows with valid_to IS NULL for the same id.
+  const seenIds = new Set<string>();
+  const items = result
+    .filter((row) => {
+      if (seenIds.has(row.id)) {
+        return false;
+      }
+      seenIds.add(row.id);
+      return true;
+    })
+    .map((row) =>
+      convertLatestRowToDomain(
+        row,
+        params.includeIO,
+        params.includeDatasetName ?? false,
+      ),
+    );
 
   return items as any;
 }
@@ -1468,26 +1408,25 @@ export async function getDatasetItemById<
       const statusFilter =
         status === "ACTIVE" ? Prisma.sql`AND status = 'ACTIVE'` : Prisma.empty;
 
-      // Version filter: get item at or before specified timestamp
+      // Temporal filter using valid_from and valid_to
       const versionFilter = props.version
-        ? Prisma.sql`AND valid_from <= ${props.version}`
-        : Prisma.empty;
+        ? Prisma.sql`
+            AND valid_from <= ${props.version}
+            AND (valid_to IS NULL OR valid_to > ${props.version})
+          `
+        : Prisma.sql`AND valid_to IS NULL`;
 
       const result = await prisma.$queryRaw<DatasetItem[]>(
         Prisma.sql`
           SELECT ${Prisma.raw(selectFields)}
-          FROM (
-            SELECT *
-            FROM dataset_items
-            WHERE project_id = ${props.projectId}
-              AND id = ${props.datasetItemId}
-              ${datasetFilter}
-              ${versionFilter}
-            ORDER BY valid_from DESC
-            LIMIT 1
-          ) latest
-          WHERE is_deleted = false
+          FROM dataset_items
+          WHERE project_id = ${props.projectId}
+            AND id = ${props.datasetItemId}
+            AND is_deleted = false
+            ${datasetFilter}
             ${statusFilter}
+            ${versionFilter}
+          LIMIT 1
         `,
       );
 

@@ -1190,6 +1190,10 @@ export function FilterValueCheckbox({
   // Show "All" when clicking would reverse selection (only one item selected)
   const labelText = checked && totalSelected === 1 ? "All" : "Only";
 
+  // Display placeholder for empty strings to ensure clickable area
+  const displayLabel = label === "" ? "(empty)" : label;
+  const displayTitle = label === "" ? "(empty)" : label;
+
   return (
     <div
       className={cn(
@@ -1216,8 +1220,14 @@ export function FilterValueCheckbox({
         )}
         onClick={onLabelClick}
       >
-        <span className="min-w-0 flex-1 truncate text-xs" title={label}>
-          {label}
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-xs",
+            label === "" && "italic text-muted-foreground",
+          )}
+          title={displayTitle}
+        >
+          {displayLabel}
         </span>
 
         {/* "Only" or "All" indicator when hovering label */}
