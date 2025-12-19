@@ -4,12 +4,18 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { type OrderByState, paginationZod, timeFilter } from "@langfuse/shared";
+import {
+  type Observation,
+  type OrderByState,
+  paginationZod,
+  timeFilter,
+} from "@langfuse/shared";
 import { EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventCount,
   getEventFilterOptions,
+  getEventBatchIO,
 } from "./eventsService";
 import { instrumentAsync } from "@langfuse/shared/src/server";
 import type * as opentelemetry from "@opentelemetry/api";
@@ -17,6 +23,11 @@ import type * as opentelemetry from "@opentelemetry/api";
 const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
 });
+
+export type EventBatchIOOutput = Pick<
+  Observation,
+  "id" | "input" | "output" | "metadata"
+>;
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
@@ -28,6 +39,19 @@ const GetEventFilterOptionsInput = zodSchema.object({
 export type GetEventFilterOptionsInput = z.infer<
   typeof GetEventFilterOptionsInput
 >;
+
+export const BatchIOInput = zodSchema.object({
+  projectId: zodSchema.string(),
+  observations: zodSchema.array(
+    zodSchema.object({
+      id: zodSchema.string(),
+      traceId: zodSchema.string(),
+      startTime: zodSchema.date(),
+    }),
+  ),
+});
+
+export type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -89,6 +113,22 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
+          });
+        },
+      );
+    }),
+  batchIO: protectedProjectProcedure
+    .input(BatchIOInput)
+    .query(async ({ input, ctx }) => {
+      return instrumentAsync(
+        { name: "get-event-batch-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("observation_count", input.observations.length);
+
+          return getEventBatchIO({
+            projectId: ctx.session.projectId,
+            observations: input.observations,
           });
         },
       );
