@@ -432,7 +432,7 @@ export const observationsView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "@@AGG@@(id)",
+      sql: "@@AGG@@(1)",
       aggs: { agg: "count" },
       alias: "count",
       type: "integer",
@@ -1059,7 +1059,7 @@ export const eventsObservationsView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "@@AGG@@(events_observations.span_id)",
+      sql: "@@AGG@@(1)",
       aggs: { agg: "count" },
       alias: "count",
       type: "integer",
