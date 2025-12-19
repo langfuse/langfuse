@@ -37,7 +37,11 @@ import {
   eventsTableUiColumnDefinitions,
 } from "../tableMappings/mapEventsTable";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
-import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
+import {
+  applyInputOutputRendering,
+  DEFAULT_RENDERING_PROPS,
+  RenderingProps,
+} from "../utils/rendering";
 import { commandClickhouse, queryClickhouse } from "./clickhouse";
 import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
 import {
@@ -55,6 +59,7 @@ import {
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import { UiColumnMappings } from "../../tableDefinitions";
+import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
@@ -335,6 +340,7 @@ async function getObservationsFromEventsTableInternal<T>(
     opts.searchQuery,
     opts.searchType,
     "e",
+    ["span_id", "name", "user_id", "session_id", "trace_id"],
   );
 
   // Query optimization: joining traces onto observations is expensive.
@@ -1719,4 +1725,79 @@ export const deleteEventsOlderThanDays = async (
       projectId,
     },
   });
+};
+
+export const getObservationsBatchIOFromEventsTable = async (opts: {
+  projectId: string;
+  observations: Array<{
+    id: string;
+    traceId: string;
+  }>;
+  minStartTime: Date;
+  maxStartTime: Date;
+}): Promise<
+  Array<Pick<Observation, "id" | "input" | "output" | "metadata">>
+> => {
+  if (opts.observations.length === 0) {
+    return [];
+  }
+
+  // Extract IDs and trace IDs for filtering
+  const observationIds = opts.observations.map((o) => o.id);
+  const traceIds = [...new Set(opts.observations.map((o) => o.traceId))];
+
+  // Use provided timestamp range with buffer for efficient filtering
+  const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
+  const maxTimestamp = new Date(opts.maxStartTime.getTime() + 1000); // +1 second buffer
+
+  const query = `
+    SELECT
+      e.span_id as id,
+      leftUTF8(e.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input,
+      leftUTF8(e.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,
+      mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata
+    FROM events e
+    WHERE e.project_id = {projectId: String}
+      AND e.span_id IN {observationIds: Array(String)}
+      AND e.trace_id IN {traceIds: Array(String)}
+      AND e.start_time >= {minTimestamp: DateTime64(3)}
+      AND e.start_time <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  const results = await queryClickhouse<{
+    id: string;
+    input: string | null;
+    output: string | null;
+    metadata: Record<string, string>;
+  }>({
+    query,
+    params: {
+      projectId: opts.projectId,
+      observationIds,
+      traceIds,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "batchIO",
+      projectId: opts.projectId,
+    },
+    preferredClickhouseService: "ReadOnly",
+  });
+
+  return results.map((r) => ({
+    id: r.id,
+    input:
+      r.input !== undefined
+        ? applyInputOutputRendering(r.input, DEFAULT_RENDERING_PROPS)
+        : null,
+    output:
+      r.output !== undefined
+        ? applyInputOutputRendering(r.output, DEFAULT_RENDERING_PROPS)
+        : null,
+    metadata:
+      r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
+  }));
 };
