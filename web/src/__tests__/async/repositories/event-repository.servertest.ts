@@ -1755,9 +1755,9 @@ describe("Clickhouse Events Repository Test", () => {
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [
-          { id: observation1Id, traceId, timestamp },
-          { id: observation2Id, traceId, timestamp },
-          { id: observation3Id, traceId, timestamp },
+          { id: observation1Id, traceId, startTime: timestamp },
+          { id: observation2Id, traceId, startTime: timestamp },
+          { id: observation3Id, traceId, startTime: timestamp },
         ],
       });
 
@@ -1828,7 +1828,7 @@ describe("Clickhouse Events Repository Test", () => {
       // Fetch with truncation
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
-        observations: [{ id: observationId, traceId, timestamp }],
+        observations: [{ id: observationId, traceId, startTime: timestamp }],
       });
 
       expect(result).toBeDefined();
@@ -1868,7 +1868,7 @@ describe("Clickhouse Events Repository Test", () => {
 
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
-        observations: [{ id: observationId, traceId, timestamp }],
+        observations: [{ id: observationId, traceId, startTime: timestamp }],
       });
 
       expect(result).toBeDefined();
@@ -1906,8 +1906,8 @@ describe("Clickhouse Events Repository Test", () => {
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [
-          { id: existingId, traceId, timestamp },
-          { id: nonExistentId, traceId, timestamp },
+          { id: existingId, traceId, startTime: timestamp },
+          { id: nonExistentId, traceId, startTime: timestamp },
         ],
       });
 
@@ -1944,7 +1944,7 @@ describe("Clickhouse Events Repository Test", () => {
       // Try to fetch with wrong projectId
       const result = await getObservationsBatchIOFromEventsTable({
         projectId, // Using default projectId, not differentProjectId
-        observations: [{ id: observationId, traceId, timestamp }],
+        observations: [{ id: observationId, traceId, startTime: timestamp }],
       });
 
       // Should not return anything since projectId doesn't match
