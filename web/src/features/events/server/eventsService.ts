@@ -16,7 +16,6 @@ import {
   getNumericScoresGroupedByName,
   getTracesGroupedByTags,
   getObservationsBatchIOFromEventsTable,
-  logger,
 } from "@langfuse/shared/src/server";
 import { type timeFilter } from "@langfuse/shared";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
