@@ -9,6 +9,7 @@ import {
   EventPropagationQueue,
   QueueJobs,
   redis,
+  recordGauge,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { env } from "../../env";
@@ -141,6 +142,12 @@ export const handleEventPropagationJob = async (
         operation_name: "getPartitions",
       },
     });
+
+    // Record backlog metric for observability
+    recordGauge(
+      "langfuse.event_propagation.partition_backlog",
+      partitions.length,
+    );
 
     if (partitions.length === 0) {
       logger.info(
@@ -279,6 +286,10 @@ export const handleEventPropagationJob = async (
           cost_details,
           usage_pricing_tier_id,
           usage_pricing_tier_name,
+          tool_definitions,
+          tool_calls,
+          tool_call_names,
+
           input,
           output,
           metadata,
@@ -331,6 +342,10 @@ export const handleEventPropagationJob = async (
           obs.cost_details,
           obs.usage_pricing_tier_id,
           obs.usage_pricing_tier_name,
+          obs.tool_definitions,
+          obs.tool_calls,
+          obs.tool_call_names,
+
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,
           -- Merge trace and observation metadata, with observation taking precedence (first map wins)
@@ -394,13 +409,21 @@ export const handleEventPropagationJob = async (
         }
 
         additionalSchedules--;
-        await queue.add(QueueJobs.EventPropagationJob, {
-          timestamp: new Date(),
-          id: randomUUID(),
-          payload: {
-            partition: internalPartition.partition,
+        await queue.add(
+          QueueJobs.EventPropagationJob,
+          {
+            timestamp: new Date(),
+            id: randomUUID(),
+            payload: {
+              partition: internalPartition.partition,
+            },
           },
-        });
+          {
+            deduplication: {
+              id: `partition:${internalPartition.partition}`,
+            },
+          },
+        );
         logger.info(
           `[DUAL WRITE] Scheduled additional event propagation job for partition ${internalPartition.partition}. ` +
             `Remaining partitions: ${partitions.length}`,

@@ -243,6 +243,11 @@ export const createEvent = (
     provided_cost_details: { input: 100, output: 200, total: 300 },
     cost_details: { input: 100, output: 200, total: 300 },
 
+    // Tool calls
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
+
     // I/O
     input: "Hello World",
     output: "Hello John",

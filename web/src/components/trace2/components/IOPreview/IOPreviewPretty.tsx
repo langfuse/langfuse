@@ -90,6 +90,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  // Whether to show metadata section (default: false)
+  showMetadata?: boolean;
 }
 
 /**
@@ -122,6 +124,7 @@ export function IOPreviewPretty({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  showMetadata = false,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -155,8 +158,6 @@ export function IOPreviewPretty({
 
   // Determine if markdown is safe to render (content size check)
   const shouldRenderMarkdown = useMemo(() => {
-    const startTime = performance.now();
-
     // Fast byte estimation without expensive JSON.stringify
     // Estimate: count string lengths + rough object overhead
     const estimateSize = (obj: unknown): number => {
@@ -188,20 +189,6 @@ export function IOPreviewPretty({
 
     const shouldRender = totalSize <= MARKDOWN_RENDER_CHARACTER_LIMIT;
 
-    const elapsed = performance.now() - startTime;
-
-    // Performance logging
-    console.log(
-      `[IOPreviewPretty] shouldRenderMarkdown check:`,
-      `\n  - Input size: ${(inputSize / 1024).toFixed(2)}KB`,
-      `\n  - Output size: ${(outputSize / 1024).toFixed(2)}KB`,
-      `\n  - Messages size: ${(messagesSize / 1024).toFixed(2)}KB`,
-      `\n  - Total size: ${(totalSize / 1024).toFixed(2)}KB`,
-      `\n  - Limit: ${(MARKDOWN_RENDER_CHARACTER_LIMIT / 1024).toFixed(2)}KB`,
-      `\n  - Decision: ${shouldRender ? "RENDER MARKDOWN" : "SKIP MARKDOWN"}`,
-      `\n  - Time taken: ${elapsed.toFixed(2)}ms`,
-    );
-
     return shouldRender;
   }, [parsedInput, parsedOutput, allMessages]);
 
@@ -229,8 +216,11 @@ export function IOPreviewPretty({
     onOutputExpansionChange,
   };
 
+  // Determine if metadata should be shown
+  const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
+
   return (
-    <>
+    <div>
       <SectionToolDefinitions
         tools={allTools}
         toolCallCounts={toolCallCounts}
@@ -252,6 +242,20 @@ export function IOPreviewPretty({
       ) : (
         <JsonInputOutputView {...jsonViewProps} />
       )}
-    </>
+
+      {/* Metadata Section */}
+      {shouldShowMetadata && (
+        <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+          <PrettyJsonView
+            title="Metadata"
+            json={parsedMetadata}
+            isLoading={isLoading}
+            isParsing={isParsing}
+            media={media?.filter((m) => m.field === "metadata") ?? []}
+            currentView="pretty"
+          />
+        </div>
+      )}
+    </div>
   );
 }

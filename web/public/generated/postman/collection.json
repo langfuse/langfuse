@@ -1535,6 +1535,45 @@
     {
       "_type": "container",
       "description": null,
+      "name": "Metrics V 2",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Metrics",
+          "request": {
+            "description": "Get metrics from the Langfuse project using a query object. V2 endpoint with optimized performance.\n\n## V2 Differences\n- Supports `observations`, `scores-numeric`, and `scores-categorical` views only (traces view not supported)\n- Direct access to tags and release fields on observations\n- Backwards-compatible: traceName, traceRelease, traceVersion dimensions are still available on observations view\n- High cardinality dimensions are not supported and will return a 400 error (see below)\n\nFor more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).\n\n## Available Views\n\n### observations\nQuery observation-level data (spans, generations, events).\n\n**Dimensions:**\n- `environment` - Deployment environment (e.g., production, staging)\n- `type` - Type of observation (SPAN, GENERATION, EVENT)\n- `name` - Name of the observation\n- `level` - Logging level of the observation\n- `version` - Version of the observation\n- `tags` - User-defined tags\n- `release` - Release version\n- `traceName` - Name of the parent trace (backwards-compatible)\n- `traceRelease` - Release version of the parent trace (backwards-compatible, maps to release)\n- `traceVersion` - Version of the parent trace (backwards-compatible, maps to version)\n- `providedModelName` - Name of the model used\n- `promptName` - Name of the prompt used\n- `promptVersion` - Version of the prompt used\n- `startTimeMonth` - Month of start_time in YYYY-MM format\n\n**Measures:**\n- `count` - Total number of observations\n- `latency` - Observation latency (milliseconds)\n- `streamingLatency` - Generation latency from completion start to end (milliseconds)\n- `inputTokens` - Sum of input tokens consumed\n- `outputTokens` - Sum of output tokens produced\n- `totalTokens` - Sum of all tokens consumed\n- `outputTokensPerSecond` - Output tokens per second\n- `tokensPerSecond` - Total tokens per second\n- `inputCost` - Input cost (USD)\n- `outputCost` - Output cost (USD)\n- `totalCost` - Total cost (USD)\n- `timeToFirstToken` - Time to first token (milliseconds)\n- `countScores` - Number of scores attached to the observation\n\n### scores-numeric\nQuery numeric and boolean score data.\n\n**Dimensions:**\n- `environment` - Deployment environment\n- `name` - Name of the score (e.g., accuracy, toxicity)\n- `source` - Origin of the score (API, ANNOTATION, EVAL)\n- `dataType` - Data type (NUMERIC, BOOLEAN)\n- `configId` - Identifier of the score config\n- `timestampMonth` - Month in YYYY-MM format\n- `timestampDay` - Day in YYYY-MM-DD format\n- `value` - Numeric value of the score\n- `traceName` - Name of the parent trace\n- `tags` - Tags\n- `traceRelease` - Release version\n- `traceVersion` - Version\n- `observationName` - Name of the associated observation\n- `observationModelName` - Model name of the associated observation\n- `observationPromptName` - Prompt name of the associated observation\n- `observationPromptVersion` - Prompt version of the associated observation\n\n**Measures:**\n- `count` - Total number of scores\n- `value` - Score value (for aggregations)\n\n### scores-categorical\nQuery categorical score data. Same dimensions as scores-numeric except uses `stringValue` instead of `value`.\n\n**Measures:**\n- `count` - Total number of scores\n\n## High Cardinality Dimensions\nThe following dimensions cannot be used as grouping dimensions in v2 metrics API as they can cause performance issues.\nUse them in filters instead.\n\n**observations view:**\n- `id` - Use traceId filter to narrow down results\n- `traceId` - Use traceId filter instead\n- `userId` - Use userId filter instead\n- `sessionId` - Use sessionId filter instead\n- `parentObservationId` - Use parentObservationId filter instead\n\n**scores-numeric / scores-categorical views:**\n- `id` - Use specific filters to narrow down results\n- `traceId` - Use traceId filter instead\n- `userId` - Use userId filter instead\n- `sessionId` - Use sessionId filter instead\n- `observationId` - Use observationId filter instead\n\n## Aggregations\nAvailable aggregation functions: `sum`, `avg`, `count`, `max`, `min`, `p50`, `p75`, `p90`, `p95`, `p99`, `histogram`\n\n## Time Granularities\nAvailable granularities for timeDimension: `auto`, `minute`, `hour`, `day`, `week`, `month`\n- `auto` bins the data into approximately 50 buckets based on the time range",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/metrics?query=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "metrics"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "",
+                  "description": "JSON string containing the query parameters with the following structure:\n```json\n{\n  \"view\": string,           // Required. One of \"observations\", \"scores-numeric\", \"scores-categorical\"\n  \"dimensions\": [           // Optional. Default: []\n    {\n      \"field\": string       // Field to group by (see available dimensions above)\n    }\n  ],\n  \"metrics\": [              // Required. At least one metric must be provided\n    {\n      \"measure\": string,    // What to measure (see available measures above)\n      \"aggregation\": string // How to aggregate: \"sum\", \"avg\", \"count\", \"max\", \"min\", \"p50\", \"p75\", \"p90\", \"p95\", \"p99\", \"histogram\"\n    }\n  ],\n  \"filters\": [              // Optional. Default: []\n    {\n      \"column\": string,     // Column to filter on (any dimension field)\n      \"operator\": string,   // Operator based on type:\n                            // - datetime: \">\", \"<\", \">=\", \"<=\"\n                            // - string: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                            // - stringOptions: \"any of\", \"none of\"\n                            // - arrayOptions: \"any of\", \"none of\", \"all of\"\n                            // - number: \"=\", \">\", \"<\", \">=\", \"<=\"\n                            // - stringObject/numberObject: same as string/number with required \"key\"\n                            // - boolean: \"=\", \"<>\"\n                            // - null: \"is null\", \"is not null\"\n      \"value\": any,         // Value to compare against\n      \"type\": string,       // Data type: \"datetime\", \"string\", \"number\", \"stringOptions\", \"categoryOptions\", \"arrayOptions\", \"stringObject\", \"numberObject\", \"boolean\", \"null\"\n      \"key\": string         // Required only for stringObject/numberObject types (e.g., metadata filtering)\n    }\n  ],\n  \"timeDimension\": {        // Optional. Default: null. If provided, results will be grouped by time\n    \"granularity\": string   // One of \"auto\", \"minute\", \"hour\", \"day\", \"week\", \"month\"\n  },\n  \"fromTimestamp\": string,  // Required. ISO datetime string for start of time range\n  \"toTimestamp\": string,    // Required. ISO datetime string for end of time range (must be after fromTimestamp)\n  \"orderBy\": [              // Optional. Default: null\n    {\n      \"field\": string,      // Field to order by (dimension or metric alias)\n      \"direction\": string   // \"asc\" or \"desc\"\n    }\n  ],\n  \"config\": {               // Optional. Query-specific configuration\n    \"bins\": number,         // Optional. Number of bins for histogram aggregation (1-100), default: 10\n    \"row_limit\": number     // Optional. Maximum number of rows to return (1-1000), default: 100\n  }\n}\n```"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
       "name": "Metrics",
       "item": [
         {
@@ -1703,6 +1742,115 @@
             },
             "header": [],
             "method": "DELETE",
+            "auth": null,
+            "body": null
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "_type": "container",
+      "description": null,
+      "name": "Observations V 2",
+      "item": [
+        {
+          "_type": "endpoint",
+          "name": "Get Many",
+          "request": {
+            "description": "Get a list of observations with cursor-based pagination and flexible field selection.\n\n## Cursor-based Pagination\nThis endpoint uses cursor-based pagination for efficient traversal of large datasets.\nThe cursor is returned in the response metadata and should be passed in subsequent requests\nto retrieve the next page of results.\n\n## Field Selection\nUse the `fields` parameter to control which observation fields are returned:\n- `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type\n- `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId\n- `time` - completionStartTime, createdAt, updatedAt\n- `io` - input, output\n- `metadata` - metadata\n- `model` - providedModelName, internalModelId, modelParameters\n- `usage` - usageDetails, costDetails, totalCost\n- `prompt` - promptId, promptName, promptVersion\n- `metrics` - latency, timeToFirstToken\n\nIf not specified, `core` and `basic` field groups are returned.\n\n## Filters\nMultiple filtering options are available via query parameters or the structured `filter` parameter.\nWhen using the `filter` parameter, it takes precedence over individual query parameter filters.",
+            "url": {
+              "raw": "{{baseUrl}}/api/public/v2/observations?fields=&limit=&cursor=&parseIoAsJson=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=&filter=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "public",
+                "v2",
+                "observations"
+              ],
+              "query": [
+                {
+                  "key": "fields",
+                  "value": "",
+                  "description": "Comma-separated list of field groups to include in the response.\nAvailable groups: core, basic, time, io, metadata, model, usage, prompt, metrics.\nIf not specified, `core` and `basic` field groups are returned.\nExample: \"basic,usage,model\""
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Number of items to return per page. Maximum 1000, default 50."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Base64-encoded cursor for pagination. Use the cursor from the previous response to get the next page."
+                },
+                {
+                  "key": "parseIoAsJson",
+                  "value": "",
+                  "description": "Set to `true` to parse input/output fields as JSON, or `false` to return raw strings.\nDefaults to `false` if not provided."
+                },
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "description": "Filter by observation type (e.g., \"GENERATION\", \"SPAN\", \"EVENT\", \"AGENT\", \"TOOL\", \"CHAIN\", \"RETRIEVER\", \"EVALUATOR\", \"EMBEDDING\", \"GUARDRAIL\")"
+                },
+                {
+                  "key": "traceId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "level",
+                  "value": "",
+                  "description": "Optional filter for observations with a specific level (e.g. \"DEBUG\", \"DEFAULT\", \"WARNING\", \"ERROR\")."
+                },
+                {
+                  "key": "parentObservationId",
+                  "value": "",
+                  "description": null
+                },
+                {
+                  "key": "environment",
+                  "value": "",
+                  "description": "Optional filter for observations where the environment is one of the provided values."
+                },
+                {
+                  "key": "fromStartTime",
+                  "value": "",
+                  "description": "Retrieve only observations with a start_time on or after this datetime (ISO 8601)."
+                },
+                {
+                  "key": "toStartTime",
+                  "value": "",
+                  "description": "Retrieve only observations with a start_time before this datetime (ISO 8601)."
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "Optional filter to only include observations with a certain version."
+                },
+                {
+                  "key": "filter",
+                  "value": "",
+                  "description": "JSON string containing an array of filter conditions. When provided, this takes precedence over query parameter filters (userId, name, type, level, environment, fromStartTime, ...).\n\n## Filter Structure\nEach filter condition has the following structure:\n```json\n[\n  {\n    \"type\": string,           // Required. One of: \"datetime\", \"string\", \"number\", \"stringOptions\", \"categoryOptions\", \"arrayOptions\", \"stringObject\", \"numberObject\", \"boolean\", \"null\"\n    \"column\": string,         // Required. Column to filter on (see available columns below)\n    \"operator\": string,       // Required. Operator based on type:\n                              // - datetime: \">\", \"<\", \">=\", \"<=\"\n                              // - string: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - stringOptions: \"any of\", \"none of\"\n                              // - categoryOptions: \"any of\", \"none of\"\n                              // - arrayOptions: \"any of\", \"none of\", \"all of\"\n                              // - number: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - stringObject: \"=\", \"contains\", \"does not contain\", \"starts with\", \"ends with\"\n                              // - numberObject: \"=\", \">\", \"<\", \">=\", \"<=\"\n                              // - boolean: \"=\", \"<>\"\n                              // - null: \"is null\", \"is not null\"\n    \"value\": any,             // Required (except for null type). Value to compare against. Type depends on filter type\n    \"key\": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata\n  }\n]\n```\n\n## Available Columns\n\n### Core Observation Fields\n- `id` (string) - Observation ID\n- `type` (string) - Observation type (SPAN, GENERATION, EVENT)\n- `name` (string) - Observation name\n- `traceId` (string) - Associated trace ID\n- `startTime` (datetime) - Observation start time\n- `endTime` (datetime) - Observation end time\n- `environment` (string) - Environment tag\n- `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)\n- `statusMessage` (string) - Status message\n- `version` (string) - Version tag\n- `userId` (string) - User ID\n- `sessionId` (string) - Session ID\n\n### Trace-Related Fields\n- `traceName` (string) - Name of the parent trace\n- `traceTags` (arrayOptions) - Tags from the parent trace\n- `tags` (arrayOptions) - Alias for traceTags\n\n### Performance Metrics\n- `latency` (number) - Latency in seconds (calculated: end_time - start_time)\n- `timeToFirstToken` (number) - Time to first token in seconds\n- `tokensPerSecond` (number) - Output tokens per second\n\n### Token Usage\n- `inputTokens` (number) - Number of input tokens\n- `outputTokens` (number) - Number of output tokens\n- `totalTokens` (number) - Total tokens (alias: `tokens`)\n\n### Cost Metrics\n- `inputCost` (number) - Input cost in USD\n- `outputCost` (number) - Output cost in USD\n- `totalCost` (number) - Total cost in USD\n\n### Model Information\n- `model` (string) - Provided model name (alias: `providedModelName`)\n- `promptName` (string) - Associated prompt name\n- `promptVersion` (number) - Associated prompt version\n\n### Structured Data\n- `metadata` (stringObject/numberObject/categoryOptions) - Metadata key-value pairs. Use `key` parameter to filter on specific metadata keys.\n\n## Filter Examples\n```json\n[\n  {\n    \"type\": \"string\",\n    \"column\": \"type\",\n    \"operator\": \"=\",\n    \"value\": \"GENERATION\"\n  },\n  {\n    \"type\": \"number\",\n    \"column\": \"latency\",\n    \"operator\": \">=\",\n    \"value\": 2.5\n  },\n  {\n    \"type\": \"stringObject\",\n    \"column\": \"metadata\",\n    \"key\": \"environment\",\n    \"operator\": \"=\",\n    \"value\": \"production\"\n  }\n]\n```"
+                }
+              ],
+              "variable": []
+            },
+            "header": [],
+            "method": "GET",
             "auth": null,
             "body": null
           },

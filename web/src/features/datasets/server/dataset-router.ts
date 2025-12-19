@@ -152,7 +152,7 @@ const generateDatasetQuery = ({
 
   // Common ORDER BY and LIMIT clauses
   const orderAndLimit = Prisma.sql`
-   ${orderCondition.sql ? Prisma.sql`ORDER BY datasets.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
+   ${orderCondition.sql ? Prisma.sql`ORDER BY d.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
    LIMIT ${limit} OFFSET ${page * limit}`;
 
   if (pathPrefix) {
@@ -346,6 +346,7 @@ export const datasetRouter = createTRPCRouter({
             pathFilter, // SQL WHERE clause: filters DB to only datasets in current folder, derived from prefix.
             pathPrefix: input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
             searchFilter,
+            orderCondition: Prisma.sql`ORDER BY d.created_at DESC`,
           }),
         ),
         // datasetCount

@@ -28,7 +28,7 @@ export interface JsonRowScrollableProps {
 export function JsonRowScrollable({
   row,
   theme,
-  stringWrapMode = "truncate",
+  stringWrapMode = "wrap",
   truncateStringsAt = null,
   matchCount,
   currentMatchIndexInRow,

@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.140.0",
+  "version": "3.141.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -95,10 +95,10 @@
     "@tanstack/react-virtual": "^3.13.12",
     "@team-plain/typescript-sdk": "^5.10.3",
     "@tremor/react": "4.0.0-beta-tremor-v4.4",
-    "@trpc/client": "^11.4.4",
-    "@trpc/next": "^11.4.4",
-    "@trpc/react-query": "^11.4.4",
-    "@trpc/server": "^11.4.4",
+    "@trpc/client": "^11.8.0",
+    "@trpc/next": "^11.8.0",
+    "@trpc/react-query": "^11.8.0",
+    "@trpc/server": "^11.8.0",
     "@uiw/codemirror-themes": "^4.23.7",
     "@uiw/react-codemirror": "^4.25.4",
     "ai": "^3.4.9",
