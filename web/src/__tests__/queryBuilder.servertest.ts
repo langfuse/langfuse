@@ -3667,5 +3667,63 @@ describe("queryBuilder", () => {
       expect(resultWithOpt).toHaveLength(1);
       expect(resultWithOpt[0].startTimeMonth).toBe("2024-03");
     });
+
+    it("should produce correct results with sum aggregation on count measure", async () => {
+      const projectId = randomUUID();
+
+      // Create traces
+      const traces = Array.from({ length: 2 }, (_, i) =>
+        createTrace({
+          project_id: projectId,
+          name: `trace-${i}`,
+          timestamp: new Date().getTime(),
+        }),
+      );
+      await createTracesCh(traces);
+
+      // Create 5 observations: 3 for trace-0, 2 for trace-1
+      const observationsPerTrace = [3, 2];
+      const observations = traces.flatMap((trace, traceIdx) =>
+        Array.from({ length: observationsPerTrace[traceIdx] }, (_, obsIdx) =>
+          createObservation({
+            project_id: projectId,
+            trace_id: trace.id,
+            name: `obs-${traceIdx}-${obsIdx}`,
+            start_time: new Date().getTime(),
+          }),
+        ),
+      );
+      await createObservationsCh(observations);
+
+      // Query with sum on count measure (this was producing incorrect results)
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "sum" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      // Execute without optimization (two-level query)
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Execute with optimization (single-level query)
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+
+      // Both should return sum of counts = 5 (total observations)
+      expect(resultWithoutOpt).toHaveLength(1);
+      expect(resultWithOpt).toHaveLength(1);
+      expect(resultWithoutOpt[0].sum_count).toBe(5);
+      expect(resultWithOpt[0].sum_count).toBe(5);
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+    });
   });
 });
