@@ -437,9 +437,9 @@ export const createEvalJobs = async ({
             SELECT id, is_deleted
             FROM dataset_items as di
             WHERE project_id = ${event.projectId}
+              AND valid_to IS NULL 
               AND id = ${event.datasetItemId}
               ${condition}
-            ORDER BY valid_from DESC
             LIMIT 1
           ) latest
           WHERE is_deleted = false
