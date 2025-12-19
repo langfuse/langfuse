@@ -1732,8 +1732,9 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   observations: Array<{
     id: string;
     traceId: string;
-    startTime: Date;
   }>;
+  minStartTime: Date;
+  maxStartTime: Date;
 }): Promise<
   Array<Pick<Observation, "id" | "input" | "output" | "metadata">>
 > => {
@@ -1745,10 +1746,9 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   const observationIds = opts.observations.map((o) => o.id);
   const traceIds = [...new Set(opts.observations.map((o) => o.traceId))];
 
-  // Calculate timestamp range with buffer for efficient filtering
-  const timestamps = opts.observations.map((o) => o.startTime.getTime());
-  const minTimestamp = new Date(Math.min(...timestamps) - 1000); // -1 second buffer
-  const maxTimestamp = new Date(Math.max(...timestamps) + 1000); // +1 second buffer
+  // Use provided timestamp range with buffer for efficient filtering
+  const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
+  const maxTimestamp = new Date(opts.maxStartTime.getTime() + 1000); // +1 second buffer
 
   const query = `
     SELECT
