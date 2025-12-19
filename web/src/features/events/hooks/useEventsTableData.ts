@@ -73,24 +73,17 @@ export function useEventsTableData({
   });
 
   // Memoize observations for IO query to prevent infinite loops
-  const observationsForIO = useMemo(() => {
-    const filtered =
+  const observationsForIO = useMemo(
+    () =>
       observations.data?.observations
         ?.filter((o) => o.id && o.traceId && o.startTime)
         .map((o) => ({
           id: o.id,
           traceId: o.traceId!,
           startTime: o.startTime!, // Use startTime field name as per schema
-        })) ?? [];
-
-    console.log("[useEventsTableData] observationsForIO:", {
-      totalObservations: observations.data?.observations?.length ?? 0,
-      filteredCount: filtered.length,
-      sample: filtered[0],
-    });
-
-    return filtered;
-  }, [observations.data?.observations]);
+        })) ?? [],
+    [observations.data?.observations],
+  );
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(
@@ -105,63 +98,16 @@ export function useEventsTableData({
     },
   );
 
-  // Debug logging for IO query
-  console.log("[useEventsTableData] ioDataQuery:", {
-    isSuccess: ioDataQuery.isSuccess,
-    isLoading: ioDataQuery.isLoading,
-    isError: ioDataQuery.isError,
-    dataCount: ioDataQuery.data?.length ?? 0,
-    sample: ioDataQuery.data?.[0],
-  });
-
   // Memoize joined data to prevent infinite re-renders
   // Include ioDataQuery.isSuccess to ensure re-render when I/O loads
-  const joinedData = useMemo(() => {
-    const result = joinTableCoreAndMetrics<
-      EventsObservation,
-      EventBatchIOOutput
-    >(observations.data?.observations, ioDataQuery.data);
-
-    // Debug logging
-    console.log("[useEventsTableData] Joining data:", {
-      coreObservationsCount: observations.data?.observations?.length ?? 0,
-      ioQueryStatus: {
-        isLoading: ioDataQuery.isLoading,
-        isSuccess: ioDataQuery.isSuccess,
-        dataCount: ioDataQuery.data?.length ?? 0,
-      },
-      joinResult: {
-        status: result.status,
-        rowsCount: result.rows?.length ?? 0,
-      },
-    });
-
-    if (result.status === "success" && result.rows && result.rows.length > 0) {
-      console.log("[useEventsTableData] First row details:", {
-        firstCoreObs: observations.data?.observations?.[0]
-          ? {
-              id: observations.data.observations[0].id,
-              hasInput: "input" in observations.data.observations[0],
-              inputValue: observations.data.observations[0].input,
-            }
-          : null,
-        firstIOData: ioDataQuery.data?.[0],
-        firstJoinedRow: {
-          id: result.rows[0].id,
-          hasInput: "input" in result.rows[0],
-          inputValue: result.rows[0].input,
-          hasOutput: "output" in result.rows[0],
-          outputValue: result.rows[0].output,
-        },
-      });
-    }
-
-    return result;
-  }, [
-    observations.data?.observations,
-    ioDataQuery.data,
-    ioDataQuery.isSuccess,
-  ]);
+  const joinedData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<EventsObservation, EventBatchIOOutput>(
+        observations.data?.observations,
+        ioDataQuery.data,
+      ),
+    [observations.data?.observations, ioDataQuery.data],
+  );
 
   // Fetch total count
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {

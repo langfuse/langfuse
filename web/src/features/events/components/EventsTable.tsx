@@ -919,18 +919,6 @@ export default function ObservationsEventsTable({
           })
         : [];
 
-    // Debug logging for table rows
-    if (result.length > 0) {
-      console.log("[EventsTable] Rows mapped:", {
-        rowCount: result.length,
-        firstRowInput: result[0]?.input?.substring(0, 50),
-        firstRowOutput: result[0]?.output?.substring(0, 50),
-        observationsStatus: observations.status,
-        observationsRowsCount: observations.rows?.length ?? 0,
-        firstObservationInput: observations.rows?.[0]?.input,
-      });
-    }
-
     return result;
   }, [observations]);
 
