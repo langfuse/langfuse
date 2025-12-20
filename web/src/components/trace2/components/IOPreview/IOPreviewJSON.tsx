@@ -88,15 +88,14 @@ export function IOPreviewJSON({
   const [searchMatchCount, setSearchMatchCount] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Debounce search query for Path B
+  // Debounce search query (applies to both virtualized and non-virtualized modes)
   useEffect(() => {
-    if (needsVirtualization) return; // Only for Path B
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
       setCurrentMatchIndex(0);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, needsVirtualization]);
+  }, [searchQuery]);
 
   // No longer using accordion mode - MultiSectionJsonViewer shows all sections with collapsible headers
 
