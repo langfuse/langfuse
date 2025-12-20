@@ -114,7 +114,7 @@ export function ObservationDetailView({
     parsedOutput,
     parsedMetadata,
     isLoadingObservation,
-    isParsing,
+    isWaitingForParsing,
   } = useParsedObservation({
     observationId: observation.id,
     traceId: traceId,
@@ -336,7 +336,7 @@ export function ObservationDetailView({
               parsedOutput={parsedOutput}
               parsedMetadata={parsedMetadata}
               isLoading={observationWithIOCompat.isLoading}
-              isParsing={isParsing}
+              isParsing={isWaitingForParsing}
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}

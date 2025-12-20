@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTheme } from "next-themes";
-import { type Prisma } from "@langfuse/shared";
-import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
 import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
 import { MultiSectionJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
@@ -13,17 +11,12 @@ import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/h
 const VIRTUALIZATION_THRESHOLD = 2500;
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
-  input?: Prisma.JsonValue;
-  output?: Prisma.JsonValue;
-  metadata?: Prisma.JsonValue;
-  // Pre-parsed data (optional, from useParsedObservation hook for performance)
+  // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
-  isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
-  media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
   // Callback to inform parent if virtualization is being used (for scroll handling)
@@ -43,18 +36,13 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
  * because it skips all ChatML processing.
  */
 export function IOPreviewJSON({
-  input,
-  output,
-  metadata,
   parsedInput,
   parsedOutput,
   parsedMetadata,
-  isLoading: _isLoading = false,
-  isParsing: _isParsing = false,
+  isParsing = false,
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
-  media: _media,
   onVirtualizationChange,
 }: IOPreviewJSONProps) {
   const { resolvedTheme } = useTheme();
@@ -70,18 +58,18 @@ export function IOPreviewJSON({
     [isDark],
   );
 
-  const showInput = !hideInput && !(hideIfNull && !parsedInput && !input);
-  const showOutput = !hideOutput && !(hideIfNull && !parsedOutput && !output);
-  const showMetadata = !(hideIfNull && !parsedMetadata && !metadata);
+  const showInput = !hideInput && !(hideIfNull && parsedInput === undefined);
+  const showOutput = !hideOutput && !(hideIfNull && parsedOutput === undefined);
+  const showMetadata = !(hideIfNull && parsedMetadata === undefined);
 
   // Count rows for each section to determine if virtualization is needed
   const rowCounts = useMemo(() => {
     return {
-      input: countJsonRows(parsedInput ?? input),
-      output: countJsonRows(parsedOutput ?? output),
-      metadata: countJsonRows(parsedMetadata ?? metadata),
+      input: countJsonRows(parsedInput),
+      output: countJsonRows(parsedOutput),
+      metadata: countJsonRows(parsedMetadata),
     };
-  }, [parsedInput, input, parsedOutput, output, parsedMetadata, metadata]);
+  }, [parsedInput, parsedOutput, parsedMetadata]);
 
   // Determine if virtualization is needed based on threshold
   const needsVirtualization = useMemo(() => {
@@ -150,9 +138,9 @@ export function IOPreviewJSON({
   // Handle copy for Path B
   const handleCopy = useCallback(() => {
     const dataObj: Record<string, unknown> = {};
-    if (showInput) dataObj.input = parsedInput ?? input;
-    if (showOutput) dataObj.output = parsedOutput ?? output;
-    if (showMetadata) dataObj.metadata = parsedMetadata ?? metadata;
+    if (showInput) dataObj.input = parsedInput;
+    if (showOutput) dataObj.output = parsedOutput;
+    if (showMetadata) dataObj.metadata = parsedMetadata;
     const jsonString = JSON.stringify(dataObj, null, 2);
     void navigator.clipboard.writeText(jsonString);
   }, [
@@ -160,11 +148,8 @@ export function IOPreviewJSON({
     showOutput,
     showMetadata,
     parsedInput,
-    input,
     parsedOutput,
-    output,
     parsedMetadata,
-    metadata,
   ]);
 
   const wrapIcon = useMemo(
@@ -187,7 +172,7 @@ export function IOPreviewJSON({
       result.push({
         key: "input",
         title: "Input",
-        data: parsedInput ?? input,
+        data: parsedInput,
         backgroundColor: inputBgColor,
         minHeight: "200px",
       });
@@ -196,7 +181,7 @@ export function IOPreviewJSON({
       result.push({
         key: "output",
         title: "Output",
-        data: parsedOutput ?? output,
+        data: parsedOutput,
         backgroundColor: outputBgColor,
         minHeight: "200px",
       });
@@ -205,7 +190,7 @@ export function IOPreviewJSON({
       result.push({
         key: "metadata",
         title: "Metadata",
-        data: parsedMetadata ?? metadata,
+        data: parsedMetadata,
         backgroundColor: metadataBgColor,
         minHeight: "200px",
       });
@@ -216,15 +201,25 @@ export function IOPreviewJSON({
     showOutput,
     showMetadata,
     parsedInput,
-    input,
     parsedOutput,
-    output,
     parsedMetadata,
-    metadata,
     inputBgColor,
     outputBgColor,
     metadataBgColor,
   ]);
+
+  // Wait for parsing to complete before rendering to avoid flicker
+  // isParsing is true when we have raw data but parsed data hasn't arrived yet
+  // This check happens AFTER all hooks to comply with React hooks rules
+  if (isParsing) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col border-b border-t">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-sm text-muted-foreground">Parsing data...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col border-b border-t">

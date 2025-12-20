@@ -171,7 +171,17 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
-          {...sharedProps}
+          parsedInput={parsedInput}
+          parsedOutput={parsedOutput}
+          parsedMetadata={parsedMetadata}
+          isParsing={isParsing}
+          hideIfNull={hideIfNull}
+          hideInput={hideInput}
+          hideOutput={hideOutput}
+          inputExpansionState={inputExpansionState}
+          outputExpansionState={outputExpansionState}
+          onInputExpansionChange={onInputExpansionChange}
+          onOutputExpansionChange={onOutputExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
         />
       ) : selectedView === "json" ? (
