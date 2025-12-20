@@ -316,7 +316,7 @@ export function IOPreviewJSON({
       <div className="flex h-6 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
         <span className="text-xs text-muted-foreground">Jump to:</span>
         {sections.map((section, index) => (
-          <span key={section.key} className="flex items-center gap-1.5">
+          <span key={section.key} className="flex items-center">
             <button
               onClick={() => handleScrollToSection(section.key)}
               className="cursor-pointer text-xs text-primary hover:underline"
@@ -324,7 +324,7 @@ export function IOPreviewJSON({
               {section.title}
             </button>
             {index < sections.length - 1 && (
-              <span className="text-xs text-muted-foreground">,</span>
+              <span className="text-xs text-muted-foreground">,&nbsp;</span>
             )}
           </span>
         ))}
