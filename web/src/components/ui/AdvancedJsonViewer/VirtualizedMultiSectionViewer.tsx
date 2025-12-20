@@ -231,7 +231,8 @@ export const VirtualizedMultiSectionViewer = memo(
         id="virtualized-multi-section-parent"
         style={{
           height: "100%",
-          width: "100%",
+          width: stringWrapMode === "nowrap" ? "fit-content" : "100%",
+          minWidth: "100%",
           backgroundColor: theme.background,
         }}
       >
