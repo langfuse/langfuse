@@ -32,6 +32,7 @@ export interface SimpleMultiSectionViewerProps {
   ) => React.ReactNode;
   searchQuery?: string;
   currentMatchIndex?: number;
+  matchCounts?: Map<string, number>;
   showLineNumbers?: boolean;
   enableCopy?: boolean;
   stringWrapMode?: StringWrapMode;
@@ -48,6 +49,7 @@ export const SimpleMultiSectionViewer = memo(function SimpleMultiSectionViewer({
   defaultRenderHeader,
   searchQuery,
   currentMatchIndex = 0,
+  matchCounts,
   showLineNumbers = true,
   enableCopy = false,
   stringWrapMode = "wrap",
@@ -178,6 +180,7 @@ export const SimpleMultiSectionViewer = memo(function SimpleMultiSectionViewer({
     const searchMatch = matchMap.get(node.id);
     const isCurrentMatch = currentMatch?.rowId === node.id;
     const row = treeNodeToFlatRow(node, index);
+    const matchCount = matchCounts?.get(node.id);
 
     return (
       <div
@@ -235,6 +238,7 @@ export const SimpleMultiSectionViewer = memo(function SimpleMultiSectionViewer({
             theme={theme}
             searchMatch={searchMatch}
             isCurrentMatch={isCurrentMatch}
+            matchCount={matchCount}
             currentMatchIndexInRow={currentMatchIndexInRow}
             enableCopy={enableCopy}
             stringWrapMode={stringWrapMode}

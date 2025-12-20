@@ -38,6 +38,7 @@ export interface VirtualizedMultiSectionViewerProps {
   ) => React.ReactNode;
   searchQuery?: string;
   currentMatchIndex?: number;
+  matchCounts?: Map<string, number>;
   showLineNumbers?: boolean;
   enableCopy?: boolean;
   stringWrapMode?: StringWrapMode;
@@ -55,6 +56,7 @@ export const VirtualizedMultiSectionViewer = memo(
     defaultRenderHeader,
     searchQuery,
     currentMatchIndex = 0,
+    matchCounts,
     showLineNumbers = true,
     enableCopy = false,
     stringWrapMode = "wrap",
@@ -394,6 +396,7 @@ export const VirtualizedMultiSectionViewer = memo(
 
             // Regular JSON row
             const row = treeNodeToFlatRow(node, virtualRow.index);
+            const matchCount = matchCounts?.get(row.id);
 
             return (
               <div
@@ -456,6 +459,7 @@ export const VirtualizedMultiSectionViewer = memo(
                     theme={theme}
                     searchMatch={searchMatch}
                     isCurrentMatch={isCurrentMatch}
+                    matchCount={matchCount}
                     currentMatchIndexInRow={currentMatchIndexInRow}
                     enableCopy={enableCopy}
                     stringWrapMode={stringWrapMode}

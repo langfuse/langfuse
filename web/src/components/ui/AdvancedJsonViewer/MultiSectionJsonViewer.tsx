@@ -10,6 +10,7 @@ import { useJsonTheme } from "./hooks/useJsonTheme";
 import { VirtualizedMultiSectionViewer } from "./VirtualizedMultiSectionViewer";
 import { SimpleMultiSectionViewer } from "./SimpleMultiSectionViewer";
 import { SectionContextProvider } from "./contexts/SectionContext";
+import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
 
 export interface MultiSectionJsonViewerProps {
   /** Section definitions (key, data, header, footer, backgroundColor) */
@@ -101,21 +102,25 @@ export function MultiSectionJsonViewer({
     indentSizePx: theme.indentSize,
   });
 
-  // Compute search matches and notify parent
+  // Compute search matches
+  const searchMatches = useMemo(() => {
+    if (!searchQuery || !tree) return [];
+    return searchInTree(tree, searchQuery, { caseSensitive: false });
+  }, [tree, searchQuery]);
+
+  // Calculate match counts for collapsed nodes and multi-match badges
+  const matchCounts = useMemo(() => {
+    return tree && searchMatches.length > 0
+      ? getMatchCountsPerNode(tree, searchMatches)
+      : undefined;
+  }, [tree, searchMatches]);
+
+  // Notify parent of search result count
   useEffect(() => {
-    if (!tree || !onSearchResults) return;
-
-    if (!searchQuery || searchQuery.trim() === "") {
-      onSearchResults(0);
-      return;
+    if (onSearchResults) {
+      onSearchResults(searchMatches.length);
     }
-
-    const matches = require("./utils/searchJson").searchInTree(
-      tree,
-      searchQuery,
-    );
-    onSearchResults(matches.length);
-  }, [tree, searchQuery, onSearchResults]);
+  }, [searchMatches, onSearchResults]);
 
   // Determine virtualization (auto-detect based on total nodes)
   const shouldVirtualize = useMemo(() => {
@@ -134,6 +139,7 @@ export function MultiSectionJsonViewer({
       defaultRenderHeader,
       searchQuery,
       currentMatchIndex,
+      matchCounts,
       showLineNumbers,
       enableCopy,
       stringWrapMode,
@@ -149,6 +155,7 @@ export function MultiSectionJsonViewer({
       defaultRenderHeader,
       searchQuery,
       currentMatchIndex,
+      matchCounts,
       showLineNumbers,
       enableCopy,
       stringWrapMode,
