@@ -95,9 +95,14 @@ async function uploadMedia(
   }
 
   // Upload file to S3
+  // Convert Buffer to ArrayBuffer for Node.js v24+ compatibility with fetch
+  const arrayBuffer = file.fileBytes.buffer.slice(
+    file.fileBytes.byteOffset,
+    file.fileBytes.byteOffset + file.fileBytes.byteLength,
+  ) as ArrayBuffer;
   const uploadResponse = await fetch(uploadUrl, {
     method: "PUT",
-    body: file.fileBytes,
+    body: arrayBuffer,
     headers: {
       "Content-Type": file.contentType,
       "X-Amz-Checksum-Sha256": file.sha256Hash,

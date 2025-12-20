@@ -8,6 +8,7 @@ import {
   getObservationsCountFromEventsTableForPublicApi,
   updateEvents,
   getTraceByIdFromEventsTable,
+  getObservationsBatchIOFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -1695,6 +1696,187 @@ describe("Clickhouse Events Repository Test", () => {
       });
       expect(result).toBeDefined();
       expect(result?.public).toBe(true);
+    });
+  });
+
+  maybe("getObservationsBatchIOFromEventsTable", () => {
+    it("should fetch I/O and metadata for multiple observations", async () => {
+      const traceId = randomUUID();
+      const observation1Id = randomUUID();
+      const observation2Id = randomUUID();
+      const observation3Id = randomUUID();
+
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create events with different I/O content and metadata
+      const events = [
+        createEvent({
+          id: observation1Id,
+          span_id: observation1Id,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-observation-1",
+          input: "This is input for observation 1",
+          output: "This is output for observation 1",
+          metadata: { key1: "value1", source: "test" },
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: observation2Id,
+          span_id: observation2Id,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-observation-2",
+          input: "This is input for observation 2",
+          output: "This is output for observation 2",
+          metadata: { key2: "value2", environment: "production" },
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: observation3Id,
+          span_id: observation3Id,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-observation-3",
+          input: "This is input for observation 3",
+          output: "This is output for observation 3",
+          metadata: { key3: "value3" },
+          start_time: nowMicro + 2000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      // Batch fetch I/O and metadata
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        observations: [
+          { id: observation1Id, traceId },
+          { id: observation2Id, traceId },
+          { id: observation3Id, traceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.length).toBe(3);
+
+      // Check observation 1
+      const io1 = result.find((r) => r.id === observation1Id);
+      expect(io1).toBeDefined();
+      expect(io1?.input).toBe("This is input for observation 1");
+      expect(io1?.output).toBe("This is output for observation 1");
+      expect(io1?.metadata).toBeDefined();
+      expect(io1?.metadata?.key1).toBe("value1");
+      expect(io1?.metadata?.source).toBe("test");
+
+      // Check observation 2
+      const io2 = result.find((r) => r.id === observation2Id);
+      expect(io2).toBeDefined();
+      expect(io2?.input).toBe("This is input for observation 2");
+      expect(io2?.output).toBe("This is output for observation 2");
+      expect(io2?.metadata).toBeDefined();
+      expect(io2?.metadata?.key2).toBe("value2");
+      expect(io2?.metadata?.environment).toBe("production");
+
+      // Check observation 3
+      const io3 = result.find((r) => r.id === observation3Id);
+      expect(io3).toBeDefined();
+      expect(io3?.input).toBe("This is input for observation 3");
+      expect(io3?.output).toBe("This is output for observation 3");
+      expect(io3?.metadata).toBeDefined();
+      expect(io3?.metadata?.key3).toBe("value3");
+    });
+
+    it("should handle empty observation array", async () => {
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        observations: [],
+      });
+
+      expect(result).toBeDefined();
+      expect(result).toEqual([]);
+    });
+
+    it("should handle partial results when some observations not found", async () => {
+      const traceId = randomUUID();
+      const existingId = randomUUID();
+      const nonExistentId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create only one event
+      const event = createEvent({
+        id: existingId,
+        span_id: existingId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-existing",
+        input: "Existing input",
+        output: "Existing output",
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+
+      // Request I/O for both existing and non-existent
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        observations: [
+          { id: existingId, traceId },
+          { id: nonExistentId, traceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      // Should only return the existing one
+      expect(result).toBeDefined();
+      expect(result.length).toBe(1);
+      expect(result[0]?.id).toBe(existingId);
+      expect(result[0]?.input).toBe("Existing input");
+      expect(result[0]?.output).toBe("Existing output");
+    });
+
+    it("should filter by projectId correctly", async () => {
+      const differentProjectId = randomUUID();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      // Create event in different project
+      const event = createEvent({
+        id: observationId,
+        span_id: observationId,
+        project_id: differentProjectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-different-project",
+        input: "Secret input",
+        output: "Secret output",
+        start_time: nowMicro,
+      });
+
+      await createEventsCh([event]);
+
+      // Try to fetch with wrong projectId
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId, // Using default projectId, not differentProjectId
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      // Should not return anything since projectId doesn't match
+      expect(result).toBeDefined();
+      expect(result.length).toBe(0);
     });
   });
 });

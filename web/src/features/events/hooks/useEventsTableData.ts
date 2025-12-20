@@ -1,7 +1,13 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
-import { type FilterState, AnnotationQueueObjectType } from "@langfuse/shared";
+import {
+  type FilterState,
+  AnnotationQueueObjectType,
+  type EventsObservation,
+} from "@langfuse/shared";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 
 type UseEventsTableDataParams = {
   projectId: string;
@@ -66,6 +72,52 @@ export function useEventsTableData({
     refetchOnWindowFocus: true,
   });
 
+  const batchIOPayload = useMemo(() => {
+    const validObservations =
+      observations.data?.observations?.filter(
+        (o) => o.id && o.traceId && o.startTime,
+      ) ?? [];
+
+    if (validObservations.length === 0) {
+      return null;
+    }
+
+    const startTimes = validObservations
+      .map((o) => o.startTime?.getTime() ?? 0)
+      .filter((t) => t > 0);
+
+    const minStartTime = new Date(Math.min(...startTimes));
+    const maxStartTime = new Date(Math.max(...startTimes));
+
+    return {
+      projectId,
+      observations: validObservations.map((o) => ({
+        id: o.id,
+        traceId: o.traceId!,
+      })),
+      minStartTime,
+      maxStartTime,
+    };
+  }, [observations.data?.observations, projectId]);
+
+  // Fetch I/O data
+  const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
+    enabled: observations.isSuccess && batchIOPayload !== null,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
+
+  // Memoize joined data to prevent infinite re-renders
+  // Include ioDataQuery.isSuccess to ensure re-render when I/O loads
+  const joinedData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<EventsObservation, EventBatchIOOutput>(
+        observations.data?.observations,
+        ioDataQuery.data,
+      ),
+    [observations.data?.observations, ioDataQuery.data],
+  );
+
   // Fetch total count
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
@@ -117,10 +169,12 @@ export function useEventsTableData({
   };
 
   return {
-    observations,
+    observations: joinedData,
+    dataUpdatedAt: observations.dataUpdatedAt,
     totalCountQuery,
     totalCount,
     addToQueueMutation,
     handleAddToAnnotationQueue,
+    ioLoading: ioDataQuery.isLoading,
   };
 }
