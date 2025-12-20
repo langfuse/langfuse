@@ -30,6 +30,7 @@ import {
   writeExpansionToStorage,
 } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { useMonospaceCharWidth } from "./useMonospaceCharWidth";
 
 /**
  * Configuration for tree building
@@ -138,6 +139,9 @@ export function useTreeState(
 ): UseTreeStateReturn {
   const { rootKey = "root", expandDepth, indentSizePx = 16 } = config;
 
+  // Measure actual monospace character width for accurate width estimation
+  const charWidth = useMonospaceCharWidth();
+
   // Estimate data size once
   const dataSize = useMemo(() => estimateNodeCount(data), [data]);
 
@@ -167,7 +171,7 @@ export function useTreeState(
       initialExpansion: expansionFromStorage,
       expandDepth,
       widthEstimator: {
-        charWidthPx: 6.2,
+        charWidthPx: charWidth,
         indentSizePx,
         extraBufferPx: 50,
       },
@@ -186,6 +190,7 @@ export function useTreeState(
     expandDepth,
     expansionFromStorage,
     indentSizePx,
+    charWidth,
   ]);
 
   // For large datasets, use React Query + Web Worker
@@ -197,6 +202,7 @@ export function useTreeState(
       expandDepth,
       expansionFromStorage,
       indentSizePx,
+      charWidth,
     ],
     queryFn: () =>
       buildTreeInWorker(
@@ -206,7 +212,7 @@ export function useTreeState(
           initialExpansion: expansionFromStorage,
           expandDepth,
           widthEstimator: {
-            charWidthPx: 6.2,
+            charWidthPx: charWidth,
             indentSizePx,
             extraBufferPx: 50,
           },

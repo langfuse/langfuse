@@ -240,8 +240,8 @@ export const VirtualizedMultiSectionViewer = memo(
           id="virtualized-multi-section-content"
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
-            width: totalContentWidth ? `${totalContentWidth}px` : "100%",
-            minWidth: "100%",
+            minWidth: totalContentWidth ? `${totalContentWidth}px` : "100%",
+            width: "max-content",
             position: "relative",
           }}
         >
@@ -308,9 +308,10 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: effectiveRowWidth
+                    minWidth: effectiveRowWidth
                       ? `${effectiveRowWidth}px`
                       : "100%",
+                    width: "max-content",
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
@@ -351,9 +352,10 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: effectiveRowWidth
+                    minWidth: effectiveRowWidth
                       ? `${effectiveRowWidth}px`
                       : "100%",
+                    width: "max-content",
                     transform: `translateY(${virtualRow.start}px)`,
                     backgroundColor: node.backgroundColor || theme.background,
                   }}
@@ -373,9 +375,10 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: effectiveRowWidth
+                    minWidth: effectiveRowWidth
                       ? `${effectiveRowWidth}px`
                       : "100%",
+                    width: "max-content",
                     transform: `translateY(${virtualRow.start}px)`,
                     height: `${node.spacerHeight}px`,
                     backgroundColor: node.backgroundColor || theme.background,
@@ -396,7 +399,8 @@ export const VirtualizedMultiSectionViewer = memo(
                   position: "absolute",
                   top: 0,
                   left: 0,
-                  width: effectiveRowWidth ? `${effectiveRowWidth}px` : "100%",
+                  minWidth: effectiveRowWidth ? `${effectiveRowWidth}px` : "100%",
+                  width: "max-content",
                   transform: `translateY(${virtualRow.start}px)`,
                   display: "grid",
                   gridTemplateColumns: `${fixedColumnWidth}px auto`,

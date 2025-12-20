@@ -98,6 +98,7 @@ export function MultiSectionJsonViewer({
   } = useMultiSectionTreeState({
     sectionConfigs,
     searchQuery,
+    indentSizePx: theme.indentSize,
   });
 
   // Compute search matches and notify parent

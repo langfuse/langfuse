@@ -6,11 +6,14 @@ import {
 } from "../utils/multiSectionTree";
 import { toggleNodeExpansion } from "../utils/treeExpansion";
 import { searchInTree } from "../utils/searchJson";
+import { useMonospaceCharWidth } from "./useMonospaceCharWidth";
 
 export interface UseMultiSectionTreeStateProps {
   /** Data configurations (no presentation logic) */
   sectionConfigs: SectionConfig[];
   searchQuery?: string;
+  /** Indent size in pixels (default: 12) */
+  indentSizePx?: number;
 }
 
 /**
@@ -29,7 +32,11 @@ export interface UseMultiSectionTreeStateProps {
 export function useMultiSectionTreeState({
   sectionConfigs,
   searchQuery,
+  indentSizePx = 12,
 }: UseMultiSectionTreeStateProps) {
+  // Measure actual monospace character width for accurate width estimation
+  const charWidth = useMonospaceCharWidth();
+
   // Build tree from data configs (memoized, pure data structure)
   const initialTree = useMemo(() => {
     console.log("[useMultiSectionTreeState] Building tree from sectionConfigs");
@@ -40,7 +47,13 @@ export function useMultiSectionTreeState({
     console.log("[useMultiSectionTreeState] sectionConfigs:", sectionConfigs);
 
     const startTime = performance.now();
-    const tree = buildMultiSectionTree(sectionConfigs);
+    const tree = buildMultiSectionTree(sectionConfigs, {
+      widthConfig: {
+        charWidthPx: charWidth,
+        indentSizePx,
+        extraBufferPx: 50,
+      },
+    });
     const buildTime = performance.now() - startTime;
 
     console.log(
@@ -51,7 +64,7 @@ export function useMultiSectionTreeState({
     console.log("[useMultiSectionTreeState] Total nodes:", tree.totalNodeCount);
 
     return tree;
-  }, [sectionConfigs]);
+  }, [sectionConfigs, charWidth, indentSizePx]);
 
   // Track expansion version (triggers re-render after toggle)
   // Tree is mutated in place (JIT approach), so we need version for React
