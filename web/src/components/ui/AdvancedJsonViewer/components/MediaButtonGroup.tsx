@@ -7,6 +7,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { api } from "@/src/utils/api";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 export interface MediaButtonGroupProps {
   media: MediaReturnType[];
@@ -18,6 +20,100 @@ interface GroupedMedia {
   category: MediaCategory;
   items: MediaReturnType[];
   icon: typeof ImageIcon;
+}
+
+/**
+ * AudioPlayer - Renders HTML5 audio player with controls
+ */
+function AudioPlayer({ src }: { src?: string }) {
+  if (!src) return null;
+
+  return (
+    <audio controls className="w-full" preload="metadata">
+      <source src={src} />
+      Your browser does not support the audio element.
+    </audio>
+  );
+}
+
+/**
+ * VideoPlayer - Renders HTML5 video player with controls
+ */
+function VideoPlayer({ src }: { src?: string }) {
+  if (!src) return null;
+
+  return (
+    <video controls className="w-full" preload="metadata" playsInline>
+      <source src={src} />
+      Your browser does not support the video element.
+    </video>
+  );
+}
+
+/**
+ * ImagePreview - Renders 96x96px image that opens in new tab when clicked
+ */
+function ImagePreview({ src }: { src?: string }) {
+  if (!src) return null;
+
+  const openInNewTab = () => {
+    window.open(src, "_blank", "noopener,noreferrer");
+  };
+
+  return (
+    <button
+      onClick={openInNewTab}
+      className="h-24 w-24 overflow-hidden rounded-md border bg-muted transition-opacity hover:opacity-80"
+      aria-label="Open image in new tab"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Media preview"
+        className="h-full w-full object-cover"
+      />
+    </button>
+  );
+}
+
+/**
+ * MediaPreview - Renders media preview based on content type
+ */
+function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
+  const projectId = useProjectIdFromURL();
+
+  const { data } = api.media.getById.useQuery(
+    {
+      mediaId: mediaItem.mediaId,
+      projectId: projectId as string,
+    },
+    {
+      enabled: Boolean(projectId),
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
+    },
+  );
+
+  const mediaUrl = data?.url;
+
+  if (!mediaUrl) return null;
+
+  const contentType = mediaItem.contentType;
+
+  if (contentType.startsWith("image")) {
+    return <ImagePreview src={mediaUrl} />;
+  } else if (contentType.startsWith("audio")) {
+    return <AudioPlayer src={mediaUrl} />;
+  } else if (contentType.startsWith("video")) {
+    return <VideoPlayer src={mediaUrl} />;
+  } else {
+    // Documents: use file icon view
+    return (
+      <LangfuseMediaView mediaAPIReturnValue={mediaItem} asFileIcon={true} />
+    );
+  }
 }
 
 /**
@@ -107,51 +203,28 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
                 group.items.length > 1 ? "s" : ""
               }`}
               onMouseEnter={() => {
-                console.log(
-                  `[${group.category}] Button mouseEnter - clickedCategory:`,
-                  clickedCategory,
-                );
                 // Always open on hover, even if something else is pinned
-                console.log(`[${group.category}] Opening on hover`);
                 setOpenCategory(group.category);
               }}
               onMouseLeave={() => {
-                console.log(
-                  `[${group.category}] Button mouseLeave - clickedCategory:`,
-                  clickedCategory,
-                  "justClicked:",
-                  justClickedRef.current,
-                );
                 // Ignore mouse leave if we just clicked (prevents race condition)
                 if (justClickedRef.current === group.category) {
-                  console.log(
-                    `[${group.category}] Ignoring mouseLeave - just clicked`,
-                  );
                   return;
                 }
                 // Only close on mouse leave if not clicked
                 if (clickedCategory !== group.category) {
-                  console.log(`[${group.category}] Closing on hover away`);
                   setOpenCategory(null);
-                } else {
-                  console.log(`[${group.category}] Keeping open - pinned`);
                 }
               }}
               onPointerDown={(e) => {
                 e.stopPropagation();
-                console.log(
-                  `[${group.category}] Button pointerDown - clickedCategory:`,
-                  clickedCategory,
-                );
                 // If already pinned, unpin and close
                 if (clickedCategory === group.category) {
-                  console.log(`[${group.category}] Unpinning and closing`);
                   setClickedCategory(null);
                   setOpenCategory(null);
                   justClickedRef.current = null;
                 } else {
                   // Pin it open (first click)
-                  console.log(`[${group.category}] Pinning open`);
                   setClickedCategory(group.category);
                   setOpenCategory(group.category);
                   justClickedRef.current = group.category;
@@ -180,44 +253,24 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
             align="end"
             side="bottom"
             onMouseEnter={() => {
-              console.log(
-                `[${group.category}] Content mouseEnter - clickedCategory:`,
-                clickedCategory,
-              );
               // Keep it open when hovering over content
               if (
                 clickedCategory === null ||
                 clickedCategory === group.category
               ) {
-                console.log(`[${group.category}] Keeping content open`);
                 setOpenCategory(group.category);
               }
             }}
             onMouseLeave={() => {
-              console.log(
-                `[${group.category}] Content mouseLeave - clickedCategory:`,
-                clickedCategory,
-              );
               // Only close on mouse leave if not clicked
               if (clickedCategory !== group.category) {
-                console.log(
-                  `[${group.category}] Closing content on hover away`,
-                );
                 setOpenCategory(null);
-              } else {
-                console.log(
-                  `[${group.category}] Keeping content open - pinned`,
-                );
               }
             }}
           >
             <div className="flex flex-wrap gap-2">
               {group.items.map((mediaItem) => (
-                <LangfuseMediaView
-                  key={mediaItem.mediaId}
-                  mediaAPIReturnValue={mediaItem}
-                  asFileIcon={true}
-                />
+                <MediaPreview key={mediaItem.mediaId} mediaItem={mediaItem} />
               ))}
             </div>
           </PopoverContent>
