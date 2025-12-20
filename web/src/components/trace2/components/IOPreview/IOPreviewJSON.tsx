@@ -51,9 +51,9 @@ export function IOPreviewJSON({
   // Background colors that adapt to theme (memoized to prevent tree rebuilds)
   const { inputBgColor, outputBgColor, metadataBgColor } = useMemo(
     () => ({
-      inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
-      outputBgColor: isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)", // Dark blue-gray vs light green
-      metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
+      inputBgColor: isDark ? "rgb(15, 23, 42)" : "transparent", // Dark slate vs white
+      outputBgColor: isDark ? "rgb(20, 30, 41)" : "transparent", // Dark blue-gray vs white
+      metadataBgColor: isDark ? "rgb(30, 20, 40)" : "transparent", // Dark purple vs white
     }),
     [isDark],
   );
