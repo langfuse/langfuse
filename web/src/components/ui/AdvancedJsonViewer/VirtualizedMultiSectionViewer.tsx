@@ -399,7 +399,9 @@ export const VirtualizedMultiSectionViewer = memo(
                   position: "absolute",
                   top: 0,
                   left: 0,
-                  minWidth: effectiveRowWidth ? `${effectiveRowWidth}px` : "100%",
+                  minWidth: effectiveRowWidth
+                    ? `${effectiveRowWidth}px`
+                    : "100%",
                   width: "max-content",
                   transform: `translateY(${virtualRow.start}px)`,
                   display: "grid",
