@@ -1,4 +1,12 @@
-import { useEffect, useMemo, memo, useRef, type RefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  memo,
+  useRef,
+  useLayoutEffect,
+  useState,
+  type RefObject,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type {
   JSONTheme,
@@ -54,11 +62,68 @@ export const VirtualizedMultiSectionViewer = memo(
     scrollContainerRef,
   }: VirtualizedMultiSectionViewerProps) {
     const parentRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+    console.log(
+      "[VirtualizedMultiSectionViewer] Render - containerWidth:",
+      containerWidth,
+    );
 
     // Build sections map for O(1) lookup
     const sectionsMap = useMemo(() => {
       return new Map(sections.map((s) => [s.key, s]));
     }, [sections]);
+
+    // Measure scroll container width for sticky headers
+    useLayoutEffect(() => {
+      console.log("[VirtualizedMultiSectionViewer] useLayoutEffect triggered");
+      console.log(
+        "[VirtualizedMultiSectionViewer] scrollContainerRef:",
+        scrollContainerRef,
+      );
+      console.log(
+        "[VirtualizedMultiSectionViewer] scrollContainerRef.current:",
+        scrollContainerRef?.current,
+      );
+
+      const container = scrollContainerRef?.current;
+      if (!container) {
+        console.log(
+          "[VirtualizedMultiSectionViewer] No container, returning early",
+        );
+        return;
+      }
+
+      console.log(
+        "[VirtualizedMultiSectionViewer] Container found, measuring width",
+      );
+
+      const updateWidth = () => {
+        const width = container.clientWidth;
+        console.log("[VirtualizedMultiSectionViewer] Measured width:", width);
+        setContainerWidth(width);
+      };
+
+      updateWidth(); // Initial measurement
+
+      if (
+        typeof window !== "undefined" &&
+        typeof ResizeObserver !== "undefined"
+      ) {
+        console.log(
+          "[VirtualizedMultiSectionViewer] Setting up ResizeObserver",
+        );
+        const resizeObserver = new ResizeObserver(updateWidth);
+        resizeObserver.observe(container);
+        return () => {
+          console.log(
+            "[VirtualizedMultiSectionViewer] Cleaning up ResizeObserver",
+          );
+          resizeObserver.disconnect();
+        };
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scrollContainerRef?.current]);
 
     // Row count (includes meta-root, but we skip it in rendering)
     const rowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
@@ -116,6 +181,9 @@ export const VirtualizedMultiSectionViewer = memo(
 
         if (!node) return 16;
 
+        // Meta-root should have 0 height (it's never rendered)
+        if (node.nodeType === "meta") return 0;
+
         // Custom heights for different node types
         if (node.nodeType === "section-header") return 32;
         if (node.nodeType === "section-footer") return 40;
@@ -124,7 +192,7 @@ export const VirtualizedMultiSectionViewer = memo(
         // Regular JSON rows
         return estimateSize(index);
       },
-      overscan: 500,
+      overscan: 100,
       measureElement:
         typeof window !== "undefined"
           ? (element) => element.getBoundingClientRect().height
@@ -234,12 +302,21 @@ export const VirtualizedMultiSectionViewer = memo(
                       ? `${totalContentWidth}px`
                       : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
-                    backgroundColor: node.backgroundColor || theme.background,
-                    borderBottom: "1px solid",
-                    borderColor: theme.punctuationColor || "#e5e7eb",
                   }}
                 >
-                  {headerContent}
+                  <div
+                    style={{
+                      position: "sticky",
+                      left: 0,
+                      width: containerWidth ? `${containerWidth}px` : "100%",
+                      zIndex: 2,
+                      backgroundColor: node.backgroundColor || theme.background,
+                      borderBottom: "1px solid",
+                      borderColor: theme.punctuationColor || "#e5e7eb",
+                    }}
+                  >
+                    {headerContent}
+                  </div>
                 </div>
               );
             }
