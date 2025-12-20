@@ -70,11 +70,6 @@ export const VirtualizedMultiSectionViewer = memo(
     // Measure actual monospace character width for accurate height estimation
     const charWidth = useMonospaceCharWidth();
 
-    console.log(
-      "[VirtualizedMultiSectionViewer] Render - containerWidth:",
-      containerWidth,
-    );
-
     // Build sections map for O(1) lookup
     const sectionsMap = useMemo(() => {
       return new Map(sections.map((s) => [s.key, s]));
@@ -82,31 +77,13 @@ export const VirtualizedMultiSectionViewer = memo(
 
     // Measure scroll container width for sticky headers
     useLayoutEffect(() => {
-      console.log("[VirtualizedMultiSectionViewer] useLayoutEffect triggered");
-      console.log(
-        "[VirtualizedMultiSectionViewer] scrollContainerRef:",
-        scrollContainerRef,
-      );
-      console.log(
-        "[VirtualizedMultiSectionViewer] scrollContainerRef.current:",
-        scrollContainerRef?.current,
-      );
-
       const container = scrollContainerRef?.current;
       if (!container) {
-        console.log(
-          "[VirtualizedMultiSectionViewer] No container, returning early",
-        );
         return;
       }
 
-      console.log(
-        "[VirtualizedMultiSectionViewer] Container found, measuring width",
-      );
-
       const updateWidth = () => {
         const width = container.clientWidth;
-        console.log("[VirtualizedMultiSectionViewer] Measured width:", width);
         setContainerWidth(width);
       };
 
@@ -116,15 +93,9 @@ export const VirtualizedMultiSectionViewer = memo(
         typeof window !== "undefined" &&
         typeof ResizeObserver !== "undefined"
       ) {
-        console.log(
-          "[VirtualizedMultiSectionViewer] Setting up ResizeObserver",
-        );
         const resizeObserver = new ResizeObserver(updateWidth);
         resizeObserver.observe(container);
         return () => {
-          console.log(
-            "[VirtualizedMultiSectionViewer] Cleaning up ResizeObserver",
-          );
           resizeObserver.disconnect();
         };
       }
