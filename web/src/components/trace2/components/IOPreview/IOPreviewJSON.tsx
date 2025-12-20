@@ -10,6 +10,12 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
 import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 
 const VIRTUALIZATION_THRESHOLD = 2500;
 
@@ -22,6 +28,8 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   hideIfNull?: boolean;
   hideOutput?: boolean;
   hideInput?: boolean;
+  // Media attachments
+  media?: MediaReturnType[];
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
 }
@@ -46,6 +54,7 @@ export function IOPreviewJSON({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  media,
   onVirtualizationChange,
 }: IOPreviewJSONProps) {
   const { resolvedTheme } = useTheme();
@@ -328,6 +337,27 @@ export function IOPreviewJSON({
             )}
           </span>
         ))}
+        {needsVirtualization && (
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <span className="ml-auto cursor-help rounded bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+                Virtualized
+              </span>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80" side="bottom" align="end">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Virtualized View</p>
+                <p className="text-xs text-muted-foreground">
+                  This view is using virtualization due to a large number of
+                  keys ({rowCounts.input.toLocaleString()} input,{" "}
+                  {rowCounts.output.toLocaleString()} output,{" "}
+                  {rowCounts.metadata.toLocaleString()} metadata). Only visible
+                  rows are rendered for optimal performance.
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        )}
       </div>
 
       {/* Body with MultiSectionJsonViewer */}
@@ -346,6 +376,7 @@ export function IOPreviewJSON({
           scrollContainerRef={
             scrollContainerRef as React.RefObject<HTMLDivElement>
           }
+          media={media}
           theme={{
             fontSize: "0.7rem",
             lineHeight: 14,

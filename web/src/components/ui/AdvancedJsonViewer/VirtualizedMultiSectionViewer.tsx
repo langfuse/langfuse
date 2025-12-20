@@ -30,6 +30,7 @@ import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { searchInTree } from "./utils/searchJson";
 import { useMonospaceCharWidth } from "./hooks/useMonospaceCharWidth";
+import { type MediaReturnType } from "@/src/features/media/validation";
 
 export interface VirtualizedMultiSectionViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -52,6 +53,7 @@ export interface VirtualizedMultiSectionViewerProps {
   truncateStringsAt?: number | null;
   onToggleExpansion?: (nodeId: string) => void;
   scrollContainerRef?: RefObject<HTMLDivElement>;
+  media?: MediaReturnType[];
 }
 
 export const VirtualizedMultiSectionViewer = memo(
@@ -74,6 +76,7 @@ export const VirtualizedMultiSectionViewer = memo(
       truncateStringsAt = 100,
       onToggleExpansion,
       scrollContainerRef,
+      media,
     },
     ref,
   ) {
@@ -292,6 +295,11 @@ export const VirtualizedMultiSectionViewer = memo(
                     node.sectionKey.slice(1)
                   : "");
 
+              // Filter media for this section
+              const sectionMedia = media?.filter(
+                (m) => m.field === node.sectionKey,
+              );
+
               // Render header with fallback chain
               let headerContent;
               if (jsonSection?.renderHeader) {
@@ -306,6 +314,7 @@ export const VirtualizedMultiSectionViewer = memo(
                   <MultiSectionJsonViewerHeader
                     title={title}
                     context={sectionContext}
+                    media={sectionMedia}
                   />
                 );
               }

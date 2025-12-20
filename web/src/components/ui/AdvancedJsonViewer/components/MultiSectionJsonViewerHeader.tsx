@@ -1,11 +1,15 @@
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { SectionContext } from "../types";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import { MediaButtonGroup } from "./MediaButtonGroup";
 
 export interface MultiSectionJsonViewerHeaderProps {
   /** Display title for the section */
   title: string;
   /** Section context (expansion state, row count, toggle function) */
   context: SectionContext;
+  /** Media attachments for this section (optional) */
+  media?: MediaReturnType[];
 }
 
 /**
@@ -18,6 +22,7 @@ export interface MultiSectionJsonViewerHeaderProps {
 export function MultiSectionJsonViewerHeader({
   title,
   context,
+  media,
 }: MultiSectionJsonViewerHeaderProps) {
   return (
     <div
@@ -53,11 +58,14 @@ export function MultiSectionJsonViewerHeader({
           marginLeft: "8px",
           color: "#6b7280",
           fontWeight: 400,
-          fontSize: "0.7rem",
+          fontSize: "0.65rem",
         }}
       >
-        {context.rowCount} rows
+        {context.rowCount.toLocaleString()} keys
       </span>
+      <div style={{ marginLeft: "auto" }}>
+        {media && media.length > 0 && <MediaButtonGroup media={media} />}
+      </div>
     </div>
   );
 }

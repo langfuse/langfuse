@@ -23,6 +23,7 @@ import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { searchInTree } from "./utils/searchJson";
+import { type MediaReturnType } from "@/src/features/media/validation";
 
 export interface SimpleMultiSectionViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -45,6 +46,7 @@ export interface SimpleMultiSectionViewerProps {
   truncateStringsAt?: number | null;
   onToggleExpansion?: (nodeId: string) => void;
   scrollContainerRef?: RefObject<HTMLDivElement>;
+  media?: MediaReturnType[];
 }
 
 export const SimpleMultiSectionViewer = memo(
@@ -65,6 +67,7 @@ export const SimpleMultiSectionViewer = memo(
         truncateStringsAt = 100,
         onToggleExpansion,
         scrollContainerRef,
+        media,
       },
       ref,
     ) {
@@ -325,6 +328,9 @@ export const SimpleMultiSectionViewer = memo(
                   ? sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1)
                   : "");
 
+              // Filter media for this section
+              const sectionMedia = media?.filter((m) => m.field === sectionKey);
+
               // Render header with fallback chain
               let headerContent;
               if (jsonSection?.renderHeader) {
@@ -339,6 +345,7 @@ export const SimpleMultiSectionViewer = memo(
                   <MultiSectionJsonViewerHeader
                     title={title}
                     context={sectionContext}
+                    media={sectionMedia}
                   />
                 );
               }

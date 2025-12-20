@@ -178,6 +178,7 @@ export function IOPreview({
           hideIfNull={hideIfNull}
           hideInput={hideInput}
           hideOutput={hideOutput}
+          media={media}
           inputExpansionState={inputExpansionState}
           outputExpansionState={outputExpansionState}
           onInputExpansionChange={onInputExpansionChange}

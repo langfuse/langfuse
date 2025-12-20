@@ -24,6 +24,7 @@ import {
 } from "./SimpleMultiSectionViewer";
 import { SectionContextProvider } from "./contexts/SectionContext";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
+import { type MediaReturnType } from "@/src/features/media/validation";
 
 export interface MultiSectionJsonViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -62,6 +63,9 @@ export interface MultiSectionJsonViewerProps {
 
   /** Scroll container ref (for virtualization) */
   scrollContainerRef?: RefObject<HTMLDivElement>;
+
+  /** Media attachments (will be filtered by section field) */
+  media?: MediaReturnType[];
 }
 
 /**
@@ -95,6 +99,7 @@ export const MultiSectionJsonViewer = forwardRef<
     truncateStringsAt = 100,
     className,
     scrollContainerRef,
+    media,
   },
   ref,
 ) {
@@ -185,6 +190,7 @@ export const MultiSectionJsonViewer = forwardRef<
       truncateStringsAt,
       onToggleExpansion: handleToggleExpansion,
       scrollContainerRef,
+      media,
     }),
     [
       tree,
@@ -201,6 +207,7 @@ export const MultiSectionJsonViewer = forwardRef<
       truncateStringsAt,
       handleToggleExpansion,
       scrollContainerRef,
+      media,
     ],
   );
 
