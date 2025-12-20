@@ -160,6 +160,14 @@ export const VirtualizedMultiSectionViewer = memo(
       return undefined;
     }, [tree, fixedColumnWidth, stringWrapMode, scrollableMaxWidth]);
 
+    // Calculate effective row width (takes max of content width and container width)
+    const effectiveRowWidth = useMemo(() => {
+      if (!totalContentWidth && !containerWidth) return undefined;
+      if (!totalContentWidth) return containerWidth;
+      if (!containerWidth) return totalContentWidth;
+      return Math.max(totalContentWidth, containerWidth);
+    }, [totalContentWidth, containerWidth]);
+
     // Search matches
     const searchMatches = useMemo(() => {
       if (!searchQuery || !tree) return [];
@@ -232,6 +240,7 @@ export const VirtualizedMultiSectionViewer = memo(
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
             width: totalContentWidth ? `${totalContentWidth}px` : "100%",
+            minWidth: "100%",
             position: "relative",
           }}
         >
@@ -298,8 +307,8 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: totalContentWidth
-                      ? `${totalContentWidth}px`
+                    width: effectiveRowWidth
+                      ? `${effectiveRowWidth}px`
                       : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
@@ -341,8 +350,8 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: totalContentWidth
-                      ? `${totalContentWidth}px`
+                    width: effectiveRowWidth
+                      ? `${effectiveRowWidth}px`
                       : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                     backgroundColor: node.backgroundColor || theme.background,
@@ -363,8 +372,8 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: totalContentWidth
-                      ? `${totalContentWidth}px`
+                    width: effectiveRowWidth
+                      ? `${effectiveRowWidth}px`
                       : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                     height: `${node.spacerHeight}px`,
@@ -386,7 +395,7 @@ export const VirtualizedMultiSectionViewer = memo(
                   position: "absolute",
                   top: 0,
                   left: 0,
-                  width: totalContentWidth ? `${totalContentWidth}px` : "100%",
+                  width: effectiveRowWidth ? `${effectiveRowWidth}px` : "100%",
                   transform: `translateY(${virtualRow.start}px)`,
                   display: "grid",
                   gridTemplateColumns: `${fixedColumnWidth}px auto`,
