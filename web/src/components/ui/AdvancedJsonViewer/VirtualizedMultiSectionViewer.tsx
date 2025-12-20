@@ -226,7 +226,7 @@ export const VirtualizedMultiSectionViewer = memo(
           if (index !== -1) {
             rowVirtualizer.scrollToIndex(index, {
               align: "start",
-              behavior: "smooth",
+              behavior: "auto",
             });
           }
         },
