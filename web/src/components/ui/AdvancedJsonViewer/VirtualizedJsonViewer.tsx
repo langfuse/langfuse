@@ -14,6 +14,7 @@ import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
+import { useMonospaceCharWidth } from "./hooks/useMonospaceCharWidth";
 
 interface VirtualizedJsonViewerProps {
   tree: TreeState | null;
@@ -52,6 +53,9 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
 }: VirtualizedJsonViewerProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
+  // Measure actual monospace character width for accurate height estimation
+  const charWidth = useMonospaceCharWidth();
+
   // Determine row count
   // NOTE: Must recalculate when expansionVersion changes because tree is mutated in place
   const rowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
@@ -71,6 +75,7 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
     totalLineCount,
     stringWrapMode,
     truncateStringsAt,
+    charWidth,
   });
 
   // Search-related calculations

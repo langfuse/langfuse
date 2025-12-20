@@ -26,6 +26,7 @@ import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { searchInTree } from "./utils/searchJson";
+import { useMonospaceCharWidth } from "./hooks/useMonospaceCharWidth";
 
 export interface VirtualizedMultiSectionViewerProps {
   tree: TreeState;
@@ -63,6 +64,9 @@ export const VirtualizedMultiSectionViewer = memo(
   }: VirtualizedMultiSectionViewerProps) {
     const parentRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState<number | null>(null);
+
+    // Measure actual monospace character width for accurate height estimation
+    const charWidth = useMonospaceCharWidth();
 
     console.log(
       "[VirtualizedMultiSectionViewer] Render - containerWidth:",
@@ -143,6 +147,7 @@ export const VirtualizedMultiSectionViewer = memo(
       totalLineCount: tree?.totalNodeCount,
       stringWrapMode,
       truncateStringsAt,
+      charWidth,
     });
 
     // Calculate total content width (stable, memoized)
