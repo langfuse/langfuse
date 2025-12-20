@@ -135,6 +135,27 @@ export function IOPreviewJSON({
   }, [stringWrapMode, setStringWrapMode]);
 
   // Handle copy for Path B
+  // Handle scrolling to a specific section
+  const handleScrollToSection = useCallback(
+    (sectionKey: string) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      // Find the section header element by searching for the section key in the DOM
+      // Section headers are rendered as divs with unique keys
+      const sectionElements = container.querySelectorAll('[style*="sticky"]');
+      for (const element of Array.from(sectionElements)) {
+        // Check if this is a section header by looking at its content
+        const textContent = element.textContent?.toLowerCase();
+        if (textContent?.includes(sectionKey.toLowerCase())) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+          break;
+        }
+      }
+    },
+    [scrollContainerRef],
+  );
+
   const handleCopy = useCallback(() => {
     const dataObj: Record<string, unknown> = {};
     if (showInput) dataObj.input = parsedInput;
@@ -301,6 +322,24 @@ export function IOPreviewJSON({
         >
           <Copy className="h-3.5 w-3.5" />
         </Button>
+      </div>
+
+      {/* Section navigation hint bar */}
+      <div className="flex h-6 flex-shrink-0 items-center gap-1.5 border-b bg-muted/30 px-2">
+        <span className="text-xs text-muted-foreground">Jump to:</span>
+        {sections.map((section, index) => (
+          <span key={section.key} className="flex items-center gap-1.5">
+            <button
+              onClick={() => handleScrollToSection(section.key)}
+              className="cursor-pointer text-xs text-primary hover:underline"
+            >
+              {section.title}
+            </button>
+            {index < sections.length - 1 && (
+              <span className="text-xs text-muted-foreground">,</span>
+            )}
+          </span>
+        ))}
       </div>
 
       {/* Body with MultiSectionJsonViewer */}
