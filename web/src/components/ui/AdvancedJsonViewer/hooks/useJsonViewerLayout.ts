@@ -141,10 +141,10 @@ export function useJsonViewerLayout({
             const indentWidth = node.depth * theme.indentSize;
             const keyWidth = String(row.key).length * charWidth;
             const colonWidth = 2 * charWidth; // ": "
-            const quoteWidth = 2 * charWidth; // Opening and closing quotes
-            const usedWidth =
-              indentWidth + keyWidth + colonWidth + quoteWidth + 20; // +20 for padding/margins
-            const availableWidth = scrollableMaxWidth - usedWidth;
+            // For wrapped strings with white-space: pre-wrap, ALL lines (including continuations)
+            // start at the same position - after the opening quote of the value
+            const leftIndent = indentWidth + keyWidth + colonWidth + charWidth; // +charWidth for opening quote position
+            const availableWidth = scrollableMaxWidth - leftIndent;
 
             if (availableWidth > 0) {
               const charsPerLine = Math.max(
