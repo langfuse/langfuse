@@ -129,6 +129,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
     null,
   );
   const justClickedRef = useRef<MediaCategory | null>(null);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Group media by category
   const groupedMedia = useMemo(() => {
@@ -203,6 +204,11 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
                 group.items.length > 1 ? "s" : ""
               }`}
               onMouseEnter={() => {
+                // Clear any pending close timeout
+                if (closeTimeoutRef.current) {
+                  clearTimeout(closeTimeoutRef.current);
+                  closeTimeoutRef.current = null;
+                }
                 // Always open on hover, even if something else is pinned
                 setOpenCategory(group.category);
               }}
@@ -211,9 +217,11 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
                 if (justClickedRef.current === group.category) {
                   return;
                 }
-                // Only close on mouse leave if not clicked
+                // Only close on mouse leave if not clicked - with delay
                 if (clickedCategory !== group.category) {
-                  setOpenCategory(null);
+                  closeTimeoutRef.current = setTimeout(() => {
+                    setOpenCategory(null);
+                  }, 300); // 300ms delay to allow moving mouse to popover
                 }
               }}
               onPointerDown={(e) => {
@@ -253,6 +261,11 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
             align="end"
             side="bottom"
             onMouseEnter={() => {
+              // Clear any pending close timeout
+              if (closeTimeoutRef.current) {
+                clearTimeout(closeTimeoutRef.current);
+                closeTimeoutRef.current = null;
+              }
               // Keep it open when hovering over content
               if (
                 clickedCategory === null ||
@@ -262,9 +275,11 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
               }
             }}
             onMouseLeave={() => {
-              // Only close on mouse leave if not clicked
+              // Only close on mouse leave if not clicked - with delay
               if (clickedCategory !== group.category) {
-                setOpenCategory(null);
+                closeTimeoutRef.current = setTimeout(() => {
+                  setOpenCategory(null);
+                }, 300); // 300ms delay
               }
             }}
           >
