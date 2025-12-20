@@ -5,6 +5,8 @@ import {
   useRef,
   useLayoutEffect,
   useState,
+  useImperativeHandle,
+  forwardRef,
   type RefObject,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -20,6 +22,7 @@ import {
   getNodeByIndex,
   treeNodeToFlatRow,
   findNodeIndex,
+  findSectionHeaderIndex,
 } from "./utils/treeNavigation";
 import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
@@ -27,6 +30,10 @@ import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { searchInTree } from "./utils/searchJson";
 import { useMonospaceCharWidth } from "./hooks/useMonospaceCharWidth";
+
+export interface VirtualizedMultiSectionViewerHandle {
+  scrollToSection: (sectionKey: string) => void;
+}
 
 export interface VirtualizedMultiSectionViewerProps {
   tree: TreeState;
@@ -48,22 +55,28 @@ export interface VirtualizedMultiSectionViewerProps {
 }
 
 export const VirtualizedMultiSectionViewer = memo(
-  function VirtualizedMultiSectionViewer({
-    tree,
-    sections,
-    expansionVersion,
-    theme,
-    defaultRenderHeader,
-    searchQuery,
-    currentMatchIndex = 0,
-    matchCounts,
-    showLineNumbers = true,
-    enableCopy = false,
-    stringWrapMode = "wrap",
-    truncateStringsAt = 100,
-    onToggleExpansion,
-    scrollContainerRef,
-  }: VirtualizedMultiSectionViewerProps) {
+  forwardRef<
+    VirtualizedMultiSectionViewerHandle,
+    VirtualizedMultiSectionViewerProps
+  >(function VirtualizedMultiSectionViewer(
+    {
+      tree,
+      sections,
+      expansionVersion,
+      theme,
+      defaultRenderHeader,
+      searchQuery,
+      currentMatchIndex = 0,
+      matchCounts,
+      showLineNumbers = true,
+      enableCopy = false,
+      stringWrapMode = "wrap",
+      truncateStringsAt = 100,
+      onToggleExpansion,
+      scrollContainerRef,
+    },
+    ref,
+  ) {
     const parentRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState<number | null>(null);
 
@@ -200,6 +213,26 @@ export const VirtualizedMultiSectionViewer = memo(
         rowVirtualizer.scrollToIndex(index, { align: "center" });
       }
     }, [currentMatch, tree, rowVirtualizer]);
+
+    // Expose scrollToSection method via ref
+    useImperativeHandle(
+      ref,
+      () => ({
+        scrollToSection: (sectionKey: string) => {
+          if (!tree) return;
+
+          const index = findSectionHeaderIndex(tree.rootNode, sectionKey);
+
+          if (index !== -1) {
+            rowVirtualizer.scrollToIndex(index, {
+              align: "start",
+              behavior: "smooth",
+            });
+          }
+        },
+      }),
+      [tree, rowVirtualizer],
+    );
 
     const virtualItems = rowVirtualizer.getVirtualItems();
 
@@ -446,5 +479,5 @@ export const VirtualizedMultiSectionViewer = memo(
         </div>
       </div>
     );
-  },
+  }),
 );

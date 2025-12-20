@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTheme } from "next-themes";
 import { type ExpansionStateProps } from "./IOPreview";
 import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
-import { MultiSectionJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
+import {
+  MultiSectionJsonViewer,
+  type MultiSectionJsonViewerHandle,
+} from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
@@ -87,6 +90,7 @@ export function IOPreviewJSON({
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [searchMatchCount, setSearchMatchCount] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<MultiSectionJsonViewerHandle>(null);
 
   // Debounce search query (applies to both virtualized and non-virtualized modes)
   useEffect(() => {
@@ -136,22 +140,9 @@ export function IOPreviewJSON({
 
   // Handle copy for Path B
   // Handle scrolling to a specific section
-  const handleScrollToSection = useCallback(
-    (sectionKey: string) => {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      // Find section by data-section-key attribute
-      // Works for both virtualized and non-virtualized viewers
-      const sectionElement = container.querySelector(
-        `[data-section-key="${sectionKey}"]`,
-      );
-      if (sectionElement) {
-        sectionElement.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    },
-    [scrollContainerRef],
-  );
+  const handleScrollToSection = useCallback((sectionKey: string) => {
+    viewerRef.current?.scrollToSection(sectionKey);
+  }, []);
 
   const handleCopy = useCallback(() => {
     const dataObj: Record<string, unknown> = {};
@@ -342,6 +333,7 @@ export function IOPreviewJSON({
       {/* Body with MultiSectionJsonViewer */}
       <div className="min-h-0 flex-1 overflow-auto" ref={scrollContainerRef}>
         <MultiSectionJsonViewer
+          ref={viewerRef}
           sections={sections}
           virtualized={needsVirtualization}
           showLineNumbers={true}

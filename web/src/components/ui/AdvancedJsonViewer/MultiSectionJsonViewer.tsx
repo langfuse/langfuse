@@ -1,4 +1,11 @@
-import { useMemo, useEffect, type RefObject } from "react";
+import {
+  useMemo,
+  useEffect,
+  useRef,
+  useImperativeHandle,
+  forwardRef,
+  type RefObject,
+} from "react";
 import type {
   JsonSection,
   PartialJSONTheme,
@@ -7,10 +14,20 @@ import type {
 } from "./types";
 import { useMultiSectionTreeState } from "./hooks/useMultiSectionTreeState";
 import { useJsonTheme } from "./hooks/useJsonTheme";
-import { VirtualizedMultiSectionViewer } from "./VirtualizedMultiSectionViewer";
-import { SimpleMultiSectionViewer } from "./SimpleMultiSectionViewer";
+import {
+  VirtualizedMultiSectionViewer,
+  type VirtualizedMultiSectionViewerHandle,
+} from "./VirtualizedMultiSectionViewer";
+import {
+  SimpleMultiSectionViewer,
+  type SimpleMultiSectionViewerHandle,
+} from "./SimpleMultiSectionViewer";
 import { SectionContextProvider } from "./contexts/SectionContext";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
+
+export interface MultiSectionJsonViewerHandle {
+  scrollToSection: (sectionKey: string) => void;
+}
 
 export interface MultiSectionJsonViewerProps {
   /** Section definitions (key, data, header, footer, backgroundColor) */
@@ -58,23 +75,34 @@ export interface MultiSectionJsonViewerProps {
  * - Context API for header/footer components
  * - Maintains JIT O(log n) performance
  */
-export function MultiSectionJsonViewer({
-  sections,
-  virtualized: virtualizedProp,
-  theme: userTheme,
-  defaultRenderHeader,
-  searchQuery,
-  onSearchQueryChange: _onSearchQueryChange,
-  currentMatchIndex,
-  onCurrentMatchIndexChange: _onCurrentMatchIndexChange,
-  onSearchResults,
-  showLineNumbers = true,
-  enableCopy = true,
-  stringWrapMode = "wrap",
-  truncateStringsAt = 100,
-  className,
-  scrollContainerRef,
-}: MultiSectionJsonViewerProps) {
+export const MultiSectionJsonViewer = forwardRef<
+  MultiSectionJsonViewerHandle,
+  MultiSectionJsonViewerProps
+>(function MultiSectionJsonViewer(
+  {
+    sections,
+    virtualized: virtualizedProp,
+    theme: userTheme,
+    defaultRenderHeader,
+    searchQuery,
+    onSearchQueryChange: _onSearchQueryChange,
+    currentMatchIndex,
+    onCurrentMatchIndexChange: _onCurrentMatchIndexChange,
+    onSearchResults,
+    showLineNumbers = true,
+    enableCopy = true,
+    stringWrapMode = "wrap",
+    truncateStringsAt = 100,
+    className,
+    scrollContainerRef,
+  },
+  ref,
+) {
+  // Ref for child viewer (either virtualized or simple)
+  const viewerRef = useRef<
+    VirtualizedMultiSectionViewerHandle | SimpleMultiSectionViewerHandle
+  >(null);
+
   // Resolve theme
   const theme = useJsonTheme(userTheme);
 
@@ -121,6 +149,17 @@ export function MultiSectionJsonViewer({
       onSearchResults(searchMatches.length);
     }
   }, [searchMatches, onSearchResults]);
+
+  // Expose scrollToSection method via ref (forwards to child viewer)
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToSection: (sectionKey: string) => {
+        viewerRef.current?.scrollToSection(sectionKey);
+      },
+    }),
+    [],
+  );
 
   // Determine virtualization (auto-detect based on total nodes)
   const shouldVirtualize = useMemo(() => {
@@ -180,11 +219,11 @@ export function MultiSectionJsonViewer({
         }}
       >
         {shouldVirtualize ? (
-          <VirtualizedMultiSectionViewer {...viewerProps} />
+          <VirtualizedMultiSectionViewer ref={viewerRef} {...viewerProps} />
         ) : (
-          <SimpleMultiSectionViewer {...viewerProps} />
+          <SimpleMultiSectionViewer ref={viewerRef} {...viewerProps} />
         )}
       </div>
     </SectionContextProvider>
   );
-}
+});
