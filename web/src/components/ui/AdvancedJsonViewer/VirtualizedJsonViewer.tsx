@@ -205,12 +205,16 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
                   maxLineNumberDigits={maxLineNumberDigits}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}
+                  matchCount={matchCount}
+                  currentMatchIndexInRow={
+                    isCurrentMatch ? currentMatchIndexInRow : undefined
+                  }
                   onToggleExpansion={finalHandleToggleExpansion}
                   stringWrapMode={stringWrapMode}
                 />
               </div>
 
-              {/* Scrollable column (indent + key + value + badges + copy) */}
+              {/* Scrollable column (indent + key + value + copy) */}
               <div
                 style={{
                   width: "fit-content",
@@ -227,10 +231,6 @@ export const VirtualizedJsonViewer = memo(function VirtualizedJsonViewer({
                   theme={theme}
                   stringWrapMode={stringWrapMode}
                   truncateStringsAt={truncateStringsAt}
-                  matchCount={matchCount}
-                  currentMatchIndexInRow={
-                    isCurrentMatch ? currentMatchIndexInRow : undefined
-                  }
                   enableCopy={enableCopy}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}

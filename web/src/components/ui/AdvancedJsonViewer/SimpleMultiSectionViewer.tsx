@@ -217,6 +217,10 @@ export const SimpleMultiSectionViewer = memo(function SimpleMultiSectionViewer({
             maxLineNumberDigits={maxLineNumberDigits}
             searchMatch={searchMatch}
             isCurrentMatch={isCurrentMatch}
+            matchCount={matchCount}
+            currentMatchIndexInRow={
+              isCurrentMatch ? currentMatchIndexInRow : undefined
+            }
             onToggleExpansion={onToggleExpansion}
             stringWrapMode={stringWrapMode}
           />
@@ -238,8 +242,6 @@ export const SimpleMultiSectionViewer = memo(function SimpleMultiSectionViewer({
             theme={theme}
             searchMatch={searchMatch}
             isCurrentMatch={isCurrentMatch}
-            matchCount={matchCount}
-            currentMatchIndexInRow={currentMatchIndexInRow}
             enableCopy={enableCopy}
             stringWrapMode={stringWrapMode}
             truncateStringsAt={truncateStringsAt}
