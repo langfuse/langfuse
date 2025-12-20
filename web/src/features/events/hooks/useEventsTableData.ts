@@ -175,5 +175,6 @@ export function useEventsTableData({
     totalCount,
     addToQueueMutation,
     handleAddToAnnotationQueue,
+    ioLoading: ioDataQuery.isLoading,
   };
 }
