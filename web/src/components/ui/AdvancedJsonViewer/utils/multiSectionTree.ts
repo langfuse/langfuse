@@ -176,10 +176,8 @@ export function buildMultiSectionTree(
       node.minHeight = section.minHeight;
       node.nodeType = "json";
 
-      // Set section line number (only for visible nodes when section is expanded)
-      if (headerNode.isExpanded) {
-        node.sectionLineNumber = sectionLineNumber++;
-      }
+      // Set section line number (stable, assigned once during tree building)
+      node.sectionLineNumber = sectionLineNumber++;
 
       // Update absolute line number
       node.absoluteLineNumber = absoluteLineNumber++;
@@ -296,39 +294,6 @@ export function getSectionKeys(tree: TreeState): string[] {
     .filter((child) => child.nodeType === "section-header")
     .map((child) => child.sectionKey!)
     .filter(Boolean);
-}
-
-/**
- * Recompute section line numbers after expansion change
- * Call this after toggleNodeExpansion on any node
- */
-export function recomputeSectionLineNumbers(tree: TreeState): void {
-  const sections = getSectionKeys(tree);
-
-  sections.forEach((sectionKey) => {
-    const headerNode = tree.nodeMap.get(`${sectionKey}__header`);
-    if (!headerNode || !headerNode.isExpanded) return;
-
-    // Reset line numbers for this section's JSON nodes
-    let lineNumber = 1;
-    const stack: TreeNode[] = [...headerNode.children];
-
-    while (stack.length > 0) {
-      const node = stack.pop()!;
-
-      if (node.nodeType === "json") {
-        node.sectionLineNumber = lineNumber++;
-      }
-
-      // Process expanded children
-      if (node.isExpanded) {
-        // Add children in reverse order for correct stack ordering
-        for (let i = node.children.length - 1; i >= 0; i--) {
-          stack.push(node.children[i]!);
-        }
-      }
-    }
-  });
 }
 
 /**

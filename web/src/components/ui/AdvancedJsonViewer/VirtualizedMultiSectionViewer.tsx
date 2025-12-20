@@ -1,12 +1,4 @@
-import {
-  useRef,
-  useEffect,
-  useMemo,
-  memo,
-  useState,
-  useLayoutEffect,
-  type RefObject,
-} from "react";
+import { useEffect, useMemo, memo, useRef, type RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type {
   JSONTheme,
@@ -62,33 +54,11 @@ export const VirtualizedMultiSectionViewer = memo(
     scrollContainerRef,
   }: VirtualizedMultiSectionViewerProps) {
     const parentRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState<number | null>(null);
 
     // Build sections map for O(1) lookup
     const sectionsMap = useMemo(() => {
       return new Map(sections.map((s) => [s.key, s]));
     }, [sections]);
-
-    // Measure scroll container width for sticky headers
-    useLayoutEffect(() => {
-      const container = scrollContainerRef?.current;
-      if (!container) return;
-
-      const updateWidth = () => {
-        setContainerWidth(container.clientWidth);
-      };
-
-      updateWidth(); // Initial measurement
-
-      if (
-        typeof window !== "undefined" &&
-        typeof ResizeObserver !== "undefined"
-      ) {
-        const resizeObserver = new ResizeObserver(updateWidth);
-        resizeObserver.observe(container);
-        return () => resizeObserver.disconnect();
-      }
-    }); // Remove dependency array - run on every render
 
     // Row count (includes meta-root, but we skip it in rendering)
     const rowCount = tree ? 1 + tree.rootNode.visibleDescendantCount : 0;
@@ -109,6 +79,21 @@ export const VirtualizedMultiSectionViewer = memo(
       stringWrapMode,
       truncateStringsAt,
     });
+
+    // Calculate total content width (stable, memoized)
+    const totalContentWidth = useMemo(() => {
+      if (!tree) return undefined;
+
+      if (stringWrapMode === "nowrap") {
+        return fixedColumnWidth + tree.maxContentWidth;
+      }
+
+      if (scrollableMaxWidth) {
+        return fixedColumnWidth + scrollableMaxWidth;
+      }
+
+      return undefined;
+    }, [tree, fixedColumnWidth, stringWrapMode, scrollableMaxWidth]);
 
     // Search matches
     const searchMatches = useMemo(() => {
@@ -139,7 +124,7 @@ export const VirtualizedMultiSectionViewer = memo(
         // Regular JSON rows
         return estimateSize(index);
       },
-      overscan: 50,
+      overscan: 500,
       measureElement:
         typeof window !== "undefined"
           ? (element) => element.getBoundingClientRect().height
@@ -167,16 +152,18 @@ export const VirtualizedMultiSectionViewer = memo(
     return (
       <div
         ref={parentRef}
+        id="virtualized-multi-section-parent"
         style={{
-          overflow: "auto",
-          width: "100%",
           height: "100%",
+          width: "100%",
+          backgroundColor: theme.background,
         }}
       >
         <div
+          id="virtualized-multi-section-content"
           style={{
             height: `${rowVirtualizer.getTotalSize()}px`,
-            width: "100%",
+            width: totalContentWidth ? `${totalContentWidth}px` : "100%",
             position: "relative",
           }}
         >
@@ -240,15 +227,16 @@ export const VirtualizedMultiSectionViewer = memo(
                   data-index={virtualRow.index}
                   ref={rowVirtualizer.measureElement}
                   style={{
-                    position: "sticky",
+                    position: "absolute",
                     top: 0,
                     left: 0,
-                    width: containerWidth ? `${containerWidth}px` : "100%",
-                    zIndex: 10,
+                    width: totalContentWidth
+                      ? `${totalContentWidth}px`
+                      : "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
                     backgroundColor: node.backgroundColor || theme.background,
                     borderBottom: "1px solid",
                     borderColor: theme.punctuationColor || "#e5e7eb",
-                    // Note: node.minHeight not applied here - see TODO above
                   }}
                 >
                   {headerContent}
@@ -276,7 +264,9 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: "100%",
+                    width: totalContentWidth
+                      ? `${totalContentWidth}px`
+                      : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                     backgroundColor: node.backgroundColor || theme.background,
                   }}
@@ -296,7 +286,9 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: "100%",
+                    width: totalContentWidth
+                      ? `${totalContentWidth}px`
+                      : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                     height: `${node.spacerHeight}px`,
                     backgroundColor: node.backgroundColor || theme.background,
@@ -317,7 +309,7 @@ export const VirtualizedMultiSectionViewer = memo(
                   position: "absolute",
                   top: 0,
                   left: 0,
-                  width: "100%",
+                  width: totalContentWidth ? `${totalContentWidth}px` : "100%",
                   transform: `translateY(${virtualRow.start}px)`,
                   display: "grid",
                   gridTemplateColumns: `${fixedColumnWidth}px auto`,

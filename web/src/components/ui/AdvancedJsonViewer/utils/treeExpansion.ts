@@ -75,12 +75,6 @@ export function toggleNodeExpansion(
     }
   }
 
-  // Recompute section line numbers if multi-section tree
-  if (tree.rootNode.nodeType === "meta") {
-    const { recomputeSectionLineNumbers } = require("./multiSectionTree");
-    recomputeSectionLineNumbers(tree);
-  }
-
   return tree;
 }
 
