@@ -141,16 +141,13 @@ export function IOPreviewJSON({
       const container = scrollContainerRef.current;
       if (!container) return;
 
-      // Find the section header element by searching for the section key in the DOM
-      // Section headers are rendered as divs with unique keys
-      const sectionElements = container.querySelectorAll('[style*="sticky"]');
-      for (const element of Array.from(sectionElements)) {
-        // Check if this is a section header by looking at its content
-        const textContent = element.textContent?.toLowerCase();
-        if (textContent?.includes(sectionKey.toLowerCase())) {
-          element.scrollIntoView({ behavior: "smooth", block: "start" });
-          break;
-        }
+      // Find section by data-section-key attribute
+      // Works for both virtualized and non-virtualized viewers
+      const sectionElement = container.querySelector(
+        `[data-section-key="${sectionKey}"]`,
+      );
+      if (sectionElement) {
+        sectionElement.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     },
     [scrollContainerRef],

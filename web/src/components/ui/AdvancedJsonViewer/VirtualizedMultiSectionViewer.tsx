@@ -310,6 +310,7 @@ export const VirtualizedMultiSectionViewer = memo(
                 <div
                   key={virtualRow.key}
                   data-index={virtualRow.index}
+                  data-section-key={node.sectionKey}
                   ref={rowVirtualizer.measureElement}
                   style={{
                     position: "absolute",

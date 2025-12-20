@@ -307,6 +307,7 @@ export const SimpleMultiSectionViewer = memo(function SimpleMultiSectionViewer({
           return (
             <div
               key={sectionGroup.header.id}
+              data-section-key={sectionKey}
               style={{
                 width: stringWrapMode === "wrap" ? "100%" : "fit-content",
                 backgroundColor:
