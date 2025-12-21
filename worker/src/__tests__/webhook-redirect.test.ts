@@ -7,14 +7,30 @@ import { encrypt } from "@langfuse/shared/encryption";
 import {
   ActionExecutionStatus,
   JobConfigState,
-} from "@langfuse/shared/src/features/automations/constants";
+  PromptDomainSchema,
+} from "@langfuse/shared";
 import type { WebhookInput } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+
+/**
+ * Webhook Redirect Functional Tests
+ *
+ * These tests verify that the webhook system correctly follows HTTP redirects
+ * and handles edge cases like circular redirects, max depth, etc.
+ *
+ * NOTE: Security validation (blocking private IPs, localhost, etc.) is tested separately in:
+ * - worker/src/__tests__/ip-blocking.test.ts
+ * - worker/src/__tests__/webhook-validation.test.ts
+ *
+ * The redirect validation implementation is in:
+ * - packages/shared/src/server/webhooks/redirectHandler.ts (fetchWithSecureRedirects)
+ * - packages/shared/src/server/webhooks/validation.ts (validateWebhookURL)
+ */
 
 // Mock server to handle HTTP redirects
 const server = setupServer();
 
-describe("Webhook Redirect Security Tests", () => {
+describe("Webhook Redirect Functional Tests", () => {
   beforeAll(() => {
     server.listen({ onUnhandledRequest: "bypass" });
   });
@@ -30,42 +46,40 @@ describe("Webhook Redirect Security Tests", () => {
   // Helper function to create test automation with webhook action
   async function createTestAutomation(webhookUrl: string) {
     const projectId = randomUUID();
+    const orgId = randomUUID();
     const actionId = randomUUID();
     const triggerId = randomUUID();
     const automationId = randomUUID();
     const promptId = randomUUID();
-    const promptVersionId = randomUUID();
     const executionId = randomUUID();
+
+    // Create org first
+    await prisma.organization.create({
+      data: {
+        id: orgId,
+        name: `Test Org ${orgId}`,
+      },
+    });
 
     // Create project
     await prisma.project.create({
       data: {
         id: projectId,
         name: `Test Project ${projectId}`,
-        orgId: randomUUID(),
+        orgId,
       },
     });
 
-    // Create prompt
+    // Create prompt (matching webhooks.test.ts structure)
     await prisma.prompt.create({
       data: {
         id: promptId,
         projectId,
         name: "test-prompt",
-        createdBy: "test",
-        type: "text",
-      },
-    });
-
-    // Create prompt version
-    await prisma.promptVersion.create({
-      data: {
-        id: promptVersionId,
-        projectId,
-        promptId,
         version: 1,
-        prompt: "test prompt content",
-        config: {},
+        type: "text",
+        prompt: { text: "Hello {{name}}" },
+        createdBy: "test-user",
       },
     });
 
@@ -74,26 +88,28 @@ describe("Webhook Redirect Security Tests", () => {
       data: {
         id: triggerId,
         projectId,
-        name: "Test Trigger",
-        description: "Test trigger for redirect tests",
-        eventType: "PromptPublished",
+        eventSource: "prompt-version",
+        eventActions: ["created"],
+        filter: [],
         status: JobConfigState.ACTIVE,
-        filter: JSON.stringify({}),
       },
     });
 
-    // Create webhook action
+    // Create webhook action with proper config structure
     const secretKey = encrypt("test-secret-key");
+    const displaySecretKey = "test-***-key";
     await prisma.action.create({
       data: {
         id: actionId,
         projectId,
         type: "WEBHOOK",
-        name: "Test Webhook Action",
         config: {
+          type: "WEBHOOK",
           url: webhookUrl,
+          headers: {},
+          apiVersion: { prompt: "v1" },
           secretKey,
-          requestHeaders: {},
+          displaySecretKey,
         },
       },
     });
@@ -103,260 +119,85 @@ describe("Webhook Redirect Security Tests", () => {
       data: {
         id: automationId,
         projectId,
-        actionId,
         triggerId,
+        actionId,
+        name: "Test Automation",
       },
     });
 
     return {
       projectId,
+      orgId,
       actionId,
       triggerId,
       automationId,
       promptId,
-      promptVersionId,
       executionId,
     };
   }
 
   // Helper function to cleanup test data
-  async function cleanupTestData(projectId: string) {
+  async function cleanupTestData(projectId: string, orgId: string) {
     await prisma.automationExecution.deleteMany({ where: { projectId } });
     await prisma.automation.deleteMany({ where: { projectId } });
     await prisma.action.deleteMany({ where: { projectId } });
     await prisma.trigger.deleteMany({ where: { projectId } });
-    await prisma.promptVersion.deleteMany({ where: { projectId } });
     await prisma.prompt.deleteMany({ where: { projectId } });
     await prisma.project.delete({ where: { id: projectId } });
+    await prisma.organization.delete({ where: { id: orgId } });
   }
 
-  describe("Security Tests - Blocking Malicious Redirects", () => {
-    it("should block redirect to localhost (127.0.0.1)", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation(
-          "https://evil-redirect-localhost.example.com/hook",
-        );
+  // Helper function to prepare webhook input with execution record
+  async function prepareWebhookExecution(
+    automation: Awaited<ReturnType<typeof createTestAutomation>>,
+  ) {
+    const {
+      projectId,
+      automationId,
+      executionId,
+      promptId,
+      triggerId,
+      actionId,
+    } = automation;
 
-      // Setup mock server with redirect to localhost
-      server.use(
-        http.post("https://evil-redirect-localhost.example.com/hook", () => {
-          return new Response(null, {
-            status: 302,
-            headers: { Location: "http://127.0.0.1/internal" },
-          });
-        }),
-      );
-
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
-
-      // Should not throw - error is handled internally
-      await executeWebhook(input, { skipValidation: false });
-
-      // Verify execution failed due to redirect validation
-      const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
-      });
-
-      expect(execution).toBeDefined();
-      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-      expect(execution?.error).toContain("Redirect validation failed");
-
-      await cleanupTestData(projectId);
+    // Get the full prompt for the payload
+    const fullPrompt = await prisma.prompt.findUnique({
+      where: { id: promptId },
     });
 
-    it("should block redirect to private network (192.168.x.x)", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation(
-          "https://evil-redirect-private.example.com/hook",
-        );
+    const input: WebhookInput = {
+      projectId,
+      automationId,
+      executionId,
+      payload: {
+        prompt: PromptDomainSchema.parse(fullPrompt),
+        action: "created",
+        type: "prompt-version",
+      },
+    };
 
-      server.use(
-        http.post("https://evil-redirect-private.example.com/hook", () => {
-          return new Response(null, {
-            status: 302,
-            headers: { Location: "http://192.168.1.1/internal" },
-          });
-        }),
-      );
-
-      const input: WebhookInput = {
+    // Create execution record
+    await prisma.automationExecution.create({
+      data: {
+        id: executionId,
         projectId,
+        triggerId,
         automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
-
-      await executeWebhook(input, { skipValidation: false });
-
-      const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
-      });
-
-      expect(execution).toBeDefined();
-      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-      expect(execution?.error).toContain("Redirect validation failed");
-
-      await cleanupTestData(projectId);
+        actionId,
+        status: ActionExecutionStatus.PENDING,
+        sourceId: executionId,
+        input,
+      },
     });
 
-    it("should block redirect to AWS metadata endpoint (169.254.169.254)", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation(
-          "https://evil-redirect-metadata.example.com/hook",
-        );
+    return input;
+  }
 
-      server.use(
-        http.post("https://evil-redirect-metadata.example.com/hook", () => {
-          return new Response(null, {
-            status: 302,
-            headers: { Location: "http://169.254.169.254/latest/meta-data/" },
-          });
-        }),
-      );
-
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
-
-      await executeWebhook(input, { skipValidation: false });
-
-      const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
-      });
-
-      expect(execution).toBeDefined();
-      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-      expect(execution?.error).toContain("Redirect validation failed");
-
-      await cleanupTestData(projectId);
-    });
-
-    it("should block redirect to Docker internal hostname", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation(
-          "https://evil-redirect-docker.example.com/hook",
-        );
-
-      server.use(
-        http.post("https://evil-redirect-docker.example.com/hook", () => {
-          return new Response(null, {
-            status: 302,
-            headers: { Location: "http://host.docker.internal:8080/api" },
-          });
-        }),
-      );
-
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
-
-      await executeWebhook(input, { skipValidation: false });
-
-      const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
-      });
-
-      expect(execution).toBeDefined();
-      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-      // Could fail on hostname blocking or port validation
-      expect(execution?.error).toMatch(
-        /Redirect validation failed|Only ports 80 and 443 are allowed/,
-      );
-
-      await cleanupTestData(projectId);
-    });
-
-    it("should block redirect to internal service (10.x.x.x)", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation(
-          "https://evil-redirect-internal.example.com/hook",
-        );
-
-      server.use(
-        http.post("https://evil-redirect-internal.example.com/hook", () => {
-          return new Response(null, {
-            status: 302,
-            headers: { Location: "http://10.0.0.5/admin" },
-          });
-        }),
-      );
-
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
-
-      await executeWebhook(input, { skipValidation: false });
-
-      const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
-      });
-
-      expect(execution).toBeDefined();
-      expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
-      expect(execution?.error).toContain("Redirect validation failed");
-
-      await cleanupTestData(projectId);
-    });
-  });
-
-  describe("Functional Tests - Legitimate Redirects", () => {
+  describe("Legitimate Redirects", () => {
     it("should follow single redirect to valid public URL", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation("https://redirector.example.com/step1");
+      const automation = await createTestAutomation(
+        "https://redirector.example.com/step1",
+      );
 
       let step1Called = false;
       let step2Called = false;
@@ -375,20 +216,7 @@ describe("Webhook Redirect Security Tests", () => {
         }),
       );
 
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
+      const input = await prepareWebhookExecution(automation);
 
       await executeWebhook(input, { skipValidation: true });
 
@@ -396,18 +224,19 @@ describe("Webhook Redirect Security Tests", () => {
       expect(step2Called).toBe(true);
 
       const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
+        where: { id: automation.executionId, projectId: automation.projectId },
       });
 
       expect(execution).toBeDefined();
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
 
-      await cleanupTestData(projectId);
+      await cleanupTestData(automation.projectId, automation.orgId);
     });
 
     it("should follow multiple redirects to valid URLs", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation("https://redirector.example.com/step1");
+      const automation = await createTestAutomation(
+        "https://redirector.example.com/step1",
+      );
 
       const callOrder: string[] = [];
 
@@ -432,38 +261,26 @@ describe("Webhook Redirect Security Tests", () => {
         }),
       );
 
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
+      const input = await prepareWebhookExecution(automation);
 
       await executeWebhook(input, { skipValidation: true });
 
       expect(callOrder).toEqual(["step1", "step2", "step3"]);
 
       const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
+        where: { id: automation.executionId, projectId: automation.projectId },
       });
 
       expect(execution).toBeDefined();
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
 
-      await cleanupTestData(projectId);
+      await cleanupTestData(automation.projectId, automation.orgId);
     });
 
     it("should handle no redirects (direct response)", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation("https://direct.example.com/webhook");
+      const automation = await createTestAutomation(
+        "https://direct.example.com/webhook",
+      );
 
       let called = false;
 
@@ -474,42 +291,64 @@ describe("Webhook Redirect Security Tests", () => {
         }),
       );
 
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
+      const input = await prepareWebhookExecution(automation);
 
       await executeWebhook(input, { skipValidation: true });
 
       expect(called).toBe(true);
 
       const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
+        where: { id: automation.executionId, projectId: automation.projectId },
       });
 
       expect(execution).toBeDefined();
       expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
 
-      await cleanupTestData(projectId);
+      await cleanupTestData(automation.projectId, automation.orgId);
+    });
+
+    it("should resolve relative URL redirects correctly", async () => {
+      const automation = await createTestAutomation(
+        "https://relative-redirect.example.com/start",
+      );
+
+      let finalCalled = false;
+
+      server.use(
+        http.post("https://relative-redirect.example.com/start", () => {
+          return new Response(null, {
+            status: 302,
+            headers: { Location: "/final" }, // Relative URL
+          });
+        }),
+        http.post("https://relative-redirect.example.com/final", () => {
+          finalCalled = true;
+          return HttpResponse.json({ success: true }, { status: 200 });
+        }),
+      );
+
+      const input = await prepareWebhookExecution(automation);
+
+      await executeWebhook(input, { skipValidation: true });
+
+      expect(finalCalled).toBe(true);
+
+      const execution = await prisma.automationExecution.findFirst({
+        where: { id: automation.executionId, projectId: automation.projectId },
+      });
+
+      expect(execution).toBeDefined();
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+
+      await cleanupTestData(automation.projectId, automation.orgId);
     });
   });
 
   describe("Edge Cases", () => {
     it("should fail when max redirect depth exceeded", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation(
-          "https://infinite-redirect.example.com/start",
-        );
+      const automation = await createTestAutomation(
+        "https://infinite-redirect.example.com/step0",
+      );
 
       // Create 11 redirects (exceeds default max of 10)
       const handlers = [];
@@ -533,37 +372,25 @@ describe("Webhook Redirect Security Tests", () => {
 
       server.use(...handlers);
 
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
+      const input = await prepareWebhookExecution(automation);
 
       await executeWebhook(input, { skipValidation: true });
 
       const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
+        where: { id: automation.executionId, projectId: automation.projectId },
       });
 
       expect(execution).toBeDefined();
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain("Maximum redirects");
 
-      await cleanupTestData(projectId);
+      await cleanupTestData(automation.projectId, automation.orgId);
     });
 
     it("should detect and block circular redirects", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation("https://circular.example.com/a");
+      const automation = await createTestAutomation(
+        "https://circular.example.com/a",
+      );
 
       server.use(
         http.post("https://circular.example.com/a", () => {
@@ -580,37 +407,25 @@ describe("Webhook Redirect Security Tests", () => {
         }),
       );
 
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
+      const input = await prepareWebhookExecution(automation);
 
       await executeWebhook(input, { skipValidation: true });
 
       const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
+        where: { id: automation.executionId, projectId: automation.projectId },
       });
 
       expect(execution).toBeDefined();
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain("Circular redirect detected");
 
-      await cleanupTestData(projectId);
+      await cleanupTestData(automation.projectId, automation.orgId);
     });
 
     it("should fail on missing Location header in redirect response", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation("https://broken-redirect.example.com/hook");
+      const automation = await createTestAutomation(
+        "https://broken-redirect.example.com/hook",
+      );
 
       server.use(
         http.post("https://broken-redirect.example.com/hook", () => {
@@ -619,82 +434,19 @@ describe("Webhook Redirect Security Tests", () => {
         }),
       );
 
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
+      const input = await prepareWebhookExecution(automation);
 
       await executeWebhook(input, { skipValidation: true });
 
       const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
+        where: { id: automation.executionId, projectId: automation.projectId },
       });
 
       expect(execution).toBeDefined();
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain("missing Location header");
 
-      await cleanupTestData(projectId);
-    });
-
-    it("should resolve relative URL redirects correctly", async () => {
-      const { projectId, automationId, executionId, promptVersionId } =
-        await createTestAutomation(
-          "https://relative-redirect.example.com/start",
-        );
-
-      let finalCalled = false;
-
-      server.use(
-        http.post("https://relative-redirect.example.com/start", () => {
-          return new Response(null, {
-            status: 302,
-            headers: { Location: "/final" }, // Relative URL
-          });
-        }),
-        http.post("https://relative-redirect.example.com/final", () => {
-          finalCalled = true;
-          return HttpResponse.json({ success: true }, { status: 200 });
-        }),
-      );
-
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          type: "PromptPublished",
-          action: "publish",
-          prompt: {
-            id: promptVersionId,
-            name: "test-prompt",
-            version: 1,
-          },
-        },
-      };
-
-      await executeWebhook(input, { skipValidation: true });
-
-      expect(finalCalled).toBe(true);
-
-      const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, projectId },
-      });
-
-      expect(execution).toBeDefined();
-      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
-
-      await cleanupTestData(projectId);
+      await cleanupTestData(automation.projectId, automation.orgId);
     });
   });
 });
