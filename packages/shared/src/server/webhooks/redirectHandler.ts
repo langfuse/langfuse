@@ -11,7 +11,9 @@ export class RedirectValidationError extends Error {
     public redirectUrl: string,
     public redirectDepth: number,
   ) {
-    super(`Redirect validation failed at depth ${redirectDepth}: ${message}`);
+    super(
+      `Redirect validation failed at depth ${redirectDepth} for url ${redirectUrl}: ${message}`,
+    );
     this.name = "RedirectValidationError";
   }
 }
