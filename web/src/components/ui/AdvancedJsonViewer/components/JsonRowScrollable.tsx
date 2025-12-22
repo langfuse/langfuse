@@ -42,6 +42,13 @@ export function JsonRowScrollable({
   const isKey = searchMatch?.matchType === "key";
   const isValue = searchMatch?.matchType === "value";
 
+  // Calculate value offset within the row for adjusting comment ranges
+  // Row renders as: key:"value" (no space after colon)
+  // commentRanges are row-relative, need to adjust for value-only highlighting
+  const keyLength = row.key.length;
+  const colonAndQuoteLength = 2; // ":" + opening quote
+  const valueOffset = keyLength + colonAndQuoteLength;
+
   // Calculate background based on search match only (comment highlighting is now character-level)
   const backgroundColor = isCurrentMatch
     ? theme.searchCurrentBackground
@@ -74,6 +81,7 @@ export function JsonRowScrollable({
         theme={theme}
         highlightStart={isKey ? searchMatch.highlightStart : undefined}
         highlightEnd={isKey ? searchMatch.highlightEnd : undefined}
+        commentRanges={commentRanges}
       />
 
       {/* Colon separator */}
@@ -100,6 +108,7 @@ export function JsonRowScrollable({
         highlightStart={isValue ? searchMatch?.highlightStart : undefined}
         highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
         commentRanges={commentRanges}
+        valueOffset={valueOffset}
       />
 
       {/* Match count badge (for collapsed rows or leaf nodes with multiple matches) */}
