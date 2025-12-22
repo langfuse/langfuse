@@ -10,7 +10,7 @@ INSERT INTO score_configs (id,
 		max_value,
 		description)
 SELECT
-	md5(random()::text || clock_timestamp()::text || s.project_id::text)::uuid AS id,
+	encode(sha256((random()::text || clock_timestamp()::text || project_id::text)::bytea), 'hex')::uuid AS id,
 	s.project_id,
 	'manual-score',
 	'NUMERIC',

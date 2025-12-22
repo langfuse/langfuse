@@ -63,7 +63,7 @@ ALTER TABLE "organization_memberships" ADD CONSTRAINT "organization_memberships_
 -- Migrate project memberships to organization memberships
 INSERT INTO "organization_memberships" ("id", "org_id", "user_id", "role", "created_at", "updated_at")
 SELECT
-  md5(random()::text || clock_timestamp()::text || project_id::text || user_id::text)::uuid AS "id",
+  encode(sha256((random()::text || clock_timestamp()::text || project_id::text || user_id::text)::bytea), 'hex')::uuid AS "id",
   CONCAT('o', "project_id") as "org_id",
   "user_id",
   "role"::text::"Role" as "role",

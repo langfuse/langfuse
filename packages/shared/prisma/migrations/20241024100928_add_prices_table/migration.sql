@@ -49,7 +49,7 @@ WHERE project_id IS NOT NULL AND total_price IS NOT NULL;
 -- Insert into prices table
 INSERT INTO prices (id, created_at, updated_at, model_id, usage_type, price)
 SELECT 
-    md5(random()::text || clock_timestamp()::text || model_id::text || usage_type::text)::uuid AS id,
+    encode(sha256((random()::text || clock_timestamp()::text || model_id::text || usage_type::text)::bytea), 'hex')::uuid AS id,
     NOW() AS created_at,
     NOW() AS updated_at,
     model_id,

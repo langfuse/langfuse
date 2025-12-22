@@ -9,6 +9,6 @@ ALTER TABLE "dataset_items"
 
 -- 2. Set default for NEW rows
 ALTER TABLE "dataset_items" 
-    ALTER COLUMN "sys_id" SET DEFAULT md5(random()::text || clock_timestamp()::text)::uuid::text;
+    ALTER COLUMN "sys_id" SET DEFAULT encode(sha256((random()::text || clock_timestamp()::text)::bytea), 'hex')::uuid::text;
 
 COMMIT;
