@@ -8,7 +8,7 @@ import {
   type ScoreConfigDomain,
   type ScoreDomain,
   type AggregatableScoreDataType,
-  type ScoreConfigDataType,
+  ScoreConfigDataType,
 } from "@langfuse/shared";
 import { type z } from "zod/v4";
 
@@ -98,6 +98,8 @@ export type AnnotationScoreSchemaType = z.infer<
 >;
 
 export type AnnotationScoreDataType = ScoreConfigDataType;
+export const ANNOTATION_SCORE_DATA_TYPES_ARRAY =
+  Object.values(ScoreConfigDataType);
 
 export type ScoreColumn = {
   key: string;

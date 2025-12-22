@@ -1,10 +1,10 @@
-import {
-  type ScoreDomain,
-  type ScoreConfigDomain,
-  type ScoreDataTypeType,
-} from "@langfuse/shared";
+import { type ScoreDomain, type ScoreConfigDomain } from "@langfuse/shared";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { type AnnotationScore } from "@/src/features/scores/types";
+import {
+  ANNOTATION_SCORE_DATA_TYPES_ARRAY,
+  AnnotationScoreDataType,
+  type AnnotationScore,
+} from "@/src/features/scores/types";
 import {
   decomposeAggregateScoreKey,
   normalizeScoreName,
@@ -70,7 +70,7 @@ function transformFlatScores(
     .filter(
       (score) =>
         score.source === "ANNOTATION" &&
-        ["NUMERIC", "BOOLEAN", "CATEGORICAL"].includes(score.dataType),
+        score.dataType in ANNOTATION_SCORE_DATA_TYPES_ARRAY,
     )
     .map((score) => {
       const config = configs.find((c) => c.id === score.configId);
@@ -79,10 +79,7 @@ function transformFlatScores(
       return {
         id: score.id,
         name: score.name,
-        dataType: score.dataType as Extract<
-          ScoreDataTypeType,
-          "NUMERIC" | "BOOLEAN" | "CATEGORICAL"
-        >,
+        dataType: score.dataType as AnnotationScoreDataType,
         source: score.source,
         configId: score.configId,
         value: score.value,
