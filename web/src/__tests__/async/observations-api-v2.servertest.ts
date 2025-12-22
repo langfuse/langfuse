@@ -422,6 +422,86 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(traceNameResponse.status).toBe(200);
       expect(traceNameResponse.body.data.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("should support nested metadata field filtering with stringObject", async () => {
+      const traceId = randomUUID();
+      const observationId1 = randomUUID();
+      const observationId2 = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create observations with nested metadata
+      const observation1 = createEvent({
+        id: observationId1,
+        span_id: observationId1,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "nested-metadata-obs-1",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        // Nested metadata: { scope: { name: "api-server" }, region: "us-east" }
+        metadata: { scope: { name: "api-server" }, region: "us-east" },
+        metadata_names: ["scope.name", "region"],
+        metadata_raw_values: ["api-server", "us-east"],
+      });
+
+      const observation2 = createEvent({
+        id: observationId2,
+        span_id: observationId2,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "nested-metadata-obs-2",
+        type: "SPAN",
+        level: "DEFAULT",
+        start_time: timeValue + 1000 * 1000,
+        // Nested metadata: { scope: { name: "ui-client" }, region: "us-west" }
+        metadata: { scope: { name: "ui-client" }, region: "us-west" },
+        metadata_names: ["scope.name", "region"],
+        metadata_raw_values: ["ui-client", "us-west"],
+      });
+
+      await createEventsCh([observation1, observation2]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: { projectId, ids: [observationId1, observationId2] },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
+        },
+        5000,
+        10,
+      );
+
+      // Filter using dot-notation key for nested metadata: scope.name contains "api"
+      const filterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "contains",
+          key: "scope.name",
+          value: "api",
+        },
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+      // Only observation1 should match (scope.name contains "api")
+      expect(response.body.data.length).toBe(1);
+      const matchedObs = response.body.data.find(
+        (obs: any) => obs.id === observationId1,
+      );
+      expect(matchedObs).toBeDefined();
+      expect(matchedObs?.name).toBe("nested-metadata-obs-1");
+    });
   });
 
   maybe("Cursor-based pagination", () => {
