@@ -573,7 +573,7 @@ importers:
         version: 4.23.7(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)
       '@uiw/react-codemirror':
         specifier: ^4.25.4
-        version: 4.25.4(@babel/runtime@7.28.4)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0))(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.38.8)(codemirror@6.0.1(@lezer/common@1.4.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 4.25.4(@babel/runtime@7.28.4)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.5.0))(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.38.8)(codemirror@6.0.1(@lezer/common@1.5.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       ai:
         specifier: ^3.4.9
         version: 3.4.9(openai@4.104.0(zod@3.25.62))(react@19.2.3)(solid-js@1.8.18)(sswr@2.1.0(svelte@4.2.19))(svelte@4.2.19)(vue@3.4.27(typescript@5.9.2))(zod@3.25.62)
@@ -663,7 +663,7 @@ importers:
         version: 4.24.13(patch_hash=g7rpu2soo4na5splvh6zgnobma)(next@15.5.9(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(nodemailer@7.0.11)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       next-query-params:
         specifier: ^5.1.0
-        version: 5.1.0(next@15.5.9(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(use-query-params@2.2.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))
+        version: 5.1.0(next@15.5.9(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(use-query-params@2.2.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -758,8 +758,8 @@ importers:
         specifier: ^11.0.5
         version: 11.0.5
       use-query-params:
-        specifier: ^2.2.1
-        version: 2.2.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^2.2.2
+        version: 2.2.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
@@ -2203,8 +2203,8 @@ packages:
   '@codemirror/language@6.11.3':
     resolution: {integrity: sha512-9HBM2XnwDj7fnu0551HkGdrUrrqmYq/WC5iv6nbY2WdicXdGbhR/gfbZOH73Aqj4351alY1+aoG9rCNfiwS1RA==}
 
-  '@codemirror/language@6.12.0':
-    resolution: {integrity: sha512-MyihkdizhhxkFkKvfE2iGZZ4CUOESMWYipFTGVN2wrSgbb4pWlkRRZY/DzEnTRBzoCTSSC8wKVc4I3KyQlcADQ==}
+  '@codemirror/language@6.12.1':
+    resolution: {integrity: sha512-Fa6xkSiuGKc8XC8Cn96T+TQHYj4ZZ7RdFmXA3i9xe/3hLHfwPZdM+dqfX0Cp0zQklBKhVD8Yzc8LS45rkqcwpQ==}
 
   '@codemirror/lint@6.9.2':
     resolution: {integrity: sha512-sv3DylBiIyi+xKwRCJAAsBZZZWo82shJ/RTMymLabAdtbkV5cSKwWDeCgtUq3v8flTaXS2y1kKkICuRYtUswyQ==}
@@ -2214,6 +2214,9 @@ packages:
 
   '@codemirror/state@6.5.2':
     resolution: {integrity: sha512-FVqsPqtPWKVVL3dPSxy8wEF/ymIEuVzF1PK3VbUgrxXpJUSHQWWZz4JMToquRxnkw+36LTamCZG2iua2Ptq0fA==}
+
+  '@codemirror/state@6.5.3':
+    resolution: {integrity: sha512-MerMzJzlXogk2fxWFU1nKp36bY5orBG59HnPiz0G9nLRebWa0zXuv2siH6PLIHBvv5TH8CkQRqjBs0MlxCZu+A==}
 
   '@codemirror/theme-one-dark@6.1.2':
     resolution: {integrity: sha512-F+sH0X16j/qFLMAfbciKTxVOwkdAS336b7AXTKOZhy8BR3eH/RelsnLgLFINrpST63mmN2OuwUt0W2ndUgYwUA==}
@@ -3187,6 +3190,9 @@ packages:
 
   '@lezer/common@1.4.0':
     resolution: {integrity: sha512-DVeMRoGrgn/k45oQNu189BoW4SZwgZFzJ1+1TV5j2NJ/KFC83oa/enRqZSGshyeMk5cPWMhsKs9nx+8o0unwGg==}
+
+  '@lezer/common@1.5.0':
+    resolution: {integrity: sha512-PNGcolp9hr4PJdXR4ix7XtixDrClScvtSCYW3rQG106oVMOOI+jFb+0+J3mbeL/53g1Zd6s0kJzaw6Ri68GmAA==}
 
   '@lezer/highlight@1.2.3':
     resolution: {integrity: sha512-qXdH7UqTvGfdVBINrgKhDsVTJTxactNNxLk7+UMwZhU13lMHaOBlJe9Vqp907ya56Y3+ed2tlqzys7jDkTmW0g==}
@@ -12534,8 +12540,8 @@ packages:
   serialize-javascript@6.0.2:
     resolution: {integrity: sha512-Saa1xPByTTq2gdeFZYLLo+RFE35NHZkAbqZeWNd3BpzppeVisAqpDjcp8dyf6uIvEqJRd46jemmyA4iFIeVk8g==}
 
-  serialize-query-params@2.0.2:
-    resolution: {integrity: sha512-1chMo1dST4pFA9RDXAtF0Rbjaut4is7bzFbI1Z26IuMub68pNCILku85aYmeFhvnY//BXUPUhoRMjYcsT93J/Q==}
+  serialize-query-params@2.0.4:
+    resolution: {integrity: sha512-y9WzzDj3BsGgKLCh0ugiinufS//YqOfao/yVJjkXA4VLuyNCfHOLU/cbulGPxs3aeCqhvROw7qPL04JSZnCo0w==}
 
   seroval-plugins@1.4.0:
     resolution: {integrity: sha512-zir1aWzoiax6pbBVjoYVd0O1QQXgIL3eVGBMsBsNmM8Ukq90yGaWlfx0AB9dTS8GPqrOrbXn79vmItCUP9U3BQ==}
@@ -13525,8 +13531,8 @@ packages:
       '@types/react':
         optional: true
 
-  use-query-params@2.2.1:
-    resolution: {integrity: sha512-i6alcyLB8w9i3ZK3caNftdb+UnbfBRNPDnc89CNQWkGRmDrm/gfydHvMBfVsQJRq3NoHOM2dt/ceBWG2397v1Q==}
+  use-query-params@2.2.2:
+    resolution: {integrity: sha512-OwGab8u8/x2xZp9uSyBsx0kXlkR9IR436zbygsYVGikPYY3OJosvve6IJVGwIJPcfyb/YHwvPrUNu65/JR++Kw==}
     peerDependencies:
       '@reach/router': ^1.2.1
       react: '>=16.8.0'
@@ -16646,19 +16652,19 @@ snapshots:
     dependencies:
       '@clickhouse/client-common': 1.13.0
 
-  '@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0)':
+  '@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.5.0)':
     dependencies:
       '@codemirror/language': 6.11.3
       '@codemirror/state': 6.5.2
       '@codemirror/view': 6.38.8
-      '@lezer/common': 1.4.0
+      '@lezer/common': 1.5.0
 
-  '@codemirror/autocomplete@6.17.0(@codemirror/language@6.12.0)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0)':
+  '@codemirror/autocomplete@6.17.0(@codemirror/language@6.12.1)(@codemirror/state@6.5.3)(@codemirror/view@6.38.8)(@lezer/common@1.5.0)':
     dependencies:
-      '@codemirror/language': 6.12.0
-      '@codemirror/state': 6.5.2
+      '@codemirror/language': 6.12.1
+      '@codemirror/state': 6.5.3
       '@codemirror/view': 6.38.8
-      '@lezer/common': 1.4.0
+      '@lezer/common': 1.5.0
 
   '@codemirror/commands@6.10.0':
     dependencies:
@@ -16669,10 +16675,10 @@ snapshots:
 
   '@codemirror/commands@6.10.1':
     dependencies:
-      '@codemirror/language': 6.12.0
-      '@codemirror/state': 6.5.2
+      '@codemirror/language': 6.12.1
+      '@codemirror/state': 6.5.3
       '@codemirror/view': 6.38.8
-      '@lezer/common': 1.4.0
+      '@lezer/common': 1.5.0
 
   '@codemirror/lang-json@6.0.2':
     dependencies:
@@ -16688,11 +16694,11 @@ snapshots:
       '@lezer/lr': 1.4.4
       style-mod: 4.1.3
 
-  '@codemirror/language@6.12.0':
+  '@codemirror/language@6.12.1':
     dependencies:
-      '@codemirror/state': 6.5.2
+      '@codemirror/state': 6.5.3
       '@codemirror/view': 6.38.8
-      '@lezer/common': 1.4.0
+      '@lezer/common': 1.5.0
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.5
       style-mod: 4.1.3
@@ -16705,7 +16711,7 @@ snapshots:
 
   '@codemirror/search@6.5.6':
     dependencies:
-      '@codemirror/state': 6.5.2
+      '@codemirror/state': 6.5.3
       '@codemirror/view': 6.38.8
       crelt: 1.0.6
 
@@ -16713,10 +16719,14 @@ snapshots:
     dependencies:
       '@marijn/find-cluster-break': 1.0.2
 
+  '@codemirror/state@6.5.3':
+    dependencies:
+      '@marijn/find-cluster-break': 1.0.2
+
   '@codemirror/theme-one-dark@6.1.2':
     dependencies:
-      '@codemirror/language': 6.12.0
-      '@codemirror/state': 6.5.2
+      '@codemirror/language': 6.12.1
+      '@codemirror/state': 6.5.3
       '@codemirror/view': 6.38.8
       '@lezer/highlight': 1.2.3
 
@@ -17898,6 +17908,8 @@ snapshots:
 
   '@lezer/common@1.4.0': {}
 
+  '@lezer/common@1.5.0': {}
+
   '@lezer/highlight@1.2.3':
     dependencies:
       '@lezer/common': 1.4.0
@@ -17914,7 +17926,7 @@ snapshots:
 
   '@lezer/lr@1.4.5':
     dependencies:
-      '@lezer/common': 1.4.0
+      '@lezer/common': 1.5.0
 
   '@marijn/find-cluster-break@1.0.2': {}
 
@@ -22143,9 +22155,9 @@ snapshots:
       '@typescript-eslint/types': 8.48.1
       eslint-visitor-keys: 4.2.1
 
-  '@uiw/codemirror-extensions-basic-setup@4.25.4(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0))(@codemirror/commands@6.10.0)(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)':
+  '@uiw/codemirror-extensions-basic-setup@4.25.4(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.5.0))(@codemirror/commands@6.10.0)(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)':
     dependencies:
-      '@codemirror/autocomplete': 6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0)
+      '@codemirror/autocomplete': 6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.5.0)
       '@codemirror/commands': 6.10.0
       '@codemirror/language': 6.11.3
       '@codemirror/lint': 6.9.2
@@ -22159,15 +22171,15 @@ snapshots:
       '@codemirror/state': 6.5.2
       '@codemirror/view': 6.38.8
 
-  '@uiw/react-codemirror@4.25.4(@babel/runtime@7.28.4)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0))(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.38.8)(codemirror@6.0.1(@lezer/common@1.4.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@uiw/react-codemirror@4.25.4(@babel/runtime@7.28.4)(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.5.0))(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.38.8)(codemirror@6.0.1(@lezer/common@1.5.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@babel/runtime': 7.28.4
       '@codemirror/commands': 6.10.0
       '@codemirror/state': 6.5.2
       '@codemirror/theme-one-dark': 6.1.2
       '@codemirror/view': 6.38.8
-      '@uiw/codemirror-extensions-basic-setup': 4.25.4(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0))(@codemirror/commands@6.10.0)(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)
-      codemirror: 6.0.1(@lezer/common@1.4.0)
+      '@uiw/codemirror-extensions-basic-setup': 4.25.4(@codemirror/autocomplete@6.17.0(@codemirror/language@6.11.3)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.5.0))(@codemirror/commands@6.10.0)(@codemirror/language@6.11.3)(@codemirror/lint@6.9.2)(@codemirror/search@6.5.6)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)
+      codemirror: 6.0.1(@lezer/common@1.5.0)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
     transitivePeerDependencies:
@@ -23354,14 +23366,14 @@ snapshots:
       estree-walker: 3.0.3
       periscopic: 3.1.0
 
-  codemirror@6.0.1(@lezer/common@1.4.0):
+  codemirror@6.0.1(@lezer/common@1.5.0):
     dependencies:
-      '@codemirror/autocomplete': 6.17.0(@codemirror/language@6.12.0)(@codemirror/state@6.5.2)(@codemirror/view@6.38.8)(@lezer/common@1.4.0)
+      '@codemirror/autocomplete': 6.17.0(@codemirror/language@6.12.1)(@codemirror/state@6.5.3)(@codemirror/view@6.38.8)(@lezer/common@1.5.0)
       '@codemirror/commands': 6.10.1
-      '@codemirror/language': 6.12.0
+      '@codemirror/language': 6.12.1
       '@codemirror/lint': 6.9.2
       '@codemirror/search': 6.5.6
-      '@codemirror/state': 6.5.2
+      '@codemirror/state': 6.5.3
       '@codemirror/view': 6.38.8
     transitivePeerDependencies:
       - '@lezer/common'
@@ -27776,12 +27788,12 @@ snapshots:
     optionalDependencies:
       nodemailer: 7.0.11
 
-  next-query-params@5.1.0(next@15.5.9(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(use-query-params@2.2.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)):
+  next-query-params@5.1.0(next@15.5.9(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(use-query-params@2.2.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)):
     dependencies:
       next: 15.5.9(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react: 19.2.3
       tslib: 2.8.1
-      use-query-params: 2.2.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      use-query-params: 2.2.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
 
   next-themes@0.4.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
@@ -29421,7 +29433,7 @@ snapshots:
     dependencies:
       randombytes: 2.1.0
 
-  serialize-query-params@2.0.2: {}
+  serialize-query-params@2.0.4: {}
 
   seroval-plugins@1.4.0(seroval@1.4.1):
     dependencies:
@@ -30564,11 +30576,11 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.3
 
-  use-query-params@2.2.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  use-query-params@2.2.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
-      serialize-query-params: 2.0.2
+      serialize-query-params: 2.0.4
 
   use-sidecar@1.1.3(@types/react@19.2.3)(react@19.2.3):
     dependencies:
