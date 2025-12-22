@@ -3473,5 +3473,36 @@
         }
       }
     ]
+  },
+  {
+    "id": "cmjfoeykl000004l8ffzra8c7",
+    "modelName": "gemini-3-flash-preview",
+    "matchPattern": "(?i)^(google\/)?(gemini-3-flash-preview)$",
+    "createdAt": "2025-12-21T12:01:42.282Z",
+    "updatedAt": "2025-12-21T12:01:42.282Z",
+    "pricingTiers": [
+      {
+        "id": "cmjfoeykl000004l8ffzra8c7_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.5e-6,
+          "input_modality_1": 0.5e-6,
+          "prompt_token_count": 0.5e-6,
+          "promptTokenCount": 0.5e-6,
+          "input_cached_tokens": 0.05e-6,
+          "cached_content_token_count": 0.05e-6,
+          "output": 3e-6,
+          "output_modality_1": 3e-6,
+          "candidates_token_count": 3e-6,
+          "candidatesTokenCount": 3e-6,
+          "thoughtsTokenCount": 3e-6,
+          "thoughts_token_count": 3e-6,
+          "output_reasoning": 3e-6
+        }
+      }
+    ]
   }
 ]
