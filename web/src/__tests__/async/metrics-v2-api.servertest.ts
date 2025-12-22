@@ -14,8 +14,8 @@ import {
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
-const hasEvents = env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
-const maybe = hasEvents ? describe : describe.skip;
+const hasV2Apis = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
+const maybe = hasV2Apis ? describe : describe.skip;
 
 describe("/api/public/v2/metrics API Endpoint", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -28,7 +28,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   const testMetadataValue = randomUUID();
 
   beforeAll(async () => {
-    if (!hasEvents) {
+    if (!hasV2Apis) {
       // don't attempt data setup if events table is disabled
       return;
     }
@@ -745,7 +745,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     const scoreSessionId = randomUUID();
 
     beforeAll(async () => {
-      if (!hasEvents) return;
+      if (!hasV2Apis) return;
 
       // Create observation in events table for scores to reference
       await createEventsCh([
@@ -902,7 +902,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     const eventsScoreVersion = "events-v1.2.3";
 
     beforeAll(async () => {
-      if (!hasEvents) return;
+      if (!hasV2Apis) return;
 
       eventsScoreTraceId = randomUUID();
       eventsObservationId = randomUUID();
@@ -1016,7 +1016,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     let obsEventsScoreId: string;
 
     beforeAll(async () => {
-      if (!hasEvents) return;
+      if (!hasV2Apis) return;
 
       obsEventsTraceId = randomUUID();
       obsEventsObservationId = randomUUID();

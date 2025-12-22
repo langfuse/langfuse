@@ -340,6 +340,11 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // v2 APIs (events table based) - disabled by default for self-hosters
+    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS: z
+      .enum(["true", "false"])
+      .default("false"),
+
     LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST: z
       .enum(["true", "false"])
       .default("false"),
@@ -668,6 +673,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
     LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST:
       process.env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST,
   },
