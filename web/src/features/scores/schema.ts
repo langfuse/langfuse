@@ -1,4 +1,3 @@
-import { ScoreDataTypeArray } from "@langfuse/shared";
 import { z } from "zod/v4";
 
 export const AnnotationScoreDataSchema = z.object({
@@ -9,7 +8,7 @@ export const AnnotationScoreDataSchema = z.object({
   name: z.string(),
   value: z.number().nullish(),
   stringValue: z.string().nullish(),
-  dataType: z.enum(ScoreDataTypeArray),
+  dataType: z.enum(["NUMERIC", "BOOLEAN", "CATEGORICAL"]),
   configId: z.string(),
   comment: z.string().nullish(),
 });

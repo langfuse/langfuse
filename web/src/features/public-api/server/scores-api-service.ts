@@ -3,11 +3,11 @@ import {
   _handleGetScoresCountForPublicApi,
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
-import { type ScoreSourceType } from "@langfuse/shared";
 import {
-  _handleGetScoreById,
   AGGREGATABLE_SCORE_TYPES,
-} from "@langfuse/shared/src/server";
+  type ScoreSourceType,
+} from "@langfuse/shared";
+import { _handleGetScoreById } from "@langfuse/shared/src/server";
 
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}

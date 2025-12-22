@@ -307,7 +307,10 @@ export const getScoresForDatasetRuns = async <
 
   const includeMetadataPayload = excludeMetadata ? false : true;
   return rows.map((row) =>
-    convertClickhouseScoreToDomain(row, includeMetadataPayload),
+    convertClickhouseScoreToDomain<ExcludeMetadata, AggregatableScoreDataType>(
+      row,
+      includeMetadataPayload,
+    ),
   );
 };
 
@@ -1330,7 +1333,7 @@ export const getAggregatedScoresForPrompts = async (
   });
 
   return rows.map((row) => ({
-    ...convertScoreAggregation(row),
+    ...convertScoreAggregation<AggregatableScoreDataType>(row),
     promptId: row.prompt_id,
     hasMetadata: !!row.has_metadata,
   }));

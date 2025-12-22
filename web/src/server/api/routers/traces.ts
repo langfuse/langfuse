@@ -20,6 +20,8 @@ import {
   timeFilter,
   type Observation,
   TracingSearchType,
+  type ScoreDomain,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import {
   traceException,
@@ -44,7 +46,6 @@ import {
   getTracesGroupedByUsers,
   getTracesGroupedBySessionId,
   updateEvents,
-  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -162,7 +163,6 @@ export const traceRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
-  // TODO: include corrections
   metrics: protectedProjectProcedure
     .input(
       z.object({
@@ -237,14 +237,8 @@ export const traceRouter = createTRPCRouter({
         onParseError: traceException,
       });
 
-      // const [corrections, scores] = partition(
-      //   validatedScores,
-      //   (s) => s.dataType === ScoreDataTypeEnum.CORRECTION,
-      // );
-
       return res.map((row) => ({
         ...row,
-        // corrections: corrections.filter((s) => s.traceId === row.id),
         scores: aggregateScores(
           validatedScores.filter((s) => s.traceId === row.id),
         ),
@@ -388,11 +382,14 @@ export const traceRouter = createTRPCRouter({
               : undefined
           : undefined;
 
+      const scores =
+        toDomainArrayWithStringifiedMetadata<ScoreDomain>(validatedScores);
+
       return {
         ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
+        scores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
           ...toDomainWithStringifiedMetadata(o),

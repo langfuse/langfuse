@@ -11,9 +11,8 @@ import {
   createPublicApiTracesColumnMapping,
   tracesTableUiColumnDefinitions,
   shouldSkipObservationsFinal,
-  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared/src/server";
-import { type OrderByState } from "@langfuse/shared";
+import { AGGREGATABLE_SCORE_TYPES, type OrderByState } from "@langfuse/shared";
 import {
   TRACE_FIELD_GROUPS,
   type TraceFieldGroup,
