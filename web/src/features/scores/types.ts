@@ -58,7 +58,7 @@ export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 export type AnnotationScore = {
   id: string | null;
   name: string;
-  dataType: ScoreConfigDataType;
+  dataType: AnnotationScoreDataType;
   source: ScoreSourceType;
   value?: number | null;
   stringValue?: string | null;
