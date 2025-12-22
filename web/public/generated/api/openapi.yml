@@ -9619,28 +9619,8 @@ components:
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - chat
-            - $ref: '#/components/schemas/CreateChatPromptRequest'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - text
-            - $ref: '#/components/schemas/CreateTextPromptRequest'
-          required:
-            - type
+        - $ref: '#/components/schemas/CreateChatPromptRequest'
+        - $ref: '#/components/schemas/CreateTextPromptRequest'
     CreateChatPromptRequest:
       title: CreateChatPromptRequest
       type: object
@@ -9653,6 +9633,8 @@ components:
             $ref: '#/components/schemas/ChatMessageWithPlaceholders'
         config:
           nullable: true
+        type:
+          $ref: '#/components/schemas/CreateChatPromptType'
         labels:
           type: array
           items:
@@ -9672,6 +9654,7 @@ components:
       required:
         - name
         - prompt
+        - type
     CreateTextPromptRequest:
       title: CreateTextPromptRequest
       type: object
@@ -9681,6 +9664,9 @@ components:
         prompt:
           type: string
         config:
+          nullable: true
+        type:
+          $ref: '#/components/schemas/CreateTextPromptType'
           nullable: true
         labels:
           type: array
@@ -9773,28 +9759,8 @@ components:
     ChatMessageWithPlaceholders:
       title: ChatMessageWithPlaceholders
       oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - chatmessage
-            - $ref: '#/components/schemas/ChatMessage'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - placeholder
-            - $ref: '#/components/schemas/PlaceholderMessage'
-          required:
-            - type
+        - $ref: '#/components/schemas/ChatMessage'
+        - $ref: '#/components/schemas/PlaceholderMessage'
     ChatMessage:
       title: ChatMessage
       type: object
@@ -9836,6 +9802,16 @@ components:
         - prompt
       allOf:
         - $ref: '#/components/schemas/BasePrompt'
+    CreateChatPromptType:
+      title: CreateChatPromptType
+      type: string
+      enum:
+        - chat
+    CreateTextPromptType:
+      title: CreateTextPromptType
+      type: string
+      enum:
+        - text
     ServiceProviderConfig:
       title: ServiceProviderConfig
       type: object

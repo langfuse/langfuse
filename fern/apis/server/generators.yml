@@ -16,8 +16,6 @@ groups:
           location: local-file-system
           path: ../../../generated/python
         config:
-          pydantic_config:
-            smart_union: false
           client:
             class_name: LangfuseAPI
         smart-casing: true
