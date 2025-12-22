@@ -16,6 +16,9 @@ groups:
           location: local-file-system
           path: ../../../generated/python
         config:
+          pydantic_config:
+            enum_type: python_enums
+            version: v2
           client:
             class_name: LangfuseAPI
         smart-casing: true
