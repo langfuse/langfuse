@@ -8,7 +8,7 @@ export const AnnotationScoreDataSchema = z.object({
   name: z.string(),
   value: z.number().nullish(),
   stringValue: z.string().nullish(),
-  dataType: z.enum(["NUMERIC", "BOOLEAN", "CATEGORICAL"]),
+  dataType: z.enum(["CATEGORICAL", "NUMERIC", "BOOLEAN"]),
   configId: z.string(),
   comment: z.string().nullish(),
 });

@@ -1,4 +1,4 @@
-import { type ScoreDataTypeType, type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import {
   createContext,
   type ReactNode,
@@ -6,7 +6,10 @@ import {
   useContext,
   useState,
 } from "react";
-import { type ScoreColumn } from "@/src/features/scores/types";
+import {
+  type AnnotationScoreDataType,
+  type ScoreColumn,
+} from "@/src/features/scores/types";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 
 /**
@@ -34,7 +37,7 @@ export type CachedScore = Pick<
   // Score identity - non-nullable
   configId: string;
   source: "ANNOTATION";
-  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">;
+  dataType: AnnotationScoreDataType;
 };
 
 type ScoreCacheContextValue = {
