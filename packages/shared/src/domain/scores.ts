@@ -102,3 +102,18 @@ export type ScoresByDataTypes<T extends readonly ScoreDataTypeType[]> =
       ? ScoreByDataType<U>
       : never
     : never;
+
+// Aggregatable score types - used in most read queries to exclude CORRECTION scores
+export const AGGREGATABLE_SCORE_TYPES = [
+  "NUMERIC",
+  "BOOLEAN",
+  "CATEGORICAL",
+] as const satisfies readonly ScoreDataTypeType[];
+
+export type AggregatableScoreDataType =
+  (typeof AGGREGATABLE_SCORE_TYPES)[number];
+
+// Type helper for functions that return only aggregatable scores
+export type AggregatableScore = ScoresByDataTypes<
+  typeof AGGREGATABLE_SCORE_TYPES
+>;

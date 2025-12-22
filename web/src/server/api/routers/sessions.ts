@@ -37,6 +37,7 @@ import {
   getNumericScoresGroupedByName,
   getCategoricalScoresGroupedByName,
   tracesTableUiColumnDefinitions,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared/src/server";
 import { chunk } from "lodash";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -108,6 +109,7 @@ const handleGetSessionById = async (input: {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
     onParseError: traceException,
   });
 
@@ -272,6 +274,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -394,6 +397,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 

@@ -11,6 +11,7 @@ import {
   createPublicApiTracesColumnMapping,
   tracesTableUiColumnDefinitions,
   shouldSkipObservationsFinal,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared/src/server";
 import { type OrderByState } from "@langfuse/shared";
 import {
@@ -189,6 +190,7 @@ async function buildTracesBaseQuery(
         WHERE project_id = {projectId: String}
         AND session_id IS NULL
         AND dataset_run_id IS NULL
+        AND data_type IN ({dataTypes: Array(String)})
         ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
         ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
         GROUP BY
@@ -215,6 +217,7 @@ async function buildTracesBaseQuery(
       WHERE project_id = {projectId: String}
       AND session_id IS NULL
       AND dataset_run_id IS NULL
+      AND data_type IN ({dataTypes: Array(String)})
       ${fromTimeFilter ? `AND timestamp >= {cteFromTimeFilter: DateTime64(3)}` : ""}
       ${environmentFilter.length() > 0 ? `AND ${appliedEnvironmentFilter.query}` : ""}
       GROUP BY project_id, trace_id
@@ -285,6 +288,7 @@ async function buildTracesBaseQuery(
     ...appliedEnvironmentFilter.params,
     ...appliedFilter.params,
     projectId: props.projectId,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
     ...(props.limit !== undefined ? { limit: props.limit } : {}),
     ...(props.page !== undefined
       ? { offset: (props.page - 1) * props.limit }

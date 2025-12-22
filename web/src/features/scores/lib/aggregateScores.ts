@@ -52,7 +52,7 @@ export const getScoreLabelFromKey = (key: string): string => {
   return `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
 };
 
-type ScoreToAggregate =
+export type ScoreToAggregate =
   | (Omit<ScoreDomain, "dataType"> & {
       dataType: Extract<
         ScoreDataTypeType,

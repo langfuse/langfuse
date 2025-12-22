@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { filterAndValidateDbScoreList } from "@langfuse/shared";
 import {
+  AGGREGATABLE_SCORE_TYPES,
   getObservationsTableWithModelData,
   getObservationsWithModelDataFromEventsTable,
   getScoresForObservations,
@@ -40,6 +41,7 @@ export async function getAllGenerations({
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
     includeHasMetadata: true,
     onParseError: traceException,
   });

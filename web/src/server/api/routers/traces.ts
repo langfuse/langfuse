@@ -44,6 +44,7 @@ import {
   getTracesGroupedByUsers,
   getTracesGroupedBySessionId,
   updateEvents,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -161,6 +162,7 @@ export const traceRouter = createTRPCRouter({
         totalCount: count,
       };
     }),
+  // TODO: include corrections
   metrics: protectedProjectProcedure
     .input(
       z.object({
@@ -219,7 +221,7 @@ export const traceRouter = createTRPCRouter({
         ],
       });
 
-      const scores = await getScoresForTraces({
+      const traceScores = await getScoresForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
         limit: 1000,
@@ -229,13 +231,20 @@ export const traceRouter = createTRPCRouter({
       });
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
+        scores: traceScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
         onParseError: traceException,
       });
 
+      // const [corrections, scores] = partition(
+      //   validatedScores,
+      //   (s) => s.dataType === ScoreDataTypeEnum.CORRECTION,
+      // );
+
       return res.map((row) => ({
         ...row,
+        // corrections: corrections.filter((s) => s.traceId === row.id),
         scores: aggregateScores(
           validatedScores.filter((s) => s.traceId === row.id),
         ),
@@ -341,7 +350,7 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const [observations, scores] = await Promise.all([
+      const [observations, traceScores] = await Promise.all([
         getObservationsForTrace({
           traceId: input.traceId,
           projectId: input.projectId,
@@ -356,7 +365,8 @@ export const traceRouter = createTRPCRouter({
       ]);
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
+        scores: traceScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 

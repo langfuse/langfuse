@@ -17,6 +17,7 @@ import {
   traceException,
   getDatasetItems,
   getDatasetItemsCount,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { groupBy } from "lodash";
@@ -140,6 +141,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
 
   const validatedTraceScores = filterAndValidateDbScoreList({
     scores: traceScores,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
     includeHasMetadata: true,
     onParseError: traceException,
   });

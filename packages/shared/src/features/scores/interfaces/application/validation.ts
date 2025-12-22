@@ -9,10 +9,8 @@ import {
 
 type ValidatedScore<
   IncludeHasMetadata extends boolean,
-  DataTypes extends readonly ScoreDataTypeType[] | undefined = undefined,
-> = (DataTypes extends readonly ScoreDataTypeType[]
-  ? ScoresByDataTypes<DataTypes>
-  : ScoreDomain) & {
+  DataTypes extends readonly ScoreDataTypeType[],
+> = ScoresByDataTypes<DataTypes> & {
   hasMetadata: IncludeHasMetadata extends true ? boolean : never;
 };
 
@@ -31,27 +29,35 @@ export const validateDbScore = (score: unknown): ScoreDomain =>
 /**
  * Use this function when pulling a list of scores from the database before using in the application to ensure type safety.
  * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.
- * @param scores
- * @param dataTypes - Optional array of data types to narrow the return type
- * @returns list of validated scores
+ * This function filters scores by the specified data types and validates them.
+ * @param scores - List of scores to filter and validate
+ * @param dataTypes - Array of data types to filter by (required)
+ * @param includeHasMetadata - Whether to include hasMetadata field
+ * @param onParseError - Optional callback for parse errors
+ * @returns list of validated and filtered scores
  */
 export const filterAndValidateDbScoreList = <
   IncludeHasMetadata extends boolean,
-  DataTypes extends readonly ScoreDataTypeType[] | undefined = undefined,
+  DataTypes extends readonly ScoreDataTypeType[],
 >({
   scores,
-  includeHasMetadata = false as IncludeHasMetadata,
   dataTypes,
+  includeHasMetadata = false as IncludeHasMetadata,
   onParseError,
 }: {
   scores: InputScore[];
+  dataTypes: DataTypes;
   includeHasMetadata?: IncludeHasMetadata;
-  dataTypes?: DataTypes;
   // eslint-disable-next-line no-unused-vars
   onParseError?: (error: z.ZodError) => void;
 }): ValidatedScore<IncludeHasMetadata, DataTypes>[] => {
   return scores.reduce(
     (acc, ts) => {
+      // Filter by dataType first
+      if (!dataTypes.includes(ts.dataType)) {
+        return acc;
+      }
+
       const result = ScoreSchema.safeParse(ts);
       if (result.success) {
         const score = { ...result.data };

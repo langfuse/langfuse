@@ -68,7 +68,7 @@ export const _handleGetScoresByIds = async ({
   scoreId: string[];
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
-  dataTypes?: ScoreDataTypeType[];
+  dataTypes?: readonly ScoreDataTypeType[];
 }): Promise<ScoreDomain[]> => {
   const query = `
   SELECT *
