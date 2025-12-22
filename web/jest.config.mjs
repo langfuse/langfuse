@@ -10,10 +10,7 @@ const clientTestConfig = {
   displayName: "client",
   testMatch: ["/**/*.clienttest.[jt]s?(x)"],
   testEnvironment: "jest-environment-jsdom",
-  testEnvironmentOptions: {
-    globalsCleanup: "on",
-    url: "https://langfuse.com/",
-  },
+  testEnvironmentOptions: { globalsCleanup: "on" },
 };
 
 const serverTestConfig = {
