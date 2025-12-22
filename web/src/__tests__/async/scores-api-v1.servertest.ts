@@ -1143,6 +1143,126 @@ describe("/api/public/scores API Endpoint", () => {
           );
         }
       });
+
+      it("should exclude CORRECTION scores from list when no dataType filter is provided", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        // Create a NUMERIC score (should be returned)
+        const numericScoreId = v4();
+        const numericScore = createTraceScore({
+          id: numericScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "numeric-score",
+          value: 95.5,
+          source: "API",
+          data_type: "NUMERIC" as const,
+        });
+
+        // Create a CORRECTION score (should NOT be returned)
+        const correctionScoreId = v4();
+        const correctionScore = createTraceScore({
+          id: correctionScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "correction-score",
+          value: 0,
+          source: "ANNOTATION",
+          data_type: "CORRECTION" as const,
+          string_value: null,
+          long_string_value: "This is a correction",
+        });
+
+        await createScoresCh([numericScore, correctionScore]);
+
+        // Wait for scores to be available
+        await waitForExpect(async () => {
+          const checkScores = await getScoresByIds(projectId, [
+            numericScoreId,
+            correctionScoreId,
+          ]);
+          expect(checkScores).toHaveLength(2);
+        });
+
+        // Fetch all scores without filter - should only get NUMERIC
+        const response = await makeZodVerifiedAPICall(
+          GetScoresResponseV1,
+          "GET",
+          `/api/public/scores?page=1&limit=10`,
+          undefined,
+          auth,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].id).toBe(numericScoreId);
+        expect(response.body.data[0].dataType).toBe("NUMERIC");
+        expect(response.body.meta.totalItems).toBe(1);
+
+        // Verify CORRECTION score is NOT in the results
+        const correctionInResults = response.body.data.find(
+          (s) => s.id === correctionScoreId,
+        );
+        expect(correctionInResults).toBeUndefined();
+      });
+
+      it("should not return CORRECTION score when fetching by ID", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        // Create a CORRECTION score
+        const correctionScoreId = v4();
+        const correctionScore = createTraceScore({
+          id: correctionScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "correction-score",
+          value: 0,
+          source: "ANNOTATION",
+          data_type: "CORRECTION" as const,
+          string_value: null,
+          long_string_value: "This is a correction",
+        });
+        await createScoresCh([correctionScore]);
+
+        // Wait for score to be available
+        await waitForExpect(async () => {
+          const checkScore = await getScoresByIds(projectId, [
+            correctionScoreId,
+          ]);
+          expect(checkScore).toHaveLength(1);
+        });
+
+        // Try to fetch by ID - should return 404 or error since v1 doesn't support CORRECTION
+        try {
+          await makeAPICall(
+            "GET",
+            `/api/public/scores/${correctionScoreId}`,
+            undefined,
+            auth,
+          );
+          // If it doesn't throw, fail the test
+          expect(true).toBe(false);
+        } catch (error) {
+          // Should get an error (404 or similar) since CORRECTION scores aren't supported in v1
+          expect((error as Error).message).toMatch(
+            /API call did not return 200/,
+          );
+        }
+      });
     });
   });
 });

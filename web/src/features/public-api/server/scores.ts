@@ -2,10 +2,12 @@ import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src
 import {
   convertClickhouseScoreToDomain,
   StringFilter,
+  StringOptionsFilter,
   type ScoreRecordReadType,
   queryClickhouse,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
+import type { ScoreDataTypeType } from "@langfuse/shared";
 
 export type ScoreQueryType = {
   page: number;
@@ -37,11 +39,16 @@ export type ScoreQueryType = {
 export const _handleGenerateScoresForPublicApi = async ({
   props,
   scoreScope,
+  scoreDataTypes,
 }: {
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
+  scoreDataTypes?: readonly ScoreDataTypeType[];
 }) => {
-  const { scoresFilter, tracesFilter } = generateScoreFilter(props);
+  const { scoresFilter, tracesFilter } = generateScoreFilter(
+    props,
+    scoreDataTypes,
+  );
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
@@ -162,11 +169,16 @@ export const _handleGenerateScoresForPublicApi = async ({
 export const _handleGetScoresCountForPublicApi = async ({
   props,
   scoreScope,
+  scoreDataTypes,
 }: {
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
+  scoreDataTypes?: readonly ScoreDataTypeType[];
 }) => {
-  const { scoresFilter, tracesFilter } = generateScoreFilter(props);
+  const { scoresFilter, tracesFilter } = generateScoreFilter(
+    props,
+    scoreDataTypes,
+  );
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
@@ -351,7 +363,10 @@ const secureTraceFilterOptions = [
   },
 ];
 
-const generateScoreFilter = (filter: ScoreQueryType) => {
+const generateScoreFilter = (
+  filter: ScoreQueryType,
+  scoreDataTypes?: readonly ScoreDataTypeType[],
+) => {
   const scoresFilter = convertApiProvidedFilterToClickhouseFilter(
     filter,
     secureScoreFilterOptions,
@@ -364,6 +379,20 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
       value: filter.projectId,
     }),
   );
+
+  // Add version-based dataType restriction if provided
+  // This will AND with any user-provided dataType filter for proper intersection
+  if (scoreDataTypes) {
+    scoresFilter.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "data_type",
+        operator: "any of",
+        values: [...scoreDataTypes],
+        tablePrefix: "s",
+      }),
+    );
+  }
 
   const tracesFilter = convertApiProvidedFilterToClickhouseFilter(
     filter,
