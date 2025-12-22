@@ -147,6 +147,13 @@ export const transformDbToApiObservation = (
     userId,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sessionId,
+    // Exclude tool data from public API (not yet released)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    toolDefinitions,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    toolCalls,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    toolCallNames,
     ...rest
   } = observation as EventsObservation & ObservationPriceFields;
 

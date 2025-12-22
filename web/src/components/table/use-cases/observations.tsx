@@ -111,6 +111,8 @@ export type ObservationsTableRow = {
     inputCost?: number;
     outputCost?: number;
   };
+  toolDefinitions?: number;
+  toolCalls?: number;
 };
 
 export type ObservationsTableProps = {
@@ -336,6 +338,16 @@ export default function ObservationsTable({
         filterOptions.data?.tags?.map((t) => ({
           value: t.value,
           count: t.count !== undefined ? Number(t.count) : undefined,
+        })) ?? undefined,
+      toolNames:
+        filterOptions.data?.toolNames?.map((tn) => ({
+          value: tn.value,
+          count: tn.count !== undefined ? Number(tn.count) : undefined,
+        })) ?? undefined,
+      calledToolNames:
+        filterOptions.data?.calledToolNames?.map((ctn) => ({
+          value: ctn.value,
+          count: ctn.count !== undefined ? Number(ctn.count) : undefined,
         })) ?? undefined,
       latency: [],
       timeToFirstToken: [],
@@ -660,6 +672,36 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       enableSorting: true,
+    },
+    {
+      accessorKey: "toolDefinitions",
+      id: "toolDefinitions",
+      header: "Available Tools",
+      size: 120,
+      enableHiding: true,
+      enableSorting: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("toolDefinitions");
+        return value !== undefined ? (
+          <span>{numberFormatter(value, 0)}</span>
+        ) : undefined;
+      },
+    },
+    {
+      accessorKey: "toolCalls",
+      id: "toolCalls",
+      header: "Tool Calls",
+      size: 100,
+      enableHiding: true,
+      enableSorting: true,
+      defaultHidden: true,
+      cell: ({ row }) => {
+        const value: number | undefined = row.getValue("toolCalls");
+        return value !== undefined ? (
+          <span>{numberFormatter(value, 0)}</span>
+        ) : undefined;
+      },
     },
     {
       accessorKey: "timeToFirstToken",
@@ -1156,6 +1198,8 @@ export default function ObservationsTable({
             costDetails: generation.costDetails ?? {},
             usagePricingTierName: generation.usagePricingTierName ?? undefined,
             environment: generation.environment ?? undefined,
+            toolDefinitions: generation.toolDefinitionsCount ?? undefined,
+            toolCalls: generation.toolCallsCount ?? undefined,
           };
         })
       : [];

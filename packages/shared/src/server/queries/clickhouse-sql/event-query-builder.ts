@@ -49,6 +49,11 @@ const EVENTS_FIELDS = {
   promptName: 'e.prompt_name as "prompt_name"',
   promptVersion: 'e.prompt_version as "prompt_version"',
 
+  // Tool fields
+  toolDefinitions: 'e.tool_definitions as "tool_definitions"',
+  toolCalls: 'e.tool_calls as "tool_calls"',
+  toolCallNames: 'e.tool_call_names as "tool_call_names"',
+
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
@@ -99,10 +104,14 @@ const FIELD_SETS = {
     "internalModelId",
     "userId",
     "sessionId",
+    "toolDefinitions",
+    "toolCalls",
+    "toolCallNames",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
   metadata: ["metadata"],
+  tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
   eventTs: ["eventTs"],
 
   // getById field sets (reuse the same fields - all queries use `FROM events e`)
@@ -120,6 +129,9 @@ const FIELD_SETS = {
     "level",
     "statusMessage",
     "version",
+    "toolDefinitions",
+    "toolCalls",
+    "toolCallNames",
   ],
   byIdModel: [
     "providedModelName",
