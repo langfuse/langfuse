@@ -10,6 +10,7 @@ const clientTestConfig = {
   displayName: "client",
   testMatch: ["/**/*.clienttest.[jt]s?(x)"],
   testEnvironment: "jest-environment-jsdom",
+  testEnvironmentOptions: { globalsCleanup: "on" },
 };
 
 const serverTestConfig = {
@@ -17,6 +18,7 @@ const serverTestConfig = {
   testMatch: ["/**/*.servertest.[jt]s?(x)"],
   testPathIgnorePatterns: ["async", "__e2e__"],
   testEnvironment: "jest-environment-node",
+  testEnvironmentOptions: { globalsCleanup: "on" },
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
   globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
 };
@@ -26,6 +28,7 @@ const asyncServerTestConfig = {
   testPathIgnorePatterns: ["__e2e__"],
   testMatch: ["/**/async/**/*.servertest.[jt]s?(x)"],
   testEnvironment: "jest-environment-node",
+  testEnvironmentOptions: { globalsCleanup: "on" },
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
   globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
 };
@@ -35,6 +38,7 @@ const endToEndServerTestConfig = {
   testMatch: ["/**/*.servertest.[jt]s?(x)"],
   testPathIgnorePatterns: ["__tests__"],
   testEnvironment: "jest-environment-node",
+  testEnvironmentOptions: { globalsCleanup: "on" },
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
   globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
 };
@@ -45,6 +49,10 @@ const esModules = ["superjson", "jsonpath-plus"];
 // Add any custom config to be passed to Jest
 /** @type {import('jest').Config} */
 const config = {
+  // Ignore .next/standalone to avoid "Haste module naming collision" warning
+  modulePathIgnorePatterns: ["<rootDir>/.next/"],
+  // Jest 30 performance: recycle workers when memory exceeds limit
+  workerIdleMemoryLimit: "512MB",
   // Add more setup options before each test is run
   projects: [
     {
