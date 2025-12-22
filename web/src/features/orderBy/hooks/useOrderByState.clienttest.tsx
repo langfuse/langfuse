@@ -16,8 +16,8 @@ jest.mock("next/router", () => ({
 }));
 
 // The test for the useOrderByState hook
-// Note: These tests are skipped in Jest 30+ due to jsdom v26 making window.location non-configurable
-// See: https://jestjs.io/blog/2025/06/04/jest-30#jsdom-upgrade
+// Skipped: jsdom v26 (Jest 30) makes window.location non-configurable
+// The hook is implicitly tested through table interactions in the app
 describe.skip("useOrderByState hook", () => {
   let testRouter: TestRouter;
   let locationMock: LocationMock;
