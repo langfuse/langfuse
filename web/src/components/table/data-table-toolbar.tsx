@@ -47,6 +47,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
+import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -84,6 +85,15 @@ interface TableViewConfig {
   controllers: TableViewControllers;
 }
 
+interface RefreshConfig {
+  onRefresh: () => Promise<void>;
+  isRefreshing?: boolean;
+  /** Project ID for scoping the session storage key */
+  projectId: string;
+  /** Table name for scoping the session storage key (e.g., "traces", "sessions") */
+  tableName: string;
+}
+
 interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition?: ColumnDefinition[];
@@ -102,6 +112,7 @@ interface DataTableToolbarProps<TData, TValue> {
   columnsWithCustomSelect?: string[];
   timeRange?: TimeRange;
   setTimeRange?: (timeRange: TimeRange) => void;
+  refreshConfig?: RefreshConfig;
   multiSelect?: MultiSelect;
   environmentFilter?: {
     values: string[];
@@ -130,6 +141,7 @@ export function DataTableToolbar<TData, TValue>({
   columnsWithCustomSelect,
   timeRange,
   setTimeRange,
+  refreshConfig,
   multiSelect,
   environmentFilter,
   className,
@@ -300,6 +312,14 @@ export function DataTableToolbar<TData, TValue>({
             onTimeRangeChange={setTimeRange}
             timeRangePresets={TABLE_AGGREGATION_OPTIONS}
             className="my-0 max-w-full overflow-x-auto"
+          />
+        )}
+        {refreshConfig && (
+          <DataTableRefreshButton
+            onRefresh={refreshConfig.onRefresh}
+            isRefreshing={refreshConfig.isRefreshing}
+            projectId={refreshConfig.projectId}
+            tableName={refreshConfig.tableName}
           />
         )}
         {environmentFilter && (
