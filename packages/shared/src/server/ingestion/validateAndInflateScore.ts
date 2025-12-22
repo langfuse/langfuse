@@ -118,6 +118,18 @@ function inflateScoreBody(
   }
 
   if (relevantDataType && relevantDataType === ScoreDataTypeEnum.CORRECTION) {
+    // CORRECTION scores can only be associated with traces or observations
+    if (body.sessionId) {
+      throw new InvalidRequestError(
+        "CORRECTION scores cannot be associated with sessions. Please associate with a trace or observation instead.",
+      );
+    }
+    if (body.datasetRunId) {
+      throw new InvalidRequestError(
+        "CORRECTION scores cannot be associated with dataset runs. Please associate with a trace or observation instead.",
+      );
+    }
+
     return {
       ...scoreProps,
       value: 0,
