@@ -1,7 +1,9 @@
 import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
+import { NotImplementedError } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { env } from "@/src/env.mjs";
 
 import {
   GetObservationsV2Query,
@@ -15,6 +17,12 @@ export default withMiddlewares({
     querySchema: GetObservationsV2Query,
     responseSchema: GetObservationsV2Response,
     fn: async ({ query, auth }) => {
+      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
+        throw new NotImplementedError(
+          "v2 APIs are currently in beta and only available on Langfuse Cloud",
+        );
+      }
+
       const filterProps = {
         projectId: auth.scope.projectId,
         page: 0, // v2 doesn't use page-based pagination
