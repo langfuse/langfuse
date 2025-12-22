@@ -2,7 +2,7 @@ import { type ScoreDomain, type ScoreConfigDomain } from "@langfuse/shared";
 import { type ScoreAggregate } from "@langfuse/shared";
 import {
   ANNOTATION_SCORE_DATA_TYPES_ARRAY,
-  AnnotationScoreDataType,
+  type AnnotationScoreDataType,
   type AnnotationScore,
 } from "@/src/features/scores/types";
 import {
@@ -70,7 +70,9 @@ function transformFlatScores(
     .filter(
       (score) =>
         score.source === "ANNOTATION" &&
-        score.dataType in ANNOTATION_SCORE_DATA_TYPES_ARRAY,
+        ANNOTATION_SCORE_DATA_TYPES_ARRAY.includes(
+          score.dataType as AnnotationScoreDataType,
+        ),
     )
     .map((score) => {
       const config = configs.find((c) => c.id === score.configId);
