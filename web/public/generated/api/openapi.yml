@@ -7905,6 +7905,9 @@ components:
           nullable: true
         - type: integer
           nullable: true
+        - type: integer
+          format: float
+          nullable: true
         - type: boolean
           nullable: true
         - type: array
