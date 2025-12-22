@@ -1755,10 +1755,12 @@ describe("Clickhouse Events Repository Test", () => {
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [
-          { id: observation1Id, traceId, startTime: timestamp },
-          { id: observation2Id, traceId, startTime: timestamp },
-          { id: observation3Id, traceId, startTime: timestamp },
+          { id: observation1Id, traceId },
+          { id: observation2Id, traceId },
+          { id: observation3Id, traceId },
         ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
       });
 
       expect(result).toBeDefined();
@@ -1827,9 +1829,11 @@ describe("Clickhouse Events Repository Test", () => {
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [
-          { id: existingId, traceId, startTime: timestamp },
-          { id: nonExistentId, traceId, startTime: timestamp },
+          { id: existingId, traceId },
+          { id: nonExistentId, traceId },
         ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
       });
 
       // Should only return the existing one
@@ -1865,7 +1869,9 @@ describe("Clickhouse Events Repository Test", () => {
       // Try to fetch with wrong projectId
       const result = await getObservationsBatchIOFromEventsTable({
         projectId, // Using default projectId, not differentProjectId
-        observations: [{ id: observationId, traceId, startTime: timestamp }],
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
       });
 
       // Should not return anything since projectId doesn't match

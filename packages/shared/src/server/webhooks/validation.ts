@@ -34,7 +34,7 @@ export interface WebhookValidationWhitelist {
   ip_ranges: string[];
 }
 
-function whitelistFromEnv(): WebhookValidationWhitelist {
+export function whitelistFromEnv(): WebhookValidationWhitelist {
   return {
     hosts: env.LANGFUSE_WEBHOOK_WHITELISTED_HOST || [],
     ips: env.LANGFUSE_WEBHOOK_WHITELISTED_IPS || [],
