@@ -328,19 +328,21 @@ describe("/api/public/v2/scores API Endpoint", () => {
         const correction1 = createTraceScore({
           id: correctionScoreId_1,
           project_id: newProjectId,
-          trace_id: traceId,
-          name: "correction-score-name-1",
+          trace_id: traceId_2,
+          name: "output",
           data_type: "CORRECTION",
           long_string_value: "correction-value-1",
+          environment: "annotation",
         });
 
         const correction2 = createTraceScore({
           id: correctionScoreId_2,
           project_id: newProjectId,
-          trace_id: traceId,
-          name: "correction-score-name-2",
+          trace_id: traceId_3,
+          name: "output",
           data_type: "CORRECTION",
           long_string_value: "correction-value-2",
+          environment: "annotation",
         });
 
         const sessionScore1 = createSessionScore({

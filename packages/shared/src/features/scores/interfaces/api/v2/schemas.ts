@@ -14,7 +14,7 @@ import z from "zod/v4";
  * @see {@link NumericData}, {@link CategoricalData}, {@link BooleanData}
  */
 const ScoreFoundationSchemaV2 = ScoreSchemaExclReferencesAndDates.extend({
-  longStringValue: z.string(),
+  longStringValue: z.string().default(""),
   // Timestamps
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
