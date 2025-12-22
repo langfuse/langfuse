@@ -56,7 +56,7 @@ export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 export type AnnotationScore = {
   id: string | null;
   name: string;
-  dataType: ScoreDataTypeType;
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">;
   source: ScoreSourceType;
   value?: number | null;
   stringValue?: string | null;
@@ -99,7 +99,7 @@ export type ScoreColumn = {
   key: string;
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataTypeType;
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">;
 };
 
 export type ScoreConfigSelection =
@@ -123,7 +123,7 @@ export type AnnotationScoreFormData = {
   id: string | null;
   configId: string;
   name: string;
-  dataType: ScoreDataTypeType;
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">;
   value?: number | null;
   stringValue?: string | null;
   comment?: string | null;

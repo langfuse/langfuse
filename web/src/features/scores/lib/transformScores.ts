@@ -1,4 +1,8 @@
-import { type ScoreDomain, type ScoreConfigDomain } from "@langfuse/shared";
+import {
+  type ScoreDomain,
+  type ScoreConfigDomain,
+  type ScoreDataTypeType,
+} from "@langfuse/shared";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { type AnnotationScore } from "@/src/features/scores/types";
 import {
@@ -63,7 +67,11 @@ function transformFlatScores(
   configs: ScoreConfigDomain[],
 ): AnnotationScore[] {
   return mergedScores
-    .filter((score) => score.source === "ANNOTATION")
+    .filter(
+      (score) =>
+        score.source === "ANNOTATION" &&
+        ["NUMERIC", "BOOLEAN", "CATEGORICAL"].includes(score.dataType),
+    )
     .map((score) => {
       const config = configs.find((c) => c.id === score.configId);
       if (!config || !score.configId) return null;
@@ -71,7 +79,10 @@ function transformFlatScores(
       return {
         id: score.id,
         name: score.name,
-        dataType: score.dataType,
+        dataType: score.dataType as Extract<
+          ScoreDataTypeType,
+          "NUMERIC" | "BOOLEAN" | "CATEGORICAL"
+        >,
         source: score.source,
         configId: score.configId,
         value: score.value,

@@ -1,4 +1,4 @@
-import { type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDataTypeType, type ScoreDomain } from "@langfuse/shared";
 import {
   createContext,
   type ReactNode,
@@ -21,7 +21,6 @@ export type CachedScore = Pick<
   | "environment"
   // Score identity
   | "name"
-  | "dataType"
   // Score values
   | "value"
   | "stringValue"
@@ -35,6 +34,7 @@ export type CachedScore = Pick<
   // Score identity - non-nullable
   configId: string;
   source: "ANNOTATION";
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN" | "CATEGORICAL">;
 };
 
 type ScoreCacheContextValue = {
