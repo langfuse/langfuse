@@ -18,10 +18,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 const dropValuesForCategoricalScores = (
   value: number,
-  scoreDataType: Extract<
-    ScoreDataTypeType,
-    "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
-  >,
+  scoreDataType: ScoreDataTypeType,
 ): string => {
   return isCategoricalDataType(scoreDataType)
     ? "-"
@@ -32,10 +29,7 @@ const scoreNameSourceDataTypeMatch =
   (
     scoreName: string,
     scoreSource: ScoreSourceType,
-    scoreDataType: Extract<
-      ScoreDataTypeType,
-      "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
-    >,
+    scoreDataType: ScoreDataTypeType,
   ) =>
   (item: DatabaseRow) =>
     item.scoreName === scoreName &&
@@ -154,10 +148,7 @@ export const ScoresTable = ({
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;
       const scoreSource = metric.scoreSource as ScoreSourceType;
-      const scoreDataType = metric.scoreDataType as Extract<
-        ScoreDataTypeType,
-        "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
-      >;
+      const scoreDataType = metric.scoreDataType as ScoreDataTypeType;
 
       const zeroValueScore = zeroValueScores.data.find(
         scoreNameSourceDataTypeMatch(scoreName, scoreSource, scoreDataType),

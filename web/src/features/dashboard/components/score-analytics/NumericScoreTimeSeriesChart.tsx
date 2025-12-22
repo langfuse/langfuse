@@ -6,6 +6,7 @@ import {
   type ScoreSourceType,
   type FilterState,
   type ScoreDataTypeEnum,
+  ScoreDataTypeType,
 } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
@@ -28,7 +29,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
   source: ScoreSourceType;
-  dataType: (typeof ScoreDataTypeEnum)["NUMERIC"];
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   name: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;

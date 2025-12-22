@@ -30,7 +30,7 @@ export type ScoreAggregate = Record<string, AggregatedScoreData>;
 export type ScoreSimplified = {
   id: string;
   name: string;
-  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "CATEGORICAL" | "BOOLEAN">;
+  dataType: ScoreDataTypeType;
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;

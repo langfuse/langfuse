@@ -118,9 +118,7 @@ export const addPrefixToScoreKeys = (
   return prefixed;
 };
 
-export const getScoreDataTypeIcon = (
-  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "CATEGORICAL" | "BOOLEAN">,
-): string => {
+export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
   switch (dataType) {
     case "NUMERIC":
     default:
@@ -138,10 +136,7 @@ export const convertScoreColumnsToAnalyticsData = (
     | {
         key: string;
         name: string;
-        dataType: Extract<
-          ScoreDataTypeType,
-          "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
-        >;
+        dataType: ScoreDataTypeType;
         source: ScoreSourceType;
       }[]
     | undefined,
