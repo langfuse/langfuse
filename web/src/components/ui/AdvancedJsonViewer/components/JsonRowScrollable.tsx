@@ -43,11 +43,12 @@ export function JsonRowScrollable({
   const isValue = searchMatch?.matchType === "value";
 
   // Calculate value offset within the row for adjusting comment ranges
-  // Row renders as: key:"value" (no space after colon)
+  // Row renders as: key:"value" for strings, key:value for others
   // commentRanges are row-relative, need to adjust for value-only highlighting
   const keyLength = row.key.length;
-  const colonAndQuoteLength = 2; // ":" + opening quote
-  const valueOffset = keyLength + colonAndQuoteLength;
+  const colonLength = 1;
+  const quoteLength = row.type === "string" ? 1 : 0; // only strings have opening quote
+  const valueOffset = keyLength + colonLength + quoteLength;
 
   // Calculate background based on search match only (comment highlighting is now character-level)
   const backgroundColor = isCurrentMatch
