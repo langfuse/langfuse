@@ -359,6 +359,8 @@ export const getObservationStream = async (props: {
           traceTags: bufferedRow.traceTags,
           traceTimestamp: bufferedRow.traceTimestamp,
           userId: bufferedRow.userId,
+          toolDefinitionsCount: null,
+          toolCallsCount: null,
           ...modelData,
           scores: outputScores,
           comments: observationComments,
