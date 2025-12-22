@@ -138,10 +138,7 @@ export const convertScoreColumnsToAnalyticsData = (
     | {
         key: string;
         name: string;
-        dataType: Extract<
-          ScoreDataTypeType,
-          "NUMERIC" | "CATEGORICAL" | "BOOLEAN"
-        >;
+        dataType: ScoreDataTypeType;
         source: ScoreSourceType;
       }[]
     | undefined,
