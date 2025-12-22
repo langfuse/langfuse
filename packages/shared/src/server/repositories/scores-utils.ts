@@ -14,12 +14,14 @@ export const _handleGetScoreById = async ({
   scoreId,
   source,
   scoreScope,
+  scoreDataTypes,
   preferredClickhouseService,
 }: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
+  scoreDataTypes?: readonly ScoreDataTypeType[];
   preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<ScoreDomain | undefined> => {
   const query = `
@@ -27,6 +29,7 @@ export const _handleGetScoreById = async ({
   FROM scores s
   WHERE s.project_id = {projectId: String}
   AND s.id = {scoreId: String}
+  ${scoreDataTypes ? `AND s.data_type IN ({scoreDataTypes: Array(String)})` : ""}
   ${source ? `AND s.source = {source: String}` : ""}
   ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
   ORDER BY s.event_ts DESC
@@ -40,6 +43,9 @@ export const _handleGetScoreById = async ({
       projectId,
       scoreId,
       ...(source !== undefined ? { source } : {}),
+      ...(scoreDataTypes
+        ? { scoreDataTypes: scoreDataTypes.map((d) => d.toString()) }
+        : {}),
     },
     tags: {
       feature: "tracing",

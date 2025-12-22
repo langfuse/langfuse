@@ -1183,12 +1183,10 @@ describe("/api/public/scores API Endpoint", () => {
         await createScoresCh([numericScore, correctionScore]);
 
         // Wait for scores to be available
+        // Note: getScoresByIds only returns aggregatable scores, so we only check for the NUMERIC score
         await waitForExpect(async () => {
-          const checkScores = await getScoresByIds(projectId, [
-            numericScoreId,
-            correctionScoreId,
-          ]);
-          expect(checkScores).toHaveLength(2);
+          const checkScores = await getScoresByIds(projectId, [numericScoreId]);
+          expect(checkScores).toHaveLength(1);
         });
 
         // Fetch all scores without filter - should only get NUMERIC
@@ -1243,25 +1241,17 @@ describe("/api/public/scores API Endpoint", () => {
           const checkScore = await getScoresByIds(projectId, [
             correctionScoreId,
           ]);
-          expect(checkScore).toHaveLength(1);
+          expect(checkScore).toHaveLength(0);
         });
 
-        // Try to fetch by ID - should return 404 or error since v1 doesn't support CORRECTION
-        try {
-          await makeAPICall(
-            "GET",
-            `/api/public/scores/${correctionScoreId}`,
-            undefined,
-            auth,
-          );
-          // If it doesn't throw, fail the test
-          expect(true).toBe(false);
-        } catch (error) {
-          // Should get an error (404 or similar) since CORRECTION scores aren't supported in v1
-          expect((error as Error).message).toMatch(
-            /API call did not return 200/,
-          );
-        }
+        // Try to fetch by ID - should return 404 since v1 doesn't support CORRECTION
+        const response = await makeAPICall(
+          "GET",
+          `/api/public/scores/${correctionScoreId}`,
+          undefined,
+          auth,
+        );
+        expect(response.status).toBe(404);
       });
     });
   });

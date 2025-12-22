@@ -14,6 +14,8 @@ export class ScoresApiService {
 
   /**
    * Get a specific score by ID
+   * v1: Only returns aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION
+   * v2: Returns all score types including CORRECTION
    */
   async getScoreById({
     projectId,
@@ -29,6 +31,8 @@ export class ScoresApiService {
       scoreId,
       source,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
+      scoreDataTypes:
+        this.apiVersion === "v1" ? AGGREGATABLE_SCORE_TYPES : undefined,
       preferredClickhouseService: "ReadOnly",
     });
   }
