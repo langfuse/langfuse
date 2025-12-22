@@ -45,7 +45,7 @@ export function JsonRowScrollable({
   // Calculate value offset within the row for adjusting comment ranges
   // Row renders as: key:"value" for strings, key:value for others
   // commentRanges are row-relative, need to adjust for value-only highlighting
-  const keyLength = row.key.length;
+  const keyLength = String(row.key).length;
   const colonLength = 1;
   const quoteLength = row.type === "string" ? 1 : 0; // only strings have opening quote
   const valueOffset = keyLength + colonLength + quoteLength;
