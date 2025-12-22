@@ -61,7 +61,7 @@ type ScoreToAggregate = (ScoreDomain | ScoreSimplified) & {
 export const resolveAggregateType = (
   dataType: ScoreDataTypeType,
 ): "NUMERIC" | "CATEGORICAL" => {
-  return dataType === "BOOLEAN" ? "CATEGORICAL" : "NUMERIC";
+  return dataType === "BOOLEAN" ? "CATEGORICAL" : dataType;
 };
 
 export const aggregateScores = <T extends ScoreToAggregate>(
