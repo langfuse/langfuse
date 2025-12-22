@@ -3,6 +3,11 @@
  */
 
 /**
+ * Color for comment highlights (purple with medium opacity)
+ */
+export const COMMENT_HIGHLIGHT_COLOR = "rgba(147, 112, 219, 0.3)";
+
+/**
  * Creates text segments with both search and comment highlights.
  * Merges multiple highlight ranges and assigns types for different styling.
  *

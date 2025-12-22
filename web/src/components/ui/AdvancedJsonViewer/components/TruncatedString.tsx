@@ -12,7 +12,10 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { type JSONTheme } from "../types";
-import { highlightTextWithComments } from "../utils/highlightText";
+import {
+  highlightTextWithComments,
+  COMMENT_HIGHLIGHT_COLOR,
+} from "../utils/highlightText";
 
 interface TruncatedStringProps {
   value: string;
@@ -70,8 +73,7 @@ export function TruncatedString({
             segment.type === "search"
               ? theme.searchMatchBackground
               : segment.type === "comment"
-                ? // TODO: change color
-                  "rgba(147, 112, 219, 0.25)" // Purple highlight for comments
+                ? COMMENT_HIGHLIGHT_COLOR
                 : "transparent";
 
           return (
@@ -109,8 +111,7 @@ export function TruncatedString({
               segment.type === "search"
                 ? theme.searchMatchBackground
                 : segment.type === "comment"
-                  ? // TODO: change color
-                    "rgba(147, 112, 219, 0.25)" // Purple highlight for comments
+                  ? COMMENT_HIGHLIGHT_COLOR
                   : "transparent";
 
             return (

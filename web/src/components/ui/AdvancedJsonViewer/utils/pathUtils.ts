@@ -227,7 +227,8 @@ export function pathArrayToJsonPath(pathArray: (string | number)[]): string {
       jsonPath += `.${part}`;
     } else {
       // Key with special characters - use bracket notation
-      jsonPath += `['${part.replace(/'/g, "\\'")}']`;
+      // Escape backslashes first, then quotes (order matters for correctness)
+      jsonPath += `['${part.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}']`;
     }
   }
 

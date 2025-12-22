@@ -337,6 +337,9 @@ export interface JsonValueProps {
 
   commentRanges?: Array<{ start: number; end: number }>;
 
+  /** Offset of value within the row (for adjusting row-relative commentRanges to value-relative) */
+  valueOffset?: number;
+
   /** Custom CSS class */
   className?: string;
 }
@@ -357,6 +360,9 @@ export interface JsonKeyProps {
   /** Search highlight positions */
   highlightStart?: number;
   highlightEnd?: number;
+
+  /** Comment ranges (row-relative offsets, will be clipped to key boundaries) */
+  commentRanges?: Array<{ start: number; end: number }>;
 
   /** Custom CSS class */
   className?: string;

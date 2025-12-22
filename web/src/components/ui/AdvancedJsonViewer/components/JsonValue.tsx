@@ -7,7 +7,10 @@
 
 import { type JsonValueProps } from "../types";
 import { formatValuePreview } from "../utils/jsonTypes";
-import { highlightTextWithComments } from "../utils/highlightText";
+import {
+  highlightTextWithComments,
+  COMMENT_HIGHLIGHT_COLOR,
+} from "../utils/highlightText";
 import { TruncatedString } from "./TruncatedString";
 
 export function JsonValue({
@@ -21,8 +24,16 @@ export function JsonValue({
   highlightStart,
   highlightEnd,
   commentRanges,
+  valueOffset = 0,
   className,
 }: JsonValueProps) {
+  // Adjust comment ranges from row-relative to value-relative
+  const adjustedCommentRanges = commentRanges
+    ?.map((range) => ({
+      start: Math.max(0, range.start - valueOffset),
+      end: Math.max(0, range.end - valueOffset),
+    }))
+    .filter((range) => range.end > 0 && range.start < range.end);
   // For expandable values, show preview text
   if (isExpandable) {
     const preview = formatValuePreview(value);
@@ -78,7 +89,7 @@ export function JsonValue({
             theme={theme}
             highlightStart={highlightStart}
             highlightEnd={highlightEnd}
-            commentRanges={commentRanges}
+            commentRanges={adjustedCommentRanges}
           />
         );
       }
@@ -89,7 +100,7 @@ export function JsonValue({
       str,
       highlightStart,
       highlightEnd,
-      commentRanges,
+      adjustedCommentRanges,
     );
 
     return (
@@ -111,8 +122,7 @@ export function JsonValue({
             segment.type === "search"
               ? theme.searchMatchBackground
               : segment.type === "comment"
-                ? // TODO: change highlight color!
-                  "rgba(147, 112, 219, 0.25)" // Purple highlight for comments
+                ? COMMENT_HIGHLIGHT_COLOR
                 : "transparent";
 
           return (
@@ -147,7 +157,7 @@ export function JsonValue({
     displayValue,
     highlightStart,
     highlightEnd,
-    commentRanges,
+    adjustedCommentRanges,
   );
 
   return (
@@ -163,8 +173,7 @@ export function JsonValue({
           segment.type === "search"
             ? theme.searchMatchBackground
             : segment.type === "comment"
-              ? // TODO: change color
-                "rgba(147, 112, 219, 0.25)" // Purple highlight for comments
+              ? COMMENT_HIGHLIGHT_COLOR
               : "transparent";
 
         return (
