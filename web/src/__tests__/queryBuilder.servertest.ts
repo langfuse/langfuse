@@ -11,8 +11,6 @@ import {
   createObservationsCh,
   createTraceScore,
   createScoresCh,
-  createEvent,
-  createEventsCh,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -3745,18 +3743,18 @@ describe("validateQuery", () => {
     orderBy: null,
   } as QueryType;
 
-  it("should return valid for queries without high cardinality dimensions", async () => {
+  it("should return valid for queries without high cardinality dimensions", () => {
     const query: QueryType = {
       ...baseQuery,
       dimensions: [{ field: "name" }], // name is not high cardinality
     };
 
-    const result = await validateQuery("test-project-id", query, "v2");
+    const result = validateQuery(query, "v2");
 
     expect(result).toEqual({ valid: true });
   });
 
-  it("should return invalid when high cardinality dimension is used without row_limit", async () => {
+  it("should return invalid when high cardinality dimension is used without row_limit", () => {
     const query: QueryType = {
       ...baseQuery,
       dimensions: [{ field: "traceId" }], // high cardinality
@@ -3764,7 +3762,7 @@ describe("validateQuery", () => {
       // no chartConfig.row_limit
     };
 
-    const result = await validateQuery("test-project-id", query, "v2");
+    const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
     expect((result as { valid: false; reason: string }).reason).toContain(
@@ -3775,7 +3773,7 @@ describe("validateQuery", () => {
     );
   });
 
-  it("should return invalid when high cardinality dimension is used without ORDER DESC", async () => {
+  it("should return invalid when high cardinality dimension is used without ORDER DESC", () => {
     const query: QueryType = {
       ...baseQuery,
       dimensions: [{ field: "userId" }], // high cardinality
@@ -3783,7 +3781,7 @@ describe("validateQuery", () => {
       orderBy: [{ field: "sum_totalCost", direction: "asc" }], // asc, not desc
     };
 
-    const result = await validateQuery("test-project-id", query, "v2");
+    const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
     expect((result as { valid: false; reason: string }).reason).toContain(
@@ -3794,7 +3792,7 @@ describe("validateQuery", () => {
     );
   });
 
-  it("should return invalid when ORDER BY desc field is not a measure in the query", async () => {
+  it("should return invalid when ORDER BY desc field is not a measure in the query", () => {
     const query: QueryType = {
       ...baseQuery,
       dimensions: [{ field: "traceId" }], // high cardinality
@@ -3802,7 +3800,7 @@ describe("validateQuery", () => {
       orderBy: [{ field: "sum_latency", direction: "desc" }], // latency is not in metrics
     };
 
-    const result = await validateQuery("test-project-id", query, "v2");
+    const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
     expect((result as { valid: false; reason: string }).reason).toContain(
@@ -3816,7 +3814,7 @@ describe("validateQuery", () => {
     );
   });
 
-  it("should return invalid when ORDER BY desc field is a dimension (not a measure)", async () => {
+  it("should return invalid when ORDER BY desc field is a dimension (not a measure)", () => {
     const query: QueryType = {
       ...baseQuery,
       dimensions: [{ field: "traceId" }, { field: "name" }], // traceId is high cardinality
@@ -3824,7 +3822,7 @@ describe("validateQuery", () => {
       orderBy: [{ field: "name", direction: "desc" }], // name is a dimension, not a measure
     };
 
-    const result = await validateQuery("test-project-id", query, "v2");
+    const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
     expect((result as { valid: false; reason: string }).reason).toContain(
@@ -3838,14 +3836,14 @@ describe("validateQuery", () => {
     );
   });
 
-  it("should return invalid for multiple high cardinality dimensions without required config", async () => {
+  it("should return invalid for multiple high cardinality dimensions without required config", () => {
     const query: QueryType = {
       ...baseQuery,
       dimensions: [{ field: "traceId" }, { field: "sessionId" }], // both high cardinality
       // missing row_limit and orderBy desc
     };
 
-    const result = await validateQuery("test-project-id", query, "v2");
+    const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
     expect((result as { valid: false; reason: string }).reason).toContain(
@@ -3856,40 +3854,13 @@ describe("validateQuery", () => {
     );
   });
 
-  it("should support public API 'config' field name for row_limit", async () => {
+  it("should support public API 'config' field name for row_limit", () => {
     // Test that "config" field works (used by public API) vs "chartConfig" (used internally)
-    const projectId = randomUUID();
-    const traceId = randomUUID();
-    const observationId = randomUUID();
-    const timeValue = Date.now() * 1000; // microseconds for events table
-
-    // Create test data in events table with meaningful values (v2 uses events)
-    await createEventsCh([
-      createEvent({
-        id: observationId,
-        span_id: observationId,
-        trace_id: traceId,
-        project_id: projectId,
-        type: "GENERATION",
-        name: "test-obs",
-        start_time: timeValue,
-        end_time: timeValue + 1000000,
-        cost_details: { total: 1.5 }, // non-zero cost,
-      }),
-    ]);
-
     const query = {
       view: "observations",
       dimensions: [{ field: "traceId" }], // high cardinality
       metrics: [{ measure: "totalCost", aggregation: "sum" }],
-      filters: [
-        {
-          column: "traceId",
-          operator: "=",
-          value: traceId,
-          type: "string",
-        },
-      ],
+      filters: [],
       timeDimension: null,
       fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
       toTimestamp: new Date(Date.now() + 86400000).toISOString(),
@@ -3897,126 +3868,22 @@ describe("validateQuery", () => {
       config: { type: "table", row_limit: 10 }, // Public API uses "config"
     } as unknown as QueryType;
 
-    const result = await validateQuery(projectId, query, "v2");
+    const result = validateQuery(query, "v2");
 
     expect(result).toEqual({ valid: true });
   });
 
-  describe("preflight query integration", () => {
-    it("should return valid when preflight finds meaningful data", async () => {
-      const projectId = randomUUID();
-      const traceId = randomUUID();
-      const observationId = randomUUID();
-      const timeValue = Date.now() * 1000; // microseconds for events table
+  it("should return valid for count-only metrics with high cardinality", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }],
+      metrics: [{ measure: "count", aggregation: "count" }], // count-only
+      orderBy: [{ field: "count", direction: "desc" }],
+      chartConfig: { type: "table", row_limit: 10 },
+    };
 
-      // Create observation in events table with non-zero cost (v2 uses events)
-      await createEventsCh([
-        createEvent({
-          id: observationId,
-          span_id: observationId,
-          trace_id: traceId,
-          project_id: projectId,
-          type: "GENERATION",
-          name: "test-obs",
-          start_time: timeValue,
-          end_time: timeValue + 1000000,
-          cost_details: { total: 2.5 }, // non-zero cost,
-        }),
-      ]);
+    const result = validateQuery(query, "v2");
 
-      const query: QueryType = {
-        view: "observations",
-        dimensions: [{ field: "traceId" }],
-        metrics: [{ measure: "totalCost", aggregation: "sum" }],
-        filters: [
-          {
-            column: "traceId",
-            operator: "=",
-            value: traceId,
-            type: "string",
-          },
-        ],
-        timeDimension: null,
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-        orderBy: [{ field: "totalCost", direction: "desc" }],
-        chartConfig: { type: "table", row_limit: 10 },
-      };
-
-      const result = await validateQuery(projectId, query, "v2");
-
-      expect(result).toEqual({ valid: true });
-    });
-
-    it("should return invalid when preflight finds no meaningful data", async () => {
-      const projectId = randomUUID();
-      const traceId = randomUUID();
-      const observationId = randomUUID();
-      const timeValue = Date.now() * 1000; // microseconds for events table
-
-      // Create observation in events table with zero latency and zero cost (v2 uses events)
-      // Using same start_time and end_time results in zero latency
-      await createEventsCh([
-        createEvent({
-          id: observationId,
-          span_id: observationId,
-          trace_id: traceId,
-          project_id: projectId,
-          type: "SPAN",
-          name: "test-obs",
-          start_time: timeValue,
-          end_time: timeValue, // Same as start_time = 0 latency
-          cost_details: { total: 0 },
-          usage_details: { total: 0 },
-        }),
-      ]);
-
-      const query: QueryType = {
-        view: "observations",
-        dimensions: [{ field: "traceId" }],
-        metrics: [{ measure: "totalCost", aggregation: "sum" }], // Non-count metric
-        filters: [
-          {
-            column: "traceId",
-            operator: "=",
-            value: traceId,
-            type: "string",
-          },
-        ],
-        timeDimension: null,
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-        orderBy: [{ field: "totalCost", direction: "desc" }],
-        chartConfig: { type: "table", row_limit: 10 },
-      };
-
-      const result = await validateQuery(projectId, query, "v2");
-
-      expect(result.valid).toBe(false);
-      expect((result as { valid: false; reason: string }).reason).toContain(
-        "Query may produce a large result set with no meaningful values",
-      );
-    });
-
-    it("should return valid for count-only metrics (preflight skipped)", async () => {
-      const projectId = randomUUID();
-
-      const query: QueryType = {
-        view: "observations",
-        dimensions: [{ field: "traceId" }],
-        metrics: [{ measure: "count", aggregation: "count" }], // count-only
-        filters: [],
-        timeDimension: null,
-        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-        orderBy: [{ field: "count", direction: "desc" }],
-        chartConfig: { type: "table", row_limit: 10 },
-      };
-
-      const result = await validateQuery(projectId, query, "v2");
-
-      // Count metrics skip preflight, so should be valid
-      expect(result).toEqual({ valid: true });
-    });
+    expect(result).toEqual({ valid: true });
   });
 });

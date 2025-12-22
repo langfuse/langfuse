@@ -67,23 +67,20 @@ function findMeasureInOrderByField(
 
 /**
  * Validates a query for safety before execution.
- * Performs all sanity checks including high cardinality dimension validation and preflight queries.
+ * Performs sanity checks for high cardinality dimension validation.
  *
  * High cardinality dimensions (id, traceId, userId, sessionId, etc.) are only allowed when:
  * 1. config.row_limit (or chartConfig.row_limit) is explicitly specified (LIMIT)
  * 2. orderBy with direction 'desc' on a measure field is specified (for top-N queries)
- * 3. Preflight query confirms at least one row has non-zero/non-empty values for sorted measures
  *
- * @param projectId - The project ID
  * @param query - The query configuration (with original config, before defaults applied)
  * @param version - The view version (v1 or v2)
  * @returns Validation result: { valid: true } or { valid: false, reason: string }
  */
-export async function validateQuery(
-  projectId: string,
+export function validateQuery(
   query: QueryType,
   version: ViewVersion,
-): Promise<QueryValidationResult> {
+): QueryValidationResult {
   // 1. Check for high cardinality dimensions
   const highCardDims = getHighCardinalityDimensions(query, version);
 
@@ -111,7 +108,6 @@ export async function validateQuery(
 
   // Extract measure names from orderBy fields and validate they are measures in the query
   const queryMeasureNames = query.metrics.map((m) => m.measure);
-  const orderByMeasureNames: string[] = [];
   const invalidOrderByFields: string[] = [];
 
   for (const orderBy of orderByDescFields) {
@@ -119,9 +115,7 @@ export async function validateQuery(
       orderBy.field,
       queryMeasureNames,
     );
-    if (matchedMeasure) {
-      orderByMeasureNames.push(matchedMeasure);
-    } else {
+    if (!matchedMeasure) {
       invalidOrderByFields.push(orderBy.field);
     }
   }
@@ -135,109 +129,7 @@ export async function validateQuery(
     };
   }
 
-  // 4. Run preflight query - only check the measures referenced in orderBy
-  const hasMeaningfulData = await executePreflightQuery(
-    projectId,
-    query,
-    version,
-    orderByMeasureNames,
-  );
-
-  if (!hasMeaningfulData) {
-    return {
-      valid: false,
-      reason:
-        "Query may produce a large result set with no meaningful values. " +
-        "All rows matching your filters have zero/empty values for the requested measures.",
-    };
-  }
-
   return { valid: true };
-}
-
-/**
- * Execute a preflight query to check if any rows have non-zero/non-empty measure values.
- * Used for high-cardinality dimension queries to verify the query won't produce
- * a large result set with only zero/empty values.
- *
- * @param projectId - The project ID
- * @param query - The query configuration
- * @param version - The view version (v1 or v2)
- * @param measuresToCheck - List of measure names to check (for targeted preflight)
- * @returns true if at least one row with non-zero/non-empty values exists, false otherwise
- *          Returns true (skip preflight) if all metrics are counts
- */
-export async function executePreflightQuery(
-  projectId: string,
-  query: QueryType,
-  version: ViewVersion = "v1",
-  measuresToCheck: string[],
-): Promise<boolean> {
-  // Remap config to chartConfig for compatibility
-  const chartConfig =
-    (query as unknown as { config?: QueryType["chartConfig"] }).config ??
-    query.chartConfig;
-  const queryBuilder = new QueryBuilder(chartConfig, version);
-
-  // Build the preflight query (optionally filtering to specific measures)
-  const preflightResult = queryBuilder.buildPreflightQuery(
-    query,
-    projectId,
-    measuresToCheck,
-  );
-
-  // If null, skip preflight (all metrics are counts)
-  if (!preflightResult) {
-    logger.info("Skipping preflight query - all metrics are counts", {
-      projectId,
-      view: query.view,
-    });
-    return true;
-  }
-
-  const { query: compiledQuery, parameters } = preflightResult;
-
-  logger.info("Executing preflight query for high cardinality dimensions", {
-    projectId,
-    view: query.view,
-    query: compiledQuery,
-  });
-
-  try {
-    const result = await queryClickhouse<{ "1": number }>({
-      query: compiledQuery,
-      params: parameters,
-      clickhouseConfigs: {
-        clickhouse_settings: {
-          date_time_output_format: "iso",
-        },
-      },
-      tags: {
-        feature: "custom-queries-preflight",
-        type: query.view,
-        kind: "analytic",
-        projectId,
-      },
-    });
-
-    const hasMeaningfulData = result.length > 0;
-
-    logger.info("Preflight query result", {
-      projectId,
-      view: query.view,
-      hasMeaningfulData,
-    });
-
-    return hasMeaningfulData;
-  } catch (error) {
-    logger.error("Preflight query failed", {
-      projectId,
-      view: query.view,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    // On error, allow the main query to proceed
-    return true;
-  }
 }
 
 /**
@@ -369,10 +261,11 @@ export async function executeQuery(
             return await queryClickhouse<Record<string, unknown>>({
               query: queryToExecute.query,
               params: queryToExecute.params,
-              clickhouseConfigs: {
-                clickhouse_settings: {
-                  date_time_output_format: "iso",
-                },
+              clickhouseSettings: {
+                date_time_output_format: "iso",
+                max_bytes_before_external_group_by: String(
+                  env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+                ),
               },
               tags: {
                 feature:
@@ -408,10 +301,11 @@ export async function executeQuery(
                 return queryClickhouse<Record<string, unknown>>({
                   query: input.query,
                   params: input.params,
-                  clickhouseConfigs: {
-                    clickhouse_settings: {
-                      date_time_output_format: "iso",
-                    },
+                  clickhouseSettings: {
+                    date_time_output_format: "iso",
+                    max_bytes_before_external_group_by: String(
+                      env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+                    ),
                   },
                   tags: input.tags,
                 });

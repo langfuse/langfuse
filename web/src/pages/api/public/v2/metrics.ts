@@ -28,13 +28,9 @@ export default withMiddlewares({
       }
 
       try {
-        // Validate query (high cardinality checks, preflight) BEFORE applying defaults
+        // Validate query (high cardinality checks) BEFORE applying defaults
         // This ensures users must explicitly opt-in with row_limit for high cardinality queries
-        const validation = await validateQuery(
-          auth.scope.projectId,
-          query.query as any,
-          "v2",
-        );
+        const validation = validateQuery(query.query as any, "v2");
 
         if (!validation.valid) {
           throw new InvalidRequestError(validation.reason);
