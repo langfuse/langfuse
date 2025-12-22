@@ -1,5 +1,8 @@
-import { ScoreDataType } from "@prisma/client";
-import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
+import {
+  ScoreDataTypeType,
+  ScoreDomain,
+  ScoreSourceType,
+} from "../../domain/scores";
 import {
   commandClickhouse,
   queryClickhouse,
@@ -45,7 +48,7 @@ export const searchExistingAnnotationScore = async (
   sessionId: string | null,
   name: string | undefined,
   configId: string | undefined,
-  dataType: ScoreDataType,
+  dataType: ScoreDataTypeType,
 ) => {
   if (!name && !configId) {
     throw new Error("Either name or configId (or both) must be provided.");
@@ -622,7 +625,7 @@ export const getScoresGroupedByNameSourceType = async ({
   return rows.map((row) => ({
     name: row.name,
     source: row.source as ScoreSourceType,
-    dataType: row.data_type as ScoreDataType,
+    dataType: row.data_type as ScoreDataTypeType,
   }));
 };
 

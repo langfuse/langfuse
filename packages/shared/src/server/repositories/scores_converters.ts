@@ -1,6 +1,9 @@
-import { ScoreDataType } from "@prisma/client";
 import { ScoreRecordReadType } from "./definitions";
-import { ScoreDomain, ScoreSourceType } from "../../domain/scores";
+import type {
+  ScoreDataTypeType,
+  ScoreDomain,
+  ScoreSourceType,
+} from "../../domain/scores";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 
@@ -34,7 +37,7 @@ export const convertClickhouseScoreToDomain = <ExcludeMetadata extends boolean>(
     comment: record.comment ?? null,
     authorUserId: record.author_user_id ?? null,
     configId: record.config_id ?? null,
-    dataType: record.data_type as ScoreDataType,
+    dataType: record.data_type as ScoreDataTypeType,
     queueId: record.queue_id ?? null,
     executionTraceId: record.execution_trace_id ?? null,
     createdAt: record.created_at
@@ -68,7 +71,7 @@ export const convertScoreAggregation = (row: ScoreAggregation) => {
     stringValue: row.string_value,
     value: Number(row.value),
     source: row.source as ScoreSourceType,
-    dataType: row.data_type as ScoreDataType,
+    dataType: row.data_type as ScoreDataTypeType,
     comment: row.comment,
     timestamp: row.timestamp,
   };
