@@ -202,7 +202,6 @@ const formatMetadataSelect = (
     .join(", ");
 };
 
-// Returns only aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION scores
 export const getScoresForSessions = async <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
@@ -257,7 +256,6 @@ export const getScoresForSessions = async <
   );
 };
 
-// Returns only aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION scores
 export const getScoresForDatasetRuns = async <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
@@ -490,7 +488,6 @@ export type GetScoresForObservationsProps<
 };
 
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
-// Returns only aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION scores
 export const getScoresForObservations = async <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
@@ -569,7 +566,6 @@ export const getScoresForObservations = async <
   }));
 };
 
-// Returns only aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION scores
 export const getScoresGroupedByNameSourceType = async ({
   projectId,
   filter,
@@ -817,7 +813,6 @@ export const getScoresUiCount = async (props: {
     excludeMetadata: true,
     tags: { kind: "count" },
     ...props,
-    dataTypes: AGGREGATABLE_SCORE_TYPES,
   });
 
   return Number(rows[0].count);
@@ -924,7 +919,6 @@ const getScoresUiGeneric = async <T>(props: {
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
-  dataTypes?: readonly ScoreDataTypeType[];
 }): Promise<T[]> => {
   const {
     projectId,
@@ -935,7 +929,6 @@ const getScoresUiGeneric = async <T>(props: {
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadataFlag = false,
-    dataTypes,
   } = props;
 
   const select =
@@ -993,8 +986,8 @@ const getScoresUiGeneric = async <T>(props: {
       FROM scores s final
       ${performTracesJoin ? "LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
       WHERE s.project_id = {projectId: String}
+      AND s.data_type IN ({dataTypes: Array(String)})
       ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-      ${dataTypes ? `AND s.data_type IN ({dataTypes: Array(String)})` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
@@ -1005,8 +998,8 @@ const getScoresUiGeneric = async <T>(props: {
     input: {
       params: {
         projectId: projectId,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         ...(scoresFilterRes ? scoresFilterRes.params : {}),
-        ...(dataTypes ? { dataTypes: dataTypes.map((d) => d.toString()) } : {}),
         limit: limit,
         offset: offset,
       },
@@ -1713,7 +1706,6 @@ export const getScoreMetadataById = async (
  * for usage aggregation to be meaningful.
  *
  */
-// Returns only aggregatable scores (NUMERIC, BOOLEAN, CATEGORICAL) - excludes CORRECTION scores
 export const getScoreCountsByProjectAndDay = async ({
   startDate,
   endDate,
