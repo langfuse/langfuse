@@ -42,7 +42,6 @@ export const BooleanData = z.object({
 
 export const CorrectionData = z.object({
   stringValue: z.null(),
-  longStringValue: z.string(),
   dataType: z.literal("CORRECTION"),
 });
 
@@ -78,6 +77,7 @@ const ScoreFoundationSchema = ScoreSchemaExclReferencesAndDates.and(
     sessionId: z.string().nullable(),
     datasetRunId: z.string().nullable(),
     observationId: z.string().nullable(),
+    longStringValue: z.string().default(""),
   }),
 );
 

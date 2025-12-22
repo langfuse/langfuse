@@ -36,6 +36,7 @@ export const convertClickhouseScoreToDomain = <
     datasetRunId: record.dataset_run_id ?? null,
     name: record.name,
     value: record.value,
+    longStringValue: record.long_string_value ?? "",
     source: record.source as ScoreSourceType,
     comment: record.comment ?? null,
     authorUserId: record.author_user_id ?? null,
