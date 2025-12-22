@@ -2,8 +2,7 @@ import { api } from "@/src/utils/api";
 import {
   type ScoreSourceType,
   type FilterState,
-  ScoreDataTypeEnum,
-  ScoreDataTypeType,
+  type ScoreDataTypeType,
 } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";

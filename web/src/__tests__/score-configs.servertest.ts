@@ -11,7 +11,7 @@ import {
   PostScoreConfigResponse,
   PutScoreConfigResponse,
 } from "@/src/features/public-api/types/score-configs";
-import { ScoreConfigDataType, ScoreDataTypeType } from "@langfuse/shared";
+import { ScoreConfigDataType } from "@langfuse/shared";
 import { type ScoreConfig, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 

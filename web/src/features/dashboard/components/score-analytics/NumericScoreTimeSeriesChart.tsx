@@ -5,8 +5,7 @@ import { Card } from "@/src/components/ui/card";
 import {
   type ScoreSourceType,
   type FilterState,
-  type ScoreDataTypeEnum,
-  ScoreDataTypeType,
+  type ScoreDataTypeType,
 } from "@langfuse/shared";
 import {
   extractTimeSeriesData,

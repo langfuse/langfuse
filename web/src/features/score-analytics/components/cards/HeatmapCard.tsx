@@ -14,7 +14,7 @@ import { getHeatmapCellColor } from "@/src/features/score-analytics/lib/color-sc
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { useCallback } from "react";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
-import { ScoreDataTypeType } from "@langfuse/shared";
+import { type ScoreDataTypeType } from "@langfuse/shared";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
