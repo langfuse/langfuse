@@ -1,6 +1,6 @@
 import {
+  type AggregatableScoreDataType,
   MetadataDomain,
-  ScoreDataTypeType,
   ScoreSourceType,
 } from "../../../../domain";
 
@@ -30,7 +30,7 @@ export type ScoreAggregate = Record<string, AggregatedScoreData>;
 export type ScoreSimplified = {
   id: string;
   name: string;
-  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "CATEGORICAL" | "BOOLEAN">;
+  dataType: AggregatableScoreDataType;
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;

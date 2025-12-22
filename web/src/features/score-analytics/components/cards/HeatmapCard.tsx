@@ -18,7 +18,7 @@ import { type ScoreDataTypeType } from "@langfuse/shared";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
-  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "CATEGORICAL" | "BOOLEAN">;
+  dataType: ScoreDataTypeType;
   score1: { name: string; source: string };
   score2: { name: string; source: string } | undefined;
   score1Color: string;

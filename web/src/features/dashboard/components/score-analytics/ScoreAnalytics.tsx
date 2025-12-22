@@ -1,7 +1,6 @@
 import { api } from "@/src/utils/api";
-
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { ScoreDataTypeType, type FilterState } from "@langfuse/shared";
+import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import React, { useMemo } from "react";

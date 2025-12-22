@@ -118,9 +118,7 @@ export const addPrefixToScoreKeys = (
   return prefixed;
 };
 
-export const getScoreDataTypeIcon = (
-  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "CATEGORICAL" | "BOOLEAN">,
-): string => {
+export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
   switch (dataType) {
     case "NUMERIC":
     default:
@@ -129,6 +127,8 @@ export const getScoreDataTypeIcon = (
       return "Ⓒ";
     case "BOOLEAN":
       return "Ⓑ";
+    case "CORRECTION":
+      throw new Error("CORRECTION type not supported");
   }
 };
 

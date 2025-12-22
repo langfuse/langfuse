@@ -3,6 +3,7 @@ import {
   ScoreDomain,
   ScoreSourceType,
   AGGREGATABLE_SCORE_TYPES,
+  AggregatableScoreDataType,
 } from "../../domain/scores";
 import {
   commandClickhouse,
@@ -639,10 +640,7 @@ export const getScoresGroupedByNameSourceType = async ({
   return rows.map((row) => ({
     name: row.name,
     source: row.source as ScoreSourceType,
-    dataType: row.data_type as Extract<
-      ScoreDataTypeType,
-      "NUMERIC" | "BOOLEAN" | "CATEGORICAL"
-    >,
+    dataType: row.data_type as AggregatableScoreDataType,
   }));
 };
 
