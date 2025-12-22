@@ -91,3 +91,14 @@ export const ScoreSchema = ScoreFoundationSchema.and(
 );
 
 export type ScoreDomain = z.infer<typeof ScoreSchema>;
+
+export type ScoreByDataType<T extends ScoreDataTypeType> = ScoreDomain & {
+  dataType: T;
+};
+
+export type ScoresByDataTypes<T extends readonly ScoreDataTypeType[]> =
+  T extends readonly (infer U)[]
+    ? U extends ScoreDataTypeType
+      ? ScoreByDataType<U>
+      : never
+    : never;
