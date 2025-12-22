@@ -3,7 +3,7 @@ import { type AnnotateFormSchema } from "@/src/features/scores/schema";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
-  type ScoreDataType,
+  type ScoreDataTypeType,
   type ScoreAggregate,
   type ScoreConfigDomain,
   type ScoreDomain,
@@ -31,7 +31,7 @@ export type ChartData = {
 export type ScoreData = {
   key: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   source: string;
 };
 
@@ -56,7 +56,7 @@ export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 export type AnnotationScore = {
   id: string | null;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   source: ScoreSourceType;
   value?: number | null;
   stringValue?: string | null;
@@ -99,7 +99,7 @@ export type ScoreColumn = {
   key: string;
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
 };
 
 export type ScoreConfigSelection =
@@ -123,7 +123,7 @@ export type AnnotationScoreFormData = {
   id: string | null;
   configId: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   value?: number | null;
   stringValue?: string | null;
   comment?: string | null;

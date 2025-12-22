@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 export const createConfigSchema = z.object({
   name: z.string().min(1).max(35),
   description: z.string().optional(),
-  dataType: ScoreConfigDataType,
+  dataType: z.enum(["CATEGORICAL", "NUMERIC", "BOOLEAN"]),
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
   categories: z.array(ScoreConfigCategory).optional(),
