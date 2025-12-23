@@ -39,14 +39,6 @@ export function useMultiSectionTreeState({
 
   // Build tree from data configs (memoized, pure data structure)
   const initialTree = useMemo(() => {
-    console.log("[useMultiSectionTreeState] Building tree from sectionConfigs");
-    console.log(
-      "[useMultiSectionTreeState] Section count:",
-      sectionConfigs.length,
-    );
-    console.log("[useMultiSectionTreeState] sectionConfigs:", sectionConfigs);
-
-    const startTime = performance.now();
     const tree = buildMultiSectionTree(sectionConfigs, {
       widthConfig: {
         charWidthPx: charWidth,
@@ -54,14 +46,6 @@ export function useMultiSectionTreeState({
         extraBufferPx: 50,
       },
     });
-    const buildTime = performance.now() - startTime;
-
-    console.log(
-      "[useMultiSectionTreeState] Tree build completed in",
-      buildTime.toFixed(2),
-      "ms",
-    );
-    console.log("[useMultiSectionTreeState] Total nodes:", tree.totalNodeCount);
 
     return tree;
   }, [sectionConfigs, charWidth, indentSizePx]);

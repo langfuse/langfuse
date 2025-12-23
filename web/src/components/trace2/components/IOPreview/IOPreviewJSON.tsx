@@ -17,7 +17,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 
-const VIRTUALIZATION_THRESHOLD = 2500;
+const VIRTUALIZATION_THRESHOLD = 3333;
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
   // Pre-parsed data (from useParsedObservation hook)
