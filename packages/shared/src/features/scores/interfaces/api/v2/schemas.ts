@@ -1,11 +1,15 @@
 import {
   BooleanData,
   CategoricalData,
-  CorrectionData,
   NumericData,
   ScoreSchemaExclReferencesAndDates,
 } from "../../../../../domain";
 import z from "zod/v4";
+
+const CorrectionData = z.object({
+  stringValue: z.string(),
+  dataType: z.literal("CORRECTION"),
+});
 
 /**
  * Foundation schema for scores API v2 i.e. trace, observation AND session scores

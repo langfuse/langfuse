@@ -40,7 +40,7 @@ export const BooleanData = z.object({
   dataType: z.literal("BOOLEAN"),
 });
 
-export const CorrectionData = z.object({
+const CorrectionData = z.object({
   stringValue: z.null(),
   dataType: z.literal("CORRECTION"),
 });
