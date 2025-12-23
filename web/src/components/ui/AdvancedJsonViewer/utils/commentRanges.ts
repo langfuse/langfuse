@@ -15,6 +15,26 @@ export type CommentedPathsByField = {
 };
 
 /**
+ * Gets the number of unique paths with comments for a section.
+ */
+export function getCommentCountForSection(
+  sectionKey: string | undefined,
+  commentedPathsByField: CommentedPathsByField | undefined,
+): number {
+  if (!sectionKey || !commentedPathsByField) return 0;
+
+  if (
+    sectionKey !== "input" &&
+    sectionKey !== "output" &&
+    sectionKey !== "metadata"
+  ) {
+    return 0;
+  }
+
+  return commentedPathsByField[sectionKey]?.size ?? 0;
+}
+
+/**
  * Gets comment ranges for a specific JSON row.
  * Used by multi-section viewers to pass comment highlighting data to row components.
  */

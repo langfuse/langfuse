@@ -229,6 +229,16 @@ export function CommentList({
     }
   }, [comments.data, highlightedCommentId]);
 
+  // Focus textarea when pendingSelection changes (user clicked comment button)
+  useEffect(() => {
+    if (pendingSelection && textareaRef.current) {
+      // Delay to allow drawer animation to complete
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 150);
+    }
+  }, [pendingSelection]);
+
   // CMD+F keyboard shortcut to focus search (only when drawer is open)
   useEffect(() => {
     if (!isDrawerOpen) return; // Only capture when drawer is open

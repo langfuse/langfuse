@@ -25,6 +25,7 @@ import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { searchInTree } from "./utils/searchJson";
 import {
   getCommentRangesForRow,
+  getCommentCountForSection,
   type CommentedPathsByField,
 } from "./utils/commentRanges";
 import { pathArrayToJsonPath } from "./utils/pathUtils";
@@ -349,6 +350,12 @@ export const SimpleMultiSectionViewer = memo(
               // Filter media for this section
               const sectionMedia = media?.filter((m) => m.field === sectionKey);
 
+              // Get comment count for this section
+              const sectionCommentCount = getCommentCountForSection(
+                sectionKey,
+                commentedPathsByField,
+              );
+
               // Render header with fallback chain
               let headerContent;
               if (jsonSection?.renderHeader) {
@@ -364,6 +371,7 @@ export const SimpleMultiSectionViewer = memo(
                     title={title}
                     context={sectionContext}
                     media={sectionMedia}
+                    commentCount={sectionCommentCount}
                   />
                 );
               }
