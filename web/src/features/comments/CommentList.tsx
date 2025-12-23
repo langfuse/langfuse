@@ -557,7 +557,7 @@ export function CommentList({
                     className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
                   />
 
-                  {/* TODO: remomve this Inline comment position indicator */}
+                  {/* TODO: remove this Inline comment position indicator */}
                   {"dataField" in comment &&
                     comment.dataField &&
                     "path" in comment &&

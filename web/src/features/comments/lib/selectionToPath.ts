@@ -38,12 +38,10 @@ export function selectionToPath(
   const endKeyValue = findKeyValueElement(range.endContainer);
 
   if (!startPath || !startKeyValue) {
-    console.log("[selectionToPath] No JSON path found for start container");
     return null;
   }
 
   if (!endPath || !endKeyValue) {
-    console.log("[selectionToPath] No JSON path found for end container");
     return null;
   }
 
@@ -77,7 +75,6 @@ export function selectionToPath(
   // Multi-row case: selection spans multiple key-value elements
   const rows = collectRowsBetween(startKeyValue, endKeyValue, containerElement);
   if (rows.length === 0) {
-    console.log("[selectionToPath] No rows found between start and end");
     return null;
   }
 
@@ -118,7 +115,6 @@ export function selectionToPath(
   }
 
   if (paths.length === 0) {
-    console.log("[selectionToPath] No valid paths found in selection");
     return null;
   }
 

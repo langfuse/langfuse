@@ -77,6 +77,7 @@ export function ObservationDetailView({
   const currentView = jsonViewPreference;
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
   // states for the inline comments
   const [pendingSelection, setPendingSelection] =
@@ -108,7 +109,7 @@ export function ObservationDetailView({
     parsedOutput,
     parsedMetadata,
     isLoadingObservation,
-    isParsing,
+    isWaitingForParsing,
   } = useParsedObservation({
     observationId: observation.id,
     traceId: traceId,
@@ -213,7 +214,9 @@ export function ObservationDetailView({
         >
           <div
             className={`flex min-h-0 w-full flex-1 flex-col ${
-              currentView === "json-beta" ? "overflow-hidden" : "overflow-auto"
+              currentView === "json-beta" && isJSONBetaVirtualized
+                ? "overflow-hidden"
+                : "overflow-auto pb-4"
             }`}
           >
             <IOPreview
@@ -226,7 +229,7 @@ export function ObservationDetailView({
               parsedOutput={parsedOutput}
               parsedMetadata={parsedMetadata}
               isLoading={observationWithIOCompat.isLoading}
-              isParsing={isParsing}
+              isParsing={isWaitingForParsing}
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -240,6 +243,7 @@ export function ObservationDetailView({
               onAddInlineComment={handleAddInlineComment}
               commentedPathsByField={commentedPathsByField}
               showMetadata
+              onVirtualizationChange={setIsJSONBetaVirtualized}
             />
             {currentView !== "json-beta" && (
               <div className="h-4 w-full flex-shrink-0" />

@@ -53,6 +53,8 @@ export interface IOPreviewProps extends ExpansionStateProps {
   // Whether to show metadata section in pretty view (default: false)
   // JSON view always shows metadata
   showMetadata?: boolean;
+  // Callback to inform parent if virtualization is being used (for scroll handling)
+  onVirtualizationChange?: (isVirtualized: boolean) => void;
 }
 
 /**
@@ -92,6 +94,7 @@ export function IOPreview({
   onAddInlineComment,
   commentedPathsByField,
   showMetadata = false,
+  onVirtualizationChange,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -141,14 +144,6 @@ export function IOPreview({
     onOutputExpansionChange,
   };
 
-  // JSON Beta props - includes inline comment features (advanced viewer only)
-  const jsonBetaProps = {
-    ...sharedProps,
-    enableInlineComments,
-    onAddInlineComment,
-    commentedPathsByField,
-  };
-
   // Only show empty state popup for traces (not observations) when there's no input/output
   // Check both parsed and raw props since not all callers provide parsedInput/parsedOutput
   const hasInput = input !== null && input !== undefined;
@@ -182,7 +177,24 @@ export function IOPreview({
        * but this eliminates UI freeze with large observations.
        */}
       {selectedView === "json-beta" ? (
-        <IOPreviewJSON {...jsonBetaProps} />
+        <IOPreviewJSON
+          parsedInput={parsedInput}
+          parsedOutput={parsedOutput}
+          parsedMetadata={parsedMetadata}
+          isParsing={isParsing}
+          hideIfNull={hideIfNull}
+          hideInput={hideInput}
+          hideOutput={hideOutput}
+          media={media}
+          inputExpansionState={inputExpansionState}
+          outputExpansionState={outputExpansionState}
+          onInputExpansionChange={onInputExpansionChange}
+          onOutputExpansionChange={onOutputExpansionChange}
+          onVirtualizationChange={onVirtualizationChange}
+          enableInlineComments={enableInlineComments}
+          onAddInlineComment={onAddInlineComment}
+          commentedPathsByField={commentedPathsByField}
+        />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple {...sharedProps} />
       ) : (

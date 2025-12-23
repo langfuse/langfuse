@@ -117,7 +117,6 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
       ref={containerRef}
       className={className}
       style={{
-        height: "100%",
         width: stringWrapMode === "wrap" ? "100%" : "fit-content",
         minWidth: "100%",
         backgroundColor: theme.background,
@@ -167,12 +166,16 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
                   maxLineNumberDigits={maxLineNumberDigits}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}
+                  matchCount={matchCount}
+                  currentMatchIndexInRow={
+                    isCurrentMatch ? currentMatchIndexInRow : undefined
+                  }
                   onToggleExpansion={onToggleExpansion}
                   stringWrapMode={stringWrapMode}
                 />
               </div>
 
-              {/* Scrollable column (indent + key + value + badges + copy) */}
+              {/* Scrollable column (indent + key + value + copy) */}
               <div
                 style={{
                   width: "fit-content",
@@ -189,10 +192,6 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
                   theme={theme}
                   stringWrapMode={stringWrapMode}
                   truncateStringsAt={truncateStringsAt}
-                  matchCount={matchCount}
-                  currentMatchIndexInRow={
-                    isCurrentMatch ? currentMatchIndexInRow : undefined
-                  }
                   enableCopy={enableCopy}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}

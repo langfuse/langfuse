@@ -67,6 +67,7 @@ export function TraceDetailView({
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab, setSelectedTab } = useSelection();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
   // Inline comment state
   const [pendingSelection, setPendingSelection] =
@@ -285,7 +286,7 @@ export function TraceDetailView({
         >
           <div
             className={`flex min-h-0 w-full flex-1 flex-col ${
-              currentView === "json-beta"
+              currentView === "json-beta" && isJSONBetaVirtualized
                 ? "overflow-hidden"
                 : "overflow-auto pb-4"
             }`}
@@ -329,6 +330,7 @@ export function TraceDetailView({
               onAddInlineComment={handleAddInlineComment}
               commentedPathsByField={commentedPathsByField}
               showMetadata
+              onVirtualizationChange={setIsJSONBetaVirtualized}
             />
           </div>
         </TabsBarContent>

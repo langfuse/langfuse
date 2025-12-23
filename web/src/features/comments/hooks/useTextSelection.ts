@@ -4,8 +4,28 @@ import { selectionToPath } from "../lib/selectionToPath";
 
 interface UseTextSelectionOptions {
   containerRef: React.RefObject<HTMLElement | null>;
-  dataField: "input" | "output" | "metadata";
+  dataField?: "input" | "output" | "metadata"; // Optional - auto-detected from [data-section-key] if not provided
   enabled?: boolean;
+}
+
+/**
+ * Finds the section key (input/output/metadata) from the DOM by looking for
+ * the closest ancestor with [data-section-key] attribute.
+ */
+function detectSectionFromDOM(
+  node: Node,
+): "input" | "output" | "metadata" | null {
+  let current: Node | null = node;
+  while (current && current !== document.body) {
+    if (current instanceof HTMLElement && current.dataset.sectionKey) {
+      const key = current.dataset.sectionKey;
+      if (key === "input" || key === "output" || key === "metadata") {
+        return key;
+      }
+    }
+    current = current.parentNode;
+  }
+  return null;
 }
 
 export function useTextSelection({
@@ -39,10 +59,17 @@ export function useTextSelection({
         return; // Selection outside our container
       }
 
+      // Determine dataField - use prop if provided, otherwise detect from DOM
+      const effectiveDataField =
+        dataField ?? detectSectionFromDOM(range.startContainer);
+      if (!effectiveDataField) {
+        return;
+      }
+
       const result = selectionToPath(
         selection,
         containerRef.current,
-        dataField,
+        effectiveDataField,
       );
       if (result) {
         // Get the position of the selection START (not the full bounding box)

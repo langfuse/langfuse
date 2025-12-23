@@ -84,6 +84,9 @@ export interface AdvancedJsonSectionProps {
   controlButtons?: React.ReactNode;
 
   commentedPaths?: Map<string, Array<{ start: number; end: number }>>;
+
+  /** Force virtualization on/off (overrides auto-detection) */
+  virtualized?: boolean;
 }
 
 export function AdvancedJsonSection({
@@ -106,6 +109,7 @@ export function AdvancedJsonSection({
   media: _media, // TODO: Implement media attachment support
   controlButtons,
   commentedPaths,
+  virtualized,
 }: AdvancedJsonSectionProps) {
   // String wrap mode state (persisted in localStorage)
   const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
@@ -118,7 +122,13 @@ export function AdvancedJsonSection({
     ? controlledCollapsed
     : internalCollapsed;
 
+  // When virtualized=false (continuous scroll mode), ignore collapse state - always expanded
+  const effectiveCollapsed = virtualized === false ? false : sectionCollapsed;
+
   const handleToggleSectionCollapse = () => {
+    // Don't allow toggling in non-virtualized mode
+    if (virtualized === false) return;
+
     if (isCollapseControlled) {
       onToggleCollapse();
     } else {
@@ -263,7 +273,7 @@ export function AdvancedJsonSection({
 
   return (
     <div
-      className={`flex flex-col border-b border-t ${sectionCollapsed ? "" : "min-h-0 overflow-hidden"} ${className || ""}`}
+      className={`flex flex-col border-b border-t ${effectiveCollapsed ? "" : virtualized !== false ? "min-h-0 overflow-hidden" : ""} ${className || ""}`}
       style={{
         backgroundColor: headerBackgroundColor || backgroundColor,
       }}
@@ -288,11 +298,11 @@ export function AdvancedJsonSection({
           handleOnCopy={handleCopy}
           backgroundColor={headerBackgroundColor}
           onToggleCollapse={handleToggleSectionCollapse}
-          sectionCollapsed={sectionCollapsed}
+          sectionCollapsed={effectiveCollapsed}
           controlButtons={
             <>
               {/* Search */}
-              {!sectionCollapsed && enableSearch && (
+              {!effectiveCollapsed && enableSearch && (
                 <div className="flex items-center gap-1">
                   <div className="relative">
                     <Input
@@ -352,10 +362,10 @@ export function AdvancedJsonSection({
               )}
 
               {/* Custom control buttons */}
-              {!sectionCollapsed && controlButtons}
+              {!effectiveCollapsed && controlButtons}
 
               {/* String wrap mode toggle */}
-              {!sectionCollapsed && (
+              {!effectiveCollapsed && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -402,10 +412,14 @@ export function AdvancedJsonSection({
       </div>
 
       {/* Body */}
-      {!sectionCollapsed && (
+      {!effectiveCollapsed && (
         <div
           ref={scrollContainerRef}
-          className="min-h-0 flex-1 overflow-auto"
+          className={
+            virtualized !== false
+              ? "min-h-0 flex-1 overflow-auto"
+              : "min-h-48 overflow-x-auto"
+          }
           style={{
             backgroundColor: headerBackgroundColor || backgroundColor,
           }}
@@ -430,7 +444,8 @@ export function AdvancedJsonSection({
               truncateStringsAt={truncateStringsAt}
               isLoading={isLoading}
               scrollContainerRef={scrollContainerRef}
-              className="h-full"
+              virtualized={virtualized}
+              className={virtualized !== false ? "h-full" : ""}
               commentedPaths={commentedPaths}
             />
           )}
