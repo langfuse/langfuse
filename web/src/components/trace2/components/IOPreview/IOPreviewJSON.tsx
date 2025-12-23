@@ -1,27 +1,37 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTheme } from "next-themes";
-import { type Prisma } from "@langfuse/shared";
-import { AdvancedJsonSection } from "@/src/components/ui/AdvancedJsonSection/AdvancedJsonSection";
-import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
+import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
+import {
+  MultiSectionJsonViewer,
+  type MultiSectionJsonViewerHandle,
+} from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
+import { Command, CommandInput } from "@/src/components/ui/command";
+import { Button } from "@/src/components/ui/button";
+import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
+import { useJsonViewPreferences } from "@/src/components/ui/AdvancedJsonViewer/hooks/useJsonViewPreferences";
+import { type MediaReturnType } from "@/src/features/media/validation";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 
-const SECTION_PREFERENCE_KEY = "langfuse:io-section-preference";
-type SectionType = "input" | "output" | "metadata";
+const VIRTUALIZATION_THRESHOLD = 3333;
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
-  input?: Prisma.JsonValue;
-  output?: Prisma.JsonValue;
-  metadata?: Prisma.JsonValue;
-  // Pre-parsed data (optional, from useParsedObservation hook for performance)
+  // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
-  isLoading?: boolean;
   isParsing?: boolean;
   hideIfNull?: boolean;
-  media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  // Media attachments
+  media?: MediaReturnType[];
+  // Callback to inform parent if virtualization is being used (for scroll handling)
+  onVirtualizationChange?: (isVirtualized: boolean) => void;
 }
 
 /**
@@ -37,194 +47,343 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
  * because it skips all ChatML processing.
  */
 export function IOPreviewJSON({
-  input,
-  output,
-  metadata,
   parsedInput,
   parsedOutput,
   parsedMetadata,
-  isLoading = false,
   isParsing = false,
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
   media,
+  onVirtualizationChange,
 }: IOPreviewJSONProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
-  // Background colors that adapt to theme
-  const inputBgColor = isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)"; // Dark slate vs light blue
-  const outputBgColor = isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)"; // Dark blue-gray vs light green
-  const metadataBgColor = isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)"; // Dark purple vs light purple
-
-  const showInput = !hideInput && !(hideIfNull && !parsedInput && !input);
-  const showOutput = !hideOutput && !(hideIfNull && !parsedOutput && !output);
-  const showMetadata = !(hideIfNull && !parsedMetadata && !metadata);
-
-  // Helper to check if data has content (renders rows in JSON viewer)
-  // null/undefined = 0 rows, everything else (including {} and []) = 1+ rows
-  const hasContent = (data: unknown): boolean => {
-    if (data === null || data === undefined) return false;
-    if (typeof data === "string") return data.trim().length > 0;
-    // Arrays and objects always count as content (even if empty)
-    // because they render as at least 1 row in the JSON viewer
-    return true;
-  };
-
-  // Check for non-empty content (prefer parsed data if available)
-  const outputHasContent = hasContent(parsedOutput ?? output);
-  const inputHasContent = hasContent(parsedInput ?? input);
-  const metadataHasContent = hasContent(parsedMetadata ?? metadata);
-
-  // Get user's preferred section from session storage
-  const getUserPreference = (): SectionType | null => {
-    if (typeof window === "undefined") return null;
-    const stored = sessionStorage.getItem(SECTION_PREFERENCE_KEY);
-    if (stored === "input" || stored === "output" || stored === "metadata") {
-      return stored;
-    }
-    return null;
-  };
-
-  // Check if user's preferred section is visible and has content
-  const userPreference = getUserPreference();
-  const userPreferenceIsVisible =
-    userPreference === "output"
-      ? showOutput
-      : userPreference === "input"
-        ? showInput
-        : userPreference === "metadata"
-          ? showMetadata
-          : false;
-  const userPreferenceHasContent =
-    userPreference === "output"
-      ? showOutput && outputHasContent
-      : userPreference === "input"
-        ? showInput && inputHasContent
-        : userPreference === "metadata"
-          ? showMetadata && metadataHasContent
-          : false;
-
-  // Accordion state: only one section can be expanded at a time
-  // Default expansion priority:
-  // 1. User preference (if visible AND has content)
-  // 2. Output > Input > Metadata (first with content)
-  // 3. User preference (if visible, even without content)
-  // 4. Output > Input > Metadata (first visible)
-  const defaultExpanded = userPreferenceHasContent
-    ? userPreference
-    : showOutput && outputHasContent
-      ? "output"
-      : showInput && inputHasContent
-        ? "input"
-        : showMetadata && metadataHasContent
-          ? "metadata"
-          : userPreferenceIsVisible
-            ? userPreference
-            : showOutput
-              ? "output"
-              : showInput
-                ? "input"
-                : showMetadata
-                  ? "metadata"
-                  : null;
-  const [expandedSection, setExpandedSection] = useState<
-    "input" | "output" | "metadata" | null
-  >(defaultExpanded);
-
-  // Handle user manually selecting a section (stores preference)
-  const handleUserToggle = useCallback(
-    (section: SectionType) => {
-      const isExpanding = expandedSection !== section;
-      setExpandedSection(isExpanding ? section : null);
-
-      // Only store preference when user manually expands a section
-      if (isExpanding && typeof window !== "undefined") {
-        sessionStorage.setItem(SECTION_PREFERENCE_KEY, section);
-      }
-    },
-    [expandedSection],
+  // Background colors that adapt to theme (memoized to prevent tree rebuilds)
+  const { inputBgColor, outputBgColor, metadataBgColor } = useMemo(
+    () => ({
+      inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
+      outputBgColor: isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)", // Dark blue-gray vs light green
+      metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
+    }),
+    [isDark],
   );
 
-  // Ensure expandedSection is always valid (if current is hidden, switch to first visible)
-  // Priority: output > input > metadata
+  const showInput = !hideInput && !(hideIfNull && parsedInput === undefined);
+  const showOutput = !hideOutput && !(hideIfNull && parsedOutput === undefined);
+  const showMetadata = !(hideIfNull && parsedMetadata === undefined);
+
+  // Count rows for each section to determine if virtualization is needed
+  const rowCounts = useMemo(() => {
+    return {
+      input: countJsonRows(parsedInput),
+      output: countJsonRows(parsedOutput),
+      metadata: countJsonRows(parsedMetadata),
+    };
+  }, [parsedInput, parsedOutput, parsedMetadata]);
+
+  // Determine if virtualization is needed based on threshold
+  const needsVirtualization = useMemo(() => {
+    return (
+      rowCounts.input > VIRTUALIZATION_THRESHOLD ||
+      rowCounts.output > VIRTUALIZATION_THRESHOLD ||
+      rowCounts.metadata > VIRTUALIZATION_THRESHOLD
+    );
+  }, [rowCounts]);
+
+  // Hooks for multi-section viewer (Path B) - must be called unconditionally
+  const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [searchMatchCount, setSearchMatchCount] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<MultiSectionJsonViewerHandle>(null);
+
+  // Debounce search query (applies to both virtualized and non-virtualized modes)
   useEffect(() => {
-    if (expandedSection === "output" && !showOutput) {
-      setExpandedSection(
-        showInput ? "input" : showMetadata ? "metadata" : null,
-      );
-    } else if (expandedSection === "input" && !showInput) {
-      setExpandedSection(
-        showOutput ? "output" : showMetadata ? "metadata" : null,
-      );
-    } else if (expandedSection === "metadata" && !showMetadata) {
-      setExpandedSection(showOutput ? "output" : showInput ? "input" : null);
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentMatchIndex(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // No longer using accordion mode - MultiSectionJsonViewer shows all sections with collapsible headers
+
+  // Notify parent about virtualization state
+  useEffect(() => {
+    onVirtualizationChange?.(needsVirtualization);
+  }, [needsVirtualization, onVirtualizationChange]);
+
+  // Search navigation callbacks
+  const handleNextMatch = useCallback(() => {
+    if (searchMatchCount === 0) return;
+    setCurrentMatchIndex((prev) => (prev + 1) % searchMatchCount);
+  }, [searchMatchCount]);
+
+  const handlePreviousMatch = useCallback(() => {
+    if (searchMatchCount === 0) return;
+    setCurrentMatchIndex((prev) =>
+      prev === 0 ? searchMatchCount - 1 : prev - 1,
+    );
+  }, [searchMatchCount]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+    setCurrentMatchIndex(0);
+  }, []);
+
+  // Handle string wrap mode cycling for Path B
+  const handleCycleWrapMode = useCallback(() => {
+    if (stringWrapMode === "truncate") {
+      setStringWrapMode("wrap");
+    } else if (stringWrapMode === "wrap") {
+      setStringWrapMode("nowrap");
+    } else {
+      setStringWrapMode("truncate");
     }
-  }, [showInput, showOutput, showMetadata, expandedSection]);
+  }, [stringWrapMode, setStringWrapMode]);
+
+  // Handle copy for Path B
+  // Handle scrolling to a specific section
+  const handleScrollToSection = useCallback((sectionKey: string) => {
+    viewerRef.current?.scrollToSection(sectionKey);
+  }, []);
+
+  const handleCopy = useCallback(() => {
+    const dataObj: Record<string, unknown> = {};
+    if (showInput) dataObj.input = parsedInput;
+    if (showOutput) dataObj.output = parsedOutput;
+    if (showMetadata) dataObj.metadata = parsedMetadata;
+    const jsonString = JSON.stringify(dataObj, null, 2);
+    void navigator.clipboard.writeText(jsonString);
+  }, [
+    showInput,
+    showOutput,
+    showMetadata,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+  ]);
+
+  const wrapIcon = useMemo(
+    () =>
+      stringWrapMode === "truncate" ? (
+        <Minus size={14} />
+      ) : stringWrapMode === "wrap" ? (
+        <WrapText size={14} />
+      ) : (
+        <ChevronDown size={14} className="rotate-[-90deg]" />
+      ),
+    [stringWrapMode],
+  );
+
+  // Build sections - memoized to prevent re-creation
+  // Must be defined before any conditional returns (React hooks rules)
+  const sections = useMemo(() => {
+    const result = [];
+    if (showInput) {
+      result.push({
+        key: "input",
+        title: "Input",
+        data: parsedInput,
+        backgroundColor: inputBgColor,
+        minHeight: "200px",
+      });
+    }
+    if (showOutput) {
+      result.push({
+        key: "output",
+        title: "Output",
+        data: parsedOutput,
+        backgroundColor: outputBgColor,
+        minHeight: "200px",
+      });
+    }
+    if (showMetadata) {
+      result.push({
+        key: "metadata",
+        title: "Metadata",
+        data: parsedMetadata,
+        backgroundColor: metadataBgColor,
+        minHeight: "200px",
+      });
+    }
+    return result;
+  }, [
+    showInput,
+    showOutput,
+    showMetadata,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    inputBgColor,
+    outputBgColor,
+    metadataBgColor,
+  ]);
+
+  // Wait for parsing to complete before rendering to avoid flicker
+  // isParsing is true when we have raw data but parsed data hasn't arrived yet
+  // This check happens AFTER all hooks to comply with React hooks rules
+  if (isParsing) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col border-b border-t">
+        <div className="flex h-full items-center justify-center">
+          <div className="text-sm text-muted-foreground">Parsing data...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {showInput && (
-        <AdvancedJsonSection
-          title="Input"
-          field="input"
-          data={input}
-          parsedData={parsedInput}
-          collapsed={expandedSection !== "input"}
-          onToggleCollapse={() => handleUserToggle("input")}
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "input")}
-          enableSearch={true}
-          searchPlaceholder="Search input"
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
+    <div className="flex min-h-0 flex-1 flex-col border-b border-t">
+      {/* Header - matches LogViewToolbar styling */}
+      <div className="flex h-9 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
+        {/* Search input - expands to fill available width */}
+        <Command className="flex-1 rounded-none border-0 bg-transparent">
+          <CommandInput
+            showBorder={false}
+            placeholder="Search across all sections..."
+            className="h-7 border-0 focus:ring-0"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (e.shiftKey) {
+                  handlePreviousMatch();
+                } else {
+                  handleNextMatch();
+                }
+              } else if (e.key === "Escape") {
+                handleClearSearch();
+              }
+            }}
+          />
+        </Command>
+
+        {/* Match counter - inline text (only when searching) */}
+        {searchQuery && (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {searchMatchCount > 0
+              ? `${currentMatchIndex + 1} of ${searchMatchCount}`
+              : "No matches"}
+          </span>
+        )}
+
+        {/* Navigation buttons (only when matches exist) */}
+        {searchQuery && searchMatchCount > 0 && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handlePreviousMatch}
+              title="Previous match (Shift+Enter)"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleNextMatch}
+              title="Next match (Enter)"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+
+        {/* Wrap mode toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={handleCycleWrapMode}
+          title={`String wrap mode: ${stringWrapMode}`}
+        >
+          {wrapIcon}
+        </Button>
+
+        {/* Copy button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={handleCopy}
+          title="Copy to clipboard"
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Section navigation hint bar */}
+      <div className="flex h-6 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
+        <span className="text-xs text-muted-foreground">Jump to:</span>
+        {sections.map((section, index) => (
+          <span key={section.key} className="flex items-center">
+            <button
+              onClick={() => handleScrollToSection(section.key)}
+              className="cursor-pointer text-xs text-primary hover:underline"
+            >
+              {section.title}
+            </button>
+            {index < sections.length - 1 && (
+              <span className="text-xs text-muted-foreground">,&nbsp;</span>
+            )}
+          </span>
+        ))}
+        {needsVirtualization && (
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <span className="ml-auto cursor-help rounded bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+                Virtualized
+              </span>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80" side="bottom" align="end">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Virtualized View</p>
+                <p className="text-xs text-muted-foreground">
+                  This view is using virtualization due to a large number of
+                  keys ({rowCounts.input.toLocaleString()} input,{" "}
+                  {rowCounts.output.toLocaleString()} output,{" "}
+                  {rowCounts.metadata.toLocaleString()} metadata). Only visible
+                  rows are rendered for optimal performance.
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        )}
+      </div>
+
+      {/* Body with MultiSectionJsonViewer */}
+      <div className="min-h-0 flex-1 overflow-auto" ref={scrollContainerRef}>
+        <MultiSectionJsonViewer
+          ref={viewerRef}
+          sections={sections}
+          virtualized={needsVirtualization}
+          showLineNumbers={true}
           enableCopy={true}
-          backgroundColor={inputBgColor}
-          headerBackgroundColor={inputBgColor}
-          className={expandedSection === "input" ? "min-h-0 flex-1" : ""}
+          stringWrapMode={stringWrapMode}
+          truncateStringsAt={stringWrapMode === "truncate" ? 100 : null}
+          searchQuery={debouncedSearchQuery}
+          currentMatchIndex={currentMatchIndex}
+          onSearchResults={setSearchMatchCount}
+          scrollContainerRef={
+            scrollContainerRef as React.RefObject<HTMLDivElement>
+          }
+          media={media}
+          theme={{
+            fontSize: "0.7rem",
+            lineHeight: 14,
+            indentSize: 12,
+          }}
         />
-      )}
-      {showOutput && (
-        <AdvancedJsonSection
-          title="Output"
-          field="output"
-          data={output}
-          parsedData={parsedOutput}
-          collapsed={expandedSection !== "output"}
-          onToggleCollapse={() => handleUserToggle("output")}
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "output")}
-          enableSearch={true}
-          searchPlaceholder="Search output"
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
-          enableCopy={true}
-          backgroundColor={outputBgColor}
-          headerBackgroundColor={outputBgColor}
-          className={expandedSection === "output" ? "min-h-0 flex-1" : ""}
-        />
-      )}
-      {showMetadata && (
-        <AdvancedJsonSection
-          title="Metadata"
-          field="metadata"
-          data={metadata}
-          parsedData={parsedMetadata}
-          collapsed={expandedSection !== "metadata"}
-          onToggleCollapse={() => handleUserToggle("metadata")}
-          isLoading={isLoading || isParsing}
-          media={media?.filter((m) => m.field === "metadata")}
-          enableSearch={true}
-          searchPlaceholder="Search metadata"
-          hideIfNull={hideIfNull}
-          truncateStringsAt={100}
-          enableCopy={true}
-          backgroundColor={metadataBgColor}
-          headerBackgroundColor={metadataBgColor}
-          className={expandedSection === "metadata" ? "min-h-0 flex-1" : ""}
-        />
-      )}
+      </div>
     </div>
   );
 }

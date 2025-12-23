@@ -197,6 +197,10 @@ export function useParsedObservation({
       !observationQuery.isLoading &&
       !parseQuery.isLoading &&
       parseQuery.data !== undefined,
+    // True when we have raw data but parsing hasn't completed yet
+    isWaitingForParsing:
+      !!observationQuery.data &&
+      (parseQuery.isLoading || parseQuery.data === undefined),
 
     // Debug info
     parseTime: parseQuery.data?.parseTime,
