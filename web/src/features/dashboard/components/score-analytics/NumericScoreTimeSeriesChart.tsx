@@ -5,7 +5,7 @@ import { Card } from "@/src/components/ui/card";
 import {
   type ScoreSourceType,
   type FilterState,
-  type ScoreDataType,
+  type ScoreDataTypeType,
 } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
@@ -28,7 +28,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
   source: ScoreSourceType;
-  dataType: ScoreDataType;
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   name: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;

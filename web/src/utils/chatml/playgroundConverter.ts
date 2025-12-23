@@ -1,4 +1,5 @@
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+import { type z } from "zod/v4";
+import { type ChatMlMessageSchema } from "@langfuse/shared";
 import {
   ChatMessageRole,
   ChatMessageType,
@@ -7,6 +8,8 @@ import {
   type ChatMessage,
   type PlaceholderMessage,
 } from "@langfuse/shared";
+
+type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
 // convert content to string format expected by playground
 function contentToString(content: unknown): string {
@@ -47,7 +50,7 @@ function contentToString(content: unknown): string {
 }
 
 export function convertChatMlToPlayground(
-  msg: ChatMlMessageSchema,
+  msg: ChatMlMessage,
 ): ChatMessage | PlaceholderMessage | null {
   // Handle placeholder messages
   if (msg.type === "placeholder") {

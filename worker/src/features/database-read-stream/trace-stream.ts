@@ -1,7 +1,8 @@
 import {
   FilterCondition,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
   TracingSearchType,
-  ScoreDataType,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -192,7 +193,7 @@ export const getTraceStream = async (props: {
       | {
           name: string;
           avg_value: number;
-          data_type: ScoreDataType;
+          data_type: ScoreDataTypeType;
           string_value: string;
         }[]
       | undefined;
@@ -235,7 +236,7 @@ export const getTraceStream = async (props: {
         return {
           name,
           value: null,
-          dataType: "CATEGORICAL" as ScoreDataType,
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
           stringValue: valueParts.join(":"),
         };
       },

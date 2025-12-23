@@ -3,8 +3,8 @@ import {
   type ScoreAggregate,
   type ScoreSimplified,
   type ScoreSourceType,
-  type ScoreDataType,
   type ScoreDomain,
+  type ScoreDataTypeType,
 } from "@langfuse/shared";
 
 /**
@@ -22,7 +22,7 @@ export const composeAggregateScoreKey = ({
 }: {
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   keyPrefix?: string;
 }): string => {
   const formattedName = normalizeScoreName(name);
@@ -34,13 +34,13 @@ export const decomposeAggregateScoreKey = (
 ): {
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
 } => {
   const [name, source, dataType] = key.split("-");
   return {
     name,
     source: source as ScoreSourceType,
-    dataType: dataType as ScoreDataType,
+    dataType: dataType as ScoreDataTypeType,
   };
 };
 
@@ -59,7 +59,7 @@ type ScoreToAggregate = (ScoreDomain | ScoreSimplified) & {
  * aggregation logic (value counting vs numeric averaging).
  */
 export const resolveAggregateType = (
-  dataType: ScoreDataType,
+  dataType: ScoreDataTypeType,
 ): "NUMERIC" | "CATEGORICAL" => {
   return dataType === "BOOLEAN" ? "CATEGORICAL" : dataType;
 };

@@ -5,4 +5,11 @@ module.exports = {
   parserOptions: {
     project: true,
   },
+  rules: {
+    // Allow unused vars prefixed with _ (intentionally unused params/destructured vars)
+    "no-unused-vars": [
+      "error",
+      { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+    ],
+  },
 };
