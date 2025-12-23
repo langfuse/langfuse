@@ -133,6 +133,7 @@ function inflateScoreBody(
     return {
       ...scoreProps,
       value: 0,
+      name: "Output",
       longStringValue: body.value,
       stringValue: null,
       dataType: ScoreDataTypeEnum.CORRECTION,
