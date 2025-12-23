@@ -507,6 +507,41 @@ export class SeederOrchestrator {
           tags: ["media-test", "all-types"],
           environment: "default",
         }),
+        // Trace 3: All media types with ChatML format (pretty-rendered)
+        createTrace({
+          id: MEDIA_TEST_TRACE_IDS.allTypesChatML,
+          project_id: projectId,
+          name: "Media Test: All Types (ChatML)",
+          timestamp: now + 2000,
+          input: JSON.stringify([
+            {
+              role: "system",
+              content:
+                "You are a helpful assistant that can analyze images, documents, and audio files.",
+            },
+            {
+              role: "user",
+              content:
+                "Please analyze the attached image and describe what you see.",
+            },
+          ]),
+          output: JSON.stringify([
+            {
+              role: "assistant",
+              content:
+                "I can see the Langfuse logo in the image. It appears to be a modern, clean design with distinctive branding elements. The attached PDF contains additional documentation about the Bitcoin whitepaper.",
+            },
+          ]),
+          metadata: {
+            message: "This trace has audio in metadata",
+            description: "Testing audio attachment with ChatML format",
+            test_type: "media",
+            media_types: "image,pdf,audio",
+            format: "chatml",
+          },
+          tags: ["media-test", "all-types", "chatml"],
+          environment: "default",
+        }),
       ];
 
       try {

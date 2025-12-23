@@ -53,6 +53,7 @@ const MEDIA_FILES: Record<string, MediaFile> = {
 export const MEDIA_TEST_TRACE_IDS = {
   imageOnly: "seed-media-image-only",
   allTypes: "seed-media-all-types",
+  allTypesChatML: "seed-media-all-types-chatml",
 } as const;
 
 /**
@@ -255,6 +256,27 @@ export async function seedMediaTraces(projectId: string): Promise<void> {
   await uploadAndCreateMediaRecord(
     projectId,
     trace2Id,
+    "metadata",
+    MEDIA_FILES.audio,
+  );
+
+  // Trace 3: All media types with ChatML format (pretty-rendered)
+  const trace3Id = MEDIA_TEST_TRACE_IDS.allTypesChatML;
+  await uploadAndCreateMediaRecord(
+    projectId,
+    trace3Id,
+    "input",
+    MEDIA_FILES.image,
+  );
+  await uploadAndCreateMediaRecord(
+    projectId,
+    trace3Id,
+    "output",
+    MEDIA_FILES.pdf,
+  );
+  await uploadAndCreateMediaRecord(
+    projectId,
+    trace3Id,
     "metadata",
     MEDIA_FILES.audio,
   );
