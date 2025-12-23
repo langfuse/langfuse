@@ -7,7 +7,31 @@ import {
   queryClickhouse,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
-import type { ScoreDataTypeType } from "@langfuse/shared";
+import {
+  removeObjectKeys,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
+  type ScoreDomain,
+} from "@langfuse/shared";
+
+/**
+ * Converts a ScoreDomain object to API format.
+ * For CORRECTION scores, moves longStringValue to stringValue for API compatibility.
+ * For other score types, removes longStringValue.
+ */
+export const convertScoreToPublicApi = <T extends ScoreDomain>(
+  score: T,
+): Omit<T, "longStringValue"> & { stringValue?: string | null } => {
+  if (score.dataType === ScoreDataTypeEnum.CORRECTION) {
+    const { longStringValue, ...rest } = score;
+    return {
+      ...rest,
+      stringValue: longStringValue,
+    };
+  }
+
+  return removeObjectKeys(score, ["longStringValue"]);
+};
 
 export type ScoreQueryType = {
   page: number;
@@ -64,6 +88,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.name as name,
           s.value as value,
           s.string_value as string_value,
+          s.long_string_value as long_string_value,
           s.author_user_id as author_user_id,
           s.created_at as created_at,
           s.updated_at as updated_at,
@@ -146,17 +171,21 @@ export const _handleGenerateScoresForPublicApi = async ({
         preferredClickhouseService: "ReadOnly",
       });
 
-      return records.map((record) => ({
-        ...convertClickhouseScoreToDomain(record),
-        trace:
-          record.trace_id !== null
-            ? {
-                userId: record.user_id,
-                tags: record.tags,
-                environment: record.trace_environment,
-              }
-            : null,
-      }));
+      return records.map((record) => {
+        const domainScore = convertClickhouseScoreToDomain(record);
+        const apiScore = convertScoreToPublicApi(domainScore);
+        return {
+          ...apiScore,
+          trace:
+            record.trace_id !== null
+              ? {
+                  userId: record.user_id,
+                  tags: record.tags,
+                  environment: record.trace_environment,
+                }
+              : null,
+        };
+      });
     },
   });
 };

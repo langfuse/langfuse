@@ -1,6 +1,7 @@
 import {
   _handleGenerateScoresForPublicApi,
   _handleGetScoresCountForPublicApi,
+  convertScoreToPublicApi,
   type ScoreQueryType,
 } from "@/src/features/public-api/server/scores";
 import {
@@ -26,7 +27,7 @@ export class ScoresApiService {
     scoreId: string;
     source?: ScoreSourceType;
   }) {
-    return _handleGetScoreById({
+    const score = await _handleGetScoreById({
       projectId,
       scoreId,
       source,
@@ -35,6 +36,12 @@ export class ScoresApiService {
         this.apiVersion === "v1" ? AGGREGATABLE_SCORE_TYPES : undefined,
       preferredClickhouseService: "ReadOnly",
     });
+
+    if (!score) {
+      return undefined;
+    }
+
+    return convertScoreToPublicApi(score);
   }
 
   /**
