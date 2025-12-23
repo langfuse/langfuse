@@ -20,8 +20,9 @@ import {
   timeFilter,
   type Observation,
   TracingSearchType,
-  type ScoreDomain,
+  ScoreDataTypeEnum,
   AGGREGATABLE_SCORE_TYPES,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import {
   traceException,
@@ -46,6 +47,7 @@ import {
   getTracesGroupedByUsers,
   getTracesGroupedBySessionId,
   updateEvents,
+  getScoresAndCorrectionsForTraces,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -59,6 +61,7 @@ import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import { partition } from "lodash";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -221,7 +224,7 @@ export const traceRouter = createTRPCRouter({
         ],
       });
 
-      const traceScores = await getScoresForTraces({
+      const traceScores = await getScoresAndCorrectionsForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
         limit: 1000,
@@ -232,16 +235,20 @@ export const traceRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
-        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        dataTypes: [...AGGREGATABLE_SCORE_TYPES, ScoreDataTypeEnum.CORRECTION],
         includeHasMetadata: true,
         onParseError: traceException,
       });
 
+      const [corrections, scores] = partition(
+        validatedScores,
+        (s) => s.dataType === ScoreDataTypeEnum.CORRECTION,
+      );
+
       return res.map((row) => ({
         ...row,
-        scores: aggregateScores(
-          validatedScores.filter((s) => s.traceId === row.id),
-        ),
+        corrections: corrections.filter((s) => s.traceId === row.id),
+        scores: aggregateScores(scores.filter((s) => s.traceId === row.id)),
       }));
     }),
   filterOptions: protectedProjectProcedure

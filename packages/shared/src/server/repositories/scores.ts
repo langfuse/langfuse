@@ -388,12 +388,14 @@ export const getTraceScoresForDatasetRuns = async (
   }));
 };
 
-// Used in multiple places, including the public API, hence the non-default exclusion of metadata via excludeMetadata flag
-export const getScoresForTraces = async <
+const getScoresForTracesInternal = async <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
+  DataTypes extends readonly ScoreDataTypeType[],
 >(
-  props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata>,
+  props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata> & {
+    dataTypes?: DataTypes;
+  },
 ) => {
   const {
     projectId,
@@ -405,6 +407,7 @@ export const getScoresForTraces = async <
     excludeMetadata = false,
     includeHasMetadata = false,
     preferredClickhouseService,
+    dataTypes,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -415,7 +418,7 @@ export const getScoresForTraces = async <
       from scores s
       WHERE s.project_id = {projectId: String}
       AND s.trace_id IN ({traceIds: Array(String)})
-      AND s.data_type IN ({dataTypes: Array(String)})
+      ${dataTypes ? `AND s.data_type IN ({dataTypes: Array(String)})` : ""}
       ${timestamp ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
@@ -437,7 +440,7 @@ export const getScoresForTraces = async <
       traceIds,
       limit,
       offset,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      ...(dataTypes ? { dataTypes: dataTypes.map((d) => d.toString()) } : {}),
       ...(timestamp
         ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
@@ -475,6 +478,30 @@ export const getScoresForTraces = async <
     }
 
     return score;
+  });
+};
+
+// Used in multiple places, including the public API, hence the non-default exclusion of metadata via excludeMetadata flag
+export const getScoresForTraces = async <
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+>(
+  props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata>,
+) => {
+  return getScoresForTracesInternal({
+    ...props,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
+  });
+};
+
+export const getScoresAndCorrectionsForTraces = async <
+  ExcludeMetadata extends boolean,
+  IncludeHasMetadata extends boolean,
+>(
+  props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata>,
+) => {
+  return getScoresForTracesInternal({
+    ...props,
   });
 };
 
