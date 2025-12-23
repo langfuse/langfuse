@@ -722,6 +722,15 @@ model Comment {
   authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
   reactions    CommentReaction[]
 
+  // Inline comment positioning (all must be set together or all null/empty)
+  // dataField: which IO field the comment is on ('input' | 'output' | 'metadata')
+  // path: Array of JSON Path expressions, e.g., ["$.messages[1].text"]
+  // rangeStart/rangeEnd: parallel arrays for start/end offsets per path (exclusive end, UTF-16 code units)
+  dataField  String?  @map("data_field")
+  path       String[] @default([]) @map("path")
+  rangeStart Int[]    @default([]) @map("range_start")
+  rangeEnd   Int[]    @default([]) @map("range_end")
+
   @@index([projectId, objectType, objectId])
   @@map("comments")
 }
