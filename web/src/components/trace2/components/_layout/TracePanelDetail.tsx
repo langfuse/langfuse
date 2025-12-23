@@ -23,7 +23,7 @@ import { useMemo } from "react";
 
 export function TracePanelDetail() {
   const { selectedNodeId } = useSelection();
-  const { trace, nodeMap, observations, scores } = useTraceData();
+  const { trace, nodeMap, observations, serverScores: scores } = useTraceData();
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {
