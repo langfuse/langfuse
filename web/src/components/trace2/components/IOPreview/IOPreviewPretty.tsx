@@ -128,13 +128,19 @@ export function IOPreviewPretty({
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
-  const parsedInput =
-    preParsedInput ?? deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
-  const parsedOutput =
-    preParsedOutput ?? deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
-  const parsedMetadata =
-    preParsedMetadata ??
-    deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 });
+  // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
+  const parsedInput = isParsing
+    ? undefined // Wait for Web Worker to finish
+    : (preParsedInput ??
+      deepParseJson(input, { maxSize: 300_000, maxDepth: 2 }));
+  const parsedOutput = isParsing
+    ? undefined
+    : (preParsedOutput ??
+      deepParseJson(output, { maxSize: 300_000, maxDepth: 2 }));
+  const parsedMetadata = isParsing
+    ? undefined
+    : (preParsedMetadata ??
+      deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 }));
 
   // Parse ChatML format
   const {
