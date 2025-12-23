@@ -209,7 +209,7 @@ export const env = createEnv({
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
     CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
       .number()
-      .default(10_000_000_000), // ~10GB
+      .default(32_000_000_000), // ~32GB
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),

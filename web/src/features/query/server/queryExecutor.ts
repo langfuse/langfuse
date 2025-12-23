@@ -261,11 +261,13 @@ export async function executeQuery(
             return await queryClickhouse<Record<string, unknown>>({
               query: queryToExecute.query,
               params: queryToExecute.params,
-              clickhouseSettings: {
-                date_time_output_format: "iso",
-                max_bytes_before_external_group_by: String(
-                  env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
-                ),
+              clickhouseConfigs: {
+                clickhouse_settings: {
+                  date_time_output_format: "iso",
+                  max_bytes_before_external_group_by: String(
+                    env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+                  ),
+                },
               },
               tags: {
                 feature:
@@ -301,11 +303,13 @@ export async function executeQuery(
                 return queryClickhouse<Record<string, unknown>>({
                   query: input.query,
                   params: input.params,
-                  clickhouseSettings: {
-                    date_time_output_format: "iso",
-                    max_bytes_before_external_group_by: String(
-                      env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
-                    ),
+                  clickhouseConfigs: {
+                    clickhouse_settings: {
+                      date_time_output_format: "iso",
+                      max_bytes_before_external_group_by: String(
+                        env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+                      ),
+                    },
                   },
                   tags: input.tags,
                 });
