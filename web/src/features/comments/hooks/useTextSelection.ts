@@ -45,9 +45,16 @@ export function useTextSelection({
         dataField,
       );
       if (result) {
+        // Get the position of the selection START (not the full bounding box)
+        // This gives us where to position the comment bubble
+        const startRange = range.cloneRange();
+        startRange.collapse(true); // Collapse to start
+        const startRect = startRange.getBoundingClientRect();
+
         context.setSelection({
           ...result,
           anchorRect: range.getBoundingClientRect(),
+          startRect,
         });
       }
     }, 150);

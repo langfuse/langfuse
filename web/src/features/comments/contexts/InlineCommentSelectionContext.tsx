@@ -13,6 +13,7 @@ export interface SelectionData {
   rangeEnd: number[];
   selectedText: string;
   anchorRect: DOMRect | null;
+  startRect?: DOMRect; // Position of selection start (for bubble positioning)
 }
 
 interface InlineCommentSelectionContextType {

@@ -6,7 +6,7 @@
 
 import { Button } from "@/src/components/ui/button";
 import { useInlineCommentSelectionOptional } from "../contexts/InlineCommentSelectionContext";
-import { MessageCirclePlus } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface InlineCommentBubbleProps {
@@ -23,19 +23,20 @@ export function InlineCommentBubble({
   } | null>(null);
 
   useEffect(() => {
-    if (!context?.selection?.anchorRect) {
+    const selection = context?.selection;
+    if (!selection?.anchorRect) {
       setPosition(null);
       return;
     }
 
-    const rect = context.selection.anchorRect;
-    // TODO: make position closer to selection
-    // Position above the selection, centered
+    // Use startRect if available (position of selection start), fallback to anchorRect
+    const posRect = selection.startRect ?? selection.anchorRect;
+    // Position just above where the selection starts
     setPosition({
-      top: rect.top - 40,
-      left: rect.left + rect.width / 2,
+      top: posRect.top - 6,
+      left: posRect.left,
     });
-  }, [context?.selection?.anchorRect]);
+  }, [context?.selection]);
 
   if (!context?.selection || !position) return null;
 
@@ -49,19 +50,19 @@ export function InlineCommentBubble({
         position: "fixed",
         top: position.top,
         left: position.left,
-        transform: "translateX(-50%)",
+        transform: "translateY(-100%)",
         zIndex: 50,
       }}
-      className="animate-in fade-in-0 zoom-in-95"
+      className="duration-100 animate-in fade-in-0 zoom-in-95"
     >
       <Button
-        size="sm"
-        variant="default"
+        size="xs"
+        variant="secondary"
         onClick={handleClick}
-        className="shadow-lg"
+        className="border border-border px-2 py-1 shadow-sm"
       >
-        <MessageCirclePlus className="mr-1 h-4 w-4" />
-        Comment
+        <MessageSquarePlus className="h-3 w-3" />
+        <span className="ml-1">Comment</span>
       </Button>
     </div>
   );
