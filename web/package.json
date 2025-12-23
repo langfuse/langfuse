@@ -39,7 +39,7 @@
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.5",
     "@hookform/resolvers": "^5.1.1",
-    "@langchain/core": "^1.1.8",
+    "@langchain/core": "^0.3.80",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
