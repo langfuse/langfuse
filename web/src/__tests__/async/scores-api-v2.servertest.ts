@@ -502,6 +502,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           expect(val).toMatchObject({
             dataType: "CORRECTION",
           });
+          expect(val.stringValue).toContain("correction-value");
         }
       });
 
