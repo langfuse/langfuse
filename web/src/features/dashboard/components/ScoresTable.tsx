@@ -12,7 +12,11 @@ import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAligned
 import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
-import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
+import {
+  isBooleanDataType,
+  isCategoricalDataType,
+  isNumericDataType,
+} from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
@@ -20,9 +24,11 @@ const dropValuesForCategoricalScores = (
   value: number,
   scoreDataType: ScoreDataTypeType,
 ): string => {
-  return isCategoricalDataType(scoreDataType)
-    ? "-"
-    : compactNumberFormatter(value);
+  if (isCategoricalDataType(scoreDataType)) return "-";
+  if (isBooleanDataType(scoreDataType) || isNumericDataType(scoreDataType)) {
+    return compactNumberFormatter(value);
+  }
+  return "-";
 };
 
 const scoreNameSourceDataTypeMatch =

@@ -20,6 +20,8 @@ import {
   timeFilter,
   type Observation,
   TracingSearchType,
+  type ScoreDomain,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import {
   traceException,
@@ -219,7 +221,7 @@ export const traceRouter = createTRPCRouter({
         ],
       });
 
-      const scores = await getScoresForTraces({
+      const traceScores = await getScoresForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
         limit: 1000,
@@ -229,7 +231,8 @@ export const traceRouter = createTRPCRouter({
       });
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
+        scores: traceScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
         onParseError: traceException,
       });
@@ -341,7 +344,7 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const [observations, scores] = await Promise.all([
+      const [observations, traceScores] = await Promise.all([
         getObservationsForTrace({
           traceId: input.traceId,
           projectId: input.projectId,
@@ -356,7 +359,8 @@ export const traceRouter = createTRPCRouter({
       ]);
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
+        scores: traceScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -378,11 +382,14 @@ export const traceRouter = createTRPCRouter({
               : undefined
           : undefined;
 
+      const scores =
+        toDomainArrayWithStringifiedMetadata<ScoreDomain>(validatedScores);
+
       return {
         ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
+        scores,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
           ...toDomainWithStringifiedMetadata(o),

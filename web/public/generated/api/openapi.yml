@@ -6758,7 +6758,7 @@ components:
         projectId:
           type: string
         dataType:
-          $ref: '#/components/schemas/ScoreDataType'
+          $ref: '#/components/schemas/ScoreConfigDataType'
         isArchived:
           type: boolean
           description: Whether the score config is archived. Defaults to false
@@ -7816,6 +7816,13 @@ components:
         - ANNOTATION
         - API
         - EVAL
+    ScoreConfigDataType:
+      title: ScoreConfigDataType
+      type: string
+      enum:
+        - NUMERIC
+        - BOOLEAN
+        - CATEGORICAL
     ScoreDataType:
       title: ScoreDataType
       type: string
@@ -7823,6 +7830,7 @@ components:
         - NUMERIC
         - BOOLEAN
         - CATEGORICAL
+        - CORRECTION
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object
@@ -8412,6 +8420,9 @@ components:
           nullable: true
         name:
           type: string
+          description: >-
+            The name of the score. Always overrides "output" for correction
+            scores.
           example: novelty
         environment:
           type: string
@@ -10178,7 +10189,7 @@ components:
         name:
           type: string
         dataType:
-          $ref: '#/components/schemas/ScoreDataType'
+          $ref: '#/components/schemas/ScoreConfigDataType'
         categories:
           type: array
           items:
