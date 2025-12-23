@@ -47,12 +47,13 @@ export const LegacyPrismaScoreSource = {
 } as const;
 export type LegacyPrismaScoreSource =
   (typeof LegacyPrismaScoreSource)[keyof typeof LegacyPrismaScoreSource];
-export const ScoreDataType = {
+export const ScoreConfigDataType = {
   CATEGORICAL: "CATEGORICAL",
   NUMERIC: "NUMERIC",
   BOOLEAN: "BOOLEAN",
 } as const;
-export type ScoreDataType = (typeof ScoreDataType)[keyof typeof ScoreDataType];
+export type ScoreConfigDataType =
+  (typeof ScoreConfigDataType)[keyof typeof ScoreConfigDataType];
 export const AnnotationQueueStatus = {
   PENDING: "PENDING",
   COMPLETED: "COMPLETED",
@@ -600,7 +601,7 @@ export type LegacyPrismaScore = {
   queue_id: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
-  data_type: Generated<ScoreDataType>;
+  data_type: Generated<ScoreConfigDataType>;
 };
 export type LegacyPrismaTrace = {
   id: string;
@@ -838,7 +839,7 @@ export type ScoreConfig = {
   updated_at: Generated<Timestamp>;
   project_id: string;
   name: string;
-  data_type: ScoreDataType;
+  data_type: ScoreConfigDataType;
   is_archived: Generated<boolean>;
   min_value: number | null;
   max_value: number | null;

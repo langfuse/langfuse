@@ -1,7 +1,7 @@
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import {
-  type ScoreDataType,
+  type ScoreDataTypeType,
   type ScoreSourceType,
   type FilterState,
 } from "@langfuse/shared";
@@ -18,7 +18,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 const dropValuesForCategoricalScores = (
   value: number,
-  scoreDataType: ScoreDataType,
+  scoreDataType: ScoreDataTypeType,
 ): string => {
   return isCategoricalDataType(scoreDataType)
     ? "-"
@@ -29,7 +29,7 @@ const scoreNameSourceDataTypeMatch =
   (
     scoreName: string,
     scoreSource: ScoreSourceType,
-    scoreDataType: ScoreDataType,
+    scoreDataType: ScoreDataTypeType,
   ) =>
   (item: DatabaseRow) =>
     item.scoreName === scoreName &&
@@ -148,7 +148,7 @@ export const ScoresTable = ({
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;
       const scoreSource = metric.scoreSource as ScoreSourceType;
-      const scoreDataType = metric.scoreDataType as ScoreDataType;
+      const scoreDataType = metric.scoreDataType as ScoreDataTypeType;
 
       const zeroValueScore = zeroValueScores.data.find(
         scoreNameSourceDataTypeMatch(scoreName, scoreSource, scoreDataType),
