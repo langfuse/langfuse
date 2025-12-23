@@ -65,6 +65,14 @@ export const convertClickhouseScoreToDomain = <
     } as ScoreByDataType<DataType>;
   }
 
+  if (record.data_type === "CORRECTION") {
+    return {
+      ...baseScore,
+      dataType: "CORRECTION" as DataType,
+      stringValue: null,
+    } as ScoreByDataType<DataType>;
+  }
+
   return {
     ...baseScore,
     dataType: record.data_type as DataType,
