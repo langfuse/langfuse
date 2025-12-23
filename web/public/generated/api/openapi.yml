@@ -2262,6 +2262,10 @@ paths:
         Get metrics from the Langfuse project using a query object.
 
 
+        Consider using the [v2 metrics
+        endpoint](/api-reference/metrics-v2/metrics) for better performance.
+
+
         For more details, see the [Metrics API
         documentation](https://langfuse.com/docs/metrics/features/metrics-api).
       operationId: metrics_metrics
@@ -2962,7 +2966,13 @@ paths:
         - BasicAuth: []
   /api/public/observations:
     get:
-      description: Get a list of observations
+      description: >-
+        Get a list of observations.
+
+
+        Consider using the [v2 observations
+        endpoint](/api-reference/observations-v2/getMany) for cursor-based
+        pagination and field selection.
       operationId: observations_getMany
       tags:
         - Observations
@@ -9459,6 +9469,19 @@ components:
             $ref: '#/components/schemas/Project'
       required:
         - data
+    Organization:
+      title: Organization
+      type: object
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the organization
+        name:
+          type: string
+          description: The name of the organization
+      required:
+        - id
+        - name
     Project:
       title: Project
       type: object
@@ -9467,6 +9490,9 @@ components:
           type: string
         name:
           type: string
+        organization:
+          $ref: '#/components/schemas/Organization'
+          description: The organization this project belongs to
         metadata:
           type: object
           additionalProperties: true
@@ -9480,6 +9506,7 @@ components:
       required:
         - id
         - name
+        - organization
         - metadata
     ProjectDeletionResponse:
       title: ProjectDeletionResponse
