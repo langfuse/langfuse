@@ -2262,6 +2262,10 @@ paths:
         Get metrics from the Langfuse project using a query object.
 
 
+        Consider using the [v2 metrics
+        endpoint](/api-reference/metrics-v2/metrics) for better performance.
+
+
         For more details, see the [Metrics API
         documentation](https://langfuse.com/docs/metrics/features/metrics-api).
       operationId: metrics_metrics
@@ -2962,7 +2966,13 @@ paths:
         - BasicAuth: []
   /api/public/observations:
     get:
-      description: Get a list of observations
+      description: >-
+        Get a list of observations.
+
+
+        Consider using the [v2 observations
+        endpoint](/api-reference/observations-v2/getMany) for cursor-based
+        pagination and field selection.
       operationId: observations_getMany
       tags:
         - Observations
