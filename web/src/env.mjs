@@ -207,6 +207,9 @@ export const env = createEnv({
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
+      .number()
+      .default(32_000_000_000), // ~32GB
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
@@ -337,6 +340,11 @@ export const env = createEnv({
       .default("false"),
 
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
+      .enum(["true", "false"])
+      .default("false"),
+
+    // v2 APIs (events table based) - disabled by default for self-hosters
+    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS: z
       .enum(["true", "false"])
       .default("false"),
 
@@ -583,6 +591,8 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
+    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY:
+      process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
@@ -668,6 +678,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
     LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST:
       process.env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST,
   },

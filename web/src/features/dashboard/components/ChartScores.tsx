@@ -2,7 +2,7 @@ import { api } from "@/src/utils/api";
 
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { type ScoreDataType, type FilterState } from "@langfuse/shared";
+import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
@@ -69,7 +69,7 @@ export function ChartScores(props: {
               {
                 accessor: "data_type",
                 formatFct: (value) =>
-                  getScoreDataTypeIcon(value as ScoreDataType),
+                  getScoreDataTypeIcon(value as ScoreDataTypeType),
               },
               { accessor: "name" },
               {

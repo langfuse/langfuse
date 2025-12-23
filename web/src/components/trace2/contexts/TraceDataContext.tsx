@@ -18,6 +18,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type TreeNode, type TraceSearchListItem } from "../lib/types";
 import { buildTraceUiData } from "../lib/tree-building";
 import { useViewPreferences } from "./ViewPreferencesContext";
+import { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,
@@ -30,7 +31,8 @@ type TraceType = Omit<
 interface TraceDataContextValue {
   trace: TraceType;
   observations: ObservationReturnTypeWithMetadata[];
-  scores: WithStringifiedMetadata<ScoreDomain>[];
+  serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  mergedScores: WithStringifiedMetadata<ScoreDomain>[];
   tree: TreeNode;
   nodeMap: Map<string, TreeNode>;
   searchItems: TraceSearchListItem[];
@@ -51,7 +53,7 @@ export function useTraceData(): TraceDataContextValue {
 interface TraceDataProviderProps {
   trace: TraceType;
   observations: ObservationReturnTypeWithMetadata[];
-  scores: WithStringifiedMetadata<ScoreDomain>[];
+  serverScores: WithStringifiedMetadata<ScoreDomain>[];
   comments: Map<string, number>;
   children: ReactNode;
 }
@@ -63,7 +65,7 @@ interface TraceDataProviderProps {
 export function TraceDataProvider({
   trace,
   observations,
-  scores,
+  serverScores,
   comments,
   children,
 }: TraceDataProviderProps) {
@@ -73,18 +75,29 @@ export function TraceDataProvider({
     return buildTraceUiData(trace, observations, minObservationLevel);
   }, [trace, observations, minObservationLevel]);
 
+  // Merge scores with optimistic cache
+  const mergedScores = useMergedScores(
+    serverScores,
+    {
+      type: "trace",
+      traceId: trace.id,
+    },
+    "target-and-child-scores",
+  );
+
   const value = useMemo<TraceDataContextValue>(
     () => ({
       trace,
       observations,
-      scores,
+      serverScores: serverScores,
+      mergedScores,
       tree: uiData.tree,
       nodeMap: uiData.nodeMap,
       searchItems: uiData.searchItems,
       hiddenObservationsCount: uiData.hiddenObservationsCount,
       comments,
     }),
-    [trace, observations, scores, uiData, comments],
+    [trace, observations, serverScores, mergedScores, uiData, comments],
   );
 
   return (

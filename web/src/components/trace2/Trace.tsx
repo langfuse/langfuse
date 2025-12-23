@@ -68,7 +68,7 @@ export function Trace({
       <TraceDataProvider
         trace={trace}
         observations={observations}
-        scores={scores}
+        serverScores={scores}
         comments={commentsMap}
       >
         <TraceGraphDataProvider

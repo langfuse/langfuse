@@ -1,5 +1,6 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import {
   GetMetricsV2Query,
@@ -7,7 +8,7 @@ import {
 } from "@/src/features/public-api/types/metrics";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 import { getViewDeclaration } from "@/src/features/query/dataModel";
-import { InvalidRequestError } from "@langfuse/shared";
+import { InvalidRequestError, NotImplementedError } from "@langfuse/shared";
 
 const DEFAULT_ROW_LIMIT = 100;
 
@@ -43,6 +44,12 @@ export default withMiddlewares({
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,
     fn: async ({ query, auth }) => {
+      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
+        throw new NotImplementedError(
+          "v2 APIs are currently in beta and only available on Langfuse Cloud",
+        );
+      }
+
       try {
         const queryParams = {
           ...query.query,

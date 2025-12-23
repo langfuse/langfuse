@@ -1,10 +1,10 @@
-import { ScoreDataTypeDomain, ScoreConfigCategory } from "@langfuse/shared";
+import { ScoreConfigCategory } from "@langfuse/shared";
 import { z } from "zod/v4";
 
 export const createConfigSchema = z.object({
   name: z.string().min(1).max(35),
   description: z.string().optional(),
-  dataType: ScoreDataTypeDomain,
+  dataType: z.enum(["CATEGORICAL", "NUMERIC", "BOOLEAN"]),
   minValue: z.coerce.number().optional(),
   maxValue: z.coerce.number().optional(),
   categories: z.array(ScoreConfigCategory).optional(),

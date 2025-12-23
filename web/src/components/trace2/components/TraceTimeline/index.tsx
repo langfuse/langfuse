@@ -15,7 +15,7 @@ import { TimelineScale } from "./TimelineScale";
 import { TimelineRow } from "./TimelineRow";
 
 export function TraceTimeline() {
-  const { tree, scores, comments } = useTraceData();
+  const { tree, serverScores: scores, comments } = useTraceData();
   const { collapsedNodes, toggleCollapsed, selectedNodeId, setSelectedNodeId } =
     useSelection();
   const {
