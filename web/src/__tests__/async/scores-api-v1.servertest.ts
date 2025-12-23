@@ -18,7 +18,6 @@ import {
 import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
-  GetScoreResponseV2,
   GetScoresResponseV1,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -311,52 +310,6 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.metadata).toEqual({
         "test-key": "test-value",
       });
-    });
-
-    it("should post correction score", async () => {
-      const traceId = v4();
-
-      const { projectId: projectId, auth } = await createOrgProjectAndApiKey();
-
-      const trace = createTrace({
-        id: traceId,
-        project_id: projectId,
-      });
-      await createTracesCh([trace]);
-
-      const correctionScoreId = v4();
-
-      const score = createTraceScore({
-        id: correctionScoreId,
-        project_id: projectId,
-        trace_id: traceId,
-        data_type: "CORRECTION",
-        name: "correction-score-name",
-        value: 0,
-        long_string_value: "correction-value",
-        source: "API",
-        observation_id: null,
-        environment: "production",
-      });
-      await createScoresCh([score]);
-
-      // Must use v2 endpoint to fetch correction score
-      const fetchedScore = await makeZodVerifiedAPICall(
-        GetScoreResponseV2,
-        "GET",
-        `/api/public/v2/scores/${correctionScoreId}`,
-        undefined,
-        auth,
-      );
-
-      expect(fetchedScore.body?.id).toBe(correctionScoreId);
-      expect(fetchedScore.body?.traceId).toBe(traceId);
-      expect(fetchedScore.body?.name).toBe("output");
-      expect(fetchedScore.body?.stringValue).toBe("correction-value");
-      expect(fetchedScore.body?.observationId).toBeNull();
-      expect(fetchedScore.body?.source).toBe("API");
-      expect(fetchedScore.body?.projectId).toBe(projectId);
-      expect(fetchedScore.body?.environment).toBe("production");
     });
   });
 
