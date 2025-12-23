@@ -139,6 +139,9 @@ export async function executeQuery(
               clickhouseConfigs: {
                 clickhouse_settings: {
                   date_time_output_format: "iso",
+                  max_bytes_before_external_group_by: String(
+                    env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+                  ),
                 },
               },
               tags: {
@@ -178,6 +181,9 @@ export async function executeQuery(
                   clickhouseConfigs: {
                     clickhouse_settings: {
                       date_time_output_format: "iso",
+                      max_bytes_before_external_group_by: String(
+                        env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+                      ),
                     },
                   },
                   tags: input.tags,

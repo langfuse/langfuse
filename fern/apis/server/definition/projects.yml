@@ -102,10 +102,22 @@ types:
     properties:
       data: list<Project>
 
+  Organization:
+    properties:
+      id:
+        type: string
+        docs: The unique identifier of the organization
+      name:
+        type: string
+        docs: The name of the organization
+
   Project:
     properties:
       id: string
       name: string
+      organization:
+        type: Organization
+        docs: The organization this project belongs to
       metadata:
         type: map<string, unknown>
         docs: Metadata for the project
