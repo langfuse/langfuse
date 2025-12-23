@@ -10,6 +10,8 @@ export const ScoreSourceEnum = {
 export const ScoreSourceDomain = z.enum(ScoreSourceArray);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
+export const CORRECTION_NAME = "output" as const;
+
 export const ScoreDataTypeArray = [
   "NUMERIC",
   "CATEGORICAL",

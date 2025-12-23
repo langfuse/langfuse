@@ -69,7 +69,7 @@ components:
         name:
           type: string
           description: >-
-            The name of the score. Always overrides "Output" for correction
+            The name of the score. Always overrides "output" for correction
             scores.
           example: novelty
         value:

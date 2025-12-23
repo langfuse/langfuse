@@ -280,7 +280,7 @@ types:
       datasetRunId: optional<string>
       name:
         type: string
-        docs: The name of the score. Always overrides "Output" for correction scores.
+        docs: The name of the score. Always overrides "output" for correction scores.
       environment: optional<string>
       queueId:
         type: optional<string>

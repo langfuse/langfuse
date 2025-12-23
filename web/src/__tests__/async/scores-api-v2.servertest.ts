@@ -501,6 +501,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         for (const val of getAllScore.body.data) {
           expect(val).toMatchObject({
             dataType: "CORRECTION",
+            name: "output",
           });
           expect(val.stringValue).toContain("correction-value");
         }

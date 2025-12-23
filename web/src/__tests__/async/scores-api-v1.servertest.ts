@@ -351,7 +351,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       expect(fetchedScore.body?.id).toBe(correctionScoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
-      expect(fetchedScore.body?.name).toBe("correction-score-name");
+      expect(fetchedScore.body?.name).toBe("output");
       expect(fetchedScore.body?.stringValue).toBe("correction-value");
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.source).toBe("API");

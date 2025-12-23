@@ -8411,7 +8411,7 @@ components:
         name:
           type: string
           description: >-
-            The name of the score. Always overrides "Output" for correction
+            The name of the score. Always overrides "output" for correction
             scores.
           example: novelty
         environment:
@@ -9470,6 +9470,19 @@ components:
             $ref: '#/components/schemas/Project'
       required:
         - data
+    Organization:
+      title: Organization
+      type: object
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the organization
+        name:
+          type: string
+          description: The name of the organization
+      required:
+        - id
+        - name
     Project:
       title: Project
       type: object
@@ -9478,6 +9491,9 @@ components:
           type: string
         name:
           type: string
+        organization:
+          $ref: '#/components/schemas/Organization'
+          description: The organization this project belongs to
         metadata:
           type: object
           additionalProperties: true
@@ -9491,6 +9507,7 @@ components:
       required:
         - id
         - name
+        - organization
         - metadata
     ProjectDeletionResponse:
       title: ProjectDeletionResponse

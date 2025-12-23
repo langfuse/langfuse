@@ -5,6 +5,7 @@ import {
   type ScoreDomain,
   ScorePropsAgainstConfig,
   ScoreDataTypeEnum,
+  CORRECTION_NAME,
 } from "../../../src";
 import { prisma } from "../../db";
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
@@ -133,7 +134,7 @@ function inflateScoreBody(
     return {
       ...scoreProps,
       value: 0,
-      name: "Output",
+      name: CORRECTION_NAME,
       longStringValue: body.value,
       stringValue: null,
       dataType: ScoreDataTypeEnum.CORRECTION,
