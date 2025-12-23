@@ -1,10 +1,12 @@
 import {
   ScoreBodyWithoutConfig,
   ScoreConfigDomain,
-  ScoreDomain,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
+  type ScoreDomain,
   ScorePropsAgainstConfig,
 } from "../../../src";
-import { prisma, ScoreDataType } from "../../db";
+import { prisma } from "../../db";
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
 import { validateDbScoreConfigSafe } from "../../features/scoreConfigs/validation";
 import { ScoreEventType } from "./types";
@@ -68,10 +70,10 @@ export async function validateAndInflateScore(
   return inflateScoreBody(params);
 }
 
-function inferDataType(value: string | number): ScoreDataType {
+function inferDataType(value: string | number): ScoreDataTypeType {
   return typeof value === "number"
-    ? ScoreDataType.NUMERIC
-    : ScoreDataType.CATEGORICAL;
+    ? ScoreDataTypeEnum.NUMERIC
+    : ScoreDataTypeEnum.CATEGORICAL;
 }
 
 function mapStringValueToNumericValue(
@@ -97,12 +99,12 @@ function inflateScoreBody(
   };
 
   if (typeof body.value === "number") {
-    if (relevantDataType && relevantDataType === ScoreDataType.BOOLEAN) {
+    if (relevantDataType && relevantDataType === ScoreDataTypeEnum.BOOLEAN) {
       return {
         ...scoreProps,
         value: body.value,
         stringValue: body.value === 1 ? "True" : "False",
-        dataType: ScoreDataType.BOOLEAN,
+        dataType: ScoreDataTypeEnum.BOOLEAN,
       };
     }
 
@@ -110,7 +112,7 @@ function inflateScoreBody(
       ...scoreProps,
       value: body.value,
       stringValue: null,
-      dataType: ScoreDataType.NUMERIC,
+      dataType: ScoreDataTypeEnum.NUMERIC,
     };
   }
 
@@ -118,7 +120,7 @@ function inflateScoreBody(
     ...scoreProps,
     value: config ? mapStringValueToNumericValue(config, body.value) : 0,
     stringValue: body.value,
-    dataType: ScoreDataType.CATEGORICAL,
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
   };
 }
 
@@ -142,10 +144,10 @@ function resolveScoreValueAnnotation(
   body: ScoreDomain,
 ): string | number | null {
   switch (body.dataType) {
-    case ScoreDataType.NUMERIC:
-    case ScoreDataType.BOOLEAN:
+    case ScoreDataTypeEnum.NUMERIC:
+    case ScoreDataTypeEnum.BOOLEAN:
       return body.value;
-    case ScoreDataType.CATEGORICAL:
+    case ScoreDataTypeEnum.CATEGORICAL:
       return body.stringValue;
   }
 }
