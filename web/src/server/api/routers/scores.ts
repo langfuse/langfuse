@@ -560,6 +560,7 @@ export const scoresRouter = createTRPCRouter({
           authorUserId: ctx.session.user.id,
           queueId: input.queueId ?? null,
           timestamp,
+          longStringValue: "",
         };
 
         if (isNumericDataType(baseScore.dataType)) {

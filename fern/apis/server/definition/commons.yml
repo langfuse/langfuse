@@ -222,7 +222,7 @@ types:
       createdAt: datetime
       updatedAt: datetime
       projectId: string
-      dataType: ScoreDataType
+      dataType: ScoreConfigDataType
       isArchived:
         type: boolean
         docs: Whether the score config is archived. Defaults to false
@@ -742,11 +742,18 @@ types:
       - ANNOTATION
       - API
       - EVAL
+  ScoreConfigDataType:
+    enum:
+      - NUMERIC
+      - BOOLEAN
+      - CATEGORICAL
+
   ScoreDataType:
     enum:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
+      - CORRECTION
 
 errors:
   Error:

@@ -218,6 +218,7 @@ export const scoreRecordBaseSchema = z.object({
   config_id: z.string().nullish(),
   data_type: z.string(),
   string_value: z.string().nullish(),
+  long_string_value: z.string(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),
   is_deleted: z.number(),
@@ -614,6 +615,7 @@ export const convertPostgresScoreToInsert = (
     config_id: score.config_id,
     data_type: score.data_type,
     string_value: score.string_value,
+    long_string_value: "",
     queue_id: score.queue_id,
     execution_trace_id: null, // Postgres scores do not have eval execution traces
     created_at: score.created_at?.getTime(),

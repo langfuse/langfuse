@@ -1,10 +1,11 @@
 import {
   ScoreBodyWithoutConfig,
   ScoreConfigDomain,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   type ScoreDomain,
   ScorePropsAgainstConfig,
+  ScoreDataTypeEnum,
+  CORRECTION_NAME,
 } from "../../../src";
 import { prisma } from "../../db";
 import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
@@ -93,6 +94,7 @@ function inflateScoreBody(
   const relevantDataType = config?.dataType ?? body.dataType;
   const scoreProps = {
     ...body,
+    longStringValue: "",
     source: body.source ?? "API",
     id: scoreId,
     projectId,
@@ -113,6 +115,29 @@ function inflateScoreBody(
       value: body.value,
       stringValue: null,
       dataType: ScoreDataTypeEnum.NUMERIC,
+    };
+  }
+
+  if (relevantDataType && relevantDataType === ScoreDataTypeEnum.CORRECTION) {
+    // CORRECTION scores can only be associated with traces or observations
+    if (body.sessionId) {
+      throw new InvalidRequestError(
+        "CORRECTION scores cannot be associated with sessions. Please associate with a trace or observation instead.",
+      );
+    }
+    if (body.datasetRunId) {
+      throw new InvalidRequestError(
+        "CORRECTION scores cannot be associated with dataset runs. Please associate with a trace or observation instead.",
+      );
+    }
+
+    return {
+      ...scoreProps,
+      value: 0,
+      name: CORRECTION_NAME,
+      longStringValue: body.value,
+      stringValue: null,
+      dataType: ScoreDataTypeEnum.CORRECTION,
     };
   }
 
@@ -149,6 +174,8 @@ function resolveScoreValueAnnotation(
       return body.value;
     case ScoreDataTypeEnum.CATEGORICAL:
       return body.stringValue;
+    case ScoreDataTypeEnum.CORRECTION:
+      throw new Error("CORRECTION type not supported in annotation drawer");
   }
 }
 
