@@ -2263,7 +2263,8 @@ paths:
 
 
         Consider using the [v2 metrics
-        endpoint](/api-reference/metrics-v2/metrics) for better performance.
+        endpoint](/api-reference#tag/metricsv2/GET/api/public/v2/metrics) for
+        better performance.
 
 
         For more details, see the [Metrics API
@@ -2971,8 +2972,8 @@ paths:
 
 
         Consider using the [v2 observations
-        endpoint](/api-reference/observations-v2/getMany) for cursor-based
-        pagination and field selection.
+        endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations)
+        for cursor-based pagination and field selection.
       operationId: observations_getMany
       tags:
         - Observations
