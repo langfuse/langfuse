@@ -50,6 +50,12 @@ export default async function handler(
           name: true,
           retentionDays: true,
           metadata: true,
+          organization: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
         where: {
           id: authCheck.scope.projectId,
@@ -61,6 +67,10 @@ export default async function handler(
         data: projects.map((project) => ({
           id: project.id,
           name: project.name,
+          organization: {
+            id: project.organization.id,
+            name: project.organization.name,
+          },
           metadata: project.metadata ?? {},
           ...(project.retentionDays // Do not add if null or 0
             ? { retentionDays: project.retentionDays }
