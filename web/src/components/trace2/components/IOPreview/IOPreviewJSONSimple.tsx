@@ -1,13 +1,15 @@
 import { useMemo } from "react";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
+import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  correctedOutput?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -18,6 +20,7 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  observationId?: string;
 }
 
 /**
@@ -33,6 +36,7 @@ export function IOPreviewJSONSimple({
   input,
   output,
   metadata,
+  correctedOutput,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -46,6 +50,7 @@ export function IOPreviewJSONSimple({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  observationId,
 }: IOPreviewJSONSimpleProps) {
   // Parse data if not pre-parsed
   const effectiveInput = useMemo(
@@ -93,6 +98,11 @@ export function IOPreviewJSONSimple({
           onExternalExpansionChange={onOutputExpansionChange}
         />
       )}
+      <CorrectedOutputField
+        actualOutput={effectiveOutput}
+        existingCorrection={correctedOutput}
+        observationId={observationId}
+      />
       {showMetadata && (
         <PrettyJsonView
           title="Metadata"

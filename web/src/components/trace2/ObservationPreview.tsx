@@ -50,6 +50,7 @@ export const ObservationPreview = ({
   observations,
   projectId,
   serverScores: scores,
+  corrections,
   currentObservationId,
   traceId,
   commentCounts,
@@ -61,6 +62,7 @@ export const ObservationPreview = ({
   observations: Array<ObservationReturnType>;
   projectId: string;
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  corrections: ScoreDomain[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -92,6 +94,10 @@ export const ObservationPreview = ({
 
   const currentObservationScores = scores.filter(
     (s) => s.observationId === currentObservationId,
+  );
+
+  const currentCorrections = corrections.filter(
+    (c) => c.observationId === currentObservationId,
   );
 
   const observationWithInputAndOutput = api.observations.byId.useQuery(
@@ -463,6 +469,12 @@ export const ObservationPreview = ({
                   output={
                     observationWithInputAndOutput.data?.output ?? undefined
                   }
+                  correctedOutput={
+                    currentCorrections.length > 0
+                      ? currentCorrections[0]
+                      : undefined
+                  }
+                  observationId={currentObservationId}
                   metadata={
                     observationWithInputAndOutput.data?.metadata ?? undefined
                   }

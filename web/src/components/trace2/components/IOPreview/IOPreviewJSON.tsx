@@ -20,6 +20,7 @@ import {
 const VIRTUALIZATION_THRESHOLD = 3333;
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
+  correctedOutput?: unknown;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -50,6 +51,7 @@ export function IOPreviewJSON({
   parsedInput,
   parsedOutput,
   parsedMetadata,
+  correctedOutput,
   isParsing = false,
   hideIfNull = false,
   hideOutput = false,
@@ -72,6 +74,8 @@ export function IOPreviewJSON({
 
   const showInput = !hideInput && !(hideIfNull && parsedInput === undefined);
   const showOutput = !hideOutput && !(hideIfNull && parsedOutput === undefined);
+  const showCorrectedOutput =
+    !hideOutput && !(hideIfNull && correctedOutput === undefined);
   const showMetadata = !(hideIfNull && parsedMetadata === undefined);
 
   // Count rows for each section to determine if virtualization is needed
@@ -79,15 +83,17 @@ export function IOPreviewJSON({
     return {
       input: countJsonRows(parsedInput),
       output: countJsonRows(parsedOutput),
+      correctedOutput: countJsonRows(correctedOutput),
       metadata: countJsonRows(parsedMetadata),
     };
-  }, [parsedInput, parsedOutput, parsedMetadata]);
+  }, [parsedInput, parsedOutput, correctedOutput, parsedMetadata]);
 
   // Determine if virtualization is needed based on threshold
   const needsVirtualization = useMemo(() => {
     return (
       rowCounts.input > VIRTUALIZATION_THRESHOLD ||
       rowCounts.output > VIRTUALIZATION_THRESHOLD ||
+      rowCounts.correctedOutput > VIRTUALIZATION_THRESHOLD ||
       rowCounts.metadata > VIRTUALIZATION_THRESHOLD
     );
   }, [rowCounts]);
@@ -203,6 +209,15 @@ export function IOPreviewJSON({
         minHeight: "200px",
       });
     }
+    if (showCorrectedOutput) {
+      result.push({
+        key: "correctedOutput",
+        title: "Corrected Output",
+        data: correctedOutput,
+        backgroundColor: outputBgColor,
+        minHeight: "200px",
+      });
+    }
     if (showMetadata) {
       result.push({
         key: "metadata",
@@ -216,9 +231,11 @@ export function IOPreviewJSON({
   }, [
     showInput,
     showOutput,
+    showCorrectedOutput,
     showMetadata,
     parsedInput,
     parsedOutput,
+    correctedOutput,
     parsedMetadata,
     inputBgColor,
     outputBgColor,
