@@ -177,6 +177,7 @@ export const env = createEnv({
     AUTH_WORDPRESS_CHECKS: zAuthChecks,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT: z.string().optional(),
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
+    AUTH_SSO_UPDATE_USER_EMAIL_ON_LOGIN: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
     AUTH_SESSION_MAX_AGE: z.coerce
@@ -538,6 +539,8 @@ export const env = createEnv({
       process.env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
     AUTH_WORDPRESS_CHECKS: process.env.AUTH_WORDPRESS_CHECKS,
     AUTH_IGNORE_ACCOUNT_FIELDS: process.env.AUTH_IGNORE_ACCOUNT_FIELDS,
+    AUTH_SSO_UPDATE_USER_EMAIL_ON_LOGIN:
+      process.env.AUTH_SSO_UPDATE_USER_EMAIL_ON_LOGIN,
     AUTH_DOMAINS_WITH_SSO_ENFORCEMENT:
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
