@@ -6,7 +6,7 @@ export interface PromptMessage {
   type?: string;
   name?: string;
   role?: string;
-  content?: string;
+  content?: string | { type: string; text: string }[];
 }
 
 /**

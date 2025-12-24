@@ -12,6 +12,9 @@ import {
   HumanMessage,
   SystemMessage,
   ToolMessage,
+  HumanMessageFields,
+  MessageContentComplex,
+  MessageContentText,
 } from "@langchain/core/messages";
 import {
   BytesOutputParser,
@@ -48,6 +51,7 @@ import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import _ from "lodash";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -191,8 +195,31 @@ export async function fetchLLMCompletion(
           ? message.content
           : safeStringify(message.content);
 
-      if (message.role === ChatMessageRole.User)
-        return new HumanMessage(safeContent);
+      if (message.role === ChatMessageRole.User) {
+        let content: MessageContentComplex[];
+
+        if (Array.isArray(message.content)) {
+          content = message.content.map(
+            ({ text }) =>
+              ({
+                type: "text",
+                text: safeStringify(text),
+              }) as MessageContentText,
+          );
+        } else {
+          const messageContentText: MessageContentText = {
+            type: "text",
+            text: safeContent,
+          };
+          content = [messageContentText];
+        }
+
+        const fields: HumanMessageFields = {
+          content,
+        };
+
+        return new HumanMessage(fields);
+      }
       if (
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
