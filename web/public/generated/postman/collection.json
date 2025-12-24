@@ -570,7 +570,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"projectId\": \"example\",\n    \"objectType\": \"example\",\n    \"objectId\": \"example\",\n    \"content\": \"example\",\n    \"authorUserId\": \"example\"\n}",
+              "raw": "{\n    \"projectId\": \"example\",\n    \"objectType\": \"example\",\n    \"objectId\": \"example\",\n    \"content\": \"example\",\n    \"authorUserId\": \"example\",\n    \"dataField\": \"example\",\n    \"path\": [\n        \"example\"\n    ],\n    \"rangeStart\": [\n        0\n    ],\n    \"rangeEnd\": [\n        0\n    ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -1,7 +1,10 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  type COMMENT_DATA_FIELDS,
+} from "@langfuse/shared";
 import {
   GetCommentV1Query,
   GetCommentV1Response,
@@ -28,7 +31,13 @@ export default withMiddlewares({
         );
       }
 
-      return comment;
+      // cast dataField to expected enum type, Prisma just returns string | null
+      return {
+        ...comment,
+        dataField: comment.dataField as
+          | (typeof COMMENT_DATA_FIELDS)[number]
+          | null,
+      };
     },
   }),
 });

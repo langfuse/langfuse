@@ -16,6 +16,14 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import {
+  InlineCommentSelectionProvider,
+  useInlineCommentSelectionOptional,
+  type SelectionData,
+} from "@/src/features/comments/contexts/InlineCommentSelectionContext";
+import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
+import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
+import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
@@ -32,6 +40,10 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
+  // Inline comment props
+  enableInlineComments?: boolean;
+  onAddInlineComment?: (selection: SelectionData) => void;
+  commentedPathsByField?: CommentedPathsByField;
 }
 
 /**
@@ -46,7 +58,7 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
  * This component is ~150ms faster than the full IOPreview for large data
  * because it skips all ChatML processing.
  */
-export function IOPreviewJSON({
+function IOPreviewJSONInner({
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -56,7 +68,18 @@ export function IOPreviewJSON({
   hideInput = false,
   media,
   onVirtualizationChange,
+  enableInlineComments = false,
+  onAddInlineComment,
+  commentedPathsByField,
 }: IOPreviewJSONProps) {
+  const selectionContext = useInlineCommentSelectionOptional();
+
+  const handleAddComment = useCallback(() => {
+    if (selectionContext?.selection && onAddInlineComment) {
+      onAddInlineComment(selectionContext.selection);
+    }
+  }, [selectionContext?.selection, onAddInlineComment]);
+
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
@@ -92,7 +115,7 @@ export function IOPreviewJSON({
     );
   }, [rowCounts]);
 
-  // Hooks for multi-section viewer (Path B) - must be called unconditionally
+  // Hooks for multi-section viewer - must be called unconditionally
   const { stringWrapMode, setStringWrapMode } = useJsonViewPreferences();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -101,7 +124,7 @@ export function IOPreviewJSON({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<MultiSectionJsonViewerHandle>(null);
 
-  // Debounce search query (applies to both virtualized and non-virtualized modes)
+  // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
@@ -109,8 +132,6 @@ export function IOPreviewJSON({
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  // No longer using accordion mode - MultiSectionJsonViewer shows all sections with collapsible headers
 
   // Notify parent about virtualization state
   useEffect(() => {
@@ -136,7 +157,7 @@ export function IOPreviewJSON({
     setCurrentMatchIndex(0);
   }, []);
 
-  // Handle string wrap mode cycling for Path B
+  // Handle string wrap mode cycling
   const handleCycleWrapMode = useCallback(() => {
     if (stringWrapMode === "truncate") {
       setStringWrapMode("wrap");
@@ -147,7 +168,6 @@ export function IOPreviewJSON({
     }
   }, [stringWrapMode, setStringWrapMode]);
 
-  // Handle copy for Path B
   // Handle scrolling to a specific section
   const handleScrollToSection = useCallback((sectionKey: string) => {
     viewerRef.current?.scrollToSection(sectionKey);
@@ -182,7 +202,6 @@ export function IOPreviewJSON({
   );
 
   // Build sections - memoized to prevent re-creation
-  // Must be defined before any conditional returns (React hooks rules)
   const sections = useMemo(() => {
     const result = [];
     if (showInput) {
@@ -226,8 +245,6 @@ export function IOPreviewJSON({
   ]);
 
   // Wait for parsing to complete before rendering to avoid flicker
-  // isParsing is true when we have raw data but parsed data hasn't arrived yet
-  // This check happens AFTER all hooks to comply with React hooks rules
   if (isParsing) {
     return (
       <div className="flex min-h-0 flex-1 flex-col border-b border-t">
@@ -238,8 +255,37 @@ export function IOPreviewJSON({
     );
   }
 
+  // The viewer content - wrapped in CommentableJsonView when comments are enabled
+  const viewerContent = (
+    <MultiSectionJsonViewer
+      ref={viewerRef}
+      sections={sections}
+      virtualized={needsVirtualization}
+      showLineNumbers={true}
+      enableCopy={true}
+      stringWrapMode={stringWrapMode}
+      truncateStringsAt={stringWrapMode === "truncate" ? 100 : null}
+      searchQuery={debouncedSearchQuery}
+      currentMatchIndex={currentMatchIndex}
+      onSearchResults={setSearchMatchCount}
+      scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+      media={media}
+      commentedPathsByField={commentedPathsByField}
+      theme={{
+        fontSize: "0.7rem",
+        lineHeight: 14,
+        indentSize: 12,
+      }}
+    />
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col border-b border-t">
+      {/* Inline comment bubble - shows when text is selected */}
+      {enableInlineComments && (
+        <InlineCommentBubble onAddComment={handleAddComment} />
+      )}
+
       {/* Header - matches LogViewToolbar styling */}
       <div className="flex h-9 flex-shrink-0 items-center gap-1.5 border-b bg-background px-2">
         {/* Search input - expands to fill available width */}
@@ -362,28 +408,29 @@ export function IOPreviewJSON({
 
       {/* Body with MultiSectionJsonViewer */}
       <div className="min-h-0 flex-1 overflow-auto" ref={scrollContainerRef}>
-        <MultiSectionJsonViewer
-          ref={viewerRef}
-          sections={sections}
-          virtualized={needsVirtualization}
-          showLineNumbers={true}
-          enableCopy={true}
-          stringWrapMode={stringWrapMode}
-          truncateStringsAt={stringWrapMode === "truncate" ? 100 : null}
-          searchQuery={debouncedSearchQuery}
-          currentMatchIndex={currentMatchIndex}
-          onSearchResults={setSearchMatchCount}
-          scrollContainerRef={
-            scrollContainerRef as React.RefObject<HTMLDivElement>
-          }
-          media={media}
-          theme={{
-            fontSize: "0.7rem",
-            lineHeight: 14,
-            indentSize: 12,
-          }}
-        />
+        {enableInlineComments ? (
+          <CommentableJsonView enabled={enableInlineComments}>
+            {viewerContent}
+          </CommentableJsonView>
+        ) : (
+          viewerContent
+        )}
       </div>
     </div>
   );
+}
+
+/**
+ * IOPreviewJSON - Wrapper that conditionally adds InlineCommentSelectionProvider.
+ */
+export function IOPreviewJSON(props: IOPreviewJSONProps) {
+  // Wrap with selection provider if inline comments are enabled
+  if (props.enableInlineComments) {
+    return (
+      <InlineCommentSelectionProvider>
+        <IOPreviewJSONInner {...props} />
+      </InlineCommentSelectionProvider>
+    );
+  }
+  return <IOPreviewJSONInner {...props} />;
 }

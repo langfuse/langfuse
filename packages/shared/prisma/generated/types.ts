@@ -380,6 +380,10 @@ export type Comment = {
   updated_at: Generated<Timestamp>;
   content: string;
   author_user_id: string | null;
+  data_field: string | null;
+  path: Generated<string[]>;
+  range_start: Generated<number[]>;
+  range_end: Generated<number[]>;
 };
 export type CommentReaction = {
   id: string;

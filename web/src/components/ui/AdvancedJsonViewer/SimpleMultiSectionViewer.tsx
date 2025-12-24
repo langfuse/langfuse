@@ -23,6 +23,12 @@ import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { searchInTree } from "./utils/searchJson";
+import {
+  getCommentRangesForRow,
+  getCommentCountForSection,
+  type CommentedPathsByField,
+} from "./utils/commentRanges";
+import { pathArrayToJsonPath } from "./utils/pathUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
 
 export interface SimpleMultiSectionViewerHandle {
@@ -47,6 +53,7 @@ export interface SimpleMultiSectionViewerProps {
   onToggleExpansion?: (nodeId: string) => void;
   scrollContainerRef?: RefObject<HTMLDivElement>;
   media?: MediaReturnType[];
+  commentedPathsByField?: CommentedPathsByField;
 }
 
 export const SimpleMultiSectionViewer = memo(
@@ -68,6 +75,7 @@ export const SimpleMultiSectionViewer = memo(
         onToggleExpansion,
         scrollContainerRef,
         media,
+        commentedPathsByField,
       },
       ref,
     ) {
@@ -219,6 +227,14 @@ export const SimpleMultiSectionViewer = memo(
         const row = treeNodeToFlatRow(node, index);
         const matchCount = matchCounts?.get(node.id);
 
+        // Get comment ranges for this row
+        const commentRanges = getCommentRangesForRow(
+          row,
+          node.sectionKey,
+          commentedPathsByField,
+        );
+        const rowJsonPath = pathArrayToJsonPath(row.pathArray);
+
         return (
           <div
             key={node.id}
@@ -282,6 +298,9 @@ export const SimpleMultiSectionViewer = memo(
                 enableCopy={enableCopy}
                 stringWrapMode={stringWrapMode}
                 truncateStringsAt={truncateStringsAt}
+                jsonPath={rowJsonPath}
+                commentRanges={commentRanges}
+                sectionKey={node.sectionKey}
               />
             </div>
           </div>
@@ -331,6 +350,12 @@ export const SimpleMultiSectionViewer = memo(
               // Filter media for this section
               const sectionMedia = media?.filter((m) => m.field === sectionKey);
 
+              // Get comment count for this section
+              const sectionCommentCount = getCommentCountForSection(
+                sectionKey,
+                commentedPathsByField,
+              );
+
               // Render header with fallback chain
               let headerContent;
               if (jsonSection?.renderHeader) {
@@ -346,6 +371,7 @@ export const SimpleMultiSectionViewer = memo(
                     title={title}
                     context={sectionContext}
                     media={sectionMedia}
+                    commentCount={sectionCommentCount}
                   />
                 );
               }
