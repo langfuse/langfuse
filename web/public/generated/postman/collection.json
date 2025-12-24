@@ -1580,7 +1580,7 @@
           "_type": "endpoint",
           "name": "Metrics",
           "request": {
-            "description": "Get metrics from the Langfuse project using a query object.\n\nConsider using the [v2 metrics endpoint](/api-reference/metrics-v2/metrics) for better performance.\n\nFor more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).",
+            "description": "Get metrics from the Langfuse project using a query object.\n\nConsider using the [v2 metrics endpoint](/api-reference#tag/metricsv2/GET/api/public/v2/metrics) for better performance.\n\nFor more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).",
             "url": {
               "raw": "{{baseUrl}}/api/public/metrics?query=",
               "host": [
@@ -1899,7 +1899,7 @@
           "_type": "endpoint",
           "name": "Get Many",
           "request": {
-            "description": "Get a list of observations.\n\nConsider using the [v2 observations endpoint](/api-reference/observations-v2/getMany) for cursor-based pagination and field selection.",
+            "description": "Get a list of observations.\n\nConsider using the [v2 observations endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations) for cursor-based pagination and field selection.",
             "url": {
               "raw": "{{baseUrl}}/api/public/observations?page=&limit=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=&filter=",
               "host": [

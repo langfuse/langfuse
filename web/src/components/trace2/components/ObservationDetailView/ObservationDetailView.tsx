@@ -94,7 +94,7 @@ export function ObservationDetailView({
   }, []);
 
   // Get comments, scores, and expansion state from contexts
-  const { comments, scores } = useTraceData();
+  const { comments, serverScores: scores } = useTraceData();
   const { expansionState, setFieldExpansion } = useJsonExpansion();
   const observationScores = useMemo(
     () => scores.filter((s) => s.observationId === observation.id),
