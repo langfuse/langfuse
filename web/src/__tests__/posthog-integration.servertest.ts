@@ -66,7 +66,7 @@ describe("PostHog Integration SSRF Protection", () => {
     await expect(
       caller.posthogIntegration.update({
         projectId,
-        posthogHostname: "http://localhost:8000",
+        posthogHostname: "http://localhost",
         posthogProjectApiKey: "phc_test_key_12345",
         enabled: true,
       }),
