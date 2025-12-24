@@ -253,6 +253,7 @@ export async function fetchLLMCompletion(
       clientOptions: {
         maxRetries,
         timeout: timeoutMs,
+        ...(extraHeaders && { defaultHeaders: extraHeaders }),
         ...(proxyAgent && { httpAgent: proxyAgent }),
       },
       temperature: modelParams.temperature,
