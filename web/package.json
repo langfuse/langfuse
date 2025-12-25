@@ -191,7 +191,7 @@
     "@types/react-dom": "19.2.3",
     "@types/react-grid-layout": "^1.3.5",
     "@types/uuid": "^9.0.8",
-    "@typescript-eslint/eslint-plugin": "^8.48.1",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
     "@typescript-eslint/parser": "^8.48.1",
     "autoprefixer": "^10.4.19",
     "cross-env": "^7.0.3",
