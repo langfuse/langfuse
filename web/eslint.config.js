@@ -1,0 +1,40 @@
+// @ts-check
+import nextConfig from "@repo/eslint-config/next";
+
+/** @type {import("eslint").Linter.Config[]} */
+export default [
+  ...nextConfig,
+
+  // Restrict react-icons imports
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "react-icons",
+                "react-icons/!(si|tb)",
+                "react-icons/!(si|tb)/*",
+              ],
+              message:
+                "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Exceptions for specific files
+  {
+    files: [
+      "src/components/nav/support-menu-dropdown.tsx",
+      "src/pages/auth/sign-in.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+];

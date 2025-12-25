@@ -1,79 +1,89 @@
-const { resolve } = require("node:path");
+// @ts-check
+import tseslint from "typescript-eslint";
+import { FlatCompat } from "@eslint/eslintrc";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import turboConfig from "eslint-config-turbo/flat";
+import "eslint-plugin-only-warn";
 
-const project = resolve(process.cwd(), "tsconfig.json");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const turboConfig = require("eslint-config-turbo");
-const turboConfigToUse = turboConfig.default || turboConfig;
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
 
-/*
- * This is a custom ESLint configuration for use with
- * Next.js apps.
- *
- * This config extends the Vercel Engineering Style Guide.
- * For more information, see https://github.com/vercel/style-guide
- *
- */
-
-module.exports = {
-  parser: "@typescript-eslint/parser", // Set the parser to @typescript-eslint/parser
-  extends: [
-    "plugin:@typescript-eslint/recommended",
-    "plugin:@typescript-eslint/strict-type-checked",
-  ],
-  rules: {
-    "@typescript-eslint/no-non-null-assertion": "off",
-    "@typescript-eslint/no-confusing-void-expression": "off",
+/** @type {import("eslint").Linter.Config[]} */
+export default tseslint.config(
+  // Global ignores - include config files
+  {
+    ignores: [
+      "**/node_modules/",
+      "**/dist/",
+      "**/.next/",
+      "**/coverage/",
+      "eslint.config.js",
+    ],
   },
-  parser: "@typescript-eslint/parser",
 
-  parserOptions: {
-    project,
-  },
-  globals: {
-    React: true,
-    JSX: true,
-  },
-  plugins: ["@typescript-eslint"],
-  extends: ["next/core-web-vitals"],
-  env: {
-    es6: true,
-    jest: true,
-  },
-  settings: {
-    "import/resolver": {
-      typescript: {
-        project,
+  // Next.js rules via FlatCompat (applies to all files)
+  ...compat.extends("next/core-web-vitals"),
+
+  // TypeScript strict type checking - ONLY for TS files, with proper parser
+  {
+    files: ["**/*.ts", "**/*.tsx"],
+    extends: [...tseslint.configs.strictTypeChecked],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: process.cwd(),
       },
     },
   },
-  ignorePatterns: ["node_modules/", "dist/"],
-  // add rules configurations here
-  rules: {
-    ...(turboConfigToUse.rules || {}),
-    "@typescript-eslint/consistent-type-imports": [
-      "warn",
-      {
-        prefer: "type-imports",
-        fixStyle: "inline-type-imports",
+
+  // Turbo rules
+  ...turboConfig,
+
+  // Prettier (last)
+  eslintPluginPrettierRecommended,
+
+  // Custom rules for TS files
+  {
+    files: ["**/*.ts", "**/*.tsx"],
+    languageOptions: {
+      globals: {
+        React: "readonly",
+        JSX: "readonly",
       },
-    ],
-    "@typescript-eslint/no-unused-vars": [
-      // see: https://typescript-eslint.io/rules/no-unused-vars/#why-does-this-rule-report-variables-used-only-for-types
-      // since v8, vars only used for types are unused at runtime and therefore throw a warning.
-      // we fix those with workarounds (mostly just export the variables, as they are used as part of an API anyways)
-      // see: https://github.com/typescript-eslint/typescript-eslint/issues/10266
-      "warn",
-      {
-        argsIgnorePattern: "^_",
-        varsIgnorePattern: "^_",
-        caughtErrorsIgnorePattern: "^_",
+    },
+    settings: {
+      "import/resolver": {
+        typescript: {
+          project: "./tsconfig.json",
+        },
       },
-    ],
-    "react/jsx-key": [
-      "error",
-      {
-        warnOnDuplicates: true,
-      },
-    ],
+    },
+    rules: {
+      "@typescript-eslint/no-non-null-assertion": "off",
+      "@typescript-eslint/no-confusing-void-expression": "off",
+      "@typescript-eslint/consistent-type-imports": [
+        "warn",
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+        },
+      ],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      "react/jsx-key": ["error", { warnOnDuplicates: true }],
+    },
   },
-};
+);
