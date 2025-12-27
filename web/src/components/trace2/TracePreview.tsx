@@ -48,6 +48,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import TagList from "@/src/features/tag/components/TagList";
 import {
   AlertDialog,
@@ -122,8 +123,7 @@ export const TracePreview = ({
     (c) => c.traceId === trace.id && c.observationId === null,
   );
 
-  const outputCorrection =
-    traceCorrections.length > 0 ? traceCorrections[0] : undefined;
+  const outputCorrection = getMostRecentCorrection(traceCorrections);
 
   // Parse trace I/O in background (Web Worker)
   const { parsedInput, parsedOutput, parsedMetadata, isParsing } =

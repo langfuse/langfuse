@@ -46,6 +46,7 @@ import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansion
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export const ObservationPreview = ({
   observations,
@@ -97,7 +98,7 @@ export const ObservationPreview = ({
     (s) => s.observationId === currentObservationId,
   );
 
-  const currentCorrections = corrections.filter(
+  const currentObservationCorrections = corrections.filter(
     (c) => c.observationId === currentObservationId,
   );
 
@@ -475,11 +476,9 @@ export const ObservationPreview = ({
                   parsedInput={parsedInput}
                   parsedOutput={parsedOutput}
                   parsedMetadata={parsedMetadata}
-                  outputCorrection={
-                    currentCorrections.length > 0
-                      ? currentCorrections[0]
-                      : undefined
-                  }
+                  outputCorrection={getMostRecentCorrection(
+                    currentObservationCorrections,
+                  )}
                   observationId={currentObservationId}
                   isLoading={isLoadingObservation}
                   isParsing={isWaitingForParsing}
