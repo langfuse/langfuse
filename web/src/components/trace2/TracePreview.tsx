@@ -122,10 +122,9 @@ export const TracePreview = ({
     (c) => c.traceId === trace.id && c.observationId === null,
   );
 
-  const correctedOutput =
-    traceCorrections.length > 0
-      ? traceCorrections[0].longStringValue
-      : undefined;
+  const outputCorrection =
+    traceCorrections.length > 0 ? traceCorrections[0] : undefined;
+
   // Parse trace I/O in background (Web Worker)
   const { parsedInput, parsedOutput, parsedMetadata, isParsing } =
     useParsedTrace({
@@ -435,7 +434,7 @@ export const TracePreview = ({
                 key={trace.id + "-io"}
                 input={trace.input ?? undefined}
                 output={trace.output ?? undefined}
-                correctedOutput={correctedOutput}
+                outputCorrection={outputCorrection}
                 parsedInput={parsedInput}
                 parsedOutput={parsedOutput}
                 parsedMetadata={parsedMetadata}

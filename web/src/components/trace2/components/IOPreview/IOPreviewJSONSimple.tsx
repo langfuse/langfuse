@@ -9,7 +9,7 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
-  correctedOutput?: ScoreDomain;
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -36,7 +36,7 @@ export function IOPreviewJSONSimple({
   input,
   output,
   metadata,
-  correctedOutput,
+  outputCorrection,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -103,7 +103,7 @@ export function IOPreviewJSONSimple({
       )}
       <CorrectedOutputField
         actualOutput={effectiveOutput}
-        existingCorrection={correctedOutput}
+        existingCorrection={outputCorrection}
         observationId={observationId}
       />
       {showMetadata && (

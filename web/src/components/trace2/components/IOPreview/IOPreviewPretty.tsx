@@ -80,7 +80,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
-  correctedOutput?: ScoreDomain;
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -113,7 +113,7 @@ export function IOPreviewPretty({
   input,
   output,
   metadata,
-  correctedOutput,
+  outputCorrection,
   parsedInput: preParsedInput,
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
@@ -251,7 +251,7 @@ export function IOPreviewPretty({
           />
           <CorrectedOutputField
             actualOutput={parsedOutput}
-            existingCorrection={correctedOutput}
+            existingCorrection={outputCorrection}
             observationId={observationId}
           />
         </div>
@@ -261,7 +261,7 @@ export function IOPreviewPretty({
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
             <CorrectedOutputField
               actualOutput={parsedOutput}
-              existingCorrection={correctedOutput}
+              existingCorrection={outputCorrection}
               observationId={observationId}
             />
           </div>

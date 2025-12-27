@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { type Prisma } from "@langfuse/shared";
+import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
@@ -33,7 +33,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
-  correctedOutput?: ScoreDomain;
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -71,7 +71,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
 export function IOPreview({
   input,
   output,
-  correctedOutput,
+  outputCorrection,
   metadata,
   parsedInput,
   parsedOutput,
@@ -125,7 +125,7 @@ export function IOPreview({
   const sharedProps = {
     input,
     output,
-    correctedOutput,
+    outputCorrection,
     metadata,
     parsedInput,
     parsedOutput,
@@ -180,7 +180,7 @@ export function IOPreview({
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           parsedMetadata={parsedMetadata}
-          correctedOutput={correctedOutput}
+          outputCorrection={outputCorrection}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
           hideInput={hideInput}

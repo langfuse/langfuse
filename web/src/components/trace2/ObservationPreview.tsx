@@ -475,7 +475,7 @@ export const ObservationPreview = ({
                   parsedInput={parsedInput}
                   parsedOutput={parsedOutput}
                   parsedMetadata={parsedMetadata}
-                  correctedOutput={
+                  outputCorrection={
                     currentCorrections.length > 0
                       ? currentCorrections[0]
                       : undefined
