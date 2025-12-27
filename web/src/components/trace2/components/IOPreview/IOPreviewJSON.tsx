@@ -16,10 +16,12 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { type ScoreDomain } from "@langfuse/shared";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -50,6 +52,7 @@ export function IOPreviewJSON({
   parsedInput,
   parsedOutput,
   parsedMetadata,
+  outputCorrection,
   isParsing = false,
   hideIfNull = false,
   hideOutput = false,
@@ -72,6 +75,8 @@ export function IOPreviewJSON({
 
   const showInput = !hideInput && !(hideIfNull && parsedInput === undefined);
   const showOutput = !hideOutput && !(hideIfNull && parsedOutput === undefined);
+  const showOutputCorrection =
+    !hideOutput && !(hideIfNull && outputCorrection === undefined);
   const showMetadata = !(hideIfNull && parsedMetadata === undefined);
 
   // Count rows for each section to determine if virtualization is needed
@@ -79,15 +84,17 @@ export function IOPreviewJSON({
     return {
       input: countJsonRows(parsedInput),
       output: countJsonRows(parsedOutput),
+      outputCorrection: countJsonRows(outputCorrection),
       metadata: countJsonRows(parsedMetadata),
     };
-  }, [parsedInput, parsedOutput, parsedMetadata]);
+  }, [parsedInput, parsedOutput, outputCorrection, parsedMetadata]);
 
   // Determine if virtualization is needed based on threshold
   const needsVirtualization = useMemo(() => {
     return (
       rowCounts.input > VIRTUALIZATION_THRESHOLD ||
       rowCounts.output > VIRTUALIZATION_THRESHOLD ||
+      rowCounts.outputCorrection > VIRTUALIZATION_THRESHOLD ||
       rowCounts.metadata > VIRTUALIZATION_THRESHOLD
     );
   }, [rowCounts]);
@@ -203,6 +210,15 @@ export function IOPreviewJSON({
         minHeight: "200px",
       });
     }
+    if (showOutputCorrection) {
+      result.push({
+        key: "outputCorrection",
+        title: "Corrected Output",
+        data: outputCorrection,
+        backgroundColor: outputBgColor,
+        minHeight: "200px",
+      });
+    }
     if (showMetadata) {
       result.push({
         key: "metadata",
@@ -216,9 +232,11 @@ export function IOPreviewJSON({
   }, [
     showInput,
     showOutput,
+    showOutputCorrection,
     showMetadata,
     parsedInput,
     parsedOutput,
+    outputCorrection,
     parsedMetadata,
     inputBgColor,
     outputBgColor,

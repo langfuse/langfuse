@@ -51,6 +51,7 @@ export const ObservationPreview = ({
   observations,
   projectId,
   serverScores: scores,
+  corrections,
   currentObservationId,
   traceId,
   commentCounts,
@@ -62,6 +63,7 @@ export const ObservationPreview = ({
   observations: Array<ObservationReturnType>;
   projectId: string;
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  corrections: ScoreDomain[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -93,6 +95,10 @@ export const ObservationPreview = ({
 
   const currentObservationScores = scores.filter(
     (s) => s.observationId === currentObservationId,
+  );
+
+  const currentCorrections = corrections.filter(
+    (c) => c.observationId === currentObservationId,
   );
 
   // Fetch and parse observation input/output in background (Web Worker)
@@ -469,6 +475,12 @@ export const ObservationPreview = ({
                   parsedInput={parsedInput}
                   parsedOutput={parsedOutput}
                   parsedMetadata={parsedMetadata}
+                  outputCorrection={
+                    currentCorrections.length > 0
+                      ? currentCorrections[0]
+                      : undefined
+                  }
+                  observationId={currentObservationId}
                   isLoading={isLoadingObservation}
                   isParsing={isWaitingForParsing}
                   media={observationMedia.data}

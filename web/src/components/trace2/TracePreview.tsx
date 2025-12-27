@@ -68,6 +68,7 @@ export const TracePreview = ({
   trace,
   observations,
   serverScores: scores,
+  corrections,
   commentCounts,
   viewType = "detailed",
   showCommentButton = false,
@@ -80,6 +81,7 @@ export const TracePreview = ({
   };
   observations: ObservationReturnTypeWithMetadata[];
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  corrections: ScoreDomain[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
   showCommentButton?: boolean;
@@ -115,6 +117,13 @@ export const TracePreview = ({
       staleTime: 50 * 60 * 1000, // 50 minutes
     },
   );
+
+  const traceCorrections = corrections.filter(
+    (c) => c.traceId === trace.id && c.observationId === null,
+  );
+
+  const outputCorrection =
+    traceCorrections.length > 0 ? traceCorrections[0] : undefined;
 
   // Parse trace I/O in background (Web Worker)
   const { parsedInput, parsedOutput, parsedMetadata, isParsing } =
@@ -425,6 +434,7 @@ export const TracePreview = ({
                 key={trace.id + "-io"}
                 input={trace.input ?? undefined}
                 output={trace.output ?? undefined}
+                outputCorrection={outputCorrection}
                 parsedInput={parsedInput}
                 parsedOutput={parsedOutput}
                 parsedMetadata={parsedMetadata}

@@ -111,6 +111,7 @@ export const TraceAnnotationProcessor: React.FC<
               key={data.id}
               trace={data}
               serverScores={data.scores}
+              corrections={data.corrections}
               observations={data.observations}
               viewType="focused"
               showCommentButton={true}
@@ -121,6 +122,7 @@ export const TraceAnnotationProcessor: React.FC<
             <ObservationPreview
               observations={data.observations}
               serverScores={data.scores}
+              corrections={data.corrections}
               projectId={item.projectId}
               currentObservationId={item.objectId}
               precomputedCost={nodeMap.get(item.objectId)?.totalCost}
