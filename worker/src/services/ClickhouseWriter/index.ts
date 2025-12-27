@@ -461,7 +461,14 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await (ClickhouseWriter.client ?? clickhouseClient())
+    await (
+      ClickhouseWriter.client ??
+      clickhouseClient({
+        keep_alive: {
+          enabled: false,
+        },
+      })
+    )
       .insert({
         table: params.table,
         format: "JSONEachRow",
