@@ -19,7 +19,7 @@ service:
       docs: |
         Get a list of observations.
 
-        Consider using the [v2 observations endpoint](/api-reference/observations-v2/getMany) for cursor-based pagination and field selection.
+        Consider using the [v2 observations endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations) for cursor-based pagination and field selection.
       method: GET
       path: /observations
       request:

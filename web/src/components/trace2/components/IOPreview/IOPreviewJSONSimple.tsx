@@ -53,18 +53,21 @@ export function IOPreviewJSONSimple({
   observationId,
 }: IOPreviewJSONSimpleProps) {
   // Parse data if not pre-parsed
-  const effectiveInput = useMemo(
-    () => parsedInput ?? deepParseJson(input),
-    [parsedInput, input],
-  );
-  const effectiveOutput = useMemo(
-    () => parsedOutput ?? deepParseJson(output),
-    [parsedOutput, output],
-  );
-  const effectiveMetadata = useMemo(
-    () => parsedMetadata ?? deepParseJson(metadata),
-    [parsedMetadata, metadata],
-  );
+  // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
+  const effectiveInput = useMemo(() => {
+    if (isParsing) return undefined; // Wait for Web Worker to finish
+    return parsedInput ?? deepParseJson(input);
+  }, [parsedInput, input, isParsing]);
+
+  const effectiveOutput = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedOutput ?? deepParseJson(output);
+  }, [parsedOutput, output, isParsing]);
+
+  const effectiveMetadata = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedMetadata ?? deepParseJson(metadata);
+  }, [parsedMetadata, metadata, isParsing]);
 
   const showInput = !hideInput && !(hideIfNull && !effectiveInput);
   const showOutput = !hideOutput && !(hideIfNull && !effectiveOutput);

@@ -44,6 +44,7 @@ import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
 
 export const ObservationPreview = ({
@@ -100,17 +101,20 @@ export const ObservationPreview = ({
     (c) => c.observationId === currentObservationId,
   );
 
-  const observationWithInputAndOutput = api.observations.byId.useQuery(
-    {
-      observationId: currentObservationId,
-      startTime: currentObservation?.startTime,
-      traceId: traceId,
-      projectId: projectId,
-    },
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes - matches prefetch staleTime
-    },
-  );
+  // Fetch and parse observation input/output in background (Web Worker)
+  const {
+    observation: observationWithIO,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    isLoadingObservation,
+    isWaitingForParsing,
+  } = useParsedObservation({
+    observationId: currentObservationId,
+    traceId: traceId,
+    projectId: projectId,
+    startTime: currentObservation?.startTime,
+  });
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -160,14 +164,14 @@ export const ObservationPreview = ({
             />
           </div>
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            {observationWithInputAndOutput.data && (
+            {observationWithIO && (
               <NewDatasetItemFromExistingObject
                 traceId={preloadedObservation.traceId}
                 observationId={preloadedObservation.id}
                 projectId={projectId}
-                input={observationWithInputAndOutput.data.input}
-                output={observationWithInputAndOutput.data.output}
-                metadata={observationWithInputAndOutput.data.metadata}
+                input={observationWithIO.input}
+                output={observationWithIO.output}
+                metadata={observationWithIO.metadata}
                 key={preloadedObservation.id}
                 size="sm"
               />
@@ -198,11 +202,11 @@ export const ObservationPreview = ({
                     size="sm"
                   />
                 </div>
-                {observationWithInputAndOutput.data &&
-                  isGenerationLike(observationWithInputAndOutput.data.type) && (
+                {observationWithIO &&
+                  isGenerationLike(observationWithIO.type) && (
                     <JumpToPlaygroundButton
                       source="generation"
-                      generation={observationWithInputAndOutput.data}
+                      generation={observationWithIO}
                       analyticsEventName="trace_detail:test_in_playground_button_click"
                       className={cn(isTimeline ? "!hidden" : "")}
                       size="sm"
@@ -465,20 +469,20 @@ export const ObservationPreview = ({
                 <IOPreview
                   key={preloadedObservation.id + "-input"}
                   observationName={preloadedObservation.name ?? undefined}
-                  input={observationWithInputAndOutput.data?.input ?? undefined}
-                  output={
-                    observationWithInputAndOutput.data?.output ?? undefined
-                  }
+                  input={observationWithIO?.input ?? undefined}
+                  output={observationWithIO?.output ?? undefined}
+                  metadata={observationWithIO?.metadata ?? undefined}
+                  parsedInput={parsedInput}
+                  parsedOutput={parsedOutput}
+                  parsedMetadata={parsedMetadata}
                   correctedOutput={
                     currentCorrections.length > 0
                       ? currentCorrections[0]
                       : undefined
                   }
                   observationId={currentObservationId}
-                  metadata={
-                    observationWithInputAndOutput.data?.metadata ?? undefined
-                  }
-                  isLoading={observationWithInputAndOutput.isLoading}
+                  isLoading={isLoadingObservation}
+                  isParsing={isWaitingForParsing}
                   media={observationMedia.data}
                   currentView={currentView}
                   setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -505,11 +509,11 @@ export const ObservationPreview = ({
                 )}
               </div>
               <div className="px-2">
-                {observationWithInputAndOutput.data?.metadata && (
+                {observationWithIO?.metadata && (
                   <PrettyJsonView
-                    key={observationWithInputAndOutput.data.id + "-metadata"}
+                    key={observationWithIO.id + "-metadata"}
                     title="Metadata"
-                    json={observationWithInputAndOutput.data.metadata}
+                    json={observationWithIO.metadata}
                     media={observationMedia.data?.filter(
                       (m) => m.field === "metadata",
                     )}

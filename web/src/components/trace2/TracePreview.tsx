@@ -39,6 +39,7 @@ import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { TraceLogView } from "@/src/components/trace2/components/TraceLogView/TraceLogView";
+import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { TraceDataProvider } from "@/src/components/trace2/contexts/TraceDataContext";
 import { ViewPreferencesProvider } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import {
@@ -125,6 +126,14 @@ export const TracePreview = ({
     traceCorrections.length > 0
       ? traceCorrections[0].longStringValue
       : undefined;
+  // Parse trace I/O in background (Web Worker)
+  const { parsedInput, parsedOutput, parsedMetadata, isParsing } =
+    useParsedTrace({
+      traceId: trace.id,
+      input: trace.input,
+      output: trace.output,
+      metadata: trace.metadata,
+    });
 
   const totalCost = precomputedCost;
 
@@ -427,6 +436,10 @@ export const TracePreview = ({
                 input={trace.input ?? undefined}
                 output={trace.output ?? undefined}
                 correctedOutput={correctedOutput}
+                parsedInput={parsedInput}
+                parsedOutput={parsedOutput}
+                parsedMetadata={parsedMetadata}
+                isParsing={isParsing}
                 media={traceMedia.data}
                 currentView={currentView}
                 setIsPrettyViewAvailable={setIsPrettyViewAvailable}
