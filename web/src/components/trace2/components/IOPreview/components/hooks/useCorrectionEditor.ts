@@ -34,7 +34,7 @@ export function useCorrectionEditor({
     if (!value && actualOutput) {
       try {
         setValue(JSON.stringify(actualOutput, null, 2));
-      } catch (e) {
+      } catch {
         setValue(String(actualOutput));
       }
     }
