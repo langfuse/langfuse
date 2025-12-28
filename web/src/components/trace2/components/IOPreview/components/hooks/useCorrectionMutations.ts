@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { api } from "@/src/utils/api";
 import { useCorrectionCache } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { type ScoreDomain } from "@langfuse/shared";
@@ -8,7 +8,10 @@ interface UseCorrectionMutationsParams {
   traceId: string;
   observationId: string | undefined;
   environment: string | undefined;
-  effectiveCorrection: ScoreDomain | null | undefined;
+  effectiveCorrection:
+    | Pick<ScoreDomain, "id" | "longStringValue" | "timestamp">
+    | null
+    | undefined;
 }
 
 /**
@@ -29,89 +32,109 @@ export function useCorrectionMutations({
 
   const upsertMutation = api.scores.upsertCorrection.useMutation({
     onMutate: async () => {
-      // Optimistic update: cache metadata only
-      const tempId = effectiveCorrection?.id ?? `temp-${Date.now()}`;
-      correctionCache.set(tempId, {
-        id: tempId,
+      // Get previous cache value for rollback
+      const previousValue = effectiveCorrection?.id
+        ? correctionCache.get(effectiveCorrection.id)
+        : undefined;
+
+      // Use existing ID or create temp ID
+      const id = effectiveCorrection?.id ?? `temp-${Date.now()}`;
+
+      // Write to cache with isSaving flag (no value stored)
+      correctionCache.set(id, {
+        id,
         timestamp: new Date(),
         projectId,
         traceId,
-        observationId,
+        observationId: observationId ?? null,
         environment,
+        isSaving: true,
       });
-      setSaveStatus("saved");
-      return { tempId };
+
+      setSaveStatus("saving");
+      return { previousValue, id };
     },
-    onError: (error, vars, context) => {
+    onError: (error, _, context) => {
       console.error("Failed to save correction:", error);
-      if (context?.tempId) {
-        correctionCache.rollbackSet(context.tempId);
+      if (!context?.id) return;
+
+      if (context.previousValue) {
+        // Restore previous value
+        correctionCache.set(context.id, context.previousValue);
+      } else {
+        // No previous value - rollback optimistic create
+        correctionCache.rollbackSet(context.id);
       }
       setSaveStatus("idle");
     },
-    onSuccess: (data, vars, context) => {
-      // Replace temp ID with real ID from server
-      if (context?.tempId && data.id !== context.tempId) {
-        correctionCache.rollbackSet(context.tempId);
-      }
-      correctionCache.set(data.id, {
-        id: data.id,
-        timestamp: data.timestamp,
-        projectId,
-        traceId,
-        observationId,
-        environment,
-      });
+    onSuccess: (data) => {
+      // Clear cache - server now has the value, no need to track
+      correctionCache.rollbackSet(data.id);
+
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
       // Invalidate queries to refetch full data with value
       void utils.observations.byId.invalidate();
+      void utils.traces.byId.invalidate();
     },
   });
 
   const deleteMutation = api.scores.deleteAnnotationScore.useMutation({
     onMutate: async () => {
       if (!effectiveCorrection) return;
-      // Optimistic delete
+
+      // Get previous cache value for rollback
+      const previousValue = correctionCache.get(effectiveCorrection.id);
+
+      // Mark as deleted in cache
       correctionCache.delete(effectiveCorrection.id);
-      return { deletedCorrection: effectiveCorrection };
+
+      return { previousValue };
     },
-    onError: (error, vars, context) => {
+    onError: (error, _, context) => {
       console.error("Failed to delete correction:", error);
-      if (context?.deletedCorrection) {
-        correctionCache.rollbackDelete(context.deletedCorrection.id, {
-          id: context.deletedCorrection.id,
-          timestamp: context.deletedCorrection.timestamp,
-          projectId,
-          traceId,
-          observationId,
-          environment,
-        });
+      // Rollback delete
+      if (context?.previousValue) {
+        correctionCache.rollbackDelete(
+          context.previousValue.id,
+          context.previousValue,
+        );
       }
     },
     onSuccess: () => {
       void utils.observations.byId.invalidate();
+      void utils.traces.byId.invalidate();
     },
   });
 
-  const handleSave = (value: string) => {
-    upsertMutation.mutate({
+  const handleSave = useCallback(
+    (value: string) => {
+      upsertMutation.mutate({
+        projectId,
+        id: effectiveCorrection?.id,
+        environment,
+        traceId,
+        observationId,
+        value,
+      });
+    },
+    [
       projectId,
-      id: effectiveCorrection?.id,
-      environment,
       traceId,
       observationId,
-      value,
-    });
-  };
+      environment,
+      effectiveCorrection?.id,
+      upsertMutation,
+    ],
+  );
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (!effectiveCorrection) return;
     deleteMutation.mutate({
       projectId,
       id: effectiveCorrection.id,
     });
-  };
+  }, [projectId, effectiveCorrection, deleteMutation]);
 
   return {
     saveStatus,

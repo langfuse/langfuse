@@ -773,12 +773,13 @@ export const scoresRouter = createTRPCRouter({
       const score = !!clickhouseScore
         ? {
             ...clickhouseScore,
-            value: input.value,
+            value: 0,
             stringValue: null,
             comment: null,
             metadata: {},
             authorUserId: ctx.session.user.id,
             queueId: input.queueId ?? null,
+            longStringValue: input.value,
           }
         : {
             id: input.id ?? v4(),
@@ -789,7 +790,7 @@ export const scoresRouter = createTRPCRouter({
             sessionId: null,
             // only trace and session scores are supported for annotation
             datasetRunId: null,
-            value: input.value,
+            value: 0,
             stringValue: null,
             dataType: ScoreDataTypeEnum.CORRECTION,
             configId: null,

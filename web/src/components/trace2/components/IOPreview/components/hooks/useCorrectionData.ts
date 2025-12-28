@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useCorrectionCache } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { type ScoreDomain } from "@langfuse/shared";
+import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 
 /**
  * Merges cached correction metadata with server data
@@ -12,18 +13,21 @@ export function useCorrectionData(
   observationId: string | undefined,
 ) {
   const correctionCache = useCorrectionCache();
+  const { trace } = useTraceData();
 
-  // Get cached correction metadata
+  // Get cached correction metadata - for observation or trace level
   const cachedMeta = useMemo(() => {
-    return observationId
-      ? correctionCache.getForObservation(observationId)
-      : undefined;
-  }, [correctionCache, observationId]);
+    if (observationId) {
+      return correctionCache.getForObservation(trace.id, observationId);
+    }
+    return correctionCache.getForTrace(trace.id);
+  }, [correctionCache, observationId, trace.id]);
 
   // Merge: cache metadata takes precedence for existence/timestamp,
   // but value always comes from server (not cached)
   const effectiveCorrection = useMemo(() => {
     if (!cachedMeta) return existingCorrection;
+
     return {
       ...existingCorrection,
       id: cachedMeta.id,
@@ -38,15 +42,20 @@ export function useCorrectionData(
       : false;
   }, [effectiveCorrection?.id, correctionCache]);
 
-  // Extract value from correction
+  // Extract value from correction (always from server)
   const correctionValue = useMemo(() => {
-    if (!effectiveCorrection?.longStringValue) return "";
-    return effectiveCorrection.longStringValue;
+    return effectiveCorrection?.longStringValue ?? "";
   }, [effectiveCorrection]);
+
+  // Check if save is in progress
+  const isSaving = useMemo(() => {
+    return cachedMeta?.isSaving ?? false;
+  }, [cachedMeta]);
 
   return {
     effectiveCorrection,
     isDeleted,
     correctionValue,
+    isSaving,
   };
 }

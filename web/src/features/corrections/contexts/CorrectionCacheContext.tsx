@@ -9,7 +9,8 @@ import {
 /**
  * Cached correction metadata - stored in client-side cache for optimistic updates
  *
- * Note: Value is NOT cached to avoid large JSON blobs in memory
+ * Note: Values are NOT cached to avoid large JSON blobs in memory.
+ * Cache only tracks metadata and mutation state.
  *
  * Corrections are special annotation scores with the following constraints:
  * - Name is always "output"
@@ -21,8 +22,9 @@ export type CachedCorrectionMeta = {
   timestamp: Date;
   projectId: string;
   traceId: string;
-  observationId?: string;
+  observationId?: string | null;
   environment?: string;
+  isSaving?: boolean; // Indicates mutation in progress (upsert or delete)
 };
 
 type CorrectionCacheContextValue = {
@@ -32,10 +34,14 @@ type CorrectionCacheContextValue = {
   /** Retrieve a correction from the cache */
   get: (id: string) => CachedCorrectionMeta | undefined;
 
-  /** Get correction for a specific observation */
+  /** Get correction for a specific observation within a trace */
   getForObservation: (
+    traceId: string,
     observationId: string,
   ) => CachedCorrectionMeta | undefined;
+
+  /** Get correction for a trace (where observationId is null/undefined) */
+  getForTrace: (traceId: string) => CachedCorrectionMeta | undefined;
 
   /** Mark a correction as deleted (user-initiated delete, adds to deletedIds Set + removes from cache Map) */
   delete: (id: string) => void;
@@ -79,10 +85,24 @@ export function CorrectionCacheProvider({ children }: { children: ReactNode }) {
   );
 
   const getForObservation = useCallback(
-    (observationId: string) => {
+    (traceId: string, observationId: string) => {
       return Array.from(cache.values()).find(
         (meta) =>
-          meta.observationId === observationId && !deletedIds.has(meta.id),
+          meta.traceId === traceId &&
+          meta.observationId === observationId &&
+          !deletedIds.has(meta.id),
+      );
+    },
+    [cache, deletedIds],
+  );
+
+  const getForTrace = useCallback(
+    (traceId: string) => {
+      return Array.from(cache.values()).find(
+        (meta) =>
+          meta.traceId === traceId &&
+          (meta.observationId === null || meta.observationId === undefined) &&
+          !deletedIds.has(meta.id),
       );
     },
     [cache, deletedIds],
@@ -151,6 +171,7 @@ export function CorrectionCacheProvider({ children }: { children: ReactNode }) {
         set,
         get,
         getForObservation,
+        getForTrace,
         delete: deleteCorrection,
         rollbackSet,
         rollbackDelete,
