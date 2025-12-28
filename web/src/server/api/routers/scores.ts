@@ -732,7 +732,7 @@ export const scoresRouter = createTRPCRouter({
         traceId: z.string(),
         observationId: z.string().optional(),
         value: z.string(),
-        timestamp: z.date().optional(),
+        timestamp: z.date(),
         queueId: z.string().optional(),
       }),
     )
@@ -768,7 +768,7 @@ export const scoresRouter = createTRPCRouter({
         ScoreDataTypeEnum.CORRECTION,
       );
 
-      const timestamp = input.timestamp ?? new Date();
+      const timestamp = input.timestamp;
 
       const score = !!clickhouseScore
         ? {
