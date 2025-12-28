@@ -485,6 +485,7 @@ export const TracePreview = ({
               trace={trace}
               observations={observations}
               serverScores={scores}
+              corrections={corrections}
               comments={commentCounts ?? new Map()}
             >
               <ViewPreferencesProvider>

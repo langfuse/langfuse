@@ -140,6 +140,7 @@ export const TraceAnnotationProcessor: React.FC<
           key={data.id}
           trace={data}
           scores={data.scores}
+          corrections={data.corrections}
           projectId={data.projectId}
           observations={data.observations}
           viewType="focused"

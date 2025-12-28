@@ -42,6 +42,7 @@ import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -50,6 +51,7 @@ export interface TraceDetailViewProps {
     output: string | null;
   };
   observations: ObservationReturnTypeWithMetadata[];
+  corrections: ScoreDomain[];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   projectId: string;
 }
@@ -58,6 +60,7 @@ export function TraceDetailView({
   trace,
   observations,
   scores,
+  corrections,
   projectId,
 }: TraceDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
@@ -92,6 +95,13 @@ export function TraceDetailView({
     () => scores.filter((s) => !s.observationId),
     [scores],
   );
+
+  const traceCorrections = useMemo(
+    () => corrections.filter((c) => !c.observationId),
+    [corrections],
+  );
+
+  const outputCorrection = getMostRecentCorrection(traceCorrections);
 
   const showLogViewTab = observations.length > 0;
 
@@ -277,6 +287,7 @@ export function TraceDetailView({
               input={trace.input ?? undefined}
               output={trace.output ?? undefined}
               metadata={trace.metadata ?? undefined}
+              outputCorrection={outputCorrection}
               parsedInput={parsedInput}
               parsedOutput={parsedOutput}
               parsedMetadata={parsedMetadata}

@@ -191,6 +191,7 @@ export function IOPreview({
           onInputExpansionChange={onInputExpansionChange}
           onOutputExpansionChange={onOutputExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
+          observationId={observationId}
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple {...sharedProps} />
