@@ -23,9 +23,13 @@ export function useCorrectionEditor({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Update value when correction changes from server
+  // Sync local value with correctionValue from cache/server
+  // Only update if the values are different (prevents overwriting user's current typing)
   useEffect(() => {
-    setValue(correctionValue);
+    setValue((currentValue) => {
+      // Only update if correctionValue is different from current local value
+      return currentValue === correctionValue ? currentValue : correctionValue;
+    });
   }, [correctionValue]);
 
   const handleEdit = useCallback(() => {
@@ -44,6 +48,7 @@ export function useCorrectionEditor({
 
   const handleChange = useCallback(
     (newValue: string) => {
+      // Update local state immediately for responsive typing
       setValue(newValue);
       setSaveStatus("saving");
 
@@ -52,7 +57,7 @@ export function useCorrectionEditor({
         clearTimeout(timeoutRef.current);
       }
 
-      // Debounced save
+      // Debounced save - triggers mutation (which updates cache) after 500ms
       timeoutRef.current = setTimeout(() => {
         onSave(newValue);
       }, debounceMs);
@@ -62,6 +67,7 @@ export function useCorrectionEditor({
 
   const handleBlur = useCallback(() => {
     setIsEditing(false);
+    // Note: Local value persists after blur. It will only update when cache/server value changes.
   }, []);
 
   return {

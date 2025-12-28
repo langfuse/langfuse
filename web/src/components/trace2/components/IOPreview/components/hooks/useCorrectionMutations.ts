@@ -31,7 +31,7 @@ export function useCorrectionMutations({
   );
 
   const upsertMutation = api.scores.upsertCorrection.useMutation({
-    onMutate: async () => {
+    onMutate: async (variables) => {
       // Get previous cache value for rollback
       const previousValue = effectiveCorrection?.id
         ? correctionCache.get(effectiveCorrection.id)
@@ -40,7 +40,7 @@ export function useCorrectionMutations({
       // Use existing ID or create temp ID
       const id = effectiveCorrection?.id ?? `temp-${Date.now()}`;
 
-      // Write to cache with isSaving flag (no value stored)
+      // Write to cache with full value for optimistic updates
       correctionCache.set(id, {
         id,
         timestamp: new Date(),
@@ -48,6 +48,7 @@ export function useCorrectionMutations({
         traceId,
         observationId: observationId ?? null,
         environment,
+        value: variables.value, // Store full value
         isSaving: true,
       });
 
@@ -68,8 +69,17 @@ export function useCorrectionMutations({
       setSaveStatus("idle");
     },
     onSuccess: (data) => {
-      // Clear cache - server now has the value, no need to track
-      correctionCache.rollbackSet(data.id);
+      // Update cache with final server ID and clear saving state
+      correctionCache.set(data.id, {
+        id: data.id,
+        timestamp: new Date(data.timestamp),
+        projectId,
+        traceId,
+        observationId: observationId ?? null,
+        environment,
+        value: data.longStringValue ?? "",
+        isSaving: false,
+      });
 
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);

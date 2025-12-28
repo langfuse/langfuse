@@ -4,9 +4,9 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 
 /**
- * Merges cached correction metadata with server data
- * Cache takes precedence for existence/timestamp (optimistic updates)
- * Value always comes from server (not cached to avoid memory bloat)
+ * Merges cached correction with server data
+ * Cache takes precedence for optimistic updates (includes full value)
+ * Falls back to server data when cache is empty
  */
 export function useCorrectionData(
   existingCorrection: ScoreDomain | null | undefined,
@@ -15,7 +15,7 @@ export function useCorrectionData(
   const correctionCache = useCorrectionCache();
   const { trace } = useTraceData();
 
-  // Get cached correction metadata - for observation or trace level
+  // Get cached correction - for observation or trace level
   const cachedMeta = useMemo(() => {
     if (observationId) {
       return correctionCache.getForObservation(trace.id, observationId);
@@ -23,8 +23,7 @@ export function useCorrectionData(
     return correctionCache.getForTrace(trace.id);
   }, [correctionCache, observationId, trace.id]);
 
-  // Merge: cache metadata takes precedence for existence/timestamp,
-  // but value always comes from server (not cached)
+  // Merge: cache takes precedence for optimistic updates
   const effectiveCorrection = useMemo(() => {
     if (!cachedMeta) return existingCorrection;
 
@@ -32,6 +31,7 @@ export function useCorrectionData(
       ...existingCorrection,
       id: cachedMeta.id,
       timestamp: cachedMeta.timestamp,
+      longStringValue: cachedMeta.value, // Use cached value for optimistic updates
     } as ScoreDomain;
   }, [cachedMeta, existingCorrection]);
 
@@ -42,10 +42,15 @@ export function useCorrectionData(
       : false;
   }, [effectiveCorrection?.id, correctionCache]);
 
-  // Extract value from correction (always from server)
+  // Extract value - prefer cached value (optimistic) over server value
   const correctionValue = useMemo(() => {
-    return effectiveCorrection?.longStringValue ?? "";
-  }, [effectiveCorrection]);
+    // If we have cached value, use it (optimistic update)
+    if (cachedMeta?.value !== undefined) {
+      return cachedMeta.value;
+    }
+    // Otherwise use server value
+    return existingCorrection?.longStringValue ?? "";
+  }, [cachedMeta, existingCorrection]);
 
   // Check if save is in progress
   const isSaving = useMemo(() => {

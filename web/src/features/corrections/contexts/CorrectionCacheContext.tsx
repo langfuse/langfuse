@@ -7,10 +7,9 @@ import {
 } from "react";
 
 /**
- * Cached correction metadata - stored in client-side cache for optimistic updates
+ * Cached correction - stored in client-side cache for optimistic updates
  *
- * Note: Values are NOT cached to avoid large JSON blobs in memory.
- * Cache only tracks metadata and mutation state.
+ * Stores full value for optimistic UI updates. Values are cleared once mutation completes.
  *
  * Corrections are special annotation scores with the following constraints:
  * - Name is always "output"
@@ -24,6 +23,7 @@ export type CachedCorrectionMeta = {
   traceId: string;
   observationId?: string | null;
   environment?: string;
+  value: string; // Full correction value for optimistic updates
   isSaving?: boolean; // Indicates mutation in progress (upsert or delete)
 };
 

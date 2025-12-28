@@ -26,8 +26,10 @@ export function CorrectedOutputField({
   const environment = trace.environment;
 
   // Merge cache + server data
-  const { effectiveCorrection, isDeleted, correctionValue, isSaving } =
-    useCorrectionData(existingCorrection, observationId);
+  const { effectiveCorrection, correctionValue } = useCorrectionData(
+    existingCorrection,
+    observationId,
+  );
 
   // Handle mutations with optimistic updates
   const { saveStatus, setSaveStatus, handleSave, handleDelete } =
@@ -53,9 +55,6 @@ export function CorrectedOutputField({
     onSave: handleSave,
     setSaveStatus,
   });
-
-  // Don't show if deleted
-  if (isDeleted) return null;
 
   const hasContent = value.trim().length > 0;
 
@@ -99,20 +98,14 @@ export function CorrectedOutputField({
         </div>
 
         {!hasContent && !isEditing ? (
-          isSaving ? (
-            <div className="w-full rounded-md border bg-muted/30 px-3 py-8 text-center text-sm text-muted-foreground">
-              Saving in background... Please wait or refresh to see the value.
-            </div>
-          ) : (
-            <button
-              onClick={handleEdit}
-              className={cn(
-                "w-full cursor-pointer rounded-md border px-3 py-8 text-center text-sm text-muted-foreground transition-colors hover:bg-muted/50",
-              )}
-            >
-              Click to add corrected output
-            </button>
-          )
+          <button
+            onClick={handleEdit}
+            className={cn(
+              "w-full cursor-pointer rounded-md border px-3 py-8 text-center text-sm text-muted-foreground transition-colors hover:bg-muted/50",
+            )}
+          >
+            Click to add corrected output
+          </button>
         ) : isEditing ? (
           <textarea
             ref={textareaRef}
