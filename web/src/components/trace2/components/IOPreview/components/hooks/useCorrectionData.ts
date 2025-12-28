@@ -23,17 +23,29 @@ export function useCorrectionData(
     return correctionCache.getForTrace(trace.id);
   }, [correctionCache, observationId, trace.id]);
 
-  // Merge: cache takes precedence for optimistic updates
+  // Merge: cache is source of truth, always prefer cache over server
   const effectiveCorrection = useMemo(() => {
-    if (!cachedMeta) return existingCorrection;
+    // 1. If cache exists (new/edited/being saved), use cache as source of truth
+    if (cachedMeta) {
+      return {
+        ...existingCorrection,
+        id: cachedMeta.id,
+        timestamp: cachedMeta.timestamp,
+        longStringValue: cachedMeta.value, // Use cached value for optimistic updates
+      } as ScoreDomain;
+    }
 
-    return {
-      ...existingCorrection,
-      id: cachedMeta.id,
-      timestamp: cachedMeta.timestamp,
-      longStringValue: cachedMeta.value, // Use cached value for optimistic updates
-    } as ScoreDomain;
-  }, [cachedMeta, existingCorrection]);
+    // 2. If cache marks server correction as deleted, return null
+    if (
+      existingCorrection?.id &&
+      correctionCache.isDeleted(existingCorrection.id)
+    ) {
+      return null;
+    }
+
+    // 3. Otherwise, use server correction
+    return existingCorrection;
+  }, [cachedMeta, existingCorrection, correctionCache]);
 
   // Check if deleted in cache
   const isDeleted = useMemo(() => {
@@ -44,13 +56,17 @@ export function useCorrectionData(
 
   // Extract value - prefer cached value (optimistic) over server value
   const correctionValue = useMemo(() => {
+    // If deleted, return empty string
+    if (isDeleted) {
+      return "";
+    }
     // If we have cached value, use it (optimistic update)
     if (cachedMeta?.value !== undefined) {
       return cachedMeta.value;
     }
     // Otherwise use server value
     return existingCorrection?.longStringValue ?? "";
-  }, [cachedMeta, existingCorrection]);
+  }, [cachedMeta, existingCorrection, isDeleted]);
 
   // Check if save is in progress
   const isSaving = useMemo(() => {

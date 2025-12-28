@@ -24,12 +24,9 @@ export function useCorrectionEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync local value with correctionValue from cache/server
-  // Only update if the values are different (prevents overwriting user's current typing)
+  // This includes handling deletions (correctionValue becomes empty string)
   useEffect(() => {
-    setValue((currentValue) => {
-      // Only update if correctionValue is different from current local value
-      return currentValue === correctionValue ? currentValue : correctionValue;
-    });
+    setValue(correctionValue);
   }, [correctionValue]);
 
   const handleEdit = useCallback(() => {

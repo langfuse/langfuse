@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import { api } from "@/src/utils/api";
 import { useCorrectionCache } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { type ScoreDomain } from "@langfuse/shared";
+import { toast } from "sonner";
+import { v4 } from "uuid";
 
 interface UseCorrectionMutationsParams {
   projectId: string;
@@ -32,13 +34,11 @@ export function useCorrectionMutations({
 
   const upsertMutation = api.scores.upsertCorrection.useMutation({
     onMutate: async (variables) => {
-      // Get previous cache value for rollback
-      const previousValue = effectiveCorrection?.id
-        ? correctionCache.get(effectiveCorrection.id)
-        : undefined;
-
       // Use existing ID or create temp ID
-      const id = effectiveCorrection?.id ?? `temp-${Date.now()}`;
+      const id = variables.id ?? `temp-${Date.now()}`;
+
+      // Get previous cache value for rollback
+      const previousValue = correctionCache.get(id);
 
       // Write to cache with full value for optimistic updates
       correctionCache.set(id, {
@@ -56,7 +56,6 @@ export function useCorrectionMutations({
       return { previousValue, id };
     },
     onError: (error, _, context) => {
-      console.error("Failed to save correction:", error);
       if (!context?.id) return;
 
       if (context.previousValue) {
@@ -69,7 +68,7 @@ export function useCorrectionMutations({
       setSaveStatus("idle");
     },
     onSuccess: (data) => {
-      // Update cache with final server ID and clear saving state
+      // Update cache with server response and clear saving state
       correctionCache.set(data.id, {
         id: data.id,
         timestamp: new Date(data.timestamp),
@@ -96,22 +95,26 @@ export function useCorrectionMutations({
       // Get previous cache value for rollback
       const previousValue = correctionCache.get(effectiveCorrection.id);
 
-      // Mark as deleted in cache
+      // Mark as deleted in cache (optimistic delete)
       correctionCache.delete(effectiveCorrection.id);
 
-      return { previousValue };
+      return { previousValue, correctionId: effectiveCorrection.id };
     },
     onError: (error, _, context) => {
-      console.error("Failed to delete correction:", error);
-      // Rollback delete
-      if (context?.previousValue) {
+      toast.error("Failed to delete correction");
+      // Rollback delete - restore to cache if we had a previous value
+      if (context?.correctionId) {
         correctionCache.rollbackDelete(
-          context.previousValue.id,
+          context.correctionId,
           context.previousValue,
         );
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, __, context) => {
+      // Keep correction in deleted state (already done in onMutate)
+      // The cache will continue to return empty string for this correction
+
+      // Invalidate queries so server refetches without the deleted correction
       void utils.observations.byId.invalidate();
       void utils.traces.byId.invalidate();
     },
@@ -119,9 +122,13 @@ export function useCorrectionMutations({
 
   const handleSave = useCallback(
     (value: string) => {
+      const isDeleted = correctionCache.isDeleted(
+        effectiveCorrection?.id ?? "",
+      );
+
       upsertMutation.mutate({
         projectId,
-        id: effectiveCorrection?.id,
+        id: isDeleted ? v4() : (effectiveCorrection?.id ?? v4()),
         environment,
         traceId,
         observationId,
@@ -135,6 +142,7 @@ export function useCorrectionMutations({
       environment,
       effectiveCorrection?.id,
       upsertMutation,
+      correctionCache,
     ],
   );
 

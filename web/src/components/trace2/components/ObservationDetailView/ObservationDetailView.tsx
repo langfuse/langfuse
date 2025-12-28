@@ -87,8 +87,6 @@ export function ObservationDetailView({
     [corrections, observation.id],
   );
 
-  console.log("observationCorrections", observationCorrections);
-  console.log("corrections prop", corrections);
   const outputCorrection = getMostRecentCorrection(observationCorrections);
 
   // Fetch and parse observation input/output in background (Web Worker)
