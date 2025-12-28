@@ -27,23 +27,19 @@ export function useCorrectionMutations({
   effectiveCorrection,
 }: UseCorrectionMutationsParams) {
   const correctionCache = useCorrectionCache();
-  const utils = api.useUtils();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
 
   const upsertMutation = api.scores.upsertCorrection.useMutation({
     onMutate: async (variables) => {
-      // Use existing ID or create temp ID
-      const id = variables.id ?? `temp-${Date.now()}`;
-
       // Get previous cache value for rollback
-      const previousValue = correctionCache.get(id);
+      const previousValue = correctionCache.get(variables.id);
 
       // Write to cache with full value for optimistic updates
-      correctionCache.set(id, {
-        id,
-        timestamp: new Date(),
+      correctionCache.set(variables.id, {
+        id: variables.id,
+        timestamp: variables.timestamp,
         projectId,
         traceId,
         observationId: observationId ?? null,
@@ -53,7 +49,7 @@ export function useCorrectionMutations({
       });
 
       setSaveStatus("saving");
-      return { previousValue, id };
+      return { previousValue, id: variables.id };
     },
     onError: (error, _, context) => {
       if (!context?.id) return;
@@ -81,10 +77,6 @@ export function useCorrectionMutations({
       });
 
       setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2000);
-      // Invalidate queries to refetch full data with value
-      void utils.observations.byId.invalidate();
-      void utils.traces.byId.invalidate();
     },
   });
 
@@ -110,14 +102,6 @@ export function useCorrectionMutations({
         );
       }
     },
-    onSuccess: (_, __, context) => {
-      // Keep correction in deleted state (already done in onMutate)
-      // The cache will continue to return empty string for this correction
-
-      // Invalidate queries so server refetches without the deleted correction
-      void utils.observations.byId.invalidate();
-      void utils.traces.byId.invalidate();
-    },
   });
 
   const handleSave = useCallback(
@@ -133,6 +117,7 @@ export function useCorrectionMutations({
         traceId,
         observationId,
         value,
+        timestamp: new Date(),
       });
     },
     [
