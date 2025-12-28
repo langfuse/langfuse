@@ -493,6 +493,9 @@ export const ObservationPreview = ({
                   onOutputExpansionChange={(expansion) =>
                     setFieldExpansion("output", expansion)
                   }
+                  projectId={projectId}
+                  traceId={traceId}
+                  environment={preloadedObservation.environment}
                 />
               </div>
               <div>

@@ -450,6 +450,9 @@ export const TracePreview = ({
                 onOutputExpansionChange={(expansion) =>
                   setFieldExpansion("output", expansion)
                 }
+                projectId={trace.projectId}
+                traceId={trace.id}
+                environment={trace.environment}
               />
 
               {trace.tags.length > 0 && (

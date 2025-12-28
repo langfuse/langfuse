@@ -1,13 +1,15 @@
 import { Pencil, Trash } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { type ScoreDomain } from "@langfuse/shared";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import { useCorrectionMutations } from "./hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
 
 interface CorrectedOutputFieldProps {
+  projectId: string;
+  traceId: string;
+  environment: string;
   actualOutput?: unknown;
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
@@ -17,18 +19,15 @@ export function CorrectedOutputField({
   actualOutput,
   existingCorrection,
   observationId,
+  projectId,
+  traceId,
+  environment = "default",
 }: CorrectedOutputFieldProps) {
-  const { trace } = useTraceData();
-
-  // Get data from trace context
-  const projectId = trace.projectId;
-  const traceId = trace.id;
-  const environment = trace.environment;
-
   // Merge cache + server data
   const { effectiveCorrection, correctionValue } = useCorrectionData(
     existingCorrection,
     observationId,
+    traceId,
   );
 
   // Handle mutations with optimistic updates

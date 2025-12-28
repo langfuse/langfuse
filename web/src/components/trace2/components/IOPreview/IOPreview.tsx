@@ -52,7 +52,11 @@ export interface IOPreviewProps extends ExpansionStateProps {
   showMetadata?: boolean;
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
-  observationId?: string; // For CorrectedOutputField
+  // For CorrectedOutputField
+  observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
 }
 
 /**
@@ -92,6 +96,9 @@ export function IOPreview({
   showMetadata = false,
   onVirtualizationChange,
   observationId,
+  projectId,
+  traceId,
+  environment = "default",
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -141,6 +148,9 @@ export function IOPreview({
     onInputExpansionChange,
     onOutputExpansionChange,
     observationId,
+    projectId,
+    traceId,
+    environment,
   };
 
   // Only show empty state popup for traces (not observations) when there's no input/output
@@ -192,6 +202,9 @@ export function IOPreview({
           onOutputExpansionChange={onOutputExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
           observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple {...sharedProps} />

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useCorrectionCache } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { type ScoreDomain } from "@langfuse/shared";
-import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 
 /**
  * Merges cached correction with server data
@@ -11,17 +10,18 @@ import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext"
 export function useCorrectionData(
   existingCorrection: ScoreDomain | null | undefined,
   observationId: string | undefined,
+  traceId: string,
 ) {
   const correctionCache = useCorrectionCache();
-  const { trace } = useTraceData();
 
   // Get cached correction - for observation or trace level
+  // NOTE: getForObservation/getForTrace filter out deleted items
   const cachedMeta = useMemo(() => {
     if (observationId) {
-      return correctionCache.getForObservation(trace.id, observationId);
+      return correctionCache.getForObservation(traceId, observationId);
     }
-    return correctionCache.getForTrace(trace.id);
-  }, [correctionCache, observationId, trace.id]);
+    return correctionCache.getForTrace(traceId);
+  }, [correctionCache, observationId, traceId]);
 
   // Merge: cache is source of truth, always prefer cache over server
   const effectiveCorrection = useMemo(() => {
@@ -35,7 +35,7 @@ export function useCorrectionData(
       } as ScoreDomain;
     }
 
-    // 2. If cache marks server correction as deleted, return null
+    // 2. If server correction is marked as deleted, return null
     if (
       existingCorrection?.id &&
       correctionCache.isDeleted(existingCorrection.id)
@@ -47,12 +47,12 @@ export function useCorrectionData(
     return existingCorrection;
   }, [cachedMeta, existingCorrection, correctionCache]);
 
-  // Check if deleted in cache
+  // Check if deleted - check server correction ID since that's what we delete
   const isDeleted = useMemo(() => {
-    return effectiveCorrection?.id
-      ? correctionCache.isDeleted(effectiveCorrection.id)
+    return existingCorrection?.id
+      ? correctionCache.isDeleted(existingCorrection.id)
       : false;
-  }, [effectiveCorrection?.id, correctionCache]);
+  }, [existingCorrection?.id, correctionCache]);
 
   // Extract value - prefer cached value (optimistic) over server value
   const correctionValue = useMemo(() => {

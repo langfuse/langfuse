@@ -214,6 +214,9 @@ export function ObservationDetailView({
               showMetadata
               observationId={observation.id}
               onVirtualizationChange={setIsJSONBetaVirtualized}
+              projectId={projectId}
+              traceId={traceId}
+              environment={observation.environment}
             />
             {currentView !== "json-beta" && (
               <div className="h-4 w-full flex-shrink-0" />

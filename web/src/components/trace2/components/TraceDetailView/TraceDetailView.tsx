@@ -303,6 +303,9 @@ export function TraceDetailView({
               }
               showMetadata
               onVirtualizationChange={setIsJSONBetaVirtualized}
+              projectId={projectId}
+              traceId={trace.id}
+              environment={trace.environment}
             />
           </div>
         </TabsBarContent>

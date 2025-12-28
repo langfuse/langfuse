@@ -36,6 +36,9 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
   observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
 }
 
 /**
@@ -62,6 +65,9 @@ export function IOPreviewJSON({
   media,
   onVirtualizationChange,
   observationId,
+  projectId,
+  traceId,
+  environment = "default",
 }: IOPreviewJSONProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -395,6 +401,9 @@ export function IOPreviewJSON({
           actualOutput={parsedOutput}
           existingCorrection={outputCorrection}
           observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
         />
       </div>
     </div>

@@ -95,6 +95,9 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   // Whether to show metadata section (default: false)
   showMetadata?: boolean;
   observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
 }
 
 /**
@@ -130,6 +133,9 @@ export function IOPreviewPretty({
   onOutputExpansionChange,
   showMetadata = false,
   observationId,
+  projectId,
+  traceId,
+  environment = "default",
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -253,6 +259,9 @@ export function IOPreviewPretty({
             actualOutput={parsedOutput}
             existingCorrection={outputCorrection}
             observationId={observationId}
+            projectId={projectId}
+            traceId={traceId}
+            environment={environment}
           />
         </div>
       ) : (
@@ -263,6 +272,9 @@ export function IOPreviewPretty({
               actualOutput={parsedOutput}
               existingCorrection={outputCorrection}
               observationId={observationId}
+              projectId={projectId}
+              traceId={traceId}
+              environment={environment}
             />
           </div>
         </>
