@@ -43,20 +43,13 @@ export function CorrectedOutputField({
     });
 
   // Manage editor state & debouncing
-  const {
-    isEditing,
-    value,
-    isValidJson,
-    textareaRef,
-    handleEdit,
-    handleChange,
-    handleBlur,
-  } = useCorrectionEditor({
-    correctionValue,
-    actualOutput,
-    onSave: handleSave,
-    setSaveStatus,
-  });
+  const { isEditing, value, isValidJson, handleEdit, handleChange } =
+    useCorrectionEditor({
+      correctionValue,
+      actualOutput,
+      onSave: handleSave,
+      setSaveStatus,
+    });
 
   const hasContent = value.trim().length > 0;
 
@@ -67,8 +60,8 @@ export function CorrectedOutputField({
       const parsed = JSON.parse(value);
       return JSON.stringify(parsed, null, 2);
     } catch {
-      // If JSON parsing fails, return empty string to avoid showing invalid data
-      return "";
+      // If JSON parsing fails, return the raw value (don't clear it)
+      return value;
     }
   }, [value]);
 

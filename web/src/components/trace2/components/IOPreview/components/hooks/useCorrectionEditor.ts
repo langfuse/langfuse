@@ -90,18 +90,11 @@ export function useCorrectionEditor({
     [onSave, setSaveStatus, debounceMs],
   );
 
-  const handleBlur = useCallback(() => {
-    setIsEditing(false);
-    // Note: Local value persists after blur. It will only update when cache/server value changes.
-  }, []);
-
   return {
     isEditing,
     value,
     isValidJson,
-    textareaRef,
     handleEdit,
     handleChange,
-    handleBlur,
   };
 }
