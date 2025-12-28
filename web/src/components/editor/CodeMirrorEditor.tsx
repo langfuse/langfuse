@@ -242,7 +242,7 @@ export function CodeMirrorEditor({
         ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
         ...(lineWrapping ? [EditorView.lineWrapping] : []),
       ]}
-      defaultValue={value}
+      value={value}
       onChange={(c) => {
         if (onChange) onChange(c);
         setLinterEnabled(c !== "");

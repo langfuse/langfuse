@@ -20,6 +20,7 @@ export function useCorrectionEditor({
 }: UseCorrectionEditorParams) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(correctionValue);
+  const [isValidJson, setIsValidJson] = useState(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -34,7 +35,12 @@ export function useCorrectionEditor({
     // Prepopulate with actual output if no existing correction
     if (!value && actualOutput) {
       try {
-        setValue(JSON.stringify(actualOutput, null, 2));
+        // Store as JSON string (not stringified string)
+        const jsonValue =
+          typeof actualOutput === "string"
+            ? actualOutput
+            : JSON.stringify(actualOutput);
+        setValue(jsonValue);
       } catch {
         setValue(String(actualOutput));
       }
@@ -47,17 +53,39 @@ export function useCorrectionEditor({
     (newValue: string) => {
       // Update local state immediately for responsive typing
       setValue(newValue);
-      setSaveStatus("saving");
 
-      // Clear existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      // Validate JSON
+      let valid = false;
+      try {
+        if (newValue.trim()) {
+          JSON.parse(newValue);
+          valid = true;
+        }
+      } catch {
+        valid = false;
       }
+      setIsValidJson(valid);
 
-      // Debounced save - triggers mutation (which updates cache) after 500ms
-      timeoutRef.current = setTimeout(() => {
-        onSave(newValue);
-      }, debounceMs);
+      // Only save if valid JSON
+      if (valid) {
+        setSaveStatus("saving");
+
+        // Clear existing timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+
+        // Debounced save - triggers mutation (which updates cache) after 500ms
+        timeoutRef.current = setTimeout(() => {
+          onSave(newValue);
+        }, debounceMs);
+      } else {
+        setSaveStatus("idle");
+        // Clear timeout if JSON becomes invalid
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+      }
     },
     [onSave, setSaveStatus, debounceMs],
   );
@@ -70,6 +98,7 @@ export function useCorrectionEditor({
   return {
     isEditing,
     value,
+    isValidJson,
     textareaRef,
     handleEdit,
     handleChange,

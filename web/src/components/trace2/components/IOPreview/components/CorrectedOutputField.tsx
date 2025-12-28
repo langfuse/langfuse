@@ -5,6 +5,8 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import { useCorrectionMutations } from "./hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
+import { useMemo } from "react";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -44,6 +46,7 @@ export function CorrectedOutputField({
   const {
     isEditing,
     value,
+    isValidJson,
     textareaRef,
     handleEdit,
     handleChange,
@@ -57,18 +60,47 @@ export function CorrectedOutputField({
 
   const hasContent = value.trim().length > 0;
 
+  // Format JSON for display
+  const displayValue = useMemo(() => {
+    if (!value) return "";
+    try {
+      const parsed = JSON.parse(value);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      // If JSON parsing fails, return empty string to avoid showing invalid data
+      return "";
+    }
+  }, [value]);
+
+  const handleEditorChange = (newValue: string) => {
+    handleChange(newValue);
+  };
+
   return (
     <div className="px-2">
       <div className="group relative rounded-md">
         <div className="flex items-center justify-between bg-muted/30 py-1.5">
-          <span className="text-sm font-medium">Corrected Output</span>
+          <span className="text-sm font-medium">Corrected Output (Beta)</span>
           <div className="-mr-1 flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-            {saveStatus === "saving" && (
+            {!isValidJson && isEditing && hasContent && (
+              <span className="mr-2 text-xs text-red-500">
+                Invalid JSON - fix to save
+              </span>
+            )}
+            {isValidJson &&
+              saveStatus === "idle" &&
+              isEditing &&
+              hasContent && (
+                <span className="mr-2 text-xs text-muted-foreground">
+                  DRAFT - Type any character to save
+                </span>
+              )}
+            {isValidJson && saveStatus === "saving" && (
               <span className="mr-2 text-xs text-muted-foreground">
                 Saving...
               </span>
             )}
-            {saveStatus === "saved" && (
+            {isValidJson && saveStatus === "saved" && (
               <span className="mr-2 text-xs">Saved ✓</span>
             )}
             {hasContent && !isEditing && (
@@ -106,19 +138,22 @@ export function CorrectedOutputField({
             Click to add corrected output
           </button>
         ) : isEditing ? (
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => handleChange(e.target.value)}
-            onBlur={handleBlur}
-            className="w-full resize-none rounded-b-md border bg-accent-light-green p-3 font-mono text-xs focus:outline-none focus:ring-0"
-            rows={Math.min(20, Math.max(10, value.split("\n").length + 2))}
+          <CodeMirrorEditor
+            value={displayValue}
+            onChange={handleEditorChange}
+            mode="json"
+            minHeight={200}
             placeholder="Enter corrected output as JSON..."
+            className="bg-accent-light-green"
           />
         ) : (
-          <pre className="w-full overflow-x-auto rounded-md border bg-accent-light-green p-3 font-mono text-xs">
-            {value}
-          </pre>
+          <CodeMirrorEditor
+            value={displayValue}
+            mode="json"
+            minHeight={200}
+            editable={false}
+            className="bg-accent-light-green"
+          />
         )}
       </div>
     </div>
