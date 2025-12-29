@@ -68,15 +68,8 @@ export function useCorrectionData(
     return existingCorrection?.longStringValue ?? "";
   }, [cachedMeta, existingCorrection, isDeleted]);
 
-  // Check if save is in progress
-  const isSaving = useMemo(() => {
-    return cachedMeta?.isSaving ?? false;
-  }, [cachedMeta]);
-
   return {
     effectiveCorrection,
-    isDeleted,
     correctionValue,
-    isSaving,
   };
 }

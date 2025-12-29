@@ -45,7 +45,6 @@ export function useCorrectionMutations({
         observationId: observationId ?? null,
         environment,
         value: variables.value, // Store full value
-        isSaving: true,
       });
 
       setSaveStatus("saving");
@@ -63,19 +62,7 @@ export function useCorrectionMutations({
       }
       setSaveStatus("idle");
     },
-    onSuccess: (data) => {
-      // Update cache with server response and clear saving state
-      correctionCache.set(data.id, {
-        id: data.id,
-        timestamp: new Date(data.timestamp),
-        projectId,
-        traceId,
-        observationId: observationId ?? null,
-        environment,
-        value: data.longStringValue ?? "",
-        isSaving: false,
-      });
-
+    onSuccess: () => {
       setSaveStatus("saved");
     },
   });
@@ -117,7 +104,9 @@ export function useCorrectionMutations({
         traceId,
         observationId,
         value,
-        timestamp: new Date(),
+        timestamp: isDeleted
+          ? new Date()
+          : (effectiveCorrection?.timestamp ?? new Date()),
       });
     },
     [
@@ -126,6 +115,7 @@ export function useCorrectionMutations({
       observationId,
       environment,
       effectiveCorrection?.id,
+      effectiveCorrection?.timestamp,
       upsertMutation,
       correctionCache,
     ],

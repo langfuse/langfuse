@@ -24,7 +24,6 @@ export type CachedCorrectionMeta = {
   observationId?: string | null;
   environment?: string;
   value: string; // Full correction value for optimistic updates
-  isSaving?: boolean; // Indicates mutation in progress (upsert or delete)
 };
 
 type CorrectionCacheContextValue = {
