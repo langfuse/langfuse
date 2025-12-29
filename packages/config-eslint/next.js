@@ -1,4 +1,3 @@
-// @ts-check
 import tseslint from "typescript-eslint";
 import { FlatCompat } from "@eslint/eslintrc";
 import { fileURLToPath } from "node:url";
@@ -14,7 +13,6 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-/** @type {import("eslint").Linter.Config[]} */
 export default tseslint.config(
   // Global ignores - include config files
   {

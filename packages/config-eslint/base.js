@@ -1,4 +1,3 @@
-// @ts-check
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
@@ -6,7 +5,6 @@ import turboConfig from "eslint-config-turbo/flat";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 import "eslint-plugin-only-warn";
 
-/** @type {import("eslint").Linter.Config[]} */
 export default tseslint.config(
   // Global ignores
   {
