@@ -7,6 +7,7 @@ import { useCorrectionMutations } from "./hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
 import { useMemo } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -25,6 +26,8 @@ export function CorrectedOutputField({
   traceId,
   environment = "default",
 }: CorrectedOutputFieldProps) {
+  const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+
   // Merge cache + server data
   const { effectiveCorrection, correctionValue } = useCorrectionData(
     existingCorrection,
@@ -102,6 +105,7 @@ export function CorrectedOutputField({
                   size="icon-xs"
                   variant="ghost"
                   onClick={handleEdit}
+                  disabled={!hasAccess}
                   className="hover:bg-border"
                   title="Edit corrected output"
                 >
@@ -111,6 +115,7 @@ export function CorrectedOutputField({
                   size="icon-xs"
                   variant="ghost"
                   onClick={handleDelete}
+                  disabled={!hasAccess}
                   className="hover:bg-border"
                   title="Delete corrected output"
                 >
@@ -124,6 +129,7 @@ export function CorrectedOutputField({
         {!hasContent && !isEditing ? (
           <button
             onClick={handleEdit}
+            disabled={!hasAccess}
             className={cn(
               "w-full cursor-pointer rounded-md border px-3 py-8 text-center text-sm text-muted-foreground transition-colors hover:bg-muted/50",
             )}
