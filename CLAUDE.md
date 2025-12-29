@@ -82,11 +82,11 @@ The web package uses JEST for unit tests.
 Depending on the file location (sync, async)
 `web` related tests must go into the `web/src/__tests__/` folder.
 ```sh
-pnpm test-sync --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+pnpm test-sync --testPathPatterns="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
 # For tests in the async folder:
-pnpm test -- --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+pnpm test -- --testPathPatterns="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
 # For client tests:
-pnpm test-client --testPathPattern="buildStepData" --testNamePattern="buildStepData"
+pnpm test-client --testPathPatterns="buildStepData" --testNamePattern="buildStepData"
 ```
 
 ### Testing in the Worker Package

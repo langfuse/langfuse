@@ -254,9 +254,9 @@ To run a specific test, for example the test: `"should handle special characters
 
 ```sh
 cd web  # or with --filter=web
-pnpm test-sync --testPathPattern="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
+pnpm test-sync --testPathPatterns="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
 # for async folder tests:
-pnpm test -- --testPathPattern="observations-api" --testNamePattern="should fetch all observations"
+pnpm test -- --testPathPatterns="observations-api" --testNamePattern="should fetch all observations"
 ```
 
 To run all tests:
