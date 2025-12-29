@@ -45,8 +45,6 @@ export default tseslint.config(
     rules: {
       "no-redeclare": "off",
       "import/order": "off",
-      // Disable base no-unused-vars - @typescript-eslint/no-unused-vars handles TS files
-      "no-unused-vars": "off",
     },
   },
 
@@ -65,6 +63,7 @@ export default tseslint.config(
     rules: {
       "no-undef": "off", // TypeScript handles this
       "no-dupe-class-members": "off", // TypeScript handles this (and supports overloads)
+      "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "no-restricted-globals": [
         "error",
         {

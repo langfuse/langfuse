@@ -10,7 +10,8 @@ export enum TableViewPresetTableName {
   Datasets = "datasets",
 }
 
-const _TableViewPresetDomainSchema = z.object({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const TableViewPresetDomainSchema = z.object({
   id: z.string(),
   projectId: z.string().nullable(),
   createdAt: z.date(),
@@ -25,6 +26,4 @@ const _TableViewPresetDomainSchema = z.object({
   orderBy: orderBy,
 });
 
-export type TableViewPresetDomain = z.infer<
-  typeof _TableViewPresetDomainSchema
->;
+export type TableViewPresetDomain = z.infer<typeof TableViewPresetDomainSchema>;

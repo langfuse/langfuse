@@ -3,7 +3,8 @@ import { singleFilter } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { optionalPaginationZod } from "../../utils/zod";
 
-const _TableFilterSchema = z.object({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const TableFilterSchema = z.object({
   projectId: z.string(),
   filter: z.array(singleFilter).nullish(),
   searchQuery: z.string().nullish(),
@@ -11,4 +12,4 @@ const _TableFilterSchema = z.object({
   ...optionalPaginationZod,
 });
 
-export type TableFilters = z.infer<typeof _TableFilterSchema>;
+export type TableFilters = z.infer<typeof TableFilterSchema>;
