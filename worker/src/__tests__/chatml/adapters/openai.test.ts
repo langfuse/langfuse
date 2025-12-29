@@ -1,39 +1,9 @@
-jest.mock("@langfuse/shared", () => {
-  const { z } = require("zod/v4");
-
-  return {
-    ChatMessageRole: {
-      System: "system",
-      Developer: "developer",
-      User: "user",
-      Assistant: "assistant",
-      Tool: "tool",
-      Model: "model",
-    },
-    BaseChatMlMessageSchema: z
-      .object({
-        role: z.string().optional(),
-        name: z.string().optional(),
-        content: z
-          .union([
-            z.record(z.string(), z.any()),
-            z.string(),
-            z.array(z.any()),
-            z.any(), // Simplified - was OpenAIContentSchema
-          ])
-          .nullish(),
-        audio: z.any().optional(),
-        additional_kwargs: z.record(z.string(), z.any()).optional(),
-        tools: z.array(z.any()).optional(),
-        tool_calls: z.array(z.any()).optional(),
-        tool_call_id: z.string().optional(),
-      })
-      .passthrough(),
-  };
-});
-
-import { normalizeInput, normalizeOutput } from "./index";
-import { openAIAdapter } from "./openai";
+import { describe, it, expect } from "vitest";
+import {
+  openAIAdapter,
+  normalizeInput,
+  normalizeOutput,
+} from "@langfuse/shared";
 
 describe("OpenAI Adapter", () => {
   describe("detection", () => {

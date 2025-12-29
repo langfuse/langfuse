@@ -9,7 +9,8 @@ import {
   PrismaClient,
   type Project,
   ScoreConfigCategoryDomain,
-  ScoreDataType,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
 } from "../../src/index";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
@@ -30,6 +31,7 @@ import {
   generateEvalTraceId,
 } from "./utils/seed-helpers";
 import { seedDatasetVersions } from "./seed-dataset-versions";
+import { seedMediaTraces } from "./seed-media";
 
 const options = {
   environment: { type: "string" },
@@ -348,6 +350,9 @@ async function main() {
 
     await createDashboardsAndWidgets([project1, project2]);
     await seedDatasetVersions(prisma, [project1.id, project2.id]);
+
+    // Seed media test traces (uploads to MinIO + creates Media/TraceMedia records)
+    await seedMediaTraces(project1.id);
 
     await prisma.llmSchema.createMany({
       data: [
@@ -753,7 +758,7 @@ async function generateConfigsForProject(projects: Project[]) {
     {
       name: string;
       id: string;
-      dataType: ScoreDataType;
+      dataType: ScoreDataTypeType;
       categories: ScoreConfigCategoryDomain[] | null;
     }[]
   > = new Map();
@@ -803,7 +808,7 @@ async function generateConfigs(project: Project) {
   const configNameAndId: {
     name: string;
     id: string;
-    dataType: ScoreDataType;
+    dataType: ScoreDataTypeType;
     categories: ScoreConfigCategoryDomain[] | null;
   }[] = [];
 
@@ -811,7 +816,7 @@ async function generateConfigs(project: Project) {
     {
       id: `config-${v4()}`,
       name: "manual-score",
-      dataType: ScoreDataType.NUMERIC,
+      dataType: ScoreDataTypeEnum.NUMERIC,
       projectId: project.id,
       isArchived: false,
     },
@@ -819,7 +824,7 @@ async function generateConfigs(project: Project) {
       id: `config-${v4()}`,
       projectId: project.id,
       name: "Accuracy",
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: ScoreDataTypeEnum.CATEGORICAL,
       categories: [
         { label: "Incorrect", value: 0 },
         { label: "Partially Correct", value: 1 },
@@ -831,7 +836,7 @@ async function generateConfigs(project: Project) {
       id: `config-${v4()}`,
       projectId: project.id,
       name: "Toxicity",
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: ScoreDataTypeEnum.BOOLEAN,
       categories: [
         { label: "True", value: 1 },
         { label: "False", value: 0 },
@@ -880,7 +885,7 @@ async function generateQueuesForProject(
     {
       name: string;
       id: string;
-      dataType: ScoreDataType;
+      dataType: ScoreDataTypeType;
       categories: ScoreConfigCategoryDomain[] | null;
     }[]
   >,
@@ -904,7 +909,7 @@ async function generateQueues(
   configIdsAndNames: {
     name: string;
     id: string;
-    dataType: ScoreDataType;
+    dataType: ScoreDataTypeType;
     categories: ScoreConfigCategoryDomain[] | null;
   }[],
 ) {

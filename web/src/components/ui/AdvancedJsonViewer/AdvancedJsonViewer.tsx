@@ -262,7 +262,11 @@ export function AdvancedJsonViewer({
   return (
     <div
       className={className}
-      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        ...(shouldUseVirtualization && { height: "100%" }),
+      }}
     >
       {/* Search bar */}
       {enableSearch && (

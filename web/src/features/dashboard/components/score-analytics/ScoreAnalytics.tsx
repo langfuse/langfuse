@@ -1,7 +1,6 @@
 import { api } from "@/src/utils/api";
-
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { type FilterState } from "@langfuse/shared";
+import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import React, { useMemo } from "react";
@@ -131,7 +130,12 @@ export function ScoreAnalytics(props: {
                         projectId={props.projectId}
                         source={source}
                         name={name}
-                        dataType={dataType}
+                        dataType={
+                          dataType as Extract<
+                            ScoreDataTypeType,
+                            "NUMERIC" | "BOOLEAN"
+                          >
+                        }
                         globalFilterState={props.globalFilterState}
                       />
                     )}
@@ -159,7 +163,12 @@ export function ScoreAnalytics(props: {
                         agg={props.agg}
                         source={source}
                         name={name}
-                        dataType={dataType}
+                        dataType={
+                          dataType as Extract<
+                            ScoreDataTypeType,
+                            "NUMERIC" | "BOOLEAN"
+                          >
+                        }
                         projectId={props.projectId}
                         globalFilterState={props.globalFilterState}
                         fromTimestamp={props.fromTimestamp}

@@ -25,6 +25,10 @@
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
     },
+    "./src/utils/chatml": {
+      "import": "./dist/src/utils/chatml/index.js",
+      "require": "./dist/src/utils/chatml/index.js"
+    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
@@ -63,10 +67,10 @@
     "@aws-sdk/s3-request-presigner": "^3.679.0",
     "@azure/storage-blob": "^12.26.0",
     "@clickhouse/client": "^1.13.0",
-    "@google-cloud/storage": "^7.17.0",
+    "@google-cloud/storage": "^7.18.0",
     "@langchain/anthropic": "^0.3.32",
     "@langchain/aws": "^0.1.15",
-    "@langchain/core": "^0.3.58",
+    "@langchain/core": "^0.3.80",
     "@langchain/google-genai": "^0.2.12",
     "@langchain/google-vertexai": "^0.2.12",
     "@langchain/openai": "^0.5.13",
@@ -90,11 +94,11 @@
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
     "kysely": "^0.27.4",
-    "langchain": "^0.3.30",
+    "langchain": "^0.3.37",
     "langfuse-langchain": "3.38.6",
     "lodash": "^4.17.21",
     "lossless-json": "^4.1.1",
-    "next-auth": "^4.24.12",
+    "next-auth": "^4.24.13",
     "nodemailer": "^7.0.11",
     "prisma-extension-kysely": "^3.0.0",
     "safe-regex2": "^5.0.0",

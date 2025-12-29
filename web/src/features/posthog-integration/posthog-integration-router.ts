@@ -10,6 +10,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
+import { validateWebhookURL } from "@langfuse/shared/src/server";
 
 export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -67,6 +68,20 @@ export const posthogIntegrationRouter = createTRPCRouter({
           });
         }
       }
+
+      // Validate PostHog hostname to prevent SSRF attacks
+      try {
+        await validateWebhookURL(input.posthogHostname);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            error instanceof Error
+              ? `Invalid PostHog hostname: ${error.message}`
+              : "Invalid PostHog hostname",
+        });
+      }
+
       await auditLog({
         session: ctx.session,
         action: "update",

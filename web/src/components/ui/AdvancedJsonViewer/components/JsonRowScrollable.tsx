@@ -15,8 +15,6 @@ export interface JsonRowScrollableProps {
   theme: JSONTheme;
   stringWrapMode?: "nowrap" | "truncate" | "wrap";
   truncateStringsAt?: number | null;
-  matchCount?: number;
-  currentMatchIndexInRow?: number;
   enableCopy?: boolean;
   searchMatch?: SearchMatch;
   isCurrentMatch?: boolean;
@@ -28,8 +26,6 @@ export function JsonRowScrollable({
   theme,
   stringWrapMode = "wrap",
   truncateStringsAt = null,
-  matchCount,
-  currentMatchIndexInRow,
   enableCopy = false,
   searchMatch,
   isCurrentMatch = false,
@@ -94,39 +90,6 @@ export function JsonRowScrollable({
         highlightStart={isValue ? searchMatch?.highlightStart : undefined}
         highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
       />
-
-      {/* Match count badge (for collapsed rows or leaf nodes with multiple matches) */}
-      {matchCount !== undefined &&
-        matchCount > 1 &&
-        ((row.isExpandable && !row.isExpanded) || !row.isExpandable) && (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginLeft: "6px",
-              padding: "0 4px",
-              minWidth: "16px",
-              height: "14px",
-              fontSize: "9px",
-              fontWeight: 600,
-              borderRadius: "7px",
-              backgroundColor: theme.searchMatchBackground,
-              color: theme.foreground,
-              border: `1px solid ${theme.searchCurrentBackground}`,
-              flexShrink: 0,
-            }}
-            title={
-              row.isExpandable
-                ? `${matchCount} match${matchCount === 1 ? "" : "es"} in this section`
-                : `${matchCount} match${matchCount === 1 ? "" : "es"} in this value`
-            }
-          >
-            {currentMatchIndexInRow !== undefined
-              ? `${currentMatchIndexInRow}/${matchCount}`
-              : matchCount}
-          </span>
-        )}
 
       {/* Copy button (optional, on hover) */}
       {enableCopy && (

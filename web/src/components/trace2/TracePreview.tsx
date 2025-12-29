@@ -39,6 +39,7 @@ import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { TraceLogView } from "@/src/components/trace2/components/TraceLogView/TraceLogView";
+import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { TraceDataProvider } from "@/src/components/trace2/contexts/TraceDataContext";
 import { ViewPreferencesProvider } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import {
@@ -47,6 +48,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import TagList from "@/src/features/tag/components/TagList";
 import {
   AlertDialog,
@@ -67,6 +69,7 @@ export const TracePreview = ({
   trace,
   observations,
   serverScores: scores,
+  corrections,
   commentCounts,
   viewType = "detailed",
   showCommentButton = false,
@@ -79,6 +82,7 @@ export const TracePreview = ({
   };
   observations: ObservationReturnTypeWithMetadata[];
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  corrections: ScoreDomain[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
   showCommentButton?: boolean;
@@ -114,6 +118,21 @@ export const TracePreview = ({
       staleTime: 50 * 60 * 1000, // 50 minutes
     },
   );
+
+  const traceCorrections = corrections.filter(
+    (c) => c.traceId === trace.id && c.observationId === null,
+  );
+
+  const outputCorrection = getMostRecentCorrection(traceCorrections);
+
+  // Parse trace I/O in background (Web Worker)
+  const { parsedInput, parsedOutput, parsedMetadata, isParsing } =
+    useParsedTrace({
+      traceId: trace.id,
+      input: trace.input,
+      output: trace.output,
+      metadata: trace.metadata,
+    });
 
   const totalCost = precomputedCost;
 
@@ -415,6 +434,11 @@ export const TracePreview = ({
                 key={trace.id + "-io"}
                 input={trace.input ?? undefined}
                 output={trace.output ?? undefined}
+                outputCorrection={outputCorrection}
+                parsedInput={parsedInput}
+                parsedOutput={parsedOutput}
+                parsedMetadata={parsedMetadata}
+                isParsing={isParsing}
                 media={traceMedia.data}
                 currentView={currentView}
                 setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -426,6 +450,9 @@ export const TracePreview = ({
                 onOutputExpansionChange={(expansion) =>
                   setFieldExpansion("output", expansion)
                 }
+                projectId={trace.projectId}
+                traceId={trace.id}
+                environment={trace.environment}
               />
 
               {trace.tags.length > 0 && (
@@ -460,7 +487,8 @@ export const TracePreview = ({
             <TraceDataProvider
               trace={trace}
               observations={observations}
-              scores={scores}
+              serverScores={scores}
+              corrections={corrections}
               comments={commentCounts ?? new Map()}
             >
               <ViewPreferencesProvider>

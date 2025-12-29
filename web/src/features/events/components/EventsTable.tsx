@@ -61,6 +61,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 
 export type EventsTableRow = {
   // Identity fields
@@ -244,6 +245,7 @@ export default function ObservationsEventsTable({
     totalCount,
     handleAddToAnnotationQueue,
     dataUpdatedAt,
+    ioLoading,
   } = useEventsTableData({
     projectId,
     filterState,
@@ -349,6 +351,14 @@ export default function ObservationsEventsTable({
       size: 300,
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("input");
+        if (ioLoading) {
+          return (
+            <JsonSkeleton
+              borderless
+              className="h-full w-full overflow-hidden px-2 py-1"
+            />
+          );
+        }
         return value ? (
           <MemoizedIOTableCell
             isLoading={false}
@@ -366,11 +376,47 @@ export default function ObservationsEventsTable({
       size: 300,
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("output");
+        if (ioLoading) {
+          return (
+            <JsonSkeleton
+              borderless
+              className="h-full w-full overflow-hidden px-2 py-1"
+            />
+          );
+        }
         return value ? (
           <MemoizedIOTableCell
             isLoading={false}
             data={value}
             className={cn("bg-accent-light-green")}
+            singleLine={rowHeight === "s"}
+          />
+        ) : null;
+      },
+      enableHiding: true,
+    },
+    {
+      accessorKey: "metadata",
+      header: "Metadata",
+      size: 300,
+      headerTooltip: {
+        description: "Add metadata to traces to track additional information.",
+        href: "https://langfuse.com/docs/observability/features/metadata",
+      },
+      cell: ({ row }) => {
+        const value: string | undefined = row.getValue("metadata");
+        if (ioLoading) {
+          return (
+            <JsonSkeleton
+              borderless
+              className="h-full w-full overflow-hidden px-2 py-1"
+            />
+          );
+        }
+        return value ? (
+          <MemoizedIOTableCell
+            isLoading={false}
+            data={value}
             singleLine={rowHeight === "s"}
           />
         ) : null;

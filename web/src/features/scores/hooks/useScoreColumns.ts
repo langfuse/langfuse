@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import {
-  type ScoreDataType,
+  type ScoreDataTypeType,
   type FilterCondition,
   type ScoreAggregate,
 } from "@langfuse/shared";
@@ -16,7 +16,7 @@ function createScoreColumns<T extends Record<string, any>>(
     key: string;
     name: string;
     source: string;
-    dataType: ScoreDataType;
+    dataType: ScoreDataTypeType;
   }>,
   scoreColumnKey: keyof T & string,
   displayFormat: "smart" | "aggregate",

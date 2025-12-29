@@ -87,6 +87,10 @@ const viewMappings: Record<z.infer<typeof views>, Record<string, string>[]> = {
       viewName: "providedModelName",
     },
     {
+      uiTableName: "Tool Names",
+      viewName: "toolNames",
+    },
+    {
       uiTableName: "Environment",
       viewName: "environment",
     },

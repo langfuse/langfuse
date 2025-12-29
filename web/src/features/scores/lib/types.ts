@@ -7,7 +7,7 @@ import {
   type DatasetRunItemByRunRowData,
 } from "@/src/features/datasets/lib/types";
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/metrics";
-import { type ScoreDataType, type ScoreSourceType } from "@langfuse/shared";
+import { type ScoreDataTypeType, type ScoreSourceType } from "@langfuse/shared";
 
 export type TableRowTypesWithIndividualScoreColumns =
   | ObservationsTableRow
@@ -21,6 +21,6 @@ export type TableRowTypesWithIndividualScoreColumns =
 export type ScoreData = {
   key: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   source: ScoreSourceType;
 };
