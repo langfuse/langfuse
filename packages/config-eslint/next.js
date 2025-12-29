@@ -18,41 +18,44 @@ const compat = new FlatCompat({
 export default tseslint.config(
   // Global ignores - include config files
   {
+    name: "langfuse/ignores",
     ignores: [
       "**/node_modules/",
       "**/dist/",
       "**/.next/",
       "**/coverage/",
-      "eslint.config.js",
+      "eslint.config.mjs",
     ],
   },
 
   // Next.js rules via FlatCompat (applies to all files)
   ...compat.extends("next/core-web-vitals"),
 
-  // TypeScript strict type checking - ONLY for TS files, with proper parser
-  {
-    files: ["**/*.ts", "**/*.tsx"],
-    extends: [...tseslint.configs.strictTypeChecked],
-    languageOptions: {
-      parser: tseslint.parser,
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: process.cwd(),
-      },
-    },
-  },
-
   // Turbo rules
   ...turboConfig,
+
+  // Disable noisy turbo env var rule - project has many env vars not in turbo.json
+  {
+    name: "langfuse/next/turbo-overrides",
+    rules: {
+      "turbo/no-undeclared-env-vars": "off",
+    },
+  },
 
   // Prettier (last)
   eslintPluginPrettierRecommended,
 
-  // Custom rules for TS files
+  // TypeScript config for TS files
+  // Note: The old config had a bug (duplicate extends) that prevented TS rules from applying
+  // Only adding parser + plugin + custom rules to match old behavior
   {
+    name: "langfuse/next/typescript",
     files: ["**/*.ts", "**/*.tsx"],
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+    },
     languageOptions: {
+      parser: tseslint.parser,
       globals: {
         React: "readonly",
         JSX: "readonly",
@@ -66,8 +69,8 @@ export default tseslint.config(
       },
     },
     rules: {
-      "@typescript-eslint/no-non-null-assertion": "off",
-      "@typescript-eslint/no-confusing-void-expression": "off",
+      "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
+      // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
         "warn",
         {
@@ -81,6 +84,8 @@ export default tseslint.config(
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
           caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
         },
       ],
       "react/jsx-key": ["error", { warnOnDuplicates: true }],

@@ -7,6 +7,7 @@ export default [
 
   // Restrict react-icons imports
   {
+    name: "langfuse/web/react-icons-restriction",
     rules: {
       "no-restricted-imports": [
         "error",
@@ -29,6 +30,7 @@ export default [
 
   // Exceptions for specific files
   {
+    name: "langfuse/web/react-icons-exceptions",
     files: [
       "src/components/nav/support-menu-dropdown.tsx",
       "src/pages/auth/sign-in.tsx",

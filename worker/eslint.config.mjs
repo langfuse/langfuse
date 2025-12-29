@@ -7,6 +7,7 @@ export default [
 
   // Worker-specific ignores
   {
+    name: "langfuse/worker/ignores",
     ignores: ["**/*test*.*", "**/worker-thread.js"],
   },
 ];

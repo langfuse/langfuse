@@ -10,6 +10,7 @@ import "eslint-plugin-only-warn";
 export default tseslint.config(
   // Global ignores
   {
+    name: "langfuse/ignores",
     ignores: [
       "**/node_modules/",
       "**/dist/",
@@ -17,24 +18,22 @@ export default tseslint.config(
       "**/coverage/",
       "**/.next/",
       "**/.*",
-      "eslint.config.js",
+      "eslint.config.mjs",
     ],
   },
 
-  // Base JS rules
+  // Base JS rules (same as eslint v8 library.js)
   js.configs.recommended,
-
-  // TypeScript support (recommended, not strict)
-  ...tseslint.configs.recommended,
 
   // Turbo monorepo rules
   ...turboConfig,
 
-  // Prettier (last)
+  // Prettier (last for rule precedence)
   eslintPluginPrettierRecommended,
 
   // Global settings
   {
+    name: "langfuse/base/globals",
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -48,14 +47,26 @@ export default tseslint.config(
     rules: {
       "no-redeclare": "off",
       "import/order": "off",
+      // Disable base no-unused-vars - @typescript-eslint/no-unused-vars handles TS files
+      "no-unused-vars": "off",
     },
   },
 
-  // TypeScript-specific
+  // TypeScript-specific - parser only + custom rules
+  // Note: Old library.js had no TS rules, only eslint:recommended
+  // Adding parser + plugin to support custom rules, but not extending recommended
   {
+    name: "langfuse/base/typescript",
     files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+    },
+    languageOptions: {
+      parser: tseslint.parser,
+    },
     rules: {
-      "no-undef": "off",
+      "no-undef": "off", // TypeScript handles this
+      "no-dupe-class-members": "off", // TypeScript handles this (and supports overloads)
       "no-restricted-globals": [
         "error",
         {
@@ -63,12 +74,15 @@ export default tseslint.config(
           message: "Import redis explicitly from '@langfuse/shared/src/server'",
         },
       ],
+      // Custom rule from eslint v8 shared/.eslintrc.js
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
           caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
         },
       ],
     },

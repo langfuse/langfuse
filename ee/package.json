@@ -20,8 +20,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint . --fix"
+    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
+    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix"
   },
   "dependencies": {
     "@langfuse/shared": "workspace:*",

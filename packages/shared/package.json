@@ -37,8 +37,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint . --fix",
+    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
+    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
     "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
