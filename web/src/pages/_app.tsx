@@ -143,12 +143,14 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     disableTransitionOnChange
                   >
                     <ScoreCacheProvider>
-                      <SupportDrawerProvider defaultOpen={false}>
-                        <AppLayout>
-                          <Component {...pageProps} />
-                          <UserTracking />
-                        </AppLayout>
-                      </SupportDrawerProvider>
+                      <CorrectionCacheProvider>
+                        <SupportDrawerProvider defaultOpen={false}>
+                          <AppLayout>
+                            <Component {...pageProps} />
+                            <UserTracking />
+                          </AppLayout>
+                        </SupportDrawerProvider>
+                      </CorrectionCacheProvider>
                     </ScoreCacheProvider>
                   </ThemeProvider>
                 </MarkdownContextProvider>
