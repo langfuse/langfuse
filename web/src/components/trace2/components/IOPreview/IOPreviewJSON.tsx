@@ -91,17 +91,15 @@ export function IOPreviewJSON({
     return {
       input: countJsonRows(parsedInput),
       output: countJsonRows(parsedOutput),
-      outputCorrection: countJsonRows(outputCorrection),
       metadata: countJsonRows(parsedMetadata),
     };
-  }, [parsedInput, parsedOutput, outputCorrection, parsedMetadata]);
+  }, [parsedInput, parsedOutput, parsedMetadata]);
 
   // Determine if virtualization is needed based on threshold
   const needsVirtualization = useMemo(() => {
     return (
       rowCounts.input > VIRTUALIZATION_THRESHOLD ||
       rowCounts.output > VIRTUALIZATION_THRESHOLD ||
-      rowCounts.outputCorrection > VIRTUALIZATION_THRESHOLD ||
       rowCounts.metadata > VIRTUALIZATION_THRESHOLD
     );
   }, [rowCounts]);

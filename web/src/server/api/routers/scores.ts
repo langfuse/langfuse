@@ -728,11 +728,11 @@ export const scoresRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         id: z.string(),
-        environment: z.string().optional(),
+        timestamp: z.date(),
         traceId: z.string(),
         observationId: z.string().optional(),
         value: z.string(),
-        timestamp: z.date(),
+        environment: z.string().optional(),
         queueId: z.string().optional(),
       }),
     )
