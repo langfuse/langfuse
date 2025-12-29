@@ -48,6 +48,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import TagList from "@/src/features/tag/components/TagList";
 import {
   AlertDialog,
@@ -68,6 +69,7 @@ export const TracePreview = ({
   trace,
   observations,
   serverScores: scores,
+  corrections,
   commentCounts,
   viewType = "detailed",
   showCommentButton = false,
@@ -80,6 +82,7 @@ export const TracePreview = ({
   };
   observations: ObservationReturnTypeWithMetadata[];
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  corrections: ScoreDomain[];
   commentCounts?: Map<string, number>;
   viewType?: "detailed" | "focused";
   showCommentButton?: boolean;
@@ -115,6 +118,12 @@ export const TracePreview = ({
       staleTime: 50 * 60 * 1000, // 50 minutes
     },
   );
+
+  const traceCorrections = corrections.filter(
+    (c) => c.traceId === trace.id && c.observationId === null,
+  );
+
+  const outputCorrection = getMostRecentCorrection(traceCorrections);
 
   // Parse trace I/O in background (Web Worker)
   const { parsedInput, parsedOutput, parsedMetadata, isParsing } =
@@ -425,6 +434,7 @@ export const TracePreview = ({
                 key={trace.id + "-io"}
                 input={trace.input ?? undefined}
                 output={trace.output ?? undefined}
+                outputCorrection={outputCorrection}
                 parsedInput={parsedInput}
                 parsedOutput={parsedOutput}
                 parsedMetadata={parsedMetadata}
@@ -440,6 +450,9 @@ export const TracePreview = ({
                 onOutputExpansionChange={(expansion) =>
                   setFieldExpansion("output", expansion)
                 }
+                projectId={trace.projectId}
+                traceId={trace.id}
+                environment={trace.environment}
               />
 
               {trace.tags.length > 0 && (
@@ -475,6 +488,7 @@ export const TracePreview = ({
               trace={trace}
               observations={observations}
               serverScores={scores}
+              corrections={corrections}
               comments={commentCounts ?? new Map()}
             >
               <ViewPreferencesProvider>
