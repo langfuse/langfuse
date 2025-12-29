@@ -148,7 +148,6 @@ const MyApp: AppType<{ session: Session | null }> = ({
                           <UserTracking />
                         </AppLayout>
                       </SupportDrawerProvider>
-                      <BetterStackUptimeStatusMessage />
                     </ScoreCacheProvider>
                   </ThemeProvider>
                 </MarkdownContextProvider>
@@ -236,17 +235,4 @@ if (
     console.log("Signal: ", signal);
     return await shutdown(signal);
   });
-}
-
-function BetterStackUptimeStatusMessage() {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  if (!isLangfuseCloud) return null;
-  return (
-    <script
-      src="https://uptime.betterstack.com/widgets/announcement.js"
-      data-id="189328"
-      async={true}
-      type="text/javascript"
-    ></script>
-  );
 }
