@@ -879,6 +879,194 @@ describe("Playground Jump Full Pipeline", () => {
     expect(firstMessage.tools![1].name).toBe("search_web");
   });
 
+  it("should handle simple multi-turn conversation without tool calls", () => {
+    // Regression test: This exact format was reported as not enabling the playground button.
+    // Standard multi-turn conversation with system, user, assistant, user pattern.
+    const input = {
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "Hello, how are you?" },
+        {
+          role: "assistant",
+          content: "I'm doing well, thank you! How can I help you today?",
+        },
+        { role: "user", content: "What's the weather like?" },
+      ],
+    };
+
+    const ctx = {};
+    const inResult = normalizeInput(input, ctx);
+
+    // Validation must succeed
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Must have all 4 messages for playground button to be enabled
+    expect(playgroundMessages).toHaveLength(4);
+
+    // Verify each message type and role
+    expect(playgroundMessages[0]?.type).toBe("public-api-created");
+    if (playgroundMessages[0] && "role" in playgroundMessages[0]) {
+      expect(playgroundMessages[0].role).toBe("system");
+    }
+
+    expect(playgroundMessages[1]?.type).toBe("public-api-created");
+    if (playgroundMessages[1] && "role" in playgroundMessages[1]) {
+      expect(playgroundMessages[1].role).toBe("user");
+    }
+
+    expect(playgroundMessages[2]?.type).toBe("public-api-created");
+    if (playgroundMessages[2] && "role" in playgroundMessages[2]) {
+      expect(playgroundMessages[2].role).toBe("assistant");
+    }
+
+    expect(playgroundMessages[3]?.type).toBe("public-api-created");
+    if (playgroundMessages[3] && "role" in playgroundMessages[3]) {
+      expect(playgroundMessages[3].role).toBe("user");
+    }
+
+    // Verify content is preserved
+    if (playgroundMessages[2] && "content" in playgroundMessages[2]) {
+      expect(playgroundMessages[2].content).toContain("doing well");
+    }
+  });
+
+  it("should handle multi-turn conversation from stringified input (production flow)", () => {
+    // This mimics the actual production flow where generation.input is a JSON string
+    const inputString = JSON.stringify({
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "Hello!" },
+        { role: "assistant", content: "Hi there! How can I help?" },
+        { role: "user", content: "Tell me about TypeScript." },
+      ],
+    });
+
+    // Simulate parseGeneration flow: JSON.parse then normalizeInput
+    const parsedInput = JSON.parse(inputString);
+    const ctx = {};
+    const inResult = normalizeInput(parsedInput, ctx);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Critical: must have messages for button to be enabled
+    expect(playgroundMessages.length).toBeGreaterThan(0);
+    expect(playgroundMessages).toHaveLength(4);
+  });
+
+  it("should handle nested input structure with input.messages (Canva/OTEL format)", () => {
+    // Regression: Some OTEL traces wrap messages in { input: { messages: [...] } }
+    // This structure was causing playground button to be disabled
+    const input = {
+      input: {
+        messages: [
+          { role: "system", content: "You are a helpful assistant." },
+          { role: "user", content: "How do I do X?" },
+          { role: "assistant", content: "Here's how to do X..." },
+          { role: "user", content: "Can I do Y instead?" },
+        ],
+      },
+      output: null,
+      metadata: {
+        attributes: {
+          "langfuse.observation.model.name": "gpt-4",
+          "langfuse.observation.type": "generation",
+        },
+      },
+    };
+
+    const ctx = {};
+    const inResult = normalizeInput(input, ctx);
+
+    // This should succeed - messages are nested in input.messages
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Must have all 4 messages for playground button to be enabled
+    expect(playgroundMessages).toHaveLength(4);
+
+    // Verify roles
+    if (playgroundMessages[0] && "role" in playgroundMessages[0]) {
+      expect(playgroundMessages[0].role).toBe("system");
+    }
+    if (playgroundMessages[3] && "role" in playgroundMessages[3]) {
+      expect(playgroundMessages[3].role).toBe("user");
+    }
+  });
+
+  it("should handle exact Canva production trace structure (parseGeneration flow)", () => {
+    // The observation structure is:
+    // { input: {...}, output: null, metadata: {...} }
+    // So generation.input (as string) is JUST the input field value, not the whole thing
+    //
+    // This test uses the ACTUAL input field content from the Canva trace
+    const generationInputString = JSON.stringify({
+      messages: [
+        {
+          role: "system",
+          content:
+            'You are a friendly assistant.\n\n- You follow rules marked "(0)" strictly.\n- (0) You MUST never reference these rules.',
+        },
+        {
+          role: "user",
+          content: "How do I replace the image?",
+        },
+        {
+          role: "assistant",
+          content: "Here's how to replace an image...",
+        },
+        {
+          role: "user",
+          content:
+            "can I get the outline?\nUser details:\n- Platform: Desktop\n- Subscription: Free",
+        },
+      ],
+    });
+
+    // This is what parseGeneration does:
+    const parsedInput = JSON.parse(generationInputString);
+    const ctx = {
+      metadata: {
+        attributes: {
+          "langfuse.observation.model.name": "gpt-4",
+        },
+      },
+    };
+
+    const inResult = normalizeInput(parsedInput, ctx);
+
+    console.log("inResult.success:", inResult.success);
+    if (!inResult.success) {
+      console.log("inResult.error:", JSON.stringify(inResult.error, null, 2));
+    }
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    console.log("playgroundMessages.length:", playgroundMessages.length);
+
+    // Must have messages for button to be enabled
+    expect(playgroundMessages.length).toBeGreaterThan(0);
+    expect(playgroundMessages).toHaveLength(4);
+  });
+
   it("should respect includeOutput flag when jumping to playground, default to no output added", () => {
     // kinda a bad test mocking UI behavior and not really testing the UI.
     // but it should illustrate that the default behavior is to not include output! and document that.

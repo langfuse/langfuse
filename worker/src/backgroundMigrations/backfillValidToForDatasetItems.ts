@@ -32,8 +32,7 @@ export default class BackfillValidToForDatasetItems
   private isAborted = false;
 
   async validate(
-    // eslint-disable-next-line no-unused-vars
-    args: Record<string, unknown>,
+    _args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     // validate that the background migration record exists
     const migration = await prisma.backgroundMigration.findUnique({

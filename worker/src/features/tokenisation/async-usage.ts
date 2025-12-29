@@ -10,8 +10,8 @@ interface TokenCountWorkerPool {
   pendingRequests: Map<
     string,
     {
-      resolve: (value: number | undefined) => void; // eslint-disable-line no-unused-vars
-      reject: (error: Error) => void; // eslint-disable-line no-unused-vars
+      resolve: (value: number | undefined) => void;
+      reject: (error: Error) => void;
       timeout: NodeJS.Timeout;
     }
   >;

@@ -68,7 +68,7 @@ function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
 export function extractValueFromObject(
   obj: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
-  parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown, // eslint-disable-line no-unused-vars
+  parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
 ): { value: string; error: Error | null } {
   let selectedColumn = obj[mapping.selectedColumnId];
 

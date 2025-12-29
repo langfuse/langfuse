@@ -125,6 +125,24 @@ function preprocessData(data: unknown): unknown {
     };
   }
 
+  // Nested structure: { input: { messages: [...] } } (e.g., some OTEL traces)
+  if (
+    typeof data === "object" &&
+    "input" in data &&
+    typeof (data as Record<string, unknown>).input === "object" &&
+    (data as Record<string, unknown>).input !== null
+  ) {
+    const inputObj = (data as Record<string, unknown>).input as Record<
+      string,
+      unknown
+    >;
+    if ("messages" in inputObj && Array.isArray(inputObj.messages)) {
+      return {
+        messages: inputObj.messages.map(normalizeGoogleMessage),
+      };
+    }
+  }
+
   // Single message
   if (typeof data === "object" && ("role" in data || "parts" in data)) {
     return normalizeGoogleMessage(data);

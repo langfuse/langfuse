@@ -6,7 +6,6 @@ import {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
 
-/* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
 export const LLMJSONSchema = z.record(z.string(), z.any());

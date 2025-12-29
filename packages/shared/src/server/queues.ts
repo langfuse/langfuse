@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { z } from "zod/v4";
 import { eventTypes } from "./ingestion/types";
 import {
