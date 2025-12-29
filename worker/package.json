@@ -4,7 +4,6 @@
   "description": "",
   "license": "MIT",
   "private": true,
-  "type": "module",
   "engines": {
     "node": "24"
   },
@@ -72,7 +71,11 @@
     "@types/node": "^24.3.0",
     "@types/pg": "^8.11.10",
     "@types/uuid": "^9.0.8",
-    "eslint": "^9.17.0",
+    "@typescript-eslint/parser": "^8.50.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-prettier": "^5.5.4",
     "kysely-codegen": "^0.16.8",
     "msw": "^2.6.5",
     "prettier": "^3.6.2",
