@@ -28,6 +28,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { useMemo, useState } from "react";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
 import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
@@ -74,14 +75,19 @@ export function ObservationDetailView({
   const currentView = jsonViewPreference;
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
-
-  // Get comments, scores, and expansion state from contexts
-  const { comments, scores } = useTraceData();
+  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false); // Get comments, scores, corrections, and expansion state from contexts
+  const { comments, serverScores: scores, corrections } = useTraceData();
   const { expansionState, setFieldExpansion } = useJsonExpansion();
   const observationScores = useMemo(
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
   );
+  const observationCorrections = useMemo(
+    () => corrections.filter((c) => c.observationId === observation.id),
+    [corrections, observation.id],
+  );
+
+  const outputCorrection = getMostRecentCorrection(observationCorrections);
 
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
@@ -91,7 +97,7 @@ export function ObservationDetailView({
     parsedOutput,
     parsedMetadata,
     isLoadingObservation,
-    isParsing,
+    isWaitingForParsing,
   } = useParsedObservation({
     observationId: observation.id,
     traceId: traceId,
@@ -179,7 +185,9 @@ export function ObservationDetailView({
         >
           <div
             className={`flex min-h-0 w-full flex-1 flex-col ${
-              currentView === "json-beta" ? "overflow-hidden" : "overflow-auto"
+              currentView === "json-beta" && isJSONBetaVirtualized
+                ? "overflow-hidden"
+                : "overflow-auto pb-4"
             }`}
           >
             <IOPreview
@@ -187,12 +195,13 @@ export function ObservationDetailView({
               observationName={observation.name ?? undefined}
               input={observationWithIOCompat.data?.input ?? undefined}
               output={observationWithIOCompat.data?.output ?? undefined}
+              outputCorrection={outputCorrection}
               metadata={observationWithIOCompat.data?.metadata ?? undefined}
               parsedInput={parsedInput}
               parsedOutput={parsedOutput}
               parsedMetadata={parsedMetadata}
               isLoading={observationWithIOCompat.isLoading}
-              isParsing={isParsing}
+              isParsing={isWaitingForParsing}
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
@@ -203,6 +212,11 @@ export function ObservationDetailView({
                 setFieldExpansion("output", exp)
               }
               showMetadata
+              observationId={observation.id}
+              onVirtualizationChange={setIsJSONBetaVirtualized}
+              projectId={projectId}
+              traceId={traceId}
+              environment={observation.environment}
             />
             {currentView !== "json-beta" && (
               <div className="h-4 w-full flex-shrink-0" />

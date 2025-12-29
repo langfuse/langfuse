@@ -536,6 +536,13 @@ const createAllIngestionSchemas = ({
       ),
       BaseScoreBody.merge(
         z.object({
+          value: z.string(),
+          dataType: z.literal("CORRECTION"),
+          configId: z.undefined().nullish(), // Cannot have config
+        }),
+      ),
+      BaseScoreBody.merge(
+        z.object({
           value: z.union([z.string(), z.number()]),
           dataType: z.undefined(),
           configId: z.string().nullish(),

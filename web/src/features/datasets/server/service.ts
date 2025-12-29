@@ -7,6 +7,7 @@ import {
   type TracingSearchType,
   singleFilter,
   type DatasetRunItemDomain,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import {
@@ -140,6 +141,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
 
   const validatedTraceScores = filterAndValidateDbScoreList({
     scores: traceScores,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
     includeHasMetadata: true,
     onParseError: traceException,
   });
