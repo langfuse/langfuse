@@ -753,10 +753,15 @@ function applyOrderByForObservationsQuery(
 ): EventsQueryBuilder {
   return (
     queryBuilder
-      // Order by to match table ordering
+      // Order by to match table ordering, with event_ts DESC for deduplication
+      // event_ts is needed because the events table uses ReplacingMergeTree(event_ts, is_deleted)
+      // and may contain multiple rows for the same observation with different event_ts values
       .orderBy(
-        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
+        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC, e.event_ts DESC",
       )
+      // Deduplicate rows by span_id and project_id to ensure we get the latest version
+      // of each observation (the one with the highest event_ts)
+      .limitBy("e.span_id, e.project_id")
   );
 }
 

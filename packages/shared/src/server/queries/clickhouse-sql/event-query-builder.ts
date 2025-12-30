@@ -428,6 +428,14 @@ abstract class BaseEventsQueryBuilder<
   protected abstract buildGroupByClause(): string;
 
   /**
+   * Build LIMIT BY clause for row deduplication
+   * Override in subclasses to support LIMIT BY
+   */
+  protected buildLimitBySection(): string {
+    return "";
+  }
+
+  /**
    * Build the final query string
    */
   protected buildQuery(): string {
@@ -473,6 +481,12 @@ abstract class BaseEventsQueryBuilder<
       parts.push(this.orderByClause);
     }
 
+    // LIMIT BY (for row deduplication with ReplacingMergeTree)
+    const limitBySection = this.buildLimitBySection();
+    if (limitBySection) {
+      parts.push(limitBySection);
+    }
+
     // LIMIT
     const limitSection = this.buildLimitSection();
     if (limitSection) {
@@ -504,6 +518,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_FIELDS
 > {
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
+  private limitByClause: string = "";
 
   /**
    * Constructor
@@ -518,6 +533,16 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   constructor(options: { projectId: string | NoProjectIdType }) {
     super(EVENTS_FIELDS, options);
+  }
+
+  /**
+   * Add LIMIT 1 BY clause for row deduplication
+   * This is used with ReplacingMergeTree tables to ensure we get the latest version of each row
+   * @param columns - Columns to deduplicate by (e.g., "e.span_id, e.project_id")
+   */
+  limitBy(columns: string): this {
+    this.limitByClause = `LIMIT 1 BY ${columns}`;
+    return this;
   }
 
   /**
@@ -576,6 +601,13 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   protected buildGroupByClause(): string {
     return "";
+  }
+
+  /**
+   * Build LIMIT BY clause for row deduplication
+   */
+  protected buildLimitBySection(): string {
+    return this.limitByClause;
   }
 }
 
