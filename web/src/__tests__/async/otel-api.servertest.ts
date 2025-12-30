@@ -302,4 +302,82 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       expect(trace!.environment).toBe("production");
     }, 25_000);
   }, 30_000);
+
+  it("should accept non-regex environment values (e.g., with colon) and lowercase them", async () => {
+    const traceId = randomBytes(16);
+    const spanId = randomBytes(8);
+
+    const payload = {
+      resourceSpans: [
+        {
+          resource: {
+            attributes: [
+              {
+                key: "deployment.environment",
+                value: { stringValue: "Prod:EU" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId: {
+                    type: "Buffer",
+                    data: traceId,
+                  },
+                  spanId: {
+                    type: "Buffer",
+                    data: spanId,
+                  },
+                  name: "test-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 466848096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467248096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/otel/v1/traces",
+      payload,
+    );
+
+    expect(response.status).toBe(200);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById({
+        projectId,
+        traceId: traceId.toString("hex"),
+      });
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(traceId.toString("hex"));
+      expect(trace!.environment).toBe("prod:eu");
+    }, 25_000);
+  }, 30_000);
 });
