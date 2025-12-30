@@ -46,11 +46,13 @@ import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansion
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export const ObservationPreview = ({
   observations,
   projectId,
   serverScores: scores,
+  corrections,
   currentObservationId,
   traceId,
   commentCounts,
@@ -62,6 +64,7 @@ export const ObservationPreview = ({
   observations: Array<ObservationReturnType>;
   projectId: string;
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  corrections: ScoreDomain[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -93,6 +96,10 @@ export const ObservationPreview = ({
 
   const currentObservationScores = scores.filter(
     (s) => s.observationId === currentObservationId,
+  );
+
+  const currentObservationCorrections = corrections.filter(
+    (c) => c.observationId === currentObservationId,
   );
 
   // Fetch and parse observation input/output in background (Web Worker)
@@ -469,6 +476,10 @@ export const ObservationPreview = ({
                   parsedInput={parsedInput}
                   parsedOutput={parsedOutput}
                   parsedMetadata={parsedMetadata}
+                  outputCorrection={getMostRecentCorrection(
+                    currentObservationCorrections,
+                  )}
+                  observationId={currentObservationId}
                   isLoading={isLoadingObservation}
                   isParsing={isWaitingForParsing}
                   media={observationMedia.data}
@@ -482,6 +493,9 @@ export const ObservationPreview = ({
                   onOutputExpansionChange={(expansion) =>
                     setFieldExpansion("output", expansion)
                   }
+                  projectId={projectId}
+                  traceId={traceId}
+                  environment={preloadedObservation.environment}
                 />
               </div>
               <div>

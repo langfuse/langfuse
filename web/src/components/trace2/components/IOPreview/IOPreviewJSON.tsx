@@ -24,10 +24,13 @@ import {
 import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
+import { type ScoreDomain } from "@langfuse/shared";
+import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -44,6 +47,11 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   enableInlineComments?: boolean;
   onAddInlineComment?: (selection: SelectionData) => void;
   commentedPathsByField?: CommentedPathsByField;
+  // Correction props
+  observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
 }
 
 /**
@@ -62,6 +70,7 @@ function IOPreviewJSONInner({
   parsedInput,
   parsedOutput,
   parsedMetadata,
+  outputCorrection,
   isParsing = false,
   hideIfNull = false,
   hideOutput = false,
@@ -71,6 +80,10 @@ function IOPreviewJSONInner({
   enableInlineComments = false,
   onAddInlineComment,
   commentedPathsByField,
+  observationId,
+  projectId,
+  traceId,
+  environment = "default",
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
@@ -415,6 +428,14 @@ function IOPreviewJSONInner({
         ) : (
           viewerContent
         )}
+        <CorrectedOutputField
+          actualOutput={parsedOutput}
+          existingCorrection={outputCorrection}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
+        />
       </div>
     </div>
   );
