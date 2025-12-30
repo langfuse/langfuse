@@ -1,4 +1,4 @@
-import { expect, it, describe, beforeAll } from "vitest";
+import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -22,6 +22,7 @@ import { Job } from "bullmq";
 
 describe("DataRetentionProcessingJob", () => {
   let storageService: StorageService;
+  let s3Prefix: string | null = null;
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
   beforeAll(() => {
@@ -35,10 +36,26 @@ describe("DataRetentionProcessingJob", () => {
     });
   });
 
+  beforeEach(() => {
+    s3Prefix = `${randomUUID()}/`;
+  });
+
+  afterEach(async () => {
+    // Clean up all files created during this test
+    if (!s3Prefix) return;
+
+    const files = await storageService.listFiles(s3Prefix);
+
+    if (files.length == 0) return;
+
+    await storageService.deleteFiles(files.map((f) => f.file));
+    s3Prefix = null;
+  });
+
   it("should NOT delete event files from cloud storage if after expiry cutoff", async () => {
     // Setup
     const baseId = randomUUID();
-    const fileName = `${baseId}.json`;
+    const fileName = `${s3Prefix}${baseId}.json`;
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
 
@@ -72,7 +89,7 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await storageService.listFiles(s3Prefix);
     expect(files.map((file) => file.file)).toContain(fileName);
 
     const eventLogRecord = await getBlobStorageByProjectAndEntityId(
@@ -86,7 +103,7 @@ describe("DataRetentionProcessingJob", () => {
   it("should delete event files from cloud storage if expired", async () => {
     // Setup
     const baseId = randomUUID();
-    const fileName = `${baseId}.json`;
+    const fileName = `${s3Prefix}${baseId}.json`;
     const fileType = "application/json";
     const data = JSON.stringify({ hello: "world" });
 
@@ -120,7 +137,7 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await storageService.listFiles(s3Prefix);
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const eventLogRecord = await getBlobStorageByProjectAndEntityId(
@@ -133,7 +150,7 @@ describe("DataRetentionProcessingJob", () => {
 
   it("should NOT delete media files from cloud storage and database if after expiry cutoff", async () => {
     // Setup
-    const fileName = `${randomUUID()}.txt`;
+    const fileName = `${s3Prefix}${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
 
@@ -174,7 +191,7 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await storageService.listFiles(s3Prefix);
     expect(files.map((file) => file.file)).toContain(fileName);
 
     const media = await prisma.media.findUnique({
@@ -190,7 +207,7 @@ describe("DataRetentionProcessingJob", () => {
 
   it("should delete media files from cloud storage and database if expired", async () => {
     // Setup
-    const fileName = `${randomUUID()}.txt`;
+    const fileName = `${s3Prefix}${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
 
@@ -231,7 +248,7 @@ describe("DataRetentionProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await storageService.listFiles(s3Prefix);
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
