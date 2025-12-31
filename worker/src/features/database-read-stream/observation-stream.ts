@@ -372,7 +372,8 @@ export const getObservationStream = async (props: {
   };
 
   // Convert async generator to Node.js Readable stream
-  // eslint-disable-next-line no-unused-vars
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Counter for potential future instrumentation
   let recordsProcessed = 0;
 
   return Readable.from(

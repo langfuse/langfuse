@@ -44,7 +44,6 @@ Timed out fetching a new connection from the connection pool. More info:  (Curre
 */
 
 jest.mock("@langfuse/shared/src/db", () => {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const originalModule = jest.requireActual("@langfuse/shared/src/db");
 
   // Create a mock for PrismaClient
@@ -77,7 +76,6 @@ jest.mock("@langfuse/shared/src/db", () => {
     },
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return {
     __esModule: true,
     ...originalModule,

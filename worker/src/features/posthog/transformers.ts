@@ -23,7 +23,7 @@ export const transformTraceForPostHog = (
   const uuid = v5(`${projectId}-${trace.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
 
   // Extract posthog_session_id and map to $session_id
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = trace;
 
   return {
@@ -60,7 +60,7 @@ export const transformGenerationForPostHog = (
   );
 
   // Extract posthog_session_id and map to $session_id
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = generation;
 
   return {
@@ -94,7 +94,7 @@ export const transformScoreForPostHog = (
   const uuid = v5(`${projectId}-${score.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
 
   // Extract posthog_session_id and map to $session_id
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = score;
 
   return {

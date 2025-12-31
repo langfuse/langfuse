@@ -88,16 +88,14 @@ export const enrichObservationWithModelData = (
  * - convertObservation(record, props) → Partial<Observation>
  */
 export function convertObservationPartial(
-  // eslint-disable-next-line no-unused-vars
   record: ObservationRecordReadType,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: true, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: true,
 ): Observation;
 export function convertObservationPartial(
-  // eslint-disable-next-line no-unused-vars
   record: Partial<ObservationRecordReadType>,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: false, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: false,
 ): PartialObservation;
 export function convertObservationPartial(
   record: Partial<ObservationRecordReadType>,
@@ -339,16 +337,14 @@ export function convertObservation(
  * Use this for observations from the events table which contain user context.
  */
 export function convertEventsObservation(
-  // eslint-disable-next-line no-unused-vars
   record: EventsObservationRecordReadType,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: true, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: true,
 ): EventsObservation;
 export function convertEventsObservation(
-  // eslint-disable-next-line no-unused-vars
   record: Partial<EventsObservationRecordReadType>,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: false, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: false,
 ): PartialEventsObservation;
 export function convertEventsObservation(
   record: Partial<EventsObservationRecordReadType>,

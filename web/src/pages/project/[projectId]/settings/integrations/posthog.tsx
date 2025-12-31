@@ -165,11 +165,7 @@ const PostHogIntegrationSettings = ({
 
   return (
     <Form {...posthogForm}>
-      <form
-        className="space-y-3"
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        onSubmit={posthogForm.handleSubmit(onSubmit)}
-      >
+      <form className="space-y-3" onSubmit={posthogForm.handleSubmit(onSubmit)}>
         <FormField
           control={posthogForm.control}
           name="posthogHostname"

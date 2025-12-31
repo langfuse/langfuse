@@ -378,7 +378,7 @@ async function createAllDatasetRunItemsWithConfigError(
     let stringInput = "";
     try {
       stringInput = JSON.stringify(datasetItem.input);
-    } catch (error) {
+    } catch {
       logger.info(
         `Failed to stringify input for dataset item ${datasetItem.id}`,
       );
