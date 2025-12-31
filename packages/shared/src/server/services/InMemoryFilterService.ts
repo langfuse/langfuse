@@ -13,7 +13,7 @@ export class InMemoryFilterService {
   static evaluateFilter<T>(
     data: T,
     filter: FilterState,
-    fieldMapper: (data: T, column: string) => unknown, // eslint-disable-line no-unused-vars
+    fieldMapper: (data: T, column: string) => unknown,
   ): boolean {
     try {
       // If no filters, data matches
@@ -45,7 +45,7 @@ export class InMemoryFilterService {
   private static evaluateFilterCondition<T>(
     data: T,
     condition: FilterCondition,
-    fieldMapper: (data: T, column: string) => unknown, // eslint-disable-line no-unused-vars
+    fieldMapper: (data: T, column: string) => unknown,
   ): boolean {
     const { column, type, operator } = condition;
 

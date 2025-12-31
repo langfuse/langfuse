@@ -13,7 +13,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
-const backgroundMigrationId = "3445cac4-d9d5-4750-8b65-351135c1b85e"; // eslint-disable-line no-unused-vars
+const _backgroundMigrationId = "3445cac4-d9d5-4750-8b65-351135c1b85e";
 
 export default class PatchLLMToolAndLLMSchemaAuditLogs
   implements IBackgroundMigration

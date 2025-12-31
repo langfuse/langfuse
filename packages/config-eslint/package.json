@@ -3,18 +3,31 @@
   "version": "0.0.0",
   "license": "MIT",
   "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./base": "./base.js",
+    "./next": "./next.js"
+  },
   "files": [
-    "library.js",
+    "index.js",
+    "base.js",
     "next.js"
   ],
-  "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.48.1",
-    "@typescript-eslint/parser": "^8.48.1",
-    "@vercel/style-guide": "^6.0.0",
+  "dependencies": {
+    "@eslint/compat": "^2.0.0",
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^9.39.2",
     "eslint-config-next": "15.5.9",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-config-turbo": "^2.7.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-config-turbo": "^2.7.2",
     "eslint-plugin-only-warn": "^1.1.0",
-    "typescript": "^5.7.2"
+    "eslint-plugin-prettier": "^5.5.4",
+    "globals": "^16.0.0",
+    "typescript-eslint": "^8.50.1"
+  },
+  "peerDependencies": {
+    "eslint": "^9.39.0",
+    "typescript": ">=5.0.0"
   }
 }

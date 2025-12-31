@@ -348,7 +348,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle non-Error thrown values with 500 status", async () => {
       const handler = withMiddlewares({
         PATCH: async () => {
-          throw "string error"; // eslint-disable-line no-throw-literal
+          throw "string error";
         },
       });
 
@@ -372,7 +372,7 @@ describe("withMiddlewares error handling", () => {
     it("should handle null/undefined errors with 500 status", async () => {
       const handler = withMiddlewares({
         PUT: async () => {
-          throw null; // eslint-disable-line no-throw-literal
+          throw null;
         },
       });
 

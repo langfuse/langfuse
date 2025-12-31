@@ -64,7 +64,6 @@ function BaselineToggle({ runId }: { runId: string }) {
 
   const handleClick = () => {
     if (isBaseline) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { baseline, ...restQuery } = router.query;
       void router.push({
         pathname: router.pathname,

@@ -48,7 +48,7 @@ export const filterAndValidateDbScoreList = <
   scores: InputScore[];
   dataTypes: DataTypes;
   includeHasMetadata?: IncludeHasMetadata;
-  // eslint-disable-next-line no-unused-vars
+
   onParseError?: (error: z.ZodError) => void;
 }): ValidatedScore<IncludeHasMetadata, DataTypes>[] => {
   return scores.reduce(
@@ -96,7 +96,7 @@ export const filterAndValidateDbTraceScoreList = <
 }: {
   scores: InputScore[];
   includeHasMetadata?: IncludeHasMetadata;
-  // eslint-disable-next-line no-unused-vars
+
   onParseError?: (error: z.ZodError) => void;
 }): ValidatedAPITraceScore<IncludeHasMetadata>[] => {
   return scores.reduce((acc, ts) => {

@@ -155,11 +155,7 @@ export default function EnterpriseSsoRequiredPage() {
 
         <div className="mt-10 rounded-lg border border-border bg-card px-6 py-8 shadow sm:mx-auto sm:w-full sm:max-w-md">
           <Form {...form}>
-            <form
-              className="space-y-6"
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-            >
+            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <FormField
                 control={form.control}
                 name="email"
