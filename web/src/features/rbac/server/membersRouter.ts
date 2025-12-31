@@ -20,6 +20,7 @@ import {
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -185,6 +186,30 @@ export const membersRouter = createTRPCRouter({
             message:
               "Organization does not have the required entitlement to set project roles",
           });
+      }
+
+      // Check organization member count entitlement limit
+      // Only validate when creating an organization membership (not project-only roles)
+      if (input.orgRole !== Role.NONE) {
+        // Count existing organization memberships and pending invitations
+        const [memberCount, inviteCount] = await Promise.all([
+          ctx.prisma.organizationMembership.count({
+            where: { orgId: input.orgId },
+          }),
+          ctx.prisma.membershipInvitation.count({
+            where: { orgId: input.orgId },
+          }),
+        ]);
+
+        const currentUsage = memberCount + inviteCount;
+
+        // Throw FORBIDDEN error if adding this member would exceed the plan limit
+        throwIfExceedsLimit({
+          entitlementLimit: "organization-member-count",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+          currentUsage,
+        });
       }
 
       const user = await ctx.prisma.user.findUnique({
