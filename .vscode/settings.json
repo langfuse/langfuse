@@ -28,6 +28,11 @@
     "editor.defaultFormatter": "Prisma.prisma"
   },
   "eslint.lintTask.enable": true,
-  "eslint.workingDirectories": ["./web", "./worker"],
-  "eslint.useFlatConfig": false
+  "eslint.workingDirectories": [
+    { "pattern": "./web" },
+    { "pattern": "./worker" },
+    { "pattern": "./packages/shared" },
+    { "pattern": "./ee" }
+  ],
+  "eslint.useFlatConfig": true
 }

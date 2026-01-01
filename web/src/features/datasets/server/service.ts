@@ -204,7 +204,6 @@ export const enrichAndMapToDatasetItemId = async (
 
   // Step 2: Parallel enrichment per run (with timestamp)
   const enrichmentPromises = Object.entries(runItemsByRunId).map(
-    // eslint-disable-next-line no-unused-vars
     async ([_runId, items]) => {
       const timestamp = items[0].datasetRunCreatedAt;
       const enriched = await getRunItemsByRunIdOrItemId<false>(

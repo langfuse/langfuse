@@ -192,7 +192,7 @@ const EnvSchema = z.object({
         }
 
         return map;
-      } catch (err) {
+      } catch {
         return new Map<string, number>();
       }
     }),

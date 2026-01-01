@@ -77,18 +77,16 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
  * @param requestedFields - Field groups for V2 API (null = V1 API, returns complete observations)
  */
 async function enrichObservationsWithModelData(
-  // eslint-disable-next-line no-unused-vars
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
-  projectId: string, // eslint-disable-line no-unused-vars
-  parseIoAsJson: boolean, // eslint-disable-line no-unused-vars
-  requestedFields: ObservationFieldGroup[], // eslint-disable-line no-unused-vars
+  projectId: string,
+  parseIoAsJson: boolean,
+  requestedFields: ObservationFieldGroup[],
 ): Promise<Array<EventsObservationPublic>>;
 async function enrichObservationsWithModelData(
-  // eslint-disable-next-line no-unused-vars
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
-  projectId: string, // eslint-disable-line no-unused-vars
-  parseIoAsJson: boolean, // eslint-disable-line no-unused-vars
-  requestedFields: null, // eslint-disable-line no-unused-vars
+  projectId: string,
+  parseIoAsJson: boolean,
+  requestedFields: null,
 ): Promise<Array<EventsObservation & ObservationPriceFields>>;
 async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
@@ -1194,7 +1192,6 @@ export const getTracesCountFromEventsTableForPublicApi = async (
 const updateableEventKeys = ["bookmarked", "public"] as const;
 
 type UpdateableEventFields = {
-  // eslint-disable-next-line no-unused-vars
   [K in (typeof updateableEventKeys)[number]]?: boolean;
 };
 

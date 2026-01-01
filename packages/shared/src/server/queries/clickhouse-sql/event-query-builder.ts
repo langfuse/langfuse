@@ -319,7 +319,7 @@ abstract class AbstractQueryBuilder {
   when<T extends AbstractQueryBuilder>(
     this: T,
     condition: boolean,
-    // eslint-disable-next-line no-unused-vars
+
     fn: (builder: T) => T,
   ): T {
     return condition ? fn(this) : this;
@@ -409,7 +409,7 @@ abstract class BaseEventsQueryBuilder<
   protected projectId: string | NoProjectIdType;
 
   constructor(
-    protected fields: TFields, // eslint-disable-line no-unused-vars
+    protected fields: TFields,
     options: { projectId: string | NoProjectIdType },
   ) {
     super();
