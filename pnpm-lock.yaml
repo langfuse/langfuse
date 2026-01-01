@@ -12,7 +12,6 @@ overrides:
   '@types/node-fetch': ^2.6.13
   glob: ^10.5.0
   qs: 6.14.1
-  '@modelcontextprotocol/sdk': 1.24.3
 
 patchedDependencies:
   next-auth@4.24.13:
@@ -415,7 +414,7 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3
       '@modelcontextprotocol/sdk':
-        specifier: 1.24.3
+        specifier: ^1.24.3
         version: 1.24.3(@cfworker/json-schema@4.1.1)(zod@3.25.62)
       '@mui/material':
         specifier: ^7.3.1
