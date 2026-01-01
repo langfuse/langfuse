@@ -414,7 +414,7 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3
       '@modelcontextprotocol/sdk':
-        specifier: ^1.25.1
+        specifier: ^1.24.3
         version: 1.25.1(@cfworker/json-schema@4.1.1)(hono@4.11.3)(zod@3.25.62)
       '@mui/material':
         specifier: ^7.3.1
