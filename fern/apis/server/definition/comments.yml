@@ -62,6 +62,18 @@ types:
       authorUserId:
         type: optional<string>
         docs: The id of the user who created the comment.
+      dataField:
+        type: optional<string>
+        docs: For inline comments on IO, specifies which field (input, output, or metadata). Must be set together with path, rangeStart, and rangeEnd.
+      path:
+        type: optional<list<string>>
+        docs: JSON Path expressions specifying comment location within the dataField. Must have same length as rangeStart and rangeEnd.
+      rangeStart:
+        type: optional<list<integer>>
+        docs: Start character offsets (inclusive, UTF-16 code units) for each path entry.
+      rangeEnd:
+        type: optional<list<integer>>
+        docs: End character offsets (exclusive, UTF-16 code units) for each path entry.
   CreateCommentResponse:
     properties:
       id:

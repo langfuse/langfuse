@@ -12,7 +12,10 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { type JSONTheme } from "../types";
-import { highlightText } from "../utils/searchJson";
+import {
+  highlightTextWithComments,
+  COMMENT_HIGHLIGHT_COLOR,
+} from "../utils/highlightText";
 
 interface TruncatedStringProps {
   value: string;
@@ -20,6 +23,7 @@ interface TruncatedStringProps {
   theme: JSONTheme;
   highlightStart?: number;
   highlightEnd?: number;
+  commentRanges?: Array<{ start: number; end: number }>;
 }
 
 export function TruncatedString({
@@ -28,6 +32,7 @@ export function TruncatedString({
   theme,
   highlightStart,
   highlightEnd,
+  commentRanges,
 }: TruncatedStringProps) {
   const isTruncated = value.length > maxLength;
   // Still slice for performance (avoid rendering massive strings in DOM)
@@ -46,7 +51,12 @@ export function TruncatedString({
   }, [isTruncated]);
 
   // Apply highlighting to display value
-  const segments = highlightText(displayValue, highlightStart, highlightEnd);
+  const segments = highlightTextWithComments(
+    displayValue,
+    highlightStart,
+    highlightEnd,
+    commentRanges,
+  );
 
   if (!isTruncated) {
     // No truncation needed, just render normally
@@ -58,18 +68,20 @@ export function TruncatedString({
         }}
       >
         &quot;
-        {segments.map((segment, index) => (
-          <span
-            key={index}
-            style={{
-              backgroundColor: segment.isHighlight
-                ? theme.searchMatchBackground
-                : "transparent",
-            }}
-          >
-            {segment.text}
-          </span>
-        ))}
+        {segments.map((segment, index) => {
+          const backgroundColor =
+            segment.type === "search"
+              ? theme.searchMatchBackground
+              : segment.type === "comment"
+                ? COMMENT_HIGHLIGHT_COLOR
+                : "transparent";
+
+          return (
+            <span key={index} style={{ backgroundColor }}>
+              {segment.text}
+            </span>
+          );
+        })}
         &quot;
       </span>
     );
@@ -94,18 +106,20 @@ export function TruncatedString({
           }}
         >
           <span>&quot;</span>
-          {segments.map((segment, index) => (
-            <span
-              key={index}
-              style={{
-                backgroundColor: segment.isHighlight
-                  ? theme.searchMatchBackground
-                  : "transparent",
-              }}
-            >
-              {segment.text}
-            </span>
-          ))}
+          {segments.map((segment, index) => {
+            const backgroundColor =
+              segment.type === "search"
+                ? theme.searchMatchBackground
+                : segment.type === "comment"
+                  ? COMMENT_HIGHLIGHT_COLOR
+                  : "transparent";
+
+            return (
+              <span key={index} style={{ backgroundColor }}>
+                {segment.text}
+              </span>
+            );
+          })}
           <span>&quot;</span>
         </span>
       </HoverCardTrigger>

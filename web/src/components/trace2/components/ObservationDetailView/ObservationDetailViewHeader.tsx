@@ -15,6 +15,7 @@ import {
   AnnotationQueueObjectType,
   isGenerationLike,
 } from "@langfuse/shared";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -57,6 +58,11 @@ export interface ObservationDetailViewHeaderProps {
   latencySeconds: number | null;
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
+  // Inline comment props
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
+  isCommentDrawerOpen?: boolean;
+  onCommentDrawerOpenChange?: (open: boolean) => void;
 }
 
 export const ObservationDetailViewHeader = memo(
@@ -68,6 +74,10 @@ export const ObservationDetailViewHeader = memo(
     latencySeconds,
     observationScores,
     commentCount,
+    pendingSelection,
+    onSelectionUsed,
+    isCommentDrawerOpen,
+    onCommentDrawerOpenChange,
   }: ObservationDetailViewHeaderProps) {
     // Format cost and usage values
     const totalCost = observation.totalCost;
@@ -144,6 +154,10 @@ export const ObservationDetailViewHeader = memo(
               objectType="OBSERVATION"
               count={commentCount}
               size="sm"
+              pendingSelection={pendingSelection}
+              onSelectionUsed={onSelectionUsed}
+              isOpen={isCommentDrawerOpen}
+              onOpenChange={onCommentDrawerOpenChange}
             />
           </div>
         </div>

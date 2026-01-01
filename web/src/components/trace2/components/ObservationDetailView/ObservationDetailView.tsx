@@ -25,7 +25,8 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
@@ -37,6 +38,8 @@ import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPrefere
 // Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
+import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
+import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
@@ -75,7 +78,23 @@ export function ObservationDetailView({
   const currentView = jsonViewPreference;
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
-  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false); // Get comments, scores, corrections, and expansion state from contexts
+  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
+
+  // states for the inline comments
+  const [pendingSelection, setPendingSelection] =
+    useState<SelectionData | null>(null);
+  const [isCommentDrawerOpen, setIsCommentDrawerOpen] = useState(false);
+
+  const handleAddInlineComment = useCallback((selection: SelectionData) => {
+    setPendingSelection(selection);
+    setIsCommentDrawerOpen(true);
+  }, []);
+
+  const handleSelectionUsed = useCallback(() => {
+    setPendingSelection(null);
+  }, []);
+
+  // Get comments, scores, corrections, and expansion state from contexts
   const { comments, serverScores: scores, corrections } = useTraceData();
   const { expansionState, setFieldExpansion } = useJsonExpansion();
   const observationScores = useMemo(
@@ -118,6 +137,19 @@ export function ObservationDetailView({
     observationId: observation.id,
   });
 
+  const observationComments = api.comments.getByObjectId.useQuery(
+    {
+      projectId,
+      objectId: observation.id,
+      objectType: "OBSERVATION",
+    },
+    {
+      refetchOnMount: false,
+    },
+  );
+
+  const commentedPathsByField = useCommentedPaths(observationComments.data);
+
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
     if (observation.latency) {
@@ -142,6 +174,10 @@ export function ObservationDetailView({
         latencySeconds={latencySeconds}
         observationScores={observationScores}
         commentCount={comments.get(observation.id)}
+        pendingSelection={pendingSelection}
+        onSelectionUsed={handleSelectionUsed}
+        isCommentDrawerOpen={isCommentDrawerOpen}
+        onCommentDrawerOpenChange={setIsCommentDrawerOpen}
       />
 
       {/* Tabs section */}
@@ -211,6 +247,9 @@ export function ObservationDetailView({
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
               }
+              enableInlineComments={true}
+              onAddInlineComment={handleAddInlineComment}
+              commentedPathsByField={commentedPathsByField}
               showMetadata
               observationId={observation.id}
               onVirtualizationChange={setIsJSONBetaVirtualized}

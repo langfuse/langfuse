@@ -25,6 +25,7 @@ import {
 import { SectionContextProvider } from "./contexts/SectionContext";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type CommentedPathsByField } from "./utils/commentRanges";
 
 export interface MultiSectionJsonViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -66,6 +67,9 @@ export interface MultiSectionJsonViewerProps {
 
   /** Media attachments (will be filtered by section field) */
   media?: MediaReturnType[];
+
+  /** Comment highlight ranges per field (for inline comments feature) */
+  commentedPathsByField?: CommentedPathsByField;
 }
 
 /**
@@ -100,6 +104,7 @@ export const MultiSectionJsonViewer = forwardRef<
     className,
     scrollContainerRef,
     media,
+    commentedPathsByField,
   },
   ref,
 ) {
@@ -191,6 +196,7 @@ export const MultiSectionJsonViewer = forwardRef<
       onToggleExpansion: handleToggleExpansion,
       scrollContainerRef,
       media,
+      commentedPathsByField,
     }),
     [
       tree,
@@ -208,6 +214,7 @@ export const MultiSectionJsonViewer = forwardRef<
       handleToggleExpansion,
       scrollContainerRef,
       media,
+      commentedPathsByField,
     ],
   );
 
