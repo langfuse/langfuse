@@ -1020,5 +1020,408 @@ describe("/api/public/v2/scores API Endpoint", () => {
         );
       });
     });
+
+    describe("GET /api/public/v2/scores - fields parameter", () => {
+      it("should include both score and trace by default (backward compatibility)", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "test-user",
+          tags: ["tag1", "tag2"],
+          environment: "production",
+        });
+        await createTracesCh([trace]);
+
+        const score = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 100,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          name: "test-score",
+          value: 100,
+          trace: {
+            userId: "test-user",
+            tags: expect.arrayContaining(["tag1", "tag2"]),
+            environment: "production",
+          },
+        });
+      });
+
+      it("should include both when fields=score,trace", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "test-user",
+          tags: ["tag1"],
+        });
+        await createTracesCh([trace]);
+
+        const score = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 50,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?fields=score,trace`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          name: "test-score",
+          value: 50,
+          trace: {
+            userId: "test-user",
+            tags: ["tag1"],
+          },
+        });
+      });
+
+      it("should exclude trace when fields=score only", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "test-user",
+          tags: ["tag1", "tag2"],
+        });
+        await createTracesCh([trace]);
+
+        const score = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 75,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?fields=score`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          name: "test-score",
+          value: 75,
+          trace: null,
+        });
+      });
+
+      it("should handle empty fields as default (include trace)", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "test-user",
+        });
+        await createTracesCh([trace]);
+
+        const score = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 100,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?fields=`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          trace: {
+            userId: "test-user",
+          },
+        });
+      });
+
+      it("should handle session scores without trace when fields=score", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const sessionId = v4();
+        const scoreId = v4();
+
+        const score = createSessionScore({
+          id: scoreId,
+          project_id: projectId,
+          session_id: sessionId,
+          name: "session-score",
+          value: 100,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?sessionId=${sessionId}&fields=score`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          sessionId: sessionId,
+          name: "session-score",
+          value: 100,
+          trace: null,
+        });
+      });
+
+      it("should still filter by userId even when fields=score", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId1 = v4();
+        const traceId2 = v4();
+        const scoreId1 = v4();
+        const scoreId2 = v4();
+
+        const trace1 = createTrace({
+          id: traceId1,
+          project_id: projectId,
+          user_id: "user-1",
+        });
+        const trace2 = createTrace({
+          id: traceId2,
+          project_id: projectId,
+          user_id: "user-2",
+        });
+        await createTracesCh([trace1, trace2]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId1,
+          name: "test-score",
+          value: 100,
+          data_type: "NUMERIC",
+        });
+        const score2 = createTraceScore({
+          id: scoreId2,
+          project_id: projectId,
+          trace_id: traceId2,
+          name: "test-score",
+          value: 50,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score1, score2]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?userId=user-1&fields=score`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId1,
+          value: 100,
+          trace: null, // trace excluded but filtering still works
+        });
+      });
+
+      it("should ignore invalid field groups", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "test-user",
+          tags: ["tag1"],
+        });
+        await createTracesCh([trace]);
+
+        const score = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 100,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?fields=score,trace,invalid,unknown`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          trace: {
+            userId: "test-user",
+            tags: ["tag1"],
+          },
+        });
+      });
+
+      it("should handle fields=trace only (returns scores with trace)", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "test-user",
+        });
+        await createTracesCh([trace]);
+
+        const score = createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 100,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?fields=trace`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        // Score is returned with trace since trace field is requested
+        expect(getScores.body.data[0]).toMatchObject({
+          id: scoreId,
+          name: "test-score",
+          value: 100,
+          trace: {
+            userId: "test-user",
+          },
+        });
+      });
+
+      it("should handle multiple scores with fields=score", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId1 = v4();
+        const scoreId2 = v4();
+        const scoreId3 = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "test-user",
+          tags: ["tag1", "tag2"],
+        });
+        await createTracesCh([trace]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "score-1",
+          value: 10,
+          data_type: "NUMERIC",
+        });
+        const score2 = createTraceScore({
+          id: scoreId2,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "score-2",
+          value: 20,
+          data_type: "NUMERIC",
+        });
+        const score3 = createTraceScore({
+          id: scoreId3,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "score-3",
+          value: 30,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score1, score2, score3]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?fields=score`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(3);
+        // All scores should have trace as null
+        for (const score of getScores.body.data) {
+          expect(score.trace).toBeNull();
+        }
+      });
+    });
   });
 });

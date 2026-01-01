@@ -34,6 +34,7 @@ export default withMiddlewares({
         value: query.value ?? undefined,
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
+        fields: query.fields ?? undefined,
       };
       const scoresApiService = new ScoresApiService("v2");
       const [items, count] = await Promise.all([
