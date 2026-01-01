@@ -44,7 +44,7 @@
     "bullmq": "^5.34.10",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
-    "dd-trace": "^5.81.0",
+    "dd-trace": "^5.80.0",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.5",
     "exponential-backoff": "^3.1.2",

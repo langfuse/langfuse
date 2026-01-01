@@ -113,7 +113,7 @@
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
     "date-fns": "^3.3.1",
-    "dd-trace": "^5.81.0",
+    "dd-trace": "^5.80.0",
     "decimal.js": "^10.4.3",
     "diff": "^7.0.0",
     "dompurify": "^3.2.4",
