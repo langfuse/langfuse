@@ -4,6 +4,7 @@ import {
   GetScoresQueryV2,
   GetScoresResponseV2,
   filterAndValidateV2GetScoreList,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
@@ -13,6 +14,17 @@ export default withMiddlewares({
     querySchema: GetScoresQueryV2,
     responseSchema: GetScoresResponseV2,
     fn: async ({ query, auth }) => {
+      // Validate that trace filters are not used when trace field is excluded
+      const requestedFields = query.fields ?? ["score", "trace"];
+      const includesTrace = requestedFields.includes("trace");
+      const hasTraceFilters = Boolean(query.userId || query.traceTags);
+
+      if (!includesTrace && hasTraceFilters) {
+        throw new InvalidRequestError(
+          "Cannot filter by trace properties (userId, traceTags) when 'trace' field is not included. Please add 'trace' to the fields parameter or remove trace filters.",
+        );
+      }
+
       const scoreParams = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
