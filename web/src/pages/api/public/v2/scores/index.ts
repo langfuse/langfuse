@@ -17,6 +17,11 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       // Validate that trace filters are not used when trace field is excluded
       const requestedFields = query.fields ?? ["score", "trace"];
+
+      if (!requestedFields.includes("score")) {
+        throw new InvalidRequestError("Scores needs to be selected always.");
+      }
+
       const includesTrace = requestedFields.includes("trace");
       const hasTraceFilters = Boolean(query.userId || query.traceTags);
 

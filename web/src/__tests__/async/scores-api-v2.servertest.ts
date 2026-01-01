@@ -1269,7 +1269,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         });
       });
 
-      it("should handle fields=trace only (returns scores with trace)", async () => {
+      it("should return 400 when requesting trace field without score field", async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
         const traceId = v4();
         const scoreId = v4();
@@ -1291,25 +1291,21 @@ describe("/api/public/v2/scores API Endpoint", () => {
         });
         await createScoresCh([score]);
 
-        const getScores = await makeZodVerifiedAPICall(
-          GetScoresResponseV2,
+        const response = await makeZodVerifiedAPICall(
+          z.object({
+            message: z.string(),
+          }),
           "GET",
           `/api/public/v2/scores?fields=trace`,
           undefined,
           auth,
+          400,
         );
 
-        expect(getScores.status).toBe(200);
-        expect(getScores.body.data).toHaveLength(1);
-        // Score is returned with trace since trace field is requested
-        expect(getScores.body.data[0]).toMatchObject({
-          id: scoreId,
-          name: "test-score",
-          value: 100,
-          trace: {
-            userId: "test-user",
-          },
-        });
+        expect(response.status).toBe(400);
+        expect(response.body.message).toContain(
+          "Scores needs to be selected always",
+        );
       });
 
       it("should handle multiple scores with fields=score", async () => {

@@ -13,8 +13,8 @@ export const GetScoresQueryV2 = GetScoresQuery.extend({
   traceId: z.string().nullish(),
   datasetRunId: z.string().nullish(),
 });
-export const GetScoreResponseDataV2 = APIScoreSchemaV2.or(
-  z.intersection(
+export const GetScoreResponseDataV2 = z
+  .intersection(
     APIScoreSchemaV2,
     z.object({
       trace: z
@@ -25,8 +25,8 @@ export const GetScoreResponseDataV2 = APIScoreSchemaV2.or(
         })
         .nullish(),
     }),
-  ),
-);
+  )
+  .or(APIScoreSchemaV2);
 
 export const GetScoresResponseV2 = z.object({
   data: z.array(GetScoreResponseDataV2),
