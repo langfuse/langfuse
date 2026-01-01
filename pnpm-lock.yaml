@@ -11,7 +11,6 @@ overrides:
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
   glob: ^10.5.0
-  qs: 6.14.1
 
 patchedDependencies:
   next-auth@4.24.13:
@@ -412,10 +411,10 @@ importers:
       "@lezer/highlight":
         specifier: ^1.2.3
         version: 1.2.3
-      "@modelcontextprotocol/sdk":
-        specifier: ^1.25.1
-        version: 1.25.1(@cfworker/json-schema@4.1.1)(hono@4.11.3)(zod@3.25.62)
-      "@mui/material":
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.24.3
+        version: 1.24.3(@cfworker/json-schema@4.1.1)(zod@3.25.62)
+      '@mui/material':
         specifier: ^7.3.1
         version: 7.3.1(@emotion/react@11.11.4(@types/react@19.2.3)(react@19.2.3))(@emotion/styled@11.11.5(@emotion/react@11.11.4(@types/react@19.2.3)(react@19.2.3))(@types/react@19.2.3)(react@19.2.3))(@types/react@19.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       "@mui/x-tree-view":
@@ -3749,20 +3748,8 @@ packages:
     peerDependencies:
       react: ">= 16"
 
-  "@hono/node-server@1.19.7":
-    resolution:
-      {
-        integrity: sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw==,
-      }
-    engines: { node: ">=18.14.1" }
-    peerDependencies:
-      hono: ^4
-
-  "@hookform/resolvers@5.1.1":
-    resolution:
-      {
-        integrity: sha512-J/NVING3LMAEvexJkyTLjruSm7aOFx7QX21pzkiJfMoNG0wl5aFEjLTl7ay7IQb9EWY6AkrBy7tHL2Alijpdcg==,
-      }
+  '@hookform/resolvers@5.1.1':
+    resolution: {integrity: sha512-J/NVING3LMAEvexJkyTLjruSm7aOFx7QX21pzkiJfMoNG0wl5aFEjLTl7ay7IQb9EWY6AkrBy7tHL2Alijpdcg==}
     peerDependencies:
       react-hook-form: ^7.55.0
 
@@ -4701,12 +4688,9 @@ packages:
         integrity: sha512-lnjOhe7zyHjc+If7yT4zoedx2vo4sHaTmtkl1+or8BRTnCtDmcTpAjpzDSfCZrshM5bCoz0GyidzadJAH1xobA==,
       }
 
-  "@modelcontextprotocol/sdk@1.25.1":
-    resolution:
-      {
-        integrity: sha512-yO28oVFFC7EBoiKdAn+VqRm+plcfv4v0xp6osG/VsCB0NlPZWi87ajbCZZ8f/RvOFLEu7//rSRmuZZ7lMoe3gQ==,
-      }
-    engines: { node: ">=18" }
+  '@modelcontextprotocol/sdk@1.24.3':
+    resolution: {integrity: sha512-YgSHW29fuzKKAHTGe9zjNoo+yF8KaQPzDC2W9Pv41E7/57IfY+AMGJ/aDFlgTLcVVELoggKE4syABCE75u3NCw==}
+    engines: {node: '>=18'}
     peerDependencies:
       "@cfworker/json-schema": ^4.1.1
       zod: ^3.25 || ^4.0
@@ -10995,11 +10979,12 @@ packages:
     engines: { node: ">=8" }
 
   call-bind-apply-helpers@1.0.2:
-    resolution:
-      {
-        integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==,
-      }
-    engines: { node: ">= 0.4" }
+    resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
+    engines: {node: '>= 0.4'}
+
+  call-bind@1.0.7:
+    resolution: {integrity: sha512-GHTSNSYICQ7scH7sZ+M2rFopRoLh8t2bLSW6BbgrtLsahOIB5iyAVJf9GjWK3cYTDaMj4XdBpM1cA6pIS0Kv2w==}
+    engines: {node: '>= 0.4'}
 
   call-bind@1.0.8:
     resolution:
@@ -13848,6 +13833,14 @@ packages:
       }
     engines: { node: ">=18" }
 
+  get-intrinsic@1.2.4:
+    resolution: {integrity: sha512-5uYhsJH8VJBTv7oslg4BznJYhDoRI6waYCxMmCdnTrcCrHA/fCFKoTFz2JKKE0HdDFUF7/oQuhzumXJK7paBRQ==}
+    engines: {node: '>= 0.4'}
+
+  get-intrinsic@1.3.0:
+    resolution: {integrity: sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==}
+    engines: {node: '>= 0.4'}
+
   get-intrinsic@1.3.0:
     resolution:
       {
@@ -14103,17 +14096,19 @@ packages:
     engines: { node: ">=8" }
 
   has-property-descriptors@1.0.2:
-    resolution:
-      {
-        integrity: sha512-55JNKuIW+vq4Ke1BjOTjM2YctQIvCT7GFzHwmfZPGo5wnrgkid0YQtnAleFSqumZm4az3n2BS+erby5ipJdgrg==,
-      }
+    resolution: {integrity: sha512-55JNKuIW+vq4Ke1BjOTjM2YctQIvCT7GFzHwmfZPGo5wnrgkid0YQtnAleFSqumZm4az3n2BS+erby5ipJdgrg==}
+
+  has-proto@1.0.3:
+    resolution: {integrity: sha512-SJ1amZAJUiZS+PhsVLf5tGydlaVB8EdFpaSO4gmiUKUOxk8qzn5AIy4ZeJUmh22znIdk/uMAUT2pl3FxzVUH+Q==}
+    engines: {node: '>= 0.4'}
 
   has-proto@1.2.0:
-    resolution:
-      {
-        integrity: sha512-KIL7eQPfHQRC8+XluaIw7BHUwwqL19bQn4hzNgdr+1wXoU0KKj6rufu47lhY7KbJR2C6T6+PfyN0Ea7wkSS+qQ==,
-      }
-    engines: { node: ">= 0.4" }
+    resolution: {integrity: sha512-KIL7eQPfHQRC8+XluaIw7BHUwwqL19bQn4hzNgdr+1wXoU0KKj6rufu47lhY7KbJR2C6T6+PfyN0Ea7wkSS+qQ==}
+    engines: {node: '>= 0.4'}
+
+  has-symbols@1.0.3:
+    resolution: {integrity: sha512-l3LCuF6MgDNwTDKkdYGEihYjt5pRPbEg46rtlmnSPlUbgmB8LOIrKJbYYFBSbnPaJexMKtiPO8hmeRjRz2Td+A==}
+    engines: {node: '>= 0.4'}
 
   has-symbols@1.1.0:
     resolution:
@@ -14179,13 +14174,6 @@ packages:
       {
         integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==,
       }
-
-  hono@4.11.3:
-    resolution:
-      {
-        integrity: sha512-PmQi306+M/ct/m5s66Hrg+adPnkD5jiO6IjA7WhWw0gSBSo1EcRegwuI1deZ+wd5pzCGynCcn2DprnE4/yEV4w==,
-      }
-    engines: { node: ">=16.9.0" }
 
   hosted-git-info@2.8.9:
     resolution:
@@ -14330,13 +14318,6 @@ packages:
     resolution:
       {
         integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==,
-      }
-    engines: { node: ">=0.10.0" }
-
-  iconv-lite@0.7.1:
-    resolution:
-      {
-        integrity: sha512-2Tth85cXwGFHfvRgZWszZSvdo+0Xsqmw8k8ZwxScfcBneNUraK+dxRxRm24nszx80Y0TVio8kKLt5sLE7ZCLlw==,
       }
     engines: { node: ">=0.10.0" }
 
@@ -15445,12 +15426,6 @@ packages:
     resolution:
       {
         integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==,
-      }
-
-  json-schema-typed@8.0.2:
-    resolution:
-      {
-        integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==,
       }
 
   json-schema@0.4.0:
@@ -17247,6 +17222,14 @@ packages:
       }
     engines: { node: ">= 6" }
 
+  object-inspect@1.13.2:
+    resolution: {integrity: sha512-IRZSRuzJiynemAXPYtPe5BoI/RESNYR7TYm50MC5Mqbd3Jmw5y790sErYw3V6SryFJD64b74qQQs9wn5Bg/k3g==}
+    engines: {node: '>= 0.4'}
+
+  object-inspect@1.13.4:
+    resolution: {integrity: sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==}
+    engines: {node: '>= 0.4'}
+
   object-inspect@1.13.4:
     resolution:
       {
@@ -17916,12 +17899,9 @@ packages:
       }
     engines: { node: ">= 6" }
 
-  pkce-challenge@5.0.1:
-    resolution:
-      {
-        integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==,
-      }
-    engines: { node: ">=16.20.0" }
+  pkce-challenge@5.0.0:
+    resolution: {integrity: sha512-ueGLflrrnvwB3xuo/uGob5pd5FN7l0MsLf0Z87o/UQmRtwjvfylfc9MurIxRAWywCYTgrvpXBcqjV4OfCYGCIQ==}
+    engines: {node: '>=16.20.0'}
 
   pkg-dir@4.2.0:
     resolution:
@@ -18509,12 +18489,13 @@ packages:
         integrity: sha512-oTUZM/NAZS8p7ANR3SHh30kXB+zK2r2BPcEn/awJIbOvq82WoMN4p62AWWp3Hhw50G0xMsw1mhIBLqHw64EcNQ==,
       }
 
-  qs@6.14.1:
-    resolution:
-      {
-        integrity: sha512-4EK3+xJl8Ts67nLYNwqw/dsFVnCf+qR7RgXSK9jEEm9unao3njwMDdmsdvoKBKHzxd7tCYz5e5M+SnMjdtXGQQ==,
-      }
-    engines: { node: ">=0.6" }
+  qs@6.13.0:
+    resolution: {integrity: sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==}
+    engines: {node: '>=0.6'}
+
+  qs@6.14.0:
+    resolution: {integrity: sha512-YWWTjgABSKcvs/nWBi9PycY/JiPJqOD4JA6o9Sej2AtvSGarXxKC3OQSk4pAarbdQlKAh5D4FCQkJNkW+GAn3w==}
+    engines: {node: '>=0.6'}
 
   quansync@0.2.11:
     resolution:
@@ -19390,21 +19371,15 @@ packages:
         integrity: sha512-1chMo1dST4pFA9RDXAtF0Rbjaut4is7bzFbI1Z26IuMub68pNCILku85aYmeFhvnY//BXUPUhoRMjYcsT93J/Q==,
       }
 
-  seroval-plugins@1.4.2:
-    resolution:
-      {
-        integrity: sha512-X7p4MEDTi+60o2sXZ4bnDBhgsUYDSkQEvzYZuJyFqWg9jcoPsHts5nrg5O956py2wyt28lUrBxk0M0/wU8URpA==,
-      }
-    engines: { node: ">=10" }
+  seroval-plugins@1.4.0:
+    resolution: {integrity: sha512-zir1aWzoiax6pbBVjoYVd0O1QQXgIL3eVGBMsBsNmM8Ukq90yGaWlfx0AB9dTS8GPqrOrbXn79vmItCUP9U3BQ==}
+    engines: {node: '>=10'}
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.4.2:
-    resolution:
-      {
-        integrity: sha512-N3HEHRCZYn3cQbsC4B5ldj9j+tHdf4JZoYPlcI4rRYu0Xy4qN8MQf1Z08EibzB0WpgRG5BGK08FTrmM66eSzKQ==,
-      }
-    engines: { node: ">=10" }
+  seroval@1.4.1:
+    resolution: {integrity: sha512-9GOc+8T6LN4aByLN75uRvMbrwY5RDBW6lSlknsY4LEa9ZmWcxKcRe1G/Q3HZXjltxMHTrStnvrwAICxZrhldtg==}
+    engines: {node: '>=10'}
 
   serve-static@2.2.1:
     resolution:
@@ -19510,11 +19485,12 @@ packages:
     engines: { node: ">= 0.4" }
 
   side-channel-weakmap@1.0.2:
-    resolution:
-      {
-        integrity: sha512-WPS/HvHQTYnHisLo9McqBHOJk2FkHO/tlpvldyrnem4aeQp4hai3gythswg6p01oSoTl58rcpiFAjF2br2Ak2A==,
-      }
-    engines: { node: ">= 0.4" }
+    resolution: {integrity: sha512-WPS/HvHQTYnHisLo9McqBHOJk2FkHO/tlpvldyrnem4aeQp4hai3gythswg6p01oSoTl58rcpiFAjF2br2Ak2A==}
+    engines: {node: '>= 0.4'}
+
+  side-channel@1.0.6:
+    resolution: {integrity: sha512-fDW/EZ6Q9RiO8eFG8Hj+7u/oW+XrPTIChwCOM2+th2A6OblDtYYIpve9m+KvI9Z4C9qSEXlaGR6bTEYHReuglA==}
+    engines: {node: '>= 0.4'}
 
   side-channel@1.1.0:
     resolution:
@@ -21427,12 +21403,8 @@ packages:
         optional: true
 
   whatwg-encoding@3.1.1:
-    resolution:
-      {
-        integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==,
-      }
-    engines: { node: ">=18" }
-    deprecated: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+    resolution: {integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==}
+    engines: {node: '>=18'}
 
   whatwg-mimetype@4.0.0:
     resolution:
@@ -21749,11 +21721,8 @@ packages:
     peerDependencies:
       zod: ^3.23.3
 
-  zod-to-json-schema@3.25.1:
-    resolution:
-      {
-        integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==,
-      }
+  zod-to-json-schema@3.25.0:
+    resolution: {integrity: sha512-HvWtU2UG41LALjajJrML6uQejQhNJx+JBO9IflpSja4R03iNWfKXrj6W2h7ljuLyc1nKS+9yDyL/9tD1U/yBnQ==}
     peerDependencies:
       zod: ^3.25 || ^4
 
@@ -24907,11 +24876,7 @@ snapshots:
     dependencies:
       react: 19.2.3
 
-  "@hono/node-server@1.19.7(hono@4.11.3)":
-    dependencies:
-      hono: 4.11.3
-
-  "@hookform/resolvers@5.1.1(react-hook-form@7.62.0(react@19.2.3))":
+  '@hookform/resolvers@5.1.1(react-hook-form@7.62.0(react@19.2.3))':
     dependencies:
       "@standard-schema/utils": 0.3.0
       react-hook-form: 7.62.0(react@19.2.3)
@@ -25570,7 +25535,7 @@ snapshots:
     dependencies:
       "@langchain/core": 0.3.80(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@1.26.0(@opentelemetry/api@1.9.0))(openai@4.104.0(zod@3.25.62))
       uuid: 10.0.0
-      zod-to-json-schema: 3.23.5(zod@3.25.62)
+      zod-to-json-schema: 3.25.0(zod@3.25.62)
     transitivePeerDependencies:
       - zod
     optional: true
@@ -25579,7 +25544,7 @@ snapshots:
     dependencies:
       "@langchain/core": 0.3.80(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.53.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@5.12.2(ws@8.18.3)(zod@3.25.62))
       uuid: 10.0.0
-      zod-to-json-schema: 3.23.5(zod@3.25.62)
+      zod-to-json-schema: 3.25.0(zod@3.25.62)
     transitivePeerDependencies:
       - zod
 
@@ -25734,9 +25699,8 @@ snapshots:
     dependencies:
       langium: 3.3.1
 
-  "@modelcontextprotocol/sdk@1.25.1(@cfworker/json-schema@4.1.1)(hono@4.11.3)(zod@3.25.62)":
+  '@modelcontextprotocol/sdk@1.24.3(@cfworker/json-schema@4.1.1)(zod@3.25.62)':
     dependencies:
-      "@hono/node-server": 1.19.7(hono@4.11.3)
       ajv: 8.17.1
       ajv-formats: 3.0.1(ajv@8.17.1)
       content-type: 1.0.5
@@ -25747,15 +25711,13 @@ snapshots:
       express: 5.2.1
       express-rate-limit: 7.5.1(express@5.2.1)
       jose: 6.1.3
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
+      pkce-challenge: 5.0.0
       raw-body: 3.0.2
       zod: 3.25.62
-      zod-to-json-schema: 3.25.1(zod@3.25.62)
+      zod-to-json-schema: 3.25.0(zod@3.25.62)
     optionalDependencies:
       "@cfworker/json-schema": 4.1.1
     transitivePeerDependencies:
-      - hono
       - supports-color
 
   "@mrleebo/prisma-ast@0.7.0":
@@ -30466,7 +30428,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.1
       on-finished: 2.4.1
-      qs: 6.14.1
+      qs: 6.14.0
       raw-body: 3.0.2
       type-is: 2.0.1
     transitivePeerDependencies:
@@ -30576,6 +30538,14 @@ snapshots:
     dependencies:
       es-errors: 1.3.0
       function-bind: 1.1.2
+
+  call-bind@1.0.7:
+    dependencies:
+      es-define-property: 1.0.0
+      es-errors: 1.3.0
+      function-bind: 1.1.2
+      get-intrinsic: 1.3.0
+      set-function-length: 1.2.2
 
   call-bind@1.0.8:
     dependencies:
@@ -32254,7 +32224,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.7
-      qs: 6.14.1
+      qs: 6.14.0
       range-parser: 1.2.1
       router: 2.2.0
       send: 1.2.1
@@ -32538,6 +32508,14 @@ snapshots:
 
   get-east-asian-width@1.3.1: {}
 
+  get-intrinsic@1.2.4:
+    dependencies:
+      es-errors: 1.3.0
+      function-bind: 1.1.2
+      has-proto: 1.0.3
+      has-symbols: 1.0.3
+      hasown: 2.0.2
+
   get-intrinsic@1.3.0:
     dependencies:
       call-bind-apply-helpers: 1.0.2
@@ -32713,9 +32691,13 @@ snapshots:
     dependencies:
       es-define-property: 1.0.0
 
+  has-proto@1.0.3: {}
+
   has-proto@1.2.0:
     dependencies:
       dunder-proto: 1.0.1
+
+  has-symbols@1.0.3: {}
 
   has-symbols@1.1.0: {}
 
@@ -32765,8 +32747,6 @@ snapshots:
   hoist-non-react-statics@3.3.2:
     dependencies:
       react-is: 16.13.1
-
-  hono@4.11.3: {}
 
   hosted-git-info@2.8.9: {}
 
@@ -32871,7 +32851,7 @@ snapshots:
     dependencies:
       safer-buffer: 2.1.2
 
-  iconv-lite@0.7.1:
+  iconv-lite@0.7.0:
     dependencies:
       safer-buffer: 2.1.2
 
@@ -33716,8 +33696,6 @@ snapshots:
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
-
-  json-schema-typed@8.0.2: {}
 
   json-schema@0.4.0: {}
 
@@ -35009,6 +34987,8 @@ snapshots:
 
   object-hash@3.0.0: {}
 
+  object-inspect@1.13.2: {}
+
   object-inspect@1.13.4: {}
 
   object-keys@1.1.1: {}
@@ -35429,7 +35409,7 @@ snapshots:
 
   pirates@4.0.7: {}
 
-  pkce-challenge@5.0.1: {}
+  pkce-challenge@5.0.0: {}
 
   pkg-dir@4.2.0:
     dependencies:
@@ -35794,7 +35774,11 @@ snapshots:
 
   pure-rand@7.0.1: {}
 
-  qs@6.14.1:
+  qs@6.13.0:
+    dependencies:
+      side-channel: 1.0.6
+
+  qs@6.14.0:
     dependencies:
       side-channel: 1.1.0
 
@@ -35824,7 +35808,7 @@ snapshots:
     dependencies:
       bytes: 3.1.2
       http-errors: 2.0.1
-      iconv-lite: 0.7.1
+      iconv-lite: 0.7.0
       unpipe: 1.0.0
 
   rc9@2.1.2:
@@ -36424,12 +36408,12 @@ snapshots:
 
   serialize-query-params@2.0.2: {}
 
-  seroval-plugins@1.4.2(seroval@1.4.2):
+  seroval-plugins@1.4.0(seroval@1.4.1):
     dependencies:
-      seroval: 1.4.2
+      seroval: 1.4.1
     optional: true
 
-  seroval@1.4.2:
+  seroval@1.4.1:
     optional: true
 
   serve-static@2.2.1:
@@ -36537,6 +36521,13 @@ snapshots:
       object-inspect: 1.13.4
       side-channel-map: 1.0.1
 
+  side-channel@1.0.6:
+    dependencies:
+      call-bind: 1.0.7
+      es-errors: 1.3.0
+      get-intrinsic: 1.2.4
+      object-inspect: 1.13.2
+
   side-channel@1.1.0:
     dependencies:
       es-errors: 1.3.0
@@ -36595,8 +36586,8 @@ snapshots:
   solid-js@1.8.18:
     dependencies:
       csstype: 3.2.3
-      seroval: 1.4.2
-      seroval-plugins: 1.4.2(seroval@1.4.2)
+      seroval: 1.4.1
+      seroval-plugins: 1.4.0(seroval@1.4.1)
     optional: true
 
   sonic-boom@3.8.1:
@@ -36818,12 +36809,12 @@ snapshots:
 
   stripe@17.4.0:
     dependencies:
-      "@types/node": 24.3.0
-      qs: 6.14.1
+      '@types/node': 24.3.0
+      qs: 6.13.0
 
   stripe@18.5.0(@types/node@24.3.0):
     dependencies:
-      qs: 6.14.1
+      qs: 6.14.0
     optionalDependencies:
       "@types/node": 24.3.0
 
@@ -37970,7 +37961,7 @@ snapshots:
     dependencies:
       zod: 3.25.62
 
-  zod-to-json-schema@3.25.1(zod@3.25.62):
+  zod-to-json-schema@3.25.0(zod@3.25.62):
     dependencies:
       zod: 3.25.62
 
