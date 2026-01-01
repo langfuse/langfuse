@@ -173,7 +173,7 @@
     "@jedmao/location": "^3.0.0",
     "@mermaid-js/mermaid-cli": "^11.2.0",
     "@next/bundle-analyzer": "15.5.9",
-    "@playwright/test": "^1.47.2",
+    "@playwright/test": "^1.57.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@tailwindcss/forms": "^0.5.7",
