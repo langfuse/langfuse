@@ -78,9 +78,10 @@ export const _handleGenerateScoresForPublicApi = async ({
   const appliedTracesFilter = tracesFilter.apply();
 
   // Determine if trace should be included based on fields parameter
-  const requestedFields = props.fields ?? ["score", "trace"]; // Default includes both
-  const includeTrace = requestedFields.includes("trace");
-  const needsTraceJoin = includeTrace || tracesFilter.length() > 0;
+  const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
+    props.fields,
+    tracesFilter.length(),
+  );
 
   const query = `
       SELECT
@@ -214,8 +215,11 @@ export const _handleGetScoresCountForPublicApi = async ({
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
-  // Only join traces if we have trace filters (userId, traceTags, etc.)
-  const needsTraceJoin = tracesFilter.length() > 0;
+  // Determine if trace should be included based on fields parameter
+  const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
+    props.fields,
+    tracesFilter.length(),
+  );
 
   const query = `
       SELECT
@@ -261,6 +265,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         projectId: props.projectId,
         scoreScope,
         operation_name: "_handleGetScoresCountForPublicApi",
+        includeTrace: includeTrace.toString(),
       },
     },
     fn: async (input) => {
@@ -394,6 +399,20 @@ const secureTraceFilterOptions = [
     clickhousePrefix: "t",
   },
 ];
+
+/**
+ * Determines if trace join is needed based on fields parameter and trace filters
+ */
+const determineTraceJoinRequirement = (
+  fields: string[] | null | undefined,
+  tracesFilterLength: number,
+) => {
+  const requestedFields = fields ?? ["score", "trace"]; // Default includes both
+  const includeTrace = requestedFields.includes("trace");
+  const needsTraceJoin = includeTrace || tracesFilterLength > 0;
+
+  return { includeTrace, needsTraceJoin };
+};
 
 const generateScoreFilter = (
   filter: ScoreQueryType,
