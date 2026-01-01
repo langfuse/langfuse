@@ -15,6 +15,7 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 const TIMEOUT = 110_000;
 
 declare global {
+  // eslint-disable-next-line no-var
   var sigtermReceived: boolean | undefined;
 }
 

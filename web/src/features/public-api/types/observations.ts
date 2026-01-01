@@ -126,32 +126,33 @@ export const transformDbToApiObservation = (
   const totalTokens = reducedUsageDetails.total ?? 0;
 
   const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     providedCostDetails,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     internalModelId,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     inputCost,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     outputCost,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     totalCost,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     inputUsage,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     outputUsage,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     totalUsage,
     // Exclude userId and sessionId from public API (security/privacy)
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     userId,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sessionId,
     // Exclude tool data from public API (not yet released)
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     toolDefinitions,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     toolCalls,
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     toolCallNames,
     ...rest
   } = observation as EventsObservation & ObservationPriceFields;

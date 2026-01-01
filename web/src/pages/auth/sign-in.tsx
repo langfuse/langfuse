@@ -91,7 +91,7 @@ export type PageProps = {
 };
 
 // Also used in src/pages/auth/sign-up.tsx
-
+// eslint-disable-next-line @typescript-eslint/require-await
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
   return {
@@ -486,7 +486,7 @@ export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
     const isInIframe = () => {
       try {
         return window.self !== window.top;
-      } catch {
+      } catch (_e) {
         return true;
       }
     };
@@ -733,6 +733,7 @@ export default function SignIn({
                 <Form {...credentialsForm}>
                   <form
                     className="space-y-6"
+                    // eslint-disable-next-line @typescript-eslint/no-misused-promises
                     onSubmit={
                       showPasswordStep
                         ? credentialsForm.handleSubmit(onCredentialsSubmit)

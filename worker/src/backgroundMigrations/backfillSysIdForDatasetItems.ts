@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import { logger } from "@langfuse/shared/src/server";
 import { parseArgs } from "node:util";
@@ -19,12 +20,12 @@ export default class BackfillSysIdForDatasetItems
   private isAborted = false;
 
   async validate(
-    _args: Record<string, unknown>,
+    args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     return { valid: true, invalidReason: undefined };
   }
 
-  async run(_args: Record<string, unknown>): Promise<void> {
+  async run(args: Record<string, unknown>): Promise<void> {
     logger.info(
       `Migration will be skipped as we no longer need to backfill sys_id for dataset_items`,
     );

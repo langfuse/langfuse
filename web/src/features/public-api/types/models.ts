@@ -68,7 +68,7 @@ export function prismaToApiModelDefinition({
   outputPrice,
   totalPrice,
   unit,
-
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   updatedAt,
   pricingTiers,
   ...model

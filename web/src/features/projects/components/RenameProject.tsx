@@ -78,6 +78,7 @@ export default function RenameProject() {
         )}
         <Form {...form}>
           <form
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex-1"
             id="rename-project-form"

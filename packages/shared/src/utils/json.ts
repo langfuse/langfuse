@@ -35,7 +35,7 @@ function tryParsePythonDict(str: string): unknown {
       .replace(/'/g, '"');
 
     return JSON.parse(jsonStr);
-  } catch {
+  } catch (e) {
     return str;
   }
 }
@@ -96,7 +96,7 @@ function deepParseJsonRecursive(
       const parsed = JSON.parse(json);
       if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
       return deepParseJsonRecursive(parsed, currentDepth + 1, maxDepth); // Recursively parse parsed value
-    } catch {
+    } catch (e) {
       const pythonParsed = tryParsePythonDict(json);
       if (pythonParsed !== json) {
         return deepParseJsonRecursive(pythonParsed, currentDepth + 1, maxDepth);
@@ -217,7 +217,7 @@ export function deepParseJsonIterative(
         if (typeof parsed !== "number") {
           wasParsed = true;
         }
-      } catch {
+      } catch (e) {
         // Try Python dict parsing
         const pythonParsed = tryParsePythonDict(input);
         if (pythonParsed !== input) {
@@ -397,7 +397,7 @@ export const parseJsonPrioritised = (
       }
       return value;
     }) as JsonNested;
-  } catch {
+  } catch (error) {
     return json;
   }
 };

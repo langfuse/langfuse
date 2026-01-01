@@ -181,7 +181,7 @@ export default function SignIn({
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
       });
-    } catch {
+    } catch (_err) {
       setFormError("An error occurred. Please try again.");
     }
   }
@@ -215,6 +215,7 @@ export default function SignIn({
           <Form {...form}>
             <form
               className="space-y-6"
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={
                 showPasswordStep
                   ? form.handleSubmit(onSubmit)

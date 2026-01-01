@@ -94,6 +94,7 @@ export default function ConfigureRetention() {
         )}
         <Form {...form}>
           <form
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex-1"
             id="set-retention-project-form"

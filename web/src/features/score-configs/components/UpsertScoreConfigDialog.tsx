@@ -161,7 +161,11 @@ export function UpsertScoreConfigDialog({
             </DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+            <form
+              className="space-y-6"
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+              onSubmit={form.handleSubmit(onSubmit)}
+            >
               <DialogBody>
                 <FormField
                   control={form.control}

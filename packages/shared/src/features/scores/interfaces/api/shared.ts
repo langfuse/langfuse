@@ -10,9 +10,6 @@ import {
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 
-export const SCORE_FIELD_GROUPS = ["score", "trace"] as const;
-export type ScoreFieldGroup = (typeof SCORE_FIELD_GROUPS)[number];
-
 /**
  * Endpoints
  */
@@ -44,17 +41,6 @@ export const GetScoresQuery = z.object({
       message: "Each score ID must be a string",
     })
     .nullish(),
-  fields: z
-    .string()
-    .nullish()
-    .transform((v) => {
-      if (!v) return null;
-      return v
-        .split(",")
-        .map((f) => f.trim())
-        .filter((f) => SCORE_FIELD_GROUPS.includes(f as ScoreFieldGroup));
-    })
-    .pipe(z.array(z.enum(SCORE_FIELD_GROUPS)).nullable()),
 });
 
 // POST /scores

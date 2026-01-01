@@ -23,11 +23,12 @@ export class PromptService {
   private ttlSeconds: number;
 
   constructor(
+    // eslint-disable-next-line no-unused-vars
     private prisma: PrismaClient,
     private redis: Redis | Cluster | null,
-
+    // eslint-disable-next-line no-unused-vars
     private metricIncrementer?: // used for otel metrics
-
+    // eslint-disable-next-line no-unused-vars
     (name: string, value?: number) => void,
     cacheEnabled?: boolean, // used for testing
   ) {

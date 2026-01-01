@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { cleanup, render } from "@testing-library/react";
 
 import { TestRouter } from "@/src/__tests__/fixtures/TestRouter";

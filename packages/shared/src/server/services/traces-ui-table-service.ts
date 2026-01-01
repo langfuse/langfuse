@@ -181,23 +181,28 @@ type SelectReturnTypeMap = {
 
 // Function overloads for type-safe select-specific returns
 async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "count" },
 ): Promise<Array<SelectReturnTypeMap["count"]>>;
 
 async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "metrics" },
 ): Promise<Array<SelectReturnTypeMap["metrics"]>>;
 
 async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "rows" },
 ): Promise<Array<SelectReturnTypeMap["rows"]>>;
 
 async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "identifiers" },
 ): Promise<Array<SelectReturnTypeMap["identifiers"]>>;
 
 // Implementation with union type for internal use
 async function getTracesTableGeneric(
+  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps,
 ): Promise<Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>>;
 

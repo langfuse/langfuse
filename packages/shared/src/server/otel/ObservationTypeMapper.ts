@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { type ObservationType, ObservationTypeDomain } from "../../";
 

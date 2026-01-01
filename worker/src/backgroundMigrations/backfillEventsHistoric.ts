@@ -55,10 +55,11 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
 };
 
 export type OnQueryCompleteCallback<T extends BaseChunkTodo> = (
+  // eslint-disable-next-line no-unused-vars
   todo: T,
-
+  // eslint-disable-next-line no-unused-vars
   success: boolean,
-
+  // eslint-disable-next-line no-unused-vars
   error?: string,
 ) => Promise<void>;
 

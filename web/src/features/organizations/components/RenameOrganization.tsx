@@ -80,6 +80,7 @@ export default function RenameOrganization() {
         )}
         <Form {...form}>
           <form
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex-1"
             id="rename-organization-form"

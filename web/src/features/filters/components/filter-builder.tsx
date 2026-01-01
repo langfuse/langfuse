@@ -648,7 +648,7 @@ function FilterBuilderForm({
                           handleFilterChange(
                             {
                               ...filter,
-
+                              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
                               operator: value as any,
                             },
                             i,

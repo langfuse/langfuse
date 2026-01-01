@@ -103,7 +103,7 @@ export async function upsertClickhouse<
 >(opts: {
   table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
-  eventBodyMapper: (body: T) => Record<string, unknown>;
+  eventBodyMapper: (body: T) => Record<string, unknown>; // eslint-disable-line no-unused-vars
   tags?: Record<string, string>;
 }): Promise<void> {
   return await instrumentAsync(

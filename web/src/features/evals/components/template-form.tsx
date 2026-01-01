@@ -337,7 +337,9 @@ export const InnerEvalTemplateForm = (props: {
         );
       })
       .catch((error) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if ("message" in error && typeof error.message === "string") {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
           setFormError(error.message as string);
           return;
         } else {
@@ -533,7 +535,11 @@ export const InnerEvalTemplateForm = (props: {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="mt-2 space-y-4">
+      <form
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="mt-2 space-y-4"
+      >
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
 
         {props.useDialog ? (

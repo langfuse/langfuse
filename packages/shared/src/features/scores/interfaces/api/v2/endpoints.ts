@@ -13,20 +13,18 @@ export const GetScoresQueryV2 = GetScoresQuery.extend({
   traceId: z.string().nullish(),
   datasetRunId: z.string().nullish(),
 });
-export const GetScoreResponseDataV2 = z
-  .intersection(
-    APIScoreSchemaV2,
-    z.object({
-      trace: z
-        .object({
-          userId: z.string().nullish(),
-          tags: z.array(z.string()).nullish(),
-          environment: z.string().nullish(),
-        })
-        .nullish(),
-    }),
-  )
-  .or(APIScoreSchemaV2);
+export const GetScoreResponseDataV2 = z.intersection(
+  APIScoreSchemaV2,
+  z.object({
+    trace: z
+      .object({
+        userId: z.string().nullish(),
+        tags: z.array(z.string()).nullish(),
+        environment: z.string().nullish(),
+      })
+      .nullish(),
+  }),
+);
 
 export const GetScoresResponseV2 = z.object({
   data: z.array(GetScoreResponseDataV2),

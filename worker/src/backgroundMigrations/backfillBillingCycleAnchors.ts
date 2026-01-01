@@ -26,7 +26,8 @@ export default class BackfillBillingCycleAnchors
   private isAborted = false;
 
   async validate(
-    _args: Record<string, unknown>,
+    // eslint-disable-next-line no-unused-vars
+    args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     // If not in cloud environment, validation passes (will skip in run())
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {

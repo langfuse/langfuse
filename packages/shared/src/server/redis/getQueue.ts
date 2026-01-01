@@ -100,7 +100,8 @@ export function getQueue(
     case QueueName.NotificationQueue:
       return NotificationQueue.getInstance();
     default: {
-      const _exhaustiveCheckDefault: never = queueName;
+      // eslint-disable-next-line no-case-declarations, no-unused-vars
+      const exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
     }
   }

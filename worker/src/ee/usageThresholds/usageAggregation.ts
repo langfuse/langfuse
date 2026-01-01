@@ -171,7 +171,7 @@ export type UsageAggregationStats = {
  */
 export async function processUsageAggregationForAllOrgs(
   referenceDate: Date = new Date(),
-  onProgress?: (progress: number) => void | Promise<void>,
+  onProgress?: (progress: number) => void | Promise<void>, // eslint-disable-line no-unused-vars
 ): Promise<UsageAggregationStats> {
   // Normalize referenceDate to UTC end of day
   const normalizedReferenceDate = endOfDayUTC(referenceDate);

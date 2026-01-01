@@ -92,18 +92,21 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: true;
   },
 ): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     structuredOutputSchema: ZodSchema;
@@ -111,6 +114,7 @@ export async function fetchLLMCompletion(
 ): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
+  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     tools: LLMToolDefinition[];
@@ -400,6 +404,7 @@ export async function fetchLLMCompletion(
       }),
     });
   } else {
+    // eslint-disable-next-line no-unused-vars
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error(
       `This model provider is not supported: ${_exhaustiveCheck}`,

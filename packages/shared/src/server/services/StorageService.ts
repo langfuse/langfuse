@@ -55,24 +55,25 @@ function handleStorageError(err: unknown, operation: string): never {
 }
 
 export interface StorageService {
-  uploadFile(params: UploadFile): Promise<void>;
+  uploadFile(params: UploadFile): Promise<void>; // eslint-disable-line no-unused-vars
 
   uploadWithSignedUrl(
-    params: UploadWithSignedUrl,
+    params: UploadWithSignedUrl, // eslint-disable-line no-unused-vars
   ): Promise<{ signedUrl: string }>;
 
-  uploadJson(path: string, body: Record<string, unknown>[]): Promise<void>;
+  uploadJson(path: string, body: Record<string, unknown>[]): Promise<void>; // eslint-disable-line no-unused-vars
 
-  download(path: string): Promise<string>;
+  download(path: string): Promise<string>; // eslint-disable-line no-unused-vars
 
-  listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
+  listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>; // eslint-disable-line no-unused-vars
 
   getSignedUrl(
-    fileName: string,
-    ttlSeconds: number,
-    asAttachment?: boolean,
+    fileName: string, // eslint-disable-line no-unused-vars
+    ttlSeconds: number, // eslint-disable-line no-unused-vars
+    asAttachment?: boolean, // eslint-disable-line no-unused-vars
   ): Promise<string>;
 
+  // eslint-disable-next-line no-unused-vars
   getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -81,7 +82,7 @@ export interface StorageService {
     contentLength: number;
   }): Promise<string>;
 
-  deleteFiles(paths: string[]): Promise<void>;
+  deleteFiles(paths: string[]): Promise<void>; // eslint-disable-line no-unused-vars
 }
 
 export class StorageServiceFactory {

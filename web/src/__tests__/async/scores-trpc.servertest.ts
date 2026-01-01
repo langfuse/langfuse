@@ -1,4 +1,5 @@
 /** @jest-environment node */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 const mockAddScoreDelete = jest.fn();
 const mockAddBatchAction = jest.fn();

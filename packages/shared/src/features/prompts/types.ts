@@ -14,8 +14,9 @@ export const SingleChatMessageSchema = PromptChatMessageSchema;
 export type SingleChatMessage = z.infer<typeof SingleChatMessageSchema>;
 
 export enum PromptType {
+  // eslint-disable-next-line no-unused-vars
   Chat = "chat",
-
+  // eslint-disable-next-line no-unused-vars
   Text = "text",
 }
 

@@ -130,7 +130,11 @@ export function TransferProjectButton() {
           </Alert>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <form
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-8"
+          >
             <DialogBody>
               <FormField
                 control={form.control}

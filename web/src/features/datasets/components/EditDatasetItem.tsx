@@ -26,7 +26,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch {
+      } catch (_error) {
         return false;
       }
     },
@@ -41,7 +41,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch {
+      } catch (_error) {
         return false;
       }
     },
@@ -56,7 +56,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch {
+      } catch (_error) {
         return false;
       }
     },
@@ -167,6 +167,7 @@ export const EditDatasetItem = ({
     <div className="flex h-full flex-col">
       <Form {...form}>
         <form
+          // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex h-full flex-col"
           onChange={() => setHasChanges(true)}

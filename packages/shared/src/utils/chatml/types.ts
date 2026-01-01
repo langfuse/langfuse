@@ -21,7 +21,7 @@ export type ToolEvent =
     };
 
 // Minimal provider adapter interface
-
+/* eslint-disable no-unused-vars */
 export interface ProviderAdapter {
   id: string;
   detect(ctx: NormalizerContext): boolean;
@@ -32,3 +32,4 @@ export interface ProviderAdapter {
   ): unknown;
   extractToolEvents?(message: Record<string, unknown>): ToolEvent[];
 }
+/* eslint-enable no-unused-vars */

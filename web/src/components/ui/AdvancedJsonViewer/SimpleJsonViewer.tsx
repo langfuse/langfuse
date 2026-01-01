@@ -105,6 +105,7 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToIndex, effectiveRows]);
   // Note: rowRefs is a stable ref from useScrollPreservation hook, doesn't need to be in deps
 

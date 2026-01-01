@@ -427,7 +427,9 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if ("message" in error && typeof error.message === "string") {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
           setFormError(error.message as string);
           return;
         } else {
@@ -670,6 +672,7 @@ export const InnerEvaluatorForm = (props: {
                             ) => {
                               field.onChange(value);
                               if (router.query.traceId) {
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                 const { traceId, ...otherParams } =
                                   router.query;
                                 router.replace(
@@ -1161,6 +1164,7 @@ export const InnerEvaluatorForm = (props: {
   return (
     <Form {...form}>
       <form
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
           form.handleSubmit(onSubmit)(e);

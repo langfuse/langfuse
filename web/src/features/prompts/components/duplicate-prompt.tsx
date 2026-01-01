@@ -110,6 +110,7 @@ const DuplicatePromptForm: React.FC<{
   return (
     <Form {...form}>
       <form
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex h-full flex-1 flex-col gap-4"
       >

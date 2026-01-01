@@ -170,6 +170,7 @@ function DatasetCompareInternal() {
                       | string
                       | undefined;
                     if (baselineRunId === changedValueId) {
+                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
                       const { baseline, ...restQuery } = router.query;
                       void router.push({
                         pathname: router.pathname,

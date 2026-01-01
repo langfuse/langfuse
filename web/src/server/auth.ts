@@ -604,6 +604,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         return instrumentAsync({ name: "next-auth-session" }, async () => {
           const dbUser = await prisma.user.findUnique({
             where: {
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
               email: token.email!.toLowerCase(),
             },
             select: {

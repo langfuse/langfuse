@@ -53,7 +53,8 @@ export default class AddGenerationsCostBackfill
   private isAborted = false;
 
   async validate(
-    _args: Record<string, unknown>,
+    // eslint-disable-next-line no-unused-vars
+    args: Record<string, unknown>,
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     // No validation to be done
     return { valid: true, invalidReason: undefined };

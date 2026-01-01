@@ -260,6 +260,7 @@ const BlobStorageIntegrationSettingsForm = ({
     <Form {...blobStorageForm}>
       <form
         className="space-y-3"
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={blobStorageForm.handleSubmit(onSubmit)}
       >
         <FormField

@@ -1382,7 +1382,7 @@ export class OtelIngestionProcessor {
       if (typeof eventsArray === "string") {
         try {
           events = JSON.parse(eventsArray);
-        } catch {
+        } catch (e) {
           events = [];
         }
       }
@@ -1593,7 +1593,7 @@ export class OtelIngestionProcessor {
             unknown
           >;
         }
-      } catch {
+      } catch (e) {
         // Continue with nested metadata extraction
       }
     }
@@ -1744,7 +1744,7 @@ export class OtelIngestionProcessor {
         return this.sanitizeModelParams(
           JSON.parse(attributes["llm.invocation_parameters"] as string),
         );
-      } catch {
+      } catch (e) {
         // fallthrough
       }
     }
@@ -1754,7 +1754,7 @@ export class OtelIngestionProcessor {
         return this.sanitizeModelParams(
           JSON.parse(attributes["model_config"] as string),
         );
-      } catch {
+      } catch (e) {
         // fallthrough
       }
     }
@@ -2086,7 +2086,7 @@ export class OtelIngestionProcessor {
         if (Array.isArray(parsedTags)) {
           return parsedTags.map((tag) => String(tag));
         }
-      } catch {
+      } catch (e) {
         // Continue with other methods
       }
     }
@@ -2145,7 +2145,7 @@ export class OtelIngestionProcessor {
     if (experimentMetadataStr && typeof experimentMetadataStr === "string") {
       try {
         experimentMetadata = JSON.parse(experimentMetadataStr);
-      } catch {
+      } catch (e) {
         // If parsing fails, treat as empty
       }
     }
@@ -2162,7 +2162,7 @@ export class OtelIngestionProcessor {
     ) {
       try {
         experimentItemMetadata = JSON.parse(experimentItemMetadataStr);
-      } catch {
+      } catch (e) {
         // If parsing fails, treat as empty
       }
     }
