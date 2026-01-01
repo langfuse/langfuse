@@ -94,7 +94,8 @@
       "rollup@^4.0.0": "^4.22.4",
       "@types/node-fetch": "^2.6.13",
       "glob": "^10.5.0",
-      "qs": "6.14.0"
+      "qs": "6.14.1",
+      "@modelcontextprotocol/sdk": "1.24.3"
     },
     "patchedDependencies": {
       "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"
