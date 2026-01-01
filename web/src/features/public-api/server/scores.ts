@@ -53,7 +53,6 @@ export type ScoreQueryType = {
   operator?: string;
   scoreIds?: string[];
   dataType?: string;
-  fields?: string[] | null;
 };
 
 /**
@@ -77,15 +76,11 @@ export const _handleGenerateScoresForPublicApi = async ({
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
-  // Determine if trace should be included based on fields parameter
-  const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
-    props.fields,
-    tracesFilter.length(),
-  );
-
   const query = `
       SELECT
-          ${needsTraceJoin ? "t.user_id as user_id, t.tags as tags, t.environment as trace_environment," : ""}
+          t.user_id as user_id,
+          t.tags as tags,
+          t.environment as trace_environment,
           s.id as id,
           s.project_id as project_id,
           s.timestamp as timestamp,
@@ -109,14 +104,16 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.dataset_run_id as dataset_run_id
       FROM
           scores s
-          ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
+          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
+          AND s.project_id = t.project_id
       WHERE
           s.project_id = {projectId: String}
           AND (
             ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-            (s.trace_id IS NOT NULL AND (${needsTraceJoin ? "t.id, t.project_id" : "s.trace_id, s.project_id"}) IN (
+            (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
               SELECT
-                ${needsTraceJoin ? "trace_id, project_id" : "s.trace_id, s.project_id"}
+                trace_id,
+                project_id
               FROM
                 scores s
               WHERE
@@ -158,15 +155,14 @@ export const _handleGenerateScoresForPublicApi = async ({
         projectId: props.projectId,
         scoreScope,
         operation_name: "_handleGenerateScoresForPublicApi",
-        includeTrace: includeTrace.toString(),
       },
     },
     fn: async (input) => {
       const records = await queryClickhouse<
         ScoreRecordReadType & {
-          tags?: string[];
-          user_id?: string;
-          trace_environment?: string;
+          tags: string[];
+          user_id: string;
+          trace_environment: string;
         }
       >({
         query: query.replace("__TRACE_TABLE__", "traces"),
@@ -181,7 +177,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         return {
           ...apiScore,
           trace:
-            includeTrace && record.trace_id !== null
+            record.trace_id !== null
               ? {
                   userId: record.user_id,
                   tags: record.tags,
@@ -215,25 +211,22 @@ export const _handleGetScoresCountForPublicApi = async ({
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
-  // Determine if trace should be included based on fields parameter
-  const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
-    props.fields,
-    tracesFilter.length(),
-  );
-
+  // for this query, we only need the traces join if we have a filter on traces
   const query = `
       SELECT
         count() as count
       FROM
         scores s
-          ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
+          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
+          AND s.project_id = t.project_id
       WHERE
         s.project_id = {projectId: String}
       AND (
         ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-        (s.trace_id IS NOT NULL AND (${needsTraceJoin ? "t.id, t.project_id" : "s.trace_id, s.project_id"}) IN (
+        (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
           SELECT
-            ${needsTraceJoin ? "trace_id, project_id" : "s.trace_id, s.project_id"}
+            trace_id,
+            project_id
           FROM
             scores s
           WHERE
@@ -265,7 +258,6 @@ export const _handleGetScoresCountForPublicApi = async ({
         projectId: props.projectId,
         scoreScope,
         operation_name: "_handleGetScoresCountForPublicApi",
-        includeTrace: includeTrace.toString(),
       },
     },
     fn: async (input) => {
@@ -399,20 +391,6 @@ const secureTraceFilterOptions = [
     clickhousePrefix: "t",
   },
 ];
-
-/**
- * Determines if trace join is needed based on fields parameter and trace filters
- */
-const determineTraceJoinRequirement = (
-  fields: string[] | null | undefined,
-  tracesFilterLength: number,
-) => {
-  const requestedFields = fields ?? ["score", "trace"]; // Default includes both
-  const includeTrace = requestedFields.includes("trace");
-  const needsTraceJoin = includeTrace || tracesFilterLength > 0;
-
-  return { includeTrace, needsTraceJoin };
-};
 
 const generateScoreFilter = (
   filter: ScoreQueryType,

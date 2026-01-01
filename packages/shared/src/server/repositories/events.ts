@@ -1697,9 +1697,6 @@ export const deleteEventsByProjectId = async (projectId: string) => {
       kind: "delete",
       projectId,
     },
-    clickhouseSettings: {
-      send_logs_level: "trace",
-    },
   });
 };
 

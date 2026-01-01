@@ -1,4 +1,4 @@
-import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
+import { expect, it, describe, beforeAll } from "vitest";
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -23,7 +23,6 @@ import { projectDeleteProcessor } from "../queues/projectDelete";
 
 describe("ProjectDeletionProcessingJob", () => {
   let storageService: StorageService;
-  let s3Prefix: string | null = null;
   const orgId = "seed-org-id";
 
   beforeAll(() => {
@@ -35,18 +34,6 @@ describe("ProjectDeletionProcessingJob", () => {
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
     });
-  });
-
-  afterEach(async () => {
-    // Clean up all files created during this test
-    if (!s3Prefix) return;
-
-    const files = await storageService.listFiles(s3Prefix);
-
-    if (files.length == 0) return;
-
-    await storageService.deleteFiles(files.map((f) => f.file));
-    s3Prefix = null;
   });
 
   it("should delete the project record after processing has completed", async () => {
@@ -206,7 +193,6 @@ describe("ProjectDeletionProcessingJob", () => {
   it("should delete all media assets for the project", async () => {
     // Setup
     const projectId = randomUUID();
-    s3Prefix = `${randomUUID()}/`;
     await prisma.project.create({
       data: {
         id: projectId,
@@ -215,7 +201,7 @@ describe("ProjectDeletionProcessingJob", () => {
       },
     });
 
-    const fileName = `${s3Prefix}${randomUUID()}.txt`;
+    const fileName = `${randomUUID()}.txt`;
     const fileType = "text/plain";
     const data = "Hello, world!";
 
@@ -256,7 +242,7 @@ describe("ProjectDeletionProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles(s3Prefix);
+    const files = await storageService.listFiles("");
     expect(files.map((file) => file.file)).not.toContain(fileName);
 
     const media = await prisma.media.findUnique({
