@@ -1,1 +1,1 @@
-ALTER TABLE observations ON CLUSTER default ADD INDEX IF NOT EXISTS idx_project_id project_id TYPE bloom_filter() GRANULARITY 1;
+ALTER TABLE observations ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} ADD INDEX IF NOT EXISTS idx_project_id project_id TYPE bloom_filter() GRANULARITY 1;
