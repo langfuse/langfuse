@@ -205,7 +205,7 @@ export function safeStringify(value: unknown, indent = 2): string {
       },
       indent,
     );
-  } catch (_error) {
+  } catch {
     return String(value);
   }
 }

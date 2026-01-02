@@ -177,7 +177,7 @@ export const ValueCell = memo(
         await copyTextToClipboard(copyValue);
         setShowCopySuccess(true);
         setTimeout(() => setShowCopySuccess(false), 1500);
-      } catch (_error) {
+      } catch {
         // Copy failed silently
       }
     };
