@@ -1,9 +1,9 @@
-import { createClient, ClickHouseLogLevel } from "@clickhouse/client";
+import { createClient } from "@clickhouse/client";
 import { env } from "../../env";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
-import { ClickHouseLogger, mapLogLevel } from "./logger";
+import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
