@@ -1,8 +1,9 @@
-import { createClient } from "@clickhouse/client";
+import { createClient, ClickHouseLogLevel } from "@clickhouse/client";
 import { env } from "../../env";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
+import { ClickHouseLogger, mapLogLevel } from "./logger";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
@@ -107,6 +108,10 @@ export class ClickHouseClientManager {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
         max_open_connections: env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
+        log: {
+          LoggerClass: ClickHouseLogger,
+          level: mapLogLevel(env.LANGFUSE_LOG_LEVEL ?? "info"),
+        },
         clickhouse_settings: {
           // Overwrite async insert settings to tune throughput
           ...(env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE
