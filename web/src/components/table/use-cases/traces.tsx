@@ -146,7 +146,21 @@ export default function TracesTable({
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const [isManualRefresh, setIsManualRefresh] = useState(false);
   const { setDetailPageList } = useDetailPageLists();
+
+  const handleRefresh = useCallback(async () => {
+    setIsManualRefresh(true);
+    try {
+      await Promise.all([
+        utils.traces.all.invalidate(),
+        utils.traces.metrics.invalidate(),
+        utils.traces.countAll.invalidate(),
+      ]);
+    } finally {
+      setIsManualRefresh(false);
+    }
+  }, [utils.traces.all, utils.traces.metrics, utils.traces.countAll]);
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
@@ -1217,6 +1231,12 @@ export default function TracesTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
+            refreshConfig={{
+              onRefresh: handleRefresh,
+              isRefreshing: isManualRefresh || traces.isFetching,
+              projectId,
+              tableName: "traces",
+            }}
             multiSelect={{
               selectAll,
               setSelectAll,
