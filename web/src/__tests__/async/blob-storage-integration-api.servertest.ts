@@ -11,6 +11,7 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import { decrypt } from "@langfuse/shared/encryption";
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -275,6 +276,13 @@ describe("Blob Storage Integrations API", () => {
       });
       expect(savedIntegration).toBeDefined();
       expect(savedIntegration?.bucketName).toBe("test-bucket");
+
+      // Verify secretAccessKey is encrypted in the database
+      expect(savedIntegration?.secretAccessKey).toBeDefined();
+      expect(savedIntegration?.secretAccessKey).not.toBe("secret123456789");
+      // Verify it can be decrypted back to the original value
+      const decryptedSecret = decrypt(savedIntegration!.secretAccessKey!);
+      expect(decryptedSecret).toBe("secret123456789");
     });
 
     it("should update an existing blob storage integration", async () => {
@@ -317,6 +325,18 @@ describe("Blob Storage Integrations API", () => {
       expect(response.body.bucketName).toBe("updated-bucket");
       expect(response.body.enabled).toBe(true);
       expect(response.body.exportFrequency).toBe("weekly");
+
+      // Verify the updated secretAccessKey is encrypted in the database
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId: testProject1Id },
+        },
+      );
+      expect(updatedIntegration?.secretAccessKey).toBeDefined();
+      expect(updatedIntegration?.secretAccessKey).not.toBe("secret123456789");
+      // Verify it can be decrypted back to the original value
+      const decryptedSecret = decrypt(updatedIntegration!.secretAccessKey!);
+      expect(decryptedSecret).toBe("secret123456789");
     });
 
     it("should validate required fields", async () => {

@@ -13,6 +13,7 @@ import {
   UnauthorizedError,
   ForbiddenError,
 } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -151,7 +152,9 @@ async function handleUpsertBlobStorageIntegration(
     endpoint: validatedData.endpoint || null,
     region: validatedData.region,
     accessKeyId: validatedData.accessKeyId || null,
-    secretAccessKey: validatedData.secretAccessKey || null,
+    secretAccessKey: validatedData.secretAccessKey
+      ? encrypt(validatedData.secretAccessKey)
+      : null,
     prefix: validatedData.prefix,
     exportFrequency: validatedData.exportFrequency,
     enabled: validatedData.enabled,
