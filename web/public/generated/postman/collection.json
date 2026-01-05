@@ -3231,7 +3231,7 @@
           "request": {
             "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&datasetRunId=&traceId=&queueId=&dataType=&traceTags=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&datasetRunId=&traceId=&queueId=&dataType=&traceTags=&fields=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3331,6 +3331,11 @@
                   "key": "traceTags",
                   "value": "",
                   "description": "Only scores linked to traces that include all of these tags will be returned."
+                },
+                {
+                  "key": "fields",
+                  "value": "",
+                  "description": "Comma-separated list of field groups to include in the response. Available field groups: 'score' (core score fields), 'trace' (trace properties: userId, tags, environment). If not specified, both 'score' and 'trace' are returned by default. Example: 'score' to exclude trace data, 'score,trace' to include both. Note: When filtering by trace properties (using userId or traceTags parameters), the 'trace' field group must be included, otherwise a 400 error will be returned."
                 }
               ],
               "variable": []

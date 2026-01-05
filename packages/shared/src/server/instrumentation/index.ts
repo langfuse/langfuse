@@ -23,7 +23,7 @@ export type SpanCtx = {
   startNewTrace?: boolean; // Start a new trace, severing any parent trace relationships
 };
 
-type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>; // eslint-disable-line no-unused-vars
+type AsyncCallbackFn<T> = (span: opentelemetry.Span) => Promise<T>;
 
 export async function instrumentAsync<T>(
   ctx: SpanCtx,
@@ -67,7 +67,7 @@ export async function instrumentAsync<T>(
   );
 }
 
-type SyncCallbackFn<T> = (span: opentelemetry.Span) => T; // eslint-disable-line no-unused-vars
+type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
 export function instrumentSync<T>(
   ctx: SpanCtx,

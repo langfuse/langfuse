@@ -258,7 +258,7 @@ const datasetRunItemRecordBaseSchema = z.object({
   error: z.string().nullish(),
 });
 
-const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
+const _datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
   dataset_run_created_at: clickhouseStringDateSchema,
   dataset_item_version: clickhouseStringDateSchema.nullish(),
   created_at: clickhouseStringDateSchema,
@@ -266,7 +266,7 @@ const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
   event_ts: clickhouseStringDateSchema,
 });
 export type DatasetRunItemRecordReadType = z.infer<
-  typeof datasetRunItemRecordReadSchema
+  typeof _datasetRunItemRecordReadSchema
 >;
 // Conditional type for dataset run item records with optional IO
 export type DatasetRunItemRecord<WithIO extends boolean = true> =

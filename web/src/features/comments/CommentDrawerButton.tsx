@@ -139,7 +139,6 @@ export function CommentDrawerButton({
 
         // Clear URL parameters and hash when drawer is closed
         if (!open && router.query.comments === "open") {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { comments, commentObjectType, commentObjectId, ...rest } =
             router.query;
           router.replace(
