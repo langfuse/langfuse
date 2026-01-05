@@ -67,6 +67,13 @@ function TracePanelNavigationHeaderExpanded({
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow browser's native find dialog (Cmd+F / Ctrl+F)
+    if (e.key === "f" && (e.metaKey || e.ctrlKey)) {
+      // Blur the search input so browser find can work properly
+      e.currentTarget.blur();
+      return; // Don't prevent default, let browser handle it
+    }
+
     if (e.key === "Enter") {
       // Skip debouncing and search immediately
       setSearchQueryImmediate(searchInputValue);
