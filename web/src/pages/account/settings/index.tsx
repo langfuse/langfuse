@@ -88,11 +88,7 @@ function UpdateDisplayName() {
           </p>
         )}
         <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex-1"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1">
             <FormField
               control={form.control}
               name="name"
@@ -207,11 +203,7 @@ function DeleteAccountButton() {
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-8"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             {canDelete && (
               <DialogBody>
                 <FormField

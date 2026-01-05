@@ -45,7 +45,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (_error) {
+      } catch {
         return false;
       }
     },
@@ -60,7 +60,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (_error) {
+      } catch {
         return false;
       }
     },
@@ -75,7 +75,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (_error) {
+      } catch {
         return false;
       }
     },
@@ -267,7 +267,6 @@ export const NewDatasetItemForm = (props: {
   return (
     <Form {...form}>
       <form
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={form.handleSubmit(onSubmit)}
         className={cn("flex h-full flex-col gap-6", props.className)}
       >

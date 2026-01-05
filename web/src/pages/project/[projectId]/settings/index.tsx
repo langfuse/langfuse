@@ -276,7 +276,7 @@ const Integrations = (props: { projectId: string }) => {
       <Header title="Integrations" />
       <div className="space-y-6">
         <Card className="p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {}
           <PostHogLogo className="mb-4 w-40 text-foreground" />
           <p className="mb-4 text-sm text-primary">
             We have teamed up with PostHog (OSS product analytics) to make

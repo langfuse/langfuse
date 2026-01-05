@@ -468,27 +468,22 @@ export class FilterList {
     this.filters.push(...filter);
   }
 
-  // eslint-disable-next-line no-unused-vars
   find(predicate: (filter: Filter) => boolean) {
     return this.filters.find(predicate);
   }
 
-  // eslint-disable-next-line no-unused-vars
   filter(predicate: (filter: Filter) => boolean) {
     return new FilterList(this.filters.filter(predicate));
   }
 
-  // eslint-disable-next-line no-unused-vars
   map(predicate: (filter: Filter) => Filter) {
     return new FilterList(this.filters.map(predicate));
   }
 
-  // eslint-disable-next-line no-unused-vars
   some(predicate: (filter: Filter) => boolean) {
     return this.filters.some(predicate);
   }
 
-  // eslint-disable-next-line no-unused-vars
   forEach(callback: (filter: Filter) => void) {
     this.filters.forEach(callback);
   }

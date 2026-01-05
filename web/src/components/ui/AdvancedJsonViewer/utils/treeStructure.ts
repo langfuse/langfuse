@@ -159,7 +159,7 @@ function buildTreeStructureIterative(
       key: rootKey,
       pathArray: [rootKey],
       depth: 0,
-      parentNode: null, // eslint-disable-line @typescript-eslint/no-unused-vars
+      parentNode: null,
       indexInParent: 0,
       isLastChild: true,
     },

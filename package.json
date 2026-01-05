@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.142.0",
+  "version": "3.143.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -40,7 +40,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "release-it": "^19.0.4",
-    "turbo": "^2.7.1"
+    "turbo": "^2.7.2"
   },
   "release-it": {
     "git": {
@@ -93,7 +93,8 @@
       "tar-fs": "^2.1.2",
       "rollup@^4.0.0": "^4.22.4",
       "@types/node-fetch": "^2.6.13",
-      "glob": "^10.5.0"
+      "glob": "^10.5.0",
+      "qs": "6.14.1"
     },
     "patchedDependencies": {
       "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"

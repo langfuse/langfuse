@@ -16,10 +16,13 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { type ScoreDomain } from "@langfuse/shared";
+import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
 export interface IOPreviewJSONProps extends ExpansionStateProps {
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -32,6 +35,10 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
+  observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
 }
 
 /**
@@ -50,12 +57,17 @@ export function IOPreviewJSON({
   parsedInput,
   parsedOutput,
   parsedMetadata,
+  outputCorrection,
   isParsing = false,
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
   media,
   onVirtualizationChange,
+  observationId,
+  projectId,
+  traceId,
+  environment = "default",
 }: IOPreviewJSONProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -382,6 +394,14 @@ export function IOPreviewJSON({
             lineHeight: 14,
             indentSize: 12,
           }}
+        />
+        <CorrectedOutputField
+          actualOutput={parsedOutput}
+          existingCorrection={outputCorrection}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
         />
       </div>
     </div>

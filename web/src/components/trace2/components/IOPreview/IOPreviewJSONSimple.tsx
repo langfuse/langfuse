@@ -1,13 +1,15 @@
 import { useMemo } from "react";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionStateProps } from "./IOPreview";
+import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -18,6 +20,10 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
 }
 
 /**
@@ -33,6 +39,7 @@ export function IOPreviewJSONSimple({
   input,
   output,
   metadata,
+  outputCorrection,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -46,20 +53,27 @@ export function IOPreviewJSONSimple({
   outputExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  observationId,
+  projectId,
+  traceId,
+  environment = "default",
 }: IOPreviewJSONSimpleProps) {
   // Parse data if not pre-parsed
-  const effectiveInput = useMemo(
-    () => parsedInput ?? deepParseJson(input),
-    [parsedInput, input],
-  );
-  const effectiveOutput = useMemo(
-    () => parsedOutput ?? deepParseJson(output),
-    [parsedOutput, output],
-  );
-  const effectiveMetadata = useMemo(
-    () => parsedMetadata ?? deepParseJson(metadata),
-    [parsedMetadata, metadata],
-  );
+  // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
+  const effectiveInput = useMemo(() => {
+    if (isParsing) return undefined; // Wait for Web Worker to finish
+    return parsedInput ?? deepParseJson(input);
+  }, [parsedInput, input, isParsing]);
+
+  const effectiveOutput = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedOutput ?? deepParseJson(output);
+  }, [parsedOutput, output, isParsing]);
+
+  const effectiveMetadata = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedMetadata ?? deepParseJson(metadata);
+  }, [parsedMetadata, metadata, isParsing]);
 
   const showInput = !hideInput && !(hideIfNull && !effectiveInput);
   const showOutput = !hideOutput && !(hideIfNull && !effectiveOutput);
@@ -93,6 +107,14 @@ export function IOPreviewJSONSimple({
           onExternalExpansionChange={onOutputExpansionChange}
         />
       )}
+      <CorrectedOutputField
+        actualOutput={effectiveOutput}
+        existingCorrection={outputCorrection}
+        observationId={observationId}
+        projectId={projectId}
+        traceId={traceId}
+        environment={environment}
+      />
       {showMetadata && (
         <PrettyJsonView
           title="Metadata"
