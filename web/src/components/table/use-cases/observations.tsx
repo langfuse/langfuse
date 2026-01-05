@@ -69,6 +69,11 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import {
+  type RefreshInterval,
+  REFRESH_INTERVALS,
+} from "@/src/components/table/data-table-refresh-button";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -131,9 +136,50 @@ export default function ObservationsTable({
 }: ObservationsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
+  const utils = api.useUtils();
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const [rawRefreshInterval, setRawRefreshInterval] =
+    useSessionStorage<RefreshInterval>(
+      `tableRefreshInterval-${projectId}`,
+      null,
+    );
+
+  // Validate session storage value against allowed intervals to prevent too small intervals
+  const allowedValues = REFRESH_INTERVALS.map((i) => i.value);
+  const refreshInterval = allowedValues.includes(rawRefreshInterval)
+    ? rawRefreshInterval
+    : null;
+  const setRefreshInterval = useCallback(
+    (value: RefreshInterval) => {
+      if (allowedValues.includes(value)) {
+        setRawRefreshInterval(value);
+      }
+    },
+    [allowedValues, setRawRefreshInterval],
+  );
+
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Auto-increment refresh tick to force date range recalculation
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+    void Promise.all([
+      utils.generations.all.invalidate(),
+      utils.generations.countAll.invalidate(),
+      utils.generations.filterOptions.invalidate(),
+      utils.projects.environmentFilterOptions.invalidate(),
+    ]);
+  }, [utils]);
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
 
@@ -183,9 +229,11 @@ export default function ObservationsTable({
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
+  // refreshTick forces recalculation on each refresh cycle
   const dateRange = useMemo(() => {
     return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, refreshTick]);
 
   const promptNameFilter: FilterState = promptName
     ? [
@@ -1235,6 +1283,12 @@ export default function ObservationsTable({
           setRowHeight={setRowHeight}
           timeRange={timeRange}
           setTimeRange={setTimeRange}
+          refreshConfig={{
+            onRefresh: handleRefresh,
+            isRefreshing: generations.isFetching || totalCountQuery.isFetching,
+            interval: refreshInterval,
+            setInterval: setRefreshInterval,
+          }}
           actionButtons={[
             <BatchExportTableButton
               {...{
