@@ -10,7 +10,7 @@ export const stringifyDatasetItemData = (data: unknown): string => {
 
   try {
     return JSON.stringify(data, null, 2);
-  } catch (_error) {
+  } catch {
     showErrorToast(
       "Failed to stringify data",
       "We are working on fixing this issue.",
