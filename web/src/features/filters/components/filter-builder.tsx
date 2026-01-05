@@ -30,7 +30,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
@@ -185,39 +184,35 @@ export function PopoverFilterBuilder({
       </Popover>
       {filterState.length > 0 ? (
         buttonType === "default" ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setWipFilterState([])}
-                  variant="ghost"
-                  type="button"
-                  size="icon"
-                  className="ml-0.5"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Clear all filters</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setWipFilterState([])}
+                variant="ghost"
+                type="button"
+                size="icon"
+                className="ml-0.5"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear all filters</TooltipContent>
+          </Tooltip>
         ) : (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setWipFilterState([])}
-                  variant="ghost"
-                  type="button"
-                  size="icon-xs"
-                  className="ml-0.5 hover:bg-background"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Clear all filters</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setWipFilterState([])}
+                variant="ghost"
+                type="button"
+                size="icon-xs"
+                className="ml-0.5 hover:bg-background"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear all filters</TooltipContent>
+          </Tooltip>
         )
       ) : null}
     </div>
@@ -473,19 +468,17 @@ function FilterBuilderForm({
                     ? "Loading..."
                     : "Generate filters"}
                 </Button>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">
-                        We convert natural language into deterministic filters
-                        which you can adjust afterwards
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">
+                      We convert natural language into deterministic filters
+                      which you can adjust afterwards
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
               {aiError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
