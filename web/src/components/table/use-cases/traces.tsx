@@ -79,6 +79,8 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { type RefreshInterval } from "@/src/components/table/data-table-refresh-button";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
@@ -146,21 +148,20 @@ export default function TracesTable({
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [isManualRefresh, setIsManualRefresh] = useState(false);
+  const [refreshInterval, setRefreshInterval] =
+    useSessionStorage<RefreshInterval>(
+      `tableRefreshInterval-${projectId}`,
+      null,
+    );
   const { setDetailPageList } = useDetailPageLists();
 
-  const handleRefresh = useCallback(async () => {
-    setIsManualRefresh(true);
-    try {
-      await Promise.all([
-        utils.traces.all.invalidate(),
-        utils.traces.metrics.invalidate(),
-        utils.traces.countAll.invalidate(),
-      ]);
-    } finally {
-      setIsManualRefresh(false);
-    }
-  }, [utils.traces.all, utils.traces.metrics, utils.traces.countAll]);
+  const handleRefresh = useCallback(() => {
+    void Promise.all([
+      utils.traces.all.invalidate(),
+      utils.traces.metrics.invalidate(),
+      utils.traces.countAll.invalidate(),
+    ]);
+  }, [utils]);
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
@@ -325,6 +326,8 @@ export default function TracesTable({
 
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
     enabled: environmentFilterOptions.data !== undefined,
+    refetchInterval: refreshInterval ?? false,
+    refetchIntervalInBackground: false,
   });
 
   const tracesAllQueryFilter = {
@@ -340,6 +343,8 @@ export default function TracesTable({
     enabled: environmentFilterOptions.data !== undefined,
     refetchOnMount: false,
     refetchOnWindowFocus: true,
+    refetchInterval: refreshInterval ?? false,
+    refetchIntervalInBackground: false,
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -352,6 +357,8 @@ export default function TracesTable({
       enabled: traces.data !== undefined,
       refetchOnMount: false,
       refetchOnWindowFocus: true,
+      refetchInterval: refreshInterval ?? false,
+      refetchIntervalInBackground: false,
     },
   );
 
@@ -1233,9 +1240,12 @@ export default function TracesTable({
             setTimeRange={setTimeRange}
             refreshConfig={{
               onRefresh: handleRefresh,
-              isRefreshing: isManualRefresh || traces.isFetching,
-              projectId,
-              tableName: "traces",
+              isRefreshing:
+                traces.isFetching ||
+                traceMetrics.isFetching ||
+                totalCountQuery.isFetching,
+              interval: refreshInterval,
+              setInterval: setRefreshInterval,
             }}
             multiSelect={{
               selectAll,
