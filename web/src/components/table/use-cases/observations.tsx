@@ -70,7 +70,10 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { type RefreshInterval } from "@/src/components/table/data-table-refresh-button";
+import {
+  type RefreshInterval,
+  REFRESH_INTERVALS,
+} from "@/src/components/table/data-table-refresh-button";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -137,11 +140,26 @@ export default function ObservationsTable({
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [refreshInterval, setRefreshInterval] =
+  const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-${projectId}`,
       null,
     );
+
+  // Validate session storage value against allowed intervals to prevent too small intervals
+  const allowedValues = REFRESH_INTERVALS.map((i) => i.value);
+  const refreshInterval = allowedValues.includes(rawRefreshInterval)
+    ? rawRefreshInterval
+    : null;
+  const setRefreshInterval = useCallback(
+    (value: RefreshInterval) => {
+      if (allowedValues.includes(value)) {
+        setRawRefreshInterval(value);
+      }
+    },
+    [allowedValues, setRawRefreshInterval],
+  );
+
   const [refreshTick, setRefreshTick] = useState(0);
 
   // Auto-increment refresh tick to force date range recalculation
