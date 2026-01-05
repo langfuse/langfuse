@@ -142,11 +142,24 @@ export default function ObservationsTable({
       `tableRefreshInterval-${projectId}`,
       null,
     );
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Auto-increment refresh tick to force date range recalculation
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval]);
 
   const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
     void Promise.all([
       utils.generations.all.invalidate(),
       utils.generations.countAll.invalidate(),
+      utils.generations.filterOptions.invalidate(),
+      utils.projects.environmentFilterOptions.invalidate(),
     ]);
   }, [utils]);
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
@@ -198,9 +211,11 @@ export default function ObservationsTable({
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
+  // refreshTick forces recalculation on each refresh cycle
   const dateRange = useMemo(() => {
     return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, refreshTick]);
 
   const promptNameFilter: FilterState = promptName
     ? [
@@ -426,13 +441,9 @@ export default function ObservationsTable({
 
   const generations = api.generations.all.useQuery(getAllPayload, {
     refetchOnWindowFocus: true,
-    refetchInterval: refreshInterval ?? false,
-    refetchIntervalInBackground: false,
   });
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
-    refetchInterval: refreshInterval ?? false,
-    refetchIntervalInBackground: false,
   });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
