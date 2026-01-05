@@ -69,6 +69,8 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { type RefreshInterval } from "@/src/components/table/data-table-refresh-button";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -131,9 +133,22 @@ export default function ObservationsTable({
 }: ObservationsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
+  const utils = api.useUtils();
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const [refreshInterval, setRefreshInterval] =
+    useSessionStorage<RefreshInterval>(
+      `tableRefreshInterval-${projectId}`,
+      null,
+    );
+
+  const handleRefresh = useCallback(() => {
+    void Promise.all([
+      utils.generations.all.invalidate(),
+      utils.generations.countAll.invalidate(),
+    ]);
+  }, [utils]);
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
 
@@ -411,9 +426,13 @@ export default function ObservationsTable({
 
   const generations = api.generations.all.useQuery(getAllPayload, {
     refetchOnWindowFocus: true,
+    refetchInterval: refreshInterval ?? false,
+    refetchIntervalInBackground: false,
   });
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
+    refetchInterval: refreshInterval ?? false,
+    refetchIntervalInBackground: false,
   });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
@@ -1235,6 +1254,12 @@ export default function ObservationsTable({
           setRowHeight={setRowHeight}
           timeRange={timeRange}
           setTimeRange={setTimeRange}
+          refreshConfig={{
+            onRefresh: handleRefresh,
+            isRefreshing: generations.isFetching || totalCountQuery.isFetching,
+            interval: refreshInterval,
+            setInterval: setRefreshInterval,
+          }}
           actionButtons={[
             <BatchExportTableButton
               {...{

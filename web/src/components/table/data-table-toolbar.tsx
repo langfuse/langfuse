@@ -47,7 +47,10 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
-import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import {
+  DataTableRefreshButton,
+  type RefreshInterval,
+} from "@/src/components/table/data-table-refresh-button";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -86,12 +89,10 @@ interface TableViewConfig {
 }
 
 interface RefreshConfig {
-  onRefresh: () => Promise<void>;
-  isRefreshing?: boolean;
-  /** Project ID for scoping the session storage key */
-  projectId: string;
-  /** Table name for scoping the session storage key (e.g., "traces", "sessions") */
-  tableName: string;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  interval: RefreshInterval;
+  setInterval: (interval: RefreshInterval) => void;
 }
 
 interface DataTableToolbarProps<TData, TValue> {
@@ -318,8 +319,8 @@ export function DataTableToolbar<TData, TValue>({
           <DataTableRefreshButton
             onRefresh={refreshConfig.onRefresh}
             isRefreshing={refreshConfig.isRefreshing}
-            projectId={refreshConfig.projectId}
-            tableName={refreshConfig.tableName}
+            interval={refreshConfig.interval}
+            setInterval={refreshConfig.setInterval}
           />
         )}
         {environmentFilter && (
