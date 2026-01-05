@@ -153,22 +153,37 @@ export default function TracesTable({
       `tableRefreshInterval-${projectId}`,
       null,
     );
+  const [refreshTick, setRefreshTick] = useState(0);
   const { setDetailPageList } = useDetailPageLists();
 
+  // Auto-increment refresh tick to force date range recalculation
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval]);
+
   const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
     void Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
       utils.traces.countAll.invalidate(),
+      utils.traces.filterOptions.invalidate(),
+      utils.projects.environmentFilterOptions.invalidate(),
     ]);
   }, [utils]);
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
+  // refreshTick forces recalculation on each refresh cycle
   const tableDateRange = useMemo(() => {
     return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, refreshTick]);
 
   const dateRange = externalDateRange ?? tableDateRange;
 
@@ -326,8 +341,6 @@ export default function TracesTable({
 
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
     enabled: environmentFilterOptions.data !== undefined,
-    refetchInterval: refreshInterval ?? false,
-    refetchIntervalInBackground: false,
   });
 
   const tracesAllQueryFilter = {
@@ -343,8 +356,6 @@ export default function TracesTable({
     enabled: environmentFilterOptions.data !== undefined,
     refetchOnMount: false,
     refetchOnWindowFocus: true,
-    refetchInterval: refreshInterval ?? false,
-    refetchIntervalInBackground: false,
   });
 
   const traceMetrics = api.traces.metrics.useQuery(
@@ -357,8 +368,6 @@ export default function TracesTable({
       enabled: traces.data !== undefined,
       refetchOnMount: false,
       refetchOnWindowFocus: true,
-      refetchInterval: refreshInterval ?? false,
-      refetchIntervalInBackground: false,
     },
   );
 
