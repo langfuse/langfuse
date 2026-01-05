@@ -7,8 +7,10 @@ check() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "❌ Missing required dependency: $1"
     missing=1
+    return 1
   else
     echo "✅ Found $1"
+    return 0
   fi
 }
 
