@@ -185,25 +185,39 @@ export function PopoverFilterBuilder({
       </Popover>
       {filterState.length > 0 ? (
         buttonType === "default" ? (
-          <Button
-            onClick={() => setWipFilterState([])}
-            variant="ghost"
-            type="button"
-            size="icon"
-            className="ml-0.5"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setWipFilterState([])}
+                  variant="ghost"
+                  type="button"
+                  size="icon"
+                  className="ml-0.5"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear all filters</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
-          <Button
-            onClick={() => setWipFilterState([])}
-            variant="ghost"
-            type="button"
-            size="icon-xs"
-            className="ml-0.5 hover:bg-background"
-          >
-            <X className="h-3 w-3" />
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setWipFilterState([])}
+                  variant="ghost"
+                  type="button"
+                  size="icon-xs"
+                  className="ml-0.5 hover:bg-background"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear all filters</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )
       ) : null}
     </div>
