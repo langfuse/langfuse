@@ -119,6 +119,15 @@ Requirements
 
 **Note:** You can also simply run Langfuse in a **GitHub Codespace** via the provided devcontainer. To do this, click on the green "Code" button in the top right corner of the repository and select "Open with Codespaces".
 
+### Automatic dependency checks
+
+Some development scripts (e.g. ClickHouse setup and migrations) rely on system-level CLI tools such as `clickhouse-client` and `golang-migrate`.
+
+To reduce setup friction and avoid late failures, Langfuse performs **early preflight checks** when running certain local development scripts. If a required dependency is missing, the process will exit early with a clear error message and installation guidance.
+
+If you encounter an error related to missing system dependencies, please ensure all tools listed under **Requirements** are installed and available in your `$PATH`.
+
+
 **Steps**
 
 1. Install development dependencies:
