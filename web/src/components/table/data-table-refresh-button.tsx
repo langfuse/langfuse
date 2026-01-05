@@ -59,7 +59,20 @@ export function DataTableRefreshButton({
     }
 
     if (interval) {
+      // Validate interval is one of the allowed values
+      const isValidInterval = REFRESH_INTERVALS.some(
+        (option) => option.value === interval,
+      );
+      if (!isValidInterval) {
+        console.warn(
+          `Invalid refresh interval ${interval} detected, ignoring.`,
+        );
+        return;
+      }
       intervalRef.current = setInterval(() => {
+        void onRefresh();
+      }, interval);
+    }
         void onRefresh();
       }, interval);
     }
