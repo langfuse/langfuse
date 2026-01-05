@@ -73,7 +73,8 @@ export function DataTableRefreshButton({
         void onRefresh();
       }, interval);
     }
-        void onRefresh();
+
+    return () => {
       }, interval);
     }
 
