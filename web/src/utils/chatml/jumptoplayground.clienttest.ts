@@ -879,6 +879,40 @@ describe("Playground Jump Full Pipeline", () => {
     expect(firstMessage.tools![1].name).toBe("search_web");
   });
 
+  it("should handle double-stringified messages array", () => {
+    // ClickHouse can store messages as double-stringified:
+    // { "messages": "[{\"role\":\"user\",\"content\":\"...\"}]" }
+    // instead of: { "messages": [{role: "user", ...}] }
+    //
+    // This caused validation to fail: expected array, received string
+    const input = {
+      messages: JSON.stringify([
+        // ← DOUBLE STRINGIFIED
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "Hello" },
+        { role: "assistant", content: "Hi there!" },
+        { role: "user", content: "How are you?" },
+      ]),
+    };
+
+    const ctx = {};
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Must have all 4 messages for playground button to be enabled
+    expect(playgroundMessages).toHaveLength(4);
+    expect(playgroundMessages[0]?.type).toBe("public-api-created");
+    if (playgroundMessages[0] && "role" in playgroundMessages[0]) {
+      expect(playgroundMessages[0].role).toBe("system");
+    }
+  });
+
   it("should respect includeOutput flag when jumping to playground, default to no output added", () => {
     // kinda a bad test mocking UI behavior and not really testing the UI.
     // but it should illustrate that the default behavior is to not include output! and document that.
