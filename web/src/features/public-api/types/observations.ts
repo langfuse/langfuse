@@ -284,6 +284,7 @@ export const encodeCursor = (
 // GET /v2/observations
 export const GetObservationsV2Query = z.object({
   // Field groups parameter (optional - defaults to all groups)
+  // Comma-separated list of field groups: fields=basic,metadata,io
   fields: z
     .string()
     .nullish()
@@ -292,11 +293,25 @@ export const GetObservationsV2Query = z.object({
       return v
         .split(",")
         .map((f) => f.trim())
-        .filter((f) =>
+        .filter((f): f is ObservationFieldGroup =>
           OBSERVATION_FIELD_GROUPS.includes(f as ObservationFieldGroup),
         );
     })
     .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
+  // Metadata expansion keys (optional)
+  // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
+  expandMetadata: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      const keys = v
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0);
+      return keys.length > 0 ? keys : null;
+    })
+    .pipe(z.array(z.string()).nullable()),
   // Pagination
   limit: z.coerce.number().nonnegative().lte(1000).default(50),
   cursor: EncodedObservationsCursorV2.optional(),

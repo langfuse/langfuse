@@ -702,6 +702,12 @@ type PublicApiObservationsQuery = {
     lastId: string;
   };
   fields?: ObservationFieldGroup[] | null;
+  /**
+   * Metadata keys to expand (return full non-truncated values).
+   * - null/undefined: use truncated metadata (default behavior)
+   * - string[]: expand specified keys (or all keys if empty array)
+   */
+  expandMetadataKeys?: string[] | null;
 };
 
 function buildObservationsQueryBase(
@@ -903,7 +909,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
 export const getObservationsV2FromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery & { fields: ObservationFieldGroup[] },
 ): Promise<Array<EventsObservationPublic>> => {
-  const { projectId } = opts;
+  const { projectId, expandMetadataKeys } = opts;
 
   // Build query with filters and common CTEs
   let queryBuilder = buildObservationsQueryBase(
@@ -924,6 +930,14 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     .forEach((fieldGroup) => {
       queryBuilder.selectFieldSet(fieldGroup);
     });
+
+  // Handle metadata field with optional expansion
+  if (requestedFields.includes("metadata")) {
+    if (expandMetadataKeys && expandMetadataKeys.length > 0) {
+      // Use expanded metadata (coalesces truncated values with full values)
+      queryBuilder.selectMetadataExpanded(expandMetadataKeys);
+    }
+  }
 
   queryBuilder = applyCursorPagination(
     opts,
