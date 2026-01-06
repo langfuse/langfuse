@@ -25,6 +25,8 @@ export function useCommentedPaths(
     const inputMap = new Map<string, Array<CommentRange>>();
     const outputMap = new Map<string, Array<CommentRange>>();
     const metadataMap = new Map<string, Array<CommentRange>>();
+    const promptMap = new Map<string, Array<CommentRange>>();
+    const configMap = new Map<string, Array<CommentRange>>();
 
     for (const comment of comments) {
       // Only process comments with position data (inline comments)
@@ -52,6 +54,8 @@ export function useCommentedPaths(
           if (comment.dataField === "input") targetMap = inputMap;
           else if (comment.dataField === "output") targetMap = outputMap;
           else if (comment.dataField === "metadata") targetMap = metadataMap;
+          else if (comment.dataField === "prompt") targetMap = promptMap;
+          else if (comment.dataField === "config") targetMap = configMap;
           else return;
 
           const existing = targetMap.get(jsonPath) || [];
@@ -64,6 +68,8 @@ export function useCommentedPaths(
       input: inputMap.size > 0 ? inputMap : undefined,
       output: outputMap.size > 0 ? outputMap : undefined,
       metadata: metadataMap.size > 0 ? metadataMap : undefined,
+      prompt: promptMap.size > 0 ? promptMap : undefined,
+      config: configMap.size > 0 ? configMap : undefined,
     };
   }, [comments]);
 }

@@ -57,6 +57,8 @@ const IO_FIELD_COLORS = {
   input: { light: "rgb(249, 252, 255)", dark: "rgb(15, 23, 42)" },
   output: { light: "rgb(248, 253, 250)", dark: "rgb(20, 30, 41)" },
   metadata: { light: "rgb(253, 251, 254)", dark: "rgb(30, 20, 40)" },
+  prompt: { light: "rgb(255, 251, 235)", dark: "rgb(45, 35, 15)" }, // Amber
+  config: { light: "rgb(240, 253, 244)", dark: "rgb(20, 40, 30)" }, // Green
 } as const;
 
 /**

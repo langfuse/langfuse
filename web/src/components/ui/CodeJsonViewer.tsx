@@ -21,6 +21,16 @@ import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import {
+  highlightTextWithComments,
+  COMMENT_HIGHLIGHT_COLOR,
+} from "@/src/components/ui/AdvancedJsonViewer/utils/highlightText";
+import { type CommentRange } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
@@ -208,6 +218,10 @@ export function CodeView(props: {
   defaultCollapsed?: boolean;
   title?: string;
   scrollable?: boolean;
+  // Inline comment support
+  enableInlineComments?: boolean;
+  sectionKey?: string;
+  commentedRanges?: CommentRange[];
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
@@ -284,8 +298,53 @@ export function CodeView(props: {
           )}
           dir="auto"
           style={{ unicodeBidi: "plaintext" }}
+          data-json-path={props.enableInlineComments ? "$" : undefined}
+          data-section-key={
+            props.enableInlineComments ? props.sectionKey : undefined
+          }
+          data-json-key-value={props.enableInlineComments ? "true" : undefined}
         >
-          {props.content}
+          {props.enableInlineComments &&
+          props.commentedRanges &&
+          props.commentedRanges.length > 0 &&
+          typeof props.content === "string"
+            ? // Render with comment highlighting
+              highlightTextWithComments(
+                props.content,
+                undefined,
+                undefined,
+                props.commentedRanges,
+              ).map((segment, index) => {
+                const backgroundColor =
+                  segment.type === "comment"
+                    ? COMMENT_HIGHLIGHT_COLOR
+                    : "transparent";
+
+                const highlightedSpan = (
+                  <span key={index} style={{ backgroundColor }}>
+                    {segment.text}
+                  </span>
+                );
+
+                if (segment.type === "comment" && segment.preview) {
+                  return (
+                    <Tooltip key={index}>
+                      <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        align="start"
+                        className="max-w-xs px-2 py-1 text-xs"
+                      >
+                        {segment.preview}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+
+                return highlightedSpan;
+              })
+            : // Normal rendering
+              props.content}
         </code>
         {props.defaultCollapsed ? (
           <div className="flex gap-2 py-2 pr-2">

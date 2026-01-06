@@ -4,23 +4,29 @@ import { selectionToPath } from "../lib/selectionToPath";
 
 interface UseTextSelectionOptions {
   containerRef: React.RefObject<HTMLElement | null>;
-  dataField?: "input" | "output" | "metadata"; // Optional - auto-detected from [data-section-key] if not provided
+  dataField?: "input" | "output" | "metadata" | "prompt" | "config"; // Optional - auto-detected from [data-section-key] if not provided
   enabled?: boolean;
 }
 
 /**
- * Finds the section key (input/output/metadata) from the DOM by looking for
+ * Finds the section key (input/output/metadata/prompt/config) from the DOM by looking for
  * the closest ancestor with [data-section-key] attribute.
  */
 function detectSectionFromDOM(
   node: Node,
-): "input" | "output" | "metadata" | null {
+): "input" | "output" | "metadata" | "prompt" | "config" | null {
   let current: Node | null = node;
   while (current && current !== document.body) {
     if (current instanceof HTMLElement && current.dataset.sectionKey) {
       const key = current.dataset.sectionKey;
-      if (key === "input" || key === "output" || key === "metadata") {
-        return key;
+      if (
+        key === "input" ||
+        key === "output" ||
+        key === "metadata" ||
+        key === "prompt" ||
+        key === "config"
+      ) {
+        return key as "input" | "output" | "metadata" | "prompt" | "config";
       }
     }
     current = current.parentNode;

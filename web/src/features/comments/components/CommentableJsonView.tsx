@@ -9,7 +9,7 @@ import { useTextSelection } from "../hooks/useTextSelection";
 
 interface CommentableJsonViewProps {
   children: ReactNode;
-  dataField?: "input" | "output" | "metadata"; // Optional - auto-detected from [data-section-key] in DOM if not provided
+  dataField?: "input" | "output" | "metadata" | "prompt" | "config"; // Optional - auto-detected from [data-section-key] in DOM if not provided
   enabled?: boolean;
   className?: string;
 }
