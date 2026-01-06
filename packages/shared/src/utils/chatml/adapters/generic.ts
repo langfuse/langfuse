@@ -117,11 +117,23 @@ function preprocessData(data: unknown): unknown {
   // Object with messages key
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
+    let messages = obj.messages;
+
+    // Handle double-stringified messages: { messages: "[{...}]" }
+    // ClickHouse can store the array as a string due to double-stringification
+    if (typeof messages === "string") {
+      try {
+        messages = JSON.parse(messages);
+      } catch {
+        // Keep as string if parse fails
+      }
+    }
+
     return {
       ...obj,
-      messages: Array.isArray(obj.messages)
-        ? obj.messages.map(normalizeGoogleMessage)
-        : obj.messages,
+      messages: Array.isArray(messages)
+        ? messages.map(normalizeGoogleMessage)
+        : messages,
     };
   }
 
