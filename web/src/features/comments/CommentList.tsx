@@ -16,6 +16,11 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
@@ -25,14 +30,7 @@ import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
-import {
-  ArrowUpToLine,
-  LoaderCircle,
-  MapPin,
-  Search,
-  Trash,
-  X,
-} from "lucide-react";
+import { ArrowUpToLine, LoaderCircle, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
   useCallback,
@@ -51,6 +49,30 @@ import { ReactionBar } from "@/src/features/comments/ReactionBar";
 import { stripMarkdown } from "@/src/utils/markdown";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
+import { Badge } from "@/src/components/ui/badge";
+import { useTheme } from "next-themes";
+
+// IO field background colors - same as IOPreviewJSON.tsx
+const IO_FIELD_COLORS = {
+  input: { light: "rgb(249, 252, 255)", dark: "rgb(15, 23, 42)" },
+  output: { light: "rgb(248, 253, 250)", dark: "rgb(20, 30, 41)" },
+  metadata: { light: "rgb(253, 251, 254)", dark: "rgb(30, 20, 40)" },
+} as const;
+
+/**
+ * Convert JSON path to human-readable format
+ * $.messages[1].text → messages › 1 › text
+ * $ → (root)
+ */
+function humanizeJsonPath(path: string): string {
+  if (path === "$") return "(root)";
+  return path
+    .replace(/^\$\.?/, "") // remove leading $. or $
+    .replace(/\[(\d+)\]/g, ".$1") // [0] → .0
+    .split(".")
+    .filter(Boolean)
+    .join(" › ");
+}
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
@@ -80,6 +102,8 @@ export function CommentList({
 }) {
   const session = useSession();
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [cursorPosition, setCursorPosition] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const commentsContainerRef = useRef<HTMLDivElement>(null);
@@ -567,18 +591,39 @@ export function CommentList({
                     className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
                   />
 
-                  {/* TODO: remove this Inline comment position indicator */}
+                  {/* Inline comment position indicator */}
                   {"dataField" in comment &&
                     comment.dataField &&
                     "path" in comment &&
                     Array.isArray(comment.path) &&
                     comment.path.length > 0 && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        <span className="font-mono">
-                          {comment.dataField}: {comment.path[0]}
-                        </span>
-                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="mt-1 flex w-fit items-center gap-1.5 text-xs">
+                            <Badge
+                              className="pointer-events-none px-1.5 py-0 text-[10px] font-medium text-foreground"
+                              style={{
+                                backgroundColor:
+                                  IO_FIELD_COLORS[
+                                    comment.dataField as keyof typeof IO_FIELD_COLORS
+                                  ]?.[isDark ? "dark" : "light"],
+                              }}
+                            >
+                              {comment.dataField.toUpperCase()}
+                            </Badge>
+                            <span className="text-muted-foreground">
+                              {humanizeJsonPath(comment.path[0])}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          className="text-xs"
+                        >
+                          The location of the text commented on
+                        </TooltipContent>
+                      </Tooltip>
                     )}
 
                   {/* Reactions */}
