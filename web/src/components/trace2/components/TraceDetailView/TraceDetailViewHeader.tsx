@@ -15,6 +15,7 @@ import {
   type ScoreDomain,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -40,6 +41,11 @@ export interface TraceDetailViewHeaderProps {
   projectId: string;
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
+  // Inline comment props
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
+  isCommentDrawerOpen?: boolean;
+  onCommentDrawerOpenChange?: (open: boolean) => void;
 }
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
@@ -47,6 +53,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   projectId,
   traceScores,
   commentCount,
+  pendingSelection,
+  onSelectionUsed,
+  isCommentDrawerOpen,
+  onCommentDrawerOpenChange,
 }: TraceDetailViewHeaderProps) {
   return (
     <div className="flex-shrink-0 space-y-2 border-b p-2 @container">
@@ -100,6 +110,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             objectType="TRACE"
             count={commentCount}
             size="sm"
+            pendingSelection={pendingSelection}
+            onSelectionUsed={onSelectionUsed}
+            isOpen={isCommentDrawerOpen}
+            onOpenChange={onCommentDrawerOpenChange}
           />
         </div>
       </div>

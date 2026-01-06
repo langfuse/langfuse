@@ -377,6 +377,18 @@ types:
       objectId: string
       content: string
       authorUserId: optional<string>
+      dataField:
+        type: optional<string>
+        docs: For inline comments, the IO field (input, output, metadata)
+      path:
+        type: optional<list<string>>
+        docs: JSON Path expressions for comment location
+      rangeStart:
+        type: optional<list<integer>>
+        docs: Start character offsets (inclusive, UTF-16)
+      rangeEnd:
+        type: optional<list<integer>>
+        docs: End character offsets (exclusive, UTF-16)
 
   Dataset:
     properties:

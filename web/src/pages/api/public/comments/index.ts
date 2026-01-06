@@ -9,7 +9,10 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  type COMMENT_DATA_FIELDS,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
@@ -20,7 +23,10 @@ export default withMiddlewares({
     fn: async ({ body, auth }) => {
       const result = await validateCommentReferenceObject({
         ctx: { prisma, auth },
-        input: body,
+        input: {
+          ...body,
+          projectId: auth.scope.projectId,
+        },
       });
 
       if (result.errorMessage) {
@@ -36,6 +42,10 @@ export default withMiddlewares({
           authorUserId: body.authorUserId,
           id: v4(),
           projectId: auth.scope.projectId,
+          dataField: body.dataField ?? null,
+          path: body.path ?? [],
+          rangeStart: body.rangeStart ?? [],
+          rangeEnd: body.rangeEnd ?? [],
         },
       });
 
@@ -80,7 +90,13 @@ export default withMiddlewares({
       });
 
       return {
-        data: comments,
+        data: comments.map((comment) => ({
+          ...comment,
+          // cast dataField to expected enum type, Prisma just returns string | null
+          dataField: comment.dataField as
+            | (typeof COMMENT_DATA_FIELDS)[number]
+            | null,
+        })),
         meta: {
           page: query.page,
           limit: query.limit,
