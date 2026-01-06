@@ -9,10 +9,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import {
-  LangfuseNotFoundError,
-  type COMMENT_DATA_FIELDS,
-} from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export default withMiddlewares({
@@ -33,7 +30,7 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError(result.errorMessage);
       }
 
-      // Create comment with content as-is (no mention processing)
+      // Create comment with content as-is (no mention processing, no inline positioning)
       const comment = await prisma.comment.create({
         data: {
           content: body.content,
@@ -42,10 +39,6 @@ export default withMiddlewares({
           authorUserId: body.authorUserId,
           id: v4(),
           projectId: auth.scope.projectId,
-          dataField: body.dataField ?? null,
-          path: body.path ?? [],
-          rangeStart: body.rangeStart ?? [],
-          rangeEnd: body.rangeEnd ?? [],
         },
       });
 
@@ -90,13 +83,10 @@ export default withMiddlewares({
       });
 
       return {
-        data: comments.map((comment) => ({
-          ...comment,
-          // cast dataField to expected enum type, Prisma just returns string | null
-          dataField: comment.dataField as
-            | (typeof COMMENT_DATA_FIELDS)[number]
-            | null,
-        })),
+        data: comments.map(
+          // Exclude inline positioning fields from public API
+          ({ dataField, path, rangeStart, rangeEnd, ...rest }) => rest,
+        ),
         meta: {
           page: query.page,
           limit: query.limit,
