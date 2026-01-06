@@ -2,10 +2,10 @@
  * Type definitions for AdvancedJsonViewer
  *
  * All TypeScript interfaces and types used throughout the component.
- * Self-contained with no external dependencies.
  */
 
 import type { RefObject } from "react";
+import type { CommentRange } from "./utils/commentRanges";
 
 // ============================================================================
 // JSON Value Types
@@ -335,7 +335,7 @@ export interface JsonValueProps {
   highlightStart?: number;
   highlightEnd?: number;
 
-  commentRanges?: Array<{ start: number; end: number }>;
+  commentRanges?: CommentRange[];
 
   /** Offset of value within the row (for adjusting row-relative commentRanges to value-relative) */
   valueOffset?: number;
@@ -362,7 +362,7 @@ export interface JsonKeyProps {
   highlightEnd?: number;
 
   /** Comment ranges (row-relative offsets, will be clipped to key boundaries) */
-  commentRanges?: Array<{ start: number; end: number }>;
+  commentRanges?: CommentRange[];
 
   /** Custom CSS class */
   className?: string;

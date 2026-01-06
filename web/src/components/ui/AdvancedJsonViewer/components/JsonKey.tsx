@@ -10,6 +10,11 @@ import {
   highlightTextWithComments,
   COMMENT_HIGHLIGHT_COLOR,
 } from "../utils/highlightText";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 export function JsonKey({
   keyName,
@@ -29,6 +34,7 @@ export function JsonKey({
     ?.map((range) => ({
       start: Math.max(0, range.start),
       end: Math.min(keyString.length, range.end),
+      preview: range.preview,
     }))
     .filter((range) => range.end > 0 && range.start < range.end);
 
@@ -59,11 +65,29 @@ export function JsonKey({
               ? COMMENT_HIGHLIGHT_COLOR
               : "transparent";
 
-        return (
+        const highlightedSpan = (
           <span key={index} style={{ backgroundColor }}>
             {segment.text}
           </span>
         );
+
+        // Wrap comment highlights in tooltip if preview exists
+        if (segment.type === "comment" && segment.preview) {
+          return (
+            <Tooltip key={index}>
+              <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
+              <TooltipContent
+                side="top"
+                align="start"
+                className="max-w-xs text-xs"
+              >
+                {segment.preview}
+              </TooltipContent>
+            </Tooltip>
+          );
+        }
+
+        return highlightedSpan;
       })}
     </span>
   );

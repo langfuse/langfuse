@@ -6,12 +6,21 @@ import { pathArrayToJsonPath } from "./pathUtils";
 import type { FlatJSONRow } from "../types";
 
 /**
+ * A single comment range with optional preview text
+ */
+export type CommentRange = {
+  start: number;
+  end: number;
+  preview?: string; // First 150 chars of comment content for tool tip
+};
+
+/**
  * Type for comment ranges organized by field (input/output/metadata)
  */
 export type CommentedPathsByField = {
-  input?: Map<string, Array<{ start: number; end: number }>>;
-  output?: Map<string, Array<{ start: number; end: number }>>;
-  metadata?: Map<string, Array<{ start: number; end: number }>>;
+  input?: Map<string, CommentRange[]>;
+  output?: Map<string, CommentRange[]>;
+  metadata?: Map<string, CommentRange[]>;
 };
 
 /**
@@ -42,7 +51,7 @@ export function getCommentRangesForRow(
   row: FlatJSONRow,
   sectionKey: string | undefined,
   commentedPathsByField: CommentedPathsByField | undefined,
-): Array<{ start: number; end: number }> | undefined {
+): CommentRange[] | undefined {
   if (!sectionKey || !commentedPathsByField) return undefined;
 
   // Type-safe check for valid section keys

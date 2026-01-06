@@ -12,6 +12,11 @@ import {
   COMMENT_HIGHLIGHT_COLOR,
 } from "../utils/highlightText";
 import { TruncatedString } from "./TruncatedString";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 export function JsonValue({
   value,
@@ -32,6 +37,7 @@ export function JsonValue({
     ?.map((range) => ({
       start: Math.max(0, range.start - valueOffset),
       end: Math.max(0, range.end - valueOffset),
+      preview: range.preview,
     }))
     .filter((range) => range.end > 0 && range.start < range.end);
   // For expandable values, show preview text
@@ -125,11 +131,28 @@ export function JsonValue({
                 ? COMMENT_HIGHLIGHT_COLOR
                 : "transparent";
 
-          return (
+          const highlightedSpan = (
             <span key={index} style={{ backgroundColor }}>
               {segment.text}
             </span>
           );
+
+          if (segment.type === "comment" && segment.preview) {
+            return (
+              <Tooltip key={index}>
+                <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  align="start"
+                  className="max-w-xs text-xs"
+                >
+                  {segment.preview}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+
+          return highlightedSpan;
         })}
         &quot;
       </span>
@@ -176,11 +199,28 @@ export function JsonValue({
               ? COMMENT_HIGHLIGHT_COLOR
               : "transparent";
 
-        return (
+        const highlightedSpan = (
           <span key={index} style={{ backgroundColor }}>
             {segment.text}
           </span>
         );
+
+        if (segment.type === "comment" && segment.preview) {
+          return (
+            <Tooltip key={index}>
+              <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
+              <TooltipContent
+                side="top"
+                align="start"
+                className="max-w-xs text-xs"
+              >
+                {segment.preview}
+              </TooltipContent>
+            </Tooltip>
+          );
+        }
+
+        return highlightedSpan;
       })}
     </span>
   );

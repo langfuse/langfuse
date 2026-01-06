@@ -1,19 +1,15 @@
 import { useMemo } from "react";
-
-type CommentRange = { start: number; end: number };
-type CommentPathMap = Map<string, Array<CommentRange>>;
+import {
+  type CommentRange,
+  type CommentedPathsByField,
+} from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 
 interface CommentWithPosition {
+  content: string;
   dataField: string | null;
   path: string[];
   rangeStart: number[];
   rangeEnd: number[];
-}
-
-interface CommentedPathsByField {
-  input?: CommentPathMap;
-  output?: CommentPathMap;
-  metadata?: CommentPathMap;
 }
 
 /**
@@ -43,9 +39,13 @@ export function useCommentedPaths(
       ) {
         // Each path[i] gets its corresponding range from rangeStart[i]/rangeEnd[i]
         comment.path.forEach((jsonPath, i) => {
-          const range = {
+          const range: CommentRange = {
             start: comment.rangeStart[i]!,
             end: comment.rangeEnd[i]!,
+            preview:
+              comment.content.length > 150
+                ? comment.content.slice(0, 150) + "..."
+                : comment.content,
           };
 
           let targetMap;

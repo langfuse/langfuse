@@ -11,11 +11,17 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { type JSONTheme } from "../types";
 import {
   highlightTextWithComments,
   COMMENT_HIGHLIGHT_COLOR,
 } from "../utils/highlightText";
+import { type CommentRange } from "../utils/commentRanges";
 
 interface TruncatedStringProps {
   value: string;
@@ -23,7 +29,7 @@ interface TruncatedStringProps {
   theme: JSONTheme;
   highlightStart?: number;
   highlightEnd?: number;
-  commentRanges?: Array<{ start: number; end: number }>;
+  commentRanges?: CommentRange[];
 }
 
 export function TruncatedString({
@@ -76,11 +82,28 @@ export function TruncatedString({
                 ? COMMENT_HIGHLIGHT_COLOR
                 : "transparent";
 
-          return (
+          const highlightedSpan = (
             <span key={index} style={{ backgroundColor }}>
               {segment.text}
             </span>
           );
+
+          if (segment.type === "comment" && segment.preview) {
+            return (
+              <Tooltip key={index}>
+                <TooltipTrigger asChild>{highlightedSpan}</TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  align="start"
+                  className="max-w-xs text-xs"
+                >
+                  {segment.preview}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+
+          return highlightedSpan;
         })}
         &quot;
       </span>

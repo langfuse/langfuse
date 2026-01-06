@@ -9,6 +9,7 @@ import type { FlatJSONRow, JSONTheme, SearchMatch } from "../types";
 import { JsonKey } from "./JsonKey";
 import { JsonValue } from "./JsonValue";
 import { CopyButton } from "./CopyButton";
+import { type CommentRange } from "../utils/commentRanges";
 
 export interface JsonRowScrollableProps {
   row: FlatJSONRow;
@@ -20,7 +21,7 @@ export interface JsonRowScrollableProps {
   isCurrentMatch?: boolean;
   className?: string;
   jsonPath?: string;
-  commentRanges?: Array<{ start: number; end: number }>;
+  commentRanges?: CommentRange[];
   sectionKey?: string; // For inline comments - identifies which section (input/output/metadata) this row belongs to
 }
 

@@ -2,6 +2,8 @@
  * Highlight text utilities for rendering search and comment highlights
  */
 
+import { type CommentRange } from "./commentRanges";
+
 /**
  * Color for comment highlights (purple with medium opacity)
  */
@@ -15,14 +17,18 @@ export const COMMENT_HIGHLIGHT_COLOR = "rgba(147, 112, 219, 0.3)";
  * @param searchStart - Start position of search highlight (optional)
  * @param searchEnd - End position of search highlight (optional)
  * @param commentRanges - Array of comment ranges to highlight (optional)
- * @returns Array of segments with highlight type information
+ * @returns Array of segments with highlight type information and optional preview
  */
 export function highlightTextWithComments(
   text: string,
   searchStart?: number,
   searchEnd?: number,
-  commentRanges?: Array<{ start: number; end: number }>,
-): Array<{ text: string; type: "search" | "comment" | null }> {
+  commentRanges?: CommentRange[],
+): Array<{
+  text: string;
+  type: "search" | "comment" | null;
+  preview?: string;
+}> {
   if (
     !commentRanges?.length &&
     (searchStart === undefined || searchEnd === undefined)
@@ -34,6 +40,7 @@ export function highlightTextWithComments(
     start: number;
     end: number;
     type: "search" | "comment";
+    preview?: string;
   }> = [];
 
   if (searchStart !== undefined && searchEnd !== undefined) {
@@ -42,14 +49,22 @@ export function highlightTextWithComments(
 
   if (commentRanges) {
     commentRanges.forEach((range) => {
-      ranges.push({ start: range.start, end: range.end, type: "comment" });
+      ranges.push({
+        start: range.start,
+        end: range.end,
+        type: "comment",
+        preview: range.preview,
+      });
     });
   }
 
   ranges.sort((a, b) => a.start - b.start);
 
-  const segments: Array<{ text: string; type: "search" | "comment" | null }> =
-    [];
+  const segments: Array<{
+    text: string;
+    type: "search" | "comment" | null;
+    preview?: string;
+  }> = [];
   let currentPos = 0;
 
   ranges.forEach((range) => {
@@ -69,6 +84,7 @@ export function highlightTextWithComments(
       segments.push({
         text: text.slice(segmentStart, segmentEnd),
         type: range.type,
+        preview: range.preview,
       });
       currentPos = Math.max(currentPos, segmentEnd);
     }
