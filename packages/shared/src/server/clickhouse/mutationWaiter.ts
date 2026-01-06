@@ -1,11 +1,11 @@
 import { randomUUID } from "crypto";
-import { env } from "../../env";
 import { logger } from "../logger";
-import { clickhouseClient, convertDateToClickhouseDateTime } from "./client";
-import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { ClickHouseSettings } from "@clickhouse/client";
 import { instrumentAsync } from "../instrumentation";
 import { SpanKind } from "@opentelemetry/api";
+import { pollQueryStatus, getQueryError, sleep } from "./queryTracking";
+import { commandClickhouse } from "../repositories/clickhouse";
+import { env } from "../../env";
 
 /**
  * Options for executing a DELETE command with mutation monitoring.
@@ -15,189 +15,161 @@ export interface MutationWaiterOptions {
   query: string;
   params?: Record<string, unknown>;
   tags?: Record<string, string>;
-  clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   clickhouseSettings?: ClickHouseSettings;
-  timeoutMs: number;
-  pollIntervalMs: number;
 }
 
-interface MutationStatus {
-  is_done: number;
-  latest_fail_reason: string;
-}
-
-const MUTATION_STATUS_QUERY = `
-  SELECT
-    is_done,
-    latest_fail_reason
-  FROM system.mutations
-  WHERE database = {database: String}
-    AND table = {table: String}
-    AND command LIKE {uuidPattern: String}
-    AND create_time >= toDateTime({startTime: DateTime64(3)})
-  ORDER BY create_time DESC
-  LIMIT 1
-`;
-
-const MUTATION_NOT_VISIBLE_RETRY_LIMIT = 5;
-const MUTATION_NOT_VISIBLE_RETRY_DELAY_MS = 1000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+// Top-level constants
+const QUERY_REGISTER_DELAY_MS = 2000;
+const QUERY_NOT_FOUND_RETRY_LIMIT = 10;
+const QUERY_NOT_FOUND_RETRY_DELAY_MS = 1000;
 
 /**
- * Injects the UUID marker into the WHERE clause of a DELETE query.
- * Handles queries with or without trailing semicolons.
-
- * The marker is a constant expression that survives ClickHouse's mutation rewrite.
- * SQL comments are stripped, but constant expressions like `AND 'uuid' = 'uuid'`
- * are preserved in the mutation command stored in system.mutations.
+ * Waits for a query to complete by polling system.processes and system.query_log.
+ * Optionally aborts an HTTP connection when query is first found running.
  */
-function injectUuidMarker(query: string, uuid: string): string {
-  const uuidMarker = `AND 'mutation-${uuid}' = 'mutation-${uuid}'`;
-  const trimmed = query.trim();
-  const hasSemicolon = trimmed.endsWith(";");
-  const base = hasSemicolon ? trimmed.slice(0, -1) : trimmed;
-  return `${base} ${uuidMarker}`;
-}
-
-/**
- * Polls system.mutations table waiting for a mutation to complete.
- */
-async function waitForMutation(
-  uuid: string,
-  tableName: string,
-  mutationStartTime: Date,
+async function waitForQueryCompletion(
+  queryId: string,
   timeoutMs: number,
   pollIntervalMs: number,
+  abortController?: AbortController,
+  tags?: Record<string, string>,
 ): Promise<void> {
-  const pollStartTime = Date.now();
-  const uuidPattern = `%'mutation-${uuid}'%`;
-  const startTimeStr = convertDateToClickhouseDateTime(mutationStartTime);
-  let notVisibleCount = 0;
+  const startTime = Date.now();
+  let notFoundCount = 0;
 
-  while (Date.now() - pollStartTime < timeoutMs) {
-    const result = await clickhouseClient({
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    }).query({
-      query: MUTATION_STATUS_QUERY,
-      query_params: {
-        database: env.CLICKHOUSE_DB,
-        table: tableName,
-        uuidPattern,
-        startTime: startTimeStr,
-      },
-      format: "JSONEachRow",
-    });
+  while (Date.now() - startTime < timeoutMs) {
+    const status = await pollQueryStatus(queryId, tags);
 
-    const rows = await result.json<MutationStatus>();
-
-    if (
-      rows.length === 0 &&
-      notVisibleCount >= MUTATION_NOT_VISIBLE_RETRY_LIMIT
-    ) {
-      throw new Error(
-        `Could not found mutation ${uuid} for table ${tableName} after ${notVisibleCount} attempts`,
-      );
+    if (status === "completed") {
+      logger.info(`Query ${queryId} completed`, {
+        durationMs: Date.now() - startTime,
+      });
+      return;
     }
 
-    if (rows.length === 0) {
-      notVisibleCount += 1;
-      // Mutation not yet visible, wait and retry
+    if (status === "failed") {
+      const error = await getQueryError(queryId);
+      throw new Error(`Query ${queryId} failed: ${error}`);
+    }
+
+    if (status === "not_found") {
+      notFoundCount++;
+      if (notFoundCount >= QUERY_NOT_FOUND_RETRY_LIMIT) {
+        throw new Error(
+          `Query ${queryId} not found after ${notFoundCount} attempts`,
+        );
+      }
       logger.debug(
-        `Mutation ${uuid} not yet visible in system.mutations, waiting...`,
+        `Query ${queryId} not visible, waiting... (${notFoundCount}/${QUERY_NOT_FOUND_RETRY_LIMIT})`,
       );
-      await sleep(MUTATION_NOT_VISIBLE_RETRY_DELAY_MS);
+      await sleep(QUERY_NOT_FOUND_RETRY_DELAY_MS);
       continue;
     }
 
-    const mutation = rows[0];
-    if (mutation.is_done === 1) {
-      logger.info(`Mutation ${uuid} completed for table ${tableName}`, {
-        durationMs: Date.now() - pollStartTime,
-      });
-      return; // Success
-    }
+    // status === "running" - query found
+    notFoundCount = 0;
 
-    if (mutation.latest_fail_reason) {
-      throw new Error(
-        `Mutation ${uuid} failed: ${mutation.latest_fail_reason}`,
+    // Abort HTTP connection on first successful poll (query continues on server)
+    if (abortController) {
+      logger.info(
+        `Query ${queryId} confirmed running, aborting HTTP connection`,
       );
+      abortController.abort();
+      abortController = undefined; // Only abort once
     }
 
     await sleep(pollIntervalMs);
   }
 
-  throw new Error(
-    `Mutation ${uuid} timeout after ${timeoutMs}ms for table ${tableName}`,
-  );
+  throw new Error(`Query ${queryId} timeout after ${timeoutMs}ms`);
 }
 
 /**
- * Executes a DELETE command with mutation monitoring.
+ * Executes a DELETE command with query tracking via AbortController.
  *
- * When LANGFUSE_MUTATION_MONITOR_ENABLED is true, this function:
- * 1. Injects a UUID as a SQL comment to identify the mutation
- * 2. Executes the command with a short timeout (just enough to create the mutation)
- * 3. Polls system.mutations table to track the mutation until completion
+ * This function:
+ * 1. Fires the DELETE command with a known query_id and abort_signal
+ * 2. Waits for the query to register in ClickHouse
+ * 3. Aborts the HTTP connection when query is confirmed running (query continues on server)
+ * 4. Polls system.processes + system.query_log for completion
  *
- * This avoids HTTP connection timeouts for long-running DELETE operations
- * where the actual mutation completes faster than the connection timeout.
+ * This avoids HTTP connection timeouts (socket hang up) for long-running DELETE operations
+ * by disconnecting from the HTTP layer while the query continues executing on ClickHouse.
  */
 export async function executeWithMutationMonitoring(
   opts: MutationWaiterOptions,
 ): Promise<void> {
+  const timeoutMs = env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS;
+  const pollIntervalMs = env.LANGFUSE_ASYNC_DELETE_TRACKING_POLL_INTERVAL_MS;
   return instrumentAsync(
     { name: "clickhouse-mutation-waiter", spanKind: SpanKind.CLIENT },
     async (span) => {
-      const uuid = randomUUID();
-      const queryWithUuid = injectUuidMarker(opts.query, uuid);
+      const queryId = `mutation-${opts.tableName}-${randomUUID()}`;
+      const abortController = new AbortController();
 
-      span.setAttribute("ch.mutation.uuid", uuid);
+      span.setAttribute("ch.query.id", queryId);
       span.setAttribute("ch.mutation.table", opts.tableName);
-      span.setAttribute("ch.query.text", queryWithUuid);
+      span.setAttribute("ch.query.text", opts.query);
       span.setAttribute("db.system", "clickhouse");
       span.setAttribute("db.operation.name", "MUTATION_WAIT");
 
-      logger.info(
-        `Starting mutation ${uuid} for table ${opts.tableName} with polling`,
-        {
-          tableName: opts.tableName,
-          timeoutMs: opts.timeoutMs,
-          pollIntervalMs: opts.pollIntervalMs,
-        },
-      );
-
-      // Record the start time before executing the command - used to filter mutations
-      const mutationStartTime = new Date();
-
-      // Execute with lightweight_deletes_sync=0 to return immediately after mutation is created
-      await clickhouseClient({
-        ...opts.clickhouseConfigs,
-      }).command({
-        query: queryWithUuid,
-        query_params: opts.params,
-        clickhouse_settings: {
-          ...opts.clickhouseSettings,
-          lightweight_deletes_sync: "0",
-          log_comment: JSON.stringify({
-            ...opts.tags,
-            mutationId: uuid,
-          }),
-        },
+      logger.info(`Starting mutation ${queryId} for table ${opts.tableName}`, {
+        tableName: opts.tableName,
+        timeoutMs: timeoutMs,
+        pollIntervalMs: pollIntervalMs,
       });
 
-      logger.debug(`Mutation ${uuid} command returned, starting to poll`);
+      // Track command errors (non-abort)
+      let commandError: Error | undefined;
 
-      // Poll system.mutations to wait for completion
-      await waitForMutation(
-        uuid,
-        opts.tableName,
-        mutationStartTime,
-        opts.timeoutMs,
-        opts.pollIntervalMs,
-      );
+      // Fire the DELETE command (blocks until mutation completes, but we'll abort the HTTP connection)
+      const commandPromise = commandClickhouse({
+        query: opts.query,
+        params: opts.params,
+        tags: {
+          ...opts.tags,
+          queryId,
+        },
+        clickhouseConfigs: {
+          // overriding timeout to ensure custom send_progress_in_http_headers
+          // configuration is used by getClient
+          request_timeout: timeoutMs,
+        },
+        clickhouseSettings: opts.clickhouseSettings,
+        abortSignal: abortController.signal,
+      });
+
+      // Track errors - suppress expected abort errors, capture others
+      commandPromise.catch((err) => {
+        const isAbortError =
+          err?.name === "AbortError" || err?.message?.includes("aborted");
+        if (!isAbortError) {
+          commandError = err;
+          logger.info(`Mutation ${queryId} promise rejected: ${err?.message}`);
+        }
+      });
+
+      // Wait for query to register in ClickHouse
+      await sleep(QUERY_REGISTER_DELAY_MS);
+
+      // Poll for completion, abort HTTP connection when query is first found running
+      try {
+        await waitForQueryCompletion(
+          queryId,
+          timeoutMs,
+          pollIntervalMs,
+          abortController,
+        );
+      } catch (pollError) {
+        // If polling failed and we have a command error, prefer the command error
+        // as it likely has more context about what went wrong
+        if (commandError) {
+          throw new Error(
+            `Mutation ${queryId} failed: ${commandError.message}`,
+          );
+        }
+        throw pollError;
+      }
 
       span.setAttribute("ch.mutation.completed", true);
     },

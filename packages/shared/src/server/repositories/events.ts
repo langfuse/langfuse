@@ -1707,7 +1707,7 @@ export const deleteEventsByProjectId = async (projectId: string) => {
     projectId,
   };
 
-  if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
+  if (env.LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED === "true") {
     await executeWithMutationMonitoring({
       tableName: "events",
       query,
@@ -1716,8 +1716,6 @@ export const deleteEventsByProjectId = async (projectId: string) => {
       clickhouseSettings: {
         send_logs_level: "trace",
       },
-      timeoutMs: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-      pollIntervalMs: env.LANGFUSE_MUTATION_POLL_INTERVAL_MS,
     });
   } else {
     await commandClickhouse({

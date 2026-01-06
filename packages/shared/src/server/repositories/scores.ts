@@ -1215,14 +1215,12 @@ export const deleteScoresByProjectId = async (projectId: string) => {
     projectId,
   };
 
-  if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
+  if (env.LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED === "true") {
     await executeWithMutationMonitoring({
       tableName: "scores",
       query,
       params: { projectId },
       tags,
-      timeoutMs: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-      pollIntervalMs: env.LANGFUSE_MUTATION_POLL_INTERVAL_MS,
     });
   } else {
     await commandClickhouse({
