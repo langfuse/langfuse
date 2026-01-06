@@ -29,6 +29,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
+import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import {
   convertObservation,
   enrichObservationWithModelData,
@@ -1254,21 +1255,32 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
     DELETE FROM observations
     WHERE project_id = {projectId: String};
   `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-    },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    },
-    tags: {
-      feature: "tracing",
-      type: "observation",
-      kind: "delete",
-      projectId,
-    },
-  });
+  const tags = {
+    feature: "tracing",
+    type: "observation",
+    kind: "delete",
+    projectId,
+  };
+
+  if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
+    await executeWithMutationMonitoring({
+      tableName: "observations",
+      query,
+      params: { projectId },
+      tags,
+      timeoutMs: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      pollIntervalMs: env.LANGFUSE_MUTATION_POLL_INTERVAL_MS,
+    });
+  } else {
+    await commandClickhouse({
+      query,
+      params: { projectId },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags,
+    });
+  }
 };
 
 export const deleteObservationsOlderThanDays = async (

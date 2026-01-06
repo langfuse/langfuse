@@ -6,6 +6,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
+import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
@@ -1699,22 +1700,38 @@ export const deleteEventsByProjectId = async (projectId: string) => {
     DELETE FROM events
     WHERE project_id = {projectId: String};
   `;
-  await commandClickhouse({
-    query,
-    params: { projectId },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    },
-    tags: {
-      feature: "tracing",
-      type: "events",
-      kind: "delete",
-      projectId,
-    },
-    clickhouseSettings: {
-      send_logs_level: "trace",
-    },
-  });
+  const tags = {
+    feature: "tracing",
+    type: "events",
+    kind: "delete",
+    projectId,
+  };
+
+  if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
+    await executeWithMutationMonitoring({
+      tableName: "events",
+      query,
+      params: { projectId },
+      tags,
+      clickhouseSettings: {
+        send_logs_level: "trace",
+      },
+      timeoutMs: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      pollIntervalMs: env.LANGFUSE_MUTATION_POLL_INTERVAL_MS,
+    });
+  } else {
+    await commandClickhouse({
+      query,
+      params: { projectId },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags,
+      clickhouseSettings: {
+        send_logs_level: "trace",
+      },
+    });
+  }
 };
 
 /**

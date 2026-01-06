@@ -22,6 +22,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
+import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
@@ -954,14 +955,26 @@ export const deleteTracesByProjectId = async (projectId: string) => {
         DELETE FROM traces
         WHERE project_id = {projectId: String};
       `;
-      await commandClickhouse({
-        query: query,
-        params: input.params,
-        clickhouseConfigs: {
-          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-        },
-        tags: input.tags,
-      });
+
+      if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
+        await executeWithMutationMonitoring({
+          tableName: "traces",
+          query,
+          params: input.params,
+          tags: input.tags,
+          timeoutMs: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          pollIntervalMs: env.LANGFUSE_MUTATION_POLL_INTERVAL_MS,
+        });
+      } else {
+        await commandClickhouse({
+          query,
+          params: input.params,
+          clickhouseConfigs: {
+            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+          },
+          tags: input.tags,
+        });
+      }
     },
   });
 };
