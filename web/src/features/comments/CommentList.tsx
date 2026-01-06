@@ -619,7 +619,7 @@ export function CommentList({
                         <TooltipContent
                           side="top"
                           align="start"
-                          className="text-xs"
+                          className="px-2 py-1 text-xs"
                         >
                           The location of the text commented on
                         </TooltipContent>

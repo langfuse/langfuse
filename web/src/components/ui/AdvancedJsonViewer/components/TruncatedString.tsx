@@ -95,7 +95,7 @@ export function TruncatedString({
                 <TooltipContent
                   side="top"
                   align="start"
-                  className="max-w-xs text-xs"
+                  className="max-w-xs px-2 py-1 text-xs"
                 >
                   {segment.preview}
                 </TooltipContent>
