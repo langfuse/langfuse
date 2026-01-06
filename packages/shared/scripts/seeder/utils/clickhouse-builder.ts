@@ -254,7 +254,8 @@ export class ClickHouseQueryBuilder {
         timestamp AS updated_at,
         timestamp AS event_ts,
         0 AS is_deleted,
-        NULL AS execution_trace_id
+        NULL AS execution_trace_id,
+        '' AS long_string_value
       FROM numbers(${totalScores});
     `;
   }
