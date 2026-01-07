@@ -53,6 +53,8 @@ service:
         - `totalCost` - Total cost (USD)
         - `timeToFirstToken` - Time to first token (milliseconds)
         - `countScores` - Number of scores attached to the observation
+        - `uniqueUserIds` - Count of unique user IDs
+        - `uniqueSessionIds` - Count of unique session IDs
 
         ### scores-numeric
         Query numeric and boolean score data.

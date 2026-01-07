@@ -347,6 +347,65 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         expect(height).toBeGreaterThanOrEqual(0);
       });
     });
+
+    it("should support uniqueUserIds and uniqueSessionIds measures", async () => {
+      // Create observations with different users/sessions
+      const uniqueTestTraceId = randomUUID();
+      const observationIds: string[] = [];
+      const observations = [];
+
+      for (let i = 0; i < 5; i++) {
+        const obsId = randomUUID();
+        observationIds.push(obsId);
+        observations.push(
+          createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: uniqueTestTraceId,
+            project_id: projectId,
+            type: "SPAN",
+            name: `unique-metrics-test-${i}`,
+            start_time: timeValue + i * 1000,
+            user_id: `user-${i % 3}`, // 3 unique users (0, 1, 2)
+            session_id: `session-${i % 2}`, // 2 unique sessions (0, 1)
+          }),
+        );
+      }
+
+      await createEventsCh(observations);
+
+      const query = {
+        view: "observations",
+        metrics: [
+          { measure: "uniqueUserIds", aggregation: "sum" },
+          { measure: "uniqueSessionIds", aggregation: "sum" },
+        ],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: uniqueTestTraceId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toBeDefined();
+      expect(response.body.data.length).toBeGreaterThan(0);
+
+      const data = response.body.data[0];
+      expect(data.sum_uniqueUserIds).toBeDefined();
+      expect(data.sum_uniqueSessionIds).toBeDefined();
+    });
   });
 
   maybe("Denormalized Trace Fields", () => {

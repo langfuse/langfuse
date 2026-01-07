@@ -1106,6 +1106,20 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Total number of observations.",
       unit: "observations",
     },
+    uniqueUserIds: {
+      sql: "uniq(events_observations.user_id)",
+      alias: "uniqueUserIds",
+      type: "integer",
+      description: "Count of unique userIds.",
+      unit: "users",
+    },
+    uniqueSessionIds: {
+      sql: "uniq(events_observations.session_id)",
+      alias: "uniqueSessionIds",
+      type: "integer",
+      description: "Count of unique sessionIds.",
+      unit: "sessions",
+    },
     latency: {
       sql: "date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.end_time))",
       aggs: { agg1: "any" },

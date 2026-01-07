@@ -2052,6 +2052,10 @@ paths:
 
         - `countScores` - Number of scores attached to the observation
 
+        - `uniqueUserIds` - Count of unique user IDs
+
+        - `uniqueSessionIds` - Count of unique session IDs
+
 
         ### scores-numeric
 
