@@ -34,6 +34,8 @@ export * from "./otel/utils";
 export * from "./clickhouse/client";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
+export * from "./clickhouse/mutationWaiter";
+export * from "./clickhouse/queryTracking";
 export * from "./repositories/definitions";
 export * from "../utils/IORepresentation/chatML/types";
 export * from "../server/ingestion/types";
