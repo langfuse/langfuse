@@ -2582,7 +2582,8 @@ paths:
 
         - `io` - input, output
 
-        - `metadata` - metadata
+        - `metadata` - metadata (truncated to 200 chars by default, use
+        `expandMetadata` to get full values)
 
         - `model` - providedModelName, internalModelId, modelParameters
 
@@ -2618,6 +2619,17 @@ paths:
             If not specified, `core` and `basic` field groups are returned.
 
             Example: "basic,usage,model"
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: expandMetadata
+          in: query
+          description: |-
+            Comma-separated list of metadata keys to return non-truncated.
+            By default, metadata values over 200 characters are truncated.
+            Use this parameter to retrieve full values for specific keys.
+            Example: "key1,key2"
           required: false
           schema:
             type: string

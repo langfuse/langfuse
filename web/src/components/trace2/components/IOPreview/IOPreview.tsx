@@ -6,7 +6,7 @@ import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 import { type MediaReturnType } from "@/src/features/media/validation";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
-import { IOPreviewJSON } from "./IOPreviewJSON";
+import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { Button } from "@/src/components/ui/button";
@@ -47,6 +47,10 @@ export interface IOPreviewProps extends ExpansionStateProps {
   hideInput?: boolean;
   currentView?: ViewMode;
   setIsPrettyViewAvailable?: (value: boolean) => void;
+  // Inline comment props (JSON Beta view only)
+  enableInlineComments?: boolean;
+  onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
+  commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
   // Whether to show metadata section in pretty view (default: false)
   // JSON view always shows metadata
   showMetadata?: boolean;
@@ -93,6 +97,9 @@ export function IOPreview({
   onInputExpansionChange,
   onOutputExpansionChange,
   setIsPrettyViewAvailable,
+  enableInlineComments,
+  onAddInlineComment,
+  commentedPathsByField,
   showMetadata = false,
   onVirtualizationChange,
   observationId,
@@ -177,8 +184,8 @@ export function IOPreview({
 
       {/*
        * Conditional rendering based on view mode:
-       * - JSON Beta view: IOPreviewJSON (advanced viewer with virtualization, search)
-       * - JSON view: IOPreviewJSONSimple (simple react18-json-view, no virtualization)
+       * - JSON Beta view: IOPreviewJSON (advanced viewer with virtualization, search, inline comments)
+       * - JSON view: IOPreviewJSONSimple (simple react18-json-view, no virtualization, no comments)
        * - Pretty view: IOPreviewPretty (with ChatML parsing, markdown, tools)
        *
        * Only render the active view to prevent dual DOM tree construction.
@@ -201,6 +208,9 @@ export function IOPreview({
           onInputExpansionChange={onInputExpansionChange}
           onOutputExpansionChange={onOutputExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
+          enableInlineComments={enableInlineComments}
+          onAddInlineComment={onAddInlineComment}
+          commentedPathsByField={commentedPathsByField}
           observationId={observationId}
           projectId={projectId}
           traceId={traceId}

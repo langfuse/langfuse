@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, MessageSquare } from "lucide-react";
 import type { SectionContext } from "../types";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { MediaButtonGroup } from "./MediaButtonGroup";
@@ -10,6 +10,8 @@ export interface MultiSectionJsonViewerHeaderProps {
   context: SectionContext;
   /** Media attachments for this section (optional) */
   media?: MediaReturnType[];
+  /** Number of comments in this section (optional) */
+  commentCount?: number;
 }
 
 /**
@@ -23,6 +25,7 @@ export function MultiSectionJsonViewerHeader({
   title,
   context,
   media,
+  commentCount,
 }: MultiSectionJsonViewerHeaderProps) {
   return (
     <div
@@ -63,6 +66,21 @@ export function MultiSectionJsonViewerHeader({
       >
         {context.rowCount.toLocaleString()} keys
       </span>
+      {commentCount !== undefined && commentCount > 0 && (
+        <span
+          className="text-muted-foreground"
+          style={{
+            marginLeft: "8px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "3px",
+            fontSize: "0.65rem",
+          }}
+        >
+          <MessageSquare size={10} />
+          {commentCount}
+        </span>
+      )}
       <div style={{ marginLeft: "auto" }}>
         {media && media.length > 0 && <MediaButtonGroup media={media} />}
       </div>

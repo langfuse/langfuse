@@ -511,6 +511,16 @@ const extendedPrismaAdapter: Adapter = {
     }
 
     await prismaAdapter.linkAccount(data);
+
+    // Assign default memberships for existing users logging in via SSO
+    // This is idempotent - won't duplicate or overwrite existing memberships
+    const user = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { id: true, email: true },
+    });
+    if (user) {
+      await createProjectMembershipsOnSignup(user);
+    }
   },
 
   // Make email-OTP login that is used for password reset safer
