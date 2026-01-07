@@ -309,7 +309,7 @@ export const openAIAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // REJECTIONS: Explicit rejection of LangGraph/LangChain formats
+    // REJECTIONS: Explicit rejection of LangGraph/LangChain/Semantic Kernel formats
     if (meta && typeof meta === "object") {
       // LangGraph
       if (
@@ -320,6 +320,17 @@ export const openAIAdapter: ProviderAdapter = {
         (Array.isArray(meta.tags) && meta.tags.includes("langgraph"))
       ) {
         return false;
+      }
+
+      // Semantic Kernel (scope.name starts with Microsoft.SemanticKernel)
+      if ("scope" in meta && typeof meta.scope === "object") {
+        const scope = meta.scope as Record<string, unknown>;
+        if (
+          typeof scope.name === "string" &&
+          scope.name.startsWith("Microsoft.SemanticKernel")
+        ) {
+          return false;
+        }
       }
 
       // LangChain (type without role)
