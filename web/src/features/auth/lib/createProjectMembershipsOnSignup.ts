@@ -18,8 +18,12 @@ export async function createProjectMembershipsOnSignup(user: {
           })) ?? undefined)
         : undefined;
     if (demoProject !== undefined) {
-      await prisma.organizationMembership.create({
-        data: {
+      await prisma.organizationMembership.upsert({
+        where: {
+          orgId_userId: { orgId: demoProject.orgId, userId: user.id },
+        },
+        update: {}, // No-op: preserve existing role
+        create: {
           userId: user.id,
           orgId: demoProject.orgId,
           role: Role.VIEWER,
@@ -37,8 +41,12 @@ export async function createProjectMembershipsOnSignup(user: {
       : undefined;
     const defaultOrgMembership =
       defaultOrg !== undefined
-        ? await prisma.organizationMembership.create({
-            data: {
+        ? await prisma.organizationMembership.upsert({
+            where: {
+              orgId_userId: { orgId: defaultOrg.id, userId: user.id },
+            },
+            update: {}, // No-op: preserve existing role
+            create: {
               orgId: defaultOrg.id,
               userId: user.id,
               role: env.LANGFUSE_DEFAULT_ORG_ROLE ?? "VIEWER",
@@ -58,8 +66,15 @@ export async function createProjectMembershipsOnSignup(user: {
       if (defaultOrgMembership) {
         // (1) used together with LANGFUSE_DEFAULT_ORG_ID -> create project role for the project within the org, do nothing if the project is not in the org
         if (defaultProject.orgId === defaultOrgMembership.orgId) {
-          await prisma.projectMembership.create({
-            data: {
+          await prisma.projectMembership.upsert({
+            where: {
+              projectId_userId: {
+                projectId: defaultProject.id,
+                userId: user.id,
+              },
+            },
+            update: {}, // No-op: preserve existing role
+            create: {
               userId: user.id,
               orgMembershipId: defaultOrgMembership.id,
               projectId: defaultProject.id,
@@ -69,8 +84,12 @@ export async function createProjectMembershipsOnSignup(user: {
         }
       } else {
         // (2) used without LANGFUSE_DEFAULT_ORG_ID (legacy) -> create org membership for the project's org
-        await prisma.organizationMembership.create({
-          data: {
+        await prisma.organizationMembership.upsert({
+          where: {
+            orgId_userId: { orgId: defaultProject.orgId, userId: user.id },
+          },
+          update: {}, // No-op: preserve existing role
+          create: {
             orgId: defaultProject.orgId,
             userId: user.id,
             role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",

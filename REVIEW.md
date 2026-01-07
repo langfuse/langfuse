@@ -45,3 +45,10 @@
 ## Seeder
 
 - make sure that for new features with data model changes, the database seeder is adjusted.
+
+## API Documentation
+
+- Whenever a file in `web/src/features/public-api/types` changes, the `fern/apis` definition probably needs to be adjusted, too.
+- `nullish` types should map to `optional<nullable<T>>` in fern.
+- `nullable` types should map to `nullable<T>` in fern.
+- `optional` types should map to `optional<T>` in fern.

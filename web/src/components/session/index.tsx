@@ -483,6 +483,9 @@ export const SessionIO = ({
           input={trace.data.input}
           output={trace.data.output}
           hideIfNull
+          projectId={projectId}
+          traceId={traceId}
+          environment={trace.data.environment}
         />
       ) : (
         <div className="p-2 text-xs text-muted-foreground">

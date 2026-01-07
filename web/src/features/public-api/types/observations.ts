@@ -126,33 +126,32 @@ export const transformDbToApiObservation = (
   const totalTokens = reducedUsageDetails.total ?? 0;
 
   const {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     providedCostDetails,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     internalModelId,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     inputCost,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     outputCost,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     totalCost,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     inputUsage,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     outputUsage,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     totalUsage,
     // Exclude userId and sessionId from public API (security/privacy)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     userId,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     sessionId,
     // Exclude tool data from public API (not yet released)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     toolDefinitions,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     toolCalls,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     toolCallNames,
     ...rest
   } = observation as EventsObservation & ObservationPriceFields;
@@ -285,6 +284,7 @@ export const encodeCursor = (
 // GET /v2/observations
 export const GetObservationsV2Query = z.object({
   // Field groups parameter (optional - defaults to all groups)
+  // Comma-separated list of field groups: fields=basic,metadata,io
   fields: z
     .string()
     .nullish()
@@ -293,11 +293,25 @@ export const GetObservationsV2Query = z.object({
       return v
         .split(",")
         .map((f) => f.trim())
-        .filter((f) =>
+        .filter((f): f is ObservationFieldGroup =>
           OBSERVATION_FIELD_GROUPS.includes(f as ObservationFieldGroup),
         );
     })
     .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
+  // Metadata expansion keys (optional)
+  // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
+  expandMetadata: z
+    .string()
+    .nullish()
+    .transform((v) => {
+      if (!v) return null;
+      const keys = v
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k.length > 0);
+      return keys.length > 0 ? keys : null;
+    })
+    .pipe(z.array(z.string()).nullable()),
   // Pagination
   limit: z.coerce.number().nonnegative().lte(1000).default(50),
   cursor: EncodedObservationsCursorV2.optional(),

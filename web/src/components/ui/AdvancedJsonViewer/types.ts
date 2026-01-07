@@ -2,10 +2,10 @@
  * Type definitions for AdvancedJsonViewer
  *
  * All TypeScript interfaces and types used throughout the component.
- * Self-contained with no external dependencies.
  */
 
 import type { RefObject } from "react";
+import type { CommentRange } from "./utils/commentRanges";
 
 // ============================================================================
 // JSON Value Types
@@ -255,6 +255,8 @@ export interface AdvancedJsonViewerProps {
 
   /** Ref to the scroll container (for proper scroll-to behavior) */
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+
+  commentedPaths?: Map<string, Array<{ start: number; end: number }>>;
 }
 
 /**
@@ -333,6 +335,11 @@ export interface JsonValueProps {
   highlightStart?: number;
   highlightEnd?: number;
 
+  commentRanges?: CommentRange[];
+
+  /** Offset of value within the row (for adjusting row-relative commentRanges to value-relative) */
+  valueOffset?: number;
+
   /** Custom CSS class */
   className?: string;
 }
@@ -353,6 +360,9 @@ export interface JsonKeyProps {
   /** Search highlight positions */
   highlightStart?: number;
   highlightEnd?: number;
+
+  /** Comment ranges (row-relative offsets, will be clipped to key boundaries) */
+  commentRanges?: CommentRange[];
 
   /** Custom CSS class */
   className?: string;
@@ -402,4 +412,62 @@ export interface RowHeightEstimate {
 
   /** Whether height is dynamic (might change on render) */
   isDynamic: boolean;
+}
+
+// ============================================================================
+// Multi-Section Support
+// ============================================================================
+
+/**
+ * Node type discriminator for multi-section trees
+ */
+export type TreeNodeType =
+  | "meta"
+  | "section-header"
+  | "section-footer"
+  | "section-spacer"
+  | "json";
+
+/**
+ * Section definition for MultiSectionJsonViewer
+ */
+export interface JsonSection {
+  /** Unique identifier (for expansion state) */
+  key: string;
+
+  /** JSON data to display */
+  data: unknown;
+
+  /** Display title (shown in header). If not provided, derived from key */
+  title?: string;
+
+  /** Optional header render function (receives section context) */
+  renderHeader?: (context: SectionContext) => React.ReactNode;
+
+  /** Optional footer render function (receives section context) */
+  renderFooter?: (context: SectionContext) => React.ReactNode;
+
+  /** Section background color */
+  backgroundColor?: string;
+
+  /** Minimum height for section content (CSS value, e.g., "200px", "50vh") */
+  minHeight?: string;
+}
+
+/**
+ * Context passed to header/footer components
+ * Access via useSectionContext(sectionKey)
+ */
+export interface SectionContext {
+  /** Section identifier */
+  sectionKey: string;
+
+  /** Number of visible JSON rows in this section */
+  rowCount: number;
+
+  /** Is section expanded? */
+  isExpanded: boolean;
+
+  /** Toggle section expansion */
+  setExpanded: (expanded: boolean) => void;
 }

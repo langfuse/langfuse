@@ -2,10 +2,36 @@ import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src
 import {
   convertClickhouseScoreToDomain,
   StringFilter,
+  StringOptionsFilter,
   type ScoreRecordReadType,
   queryClickhouse,
   measureAndReturn,
 } from "@langfuse/shared/src/server";
+import {
+  removeObjectKeys,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
+  type ScoreDomain,
+} from "@langfuse/shared";
+
+/**
+ * Converts a ScoreDomain object to API format.
+ * For CORRECTION scores, moves longStringValue to stringValue for API compatibility.
+ * For other score types, removes longStringValue.
+ */
+export const convertScoreToPublicApi = <T extends ScoreDomain>(
+  score: T,
+): Omit<T, "longStringValue"> & { stringValue?: string | null } => {
+  if (score.dataType === ScoreDataTypeEnum.CORRECTION) {
+    const { longStringValue, ...rest } = score;
+    return {
+      ...rest,
+      stringValue: longStringValue,
+    };
+  }
+
+  return removeObjectKeys(score, ["longStringValue"]);
+};
 
 export type ScoreQueryType = {
   page: number;
@@ -27,6 +53,7 @@ export type ScoreQueryType = {
   operator?: string;
   scoreIds?: string[];
   dataType?: string;
+  fields?: string[] | null;
 };
 
 /**
@@ -37,19 +64,28 @@ export type ScoreQueryType = {
 export const _handleGenerateScoresForPublicApi = async ({
   props,
   scoreScope,
+  scoreDataTypes,
 }: {
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
+  scoreDataTypes?: readonly ScoreDataTypeType[];
 }) => {
-  const { scoresFilter, tracesFilter } = generateScoreFilter(props);
+  const { scoresFilter, tracesFilter } = generateScoreFilter(
+    props,
+    scoreDataTypes,
+  );
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
+  // Determine if trace should be included based on fields parameter
+  const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
+    props.fields,
+    tracesFilter.length(),
+  );
+
   const query = `
       SELECT
-          t.user_id as user_id,
-          t.tags as tags,
-          t.environment as trace_environment,
+          ${needsTraceJoin ? "t.user_id as user_id, t.tags as tags, t.environment as trace_environment," : ""}
           s.id as id,
           s.project_id as project_id,
           s.timestamp as timestamp,
@@ -57,6 +93,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.name as name,
           s.value as value,
           s.string_value as string_value,
+          s.long_string_value as long_string_value,
           s.author_user_id as author_user_id,
           s.created_at as created_at,
           s.updated_at as updated_at,
@@ -72,16 +109,14 @@ export const _handleGenerateScoresForPublicApi = async ({
           s.dataset_run_id as dataset_run_id
       FROM
           scores s
-          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
-          AND s.project_id = t.project_id
+          ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
       WHERE
           s.project_id = {projectId: String}
           AND (
             ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-            (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
+            (s.trace_id IS NOT NULL AND (${needsTraceJoin ? "t.id, t.project_id" : "s.trace_id, s.project_id"}) IN (
               SELECT
-                trace_id,
-                project_id
+                ${needsTraceJoin ? "trace_id, project_id" : "s.trace_id, s.project_id"}
               FROM
                 scores s
               WHERE
@@ -123,14 +158,15 @@ export const _handleGenerateScoresForPublicApi = async ({
         projectId: props.projectId,
         scoreScope,
         operation_name: "_handleGenerateScoresForPublicApi",
+        includeTrace: includeTrace.toString(),
       },
     },
     fn: async (input) => {
       const records = await queryClickhouse<
         ScoreRecordReadType & {
-          tags: string[];
-          user_id: string;
-          trace_environment: string;
+          tags?: string[];
+          user_id?: string;
+          trace_environment?: string;
         }
       >({
         query: query.replace("__TRACE_TABLE__", "traces"),
@@ -139,17 +175,21 @@ export const _handleGenerateScoresForPublicApi = async ({
         preferredClickhouseService: "ReadOnly",
       });
 
-      return records.map((record) => ({
-        ...convertClickhouseScoreToDomain(record),
-        trace:
-          record.trace_id !== null
-            ? {
-                userId: record.user_id,
-                tags: record.tags,
-                environment: record.trace_environment,
-              }
-            : null,
-      }));
+      return records.map((record) => {
+        const domainScore = convertClickhouseScoreToDomain(record);
+        const apiScore = convertScoreToPublicApi(domainScore);
+        return {
+          ...apiScore,
+          trace:
+            includeTrace && record.trace_id !== null
+              ? {
+                  userId: record.user_id,
+                  tags: record.tags,
+                  environment: record.trace_environment,
+                }
+              : null,
+        };
+      });
     },
   });
 };
@@ -162,30 +202,38 @@ export const _handleGenerateScoresForPublicApi = async ({
 export const _handleGetScoresCountForPublicApi = async ({
   props,
   scoreScope,
+  scoreDataTypes,
 }: {
   props: ScoreQueryType;
   scoreScope: "traces_only" | "all";
+  scoreDataTypes?: readonly ScoreDataTypeType[];
 }) => {
-  const { scoresFilter, tracesFilter } = generateScoreFilter(props);
+  const { scoresFilter, tracesFilter } = generateScoreFilter(
+    props,
+    scoreDataTypes,
+  );
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
-  // for this query, we only need the traces join if we have a filter on traces
+  // Determine if trace should be included based on fields parameter
+  const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
+    props.fields,
+    tracesFilter.length(),
+  );
+
   const query = `
       SELECT
         count() as count
       FROM
         scores s
-          LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id
-          AND s.project_id = t.project_id
+          ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
       WHERE
         s.project_id = {projectId: String}
       AND (
         ${scoreScope === "traces_only" ? "" : "s.trace_id IS NULL OR "}
-        (s.trace_id IS NOT NULL AND (t.id, t.project_id) IN (
+        (s.trace_id IS NOT NULL AND (${needsTraceJoin ? "t.id, t.project_id" : "s.trace_id, s.project_id"}) IN (
           SELECT
-            trace_id,
-            project_id
+            ${needsTraceJoin ? "trace_id, project_id" : "s.trace_id, s.project_id"}
           FROM
             scores s
           WHERE
@@ -217,6 +265,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         projectId: props.projectId,
         scoreScope,
         operation_name: "_handleGetScoresCountForPublicApi",
+        includeTrace: includeTrace.toString(),
       },
     },
     fn: async (input) => {
@@ -351,7 +400,24 @@ const secureTraceFilterOptions = [
   },
 ];
 
-const generateScoreFilter = (filter: ScoreQueryType) => {
+/**
+ * Determines if trace join is needed based on fields parameter and trace filters
+ */
+const determineTraceJoinRequirement = (
+  fields: string[] | null | undefined,
+  tracesFilterLength: number,
+) => {
+  const requestedFields = fields ?? ["score", "trace"]; // Default includes both
+  const includeTrace = requestedFields.includes("trace");
+  const needsTraceJoin = includeTrace || tracesFilterLength > 0;
+
+  return { includeTrace, needsTraceJoin };
+};
+
+const generateScoreFilter = (
+  filter: ScoreQueryType,
+  scoreDataTypes?: readonly ScoreDataTypeType[],
+) => {
   const scoresFilter = convertApiProvidedFilterToClickhouseFilter(
     filter,
     secureScoreFilterOptions,
@@ -364,6 +430,20 @@ const generateScoreFilter = (filter: ScoreQueryType) => {
       value: filter.projectId,
     }),
   );
+
+  // Add version-based dataType restriction if provided
+  // This will AND with any user-provided dataType filter for proper intersection
+  if (scoreDataTypes) {
+    scoresFilter.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "data_type",
+        operator: "any of",
+        values: [...scoreDataTypes],
+        tablePrefix: "s",
+      }),
+    );
+  }
 
   const tracesFilter = convertApiProvidedFilterToClickhouseFilter(
     filter,

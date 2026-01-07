@@ -1,7 +1,5 @@
 import { env } from "../../env";
 
-/* eslint-disable no-unused-vars */
-
 export enum OperationType {
   READ = "READ",
   WRITE = "WRITE",

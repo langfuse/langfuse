@@ -60,11 +60,25 @@ export interface TreeNode {
   // Navigation
   childOffsets: number[]; // Cumulative visible descendant counts for binary search
   visibleDescendantCount: number; // Total visible descendants when expanded (0 if collapsed)
+  totalDescendantCount?: number; // Total descendants regardless of expansion (for section row counts)
 
   // Position
   absoluteLineNumber: number; // 1-indexed line number in fully expanded tree
   indexInParent: number; // Index within parent's children array
   isLastChild: boolean; // Is this the last child of parent?
+
+  // Multi-section support (optional, only for multi-root trees)
+  nodeType?:
+    | "meta"
+    | "section-header"
+    | "section-footer"
+    | "section-spacer"
+    | "json"; // Type discriminator
+  sectionKey?: string; // Which section this belongs to
+  backgroundColor?: string; // Section background color
+  sectionLineNumber?: number; // Line number within section (resets per section)
+  minHeight?: string; // Minimum height for section content (CSS value)
+  spacerHeight?: number; // For section-spacer nodes: height in pixels
 }
 
 /**
@@ -145,7 +159,7 @@ function buildTreeStructureIterative(
       key: rootKey,
       pathArray: [rootKey],
       depth: 0,
-      parentNode: null, // eslint-disable-line @typescript-eslint/no-unused-vars
+      parentNode: null,
       indexInParent: 0,
       isLastChild: true,
     },

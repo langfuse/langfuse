@@ -51,6 +51,7 @@ export function AdvancedJsonViewer({
   isLoading = false,
   error,
   scrollContainerRef,
+  commentedPaths,
 }: AdvancedJsonViewerProps) {
   debugLog("[AdvancedJsonViewer] RENDER");
   // Resolve theme
@@ -202,6 +203,7 @@ export function AdvancedJsonViewer({
       scrollToIndex,
       scrollContainerRef,
       totalLineCount: tree?.totalNodeCount,
+      commentedPaths,
     };
   }, [
     tree,
@@ -217,6 +219,7 @@ export function AdvancedJsonViewer({
     handleToggleExpansion,
     scrollToIndex,
     scrollContainerRef,
+    commentedPaths,
   ]);
 
   // Early returns for special states
@@ -262,7 +265,11 @@ export function AdvancedJsonViewer({
   return (
     <div
       className={className}
-      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        ...(shouldUseVirtualization && { height: "100%" }),
+      }}
     >
       {/* Search bar */}
       {enableSearch && (

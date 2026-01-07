@@ -4,11 +4,11 @@
  * to avoid coupling between different batch operation types.
  */
 export enum BatchTableNames {
-  Scores = "scores", // eslint-disable-line no-unused-vars
-  Sessions = "sessions", // eslint-disable-line no-unused-vars
-  Traces = "traces", // eslint-disable-line no-unused-vars
-  Observations = "observations", // eslint-disable-line no-unused-vars
-  DatasetRunItems = "dataset_run_items", // eslint-disable-line no-unused-vars
-  DatasetItems = "dataset_items", // eslint-disable-line no-unused-vars
-  AuditLogs = "audit_logs", // eslint-disable-line no-unused-vars
+  Scores = "scores",
+  Sessions = "sessions",
+  Traces = "traces",
+  Observations = "observations",
+  DatasetRunItems = "dataset_run_items",
+  DatasetItems = "dataset_items",
+  AuditLogs = "audit_logs",
 }

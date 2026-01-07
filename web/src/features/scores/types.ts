@@ -7,6 +7,8 @@ import {
   type ScoreAggregate,
   type ScoreConfigDomain,
   type ScoreDomain,
+  type AggregatableScoreDataType,
+  ScoreConfigDataType,
 } from "@langfuse/shared";
 import { type z } from "zod/v4";
 
@@ -56,7 +58,7 @@ export type ScoreTarget = SessionScoreTarget | TraceScoreTarget;
 export type AnnotationScore = {
   id: string | null;
   name: string;
-  dataType: ScoreDataTypeType;
+  dataType: AnnotationScoreDataType;
   source: ScoreSourceType;
   value?: number | null;
   stringValue?: string | null;
@@ -95,11 +97,15 @@ export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
 >;
 
+export type AnnotationScoreDataType = ScoreConfigDataType;
+export const ANNOTATION_SCORE_DATA_TYPES_ARRAY =
+  Object.values(ScoreConfigDataType);
+
 export type ScoreColumn = {
   key: string;
   name: string;
   source: ScoreSourceType;
-  dataType: ScoreDataTypeType;
+  dataType: AggregatableScoreDataType;
 };
 
 export type ScoreConfigSelection =
@@ -123,7 +129,7 @@ export type AnnotationScoreFormData = {
   id: string | null;
   configId: string;
   name: string;
-  dataType: ScoreDataTypeType;
+  dataType: AnnotationScoreDataType;
   value?: number | null;
   stringValue?: string | null;
   comment?: string | null;

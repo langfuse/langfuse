@@ -20,7 +20,7 @@ service:
         - `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId
         - `time` - completionStartTime, createdAt, updatedAt
         - `io` - input, output
-        - `metadata` - metadata
+        - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
         - `model` - providedModelName, internalModelId, modelParameters
         - `usage` - usageDetails, costDetails, totalCost
         - `prompt` - promptId, promptName, promptVersion
@@ -43,6 +43,13 @@ service:
               Available groups: core, basic, time, io, metadata, model, usage, prompt, metrics.
               If not specified, `core` and `basic` field groups are returned.
               Example: "basic,usage,model"
+          expandMetadata:
+            type: optional<string>
+            docs: |
+              Comma-separated list of metadata keys to return non-truncated.
+              By default, metadata values over 200 characters are truncated.
+              Use this parameter to retrieve full values for specific keys.
+              Example: "key1,key2"
           limit:
             type: optional<integer>
             docs: Number of items to return per page. Maximum 1000, default 50.

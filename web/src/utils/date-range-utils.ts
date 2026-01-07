@@ -638,7 +638,7 @@ export function rangeFromString<T extends string>(
         }
       }
     }
-  } catch (_error) {
+  } catch {
     // Continue to fallback
   }
 

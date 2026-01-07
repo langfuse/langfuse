@@ -77,18 +77,16 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
  * @param requestedFields - Field groups for V2 API (null = V1 API, returns complete observations)
  */
 async function enrichObservationsWithModelData(
-  // eslint-disable-next-line no-unused-vars
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
-  projectId: string, // eslint-disable-line no-unused-vars
-  parseIoAsJson: boolean, // eslint-disable-line no-unused-vars
-  requestedFields: ObservationFieldGroup[], // eslint-disable-line no-unused-vars
+  projectId: string,
+  parseIoAsJson: boolean,
+  requestedFields: ObservationFieldGroup[],
 ): Promise<Array<EventsObservationPublic>>;
 async function enrichObservationsWithModelData(
-  // eslint-disable-next-line no-unused-vars
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
-  projectId: string, // eslint-disable-line no-unused-vars
-  parseIoAsJson: boolean, // eslint-disable-line no-unused-vars
-  requestedFields: null, // eslint-disable-line no-unused-vars
+  projectId: string,
+  parseIoAsJson: boolean,
+  requestedFields: null,
 ): Promise<Array<EventsObservation & ObservationPriceFields>>;
 async function enrichObservationsWithModelData(
   observationRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
@@ -704,6 +702,12 @@ type PublicApiObservationsQuery = {
     lastId: string;
   };
   fields?: ObservationFieldGroup[] | null;
+  /**
+   * Metadata keys to expand (return full non-truncated values).
+   * - null/undefined: use truncated metadata (default behavior)
+   * - string[]: expand specified keys (or all keys if empty array)
+   */
+  expandMetadataKeys?: string[] | null;
 };
 
 function buildObservationsQueryBase(
@@ -905,7 +909,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
 export const getObservationsV2FromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery & { fields: ObservationFieldGroup[] },
 ): Promise<Array<EventsObservationPublic>> => {
-  const { projectId } = opts;
+  const { projectId, expandMetadataKeys } = opts;
 
   // Build query with filters and common CTEs
   let queryBuilder = buildObservationsQueryBase(
@@ -926,6 +930,14 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     .forEach((fieldGroup) => {
       queryBuilder.selectFieldSet(fieldGroup);
     });
+
+  // Handle metadata field with optional expansion
+  if (requestedFields.includes("metadata")) {
+    if (expandMetadataKeys && expandMetadataKeys.length > 0) {
+      // Use expanded metadata (coalesces truncated values with full values)
+      queryBuilder.selectMetadataExpanded(expandMetadataKeys);
+    }
+  }
 
   queryBuilder = applyCursorPagination(
     opts,
@@ -1194,7 +1206,6 @@ export const getTracesCountFromEventsTableForPublicApi = async (
 const updateableEventKeys = ["bookmarked", "public"] as const;
 
 type UpdateableEventFields = {
-  // eslint-disable-next-line no-unused-vars
   [K in (typeof updateableEventKeys)[number]]?: boolean;
 };
 
@@ -1699,6 +1710,9 @@ export const deleteEventsByProjectId = async (projectId: string) => {
       type: "events",
       kind: "delete",
       projectId,
+    },
+    clickhouseSettings: {
+      send_logs_level: "trace",
     },
   });
 };
