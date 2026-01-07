@@ -4,6 +4,7 @@ import { aisdkAdapter } from "./aisdk";
 import { openAIAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { microsoftAgentAdapter } from "./microsoft-agent";
+import { semanticKernelAdapter } from "./semantic-kernel";
 import { pydanticAIAdapter } from "./pydantic-ai";
 import { genericAdapter } from "./generic";
 
@@ -15,6 +16,7 @@ const adapters: ProviderAdapter[] = [
   microsoftAgentAdapter, // Microsoft Agent Framework
   pydanticAIAdapter, // Pydantic AI framework
   // Add more adapters here as needed
+  semanticKernelAdapter, // Microsoft Semantic Kernel - detects by scope.name prefix
   genericAdapter, // Always last (fallback)
 ];
 
@@ -43,5 +45,6 @@ export { aisdkAdapter } from "./aisdk";
 export { openAIAdapter } from "./openai";
 export { geminiAdapter } from "./gemini";
 export { microsoftAgentAdapter } from "./microsoft-agent";
+export { semanticKernelAdapter } from "./semantic-kernel";
 export { pydanticAIAdapter } from "./pydantic-ai";
 export { genericAdapter } from "./generic";
