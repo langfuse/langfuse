@@ -168,8 +168,6 @@ const EnvSchema = z.object({
     .default(80e6), // 80MB
   LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS: z.coerce.number().default(600_000), // 10 minutes
   LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS: z.coerce.number().default(3), // Maximum attempts for socket hang up errors
-  // Mutation monitoring for ClickHouse DELETE operations
-  LANGFUSE_MUTATION_MONITOR_ENABLED: z.enum(["true", "false"]).default("false"),
   // Async deletion tracking - uses AbortController + query_id polling for DELETE operations
   LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED: z
     .enum(["true", "false"])

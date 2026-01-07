@@ -31,28 +31,6 @@ export async function pollQueryStatus(
     operation: "pollQueryStatus",
     ...tags,
   };
-  // First check if still running in system.processes
-  const running = await queryClickhouse<{ query_id: string }>({
-    query: `
-      SELECT query_id
-      FROM clusterAllReplicas('default', 'system.processes')
-      WHERE query_id = {queryId: String}
-      LIMIT 1
-    `,
-    params: { queryId },
-    clickhouseConfigs: {
-      request_timeout: 60_000,
-    },
-    clickhouseSettings: {
-      skip_unavailable_shards: 1,
-    },
-    tags: tagsWithDefaults,
-  });
-
-  if (running.length > 0) {
-    return "running";
-  }
-
   // Check query_log for completion status
   const result = await queryClickhouse<{
     type: string;
@@ -72,10 +50,7 @@ export async function pollQueryStatus(
     clickhouseSettings: {
       skip_unavailable_shards: 1,
     },
-    tags: {
-      feature: "query-tracking",
-      operation: "pollQueryStatus-queryLog",
-    },
+    tags: tagsWithDefaults,
   });
 
   if (result.length === 0) {
