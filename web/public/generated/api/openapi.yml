@@ -6445,17 +6445,12 @@ components:
           type: array
           items:
             type: string
-          nullable: true
-          description: >-
-            The tags associated with the trace. Can be an array of strings or
-            null.
+          description: The tags associated with the trace.
         public:
           type: boolean
-          nullable: true
           description: Public traces are accessible via url without login
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this trace originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -6463,6 +6458,9 @@ components:
       required:
         - id
         - timestamp
+        - tags
+        - public
+        - environment
     TraceWithDetails:
       title: TraceWithDetails
       type: object
@@ -6473,27 +6471,27 @@ components:
         latency:
           type: number
           format: double
+          nullable: true
           description: Latency of trace in seconds
         totalCost:
           type: number
           format: double
+          nullable: true
           description: Cost of trace in USD
         observations:
           type: array
           items:
             type: string
+          nullable: true
           description: List of observation ids
         scores:
           type: array
           items:
             type: string
+          nullable: true
           description: List of score ids
       required:
         - htmlPath
-        - latency
-        - totalCost
-        - observations
-        - scores
       allOf:
         - $ref: '#/components/schemas/Trace'
     TraceWithFullDetails:
@@ -6506,10 +6504,12 @@ components:
         latency:
           type: number
           format: double
+          nullable: true
           description: Latency of trace in seconds
         totalCost:
           type: number
           format: double
+          nullable: true
           description: Cost of trace in USD
         observations:
           type: array
@@ -6523,8 +6523,6 @@ components:
           description: List of scores
       required:
         - htmlPath
-        - latency
-        - totalCost
         - observations
         - scores
       allOf:
@@ -6542,12 +6540,12 @@ components:
           type: string
         environment:
           type: string
-          nullable: true
           description: The environment from which this session originated.
       required:
         - id
         - createdAt
         - projectId
+        - environment
     SessionWithTraces:
       title: SessionWithTraces
       type: object
@@ -6597,27 +6595,19 @@ components:
           nullable: true
           description: The model used for the observation
         modelParameters:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
-          nullable: true
           description: The parameters of the model used for the observation
         input:
-          nullable: true
           description: The input data of the observation
         version:
           type: string
           nullable: true
           description: The version of the observation
         metadata:
-          nullable: true
           description: Additional metadata of the observation
         output:
-          nullable: true
           description: The output data of the observation
         usage:
           $ref: '#/components/schemas/Usage'
-          nullable: true
           description: >-
             (Deprecated. Use usageDetails and costDetails instead.) The usage
             data of the observation
@@ -6640,7 +6630,6 @@ components:
           type: object
           additionalProperties:
             type: integer
-          nullable: true
           description: >-
             The usage details of the observation. Key is the name of the usage
             metric, value is the number of units consumed. The total key is the
@@ -6650,14 +6639,12 @@ components:
           additionalProperties:
             type: number
             format: double
-          nullable: true
           description: >-
             The cost details of the observation. Key is the name of the cost
             metric, value is the cost in USD. The total key is the sum of all
             (non-total) cost metrics or the total value ingested.
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this observation originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -6666,7 +6653,15 @@ components:
         - id
         - type
         - startTime
+        - modelParameters
+        - input
+        - metadata
+        - output
+        - usage
         - level
+        - usageDetails
+        - costDetails
+        - environment
     ObservationsView:
       title: ObservationsView
       type: object
@@ -6740,19 +6735,17 @@ components:
       properties:
         input:
           type: integer
-          nullable: true
           description: Number of input units (e.g. tokens)
         output:
           type: integer
-          nullable: true
           description: Number of output units (e.g. tokens)
         total:
           type: integer
-          nullable: true
           description: Defaults to input+output if not set
         unit:
-          $ref: '#/components/schemas/ModelUsageUnit'
+          type: string
           nullable: true
+          description: Unit of measurement
         inputCost:
           type: number
           format: double
@@ -6768,6 +6761,10 @@ components:
           format: double
           nullable: true
           description: USD total cost, defaults to input+output
+      required:
+        - input
+        - output
+        - total
     ScoreConfig:
       title: ScoreConfig
       type: object
@@ -6813,6 +6810,7 @@ components:
         description:
           type: string
           nullable: true
+          description: Description of the score config
       required:
         - id
         - name
@@ -6848,6 +6846,7 @@ components:
         observationId:
           type: string
           nullable: true
+          description: The observation ID associated with the score
         timestamp:
           type: string
           format: date-time
@@ -6860,11 +6859,13 @@ components:
         authorUserId:
           type: string
           nullable: true
+          description: The user ID of the author
         comment:
           type: string
           nullable: true
+          description: Comment on the score
         metadata:
-          nullable: true
+          description: Metadata associated with the score
         configId:
           type: string
           nullable: true
@@ -6880,7 +6881,6 @@ components:
             initially created while processing annotation queue.
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this score originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -6893,6 +6893,8 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - metadata
+        - environment
     NumericScoreV1:
       title: NumericScoreV1
       type: object
@@ -6990,15 +6992,19 @@ components:
         traceId:
           type: string
           nullable: true
+          description: The trace ID associated with the score
         sessionId:
           type: string
           nullable: true
+          description: The session ID associated with the score
         observationId:
           type: string
           nullable: true
+          description: The observation ID associated with the score
         datasetRunId:
           type: string
           nullable: true
+          description: The dataset run ID associated with the score
         name:
           type: string
         source:
@@ -7015,11 +7021,13 @@ components:
         authorUserId:
           type: string
           nullable: true
+          description: The user ID of the author
         comment:
           type: string
           nullable: true
+          description: Comment on the score
         metadata:
-          nullable: true
+          description: Metadata associated with the score
         configId:
           type: string
           nullable: true
@@ -7035,7 +7043,6 @@ components:
             initially created while processing annotation queue.
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this score originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -7047,6 +7054,8 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - metadata
+        - environment
     NumericScore:
       title: NumericScore
       type: object
@@ -7167,6 +7176,7 @@ components:
         authorUserId:
           type: string
           nullable: true
+          description: The user ID of the comment author
       required:
         - id
         - projectId
@@ -7186,8 +7196,9 @@ components:
         description:
           type: string
           nullable: true
+          description: Description of the dataset
         metadata:
-          nullable: true
+          description: Metadata associated with the dataset
         inputSchema:
           nullable: true
           description: JSON Schema for validating dataset item inputs
@@ -7205,6 +7216,7 @@ components:
       required:
         - id
         - name
+        - metadata
         - projectId
         - createdAt
         - updatedAt
@@ -7217,17 +7229,19 @@ components:
         status:
           $ref: '#/components/schemas/DatasetStatus'
         input:
-          nullable: true
+          description: Input data for the dataset item
         expectedOutput:
-          nullable: true
+          description: Expected output for the dataset item
         metadata:
-          nullable: true
+          description: Metadata associated with the dataset item
         sourceTraceId:
           type: string
           nullable: true
+          description: The trace ID that sourced this dataset item
         sourceObservationId:
           type: string
           nullable: true
+          description: The observation ID that sourced this dataset item
         datasetId:
           type: string
         datasetName:
@@ -7241,6 +7255,9 @@ components:
       required:
         - id
         - status
+        - input
+        - expectedOutput
+        - metadata
         - datasetId
         - datasetName
         - createdAt
@@ -7262,6 +7279,7 @@ components:
         observationId:
           type: string
           nullable: true
+          description: The observation ID associated with this run item
         createdAt:
           type: string
           format: date-time
@@ -7291,7 +7309,6 @@ components:
           nullable: true
           description: Description of the run
         metadata:
-          nullable: true
           description: Metadata of the dataset run
         datasetId:
           type: string
@@ -7310,6 +7327,7 @@ components:
       required:
         - id
         - name
+        - metadata
         - datasetId
         - datasetName
         - createdAt
@@ -7399,7 +7417,6 @@ components:
             Optional. Tokenizer to be applied to observations which match to
             this model. See docs for more details.
         tokenizerConfig:
-          nullable: true
           description: >-
             Optional. Configuration for the selected tokenizer. Needs to be
             JSON. See docs for more details.
@@ -7452,6 +7469,7 @@ components:
         - id
         - modelName
         - matchPattern
+        - tokenizerConfig
         - isLangfuseManaged
         - createdAt
         - prices
