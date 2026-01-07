@@ -936,10 +936,14 @@ describe("Playground Jump Full Pipeline", () => {
       .data!.map(convertChatMlToPlayground)
       .filter((m) => m)[0]!;
     expect(inputMsg).toBeDefined();
-    expect(inputMsg.role).toBe("user");
-    expect(inputMsg.content).toBe("What is the weather?");
-    // Ensure gen_ai.event.content was unwrapped, not passed through
-    expect(inputMsg).not.toHaveProperty("gen_ai.event.content");
+    if ("role" in inputMsg) {
+      expect(inputMsg.role).toBe("user");
+      expect(inputMsg.content).toBe("What is the weather?");
+      // Ensure gen_ai.event.content was unwrapped, not passed through
+      expect(inputMsg).not.toHaveProperty("gen_ai.event.content");
+    } else {
+      throw new Error("Expected message with role property");
+    }
 
     // Output: single object with nested message structure
     const output = {
@@ -953,10 +957,14 @@ describe("Playground Jump Full Pipeline", () => {
       .data!.map(convertChatMlToPlayground)
       .filter((m) => m)[0];
     expect(outputMsg).toBeDefined();
-    expect(outputMsg.role).toBe("assistant");
-    expect(outputMsg.content).toBe("The answer is positive.");
-    // Ensure gen_ai.event.content was unwrapped, not passed through
-    expect(outputMsg).not.toHaveProperty("gen_ai.event.content");
+    if (outputMsg && "role" in outputMsg) {
+      expect(outputMsg.role).toBe("assistant");
+      expect(outputMsg.content).toBe("The answer is positive.");
+      // Ensure gen_ai.event.content was unwrapped, not passed through
+      expect(outputMsg).not.toHaveProperty("gen_ai.event.content");
+    } else {
+      throw new Error("Expected message with role property");
+    }
   });
 
   it("should respect includeOutput flag when jumping to playground, default to no output added", () => {
