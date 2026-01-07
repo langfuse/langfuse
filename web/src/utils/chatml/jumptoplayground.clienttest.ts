@@ -913,6 +913,52 @@ describe("Playground Jump Full Pipeline", () => {
     }
   });
 
+  it("should handle Semantic Kernel input and output formats", () => {
+    // Semantic Kernel (Microsoft.SemanticKernel.Diagnostics) uses OpenTelemetry GenAI semantic conventions
+    // where actual message content is stored in gen_ai.event.content as a JSON string
+    // This format is different from MS Agent Framework's parts[] format
+    const metadata = {
+      scope: { name: "Microsoft.SemanticKernel.Diagnostics", version: "" },
+    };
+
+    // Input: array format with flat message structure
+    const input = [
+      {
+        role: "user",
+        "gen_ai.event.content":
+          '{"role":"user","content":"What is the weather?","tool_calls":[]}',
+      },
+    ];
+    const inputResult = normalizeInput(input, { metadata });
+    expect(inputResult.success).toBe(true);
+
+    const inputMsg = inputResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((m) => m)[0];
+    expect(inputMsg).toBeDefined();
+    expect(inputMsg.role).toBe("user");
+    expect(inputMsg.content).toBe("What is the weather?");
+    // Ensure gen_ai.event.content was unwrapped, not passed through
+    expect(inputMsg).not.toHaveProperty("gen_ai.event.content");
+
+    // Output: single object with nested message structure
+    const output = {
+      "gen_ai.event.content":
+        '{"message":{"role":"Assistant","content":"The answer is positive."}}',
+    };
+    const outputResult = normalizeOutput(output, { metadata });
+    expect(outputResult.success).toBe(true);
+
+    const outputMsg = outputResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((m) => m)[0];
+    expect(outputMsg).toBeDefined();
+    expect(outputMsg.role).toBe("assistant");
+    expect(outputMsg.content).toBe("The answer is positive.");
+    // Ensure gen_ai.event.content was unwrapped, not passed through
+    expect(outputMsg).not.toHaveProperty("gen_ai.event.content");
+  });
+
   it("should respect includeOutput flag when jumping to playground, default to no output added", () => {
     // kinda a bad test mocking UI behavior and not really testing the UI.
     // but it should illustrate that the default behavior is to not include output! and document that.
