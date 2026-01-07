@@ -411,7 +411,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       ["sessionId", "scores-numeric"],
       ["observationId", "scores-numeric"],
     ])(
-      "should reject high cardinality dimension %s in %s view",
+      "should reject high cardinality dimension %s in %s view without LIMIT and ORDER DESC",
       async (dimensionField, viewName) => {
         const query = {
           view: viewName,
@@ -430,11 +430,36 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         expect(response.body).toMatchObject({
           error: "InvalidRequestError",
           message: expect.stringContaining(
-            `Dimension '${dimensionField}' has high cardinality`,
+            `require both 'config.row_limit' and 'orderBy' with direction 'desc'`,
           ),
         });
       },
     );
+
+    it("should reject high cardinality dimension without LIMIT", async () => {
+      const query = {
+        view: "observations",
+        dimensions: [{ field: "traceId" }],
+        metrics: [{ measure: "latency", aggregation: "sum" }],
+        orderBy: [{ field: "sum_latency", direction: "desc" }],
+        // Missing config.row_limit
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: "InvalidRequestError",
+        message: expect.stringContaining(
+          `require both 'config.row_limit' and 'orderBy' with direction 'desc'`,
+        ),
+      });
+    });
 
     it("should allow high cardinality fields in filters", async () => {
       const query = {
