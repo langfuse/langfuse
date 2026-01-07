@@ -934,7 +934,7 @@ describe("Playground Jump Full Pipeline", () => {
 
     const inputMsg = inputResult
       .data!.map(convertChatMlToPlayground)
-      .filter((m) => m)[0];
+      .filter((m) => m)[0]!;
     expect(inputMsg).toBeDefined();
     expect(inputMsg.role).toBe("user");
     expect(inputMsg.content).toBe("What is the weather?");
