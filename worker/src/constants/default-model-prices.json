@@ -1534,7 +1534,7 @@
   {
     "id": "clxt0n0m60000pumz1j5b7zsf",
     "modelName": "claude-3-5-sonnet-20240620",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20240620|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-3-5-sonnet-20240620-v1:0|claude-3-5-sonnet@20240620)$",
     "createdAt": "2024-06-25T11:47:24.475Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -1741,7 +1741,7 @@
   {
     "id": "cm2krz1uf000208jjg5653iud",
     "modelName": "claude-3.5-sonnet-20241022",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-sonnet-20241022|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-3-5-sonnet-20241022-v2:0|claude-3-5-sonnet-V2@20241022)$",
     "createdAt": "2024-10-22T18:48:01.676Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -1795,7 +1795,7 @@
   {
     "id": "cm34aq60d000207ml0j1h31ar",
     "modelName": "claude-3-5-haiku-20241022",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-3-5-haiku-20241022-v1:0|claude-3-5-haiku-V1@20241022)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -2139,7 +2139,7 @@
   {
     "id": "cm7ka7561000108js3t9tb3at",
     "modelName": "claude-3.7-sonnet-20250219",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3.7-sonnet-20250219|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-3.7-sonnet-20250219-v1:0|claude-3-7-sonnet-V1@20250219)$",
     "createdAt": "2025-02-25T09:35:39.000Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -2549,7 +2549,7 @@
   {
     "id": "c5qmrqolku82tra3vgdixmys",
     "modelName": "claude-sonnet-4-5-20250929",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5-20250929|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5-20250929|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -2600,7 +2600,7 @@
   {
     "id": "cmazmkzlm00000djp1e1qe4k4",
     "modelName": "claude-sonnet-4-20250514",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-20250514|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -2654,7 +2654,7 @@
   {
     "id": "cmazmlm2p00020djpa9s64jw5",
     "modelName": "claude-opus-4-20250514",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-20250514-v1:0|claude-opus-4@20250514)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-20250514|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-20250514-v1:0|claude-opus-4@20250514)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -2833,7 +2833,7 @@
   {
     "id": "cmdysde5w0000rkmzbc1g5au3",
     "modelName": "claude-opus-4-1-20250805",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1-20250805|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-1-20250805-v1:0|claude-opus-4-1@20250805)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1-20250805|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-1-20250805-v1:0|claude-opus-4-1@20250805)$",
     "createdAt": "2025-08-05T15:00:00.000Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -3126,7 +3126,7 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -3213,7 +3213,7 @@
   {
     "id": "cmieupdva000004l541kwae70",
     "modelName": "claude-opus-4-5-20251101",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5-20251101|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-5-20251101-v1:0|claude-opus-4-5@20251101)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-5-20251101|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-5-20251101-v1:0|claude-opus-4-5@20251101)$",
     "createdAt": "2025-11-24T20:53:27.571Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerConfig": null,
