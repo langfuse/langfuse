@@ -6,7 +6,6 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
@@ -1707,29 +1706,17 @@ export const deleteEventsByProjectId = async (projectId: string) => {
     projectId,
   };
 
-  if (env.LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED === "true") {
-    await executeWithMutationMonitoring({
-      tableName: "events",
-      query,
-      params: { projectId },
-      tags,
-      clickhouseSettings: {
-        send_logs_level: "trace",
-      },
-    });
-  } else {
-    await commandClickhouse({
-      query,
-      params: { projectId },
-      clickhouseConfigs: {
-        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-      },
-      tags,
-      clickhouseSettings: {
-        send_logs_level: "trace",
-      },
-    });
-  }
+  await commandClickhouse({
+    query,
+    params: { projectId },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags,
+    clickhouseSettings: {
+      send_logs_level: "trace",
+    },
+  });
 };
 
 /**
