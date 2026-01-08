@@ -32,7 +32,6 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
@@ -1215,23 +1214,14 @@ export const deleteScoresByProjectId = async (projectId: string) => {
     projectId,
   };
 
-  if (env.LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED === "true") {
-    await executeWithMutationMonitoring({
-      tableName: "scores",
-      query,
-      params: { projectId },
-      tags,
-    });
-  } else {
-    await commandClickhouse({
-      query,
-      params: { projectId },
-      clickhouseConfigs: {
-        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-      },
-      tags,
-    });
-  }
+  await commandClickhouse({
+    query,
+    params: { projectId },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags,
+  });
 };
 
 export const deleteScoresOlderThanDays = async (
