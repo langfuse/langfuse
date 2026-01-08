@@ -34,6 +34,9 @@ describe("ProjectDeletionProcessingJob", () => {
   let s3Prefix: string | null = null;
   const orgId = "seed-org-id";
 
+  const maybeEventsIt =
+    env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" ? it : it.skip;
+
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
@@ -171,45 +174,48 @@ describe("ProjectDeletionProcessingJob", () => {
     expect(score).toBeUndefined();
   });
 
-  it("should delete event data from S3 for the project", async () => {
-    // Setup
-    const projectId = randomUUID();
-    await prisma.project.create({
-      data: {
-        id: projectId,
-        orgId,
-        name: `Project-${randomUUID()}`,
-      },
-    });
+  maybeEventsIt(
+    "should delete event data from S3 for the project",
+    async () => {
+      // Setup
+      const projectId = randomUUID();
+      await prisma.project.create({
+        data: {
+          id: projectId,
+          orgId,
+          name: `Project-${randomUUID()}`,
+        },
+      });
 
-    // Use upsertTrace here as this also creates an S3 event record
-    const baseId = randomUUID();
-    await upsertTrace({
-      id: `${baseId}-trace`,
-      project_id: projectId,
-      timestamp: convertDateToClickhouseDateTime(new Date()),
-      created_at: convertDateToClickhouseDateTime(new Date()),
-      updated_at: convertDateToClickhouseDateTime(new Date()),
-    });
+      // Use upsertTrace here as this also creates an S3 event record
+      const baseId = randomUUID();
+      await upsertTrace({
+        id: `${baseId}-trace`,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
 
-    // When
-    await projectDeleteProcessor({
-      data: { payload: { projectId, orgId } },
-    } as Job);
+      // When
+      await projectDeleteProcessor({
+        data: { payload: { projectId, orgId } },
+      } as Job);
 
-    // Then
-    const files = await storageService.listFiles("");
-    expect(files.some((file) => file.file.includes(`${baseId}-trace`))).toBe(
-      false,
-    );
+      // Then
+      const files = await storageService.listFiles("");
+      expect(files.some((file) => file.file.includes(`${baseId}-trace`))).toBe(
+        false,
+      );
 
-    const eventLogRecord = await getBlobStorageByProjectAndEntityId(
-      projectId,
-      "trace",
-      `${baseId}-trace`,
-    );
-    expect(eventLogRecord).toHaveLength(0);
-  });
+      const eventLogRecord = await getBlobStorageByProjectAndEntityId(
+        projectId,
+        "trace",
+        `${baseId}-trace`,
+      );
+      expect(eventLogRecord).toHaveLength(0);
+    },
+  );
 
   it("should delete all media assets for the project", async () => {
     // Setup
@@ -297,11 +303,14 @@ describe("ProjectDeletionProcessingJob", () => {
       expect(result).toBe(false);
     });
 
-    it("should return false when no events exist for project", async () => {
-      const emptyProjectId = randomUUID();
-      const result = await deleteEventsByProjectId(emptyProjectId);
-      expect(result).toBe(false);
-    });
+    maybeEventsIt(
+      "should return false when no events exist for project",
+      async () => {
+        const emptyProjectId = randomUUID();
+        const result = await deleteEventsByProjectId(emptyProjectId);
+        expect(result).toBe(false);
+      },
+    );
 
     it("should return true and delete when traces exist", async () => {
       const projectId = randomUUID();
