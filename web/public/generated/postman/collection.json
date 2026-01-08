@@ -1758,9 +1758,9 @@
           "_type": "endpoint",
           "name": "Get Many",
           "request": {
-            "description": "Get a list of observations with cursor-based pagination and flexible field selection.\n\n## Cursor-based Pagination\nThis endpoint uses cursor-based pagination for efficient traversal of large datasets.\nThe cursor is returned in the response metadata and should be passed in subsequent requests\nto retrieve the next page of results.\n\n## Field Selection\nUse the `fields` parameter to control which observation fields are returned:\n- `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type\n- `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId\n- `time` - completionStartTime, createdAt, updatedAt\n- `io` - input, output\n- `metadata` - metadata\n- `model` - providedModelName, internalModelId, modelParameters\n- `usage` - usageDetails, costDetails, totalCost\n- `prompt` - promptId, promptName, promptVersion\n- `metrics` - latency, timeToFirstToken\n\nIf not specified, `core` and `basic` field groups are returned.\n\n## Filters\nMultiple filtering options are available via query parameters or the structured `filter` parameter.\nWhen using the `filter` parameter, it takes precedence over individual query parameter filters.",
+            "description": "Get a list of observations with cursor-based pagination and flexible field selection.\n\n## Cursor-based Pagination\nThis endpoint uses cursor-based pagination for efficient traversal of large datasets.\nThe cursor is returned in the response metadata and should be passed in subsequent requests\nto retrieve the next page of results.\n\n## Field Selection\nUse the `fields` parameter to control which observation fields are returned:\n- `core` - Always included: id, traceId, startTime, endTime, projectId, parentObservationId, type\n- `basic` - name, level, statusMessage, version, environment, bookmarked, public, userId, sessionId\n- `time` - completionStartTime, createdAt, updatedAt\n- `io` - input, output\n- `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)\n- `model` - providedModelName, internalModelId, modelParameters\n- `usage` - usageDetails, costDetails, totalCost\n- `prompt` - promptId, promptName, promptVersion\n- `metrics` - latency, timeToFirstToken\n\nIf not specified, `core` and `basic` field groups are returned.\n\n## Filters\nMultiple filtering options are available via query parameters or the structured `filter` parameter.\nWhen using the `filter` parameter, it takes precedence over individual query parameter filters.",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/observations?fields=&limit=&cursor=&parseIoAsJson=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=&filter=",
+              "raw": "{{baseUrl}}/api/public/v2/observations?fields=&expandMetadata=&limit=&cursor=&parseIoAsJson=&name=&userId=&type=&traceId=&level=&parentObservationId=&environment=&fromStartTime=&toStartTime=&version=&filter=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1775,6 +1775,11 @@
                   "key": "fields",
                   "value": "",
                   "description": "Comma-separated list of field groups to include in the response.\nAvailable groups: core, basic, time, io, metadata, model, usage, prompt, metrics.\nIf not specified, `core` and `basic` field groups are returned.\nExample: \"basic,usage,model\""
+                },
+                {
+                  "key": "expandMetadata",
+                  "value": "",
+                  "description": "Comma-separated list of metadata keys to return non-truncated.\nBy default, metadata values over 200 characters are truncated.\nUse this parameter to retrieve full values for specific keys.\nExample: \"key1,key2\""
                 },
                 {
                   "key": "limit",

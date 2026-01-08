@@ -126,6 +126,12 @@ export class ClickHouseClientManager {
                   env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS,
               }
             : {}),
+          ...(env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS
+            ? {
+                async_insert_busy_timeout_min_ms:
+                  env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS,
+              }
+            : {}),
           ...(env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE !== "alter_update"
             ? {
                 lightweight_delete_mode: env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE,

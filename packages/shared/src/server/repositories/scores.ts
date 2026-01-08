@@ -32,6 +32,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
+import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
@@ -1182,13 +1183,7 @@ export const deleteScoresByTraceIds = async (
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String}
-    AND trace_id IN ({traceIds: Array(String)})
-    AND (project_id, timestamp, name) IN (
-      SELECT project_id, timestamp, name
-      FROM scores
-      WHERE project_id = {projectId: String}
-      AND trace_id IN ({traceIds: Array(String)})
-    );
+    AND trace_id IN ({traceIds: Array(String)});
   `;
   await commandClickhouse({
     query: query,
@@ -1213,21 +1208,30 @@ export const deleteScoresByProjectId = async (projectId: string) => {
     DELETE FROM scores
     WHERE project_id = {projectId: String};
   `;
-  await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-    },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "delete",
-      projectId,
-    },
-  });
+  const tags = {
+    feature: "tracing",
+    type: "score",
+    kind: "delete",
+    projectId,
+  };
+
+  if (env.LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED === "true") {
+    await executeWithMutationMonitoring({
+      tableName: "scores",
+      query,
+      params: { projectId },
+      tags,
+    });
+  } else {
+    await commandClickhouse({
+      query,
+      params: { projectId },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags,
+    });
+  }
 };
 
 export const deleteScoresOlderThanDays = async (
