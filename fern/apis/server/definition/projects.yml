@@ -44,8 +44,12 @@ service:
               type: optional<map<string, unknown>>
               docs: Optional metadata for the project
             retention:
-              type: integer
-              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
+              type: optional<integer>
+              docs: |
+                Number of days to retain data.
+                Must be 0 or at least 3 days.
+                Requires data-retention entitlement for non-zero values.
+                Optional. Will retain existing retention setting if omitted.
       response: Project
 
     delete:

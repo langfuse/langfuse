@@ -3935,13 +3935,14 @@ paths:
                   description: Optional metadata for the project
                 retention:
                   type: integer
-                  description: >-
-                    Number of days to retain data. Must be 0 or at least 3 days.
+                  nullable: true
+                  description: |-
+                    Number of days to retain data.
+                    Must be 0 or at least 3 days.
                     Requires data-retention entitlement for non-zero values.
-                    Optional.
+                    Optional. Will retain existing retention setting if omitted.
               required:
                 - name
-                - retention
     delete:
       description: >-
         Delete a project by ID (requires organization-scoped API key). Project
