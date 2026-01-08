@@ -13,14 +13,6 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-generator erd {
-  provider     = "prisma-erd-generator"
-  ignoreTables = ["_prisma_migrations", "Session", "Account", "Example"]
-  disabled     = true
-  ignoreEnums  = true
-  output       = "database.svg"
-}
-
 generator kysely {
   provider = "prisma-kysely"
 
