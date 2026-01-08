@@ -1233,10 +1233,44 @@ export const deleteScoresByProjectId = async (
   return true;
 };
 
-export const deleteScoresOlderThanDays = async (
+export const hasAnyScoreOlderThan = async (
   projectId: string,
   beforeDate: Date,
 ) => {
+  const query = `
+    SELECT 1
+    FROM scores
+    WHERE project_id = {projectId: String}
+    AND timestamp < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "score",
+      kind: "hasAnyOlderThan",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteScoresOlderThanDays = async (
+  projectId: string,
+  beforeDate: Date,
+): Promise<boolean> => {
+  const hasData = await hasAnyScoreOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String}
@@ -1258,6 +1292,8 @@ export const deleteScoresOlderThanDays = async (
       projectId,
     },
   });
+
+  return true;
 };
 
 export const getNumericScoreHistogram = async (

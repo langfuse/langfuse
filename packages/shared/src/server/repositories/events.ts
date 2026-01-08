@@ -1750,6 +1750,35 @@ export const deleteEventsByProjectId = async (
   return true;
 };
 
+export const hasAnyEventOlderThan = async (
+  projectId: string,
+  beforeDate: Date,
+) => {
+  const query = `
+    SELECT 1
+    FROM events
+    WHERE project_id = {projectId: String}
+    AND start_time < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "hasAnyOlderThan",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
 /**
  * Delete events older than a cutoff date
  * Used for data retention cleanup
@@ -1757,7 +1786,12 @@ export const deleteEventsByProjectId = async (
 export const deleteEventsOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-) => {
+): Promise<boolean> => {
+  const hasData = await hasAnyEventOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM events
     WHERE project_id = {projectId: String}
@@ -1779,6 +1813,8 @@ export const deleteEventsOlderThanDays = async (
       projectId,
     },
   });
+
+  return true;
 };
 
 export const getObservationsBatchIOFromEventsTable = async (opts: {
