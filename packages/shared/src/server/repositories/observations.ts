@@ -1249,7 +1249,36 @@ export const deleteObservationsByTraceIds = async (
   });
 };
 
-export const deleteObservationsByProjectId = async (projectId: string) => {
+export const hasAnyObservation = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM observations
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteObservationsByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyObservation(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String};
@@ -1269,12 +1298,48 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
     },
     tags,
   });
+
+  return true;
+};
+
+export const hasAnyObservationOlderThan = async (
+  projectId: string,
+  beforeDate: Date,
+) => {
+  const query = `
+    SELECT 1
+    FROM observations
+    WHERE project_id = {projectId: String}
+    AND start_time < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "hasAnyOlderThan",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
 };
 
 export const deleteObservationsOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-) => {
+): Promise<boolean> => {
+  const hasData = await hasAnyObservationOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String}
@@ -1296,6 +1361,8 @@ export const deleteObservationsOlderThanDays = async (
       projectId,
     },
   });
+
+  return true;
 };
 
 export const getObservationsWithPromptName = async (
