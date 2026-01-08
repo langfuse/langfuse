@@ -1202,7 +1202,14 @@ export const deleteScoresByTraceIds = async (
   });
 };
 
-export const deleteScoresByProjectId = async (projectId: string) => {
+export const deleteScoresByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyScore(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String};
@@ -1222,6 +1229,8 @@ export const deleteScoresByProjectId = async (projectId: string) => {
     },
     tags,
   });
+
+  return true;
 };
 
 export const deleteScoresOlderThanDays = async (

@@ -934,7 +934,14 @@ export const deleteTracesOlderThanDays = async (
   });
 };
 
-export const deleteTracesByProjectId = async (projectId: string) => {
+export const deleteTracesByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyTrace(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   await measureAndReturn({
     operationName: "deleteTracesByProjectId",
     projectId,
@@ -965,6 +972,8 @@ export const deleteTracesByProjectId = async (projectId: string) => {
       });
     },
   });
+
+  return true;
 };
 
 export const hasAnyUser = async (projectId: string) => {

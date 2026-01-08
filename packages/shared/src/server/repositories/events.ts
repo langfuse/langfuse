@@ -1690,11 +1690,40 @@ export const deleteEventsByTraceIds = async (
   });
 };
 
+export const hasAnyEvent = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM events
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
 /**
  * Delete all events for a project
  * Used when an entire project is deleted
  */
-export const deleteEventsByProjectId = async (projectId: string) => {
+export const deleteEventsByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyEvent(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM events
     WHERE project_id = {projectId: String};
@@ -1717,6 +1746,8 @@ export const deleteEventsByProjectId = async (projectId: string) => {
       send_logs_level: "trace",
     },
   });
+
+  return true;
 };
 
 /**

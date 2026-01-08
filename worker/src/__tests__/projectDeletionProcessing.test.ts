@@ -16,6 +16,10 @@ import {
   StorageService,
   StorageServiceFactory,
   upsertTrace,
+  deleteTracesByProjectId,
+  deleteObservationsByProjectId,
+  deleteScoresByProjectId,
+  deleteEventsByProjectId,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
@@ -268,5 +272,97 @@ describe("ProjectDeletionProcessingJob", () => {
       where: { mediaId },
     });
     expect(traceMedia).toBeNull();
+  });
+
+  describe("delete functions with hasAny probe", () => {
+    it("should return false when no traces exist for project", async () => {
+      const emptyProjectId = randomUUID();
+      const result = await deleteTracesByProjectId(emptyProjectId);
+      expect(result).toBe(false);
+    });
+
+    it("should return false when no observations exist for project", async () => {
+      const emptyProjectId = randomUUID();
+      const result = await deleteObservationsByProjectId(emptyProjectId);
+      expect(result).toBe(false);
+    });
+
+    it("should return false when no scores exist for project", async () => {
+      const emptyProjectId = randomUUID();
+      const result = await deleteScoresByProjectId(emptyProjectId);
+      expect(result).toBe(false);
+    });
+
+    it("should return false when no events exist for project", async () => {
+      const emptyProjectId = randomUUID();
+      const result = await deleteEventsByProjectId(emptyProjectId);
+      expect(result).toBe(false);
+    });
+
+    it("should return true and delete when traces exist", async () => {
+      const projectId = randomUUID();
+      const traceId = randomUUID();
+
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeDefined();
+
+      const result = await deleteTracesByProjectId(projectId);
+      expect(result).toBe(true);
+
+      const trace = await getTraceById({ traceId, projectId });
+      expect(trace).toBeUndefined();
+    });
+
+    it("should return true and delete when observations exist", async () => {
+      const projectId = randomUUID();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createObservationsCh([
+        createObservation({
+          id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+        }),
+      ]);
+
+      await expect(
+        getObservationById({ id: observationId, projectId }),
+      ).toBeDefined();
+
+      const result = await deleteObservationsByProjectId(projectId);
+      expect(result).toBe(true);
+
+      await expect(
+        getObservationById({ id: observationId, projectId }),
+      ).rejects.toThrowError("not found");
+    });
+
+    it("should return true and delete when scores exist", async () => {
+      const projectId = randomUUID();
+      const traceId = randomUUID();
+      const scoreId = randomUUID();
+
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          trace_id: traceId,
+          project_id: projectId,
+        }),
+      ]);
+
+      const score = await getScoreById({ projectId, scoreId });
+      expect(score).toBeDefined();
+
+      const result = await deleteScoresByProjectId(projectId);
+      expect(result).toBe(true);
+
+      const score = await getScoreById({ projectId, scoreId });
+      expect(score).toBeUndefined();
+    });
   });
 });

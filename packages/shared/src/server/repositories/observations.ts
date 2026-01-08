@@ -1249,7 +1249,36 @@ export const deleteObservationsByTraceIds = async (
   });
 };
 
-export const deleteObservationsByProjectId = async (projectId: string) => {
+export const hasAnyObservation = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM observations
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteObservationsByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyObservation(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String};
@@ -1269,6 +1298,8 @@ export const deleteObservationsByProjectId = async (projectId: string) => {
     },
     tags,
   });
+
+  return true;
 };
 
 export const deleteObservationsOlderThanDays = async (
