@@ -114,7 +114,7 @@ export async function createProjectMembershipsOnSignup(user: {
         const posthog = new ServerPosthog();
         posthog.capture({
           distinctId: user.id,
-          event: "memberships_created_on_signup",
+          event: "cloud_signup_complete",
           properties: {
             cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
             hasDemoAccess: demoProject !== undefined,
