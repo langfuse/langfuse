@@ -1334,7 +1334,6 @@ describe("Token Cost Calculation", () => {
       // Invalid values should be ignored
       expect(mockAddToClickhouseWriter).toHaveBeenCalled();
       const args = mockAddToClickhouseWriter.mock.calls[0];
-      console.error("***", JSON.stringify(args, null, 2));
       const generation = args[1];
 
       // Values should be numbers, not strings
