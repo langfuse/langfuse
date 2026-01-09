@@ -77,7 +77,7 @@ export async function handleUpdateProject(
       data: {
         name,
         ...(retention !== undefined ? { retentionDays: retention } : {}),
-        ...(metadata !== undefined ? metadata : {}),
+        ...(metadata !== undefined ? { metadata } : {}),
       },
       select: {
         id: true,
