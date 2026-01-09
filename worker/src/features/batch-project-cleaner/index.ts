@@ -4,11 +4,11 @@ import {
   commandClickhouse,
   traceException,
   recordIncrement,
-  redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
+import { RedisLock } from "../../utils/RedisLock";
 
 export const BATCH_DELETION_TABLES = [
   "traces",
@@ -43,8 +43,8 @@ interface ProjectCount {
  */
 export class BatchProjectCleaner extends PeriodicRunner {
   private readonly tableName: BatchDeletionTable;
-  private readonly lockKey: string;
   private readonly instanceName: string;
+  private readonly lock: RedisLock;
 
   protected get name(): string {
     return this.instanceName;
@@ -57,8 +57,25 @@ export class BatchProjectCleaner extends PeriodicRunner {
   constructor(tableName: BatchDeletionTable) {
     super();
     this.tableName = tableName;
-    this.lockKey = `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:${tableName}`;
     this.instanceName = `BatchProjectCleaner(${tableName})`;
+
+    // TTL = DELETE timeout + 5 minutes buffer
+    const lockTtlSeconds =
+      Math.ceil(env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS / 1000) +
+      300;
+
+    // We use this lock as a performance optimization: avoiding
+    // multiple workers starting DELETE mutation for the same table
+    // simultaneously. If Redis is unavailable, we allow processing
+    // to avoid blocking progress as this does not compromise data integrity.
+    this.lock = new RedisLock(
+      `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:${tableName}`,
+      {
+        ttlSeconds: lockTtlSeconds,
+        name: this.instanceName,
+        onUnavailable: "proceed", // If lock is unavailable, proceed anyway.
+      },
+    );
   }
 
   /**
@@ -134,7 +151,7 @@ export class BatchProjectCleaner extends PeriodicRunner {
     }
 
     // Step 3 & 4: Execute DELETE under distributed lock
-    const result = await this.withLock(async () => {
+    const result = await this.lock.withLock(async () => {
       try {
         await this.executeDelete(projectIdsWithData);
 
@@ -277,86 +294,5 @@ export class BatchProjectCleaner extends PeriodicRunner {
         operation: "delete",
       },
     });
-  }
-
-  /**
-   * Execute a callback under a distributed lock.
-   * Returns null if lock could not be acquired, otherwise returns the callback result.
-   */
-  private async withLock<T>(fn: () => Promise<T>): Promise<T | null> {
-    const lockAcquired = await this.acquireLock();
-    if (!lockAcquired) {
-      return null;
-    }
-
-    try {
-      return await fn();
-    } finally {
-      await this.releaseLock();
-    }
-  }
-
-  /**
-   * Attempt to acquire a distributed lock via Redis.
-   * We use this lock as a performance optimization: avoiding
-   * multiple workers starting DELETE mutation for the same table
-   * simultaneously. If Redis is unavailable, we allow processing
-   * to avoid blocking progress as this does not compromise data integrity.
-   */
-  private async acquireLock(): Promise<boolean> {
-    if (!redis) {
-      logger.warn(
-        `[${this.instanceName}] Redis unavailable, allowing processing`,
-      );
-      return true;
-    }
-
-    try {
-      // TTL = DELETE timeout + 5 minutes buffer
-      const ttlSeconds =
-        Math.ceil(env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS / 1000) +
-        300;
-      const result = await redis.set(
-        this.lockKey,
-        "locked",
-        "EX",
-        ttlSeconds,
-        "NX",
-      );
-      const acquired = result === "OK";
-
-      if (acquired) {
-        logger.debug(
-          `[${this.instanceName}] Acquired lock with TTL ${ttlSeconds}s`,
-        );
-      }
-
-      return acquired;
-    } catch (error) {
-      logger.error(
-        `[${this.instanceName}] Failed to acquire lock due to an error`,
-        error,
-      );
-      // On error, allow processing to avoid blocking
-      return true;
-    }
-  }
-
-  /**
-   * Release the distributed lock. Called after DELETE completes (success or failure)
-   * to allow other workers to pick up work immediately.
-   */
-  private async releaseLock(): Promise<void> {
-    if (!redis) {
-      return;
-    }
-
-    try {
-      await redis.del(this.lockKey);
-      logger.debug(`[${this.instanceName}] Released lock`);
-    } catch (error) {
-      // Log but don't throw - lock will expire via TTL anyway
-      logger.error(`[${this.instanceName}] Failed to release lock`, error);
-    }
   }
 }
