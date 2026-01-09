@@ -10,6 +10,7 @@ import { WorkerManager } from "../queues/workerManager";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 import { MutationMonitor } from "../features/mutation-monitoring/mutationMonitor";
+import { batchProjectCleaners } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
@@ -21,6 +22,11 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   // Stop mutation monitor
   MutationMonitor.stop();
+
+  // Stop batch project cleaners
+  for (const cleaner of batchProjectCleaners) {
+    cleaner.stop();
+  }
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)
   await WorkerManager.closeWorkers();
