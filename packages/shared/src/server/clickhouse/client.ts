@@ -110,7 +110,7 @@ export class ClickHouseClientManager {
         max_open_connections: env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
         log: {
           LoggerClass: ClickHouseLogger,
-          level: mapLogLevel(env.LANGFUSE_LOG_LEVEL ?? "info"),
+          level: mapLogLevel("trace"), // Temporarily hardcoded to trace for PR #520 testing
         },
         clickhouse_settings: {
           // Overwrite async insert settings to tune throughput
