@@ -1,6 +1,10 @@
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
-import { getObservationById, getTraceById } from "@langfuse/shared/src/server";
+import {
+  getObservationById,
+  getObservationByIdFromEventsTable,
+  getTraceById,
+} from "@langfuse/shared/src/server";
 import { randomBytes } from "crypto";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -30,14 +34,8 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
               },
               spans: [
                 {
-                  traceId: {
-                    type: "Buffer",
-                    data: traceId,
-                  },
-                  spanId: {
-                    type: "Buffer",
-                    data: spanId,
-                  },
+                  traceId,
+                  spanId,
                   name: "my-generation",
                   kind: 1,
                   startTimeUnixNano: {
@@ -110,14 +108,8 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
               },
               spans: [
                 {
-                  traceId: {
-                    type: "Buffer",
-                    data: traceId,
-                  },
-                  spanId: {
-                    type: "Buffer",
-                    data: spanId,
-                  },
+                  traceId,
+                  spanId,
                   name: "my-generation",
                   kind: 1,
                   startTimeUnixNano: {
@@ -225,6 +217,119 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     expect(response.status).toBe(200);
   });
 
+  // Skipping for now, as this requires direct writes into the events table without dual write.
+  it.skip("should correctly convert string usage_details to numbers and compute total", async () => {
+    // This test verifies that usage_details values sent as strings are correctly
+    // converted to numbers, and the total is computed via numeric addition (not
+    // string concatenation). This was a bug where "100" + "200" = "100200" instead of 300.
+    const traceId = randomBytes(16);
+    const spanId = randomBytes(8);
+
+    const payload = {
+      resourceSpans: [
+        {
+          resource: {
+            attributes: [],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "pydantic-ai",
+                version: "v1.0.0",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId,
+                  spanId,
+                  name: "pydantic-ai-generation",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 466848096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467248096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.environment",
+                      value: { stringValue: "sdk-experiment" },
+                    },
+                    {
+                      key: "langfuse.observation.type",
+                      value: {
+                        stringValue: "generation",
+                      },
+                    },
+                    {
+                      key: "langfuse.observation.model.name",
+                      value: {
+                        stringValue: "test-model",
+                      },
+                    },
+                    // These are string values that should be converted to numbers
+                    // The OTEL protocol can send these as stringValue
+                    {
+                      key: "gen_ai.usage.input_tokens",
+                      value: { stringValue: "100" }, // String, should become number 100
+                    },
+                    {
+                      key: "gen_ai.usage.output_tokens",
+                      value: { stringValue: "200" }, // String, should become number 200
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/otel/v1/traces",
+      payload,
+    );
+
+    expect(response.status).toBe(200);
+
+    await waitForExpect(async () => {
+      const observation = await getObservationByIdFromEventsTable({
+        projectId,
+        id: spanId.toString("hex"),
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation!.id).toBe(spanId.toString("hex"));
+      expect(observation!.name).toBe("pydantic-ai-generation");
+
+      // Verify usage details are stored as numbers, not strings
+      // The total should be 100 + 200 = 300 (numeric addition)
+      // NOT "100" + "200" = "100200" (string concatenation)
+      expect(observation!.totalUsage).toBe(300);
+
+      // Also verify the individual values are numbers
+      const usageDetails = observation!.usageDetails as Record<string, unknown>;
+      expect(usageDetails).toBeDefined();
+      expect(typeof usageDetails.input).toBe("number");
+      expect(typeof usageDetails.output).toBe("number");
+      expect(usageDetails.input).toBe(100);
+      expect(usageDetails.output).toBe(200);
+      expect(usageDetails.total).toBe(300);
+    }, 25_000);
+  }, 30_000);
+
   it("should transform deployment.environment to lowercase", async () => {
     const traceId = randomBytes(16);
     const spanId = randomBytes(8);
@@ -254,14 +359,8 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
               },
               spans: [
                 {
-                  traceId: {
-                    type: "Buffer",
-                    data: traceId,
-                  },
-                  spanId: {
-                    type: "Buffer",
-                    data: spanId,
-                  },
+                  traceId,
+                  spanId,
                   name: "test-span",
                   kind: 1,
                   startTimeUnixNano: {
