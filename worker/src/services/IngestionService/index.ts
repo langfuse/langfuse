@@ -1211,11 +1211,19 @@ export class IngestionService {
       "usage_details" | "provided_usage_details"
     >
   > {
-    const providedUsageDetails = Object.fromEntries(
-      Object.entries(observationRecord.provided_usage_details).filter(
-        ([_k, v]) => v != null && v >= 0,
-      ),
-    );
+    // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
+    // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+    const providedUsageDetails: Record<string, number> = {};
+    for (const [key, value] of Object.entries(
+      observationRecord.provided_usage_details,
+    )) {
+      if (value != null) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 0) {
+          providedUsageDetails[key] = numValue;
+        }
+      }
+    }
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
