@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.145.0",
+  "version": "3.146.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -171,7 +171,6 @@
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
-    "@mermaid-js/mermaid-cli": "^11.2.0",
     "@next/bundle-analyzer": "15.5.9",
     "@playwright/test": "^1.57.0",
     "@repo/eslint-config": "workspace:*",
