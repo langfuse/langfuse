@@ -109,7 +109,11 @@ export async function createProjectMembershipsOnSignup(user: {
     if (user.email) await processMembershipInvitations(user.email, user.id);
 
     // for conversion metric tracking in posthog: did a new user sign up?
-    if (isNewUser && env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    if (
+      isNewUser &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+      ["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+    ) {
       try {
         const posthog = new ServerPosthog();
         posthog.capture({
