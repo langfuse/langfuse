@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
+import { PeriodicRunner } from "../../utils/PeriodicRunner";
 
 export const BATCH_DELETION_TABLES = [
   "traces",
@@ -40,14 +41,21 @@ interface ProjectCount {
  * 4. Execute DELETE
  * 5. On failure: re-run count query to determine partial success
  */
-export class BatchProjectCleaner {
+export class BatchProjectCleaner extends PeriodicRunner {
   private readonly tableName: BatchDeletionTable;
-  private timeoutId: NodeJS.Timeout | null = null;
-  private isRunning = false;
   private readonly lockKey: string;
   private readonly instanceName: string;
 
+  protected get name(): string {
+    return this.instanceName;
+  }
+
+  protected get defaultIntervalMs(): number {
+    return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
+  }
+
   constructor(tableName: BatchDeletionTable) {
+    super();
     this.tableName = tableName;
     this.lockKey = `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:${tableName}`;
     this.instanceName = `BatchProjectCleaner(${tableName})`;
@@ -56,66 +64,36 @@ export class BatchProjectCleaner {
   /**
    * Start the batch cleaner service
    */
-  public start(): void {
-    if (this.isRunning) {
-      logger.warn(`${this.instanceName} is already running`);
-      return;
-    }
-
-    this.isRunning = true;
+  public override start(): void {
     logger.info(`Starting ${this.instanceName}`, {
       checkIntervalMs: env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS,
       sleepOnEmptyMs: env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS,
       projectLimit: env.LANGFUSE_BATCH_PROJECT_CLEANER_PROJECT_LIMIT,
       deleteTimeoutMs: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
     });
-
-    void this.runAndScheduleNext();
+    super.start();
   }
 
   /**
    * Stop the batch cleaner service
    */
-  public stop(): void {
-    if (!this.isRunning) {
-      return;
-    }
-
-    this.isRunning = false;
-    if (this.timeoutId !== null) {
-      clearTimeout(this.timeoutId);
-      this.timeoutId = null;
-    }
+  public override stop(): void {
+    super.stop();
     logger.info(`${this.instanceName} stopped`);
   }
 
-  private scheduleNextRun(delayMs: number): void {
-    if (!this.isRunning) {
-      return;
-    }
-
-    this.timeoutId = setTimeout(() => {
-      void this.runAndScheduleNext();
-    }, delayMs);
-  }
-
-  private async runAndScheduleNext(): Promise<void> {
-    let nextDelayMs = env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
-
-    try {
-      nextDelayMs = await this.processBatch();
-    } catch (error) {
-      logger.error(`Unexpected error in ${this.instanceName}`, error);
-      traceException(error);
-    } finally {
-      this.scheduleNextRun(nextDelayMs);
-    }
+  /**
+   * Process a batch of deleted projects. Returns the delay until next run.
+   * Public wrapper for testing.
+   */
+  public async processBatch(): Promise<number> {
+    return this.execute();
   }
 
   /**
    * Process a batch of deleted projects. Returns the delay until next run.
    */
-  public async processBatch(): Promise<number> {
+  protected async execute(): Promise<number> {
     // Step 1: Query PG for deleted projects (no lock needed)
     let deletedProjects: Array<{ id: string }>;
     try {
