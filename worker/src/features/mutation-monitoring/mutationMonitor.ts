@@ -66,13 +66,7 @@ export class MutationMonitor {
     [QueueName.TraceDelete]: ["traces", "observations", "scores", "events"],
     [QueueName.ScoreDelete]: ["scores"],
     [QueueName.DatasetDelete]: ["dataset_run_items_rmt"],
-    [QueueName.ProjectDelete]: [
-      "traces",
-      "observations",
-      "scores",
-      "dataset_run_items_rmt",
-      "events",
-    ],
+    [QueueName.ProjectDelete]: ["scores", "dataset_run_items_rmt"],
     [QueueName.DataRetentionProcessingQueue]: [
       "traces",
       "observations",
