@@ -551,14 +551,13 @@ if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DELETION_TABLES) {
     // Only start the events table cleaner if the events table experiment is enabled
     if (
-      table === "events" &&
-      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE !== "true"
+      table !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
     ) {
-      continue;
+      const cleaner = new BatchProjectCleaner(table);
+      batchProjectCleaners.push(cleaner);
+      cleaner.start();
     }
-    const cleaner = new BatchProjectCleaner(table);
-    batchProjectCleaners.push(cleaner);
-    cleaner.start();
   }
 }
 
