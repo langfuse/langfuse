@@ -1380,6 +1380,82 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolObservation?.body.name).toBe("correct_tool_name");
     });
 
+    it("should subtract pydantic-ai cache tokens from input usage", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const pydanticAiUsageSpan = {
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.30.1",
+            },
+            spans: [
+              {
+                ...defaultSpanProps,
+                traceId: Buffer.from(traceId, "hex"),
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 16846, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 392, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_creation_input_tokens",
+                    value: {
+                      intValue: { low: 790, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_read_input_tokens",
+                    value: {
+                      intValue: { low: 16056, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_write_tokens",
+                    value: {
+                      intValue: { low: 790, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_read_tokens",
+                    value: {
+                      intValue: { low: 16056, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiUsageSpan,
+        new Set([traceId]),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(0);
+      expect(observationEvent?.body.usageDetails.output).toBe(392);
+      expect(observationEvent?.body.usageDetails.input_cache_read).toBe(16056);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        790,
+      );
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
