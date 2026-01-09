@@ -100,6 +100,7 @@ if (
     },
     autocapture: false,
     enable_heatmaps: false,
+    persistence: "cookie",
   });
 }
 
