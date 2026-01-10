@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import {
   InvalidRequestError,
+  LangfuseConflictError,
   parsePromptDependencyTags,
   jsonSchema,
   type PromptDependency,
@@ -237,7 +238,7 @@ export const duplicatePrompt = async ({
   });
 
   if (promptNameExists) {
-    throw new InvalidRequestError(
+    throw new LangfuseConflictError(
       `Prompt name ${name} already exists in project ${projectId}`,
     );
   }
