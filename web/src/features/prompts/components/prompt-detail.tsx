@@ -61,6 +61,8 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { PromptContentViewer } from "@/src/features/prompts/components/PromptContentViewer";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 
 const getPythonCode = (
   name: string,
@@ -132,6 +134,9 @@ export const PromptDetail = ({
   const [resolutionMode, setResolutionMode] = useState<"tagged" | "resolved">(
     "tagged",
   );
+  const [pendingSelection, setPendingSelection] =
+    useState<SelectionData | null>(null);
+  const [isCommentDrawerOpen, setIsCommentDrawerOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "prompts:CUD",
@@ -445,6 +450,10 @@ export const PromptDetail = ({
                   objectType="PROMPT"
                   count={getNumberFromMap(commentCounts?.data, prompt.id)}
                   variant="outline"
+                  pendingSelection={pendingSelection}
+                  onSelectionUsed={() => setPendingSelection(null)}
+                  isOpen={isCommentDrawerOpen}
+                  onOpenChange={setIsCommentDrawerOpen}
                 />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -524,37 +533,21 @@ export const PromptDetail = ({
                     </Tabs>
                   </div>
                 )}
-                {prompt.type === PromptType.Chat && chatMessages ? (
-                  <div className="w-full">
-                    <OpenAiMessageView
-                      messages={chatMessages}
-                      shouldRenderMarkdown={true}
-                      currentView="pretty"
-                      messageToToolCallNumbers={new Map()}
-                      collapseLongHistory={false}
-                      projectIdForPromptButtons={projectId}
-                    />
-                  </div>
-                ) : typeof prompt.prompt === "string" ? (
-                  resolutionMode === "resolved" &&
-                  promptGraph.data?.resolvedPrompt ? (
-                    <CodeView
-                      content={String(promptGraph.data.resolvedPrompt)}
-                      title="Text Prompt (resolved)"
-                    />
-                  ) : (
-                    <CodeView
-                      content={renderRichPromptContent(
-                        projectId as string,
-                        prompt.prompt,
-                      )}
-                      originalContent={prompt.prompt}
-                      title="Text Prompt"
-                    />
-                  )
-                ) : (
-                  <JSONView json={prompt.prompt} title="Prompt" />
-                )}
+                <PromptContentViewer
+                  promptId={prompt.id}
+                  projectId={projectId as string}
+                  prompt={
+                    resolutionMode === "resolved"
+                      ? promptGraph.data?.resolvedPrompt
+                      : prompt.prompt
+                  }
+                  promptType={prompt.type}
+                  enableInlineComments={true}
+                  onAddInlineComment={(selection) => {
+                    setPendingSelection(selection);
+                    setIsCommentDrawerOpen(true);
+                  }}
+                />
                 <PromptVariableListPreview variables={extractedVariables} />
               </div>
             </TabsBarContent>
