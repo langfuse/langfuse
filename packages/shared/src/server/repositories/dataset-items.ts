@@ -100,7 +100,7 @@ async function getDatasetByName(props: {
 
 /**
  * Converts a DatasetItem to Domain types with optional IO fields and dataset name.
- * Automatically excludes internal version columns (sysId, isDeleted) from domain types.
+ * Automatically excludes internal version column (isDeleted) from domain types.
  */
 function toDomainType<
   IncludeIO extends boolean = true,
