@@ -1,1 +1,1 @@
-ALTER TABLE scores ON CLUSTER default DROP COLUMN IF EXISTS session_id SETTINGS mutations_sync = 2;
+ALTER TABLE scores ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} DROP COLUMN IF EXISTS session_id SETTINGS mutations_sync = 2;

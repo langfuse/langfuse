@@ -1,1 +1,1 @@
-DROP VIEW IF EXISTS analytics_observations ON CLUSTER default;
+DROP VIEW IF EXISTS analytics_observations ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME};
