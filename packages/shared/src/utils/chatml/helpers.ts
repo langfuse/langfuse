@@ -97,3 +97,43 @@ export function getNestedProperty(
   }
   return current;
 }
+
+/**
+ * Extract text content from Anthropic content array.
+ * Skips `thinking` blocks and concatenates all `text` blocks.
+ * Handles arrays like: [{type: "thinking", thinking: "..."}, {type: "text", text: "..."}, {type: "text", text: "..."}]
+ *
+ * @param content - Anthropic content array or string
+ * @returns Extracted text string, or empty string if no text blocks found
+ */
+export function extractTextFromAnthropicContent(content: unknown): string {
+  // If content is already a string, return it
+  if (typeof content === "string") {
+    return content;
+  }
+
+  // If content is not an array, return empty string
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  const textParts: string[] = [];
+
+  for (const part of content) {
+    if (!part || typeof part !== "object") continue;
+
+    const p = part as Record<string, unknown>;
+
+    // Skip thinking blocks
+    if (p.type === "thinking") {
+      continue;
+    }
+
+    // Extract text from text blocks
+    if (p.type === "text" && typeof p.text === "string") {
+      textParts.push(p.text);
+    }
+  }
+
+  return textParts.join("");
+}
