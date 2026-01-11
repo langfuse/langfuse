@@ -55,6 +55,10 @@ const AnthropicMessageContentWithToolUse = z.union([
     name: z.string(),
     input: z.unknown(),
   }),
+  z.object({
+    type: z.literal("thinking"),
+    thinking: z.string(),
+  }),
 ]);
 
 const GoogleAIStudioMessageContentWithToolUse = z.object({
