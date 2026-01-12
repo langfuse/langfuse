@@ -40,12 +40,14 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Switch } from "@/src/components/ui/switch";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
+import { useJsonBetaToggle } from "@/src/components/trace2/hooks/useJsonBetaToggle";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export const ObservationPreview = ({
@@ -80,6 +82,13 @@ export const ObservationPreview = ({
   const [currentView, setCurrentView] = useLocalStorage<
     "pretty" | "json" | "json-beta"
   >("jsonViewPreference", "pretty");
+  const {
+    jsonBetaEnabled,
+    selectedViewTab,
+    handleViewTabChange,
+    handleBetaToggle,
+  } = useJsonBetaToggle(currentView, setCurrentView);
+
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
 
@@ -431,29 +440,40 @@ export const ObservationPreview = ({
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
-                <Tabs
-                  className="ml-auto mr-1 h-fit px-2 py-0.5"
-                  value={currentView}
-                  onValueChange={(value) => {
-                    capture("trace_detail:io_mode_switch", { view: value });
-                    setCurrentView(value as "pretty" | "json" | "json-beta");
-                  }}
-                >
-                  <TabsList className="h-fit py-0.5">
-                    <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                      Formatted
-                    </TabsTrigger>
-                    <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                      JSON
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="json-beta"
-                      className="h-fit px-1 text-xs"
-                    >
-                      JSON Beta
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                <>
+                  <Tabs
+                    className="ml-auto h-fit px-2 py-0.5"
+                    value={selectedViewTab}
+                    onValueChange={(value) => {
+                      capture("trace_detail:io_mode_switch", { view: value });
+                      handleViewTabChange(value);
+                    }}
+                  >
+                    <TabsList className="h-fit py-0.5">
+                      <TabsTrigger
+                        value="pretty"
+                        className="h-fit px-1 text-xs"
+                      >
+                        Formatted
+                      </TabsTrigger>
+                      <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                        JSON
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  {selectedViewTab === "json" && (
+                    <div className="mr-1 flex items-center gap-1.5">
+                      <Switch
+                        size="sm"
+                        checked={jsonBetaEnabled}
+                        onCheckedChange={handleBetaToggle}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        Beta
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </TabsBarList>
           )}
