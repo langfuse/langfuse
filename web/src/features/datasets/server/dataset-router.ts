@@ -1068,7 +1068,7 @@ export const datasetRouter = createTRPCRouter({
 
       // find a unique name for the new dataset
       // by appending a counter to the name in case of the name already exists
-      // e.g. "Copy of dataset" -> "Copy of dataset (1)"
+      // e.g. "dataset (copy)" -> "dataset (copy 2)"
       const existingDatasetNames = (
         await ctx.prisma.dataset.findMany({
           select: {
@@ -1077,7 +1077,7 @@ export const datasetRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             name: {
-              startsWith: "Copy of " + dataset.name,
+              startsWith: dataset.name + " (copy",
             },
           },
         })
@@ -1085,8 +1085,8 @@ export const datasetRouter = createTRPCRouter({
       let counter: number = 0;
       const duplicateDatasetName = (pCounter: number) =>
         pCounter === 0
-          ? `Copy of ${dataset.name}`
-          : `Copy of ${dataset.name} (${counter})`;
+          ? `${dataset.name} (copy)`
+          : `${dataset.name} (copy ${counter})`;
       while (true) {
         if (!existingDatasetNames.includes(duplicateDatasetName(counter))) {
           break;
