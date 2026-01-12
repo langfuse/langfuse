@@ -29,6 +29,10 @@ export const AnnotationDrawerSection: React.FC<
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
 
+  const hasNonAnnotationScores = scores.some(
+    (score) => score.source !== "ANNOTATION",
+  );
+
   return (
     <Card className="col-span-2 flex h-full flex-col overflow-y-auto p-3">
       <AnnotationForm
@@ -56,6 +60,11 @@ export const AnnotationDrawerSection: React.FC<
           ) : undefined
         }
       />
+      {hasNonAnnotationScores && (
+        <div className="mt-4 text-xs text-muted-foreground">
+          API and eval scores visible on left. Add manual annotations above.
+        </div>
+      )}
     </Card>
   );
 };
