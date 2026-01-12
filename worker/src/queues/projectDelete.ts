@@ -101,6 +101,8 @@ export const projectDeleteProcessor: Processor = async (
   // Trigger async delete of dataset run items
   await deleteDatasetRunItemsByProjectId({ projectId });
 
+  // hello
+
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
 
   // Finally, delete the project itself which should delete all related
