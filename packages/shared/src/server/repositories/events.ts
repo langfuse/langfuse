@@ -1681,6 +1681,9 @@ export const deleteEventsByTraceIds = async (
   await commandClickhouse({
     query,
     params: { projectId, traceIds },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
     tags: {
       feature: "tracing",
       type: "events",
