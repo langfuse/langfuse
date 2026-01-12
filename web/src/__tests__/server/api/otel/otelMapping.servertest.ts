@@ -5121,8 +5121,6 @@ describe("OTel Resource Span Mapping", () => {
         (e) => e.type === "generation-create" || e.type === "span-create",
       );
 
-      console.log(JSON.stringify(observationEvent, null, 2));
-
       expect(observationEvent).toBeDefined();
 
       // Verify basic token usage
