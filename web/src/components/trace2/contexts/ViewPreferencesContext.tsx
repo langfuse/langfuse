@@ -50,6 +50,9 @@ interface ViewPreferencesContextValue {
   /** JSON view preference (pretty/formatted or raw JSON) */
   jsonViewPreference: JsonViewPreference;
   setJsonViewPreference: (value: JsonViewPreference) => void;
+  /** Whether JSON Beta (advanced viewer) is enabled */
+  jsonBetaEnabled: boolean;
+  setJsonBetaEnabled: (value: boolean) => void;
 }
 
 const ViewPreferencesContext =
@@ -107,6 +110,17 @@ export function ViewPreferencesProvider({
     useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
   const [jsonViewPreference, setJsonViewPreference] =
     useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
+  const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
+    "jsonBetaEnabled",
+    () => {
+      // Initialize from existing preference (migration for users who had json-beta selected)
+      if (typeof window !== "undefined") {
+        const existing = localStorage.getItem("jsonViewPreference");
+        return existing === '"json-beta"';
+      }
+      return false;
+    },
+  );
 
   const value = useMemo<ViewPreferencesContextValue>(
     () => ({
@@ -131,6 +145,8 @@ export function ViewPreferencesProvider({
       setLogViewTreeStyle,
       jsonViewPreference,
       setJsonViewPreference,
+      jsonBetaEnabled,
+      setJsonBetaEnabled,
     }),
     [
       showDuration,
@@ -154,6 +170,8 @@ export function ViewPreferencesProvider({
       setLogViewTreeStyle,
       jsonViewPreference,
       setJsonViewPreference,
+      jsonBetaEnabled,
+      setJsonBetaEnabled,
     ],
   );
 

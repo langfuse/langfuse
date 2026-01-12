@@ -35,6 +35,7 @@ import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-deta
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { LazyTraceRow } from "@/src/components/session/TraceRow";
+import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
@@ -470,6 +471,15 @@ export const SessionIO = ({
       refetchOnMount: false,
     },
   );
+
+  // Parse trace data in Web Worker (non-blocking)
+  const { parsedInput, parsedOutput, isParsing } = useParsedTrace({
+    traceId,
+    input: trace.data?.input,
+    output: trace.data?.output,
+    metadata: undefined,
+  });
+
   return (
     <div className="flex w-full flex-col gap-2 overflow-hidden p-0">
       {!trace.data ? (
@@ -482,6 +492,9 @@ export const SessionIO = ({
           key={traceId}
           input={trace.data.input}
           output={trace.data.output}
+          parsedInput={parsedInput}
+          parsedOutput={parsedOutput}
+          isParsing={isParsing}
           hideIfNull
           projectId={projectId}
           traceId={traceId}
