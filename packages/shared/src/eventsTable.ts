@@ -235,4 +235,10 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "string",
     internal: "", // handled by comment filter helpers
   },
+  {
+    name: "Has Parent Observation",
+    id: "hasParentObservation",
+    type: "boolean",
+    internal: "e.parent_span_id != ''",
+  },
 ];

@@ -28,6 +28,11 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   facets: [
     {
+      type: "boolean" as const,
+      column: "hasParentObservation",
+      label: "Has Parent Observation",
+    },
+    {
       type: "categorical" as const,
       column: "environment",
       label: getEventsColumnName("environment"),
