@@ -186,6 +186,10 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                   align="start"
                 >
                   <InputCommand>
+                    <InputCommandInput
+                      placeholder="Search versions..."
+                      className="h-9"
+                    />
                     <InputCommandList>
                       <InputCommandEmpty>No version found.</InputCommandEmpty>
                       <InputCommandGroup className="overflow-y-auto">
