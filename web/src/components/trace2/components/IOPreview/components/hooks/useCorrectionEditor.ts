@@ -32,6 +32,27 @@ export function useCorrectionEditor({
     setValue(correctionValue);
   }, [correctionValue]);
 
+  useEffect(() => {
+    if (!value) return;
+
+    let valid = false;
+    if (strictJsonMode) {
+      try {
+        if (value.trim()) {
+          JSON.parse(value);
+          valid = true;
+        }
+      } catch {
+        valid = false;
+      }
+    } else {
+      valid = value.trim().length > 0;
+    }
+    setIsValidJson(valid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // We only need to re-validate when strictJsonMode changes
+  }, [strictJsonMode]);
+
   const handleEdit = useCallback(() => {
     setIsEditing(true);
     // Prepopulate with actual output if no existing correction
