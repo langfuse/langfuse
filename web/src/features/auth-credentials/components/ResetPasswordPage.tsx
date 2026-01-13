@@ -149,6 +149,8 @@ export function ResetPasswordPage({
                           <Input
                             placeholder="jsdoe@example.com"
                             disabled={session.status === "authenticated"}
+                            allowPasswordManager
+                            autoComplete="email"
                             {...field}
                           />
                           {emailVerified.verified && (
@@ -171,7 +173,10 @@ export function ResetPasswordPage({
                         <FormItem>
                           <FormLabel>New Password</FormLabel>
                           <FormControl>
-                            <PasswordInput {...field} />
+                            <PasswordInput
+                              autoComplete="new-password"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -184,7 +189,10 @@ export function ResetPasswordPage({
                         <FormItem>
                           <FormLabel>Confirm New Password</FormLabel>
                           <FormControl>
-                            <PasswordInput {...field} />
+                            <PasswordInput
+                              autoComplete="new-password"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
