@@ -343,9 +343,13 @@ export function TraceDetailView({
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
               inputExpansionState={expansionState.input}
               outputExpansionState={expansionState.output}
+              metadataExpansionState={expansionState.metadata}
               onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
               onOutputExpansionChange={(exp) =>
                 setFieldExpansion("output", exp)
+              }
+              onMetadataExpansionChange={(exp) =>
+                setFieldExpansion("metadata", exp)
               }
               enableInlineComments={true}
               onAddInlineComment={handleAddInlineComment}

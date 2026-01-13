@@ -21,10 +21,14 @@ const STORAGE_KEY = "dismissed-trace-view-notifications";
 export interface ExpansionStateProps {
   inputExpansionState?: Record<string, boolean> | boolean;
   outputExpansionState?: Record<string, boolean> | boolean;
+  metadataExpansionState?: Record<string, boolean> | boolean;
   onInputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
   onOutputExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+  onMetadataExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
 }
@@ -94,8 +98,10 @@ export function IOPreview({
   currentView,
   inputExpansionState,
   outputExpansionState,
+  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  onMetadataExpansionChange,
   setIsPrettyViewAvailable,
   enableInlineComments,
   onAddInlineComment,
@@ -152,8 +158,10 @@ export function IOPreview({
     media,
     inputExpansionState,
     outputExpansionState,
+    metadataExpansionState,
     onInputExpansionChange,
     onOutputExpansionChange,
+    onMetadataExpansionChange,
     observationId,
     projectId,
     traceId,

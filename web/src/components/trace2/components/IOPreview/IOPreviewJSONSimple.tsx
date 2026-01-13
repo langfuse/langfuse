@@ -51,8 +51,10 @@ export function IOPreviewJSONSimple({
   media,
   inputExpansionState,
   outputExpansionState,
+  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  onMetadataExpansionChange,
   observationId,
   projectId,
   traceId,
@@ -124,6 +126,8 @@ export function IOPreviewJSONSimple({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "metadata") ?? []}
           currentView="json"
+          externalExpansionState={metadataExpansionState}
+          onExternalExpansionChange={onMetadataExpansionChange}
         />
       )}
     </div>
