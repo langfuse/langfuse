@@ -52,6 +52,7 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  showCorrections?: boolean;
 }
 
 /**
@@ -84,6 +85,7 @@ function IOPreviewJSONInner({
   projectId,
   traceId,
   environment = "default",
+  showCorrections = true,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
@@ -428,14 +430,16 @@ function IOPreviewJSONInner({
         ) : (
           viewerContent
         )}
-        <CorrectedOutputField
-          actualOutput={parsedOutput}
-          existingCorrection={outputCorrection}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-        />
+        {showCorrections && (
+          <CorrectedOutputField
+            actualOutput={parsedOutput}
+            existingCorrection={outputCorrection}
+            observationId={observationId}
+            projectId={projectId}
+            traceId={traceId}
+            environment={environment}
+          />
+        )}
       </div>
     </div>
   );

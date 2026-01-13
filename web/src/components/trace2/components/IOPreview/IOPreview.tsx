@@ -61,6 +61,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  showCorrections?: boolean;
 }
 
 /**
@@ -106,6 +107,7 @@ export function IOPreview({
   projectId,
   traceId,
   environment = "default",
+  showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -158,6 +160,7 @@ export function IOPreview({
     projectId,
     traceId,
     environment,
+    showCorrections,
   };
 
   // Only show empty state popup for traces (not observations) when there's no input/output
@@ -215,6 +218,7 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          showCorrections={showCorrections}
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple {...sharedProps} />
