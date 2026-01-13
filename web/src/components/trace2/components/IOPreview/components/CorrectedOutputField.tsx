@@ -131,7 +131,7 @@ export function CorrectedOutputField({
             onClick={handleEdit}
             disabled={!hasAccess}
             className={cn(
-              "w-full cursor-pointer rounded-md border px-3 py-8 text-center text-sm text-muted-foreground transition-colors hover:bg-muted/50",
+              "w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted/50",
             )}
           >
             Click to add corrected output

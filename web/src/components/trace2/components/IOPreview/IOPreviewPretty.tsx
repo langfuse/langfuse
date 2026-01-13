@@ -3,7 +3,6 @@ import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import { type MediaReturnType } from "@/src/features/media/validation";
-
 import { useChatMLParser } from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
@@ -98,6 +97,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  showCorrections?: boolean;
 }
 
 /**
@@ -136,6 +136,7 @@ export function IOPreviewPretty({
   projectId,
   traceId,
   environment = "default",
+  showCorrections = true,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -255,19 +256,7 @@ export function IOPreviewPretty({
             messageToToolCallNumbers={messageToToolCallNumbers}
             inputMessageCount={inputMessageCount}
           />
-          <CorrectedOutputField
-            actualOutput={parsedOutput}
-            existingCorrection={outputCorrection}
-            observationId={observationId}
-            projectId={projectId}
-            traceId={traceId}
-            environment={environment}
-          />
-        </div>
-      ) : (
-        <>
-          <JsonInputOutputView {...jsonViewProps} />
-          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+          {showCorrections && (
             <CorrectedOutputField
               actualOutput={parsedOutput}
               existingCorrection={outputCorrection}
@@ -276,6 +265,22 @@ export function IOPreviewPretty({
               traceId={traceId}
               environment={environment}
             />
+          )}
+        </div>
+      ) : (
+        <>
+          <JsonInputOutputView {...jsonViewProps} />
+          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+            {showCorrections && (
+              <CorrectedOutputField
+                actualOutput={parsedOutput}
+                existingCorrection={outputCorrection}
+                observationId={observationId}
+                projectId={projectId}
+                traceId={traceId}
+                environment={environment}
+              />
+            )}
           </div>
         </>
       )}
