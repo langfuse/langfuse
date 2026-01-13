@@ -559,6 +559,161 @@ describe("/api/public/v2/scores API Endpoint", () => {
         }
       });
 
+      describe("should filter scores by environment correctly for session scores", () => {
+        let sessionScoreWithEnvId: string;
+        let sessionScoreDefaultEnvId: string;
+        let traceScoreWithEnvId: string;
+
+        beforeEach(async () => {
+          sessionScoreWithEnvId = v4();
+          sessionScoreDefaultEnvId = v4();
+          traceScoreWithEnvId = v4();
+
+          // Session score with 'staging' environment
+          const sessionScoreWithEnv = createSessionScore({
+            id: sessionScoreWithEnvId,
+            project_id: newProjectId,
+            session_id: v4(),
+            name: "session-score-with-env",
+            value: 80,
+            data_type: "NUMERIC",
+            environment: "staging",
+          });
+
+          // Session score with default environment
+          const sessionScoreDefaultEnv = createSessionScore({
+            id: sessionScoreDefaultEnvId,
+            project_id: newProjectId,
+            session_id: v4(),
+            name: "session-score-default-env",
+            value: 90,
+            data_type: "NUMERIC",
+            environment: "default",
+          });
+
+          // Trace score with 'staging' environment on a trace with 'development' environment
+          const traceWithDifferentEnv = createTrace({
+            id: v4(),
+            project_id: newProjectId,
+            user_id: "env-test-user",
+            environment: "development",
+          });
+
+          await createTracesCh([traceWithDifferentEnv]);
+
+          const traceScoreWithEnv = createTraceScore({
+            id: traceScoreWithEnvId,
+            project_id: newProjectId,
+            trace_id: traceWithDifferentEnv.id,
+            name: "trace-score-with-env",
+            value: 70,
+            data_type: "NUMERIC",
+            environment: "staging",
+          });
+
+          await createScoresCh([
+            sessionScoreWithEnv,
+            sessionScoreDefaultEnv,
+            traceScoreWithEnv,
+          ]);
+        });
+
+        it("should return session scores when filtering by environment", async () => {
+          const getAllScore = await makeZodVerifiedAPICall(
+            GetScoresResponseV2,
+            "GET",
+            `/api/public/v2/scores?environment=staging`,
+            undefined,
+            authentication,
+          );
+
+          expect(getAllScore.status).toBe(200);
+          // Should include: session score with staging env + trace score with staging env
+          // The trace score has staging environment on the score itself, so it should be included
+          const scoreIds = getAllScore.body.data.map((s) => s.id);
+          expect(scoreIds).toContain(sessionScoreWithEnvId);
+          expect(scoreIds).toContain(traceScoreWithEnvId);
+          expect(scoreIds).not.toContain(sessionScoreDefaultEnvId);
+        });
+
+        it("should return session scores with default environment", async () => {
+          const getAllScore = await makeZodVerifiedAPICall(
+            GetScoresResponseV2,
+            "GET",
+            `/api/public/v2/scores?environment=default`,
+            undefined,
+            authentication,
+          );
+
+          expect(getAllScore.status).toBe(200);
+          const scoreIds = getAllScore.body.data.map((s) => s.id);
+          expect(scoreIds).toContain(sessionScoreDefaultEnvId);
+          expect(scoreIds).not.toContain(sessionScoreWithEnvId);
+        });
+
+        it("should apply environment filter to traces when combined with trace filters", async () => {
+          // When filtering by environment + userId, the environment should also filter traces
+          // This trace score has score.environment=staging but trace.environment=development
+          // When filtering by userId (a trace filter), the trace environment should also be checked
+          const getAllScore = await makeZodVerifiedAPICall(
+            GetScoresResponseV2,
+            "GET",
+            `/api/public/v2/scores?environment=staging&userId=env-test-user`,
+            undefined,
+            authentication,
+          );
+
+          expect(getAllScore.status).toBe(200);
+          // The trace score should NOT be returned because:
+          // - It matches score.environment=staging
+          // - It matches trace.user_id=env-test-user
+          // - But trace.environment=development (not staging)
+          // When trace filters are present, we also filter by trace environment
+          const scoreIds = getAllScore.body.data.map((s) => s.id);
+          expect(scoreIds).not.toContain(traceScoreWithEnvId);
+        });
+
+        it("should return trace scores when environment matches both score and trace", async () => {
+          // Create a trace with matching environment
+          const matchingTraceId = v4();
+          const matchingScoreId = v4();
+
+          const matchingTrace = createTrace({
+            id: matchingTraceId,
+            project_id: newProjectId,
+            user_id: "matching-env-user",
+            environment: "staging",
+          });
+
+          await createTracesCh([matchingTrace]);
+
+          const matchingScore = createTraceScore({
+            id: matchingScoreId,
+            project_id: newProjectId,
+            trace_id: matchingTraceId,
+            name: "matching-score",
+            value: 100,
+            data_type: "NUMERIC",
+            environment: "staging",
+          });
+
+          await createScoresCh([matchingScore]);
+
+          const getAllScore = await makeZodVerifiedAPICall(
+            GetScoresResponseV2,
+            "GET",
+            `/api/public/v2/scores?environment=staging&userId=matching-env-user`,
+            undefined,
+            authentication,
+          );
+
+          expect(getAllScore.status).toBe(200);
+          const scoreIds = getAllScore.body.data.map((s) => s.id);
+          // This score should be returned because both score.environment and trace.environment match
+          expect(scoreIds).toContain(matchingScoreId);
+        });
+      });
+
       it("get all scores for trace tags 'staging' and 'dev'", async () => {
         const getAllScore = await makeZodVerifiedAPICall(
           GetScoresResponseV2,
