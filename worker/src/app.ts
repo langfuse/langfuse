@@ -549,6 +549,7 @@ if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   WorkerManager.register(
     QueueName.BatchProjectCleanerQueue,
     batchProjectCleanerProcessor,
+    { concurrency: 1 }, // only 1 job at a time
   );
 
   // Schedule repeatable jobs for each table
