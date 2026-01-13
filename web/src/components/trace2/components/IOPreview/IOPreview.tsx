@@ -213,8 +213,10 @@ export function IOPreview({
           media={media}
           inputExpansionState={inputExpansionState}
           outputExpansionState={outputExpansionState}
+          metadataExpansionState={metadataExpansionState}
           onInputExpansionChange={onInputExpansionChange}
           onOutputExpansionChange={onOutputExpansionChange}
+          onMetadataExpansionChange={onMetadataExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
           enableInlineComments={enableInlineComments}
           onAddInlineComment={onAddInlineComment}

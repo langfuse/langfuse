@@ -36,7 +36,9 @@ const JsonExpansionContext = createContext<JsonExpansionContextValue>({
   setFieldExpansion: () => {},
 });
 
-export const useJsonExpansion = () => useContext(JsonExpansionContext);
+export const useJsonExpansion = () => {
+  return useContext(JsonExpansionContext);
+};
 
 /**
  * Storage key for JSON expansion state in sessionStorage

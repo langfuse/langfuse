@@ -84,12 +84,12 @@ function IOPreviewJSONInner({
   projectId,
   traceId,
   environment = "default",
-  // NOTE: These expansion props are received but NOT used by this component!
-  // This is a known gap - json-beta view doesn't persist expansion state
   inputExpansionState,
   outputExpansionState,
+  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  onMetadataExpansionChange,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
