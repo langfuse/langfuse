@@ -6,7 +6,6 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
@@ -1682,6 +1681,9 @@ export const deleteEventsByTraceIds = async (
   await commandClickhouse({
     query,
     params: { projectId, traceIds },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
     tags: {
       feature: "tracing",
       type: "events",
@@ -1691,11 +1693,40 @@ export const deleteEventsByTraceIds = async (
   });
 };
 
+export const hasAnyEvent = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM events
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
 /**
  * Delete all events for a project
  * Used when an entire project is deleted
  */
-export const deleteEventsByProjectId = async (projectId: string) => {
+export const deleteEventsByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyEvent(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM events
     WHERE project_id = {projectId: String};
@@ -1707,29 +1738,48 @@ export const deleteEventsByProjectId = async (projectId: string) => {
     projectId,
   };
 
-  if (env.LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED === "true") {
-    await executeWithMutationMonitoring({
-      tableName: "events",
-      query,
-      params: { projectId },
-      tags,
-      clickhouseSettings: {
-        send_logs_level: "trace",
-      },
-    });
-  } else {
-    await commandClickhouse({
-      query,
-      params: { projectId },
-      clickhouseConfigs: {
-        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-      },
-      tags,
-      clickhouseSettings: {
-        send_logs_level: "trace",
-      },
-    });
-  }
+  await commandClickhouse({
+    query,
+    params: { projectId },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags,
+    clickhouseSettings: {
+      send_logs_level: "trace",
+    },
+  });
+
+  return true;
+};
+
+export const hasAnyEventOlderThan = async (
+  projectId: string,
+  beforeDate: Date,
+) => {
+  const query = `
+    SELECT 1
+    FROM events
+    WHERE project_id = {projectId: String}
+    AND start_time < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "hasAnyOlderThan",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
 };
 
 /**
@@ -1739,7 +1789,12 @@ export const deleteEventsByProjectId = async (projectId: string) => {
 export const deleteEventsOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-) => {
+): Promise<boolean> => {
+  const hasData = await hasAnyEventOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM events
     WHERE project_id = {projectId: String}
@@ -1761,6 +1816,8 @@ export const deleteEventsOlderThanDays = async (
       projectId,
     },
   });
+
+  return true;
 };
 
 export const getObservationsBatchIOFromEventsTable = async (opts: {

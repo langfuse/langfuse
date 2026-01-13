@@ -34,12 +34,14 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Switch } from "@/src/components/ui/switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { TraceLogView } from "@/src/components/trace2/components/TraceLogView/TraceLogView";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
+import { useJsonBetaToggle } from "@/src/components/trace2/hooks/useJsonBetaToggle";
 import { TraceDataProvider } from "@/src/components/trace2/contexts/TraceDataContext";
 import { ViewPreferencesProvider } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 import {
@@ -95,6 +97,13 @@ export const TracePreview = ({
   const [currentView, setCurrentView] = useLocalStorage<
     "pretty" | "json" | "json-beta"
   >("jsonViewPreference", "pretty");
+  const {
+    jsonBetaEnabled,
+    selectedViewTab,
+    handleViewTabChange,
+    handleBetaToggle,
+  } = useJsonBetaToggle(currentView, setCurrentView);
+
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     trace.projectId,
@@ -363,59 +372,79 @@ export const TracePreview = ({
                   <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
                 )}
                 {selectedTab.includes("preview") && isPrettyViewAvailable && (
-                  <Tabs
-                    className="ml-auto mr-1 h-fit px-2 py-0.5"
-                    value={currentView}
-                    onValueChange={(value) => {
-                      capture("trace_detail:io_mode_switch", { view: value });
-                      setCurrentView(value as "pretty" | "json" | "json-beta");
-                    }}
-                  >
-                    <TabsList className="h-fit py-0.5">
-                      <TabsTrigger
-                        value="pretty"
-                        className="h-fit px-1 text-xs"
-                      >
-                        Formatted
-                      </TabsTrigger>
-                      <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                        JSON
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="json-beta"
-                        className="h-fit px-1 text-xs"
-                      >
-                        JSON Beta
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  <>
+                    <Tabs
+                      className="ml-auto h-fit px-2 py-0.5"
+                      value={selectedViewTab}
+                      onValueChange={(value) => {
+                        capture("trace_detail:io_mode_switch", { view: value });
+                        handleViewTabChange(value);
+                      }}
+                    >
+                      <TabsList className="h-fit py-0.5">
+                        <TabsTrigger
+                          value="pretty"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Formatted
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="json"
+                          className="h-fit px-1 text-xs"
+                        >
+                          JSON
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    {selectedViewTab === "json" && (
+                      <div className="mr-1 flex items-center gap-1.5">
+                        <Switch
+                          size="sm"
+                          checked={jsonBetaEnabled}
+                          onCheckedChange={handleBetaToggle}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          Beta
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
                 {selectedTab === "log" && (
-                  <Tabs
-                    className="ml-auto mr-1 h-fit px-2 py-0.5"
-                    value={currentView}
-                    onValueChange={(value) => {
-                      setCurrentView(value as "pretty" | "json" | "json-beta");
-                    }}
-                  >
-                    <TabsList className="h-fit py-0.5">
-                      <TabsTrigger
-                        value="pretty"
-                        className="h-fit px-1 text-xs"
-                      >
-                        Formatted
-                      </TabsTrigger>
-                      <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                        JSON
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="json-beta"
-                        className="h-fit px-1 text-xs"
-                      >
-                        JSON Beta
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  <>
+                    <Tabs
+                      className="ml-auto h-fit px-2 py-0.5"
+                      value={selectedViewTab}
+                      onValueChange={handleViewTabChange}
+                    >
+                      <TabsList className="h-fit py-0.5">
+                        <TabsTrigger
+                          value="pretty"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Formatted
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="json"
+                          className="h-fit px-1 text-xs"
+                        >
+                          JSON
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    {selectedViewTab === "json" && (
+                      <div className="mr-1 flex items-center gap-1.5">
+                        <Switch
+                          size="sm"
+                          checked={jsonBetaEnabled}
+                          onCheckedChange={handleBetaToggle}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          Beta
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </TabsBarList>
             </TooltipProvider>

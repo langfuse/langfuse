@@ -16,5 +16,6 @@ export {
   geminiAdapter,
   microsoftAgentAdapter,
   pydanticAIAdapter,
+  semanticKernelAdapter,
   genericAdapter,
 } from "./adapters";

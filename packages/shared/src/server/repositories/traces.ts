@@ -22,7 +22,6 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { executeWithMutationMonitoring } from "../clickhouse/mutationWaiter";
 import { convertClickhouseToDomain } from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
@@ -898,10 +897,44 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   });
 };
 
-export const deleteTracesOlderThanDays = async (
+export const hasAnyTraceOlderThan = async (
   projectId: string,
   beforeDate: Date,
 ) => {
+  const query = `
+    SELECT 1
+    FROM traces
+    WHERE project_id = {projectId: String}
+    AND timestamp < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "hasAnyOlderThan",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteTracesOlderThanDays = async (
+  projectId: string,
+  beforeDate: Date,
+): Promise<boolean> => {
+  const hasData = await hasAnyTraceOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   await measureAndReturn({
     operationName: "deleteTracesOlderThanDays",
     projectId,
@@ -933,9 +966,18 @@ export const deleteTracesOlderThanDays = async (
       });
     },
   });
+
+  return true;
 };
 
-export const deleteTracesByProjectId = async (projectId: string) => {
+export const deleteTracesByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyTrace(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   await measureAndReturn({
     operationName: "deleteTracesByProjectId",
     projectId,
@@ -956,25 +998,18 @@ export const deleteTracesByProjectId = async (projectId: string) => {
         WHERE project_id = {projectId: String};
       `;
 
-      if (env.LANGFUSE_ASYNC_DELETE_TRACKING_ENABLED === "true") {
-        await executeWithMutationMonitoring({
-          tableName: "traces",
-          query,
-          params: input.params,
-          tags: input.tags,
-        });
-      } else {
-        await commandClickhouse({
-          query,
-          params: input.params,
-          clickhouseConfigs: {
-            request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-          },
-          tags: input.tags,
-        });
-      }
+      await commandClickhouse({
+        query,
+        params: input.params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags: input.tags,
+      });
     },
   });
+
+  return true;
 };
 
 export const hasAnyUser = async (projectId: string) => {

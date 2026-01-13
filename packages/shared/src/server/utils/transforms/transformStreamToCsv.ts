@@ -3,6 +3,11 @@ import { stringify } from "./stringify";
 
 const DELIMITER = ",";
 
+function escapeCsvField(field: string): string {
+  // Escape double quotes by doubling them, then wrap in quotes
+  return `"${field.replace(/"/g, '""')}"`;
+}
+
 export function transformStreamToCsv(): Transform {
   let isFirstChunk = true;
   let headers: string[] = [];
@@ -17,24 +22,15 @@ export function transformStreamToCsv(): Transform {
       if (isFirstChunk) {
         // Extract headers from the first object
         headers = Object.keys(row);
-        this.push(headers.join(DELIMITER) + "\n");
+        this.push(headers.map(escapeCsvField).join(DELIMITER) + "\n");
         isFirstChunk = false;
       }
 
       // Convert the object to a CSV line and push it
       const csvRow = headers.map((header) => {
         const field = row[header] ?? "";
-        let str = stringify(field, header);
-
-        // escape and format fields that contain commas
-        if (str.includes(",")) {
-          str = `"${str.replace(/"/g, '""')}"`;
-        }
-        if (str.startsWith('"') && str.endsWith('"')) {
-          return str;
-        } else {
-          return `"${str?.replace(/"/g, '""') ?? ""}"`;
-        }
+        const str = stringify(field, header);
+        return escapeCsvField(str);
       });
 
       this.push(csvRow.join(DELIMITER) + "\n");
