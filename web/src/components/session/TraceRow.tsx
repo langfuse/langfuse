@@ -35,11 +35,13 @@ const TraceRow = React.memo(
     projectId,
     openPeek,
     traceCommentCounts,
+    showCorrections,
   }: {
     trace: RouterOutputs["sessions"]["byIdWithScores"]["traces"][number];
     projectId: string;
     openPeek: (id: string, row: any) => void;
     traceCommentCounts: Map<string, number> | undefined;
+    showCorrections: boolean;
   }) => {
     return (
       <Card className="border-border shadow-none">
@@ -49,6 +51,7 @@ const TraceRow = React.memo(
               traceId={trace.id}
               projectId={projectId}
               timestamp={new Date(trace.timestamp)}
+              showCorrections={showCorrections}
             />
           </div>
           <div className="hidden bg-border md:block"></div>
@@ -165,10 +168,11 @@ export const LazyTraceRow = React.forwardRef<
     openPeek: (id: string, row: any) => void;
     index: number;
     traceCommentCounts: Map<string, number> | undefined;
+    showCorrections: boolean;
     onLoad?: (index: number) => void;
   }
 >((props, measureRef) => {
-  const { index, onLoad: onLoad, ...cardProps } = props;
+  const { index, onLoad: onLoad, showCorrections, ...cardProps } = props;
   const [shouldLoad, setShouldLoad] = useState(false);
   const internalRef = useRef<HTMLDivElement>(null);
 
@@ -196,7 +200,11 @@ export const LazyTraceRow = React.forwardRef<
 
   return (
     <div ref={combinedRef} className="pb-3">
-      {shouldLoad ? <TraceRow {...cardProps} /> : <TraceSkeleton />}
+      {shouldLoad ? (
+        <TraceRow showCorrections={showCorrections} {...cardProps} />
+      ) : (
+        <TraceSkeleton />
+      )}
     </div>
   );
 });

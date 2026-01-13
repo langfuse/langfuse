@@ -5029,7 +5029,118 @@ describe("OTel Resource Span Mapping", () => {
     });
   });
 
-  describe("Vercel AI SDK Bedrock Provider Cache Tokens", () => {
+  describe("Vercel AI SDK Usage details", () => {
+    it("should extract usage details from both provider metadata and 'ai.usage'", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "1234567890abcdef";
+
+      const vercelAIAnthropicSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai", // Vercel AI SDK scope
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "bedrock-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 18495, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 445, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "ai.usage.cachedInputTokens",
+                    value: { stringValue: "16399" },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 7,
+                            cache_creation_input_tokens: 2089,
+                            cache_read_input_tokens: 16399,
+                            cache_creation: {
+                              ephemeral_5m_input_tokens: 2089,
+                              ephemeral_1h_input_tokens: 0,
+                            },
+                            output_tokens: 445,
+                            service_tier: "standard",
+                          },
+                          cacheCreationInputTokens: 2089,
+                          stopSequence: null,
+                          container: null,
+                          contextManagement: null,
+                        },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIAnthropicSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // Verify basic token usage
+      expect(observationEvent?.body.usageDetails.input).toBe(7);
+      expect(observationEvent?.body.usageDetails.output).toBe(445);
+
+      // Verify cache tokens are extracted
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        16399,
+      );
+      expect(
+        observationEvent?.body.usageDetails.input_cache_read,
+      ).toBeUndefined(); // no double accounting
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        2089,
+      );
+      expect(
+        observationEvent?.body.usageDetails.input_cache_write,
+      ).toBeUndefined(); // no double accounting
+    });
     it("should extract all Bedrock cache token types from Vercel AI SDK provider metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
       const spanId = "1234567890abcdef";

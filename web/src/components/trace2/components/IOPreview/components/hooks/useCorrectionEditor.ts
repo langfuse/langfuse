@@ -6,6 +6,7 @@ interface UseCorrectionEditorParams {
   onSave: (value: string) => void;
   setSaveStatus: (status: "idle" | "saving" | "saved") => void;
   debounceMs?: number;
+  strictJsonMode?: boolean;
 }
 
 /**
@@ -17,6 +18,7 @@ export function useCorrectionEditor({
   onSave,
   setSaveStatus,
   debounceMs = 500,
+  strictJsonMode = false,
 }: UseCorrectionEditorParams) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(correctionValue);
@@ -29,6 +31,25 @@ export function useCorrectionEditor({
   useEffect(() => {
     setValue(correctionValue);
   }, [correctionValue]);
+
+  useEffect(() => {
+    let valid = false;
+    if (strictJsonMode) {
+      try {
+        if (value.trim()) {
+          JSON.parse(value);
+          valid = true;
+        }
+      } catch {
+        valid = false;
+      }
+    } else {
+      valid = value.trim().length > 0;
+    }
+    setIsValidJson(valid);
+    // We only need to re-validate when strictJsonMode changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strictJsonMode]);
 
   const handleEdit = useCallback(() => {
     setIsEditing(true);
@@ -54,19 +75,25 @@ export function useCorrectionEditor({
       // Update local state immediately for responsive typing
       setValue(newValue);
 
-      // Validate JSON
+      // Validate based on mode
       let valid = false;
-      try {
-        if (newValue.trim()) {
-          JSON.parse(newValue);
-          valid = true;
+      if (strictJsonMode) {
+        // Strict: only valid JSON
+        try {
+          if (newValue.trim()) {
+            JSON.parse(newValue);
+            valid = true;
+          }
+        } catch {
+          valid = false;
         }
-      } catch {
-        valid = false;
+      } else {
+        // Lenient: any non-empty string
+        valid = newValue.trim().length > 0;
       }
       setIsValidJson(valid);
 
-      // Only save if valid JSON
+      // Save if valid
       if (valid) {
         setSaveStatus("saving");
 
@@ -81,13 +108,13 @@ export function useCorrectionEditor({
         }, debounceMs);
       } else {
         setSaveStatus("idle");
-        // Clear timeout if JSON becomes invalid
+        // Clear timeout if invalid
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
         }
       }
     },
-    [onSave, setSaveStatus, debounceMs],
+    [onSave, setSaveStatus, debounceMs, strictJsonMode],
   );
 
   return {

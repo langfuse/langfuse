@@ -1,12 +1,19 @@
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
+import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 
 export async function createProjectMembershipsOnSignup(user: {
   id: string;
   email: string | null;
 }) {
   try {
+    // in no case do we want to send duplicate sign up events to posthog
+    const isNewUser = !(await prisma.organizationMembership.findFirst({
+      where: { userId: user.id },
+      select: { id: true },
+    }));
+
     // Langfuse Cloud: provide view-only access to the demo project, none access to the demo org
     const demoProject =
       env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
@@ -100,6 +107,30 @@ export async function createProjectMembershipsOnSignup(user: {
 
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
+
+    // for conversion metric tracking in posthog: did a new user sign up?
+    if (
+      isNewUser &&
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+      ["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+    ) {
+      try {
+        const posthog = new ServerPosthog();
+        posthog.capture({
+          distinctId: user.id,
+          event: "cloud_signup_complete",
+          properties: {
+            cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+            hasDemoAccess: demoProject !== undefined,
+            hasDefaultOrg: defaultOrg !== undefined,
+            hasDefaultProject: defaultProject !== undefined,
+          },
+        });
+        await posthog.shutdown();
+      } catch {
+        // analytics tracking failure is not critical, just fail
+      }
+    }
   } catch (e) {
     logger.error("Error assigning project access to new user", e);
   }
