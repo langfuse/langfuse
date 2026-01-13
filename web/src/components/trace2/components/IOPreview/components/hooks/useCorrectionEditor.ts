@@ -33,8 +33,6 @@ export function useCorrectionEditor({
   }, [correctionValue]);
 
   useEffect(() => {
-    if (!value) return;
-
     let valid = false;
     if (strictJsonMode) {
       try {
@@ -49,8 +47,8 @@ export function useCorrectionEditor({
       valid = value.trim().length > 0;
     }
     setIsValidJson(valid);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     // We only need to re-validate when strictJsonMode changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strictJsonMode]);
 
   const handleEdit = useCallback(() => {
