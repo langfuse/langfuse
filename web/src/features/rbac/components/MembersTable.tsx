@@ -46,6 +46,7 @@ export type MembersTableRow = {
     name: string | null;
   };
   email: string | null;
+  providers: string[];
   createdAt: Date;
   orgRole: Role;
   projectRole?: Role;
@@ -113,7 +114,6 @@ export function MembersTable({
   );
   const membersViaProject = api.members.allFromProject.useQuery(
     {
-      orgId,
       projectId: project?.id ?? "NOT ENABLED",
       searchQuery: searchQuery ?? undefined,
       page: paginationState.pageIndex,
@@ -180,6 +180,18 @@ export function MembersTable({
       accessorKey: "email",
       id: "email",
       header: "Email",
+    },
+    {
+      accessorKey: "providers",
+      id: "providers",
+      header: "SSO Provider",
+      enableHiding: true,
+      cell: ({ row }) => {
+        const providers = row.getValue("providers") as string[];
+        if (providers.length === 0) return "-";
+
+        return providers.join(", ");
+      },
     },
     {
       accessorKey: "orgRole",
@@ -350,6 +362,7 @@ export function MembersTable({
         image: orgMembership.user.image,
         name: orgMembership.user.name,
       },
+      providers: orgMembership.user.accounts?.map((a) => a.provider) ?? [],
       createdAt: orgMembership.createdAt,
       orgRole: orgMembership.role,
       projectRole: orgMembership.projectRole,

@@ -16,6 +16,7 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
+  FilterIcon,
   Info,
   Plus,
   WandSparkles,
@@ -29,7 +30,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
@@ -63,6 +63,7 @@ export function PopoverFilterBuilder({
   onChange,
   columnsWithCustomSelect = [],
   filterWithAI = false,
+  buttonType = "default",
 }: {
   columns: ColumnDefinition[];
   filterState: FilterState;
@@ -71,6 +72,7 @@ export function PopoverFilterBuilder({
     | ((newState: FilterState) => void);
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
+  buttonType?: "default" | "icon";
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
@@ -125,27 +127,47 @@ export function PopoverFilterBuilder({
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="outline" type="button">
-            <span>Filters</span>
-            {filterState.length > 0 && filterState.length < 3 ? (
-              <InlineFilterState
-                filterState={filterState}
-                className="hidden @6xl:block"
-              />
-            ) : null}
-            {filterState.length > 0 ? (
-              <span
-                className={cn(
-                  "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
-                  filterState.length > 2 && "@6xl:inline",
-                )}
-              >
-                {filterState.length}
-              </span>
-            ) : (
-              <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
-            )}
-          </Button>
+          {buttonType === "default" ? (
+            <Button variant="outline" type="button">
+              <span>Filters</span>
+              {filterState.length > 0 && filterState.length < 3 ? (
+                <InlineFilterState
+                  filterState={filterState}
+                  className="hidden @6xl:block"
+                />
+              ) : null}
+              {filterState.length > 0 ? (
+                <span
+                  className={cn(
+                    "ml-1.5 rounded-sm bg-input px-1 text-xs shadow-sm @6xl:hidden",
+                    filterState.length > 2 && "@6xl:inline",
+                  )}
+                >
+                  {filterState.length}
+                </span>
+              ) : (
+                <ChevronDown className="ml-1 h-4 w-4 opacity-50" />
+              )}
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              type="button"
+              variant="ghost"
+              className="relative"
+            >
+              <FilterIcon className="h-4 w-4" />
+              {filterState.length > 0 && (
+                <span
+                  className={cn(
+                    "absolute -right-1 top-0 flex h-4 min-w-4 items-center justify-center rounded-sm bg-input px-1 text-xs shadow-sm",
+                  )}
+                >
+                  {filterState.length}
+                </span>
+              )}
+            </Button>
+          )}
         </PopoverTrigger>
         <PopoverContent
           className="w-fit max-w-[90vw] overflow-x-auto"
@@ -161,15 +183,37 @@ export function PopoverFilterBuilder({
         </PopoverContent>
       </Popover>
       {filterState.length > 0 ? (
-        <Button
-          onClick={() => setWipFilterState([])}
-          variant="ghost"
-          type="button"
-          size="icon"
-          className="ml-0.5"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        buttonType === "default" ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setWipFilterState([])}
+                variant="ghost"
+                type="button"
+                size="icon"
+                className="ml-0.5"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear all filters</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setWipFilterState([])}
+                variant="ghost"
+                type="button"
+                size="icon-xs"
+                className="ml-0.5 hover:bg-background"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear all filters</TooltipContent>
+          </Tooltip>
+        )
       ) : null}
     </div>
   );
@@ -424,19 +468,17 @@ function FilterBuilderForm({
                     ? "Loading..."
                     : "Generate filters"}
                 </Button>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">
-                        We convert natural language into deterministic filters
-                        which you can adjust afterwards
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">
+                      We convert natural language into deterministic filters
+                      which you can adjust afterwards
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
               {aiError && (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
@@ -489,7 +531,7 @@ function FilterBuilderForm({
                           <InputCommand>
                             <InputCommandInput
                               placeholder="Search for column"
-                              onFocus={(e) => (e.target.style.border = "none")}
+                              variant="bottom"
                             />
                             <InputCommandList>
                               <InputCommandEmpty>
@@ -613,7 +655,7 @@ function FilterBuilderForm({
                           handleFilterChange(
                             {
                               ...filter,
-                              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+
                               operator: value as any,
                             },
                             i,

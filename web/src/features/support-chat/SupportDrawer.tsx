@@ -38,7 +38,7 @@ export const SupportDrawer = ({
       ])}
     >
       <div className="bg-background">
-        <div className="flex min-h-12 w-full items-center justify-between gap-1 px-3 py-1">
+        <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
           <Breadcrumb>
             <BreadcrumbList>
               {currentMode === "intro" ? (
@@ -81,7 +81,7 @@ export const SupportDrawer = ({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto border-t">
-        <div className="p-4">
+        <div className="px-2 py-1">
           <div className="h-full bg-background">
             <div className="p-2">
               {currentMode === "intro" && (

@@ -2,6 +2,7 @@
 imports:
   commons: ./commons.yml
   pagination: ./utils/pagination.yml
+  scim: ./scim.yml
 service:
   auth: true
   base-path: /api/public/v2
@@ -13,7 +14,9 @@ service:
       path-parameters:
         promptName:
           type: string
-          docs: The name of the prompt
+          docs: |
+            The name of the prompt. If the prompt is in a folder (e.g., "folder/subfolder/prompt-name"), 
+            the folder path must be URL encoded.
       request:
         name: GetPromptRequest
         query-parameters:
@@ -56,6 +59,24 @@ service:
       path: /prompts
       request: CreatePromptRequest
       response: Prompt
+
+    delete:
+      docs: Delete prompt versions. If neither version nor label is specified, all versions of the prompt are deleted.
+      method: DELETE
+      path: /prompts/{promptName}
+      path-parameters:
+        promptName:
+          type: string
+          docs: The name of the prompt
+      request:
+        name: DeletePromptRequest
+        query-parameters:
+          label:
+            type: optional<string>
+            docs: Optional label to filter deletion. If specified, deletes all prompt versions that have this label.
+          version:
+            type: optional<integer>
+            docs: Optional version to filter deletion. If specified, deletes only this specific version of the prompt.
 
 types:
   PromptMetaListResponse:

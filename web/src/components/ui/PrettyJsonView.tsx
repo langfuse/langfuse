@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -8,6 +8,7 @@ import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Button } from "@/src/components/ui/button";
+import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import {
   ChevronDown,
   ChevronRight,
@@ -337,6 +338,82 @@ function handleRowExpansion(
   }
 }
 
+interface JsonTableRowProps {
+  row: Row<JsonTableRow>;
+  rowIndex: number;
+  topLevelRowRef?: React.RefObject<HTMLTableRowElement | null>;
+  onLazyLoadChildren?: (rowId: string) => void;
+  expandedCells: Set<string>;
+  toggleCellExpansion: (cellId: string) => void;
+  stickyTopLevelKey: boolean;
+  stickyOffsets: { header: number; row: number };
+}
+
+const JsonTableRowComponent = memo(
+  ({
+    row,
+    rowIndex,
+    topLevelRowRef,
+    onLazyLoadChildren,
+    expandedCells,
+    toggleCellExpansion,
+    stickyTopLevelKey,
+    stickyOffsets,
+  }: JsonTableRowProps) => {
+    // Hook is now at top level of this component ✅
+    const isExpandable =
+      row.original.hasChildren ||
+      getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
+
+    const { props: rowClickProps } = useClickWithoutSelection({
+      onClick: () => {
+        handleRowExpansion(
+          row,
+          onLazyLoadChildren,
+          expandedCells,
+          toggleCellExpansion,
+        );
+      },
+      enabled: isExpandable,
+    });
+
+    return (
+      <TableRow
+        ref={
+          rowIndex === 0 && row.original.level === 0
+            ? topLevelRowRef
+            : undefined
+        }
+        data-observation-id={row.id}
+        {...rowClickProps}
+        className={cn(
+          isExpandable ? "cursor-pointer" : "",
+          row.original.level === 0 && stickyTopLevelKey
+            ? "sticky z-10 bg-background shadow-sm"
+            : "",
+        )}
+        style={
+          row.original.level === 0 && stickyTopLevelKey
+            ? { top: `${stickyOffsets.header}px` }
+            : undefined
+        }
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className="whitespace-normal px-2 py-1 align-top"
+            style={{ width: `${cell.column.columnDef.size}%` }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+    );
+  },
+);
+
+JsonTableRowComponent.displayName = "JsonTableRow";
+
 function JsonPrettyTable({
   data,
   expandAllRef,
@@ -448,7 +525,7 @@ function JsonPrettyTable({
               )}
             </div>
             <span
-              className={`ml-1 ${MONO_TEXT_CLASSES} font-medium`}
+              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text font-medium`}
               style={{ maxWidth: availableTextWidth }}
             >
               {itemBadgeType && (
@@ -640,51 +717,21 @@ function JsonPrettyTable({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row, rowIndex) => (
-            <TableRow
+            <JsonTableRowComponent
               key={row.id}
-              ref={
+              row={row}
+              rowIndex={rowIndex}
+              topLevelRowRef={
                 rowIndex === 0 && row.original.level === 0
                   ? topLevelRowRef
                   : undefined
               }
-              data-observation-id={row.id}
-              onClick={() =>
-                handleRowExpansion(
-                  row,
-                  onLazyLoadChildren,
-                  expandedCells,
-                  toggleCellExpansion,
-                )
-              }
-              className={cn(
-                row.original.hasChildren ||
-                  (!row.original.hasChildren &&
-                    row.original.type !== "array" &&
-                    row.original.type !== "object" &&
-                    getValueStringLength(row.original.value) >
-                      MAX_CELL_DISPLAY_CHARS)
-                  ? "cursor-pointer"
-                  : "",
-                row.original.level === 0 && stickyTopLevelKey
-                  ? "sticky z-10 bg-background shadow-sm"
-                  : "",
-              )}
-              style={
-                row.original.level === 0 && stickyTopLevelKey
-                  ? { top: `${stickyOffsets.header}px` }
-                  : undefined
-              }
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell
-                  key={cell.id}
-                  className="whitespace-normal px-2 py-1 align-top"
-                  style={{ width: `${cell.column.columnDef.size}%` }}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
+              onLazyLoadChildren={onLazyLoadChildren}
+              expandedCells={expandedCells}
+              toggleCellExpansion={toggleCellExpansion}
+              stickyTopLevelKey={stickyTopLevelKey}
+              stickyOffsets={stickyOffsets}
+            />
           ))}
         </TableBody>
       </Table>
@@ -694,9 +741,12 @@ function JsonPrettyTable({
 
 export function PrettyJsonView(props: {
   json?: unknown;
+  parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
+  titleIcon?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
+  isParsing?: boolean;
   codeClassName?: string;
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
@@ -712,17 +762,31 @@ export function PrettyJsonView(props: {
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
 }) {
-  const jsonDependency = useMemo(
-    () =>
-      typeof props.json === "string" ? props.json : JSON.stringify(props.json),
-    [props.json],
-  );
-
+  // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
-    return deepParseJson(props.json);
-    // We want to use jsonDependency as dep because it's more stable than props.json
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jsonDependency]);
+    // If pre-parsed data is provided, use it directly (skip parsing)
+    if (props.parsedJson !== undefined) {
+      return props.parsedJson;
+    }
+
+    // If still parsing in Web Worker, return null (will show loading state)
+    if (props.isParsing) {
+      return null;
+    }
+
+    // Fast path: if already an object, likely no parsing needed
+    if (typeof props.json !== "string") {
+      return props.json;
+    }
+
+    // Only parse strings, with size/depth limits
+    const result = deepParseJson(props.json, {
+      maxSize: 500_000,
+      maxDepth: 2,
+    });
+
+    return result;
+  }, [props.json, props.parsedJson, props.isParsing]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
@@ -793,13 +857,18 @@ export function PrettyJsonView(props: {
           return rows;
         };
 
+        let result: JsonTableRow[];
+
         // top-level is an object, start with its properties directly
         if (parsedJson?.constructor === Object) {
-          return createTopLevelRows(parsedJson as Record<string, unknown>);
+          result = createTopLevelRows(parsedJson as Record<string, unknown>);
+        } else {
+          result = transformJsonToTableData(parsedJson, "", 0, "", true);
         }
 
-        return transformJsonToTableData(parsedJson, "", 0, "", true);
+        return result;
       }
+
       return [];
     } catch (error) {
       console.error("Error transforming JSON to table data:", error);
@@ -836,6 +905,7 @@ export function PrettyJsonView(props: {
 
     if (optimalLevel > 0) {
       const smartExpanded: ExpandedState = {};
+
       const expandRowsToLevel = (
         rows: JsonTableRow[],
         currentLevel: number,
@@ -853,6 +923,7 @@ export function PrettyJsonView(props: {
         });
       };
       expandRowsToLevel(baseTableData, 0);
+
       return smartExpanded;
     }
 
@@ -1045,68 +1116,94 @@ export function PrettyJsonView(props: {
 
   const body = (
     <>
-      {emptyValueDisplay && isPrettyView ? (
-        <div
-          className={cn(
-            "flex items-center",
-            getContainerClasses(
-              props.title,
-              props.scrollable,
-              props.codeClassName,
-            ),
-          )}
-        >
-          {props.isLoading ? (
-            <Skeleton className="h-3 w-3/4" />
-          ) : (
+      {props.isLoading || props.isParsing ? (
+        <div className="io-message-content">
+          <div
+            className={cn(
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+              ),
+            )}
+          >
+            <div className="space-y-2 p-3">
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-2/3" />
+              {props.isParsing && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Parsing in background...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : emptyValueDisplay && isPrettyView ? (
+        <div className="io-message-content">
+          <div
+            className={cn(
+              "flex items-center",
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+              ),
+            )}
+          >
             <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
               {emptyValueDisplay}
             </span>
-          )}
+          </div>
         </div>
       ) : isMarkdownMode ? (
-        props.isLoading ? (
-          <Skeleton className="h-3 w-3/4" />
-        ) : (
+        <div className="io-message-content">
           <MarkdownView markdown={markdownContent || ""} />
-        )
+        </div>
       ) : (
         <>
           {/* Always render JsonPrettyTable to preserve internal React Table state */}
           <div
-            className={getContainerClasses(
-              props.title,
-              props.scrollable,
-              props.codeClassName,
-              "flex whitespace-pre-wrap break-words text-xs",
-            )}
+            className="io-message-content"
             style={{ display: shouldUseTableView ? "flex" : "none" }}
           >
-            {props.isLoading ? (
-              <Skeleton className="m-3 h-3 w-3/4" />
-            ) : (
-              <JsonPrettyTable
-                data={tableData}
-                expandAllRef={expandAllRef}
-                onExpandStateChange={setAllRowsExpanded}
-                noBorder={true}
-                expanded={
-                  actualExpansionState === false ? {} : actualExpansionState
-                }
-                onExpandedChange={handleTableExpandedChange}
-                onLazyLoadChildren={handleLazyLoadChildren}
-                onForceUpdate={handleForceUpdate}
-                smartDefaultsLevel={null}
-                expandedCells={expandedCells}
-                toggleCellExpansion={toggleCellExpansion}
-                stickyTopLevelKey={props.stickyTopLevelKey}
-                showObservationTypeBadge={props.showObservationTypeBadge}
-              />
-            )}
+            <div
+              className={getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+                "flex whitespace-pre-wrap break-words text-xs",
+              )}
+            >
+              {props.isLoading ? (
+                <Skeleton className="m-3 h-3 w-3/4" />
+              ) : (
+                <JsonPrettyTable
+                  data={tableData}
+                  expandAllRef={expandAllRef}
+                  onExpandStateChange={setAllRowsExpanded}
+                  noBorder={true}
+                  expanded={
+                    actualExpansionState === false ? {} : actualExpansionState
+                  }
+                  onExpandedChange={handleTableExpandedChange}
+                  onLazyLoadChildren={handleLazyLoadChildren}
+                  onForceUpdate={handleForceUpdate}
+                  smartDefaultsLevel={null}
+                  expandedCells={expandedCells}
+                  toggleCellExpansion={toggleCellExpansion}
+                  stickyTopLevelKey={props.stickyTopLevelKey}
+                  showObservationTypeBadge={props.showObservationTypeBadge}
+                />
+              )}
+            </div>
           </div>
 
           {/* Always render JSONView to preserve its state too */}
-          <div style={{ display: shouldUseTableView ? "none" : "block" }}>
+          <div
+            className="io-message-content"
+            style={{ display: shouldUseTableView ? "none" : "block" }}
+          >
             <JSONView
               json={props.json}
               title={props.title} // Title value used for background styling
@@ -1124,9 +1221,9 @@ export function PrettyJsonView(props: {
           </div>
         </>
       )}
-      {props.media && props.media.length > 0 && (
+      {props.media && props.media.length > 0 && isPrettyView && (
         <>
-          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+          <div className="my-1 px-2 py-1 text-xs text-muted-foreground">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
@@ -1154,12 +1251,12 @@ export function PrettyJsonView(props: {
       {props.title ? (
         <MarkdownJsonViewHeader
           title={props.title}
+          titleIcon={props.titleIcon}
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>
-              {props.controlButtons}
               {shouldUseTableView && (
                 <Button
                   variant="ghost"
@@ -1177,7 +1274,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
-              {!isPrettyView && (
+              {!shouldUseTableView && !isMarkdownMode && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
@@ -1192,6 +1289,7 @@ export function PrettyJsonView(props: {
                   )}
                 </Button>
               )}
+              {props.controlButtons}
             </>
           }
         />

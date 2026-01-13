@@ -10,23 +10,39 @@ import {
 import { DeleteModelButton } from "@/src/features/models/components/DeleteModelButton";
 import { EditModelButton } from "@/src/features/models/components/EditModelButton";
 import { CloneModelButton } from "@/src/features/models/components/CloneModelButton";
+import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { getMaxDecimals } from "@/src/features/models/utils";
 import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import Generations from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { SquareArrowOutUpRight, Info as InfoIcon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { CodeMirrorEditor } from "@/src/components/editor";
+import { useEffect } from "react";
 
 export default function ModelDetailPage() {
   const router = useRouter();
   const { priceUnit, priceUnitMultiplier } = usePriceUnitMultiplier();
   const projectId = router.query.projectId as string;
   const modelId = router.query.modelId as string;
+  const pricingTierParam = router.query.pricingTier as string | undefined;
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "models:CUD",
@@ -37,14 +53,46 @@ export default function ModelDetailPage() {
     { enabled: !!projectId && !!modelId },
   );
 
+  // Get default tier or first tier by priority
+  const defaultTier = useMemo(() => {
+    if (!model?.pricingTiers || model.pricingTiers.length === 0) return null;
+    return model.pricingTiers.find((t) => t.isDefault) || model.pricingTiers[0];
+  }, [model?.pricingTiers]);
+
+  // State for selected pricing tier - initialize from URL param
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(
+    pricingTierParam ?? null,
+  );
+
+  // Sync with URL parameter when it changes
+  useEffect(() => {
+    if (pricingTierParam && model?.pricingTiers) {
+      const tierExists = model.pricingTiers.some(
+        (t) => t.id === pricingTierParam,
+      );
+      if (tierExists) {
+        setSelectedTierId(pricingTierParam);
+      }
+    }
+  }, [pricingTierParam, model?.pricingTiers]);
+
+  // Get the active tier (selected or default)
+  const activeTier = useMemo(() => {
+    if (!model?.pricingTiers) return null;
+    if (selectedTierId) {
+      return model.pricingTiers.find((t) => t.id === selectedTierId) || null;
+    }
+    return defaultTier;
+  }, [model?.pricingTiers, selectedTierId, defaultTier]);
+
   const maxDecimals = useMemo(
     () =>
       Math.max(
-        ...Object.values(model?.prices ?? {}).map((price) =>
+        ...Object.values(activeTier?.prices ?? {}).map((price) =>
           getMaxDecimals(price, priceUnitMultiplier),
         ),
       ),
-    [model?.prices, priceUnitMultiplier],
+    [activeTier?.prices, priceUnitMultiplier],
   );
 
   // If not found, redirect to models page
@@ -78,6 +126,10 @@ export default function ModelDetailPage() {
         },
         breadcrumb: [
           {
+            name: "Settings",
+            href: `/project/${router.query.projectId as string}/settings`,
+          },
+          {
             name: "Models",
             href: `/project/${router.query.projectId as string}/settings/models`,
           },
@@ -85,21 +137,27 @@ export default function ModelDetailPage() {
         ],
         actionButtonsRight: (
           <div className="flex gap-2">
-            {hasWriteAccess &&
-              (!isLangfuseModel ? (
-                <>
-                  <EditModelButton projectId={projectId} modelData={model} />
-                  <DeleteModelButton
-                    projectId={projectId}
-                    modelData={model}
-                    onSuccess={() => {
-                      void router.push(`/project/${projectId}/settings/models`);
-                    }}
-                  />
-                </>
-              ) : (
-                <CloneModelButton projectId={projectId} modelData={model} />
-              ))}
+            {hasWriteAccess && (
+              <>
+                <TestModelMatchButton projectId={projectId} variant="outline" />
+                {!isLangfuseModel ? (
+                  <>
+                    <EditModelButton projectId={projectId} modelData={model} />
+                    <DeleteModelButton
+                      projectId={projectId}
+                      modelData={model}
+                      onSuccess={() => {
+                        void router.push(
+                          `/project/${projectId}/settings/models`,
+                        );
+                      }}
+                    />
+                  </>
+                ) : (
+                  <CloneModelButton projectId={projectId} modelData={model} />
+                )}
+              </>
+            )}
           </div>
         ),
       }}
@@ -146,9 +204,73 @@ export default function ModelDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="pricing-section">
           <CardHeader>
-            <CardTitle>Pricing</CardTitle>
+            <div className="flex flex-col gap-2">
+              <CardTitle>Pricing</CardTitle>
+              {model.pricingTiers.length > 1 && (
+                <div className="flex items-center gap-4">
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Pricing Tier
+                  </label>
+                  <Select
+                    value={activeTier?.id ?? ""}
+                    onValueChange={setSelectedTierId}
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Select tier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {model.pricingTiers.map((tier) => (
+                        <SelectItem key={tier.id} value={tier.id}>
+                          {tier.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {activeTier && !activeTier.isDefault && (
+                    <HoverCard openDelay={200} closeDelay={100}>
+                      <HoverCardTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="inline-flex h-auto items-center gap-1.5 p-0 text-xs text-muted-foreground hover:bg-transparent hover:text-accent-foreground"
+                          size="sm"
+                        >
+                          <InfoIcon className="h-3 w-3" />
+                          <span>Conditions</span>
+                        </Button>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        className="max-h-[80vh] w-[400px] overflow-auto"
+                        collisionPadding={20}
+                      >
+                        <p className="text-sm font-medium">
+                          Pricing Tier Conditions
+                        </p>
+                        <p className="pt-2 text-sm text-muted-foreground">
+                          This tier is applied when the following conditions are
+                          met:
+                        </p>
+                        <div className="mt-2">
+                          <CodeMirrorEditor
+                            mode="json"
+                            value={JSON.stringify(
+                              activeTier.conditions,
+                              null,
+                              2,
+                            )}
+                            onChange={() => {}} // Read-only
+                            minHeight="none"
+                            className="max-h-[250px] overflow-y-auto"
+                            editable={false}
+                          />
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  )}
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-2">
@@ -159,20 +281,24 @@ export default function ModelDetailPage() {
                   <PriceUnitSelector />
                 </span>
               </div>
-              {Object.entries(model.prices).map(([usageType, price]) => (
-                <div
-                  key={usageType}
-                  className="grid grid-cols-2 gap-2 rounded px-1 py-0.5 text-sm"
-                >
-                  <span className="break-all">{usageType}</span>
-                  <span className="text-left font-mono">
-                    $
-                    {new Decimal(price)
-                      .mul(priceUnitMultiplier)
-                      .toFixed(maxDecimals)}
-                  </span>
-                </div>
-              ))}
+              {activeTier &&
+                Object.entries(activeTier.prices)
+                  // Sort by price ascending
+                  .sort((a, b) => a[1] - b[1])
+                  .map(([usageType, price]) => (
+                    <div
+                      key={usageType}
+                      className="grid grid-cols-2 gap-2 rounded px-1 py-0.5 text-sm"
+                    >
+                      <span className="break-all">{usageType}</span>
+                      <span className="text-left font-mono">
+                        $
+                        {new Decimal(price)
+                          .mul(priceUnitMultiplier)
+                          .toFixed(maxDecimals)}
+                      </span>
+                    </div>
+                  ))}
             </div>
           </CardContent>
         </Card>

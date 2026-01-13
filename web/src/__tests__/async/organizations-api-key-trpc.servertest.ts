@@ -1,5 +1,4 @@
 /** @jest-environment node */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";

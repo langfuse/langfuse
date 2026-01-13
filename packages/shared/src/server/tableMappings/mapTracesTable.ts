@@ -21,6 +21,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "id",
   },
   {
+    uiTableName: "Trace ID",
+    uiTableId: "traceId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "id",
+  },
+  {
     uiTableName: "Name",
     uiTableId: "name",
     clickhouseTableName: "traces",

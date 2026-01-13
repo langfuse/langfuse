@@ -128,7 +128,10 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
           </Button>
           <Divider />
           <InputCommand className="min-h-[8rem]">
-            <InputCommandInput placeholder="Search chat prompts..." />
+            <InputCommandInput
+              placeholder="Search chat prompts..."
+              variant="bottom"
+            />
             <InputCommandEmpty>
               No chat prompt found
               <DocPopup description="Prompts from the playground can only be saved to 'chat' prompts as they include multiple system/user messages." />

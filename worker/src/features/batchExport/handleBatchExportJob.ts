@@ -57,6 +57,14 @@ export const handleBatchExportJob = async (
     );
   }
 
+  // Check if the batch export has been cancelled
+  if (jobDetails.status === BatchExportStatus.CANCELLED) {
+    logger.info(
+      `Batch export ${batchExportId} has been cancelled. Skipping processing.`,
+    );
+    return; // Exit early without processing
+  }
+
   // Check if the batch export is older than 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -198,7 +206,7 @@ export const handleBatchExportJob = async (
       exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
     data: fileStream,
     expiresInSeconds,
-    partSize: 100 * 1024 * 1024, // 100 MB for CSV
+    partSize: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
     queueSize: 4,
   });
 

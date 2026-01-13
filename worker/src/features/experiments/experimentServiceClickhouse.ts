@@ -1,11 +1,12 @@
-import { DatasetItem, DatasetStatus, Prisma } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { DatasetItemDomain, Prisma } from "@langfuse/shared";
 import {
   ChatMessage,
+  createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
   fetchLLMCompletion,
+  getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
@@ -21,9 +22,12 @@ import {
   parseDatasetItemInput,
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
-  validateDatasetItem,
   type PromptExperimentConfig,
 } from "./utils";
+import {
+  validateDatasetItem,
+  normalizeDatasetItemInput,
+} from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
 
@@ -60,7 +64,7 @@ async function getExistingRunItemDatasetItemIds(
 
 async function processItem(
   projectId: string,
-  datasetItem: DatasetItem & { input: Prisma.JsonObject },
+  datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   // Use unified trace ID to avoid creating duplicate traces between PostgreSQL and ClickHouse
@@ -145,7 +149,7 @@ async function processItem(
 async function processLLMCall(
   runItemId: string,
   traceId: string,
-  datasetItem: DatasetItem & { input: Prisma.JsonObject },
+  datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
   config: PromptExperimentConfig,
 ): Promise<{ success: boolean }> {
   let messages: ChatMessage[] = [];
@@ -205,25 +209,31 @@ async function getItemsToProcess(
   config: PromptExperimentConfig,
 ) {
   // Fetch all dataset items
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
-      projectId,
-      status: DatasetStatus.ACTIVE,
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+  const datasetItems = await getDatasetItems({
+    projectId,
+    filterState: createDatasetItemFilterState({
+      datasetIds: [datasetId],
+      status: "ACTIVE",
+    }),
+    includeIO: true,
   });
 
   // Filter and validate dataset items
   const validatedDatasetItems = datasetItems
     .filter(({ input }) => validateDatasetItem(input, config.allVariables))
-    .map((datasetItem) => ({
-      ...datasetItem,
-      input: parseDatasetItemInput(
-        datasetItem.input as Prisma.JsonObject,
+    .map((datasetItem) => {
+      // Normalize string inputs to object format for single-variable prompts
+      const normalizedInput = normalizeDatasetItemInput(
+        datasetItem.input,
         config.allVariables,
-      ),
-    }));
+      );
+
+      return {
+        ...datasetItem,
+        status: datasetItem.status ?? "ACTIVE",
+        input: parseDatasetItemInput(normalizedInput, config.allVariables),
+      };
+    });
 
   if (!validatedDatasetItems.length) {
     logger.info(
@@ -338,13 +348,13 @@ async function createAllDatasetRunItemsWithConfigError(
   errorMessage: string,
 ) {
   // Fetch all dataset items
-  const datasetItems = await prisma.datasetItem.findMany({
-    where: {
-      datasetId,
-      projectId,
-      status: DatasetStatus.ACTIVE,
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+  const datasetItems = await getDatasetItems({
+    projectId,
+    filterState: createDatasetItemFilterState({
+      datasetIds: [datasetId],
+      status: "ACTIVE",
+    }),
+    includeIO: true,
   });
 
   // Check for existing run items' dataset item ids to avoid duplicates
@@ -368,7 +378,7 @@ async function createAllDatasetRunItemsWithConfigError(
     let stringInput = "";
     try {
       stringInput = JSON.stringify(datasetItem.input);
-    } catch (error) {
+    } catch {
       logger.info(
         `Failed to stringify input for dataset item ${datasetItem.id}`,
       );

@@ -8,12 +8,13 @@ import {
   DropdownMenuLabel,
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
-import { Download, Loader } from "lucide-react";
+import { Download, Loader, Info } from "lucide-react";
 import {
   type BatchExportTableName,
   exportOptions,
   type BatchExportFileFormat,
   type OrderByState,
+  BatchTableNames,
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
@@ -72,6 +73,24 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
 
   if (!hasAccess) return null;
 
+  const getWarningMessage = () => {
+    switch (props.tableName) {
+      case BatchTableNames.Traces:
+        return "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.";
+      case BatchTableNames.Observations:
+        return "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) and Comments are not included in observation exports. You may receive more data than expected.";
+      case BatchTableNames.Sessions:
+        return "Note: Filters on Comments are not included in session exports. You may receive more data than expected.";
+      case BatchTableNames.AuditLogs:
+        return "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.";
+      default:
+        // Note: for Scores, DatasetRunItems, DatasetItems, filters should work as expected
+        return null;
+    }
+  };
+
+  const warningMessage = getWarningMessage();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -84,8 +103,16 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
-        <DropdownMenuContent>
+        <DropdownMenuContent className="w-80">
           <DropdownMenuLabel>Export</DropdownMenuLabel>
+          {warningMessage && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+              <div className="flex items-start gap-1.5">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{warningMessage}</span>
+              </div>
+            </div>
+          )}
           <DropdownMenuSeparator />
           {Object.entries(exportOptions).map(([key, options]) => (
             <DropdownMenuItem

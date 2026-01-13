@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { Braces, Code, ListTree, Upload } from "lucide-react";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -11,8 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
-import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
+import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -80,8 +78,6 @@ export const DatasetItemsOnboarding = ({
   datasetId: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
 
@@ -96,9 +92,11 @@ export const DatasetItemsOnboarding = ({
       description="Datasets are collections of specific edge cases and underrepresented patterns used to evaluate your application."
     >
       <div className="flex flex-col gap-4">
-        <Dialog
+        <CsvUploadDialog
           open={hasProjectAccess && isUploadDialogOpen}
           onOpenChange={setIsUploadDialogOpen}
+          projectId={projectId}
+          datasetId={datasetId}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
@@ -113,24 +111,7 @@ export const DatasetItemsOnboarding = ({
               hasAccess={hasProjectAccess}
             />
           </DialogTrigger>
-          <DialogContent size="lg">
-            {preview ? (
-              <PreviewCsvImport
-                preview={preview}
-                csvFile={csvFile}
-                projectId={projectId}
-                datasetId={datasetId}
-                setCsvFile={setCsvFile}
-                setPreview={setPreview}
-              />
-            ) : (
-              <UploadDatasetCsv
-                setPreview={setPreview}
-                setCsvFile={setCsvFile}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+        </CsvUploadDialog>
 
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}

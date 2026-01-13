@@ -89,6 +89,10 @@ export class WorkerManager {
     logger.info("All workers have been closed.");
   }
 
+  public static getWorker(queueName: QueueName): Worker | undefined {
+    return WorkerManager.workers[queueName];
+  }
+
   public static register(
     queueName: QueueName,
     processor: Processor,

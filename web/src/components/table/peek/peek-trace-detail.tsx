@@ -1,6 +1,6 @@
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
-import { Trace } from "@/src/components/trace";
+import { Trace } from "@/src/components/trace2/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
@@ -22,12 +22,13 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
   );
 
   return !peekId || !trace.data ? (
-    <Skeleton className="h-full w-full" />
+    <Skeleton className="h-full w-full rounded-none" />
   ) : (
     <Trace
       key={trace.data.id}
       trace={trace.data}
       scores={trace.data.scores}
+      corrections={trace.data.corrections}
       projectId={trace.data.projectId}
       observations={trace.data.observations}
       selectedTab={selectedTab}

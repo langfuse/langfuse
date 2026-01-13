@@ -7,7 +7,6 @@ import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
   setNoJobConfigsCache,
@@ -31,6 +30,7 @@ import {
   mapDatasetRunItemFilterColumn,
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -44,7 +44,7 @@ import {
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
   JobTimeScope,
-  ScoreSource,
+  ScoreSourceEnum,
   availableTraceEvalVariables,
   variableMapping,
   TraceDomain,
@@ -52,10 +52,11 @@ import {
   DatasetItem,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { compileHandlebarString, createW3CTraceId } from "../utils";
+import { compileTemplateString, createW3CTraceId } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 
 let s3StorageServiceClient: StorageService;
 
@@ -258,10 +259,13 @@ export const createEvalJobs = async ({
         traceId: event.traceId,
         projectId: event.projectId,
         timestamp:
-          "timestamp" in event
-            ? new Date(event.timestamp)
-            : new Date(jobTimestamp),
+          "exactTimestamp" in event && event.exactTimestamp
+            ? new Date(event.exactTimestamp)
+            : "timestamp" in event
+              ? new Date(event.timestamp)
+              : new Date(jobTimestamp),
         clickhouseFeatureTag: "eval-create",
+        excludeInputOutput: true,
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -412,7 +416,10 @@ export const createEvalJobs = async ({
     });
 
     const isDatasetConfig = config.target_object === "dataset";
-    let datasetItem: { id: string } | undefined;
+    let datasetItem:
+      | { id: string }
+      | { id: string; observationId: string | null }
+      | undefined;
     if (isDatasetConfig) {
       const condition = tableColumnsToSqlFilterAndPrefix(
         config.target_object === "dataset" ? validatedFilter : [],
@@ -426,12 +433,21 @@ export const createEvalJobs = async ({
           Array<{ id: string }>
         >(Prisma.sql`
           SELECT id
-          FROM dataset_items as di
-          WHERE project_id = ${event.projectId}
-            AND id = ${event.datasetItemId}
-            ${condition}
+          FROM (
+            SELECT id, is_deleted
+            FROM dataset_items as di
+            WHERE project_id = ${event.projectId}
+              AND valid_to IS NULL 
+              AND id = ${event.datasetItemId}
+              ${condition}
+            LIMIT 1
+          ) latest
+          WHERE is_deleted = false
         `);
-        datasetItem = datasetItems.shift();
+        const latestDatasetItem = datasetItems.shift();
+        datasetItem = latestDatasetItem
+          ? { id: latestDatasetItem.id }
+          : undefined;
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.
         // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
@@ -457,6 +473,20 @@ export const createEvalJobs = async ({
       }
     }
 
+    // we must check if the dataset run item is linked at the observation level, if so, we must skip the eval job
+    // triggered by the trace-upsert queue as it would prematurely create a score at the trace level which is incorrect.
+    if (
+      sourceEventType === "trace-upsert" &&
+      !!datasetItem &&
+      "observationId" in datasetItem &&
+      !!datasetItem.observationId
+    ) {
+      logger.info(
+        `Eval job for project ${event.projectId} and dataset item ${datasetItem.id} should be evaluated at observation level`,
+      );
+      continue;
+    }
+
     // We also need to validate that the observation exists in case an observationId is set
     // If it's not set, we go into the retry loop. For the other events, we expect that the rerun
     // is unnecessary, as we're triggering this flow if either event comes in.
@@ -475,11 +505,12 @@ export const createEvalJobs = async ({
       );
       if (!observationExists) {
         logger.warn(
-          `Observation ${observationId} not found, retrying dataset eval later`,
+          `Observation ${observationId} not found, will retry with exponential backoff`,
         );
-        throw new Error(
-          "Observation not found. Rejecting job to use retry-attempts.",
-        );
+        throw new ObservationNotFoundError({
+          message: "Observation not found, retrying later",
+          observationId,
+        });
       }
     }
 
@@ -689,7 +720,7 @@ export const evaluate = async ({
   // compile the prompt and send out the LLM request
   let prompt;
   try {
-    prompt = compileHandlebarString(template.prompt, {
+    prompt = compileTemplateString(template.prompt, {
       ...Object.fromEntries(
         mappingResult.map(({ var: key, value }) => [key, value]),
       ),
@@ -806,7 +837,7 @@ export const evaluate = async ({
     name: config.scoreName,
     value: parsedLLMOutput.data.score,
     comment: parsedLLMOutput.data.reasoning,
-    source: ScoreSource.EVAL,
+    source: ScoreSourceEnum.EVAL,
     environment: environment ?? "default",
     executionTraceId: executionTraceId,
     metadata: executionMetadata,
@@ -950,6 +981,7 @@ export async function extractVariablesFromTracingData({
         ) // query the internal column name raw
         .where("id", "=", datasetItemId)
         .where("project_id", "=", projectId)
+        .where("valid_to", "is", null)
         .executeTakeFirst()) as DatasetItem;
 
       // user facing errors

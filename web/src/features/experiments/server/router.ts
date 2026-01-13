@@ -2,7 +2,9 @@ import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
+  createDatasetItemFilterState,
   ExperimentCreateQueue,
+  getDatasetItems,
   PromptService,
   QueueJobs,
   QueueName,
@@ -14,14 +16,14 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type DatasetItem,
-  DatasetStatus,
   extractVariables,
-  datasetItemMatchesVariable,
+  validateDatasetItem,
   UnauthorizedError,
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
+  isPresent,
+  type DatasetItemDomain,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -41,21 +43,32 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
   InvalidConfigResponse,
 ]);
 
-const validateDatasetItems = (
-  datasetItems: DatasetItem[],
+const countValidDatasetItems = (
+  datasetItems: Omit<DatasetItemDomain, "status">[],
   variables: string[],
 ): Record<string, number> => {
   const variableMap: Record<string, number> = {};
 
   for (const { input } of datasetItems) {
-    if (!input) {
+    // Step 1: Validate item
+    if (!isPresent(input) || !validateDatasetItem(input, variables)) {
       continue;
     }
 
-    // For each variable, increment its count if it exists in this item
-    for (const variable of variables) {
-      if (datasetItemMatchesVariable(input, variable)) {
-        variableMap[variable] = (variableMap[variable] || 0) + 1;
+    // Step 2: Count variable matches
+
+    // String with single variable - count that variable
+    if (typeof input === "string" && variables.length === 1) {
+      variableMap[variables[0]] = (variableMap[variables[0]] || 0) + 1;
+      continue;
+    }
+
+    // For object inputs, count each matching variable
+    if (typeof input === "object" && !Array.isArray(input)) {
+      for (const variable of variables) {
+        if (variable in input) {
+          variableMap[variable] = (variableMap[variable] || 0) + 1;
+        }
       }
     }
   }
@@ -128,22 +141,22 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const datasetItems = await ctx.prisma.datasetItem.findMany({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
-          status: DatasetStatus.ACTIVE,
-        },
+      const items = await getDatasetItems({
+        projectId: input.projectId,
+        filterState: createDatasetItemFilterState({
+          datasetIds: [input.datasetId],
+          status: "ACTIVE",
+        }),
       });
 
-      if (!Boolean(datasetItems.length)) {
+      if (!Boolean(items.length)) {
         return {
           isValid: false,
           message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
-      const variablesMap = validateDatasetItems(datasetItems, allVariables);
+      const variablesMap = countValidDatasetItems(items, allVariables);
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
@@ -154,7 +167,7 @@ export const experimentsRouter = createTRPCRouter({
 
       return {
         isValid: true,
-        totalItems: datasetItems.length,
+        totalItems: items.length,
         variablesMap: variablesMap,
       };
     }),

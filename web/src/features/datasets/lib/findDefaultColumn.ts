@@ -13,6 +13,8 @@ export function findDefaultColumn(
     Input: ["input", "prompt", "question", "query", "instruction"],
     Expected: [
       "expected",
+      "expectedOutput",
+      "expected_output",
       "output",
       "answer",
       "response",

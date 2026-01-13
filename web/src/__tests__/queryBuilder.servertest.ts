@@ -1,6 +1,9 @@
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import {
+  executeQuery,
+  validateQuery,
+} from "@/src/features/query/server/queryExecutor";
 import {
   createTrace,
   createObservation,
@@ -971,7 +974,10 @@ describe("queryBuilder", () => {
 
         // Execute query
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause is present in the query
         expect(compiledQuery).toContain("ORDER BY name asc");
@@ -1016,7 +1022,10 @@ describe("queryBuilder", () => {
 
         // Execute query
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause is present in the query
         expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
@@ -1064,7 +1073,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause is present in the query with both fields
         expect(compiledQuery).toContain(
@@ -1132,7 +1144,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause includes default time dimension ordering
         expect(compiledQuery).toContain("ORDER BY time_dimension asc");
@@ -1185,7 +1200,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause includes default metric ordering (descending)
         expect(compiledQuery).toContain("ORDER BY sum_observationsCount desc");
@@ -1229,7 +1247,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify ORDER BY clause includes default dimension ordering (ascending)
         expect(compiledQuery).toContain("ORDER BY name asc");
@@ -1390,7 +1411,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify WITH FILL clause is present in the query
         expect(compiledQuery).toContain("WITH FILL");
@@ -1865,7 +1889,7 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery, parameters } = queryBuilder.build(
+        const { query: compiledQuery, parameters } = await queryBuilder.build(
           query,
           projectId,
         );
@@ -2085,7 +2109,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify joins included
         expect(compiledQuery).toContain("LEFT JOIN traces");
@@ -2360,7 +2387,10 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery } = queryBuilder.build(query, projectId);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
 
         // Verify the compiled query contains filtering on name
         expect(compiledQuery).toContain("scores_numeric.name");
@@ -2490,7 +2520,7 @@ describe("queryBuilder", () => {
         };
 
         const queryBuilder = new QueryBuilder();
-        const { query: compiledQuery, parameters } = queryBuilder.build(
+        const { query: compiledQuery, parameters } = await queryBuilder.build(
           query,
           projectId,
         );
@@ -3149,7 +3179,7 @@ describe("queryBuilder", () => {
         const queryBuilder = new QueryBuilder(
           customBinHistogramQuery.chartConfig,
         );
-        const { query: compiledQuery } = queryBuilder.build(
+        const { query: compiledQuery } = await queryBuilder.build(
           customBinHistogramQuery,
           projectId,
         );
@@ -3192,6 +3222,65 @@ describe("queryBuilder", () => {
           0,
         );
         expect(totalCount).toBe(30); // Should match our 30 observations
+      });
+
+      it("should apply row_limit to query results", async () => {
+        // Setup
+        const projectId = randomUUID();
+
+        // Create a trace with multiple observations
+        const trace = createTrace({
+          project_id: projectId,
+          name: "test-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+
+        // Create 10 observations with different names to test row limiting
+        const observations = Array.from({ length: 10 }, (_, i) =>
+          createObservation({
+            project_id: projectId,
+            trace_id: trace.id,
+            type: "generation",
+            name: `observation-${i}`,
+            environment: "default",
+            start_time: new Date().getTime() + i * 1000,
+          }),
+        );
+
+        await createTracesCh([trace]);
+        await createObservationsCh(observations);
+
+        // Query with row_limit
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: [{ field: "name", direction: "asc" }],
+          chartConfig: { type: "TABLE", row_limit: 5 },
+        };
+
+        // Verify the generated SQL contains LIMIT clause
+        const queryBuilder = new QueryBuilder(query.chartConfig);
+        const { query: compiledQuery } = await queryBuilder.build(
+          query,
+          projectId,
+        );
+        expect(compiledQuery).toContain("LIMIT 5");
+
+        // Execute query and verify row limit is applied
+        const result = await executeQuery(projectId, query);
+
+        // Should return only 5 rows despite having 10 observations
+        expect(result).toHaveLength(5);
       });
 
       it("should format startTimeMonth dimension correctly", async () => {
@@ -3237,5 +3326,564 @@ describe("queryBuilder", () => {
         expect(result.data[0].startTimeMonth).toBe("2024-03");
       });
     });
+  });
+
+  describe("single-level SELECT optimization", () => {
+    it("should produce same results with and without optimization for observations view", async () => {
+      const projectId = randomUUID();
+
+      // Create test data
+      const traces = [
+        createTrace({
+          project_id: projectId,
+          name: "test-trace-1",
+          timestamp: new Date().getTime(),
+        }),
+        createTrace({
+          project_id: projectId,
+          name: "test-trace-2",
+          timestamp: new Date().getTime(),
+        }),
+      ];
+      await createTracesCh(traces);
+
+      const observations = [
+        createObservation({
+          project_id: projectId,
+          trace_id: traces[0].id,
+          name: "obs-1",
+          start_time: new Date().getTime(),
+          end_time: new Date().getTime() + 1000,
+        }),
+        createObservation({
+          project_id: projectId,
+          trace_id: traces[1].id,
+          name: "obs-2",
+          start_time: new Date().getTime(),
+          end_time: new Date().getTime() + 2000,
+        }),
+      ];
+      await createObservationsCh(observations);
+
+      // Query with measures that support optimization (all have aggs)
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [
+          { measure: "latency", aggregation: "avg" },
+          { measure: "latency", aggregation: "max" },
+          { measure: "totalCost", aggregation: "sum" },
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: [{ field: "name", direction: "asc" }],
+      };
+
+      // Execute without optimization
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Execute with optimization
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+
+      // Results should be identical
+      expect(resultWithOpt).toHaveLength(resultWithoutOpt.length);
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+    });
+
+    it("should NOT optimize when measure without aggs is included (countScores)", async () => {
+      const projectId = randomUUID();
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [
+          { measure: "latency", aggregation: "avg" }, // Has aggs
+          { measure: "countScores", aggregation: "sum" }, // NO aggs - relation table measure
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      // Build query with optimization enabled
+      const builder = new QueryBuilder(undefined, "v1");
+      const { query: compiledQuery } = await builder.build(
+        query,
+        projectId,
+        true,
+      );
+
+      // Should use two-level query (because countScores doesn't have aggs)
+      expect(compiledQuery).toContain("FROM (");
+      expect(compiledQuery.match(/GROUP BY/g)?.length).toBe(2); // Two GROUP BY clauses
+
+      // Should have the JOIN
+      expect(compiledQuery).toContain("LEFT JOIN scores");
+    });
+
+    it("should handle complex multi-aggregation measure (tokensPerSecond)", async () => {
+      const projectId = randomUUID();
+
+      // Create observation with token usage
+      const observations = [
+        createObservation({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          name: "test-obs",
+          start_time: new Date().getTime(),
+          end_time: new Date().getTime() + 1000,
+          usage_details: { total: 100 },
+        }),
+      ];
+      await createObservationsCh(observations);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [
+          { measure: "tokensPerSecond", aggregation: "avg" }, // Uses BOTH sumMap AND any
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      const builder = new QueryBuilder(undefined, "v1");
+      const { query: compiledQuery } = await builder.build(
+        query,
+        projectId,
+        true,
+      );
+
+      // Verify template substitution for multiple aggs was stripped
+      expect(compiledQuery).not.toContain("${agg"); // No templates left
+
+      // Verify results match
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+    });
+
+    it("should verify SQL query structure with optimization enabled", async () => {
+      const projectId = randomUUID();
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      const builder = new QueryBuilder(undefined, "v1");
+      const { query: compiledQuery } = await builder.build(
+        query,
+        projectId,
+        true,
+      );
+
+      // Verify single-level structure
+      expect(compiledQuery).not.toContain("FROM ("); // No subquery
+      expect(compiledQuery.match(/GROUP BY/g)?.length).toBe(1); // Only one GROUP BY
+
+      // Verify @@AGG1@@, @@AGG2@@, etc. templates were substituted or removed
+      expect(compiledQuery).not.toContain("@@AGG");
+
+      // Verify direct aggregation (should have date_diff without template wrappers)
+      expect(compiledQuery).toContain("date_diff");
+    });
+
+    it("should handle totalCost measure correctly in both modes", async () => {
+      const projectId = randomUUID();
+
+      // Create observations with cost data
+      const observations = [
+        createObservation({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          name: "obs-1",
+          start_time: new Date().getTime(),
+          total_cost: 0.05,
+        }),
+        createObservation({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          name: "obs-2",
+          start_time: new Date().getTime(),
+          total_cost: 0.15,
+        }),
+      ];
+      await createObservationsCh(observations);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [],
+        metrics: [
+          { measure: "totalCost", aggregation: "sum" },
+          { measure: "totalCost", aggregation: "avg" },
+        ],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      // Verify results match between optimized and non-optimized
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+      expect(resultWithOpt).toHaveLength(1);
+      // Should have sum (0.05 + 0.15 = 0.20) and avg (0.10)
+      expect(Number(resultWithOpt[0].sum_totalCost)).toBeCloseTo(0.2, 2);
+      expect(Number(resultWithOpt[0].avg_totalCost)).toBeCloseTo(0.1, 2);
+    });
+
+    it("should optimize queries with dimensions from relation tables", async () => {
+      const projectId = randomUUID();
+
+      // Create traces
+      const traces = [
+        createTrace({
+          project_id: projectId,
+          name: "trace-alpha",
+          timestamp: new Date().getTime(),
+        }),
+        createTrace({
+          project_id: projectId,
+          name: "trace-beta",
+          timestamp: new Date().getTime(),
+        }),
+      ];
+      await createTracesCh(traces);
+
+      // Create observations linked to traces
+      const observations = [
+        createObservation({
+          project_id: projectId,
+          trace_id: traces[0].id,
+          name: "obs-1",
+          start_time: new Date().getTime(),
+          end_time: new Date().getTime() + 1000,
+        }),
+        createObservation({
+          project_id: projectId,
+          trace_id: traces[1].id,
+          name: "obs-2",
+          start_time: new Date().getTime(),
+          end_time: new Date().getTime() + 2000,
+        }),
+      ];
+      await createObservationsCh(observations);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "traceName" }], // Dimension from relation table!
+        metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      // Execute with optimization
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Results should match
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+      expect(resultWithOpt).toHaveLength(2);
+
+      // Verify we got the trace names
+      const traceNames = resultWithOpt.map((r) => r.traceName).sort();
+      expect(traceNames).toEqual(["trace-alpha", "trace-beta"]);
+    });
+
+    it("should optimize queries with computed dimensions like startTimeMonth", async () => {
+      const projectId = randomUUID();
+
+      // Create observations in March 2024
+      const marchDate = new Date("2024-03-15T12:00:00.000Z");
+      const observations = [
+        createObservation({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          name: "obs-march",
+          start_time: marchDate.getTime(),
+        }),
+      ];
+      await createObservationsCh(observations);
+
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [{ field: "startTimeMonth" }], // Computed dimension!
+        metrics: [{ measure: "latency", aggregation: "avg" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: "2024-03-01T00:00:00.000Z",
+        toTimestamp: "2024-03-31T23:59:59.999Z",
+        orderBy: null,
+      };
+
+      // Execute with optimization
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Results should match
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+      expect(resultWithOpt).toHaveLength(1);
+      expect(resultWithOpt[0].startTimeMonth).toBe("2024-03");
+    });
+
+    it("should produce correct results with sum aggregation on count measure", async () => {
+      const projectId = randomUUID();
+
+      // Create traces
+      const traces = Array.from({ length: 2 }, (_, i) =>
+        createTrace({
+          project_id: projectId,
+          name: `trace-${i}`,
+          timestamp: new Date().getTime(),
+        }),
+      );
+      await createTracesCh(traces);
+
+      // Create 5 observations: 3 for trace-0, 2 for trace-1
+      const observationsPerTrace = [3, 2];
+      const observations = traces.flatMap((trace, traceIdx) =>
+        Array.from({ length: observationsPerTrace[traceIdx] }, (_, obsIdx) =>
+          createObservation({
+            project_id: projectId,
+            trace_id: trace.id,
+            name: `obs-${traceIdx}-${obsIdx}`,
+            start_time: new Date().getTime(),
+          }),
+        ),
+      );
+      await createObservationsCh(observations);
+
+      // Query with sum on count measure (this was producing incorrect results)
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "sum" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      // Execute without optimization (two-level query)
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Execute with optimization (single-level query)
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+
+      // Both should return sum of counts = 5 (total observations)
+      expect(resultWithoutOpt).toHaveLength(1);
+      expect(resultWithOpt).toHaveLength(1);
+      expect(resultWithoutOpt[0].sum_count).toBe(5);
+      expect(resultWithOpt[0].sum_count).toBe(5);
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+    });
+  });
+});
+
+describe("validateQuery", () => {
+  const baseQuery = {
+    view: "observations",
+    dimensions: [],
+    metrics: [{ measure: "totalCost", aggregation: "sum" }],
+    filters: [],
+    timeDimension: null,
+    fromTimestamp: "2025-01-01T00:00:00.000Z",
+    toTimestamp: "2025-03-01T00:00:00.000Z",
+    orderBy: null,
+  } as QueryType;
+
+  it("should return valid for queries without high cardinality dimensions", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "name" }], // name is not high cardinality
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("should return invalid when high cardinality dimension is used without row_limit", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+      // no chartConfig.row_limit
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return invalid when high cardinality dimension is used without ORDER DESC", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "userId" }], // high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_totalCost", direction: "asc" }], // asc, not desc
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'userId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return invalid when ORDER BY desc field is not a measure in the query", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_latency", direction: "desc" }], // latency is not in metrics
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "'sum_latency'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "not a measure in this query",
+    );
+  });
+
+  it("should return invalid when ORDER BY desc field is a dimension (not a measure)", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }, { field: "name" }], // traceId is high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "name", direction: "desc" }], // name is a dimension, not a measure
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "'name'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "not a measure in this query",
+    );
+  });
+
+  it("should return invalid for multiple high cardinality dimensions without required config", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }, { field: "sessionId" }], // both high cardinality
+      // missing row_limit and orderBy desc
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "traceId",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "sessionId",
+    );
+  });
+
+  it("should support public API 'config' field name for row_limit", () => {
+    // Test that "config" field works (used by public API) vs "chartConfig" (used internally)
+    const query = {
+      view: "observations",
+      dimensions: [{ field: "traceId" }], // high cardinality
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: [{ field: "totalCost", direction: "desc" }],
+      config: { type: "table", row_limit: 10 }, // Public API uses "config"
+    } as unknown as QueryType;
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("should return valid for count-only metrics with high cardinality", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }],
+      metrics: [{ measure: "count", aggregation: "count" }], // count-only
+      orderBy: [{ field: "count", direction: "desc" }],
+      chartConfig: { type: "table", row_limit: 10 },
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
   });
 });

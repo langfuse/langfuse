@@ -67,6 +67,7 @@ export default async function handler(
     where: {
       id: projectId,
       orgId: authCheck.scope.orgId,
+      deletedAt: null,
     },
   });
 

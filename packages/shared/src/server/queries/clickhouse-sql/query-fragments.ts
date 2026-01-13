@@ -2,7 +2,7 @@
  * Reusable ClickHouse query fragments and CTEs
  */
 
-import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories";
+import { EventsAggregationQueryBuilder } from "./event-query-builder";
 
 interface EventsTracesAggregationParams {
   projectId: string;
@@ -17,40 +17,93 @@ interface EventsTracesAggregationParams {
  *
  * Note: This is a temporary solution until we fully migrate to using only the events table.
  *       Some legacy fields are still included for compatibility and should be removed in the future.
- *
- * Parameters are not injected directly, but used to conditionally include parts of the query.
- * They still need to be passed to the query execution function.
  */
 export const eventsTracesAggregation = (
   params: EventsTracesAggregationParams,
-) => {
-  return `
-	  SELECT
-	      trace_id AS id,
-	      project_id,
-	      argMax(name, event_ts) AS name,
-	      min(start_time) as timestamp,
-	      argMax(environment, event_ts) AS environment,
-	      argMax(version, event_ts) AS version,
-	      argMax(session_id, event_ts) AS session_id,
-	      argMax(user_id, event_ts) AS user_id,
-	      argMax(input, event_ts) AS input,
-	      argMax(output, event_ts) AS output,
-	      argMax(metadata, event_ts) AS metadata,
-	      min(created_at) AS created_at,
-	      max(updated_at) AS updated_at,
-	      -- TODO remove legacy fields
-	      array() AS tags,
-	      false AS bookmarked,
-	      false AS public,
-	      '' AS release
-	  FROM events
-    WHERE project_id = {projectId: String}
-    ${params.traceIds ? `AND trace_id IN ({traceIds: Array(String)})` : ""}
-    ${params.startTimeFrom ? `AND start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-    GROUP BY trace_id, project_id
-    ORDER BY timestamp DESC
-  `.trim();
+): EventsAggregationQueryBuilder => {
+  return (
+    new EventsAggregationQueryBuilder({ projectId: params.projectId })
+      // we always use this as CTE, no need to be smart here.
+      // ClickHouse will optimize unused columns away.
+      .selectFieldSet("all")
+      .withTraceIds(params.traceIds)
+      .withStartTimeFrom(params.startTimeFrom)
+      .orderBy("ORDER BY timestamp DESC")
+  );
+};
+
+interface BaseScoresAggregationParams {
+  projectId: string;
+  startTimeFrom?: string | null;
+  level: "observation" | "trace";
+  hasScoreAggregationFilters?: boolean;
+}
+
+/**
+ * Unified score aggregation CTE builder for both observation-level and trace-level scores.
+ *
+ * @param level - 'observation' for observation scores, 'trace' for trace-level scores
+ * @param hasScoreAggregationFilters - When true, uses nested subquery for proper avg() computation
+ *
+ * Observation level: Aggregates scores by (trace_id, observation_id), always uses nested structure
+ * Trace level: Aggregates scores by (project_id, trace_id), filters observation_id IS NULL
+ */
+const buildScoresAggregationCTE = (
+  params: BaseScoresAggregationParams,
+): { query: string; params: Record<string, any> } => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const isTraceLevel = params.level === "trace";
+
+  // Observation level: trace_id + observation_id
+  // Trace level: project_id + trace_id
+  const primaryKey = isTraceLevel ? "project_id" : "observation_id";
+  const additionalInnerCols = isTraceLevel ? ["id"] : ["comment"];
+  const additionalOuterCols = isTraceLevel
+    ? ["groupUniqArray(id) as score_ids"]
+    : [];
+  const observationFilter = isTraceLevel ? "AND observation_id IS NULL" : "";
+  const orderBy = isTraceLevel ? "" : "ORDER BY trace_id";
+
+  const query = `
+      SELECT
+        trace_id,
+        ${primaryKey},
+        ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
+        groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
+        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+      FROM (
+        SELECT
+          ${primaryKey},
+          trace_id,
+          ${additionalInnerCols.join(",\n          ")},
+          name,
+          data_type,
+          string_value,
+          avg(value) as avg_value
+        FROM scores FINAL
+        WHERE project_id = {projectId: String}
+          ${observationFilter}
+          ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+        GROUP BY
+          ${primaryKey},
+          trace_id,
+          ${additionalInnerCols.join(",\n          ")},
+          name,
+          data_type,
+          string_value
+        ${orderBy}
+      ) tmp
+      GROUP BY ${primaryKey}, trace_id
+    `.trim();
+
+  return { query, params: queryParams };
 };
 
 interface EventsScoresAggregationParams {
@@ -62,51 +115,64 @@ interface EventsScoresAggregationParams {
  * Scores CTE for events table queries.
  * Aggregates numeric and categorical scores for observations.
  *
- * Parameters are not injected directly, but used to conditionally include parts of the query.
- * They still need to be passed to the query execution function.
+ * Returns a query and params object that can be passed directly to withCTE.
  */
 export const eventsScoresAggregation = (
   params: EventsScoresAggregationParams,
-) => {
-  return `
+): { query: string; params: Record<string, any> } => {
+  return buildScoresAggregationCTE({
+    ...params,
+    level: "observation",
+  });
+};
+
+interface EventsTracesScoresAggregationParams {
+  projectId: string;
+  startTimeFrom?: string | null;
+  hasScoreAggregationFilters?: boolean;
+}
+
+/**
+ * Scores CTE for trace-level queries.
+ * Aggregates scores that belong to traces (not observations).
+ *
+ * When hasScoreAggregationFilters is true, uses nested subquery structure
+ * with pre-aggregation to enable proper array filtering on scores_avg/score_categories.
+ *
+ * Returns a query and params object that can be passed directly to withCTE.
+ */
+export const eventsTracesScoresAggregation = (
+  params: EventsTracesScoresAggregationParams,
+): { query: string; params: Record<string, any> } => {
+  if (params.hasScoreAggregationFilters) {
+    return buildScoresAggregationCTE({
+      ...params,
+      level: "trace",
+    });
+  }
+
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  // Flat structure (trace-level only, when no score filters present)
+  const query = `
     SELECT
       trace_id,
-      observation_id,
-      -- For numeric scores, use tuples of (name, avg_value)
-      groupArrayIf(
-        tuple(name, avg_value),
-        data_type IN ('NUMERIC', 'BOOLEAN')
-      ) AS scores_avg,
-      -- For categorical scores, use name:value format for improved query performance
-      groupArrayIf(
-        concat(name, ':', string_value),
-        data_type = 'CATEGORICAL' AND notEmpty(string_value)
-      ) AS score_categories
-    FROM (
-      SELECT
-        trace_id,
-        observation_id,
-        name,
-        avg(value) avg_value,
-        string_value,
-        data_type,
-        comment
-      FROM
-        scores FINAL
-      WHERE project_id = {projectId: String}
+      project_id,
+      groupUniqArray(id) as score_ids
+    FROM scores
+    WHERE project_id = {projectId: String}
+      AND observation_id IS NULL
       ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
-      GROUP BY
-        trace_id,
-        observation_id,
-        name,
-        string_value,
-        data_type,
-        comment
-      ORDER BY
-        trace_id
-      ) tmp
     GROUP BY
       trace_id,
-      observation_id
+      project_id
   `.trim();
+
+  return { query, params: queryParams };
 };

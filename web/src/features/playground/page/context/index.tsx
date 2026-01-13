@@ -519,7 +519,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     if (!cacheLoaded) return;
 
     // Don't save empty initial state to avoid overwriting valid cache
-    if (messages.length > 0 && modelParams.provider.value) {
+    // Save if we have messages - provider selection is optional
+    if (messages.length > 0) {
       setPlaygroundCache({
         messages,
         modelParams,
@@ -556,6 +557,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         isStreamingRef.current = false;
       },
       getIsStreaming: () => isStreamingRef.current,
+      hasModelConfigured: () => {
+        return Boolean(modelParams.provider.value && modelParams.model.value);
+      },
     };
 
     registerWindow(effectiveWindowId, playgroundHandle);
@@ -609,7 +613,15 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         handleGlobalStop,
       );
     };
-  }, [windowId, handleSubmit, registerWindow, unregisterWindow, messages]);
+  }, [
+    windowId,
+    handleSubmit,
+    registerWindow,
+    unregisterWindow,
+    messages,
+    modelParams.provider.value,
+    modelParams.model.value,
+  ]);
 
   // Keep ref in sync with state for external consumers
   useEffect(() => {
@@ -626,6 +638,21 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       }),
     );
   }, [windowId, isStreaming]);
+
+  // Notify when model configuration changes
+  useEffect(() => {
+    const playgroundEventBus = getPlaygroundEventBus();
+    playgroundEventBus.dispatchEvent(
+      new CustomEvent(PLAYGROUND_EVENTS.WINDOW_MODEL_CONFIG_CHANGE, {
+        detail: {
+          windowId: windowId || MULTI_WINDOW_CONFIG.DEFAULT_WINDOW_ID,
+          hasModel: Boolean(
+            modelParams.provider.value && modelParams.model.value,
+          ),
+        },
+      }),
+    );
+  }, [windowId, modelParams.provider.value, modelParams.model.value]);
 
   return (
     <PlaygroundContext.Provider

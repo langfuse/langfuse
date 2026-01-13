@@ -46,7 +46,7 @@ export const PriceBreakdownTooltip = ({
       ) : Object.keys(prices).length <= (rowHeight === "m" ? 4 : 2) ? (
         <div className="grid w-full grid-cols-[2fr,3fr] gap-x-2">
           {Object.entries(prices).map(([type, price]) => (
-            <>
+            <span key={type}>
               <span
                 key={`${type}-label`}
                 className="truncate font-mono text-xs font-medium"
@@ -63,7 +63,7 @@ export const PriceBreakdownTooltip = ({
                   .mul(priceUnitMultiplier)
                   .toFixed(maxDecimals)}
               </span>
-            </>
+            </span>
           ))}
         </div>
       ) : (

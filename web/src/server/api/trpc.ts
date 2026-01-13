@@ -94,7 +94,7 @@ import {
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
-import { BaseError } from "@langfuse/shared";
+import { BaseError, parseIO } from "@langfuse/shared";
 
 setUpSuperjson();
 
@@ -138,23 +138,23 @@ const resolveError = (error: TRPCError) => {
   return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
 };
 
+const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
+  if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
+    logger.info(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
+  } else {
+    logger.error(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
+  }
+};
+
 // global error handling
 const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   const res = await next({ ctx }); // pass the context to the next middleware
 
   if (!res.ok) {
-    if (res.error.code === "NOT_FOUND" || res.error.code === "UNAUTHORIZED") {
-      logger.info(
-        `middleware intercepted error with code ${res.error.code}`,
-        res.error,
-      );
-    } else {
-      logger.error(
-        `middleware intercepted error with code ${res.error.code}`,
-        res.error,
-      );
-    }
-
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
@@ -162,6 +162,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         code: "SERVICE_UNAVAILABLE",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
+      logErrorByCode(res.error.code, res.error);
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
@@ -179,6 +180,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
           ? res.error.message
           : "Internal error. " + errorMessage,
       });
+      logErrorByCode(code, res.error);
     }
   }
 
@@ -399,6 +401,7 @@ const inputTraceSchema = z.object({
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
   truncated: z.boolean().default(false),
+  verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
 });
 
 const enforceTraceAccess = t.middleware(async (opts) => {
@@ -418,26 +421,33 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const projectId = result.data.projectId;
   const timestamp = result.data.timestamp;
   const fromTimestamp = result.data.fromTimestamp;
+  const verbosity = result.data.verbosity;
 
-  const trace = await getTraceById({
+  const clickhouseTrace = await getTraceById({
     traceId,
     projectId,
     timestamp: timestamp ?? undefined,
     fromTimestamp: fromTimestamp ?? undefined,
     renderingProps: {
-      truncated: result.data.truncated,
+      truncated: verbosity === "truncated",
       shouldJsonParse: false, // we do not want to parse the input/output for tRPC
     },
     clickhouseFeatureTag: "tracing-trpc",
   });
 
-  if (!trace) {
+  if (!clickhouseTrace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Trace not found",
     });
   }
+
+  const trace = {
+    ...clickhouseTrace,
+    input: parseIO(clickhouseTrace.input, verbosity),
+    output: parseIO(clickhouseTrace.output, verbosity),
+  };
 
   const sessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
@@ -479,7 +489,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
         projectRole:
           ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
       },
-      trace: trace, // pass the trace to the next middleware so we do not need to fetch it again
+      trace, // pass the trace to the next middleware so we do not need to fetch it again
     },
   });
 });
@@ -587,7 +597,6 @@ const enforceAdminAuth = t.middleware(async (opts) => {
 
   const adminAuthResult = AdminApiAuthService.verifyAdminAuthFromAuthString(
     result.data.adminApiKey,
-    false,
   );
 
   if (!adminAuthResult.isAuthorized) {

@@ -9,8 +9,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { Switch } from "@/src/components/ui/switch";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -34,12 +36,16 @@ import {
   PromptType,
   isGenerationLike,
 } from "@langfuse/shared";
-import { normalizeInput } from "@/src/utils/chatml";
+import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
 import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import {
+  type MetadataDomainClient,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 type JumpToPlaygroundButtonProps = (
   | {
@@ -49,16 +55,19 @@ type JumpToPlaygroundButtonProps = (
     }
   | {
       source: "generation";
-      generation: Omit<Observation, "input" | "output" | "metadata"> & {
+      generation: Omit<
+        WithStringifiedMetadata<Observation>,
+        "input" | "output"
+      > & {
         input: string | null;
         output: string | null;
-        metadata: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
   variant?: "outline" | "secondary";
   className?: string;
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
 };
 
 export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
@@ -70,6 +79,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const [includeOutput, setIncludeOutput] = useState<boolean>(false);
 
   // Generate a stable window ID based on the source data
   const stableWindowId = useMemo(() => {
@@ -117,9 +127,11 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     if (promptData) {
       setCapturedState(parsePrompt(promptData));
     } else if (generationData) {
-      setCapturedState(parseGeneration(generationData, modelToProviderMap));
+      setCapturedState(
+        parseGeneration(generationData, modelToProviderMap, includeOutput),
+      );
     }
-  }, [promptData, generationData, modelToProviderMap]);
+  }, [promptData, generationData, modelToProviderMap, includeOutput]);
 
   useEffect(() => {
     if (capturedState) {
@@ -182,6 +194,7 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
       <DropdownMenuTrigger asChild>
         <Button
           variant={props.variant ?? "secondary"}
+          size={props.size ?? "default"}
           disabled={!isAvailable}
           title={tooltipMessage}
           className={cn(
@@ -189,7 +202,9 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
             !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           )}
         >
-          <Terminal className="h-4 w-4" />
+          <Terminal
+            className={props.size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+          />
           <span className={cn("hidden md:inline", props.className)}>
             Playground
           </span>
@@ -205,6 +220,18 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
           <Terminal className="mr-2 h-4 w-4" />
           Add to existing
         </DropdownMenuItem>
+        {props.source === "generation" && (
+          <>
+            <DropdownMenuSeparator />
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className="text-sm">Include output</span>
+              <Switch
+                checked={includeOutput}
+                onCheckedChange={setIncludeOutput}
+              />
+            </div>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -248,17 +275,22 @@ const parsePrompt = (
 };
 
 const parseGeneration = (
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
   modelToProviderMap: Record<string, string>,
+  includeOutput: boolean = false,
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 
   let modelParams = parseModelParams(generation, modelToProviderMap);
-  const tools = parseTools(generation.input);
+  const tools = parseTools(
+    generation.input,
+    generation.output,
+    generation.metadata,
+  );
+
   const structuredOutputSchema = parseStructuredOutputSchema(generation);
   const providerOptions = parseLitellmMetadataFromGeneration(generation);
 
@@ -334,7 +366,7 @@ const parseGeneration = (
 
       const inResult = normalizeInput(input, ctx);
 
-      const messages = inResult.success
+      let messages = inResult.success
         ? inResult.data
             .map(convertChatMlToPlayground)
             .filter(
@@ -342,12 +374,63 @@ const parseGeneration = (
             )
         : [];
 
+      if (includeOutput) {
+        // process output for final assistant message
+        // this doesn't make that much sense, because the output is already the LLM result
+        // but some people wanted to have the entire thing, so that they can then iterate
+        // on the final result (e.g. ask it questions).
+        // NOTE: will probably remove later at some point on next playground release
+        let output = generation.output?.valueOf();
+        if (output && typeof output === "string") {
+          try {
+            output = JSON.parse(output);
+          } catch {
+            // ignore parse errors
+          }
+        }
+
+        if (output && typeof output === "object") {
+          try {
+            const outResult = normalizeOutput(output, ctx);
+            const outputMessages = outResult.success
+              ? outResult.data
+                  .map(convertChatMlToPlayground)
+                  .filter(
+                    (msg): msg is ChatMessage | PlaceholderMessage =>
+                      msg !== null,
+                  )
+                  // Filter tool calls without results (i.e. assistant messages with tool_calls but no results)
+                  // here, a tool was just selected by an LLM but not called yet.
+                  // we don't want this in the playground, because we a) cannot run the playground
+                  // and b) if we jump to the playground, we exactly want to test if the LLM selects the tool
+                  .filter(
+                    (msg) => msg.type !== ChatMessageType.AssistantToolCall,
+                  )
+              : [];
+
+            // Append output messages to input messages
+            messages = [...messages, ...outputMessages];
+          } catch {
+            // ignore output processing errors
+          }
+        }
+      }
+
       if (messages.length === 0) return null;
+
+      // Extract tools from normalized ChatML messages (they may have tools attached)
+      const normalizedTools =
+        inResult.success && inResult.data
+          ? extractTools(inResult.data, ctx.metadata)
+          : [];
+
+      // Merge with tools from input/metadata, prefer normalized tools
+      const mergedTools = normalizedTools.length > 0 ? normalizedTools : tools;
 
       return {
         messages,
         modelParams,
-        tools,
+        tools: mergedTools,
         structuredOutputSchema,
       };
     } catch {
@@ -400,22 +483,36 @@ function parseModelParams(
   return modelParams;
 }
 
-function parseTools(inputString: string | null): PlaygroundTool[] {
-  if (!inputString) return [];
+function parseTools(
+  inputString: string | null,
+  outputString: string | null,
+  metadataString: MetadataDomainClient,
+): PlaygroundTool[] {
+  if (!inputString && !outputString && !metadataString) return [];
 
   try {
-    const input = JSON.parse(inputString);
-    return extractTools(input);
+    const input = inputString ? JSON.parse(inputString) : null;
+    const output = outputString ? JSON.parse(outputString) : null;
+    const metadata = metadataString ? JSON.parse(metadataString) : null;
+
+    const inputTools = extractTools(input, metadata);
+    if (inputTools.length > 0) return inputTools;
+
+    // also check the output for tools, e.g. if a user jumps from the last generation
+    if (output) {
+      return extractTools(output, metadata);
+    }
+
+    return [];
   } catch {
     return [];
   }
 }
 
 function parseStructuredOutputSchema(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
 ): PlaygroundSchema | null {
   try {
@@ -484,10 +581,9 @@ function parseStructuredOutputSchema(
  * - https://docs.litellm.ai/docs/proxy/logging_spec#standardloggingmetadata
  */
 function parseLitellmMetadataFromGeneration(
-  generation: Omit<Observation, "input" | "output" | "metadata"> & {
+  generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;
-    metadata: string | null;
   },
 ): UIModelParams["providerOptions"]["value"] | undefined {
   let metadata: unknown = generation.metadata;

@@ -1,18 +1,8 @@
 import { promptsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
-
-const PROMPT_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  type: "type",
-  labels: "labels",
-  tags: "tags",
-  version: "version",
-};
 
 export const promptFilterConfig: FilterConfig = {
   tableName: "prompts",
-
-  columnToQueryKey: PROMPT_COLUMN_TO_QUERY_KEY,
 
   columnDefinitions: promptsTableCols,
 

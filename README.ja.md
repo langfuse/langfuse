@@ -212,8 +212,8 @@ pip install langfuse openai
 ```bash filename=".env"
 LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_HOST="https://cloud.langfuse.com" # 🇪🇺 EUリージョン
-# LANGFUSE_HOST="https://us.cloud.langfuse.com" # 🇺🇸 USリージョン
+LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 EUリージョン
+# LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 USリージョン
 ```
 
 ```python:/@observe()/ /from langfuse.openai import openai/ filename="main.py"
@@ -248,7 +248,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 
 ## ⭐️ Star Langfuse
 
-![Star Langfuse](https://langfuse.com/images/docs/github-readme/github-star-howto.gif)
+![star-langfuse-on-github](https://github.com/user-attachments/assets/79a1d816-d229-4526-aecc-097d4a19f1ad)
 
 ## 💭 サポート
 

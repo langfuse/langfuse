@@ -12,7 +12,6 @@ import { createPrompt, duplicatePrompt } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
   CreatePromptTRPCSchema,
-  InvalidRequestError,
   LATEST_PROMPT_LABEL,
   optionalPaginationZod,
   paginationZod,
@@ -114,7 +113,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        input.filter ?? [],
         promptsTableCols,
         "prompts",
       );
@@ -123,7 +122,12 @@ export const promptRouter = createTRPCRouter({
       const pathFilter = input.pathPrefix
         ? (() => {
             const prefix = input.pathPrefix;
-            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
+            // Escape backslashes and other LIKE special characters for pattern matching
+            const escapedPrefix = prefix
+              .replace(/\\/g, "\\\\")
+              .replace(/%/g, "\\%")
+              .replace(/_/g, "\\_");
+            return Prisma.sql` AND (p.name LIKE ${`${escapedPrefix}/%`} OR p.name = ${escapedPrefix})`;
           })()
         : Prisma.empty;
 
@@ -197,13 +201,14 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const filterCondition = input.filter
-        ? tableColumnsToSqlFilterAndPrefix(
-            input.filter,
-            promptsTableCols,
-            "prompts",
-          )
-        : Prisma.empty;
+      const filterCondition =
+        input.filter && input.filter.length > 0
+          ? tableColumnsToSqlFilterAndPrefix(
+              input.filter,
+              promptsTableCols,
+              "prompts",
+            )
+          : Prisma.empty;
 
       const pathFilter = input.pathPrefix
         ? (() => {
@@ -276,61 +281,50 @@ export const promptRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreatePromptTRPCSchema)
     .mutation(async ({ input, ctx }) => {
-      try {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:CUD",
+      });
+
+      const { hasProtectedLabels, protectedLabels } =
+        await checkHasProtectedLabels({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          labelsToCheck: input.labels,
+        });
+
+      if (hasProtectedLabels) {
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "prompts:CUD",
+          scope: "promptProtectedLabels:CUD",
+          forbiddenErrorMessage: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
         });
-
-        const { hasProtectedLabels, protectedLabels } =
-          await checkHasProtectedLabels({
-            prisma: ctx.prisma,
-            projectId: input.projectId,
-            labelsToCheck: input.labels,
-          });
-
-        if (hasProtectedLabels) {
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId: input.projectId,
-            scope: "promptProtectedLabels:CUD",
-            forbiddenErrorMessage: `You don't have permission to create a prompt with a protected label. Please contact your project admin for assistance.\n\n Protected labels are: ${protectedLabels.join(", ")}`,
-          });
-        }
-
-        const prompt = await createPrompt({
-          ...input,
-          prisma: ctx.prisma,
-          createdBy: ctx.session.user.id,
-        });
-
-        if (!prompt) {
-          throw new Error("Failed to create prompt");
-        }
-
-        await auditLog(
-          {
-            session: ctx.session,
-            resourceType: "prompt",
-            resourceId: prompt.id,
-            action: "create",
-            after: prompt,
-          },
-          ctx.prisma,
-        );
-
-        return prompt;
-      } catch (e) {
-        logger.error(e);
-        if (e instanceof InvalidRequestError) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: e.message,
-          });
-        }
-        throw e;
       }
+
+      const prompt = await createPrompt({
+        ...input,
+        prisma: ctx.prisma,
+        createdBy: ctx.session.user.id,
+      });
+
+      if (!prompt) {
+        throw new Error("Failed to create prompt");
+      }
+
+      await auditLog(
+        {
+          session: ctx.session,
+          resourceType: "prompt",
+          resourceId: prompt.id,
+          action: "create",
+          after: prompt,
+        },
+        ctx.prisma,
+      );
+
+      return prompt;
     }),
   duplicatePrompt: protectedProjectProcedure
     .input(

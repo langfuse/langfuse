@@ -8,17 +8,21 @@ export * from "./tableDefinitions";
 export * from "./types";
 export * from "./tableDefinitions/tracesTable";
 export * from "./observationsTable";
+export * from "./eventsTable";
 export * from "./utils/zod";
 export * from "./utils/json";
 export * from "./utils/stringChecks";
 export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./utils/prompts";
+export * from "./utils/jsonSchemaValidation";
+export * from "./utils/chatml";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
 export * from "./domain/dataset-run-items";
+export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
 
 // llm api
@@ -30,6 +34,8 @@ export * from "./features/evals/utilities";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
+export * from "./features/batchAction/addToDatasetTypes";
+export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
 
 // annotation
@@ -46,6 +52,12 @@ export * from "./features/comments/types";
 
 // experiments
 export * from "./features/experiments/utils";
+
+// datasets
+export * from "./features/datasets/validation";
+
+// model pricing
+export * from "./features/model-pricing/";
 
 // prompts
 export * from "./features/prompts/parsePromptDependencyTags";
@@ -76,3 +88,6 @@ export * from "./interfaces/search";
 
 // domain
 export * from "./domain";
+
+// io representation
+export * from "./utils/IORepresentation";

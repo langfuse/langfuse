@@ -224,7 +224,7 @@ export class CategoryOptionsFilter implements Filter {
 
 // stringObject filter is used when we want to filter on a key value pair in metadata.
 // For observations/traces tables: uses Map column (metadata)
-// For events table: uses Array columns (metadata_names/metadata_values)
+// For events table: uses Array columns (metadata_names/metadata_prefixes)
 // We can only filter efficiently on the first level of a json obj.
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
@@ -255,15 +255,15 @@ export class StringObjectFilter implements Filter {
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
 
-    // Events table uses array columns (metadata_names/metadata_values)
+    // Events table uses array columns (metadata_names/metadata_prefixes)
     // Observations/traces tables use Map column (metadata)
     const isEventsTable = this.clickhouseTable === "events";
 
     let query: string;
     if (isEventsTable) {
-      // For events table, use array access: metadata_values[indexOf(metadata_names, key)]
+      // For events table, use array access: metadata_prefixes[indexOf(metadata_names, key)]
       const namesColumn = `${prefix}metadata_names`;
-      const valuesColumn = `${prefix}metadata_values`;
+      const valuesColumn = `${prefix}metadata_prefixes`;
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
 
       switch (this.operator) {
@@ -468,27 +468,22 @@ export class FilterList {
     this.filters.push(...filter);
   }
 
-  // eslint-disable-next-line no-unused-vars
   find(predicate: (filter: Filter) => boolean) {
     return this.filters.find(predicate);
   }
 
-  // eslint-disable-next-line no-unused-vars
   filter(predicate: (filter: Filter) => boolean) {
     return new FilterList(this.filters.filter(predicate));
   }
 
-  // eslint-disable-next-line no-unused-vars
   map(predicate: (filter: Filter) => Filter) {
     return new FilterList(this.filters.map(predicate));
   }
 
-  // eslint-disable-next-line no-unused-vars
   some(predicate: (filter: Filter) => boolean) {
     return this.filters.some(predicate);
   }
 
-  // eslint-disable-next-line no-unused-vars
   forEach(callback: (filter: Filter) => void) {
     this.filters.forEach(callback);
   }

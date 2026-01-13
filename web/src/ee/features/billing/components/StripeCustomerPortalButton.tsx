@@ -60,7 +60,7 @@ export const StripeCustomerPortalButton = ({
       } else {
         toast.error("Could not open billing portal");
       }
-    } catch (e) {
+    } catch (_e) {
       toast.error("Failed to open billing portal");
     } finally {
       // do not reset to avoid flickering when opening the portal

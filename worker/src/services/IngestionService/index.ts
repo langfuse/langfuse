@@ -1,9 +1,9 @@
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
+import { Decimal } from "decimal.js";
 import {
   Model,
   ObservationLevel,
-  Price,
   PrismaClient,
   Prompt,
 } from "@langfuse/shared";
@@ -38,11 +38,17 @@ import {
   TraceUpsertQueue,
   UsageCostType,
   findModel,
+  matchPricingTier,
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
   hasNoJobConfigsCache,
   traceException,
+  flattenJsonToPathArrays,
+  getDatasetItemById,
+  extractToolsFromObservation,
+  convertDefinitionsToMap,
+  convertCallsToArrays,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -85,8 +91,13 @@ export type EventInput = {
   type?: string;
   environment?: string;
   version?: string;
+  release?: string;
   endTimeISO: string;
   completionStartTime?: string;
+
+  tags?: string[];
+  bookmarked?: boolean;
+  public?: boolean;
 
   // User/session
   userId?: string;
@@ -100,15 +111,20 @@ export type EventInput = {
   promptVersion?: string;
 
   // Model
+  modelId?: string;
   modelName?: string;
-  modelParameters?: string;
+  modelParameters?: string | Record<string, unknown>;
 
   // Usage & Cost
   providedUsageDetails?: Record<string, number>;
   usageDetails?: Record<string, number>;
   providedCostDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
-  totalCost?: number;
+
+  // Tool Calls
+  toolDefinitions?: Record<string, string>;
+  toolCalls?: string[];
+  toolCallNames?: string[];
 
   // I/O
   input?: string;
@@ -132,6 +148,20 @@ export type EventInput = {
   blobStorageFilePath?: string;
   eventRaw?: string;
   eventBytes?: number;
+
+  // Experiment fields
+  experimentId?: string;
+  experimentName?: string;
+  experimentMetadataNames?: string[];
+  experimentMetadataValues?: Array<string | null | undefined>;
+  experimentDescription?: string;
+  experimentDatasetId?: string;
+  experimentItemId?: string;
+  experimentItemVersion?: string;
+  experimentItemRootSpanId?: string;
+  experimentItemExpectedOutput?: string;
+  experimentItemMetadataNames?: string[];
+  experimentItemMetadataValues?: Array<string | null | undefined>;
 
   // Catch-all for future fields
   [key: string]: any;
@@ -194,8 +224,8 @@ export class IngestionService {
   constructor(
     private redis: Redis | Cluster,
     private prisma: PrismaClient,
-    private clickHouseWriter: ClickhouseWriter, // eslint-disable-line no-unused-vars
-    private clickhouseClient: ClickhouseClientType, // eslint-disable-line no-unused-vars
+    private clickHouseWriter: ClickhouseWriter,
+    private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -264,24 +294,47 @@ export class IngestionService {
       `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
 
+    // Perform lookups for prompt and model/usage enrichment
+    const [prompt, generationUsage] = await Promise.all([
+      // Lookup prompt by name and version
+      eventData.promptName && eventData.promptVersion
+        ? this.promptService.getPrompt({
+            projectId: eventData.projectId,
+            promptName: eventData.promptName,
+            version:
+              typeof eventData.promptVersion === "string"
+                ? parseInt(eventData.promptVersion, 10)
+                : eventData.promptVersion,
+            label: undefined,
+          })
+        : null,
+      // Lookup model and enrich usage/cost details (includes tokenization if needed)
+      eventData.modelName
+        ? this.getGenerationUsage({
+            projectId: eventData.projectId,
+            observationRecord: {
+              id: eventData.spanId,
+              project_id: eventData.projectId,
+              trace_id: eventData.traceId,
+              provided_model_name: eventData.modelName,
+              provided_usage_details: eventData.providedUsageDetails ?? {},
+              provided_cost_details: eventData.providedCostDetails ?? {},
+              input: eventData.input,
+              output: eventData.output,
+            },
+          })
+        : null,
+    ]);
+
     const now = this.getMicrosecondTimestamp();
 
     // Store the full metadata JSON
-    const metadata = eventData.metadata;
+    const metadata = convertRecordValuesToString(eventData.metadata);
 
     // Flatten to path-based arrays
-    const flattened = this.flattenJsonToPathArrays(metadata);
+    const flattened = flattenJsonToPathArrays(metadata);
     const metadataNames = flattened.names;
     const metadataValues = flattened.values;
-
-    // Flatten to typed arrays
-    // const typed = this.flattenJsonToTypedPathArrays(metadata);
-    // const metadataStringNames = typed.stringNames;
-    // const metadataStringValues = typed.stringValues;
-    // const metadataNumberNames = typed.numberNames;
-    // const metadataNumberValues = typed.numberValues;
-    // const metadataBoolNames = typed.boolNames;
-    // const metadataBoolValues = typed.boolValues;
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
@@ -298,6 +351,11 @@ export class IngestionService {
       type: eventData.type ?? "SPAN",
       environment: eventData.environment ?? "default",
       version: eventData.version,
+      release: eventData.release,
+
+      tags: eventData.tags ?? [],
+      bookmarked: eventData.bookmarked ?? false,
+      public: eventData.public ?? false,
 
       // User/session
       user_id: eventData.userId,
@@ -315,36 +373,43 @@ export class IngestionService {
         : null,
 
       // Prompt
-      // prompt_id: eventData.promptId,
+      prompt_id: prompt?.id || "",
       prompt_name: eventData.promptName,
       prompt_version: eventData.promptVersion,
 
       // Model
-      // model_id: eventData.modelId,
+      model_id: generationUsage?.internal_model_id || "",
       provided_model_name: eventData.modelName,
-      model_parameters: eventData.modelParameters,
+      model_parameters: eventData.modelParameters
+        ? typeof eventData.modelParameters === "string"
+          ? JSON.parse(eventData.modelParameters)
+          : eventData.modelParameters
+        : {},
 
       // Usage & Cost
-      // provided_usage_details: eventData.providedUsageDetails ?? {},
-      // usage_details: eventData.usageDetails ?? {},
-      // provided_cost_details: eventData.providedCostDetails ?? {},
-      // cost_details: eventData.costDetails ?? {},
-      // total_cost: eventData.totalCost,
+      provided_usage_details: eventData.providedUsageDetails ?? {},
+      usage_details:
+        generationUsage?.usage_details ?? eventData.usageDetails ?? {},
+      provided_cost_details: eventData.providedCostDetails ?? {},
+      cost_details:
+        generationUsage?.cost_details ?? eventData.costDetails ?? {},
+
+      usage_pricing_tier_id: generationUsage?.usage_pricing_tier_id,
+      usage_pricing_tier_name: generationUsage?.usage_pricing_tier_name,
+
+      // Tool Calls
+      tool_definitions: eventData.toolDefinitions ?? {},
+      tool_calls: eventData.toolCalls ?? [],
+      tool_call_names: eventData.toolCallNames ?? [],
 
       // I/O
       input: eventData.input,
       output: eventData.output,
 
-      // Metadata (multiple approaches)
+      // Metadata
       metadata,
       metadata_names: metadataNames,
-      metadata_values: metadataValues,
-      // metadata_string_names: metadataStringNames,
-      // metadata_string_values: metadataStringValues,
-      // metadata_number_names: metadataNumberNames,
-      // metadata_number_values: metadataNumberValues,
-      // metadata_bool_names: metadataBoolNames,
-      // metadata_bool_values: metadataBoolValues,
+      metadata_raw_values: metadataValues,
 
       // Source/instrumentation metadata
       source: eventData.source,
@@ -358,15 +423,30 @@ export class IngestionService {
 
       // Storage
       blob_storage_file_path: fileKey,
-      // event_raw: eventData.eventRaw ?? "",
       event_bytes: eventData.eventBytes ?? 0,
+
+      // Experiment fields
+      experiment_id: eventData.experimentId,
+      experiment_name: eventData.experimentName,
+      experiment_metadata_names: eventData.experimentMetadataNames ?? [],
+      experiment_metadata_values: eventData.experimentMetadataValues ?? [],
+      experiment_description: eventData.experimentDescription,
+      experiment_dataset_id: eventData.experimentDatasetId,
+      experiment_item_id: eventData.experimentItemId,
+      experiment_item_version: eventData.experimentItemVersion,
+      experiment_item_root_span_id: eventData.experimentItemRootSpanId,
+      experiment_item_expected_output: eventData.experimentItemExpectedOutput,
+      experiment_item_metadata_names:
+        eventData.experimentItemMetadataNames ?? [],
+      experiment_item_metadata_values:
+        eventData.experimentItemMetadataValues ?? [],
 
       // System timestamps
       created_at: now,
       updated_at: now,
       event_ts: now,
       is_deleted: 0,
-    } as any;
+    };
 
     // Write directly to ClickHouse queue (no merging for immutable events)
     this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
@@ -401,18 +481,11 @@ export class IngestionService {
                   createdAt: true,
                 },
               }),
-              this.prisma.datasetItem.findFirst({
-                where: {
-                  datasetId: event.body.datasetId,
-                  projectId,
-                  id: event.body.datasetItemId,
-                  status: "ACTIVE",
-                },
-                select: {
-                  input: true,
-                  expectedOutput: true,
-                  metadata: true,
-                },
+              await getDatasetItemById({
+                projectId,
+                datasetItemId: event.body.datasetItemId,
+                datasetId: event.body.datasetId,
+                status: "ACTIVE",
               }),
             ]);
 
@@ -421,6 +494,10 @@ export class IngestionService {
             const timestamp = event.body.createdAt
               ? new Date(event.body.createdAt).getTime()
               : new Date().getTime();
+
+            const datasetItemVersion = itemData.validFrom
+              ? itemData.validFrom.getTime()
+              : null;
 
             return [
               {
@@ -444,6 +521,7 @@ export class IngestionService {
                   : {},
                 dataset_run_created_at: runData.createdAt.getTime(),
                 // enriched with item data
+                dataset_item_version: datasetItemVersion,
                 dataset_item_input: JSON.stringify(itemData.input),
                 dataset_item_expected_output: JSON.stringify(
                   itemData.expectedOutput,
@@ -526,6 +604,7 @@ export class IngestionService {
                 ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
                 : {},
               string_value: validatedScore.stringValue,
+              long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
               created_at: Date.now(),
@@ -790,6 +869,35 @@ export class IngestionService {
         clickhouseObservationRecord?.output,
     );
 
+    // Extract tool definitions and calls from raw input/output
+    try {
+      const rawInput = reversedRawRecords.find((record) => record?.body?.input)
+        ?.body?.input;
+      const rawOutput = reversedRawRecords.find(
+        (record) => record?.body?.output,
+      )?.body?.output;
+
+      const { toolDefinitions, toolArguments } = extractToolsFromObservation(
+        rawInput,
+        rawOutput,
+      );
+
+      if (toolDefinitions.length > 0) {
+        mergedObservationRecord.tool_definitions =
+          convertDefinitionsToMap(toolDefinitions);
+      }
+
+      if (toolArguments.length > 0) {
+        const { tool_calls, tool_call_names } =
+          convertCallsToArrays(toolArguments);
+        mergedObservationRecord.tool_calls = tool_calls;
+        mergedObservationRecord.tool_call_names = tool_call_names;
+      }
+    } catch (error) {
+      logger.error("Tool extraction failed", { error, projectId, entityId });
+      // Don't fail ingestion - just skip tool data
+    }
+
     const generationUsage = await this.getGenerationUsage({
       projectId,
       observationRecord: mergedObservationRecord,
@@ -1005,27 +1113,67 @@ export class IngestionService {
 
   private async getGenerationUsage(params: {
     projectId: string;
-    observationRecord: ObservationRecordInsertType;
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      | "project_id"
+      | "trace_id"
+      | "id"
+      | "provided_model_name"
+      | "provided_usage_details"
+      | "provided_cost_details"
+      | "level"
+      | "input"
+      | "output"
+    >;
   }): Promise<
-    | Pick<
-        ObservationRecordInsertType,
-        "usage_details" | "cost_details" | "total_cost" | "internal_model_id"
-      >
-    | {}
+    Pick<
+      ObservationRecordInsertType,
+      | "usage_details"
+      | "cost_details"
+      | "total_cost"
+      | "internal_model_id"
+      | "usage_pricing_tier_id"
+      | "usage_pricing_tier_name"
+    >
   > {
     const { projectId, observationRecord } = params;
-    const { model: internalModel, prices: modelPrices } =
+    const { model: internalModel, pricingTiers } =
       observationRecord.provided_model_name
         ? await findModel({
             projectId,
             model: observationRecord.provided_model_name,
           })
-        : { model: null, prices: [] };
+        : { model: null, pricingTiers: [] };
 
     const final_usage_details = await this.getUsageUnits(
       observationRecord,
       internalModel,
     );
+
+    // Match pricing tier based on usage_details
+    let modelPrices: Array<{ usageType: string; price: Decimal }> = [];
+    let usage_pricing_tier_id: string | null = null;
+    let usage_pricing_tier_name: string | null = null;
+
+    if (pricingTiers.length > 0 && final_usage_details.usage_details) {
+      const matchedTier = matchPricingTier(
+        pricingTiers,
+        final_usage_details.usage_details,
+      );
+
+      if (matchedTier) {
+        usage_pricing_tier_id = matchedTier.pricingTierId;
+        usage_pricing_tier_name = matchedTier.pricingTierName;
+
+        // Convert matched tier prices to simple format for calculateUsageCosts
+        modelPrices = Object.entries(matchedTier.prices).map(
+          ([usageType, price]) => ({
+            usageType,
+            price,
+          }),
+        );
+      }
+    }
 
     const final_cost_details = IngestionService.calculateUsageCosts(
       modelPrices,
@@ -1038,6 +1186,7 @@ export class IngestionService {
       {
         cost: final_cost_details.cost_details,
         usage: final_usage_details.usage_details,
+        pricingTier: usage_pricing_tier_name,
       },
     );
 
@@ -1045,11 +1194,16 @@ export class IngestionService {
       ...final_usage_details,
       ...final_cost_details,
       internal_model_id: internalModel?.id,
+      usage_pricing_tier_id,
+      usage_pricing_tier_name,
     };
   }
 
   private async getUsageUnits(
-    observationRecord: ObservationRecordInsertType,
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      "provided_usage_details" | "level" | "input" | "output" | "id"
+    >,
     model: Model | null | undefined,
   ): Promise<
     Pick<
@@ -1057,11 +1211,19 @@ export class IngestionService {
       "usage_details" | "provided_usage_details"
     >
   > {
-    const providedUsageDetails = Object.fromEntries(
-      Object.entries(observationRecord.provided_usage_details).filter(
-        ([k, v]) => v != null && v >= 0, // eslint-disable-line no-unused-vars
-      ),
-    );
+    // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
+    // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+    const providedUsageDetails: Record<string, number> = {};
+    for (const [key, value] of Object.entries(
+      observationRecord.provided_usage_details,
+    )) {
+      if (value != null) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 0) {
+          providedUsageDetails[key] = numValue;
+        }
+      }
+    }
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
@@ -1176,14 +1338,20 @@ export class IngestionService {
   }
 
   static calculateUsageCosts(
-    modelPrices: Price[] | null | undefined,
-    observationRecord: ObservationRecordInsertType,
+    modelPrices:
+      | Array<{ usageType: string; price: Decimal }>
+      | null
+      | undefined,
+    observationRecord: Pick<
+      ObservationRecordInsertType,
+      "provided_cost_details"
+    >,
     usageUnits: UsageCostType,
   ): Pick<ObservationRecordInsertType, "cost_details" | "total_cost"> {
     const { provided_cost_details } = observationRecord;
 
     const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null) // eslint-disable-line no-unused-vars
+      .filter(([_, value]) => value != null)
       .map(([key]) => key);
 
     // If user has provided any cost point, do not calculate any other cost points
@@ -1230,7 +1398,7 @@ export class IngestionService {
       finalTotalCost = finalCostDetails.total;
     } else if (finalCostEntries.length > 0) {
       finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost, // eslint-disable-line no-unused-vars
+        (acc, [_, cost]) => acc + cost,
         0,
       );
 
@@ -1243,7 +1411,6 @@ export class IngestionService {
     };
   }
 
-  // eslint-disable-next-line no-unused-vars
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1253,7 +1420,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<TraceRecordInsertType | null>;
-  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1263,7 +1430,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ScoreRecordInsertType | null>;
-  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1273,7 +1440,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ObservationRecordInsertType | null>;
-  // eslint-disable-next-line no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1500,7 +1667,7 @@ export class IngestionService {
         ...("usageDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.usageDetails ?? {}).filter(
-                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
+                ([_, val]) => val != null,
               ),
             ) as Record<string, number>)
           : {}),
@@ -1521,7 +1688,7 @@ export class IngestionService {
         ...("costDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.costDetails ?? {}).filter(
-                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
+                ([_, val]) => val != null,
               ),
             ) as Record<string, number>)
           : {}),
@@ -1618,97 +1785,6 @@ export class IngestionService {
     // Otherwise, use the current timestamp to avoid updating old partitions
     return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
   }
-
-  /**
-   * Flattens a nested JSON object into path-based names and values.
-   * For example: {foo: {bar: "baz"}} becomes:
-   * - names: ["foo.bar"]
-   * - values: ["baz"]
-   */
-  private flattenJsonToPathArrays(
-    obj: Record<string, unknown>,
-    prefix: string = "",
-  ): { names: string[]; values: unknown[] } {
-    const names: string[] = [];
-    const values: unknown[] = [];
-
-    for (const [key, value] of Object.entries(obj)) {
-      const path = prefix ? `${prefix}.${key}` : key;
-
-      if (
-        value !== null &&
-        value !== undefined &&
-        typeof value === "object" &&
-        !Array.isArray(value)
-      ) {
-        // Recursively flatten nested objects
-        const nested = this.flattenJsonToPathArrays(
-          value as Record<string, unknown>,
-          path,
-        );
-        names.push(...nested.names);
-        values.push(...nested.values);
-      } else {
-        // Leaf value
-        names.push(path);
-        values.push(value);
-      }
-    }
-
-    return { names, values };
-  }
-
-  /**
-   * Flattens a nested JSON object into type-specific path arrays.
-   * Values are separated into string, number, bool, and other arrays based on their type.
-   * Non-primitive values are JSON.stringify'd and placed in the strings group.
-   */
-  // private flattenJsonToTypedPathArrays(obj: Record<string, unknown>): {
-  //   stringNames: string[];
-  //   stringValues: string[];
-  //   numberNames: string[];
-  //   numberValues: number[];
-  //   boolNames: string[];
-  //   boolValues: number[]; // ClickHouse uses 0/1 for booleans
-  // } {
-  //   const stringNames: string[] = [];
-  //   const stringValues: string[] = [];
-  //   const numberNames: string[] = [];
-  //   const numberValues: number[] = [];
-  //   const boolNames: string[] = [];
-  //   const boolValues: number[] = [];
-  //
-  //   const { names, values } = this.flattenJsonToPathArrays(obj);
-  //
-  //   for (let i = 0; i < names.length; i++) {
-  //     const name = names[i];
-  //     const value = values[i];
-  //
-  //     if (typeof value === "boolean") {
-  //       boolNames.push(name);
-  //       boolValues.push(value ? 1 : 0);
-  //     } else if (typeof value === "number") {
-  //       numberNames.push(name);
-  //       numberValues.push(value);
-  //     } else if (typeof value === "string") {
-  //       stringNames.push(name);
-  //       stringValues.push(value);
-  //     } else {
-  //       // For arrays, objects, null, undefined, etc., stringify and put in strings
-  //       stringNames.push(name);
-  //       stringValues.push(JSON.stringify(value));
-  //     }
-  //   }
-  //
-  //   return {
-  //     stringNames,
-  //     stringValues,
-  //     numberNames,
-  //     numberValues,
-  //     boolNames,
-  //     boolValues,
-  //   };
-  // }
 }
 
 type ObservationPrompt = Pick<Prompt, "id" | "name" | "version">;

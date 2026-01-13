@@ -6,7 +6,13 @@ import {
 } from "@langfuse/shared";
 import { stringDateTime } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
-import { dimension, granularities, metric, views } from "@/src/features/query";
+import {
+  dimension,
+  granularities,
+  metric,
+  views,
+  viewsV2,
+} from "@/src/features/query";
 
 /**
  * Query Object Structure
@@ -69,7 +75,7 @@ export const GetMetricsV1Query = z.object({
     .transform((str) => {
       try {
         return JSON.parse(str);
-      } catch (e) {
+      } catch (_e) {
         throw new InvalidRequestError("Invalid JSON in query parameter");
       }
     })
@@ -80,6 +86,66 @@ export const GetMetricsV1Response = z.object({
   data: z.array(z.record(z.string(), z.unknown())),
   // meta: paginationMetaResponseZod,
 });
+
+/**
+ * V2 Query Object Structure - excludes "traces" view
+ */
+export const MetricsQueryObjectV2 = z
+  .object({
+    view: viewsV2,
+    dimensions: z.array(dimension).optional().default([]),
+    metrics: z.array(metric),
+    filters: z.array(singleFilter).optional().default([]),
+    timeDimension: z
+      .object({
+        granularity: granularities,
+      })
+      .nullable()
+      .optional()
+      .default(null),
+    fromTimestamp: z.string().datetime({ offset: true }),
+    toTimestamp: z.string().datetime({ offset: true }),
+    orderBy: z
+      .array(
+        z.object({
+          field: z.string(),
+          direction: z.enum(["asc", "desc"]),
+        }),
+      )
+      .nullable()
+      .optional()
+      .default(null),
+    config: z
+      .object({
+        bins: z.number().int().min(1).max(100).optional(),
+        row_limit: z.number().int().positive().lte(1000).optional(),
+      })
+      .optional(),
+  })
+  .refine(
+    (query) =>
+      new Date(query.fromTimestamp).getTime() <
+      new Date(query.toTimestamp).getTime(),
+    {
+      message: "fromTimestamp must be before toTimestamp",
+    },
+  );
+
+// GET /api/public/v2/metrics
+export const GetMetricsV2Query = z.object({
+  query: z
+    .string()
+    .transform((str) => {
+      try {
+        return JSON.parse(str);
+      } catch (_e) {
+        throw new InvalidRequestError("Invalid JSON in query parameter");
+      }
+    })
+    .pipe(MetricsQueryObjectV2),
+});
+
+export const GetMetricsV2Response = GetMetricsV1Response;
 
 // Get /metrics/daily
 export const GetMetricsDailyV1Query = z.object({

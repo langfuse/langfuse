@@ -177,7 +177,7 @@ export const ValueCell = memo(
         await copyTextToClipboard(copyValue);
         setShowCopySuccess(true);
         setTimeout(() => setShowCopySuccess(false), 1500);
-      } catch (error) {
+      } catch {
         // Copy failed silently
       }
     };
@@ -277,7 +277,7 @@ export const ValueCell = memo(
 
     return (
       <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
-        {content}
+        <span className="cursor-text">{content}</span>
         {needsTruncation && !row.original.hasChildren && (
           <div
             className="inline cursor-pointer opacity-50"
@@ -296,7 +296,7 @@ export const ValueCell = memo(
         <Button
           variant="ghost"
           size="icon"
-          className="absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2 border bg-background/80 p-0.5 opacity-0 shadow-sm transition-opacity duration-200 hover:bg-background group-hover:opacity-100"
+          className="absolute right-0 top-0 h-5 w-5 border bg-background/80 p-0.5 opacity-0 shadow-sm transition-opacity duration-200 hover:bg-background group-hover:opacity-100"
           onClick={handleCopy}
           title="Copy value"
           aria-label="Copy cell value"

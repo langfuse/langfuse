@@ -147,6 +147,7 @@ export default withMiddlewares({
     name: "Delete Single Trace",
     querySchema: DeleteTraceV1Query,
     responseSchema: DeleteTraceV1Response,
+    rateLimitResource: "trace-delete",
     fn: async ({ query, auth }) => {
       const { traceId } = query;
 

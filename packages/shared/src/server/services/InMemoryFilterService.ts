@@ -13,11 +13,8 @@ export class InMemoryFilterService {
   static evaluateFilter<T>(
     data: T,
     filter: FilterState,
-    fieldMapper: (data: T, column: string) => unknown, // eslint-disable-line no-unused-vars
+    fieldMapper: (data: T, column: string) => unknown,
   ): boolean {
-    logger.debug(
-      `Evaluating filter ${JSON.stringify(filter)} for data ${JSON.stringify(data)}`,
-    );
     try {
       // If no filters, data matches
       if (!filter || filter.length === 0) {
@@ -48,7 +45,7 @@ export class InMemoryFilterService {
   private static evaluateFilterCondition<T>(
     data: T,
     condition: FilterCondition,
-    fieldMapper: (data: T, column: string) => unknown, // eslint-disable-line no-unused-vars
+    fieldMapper: (data: T, column: string) => unknown,
   ): boolean {
     const { column, type, operator } = condition;
 

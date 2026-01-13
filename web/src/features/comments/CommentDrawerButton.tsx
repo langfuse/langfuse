@@ -11,7 +11,9 @@ import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
 import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/router";
+import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
 
 export function CommentDrawerButton({
   projectId,
@@ -20,6 +22,11 @@ export function CommentDrawerButton({
   count,
   variant = "secondary",
   className,
+  size = "default",
+  pendingSelection,
+  onSelectionUsed,
+  isOpen: controlledIsOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   projectId: string;
   objectId: string;
@@ -27,7 +34,21 @@ export function CommentDrawerButton({
   count?: number;
   variant?: "secondary" | "outline";
   className?: string;
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
+  const router = useRouter();
+  const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
+  const [internalIsDrawerOpen, setInternalIsDrawerOpen] = useState(false);
+  const hasAutoOpenedRef = useRef(false); // Track if we've already auto-opened for current deep link
+
+  const isDrawerOpen = controlledIsOpen ?? internalIsDrawerOpen;
+  const setIsDrawerOpen = controlledOnOpenChange ?? setInternalIsDrawerOpen;
+  const hasFocusedRef = useRef(false); // Track if we've already focused the drawer
+
   const hasReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -37,41 +58,154 @@ export function CommentDrawerButton({
     scope: "comments:CUD",
   });
 
+  // Auto-open drawer when comments=open query param is present AND matches this drawer's object
+  useEffect(() => {
+    const shouldAutoOpen =
+      router.query.comments === "open" &&
+      router.query.commentObjectType === objectType &&
+      router.query.commentObjectId === objectId &&
+      hasReadAccess &&
+      !isDrawerOpen &&
+      !hasAutoOpenedRef.current;
+
+    // Only open if drawer is not already open AND we haven't auto-opened yet for this deep link
+    if (shouldAutoOpen) {
+      hasAutoOpenedRef.current = true;
+      setIsDrawerOpen(true);
+
+      // Scroll to specific comment if hash is present
+      if (router.asPath.includes("#comment-")) {
+        // Wait for drawer animation to complete before scrolling
+        setTimeout(() => {
+          const hash = router.asPath.split("#")[1];
+          const element = document.getElementById(hash);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 300);
+      }
+    }
+
+    // Reset the flag when query params are cleared (user navigated away from deep link)
+    if (router.query.comments !== "open" && hasAutoOpenedRef.current) {
+      hasAutoOpenedRef.current = false;
+    }
+  }, [
+    router.query.comments,
+    router.query.commentObjectType,
+    router.query.commentObjectId,
+    router.asPath,
+    hasReadAccess,
+    objectType,
+    objectId,
+    isDrawerOpen,
+    setIsDrawerOpen,
+  ]);
+
   if (!hasReadAccess || (!hasWriteAccess && !count))
     return (
-      <Button type="button" variant="secondary" className={className} disabled>
-        <MessageCircleOff className="h-4 w-4 text-muted-foreground" />
+      <Button
+        type="button"
+        variant="secondary"
+        size={size}
+        className={className}
+        disabled
+      >
+        <MessageCircleOff
+          className={
+            size === "sm"
+              ? "h-3.5 w-3.5 text-muted-foreground"
+              : "h-4 w-4 text-muted-foreground"
+          }
+        />
       </Button>
     );
 
   return (
-    <Drawer>
+    <Drawer
+      open={isDrawerOpen}
+      onOpenChange={(open) => {
+        // Prevent drawer from closing when mention dropdown is open
+        if (!open && isMentionDropdownOpen) {
+          // Keep drawer open
+          return;
+        }
+        setIsDrawerOpen(open);
+
+        // Reset focus tracking when drawer closes
+        if (!open) {
+          hasFocusedRef.current = false;
+        }
+
+        // Clear URL parameters and hash when drawer is closed
+        if (!open && router.query.comments === "open") {
+          const { comments, commentObjectType, commentObjectId, ...rest } =
+            router.query;
+          router.replace(
+            {
+              pathname: router.pathname,
+              query: rest,
+            },
+            undefined,
+            { shallow: true },
+          );
+        }
+      }}
+    >
       <DrawerTrigger asChild>
-        <Button type="button" variant={variant} className={className}>
+        <Button
+          type="button"
+          variant={variant}
+          size={size}
+          className={className}
+          id="comment-drawer-button"
+        >
           {!!count ? (
             <div className="flex items-center gap-1">
-              <MessageCircleIcon className="h-4 w-4" />
+              <MessageCircleIcon
+                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+              />
+              <span>Add comment</span>
               <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
                 {count > 99 ? "99+" : count}
               </span>
             </div>
           ) : (
-            <MessageCircleIcon className="h-4 w-4" />
+            <div className="flex items-center gap-1">
+              <MessageCircleIcon
+                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+              />
+              <span>Add comment</span>
+            </div>
           )}
         </Button>
       </DrawerTrigger>
       <DrawerContent overlayClassName="bg-primary/10">
-        <div className="mx-auto flex h-full w-full flex-col overflow-hidden md:max-h-full">
-          <DrawerHeader className="flex-shrink-0 rounded-sm bg-background">
+        <div
+          className="mx-auto flex h-full w-full flex-col overflow-hidden focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 md:max-h-full"
+          tabIndex={-1}
+          ref={(el) => {
+            // Auto-focus drawer content when it opens (only once)
+            if (el && isDrawerOpen && !hasFocusedRef.current) {
+              hasFocusedRef.current = true;
+              setTimeout(() => el.focus({ preventScroll: true }), 100);
+            }
+          }}
+        >
+          <DrawerHeader className="sr-only flex-shrink-0 rounded-sm bg-background">
             <DrawerTitle>
               <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
-          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pb-2">
+          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pt-2">
             <CommentList
               projectId={projectId}
               objectId={objectId}
               objectType={objectType}
+              onMentionDropdownChange={setIsMentionDropdownOpen}
+              isDrawerOpen={isDrawerOpen}
+              pendingSelection={pendingSelection}
+              onSelectionUsed={onSelectionUsed}
             />
           </div>
         </div>

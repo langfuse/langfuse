@@ -26,6 +26,7 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 
 export type TracesTableReturnType = Pick<
   TraceRecordReadType,
@@ -180,28 +181,23 @@ type SelectReturnTypeMap = {
 
 // Function overloads for type-safe select-specific returns
 async function getTracesTableGeneric(
-  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "count" },
 ): Promise<Array<SelectReturnTypeMap["count"]>>;
 
 async function getTracesTableGeneric(
-  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "metrics" },
 ): Promise<Array<SelectReturnTypeMap["metrics"]>>;
 
 async function getTracesTableGeneric(
-  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "rows" },
 ): Promise<Array<SelectReturnTypeMap["rows"]>>;
 
 async function getTracesTableGeneric(
-  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps & { select: "identifiers" },
 ): Promise<Array<SelectReturnTypeMap["identifiers"]>>;
 
 // Implementation with union type for internal use
 async function getTracesTableGeneric(
-  // eslint-disable-next-line no-unused-vars
   props: FetchTracesTableProps,
 ): Promise<Array<SelectReturnTypeMap[keyof SelectReturnTypeMap]>>;
 
@@ -217,6 +213,9 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     searchType,
     clickhouseConfigs,
   } = props;
+
+  // OTel projects use immutable spans - no need for deduplication
+  const skipObservationsDedup = await shouldSkipObservationsFinal(projectId);
 
   const { tracesFilter, scoresFilter, observationsFilter } =
     getProjectIdDefaultFilter(projectId, { tracesPrefix: "t" });
@@ -302,7 +301,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         sumMap(cost_details) as cost_details,
         trace_id,
         project_id
-      FROM observations o FINAL
+      FROM observations o ${skipObservationsDedup ? "" : "FINAL"}
       WHERE o.project_id = {projectId: String}
         ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
         ${observationsFilter ? `AND ${observationFilterRes.query}` : ""}

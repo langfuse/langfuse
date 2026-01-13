@@ -1,6 +1,7 @@
 import {
   FilterCondition,
-  ScoreDataType,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
 } from "@langfuse/shared";
@@ -8,7 +9,6 @@ import {
   getDistinctScoreNames,
   queryClickhouseStream,
   logger,
-  convertObservation,
   ObservationRecordReadType,
   StringFilter,
   FilterList,
@@ -16,6 +16,8 @@ import {
   observationsTableUiColumnDefinitions,
   enrichObservationWithModelData,
   clickhouseSearchCondition,
+  convertObservation,
+  shouldSkipObservationsFinal,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Readable } from "stream";
@@ -24,7 +26,10 @@ import {
   getChunkWithFlattenedScores,
   prepareScoresForOutput,
 } from "./getDatabaseReadStream";
+import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import type { Model, Price } from "@prisma/client";
+
+const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
 
 type ModelWithPrice = Model & { Price: Price[] };
 
@@ -85,15 +90,35 @@ export const getObservationStream = async (props: {
     searchType,
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
+
+  // Check if we should skip deduplication for OTEL projects
+  const skipDedup = await shouldSkipObservationsFinal(projectId);
+
   const clickhouseConfigs = {
-    request_timeout: 120_000,
-    join_algorithm: "partial_merge",
+    request_timeout: 180_000, // 3 minutes
+    clickhouse_settings: {
+      join_algorithm: "partial_merge" as const,
+      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
+      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
+    },
   };
+
+  // Filter out trace-level filters since we don't join the traces table for filtering
+  // This prevents batch export failures when trace-level filters are present
+  const observationOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = observationsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+    // Keep the filter if it's not a trace-level filter
+    return columnDef?.clickhouseTableName !== "traces";
+  });
 
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: filter ?? [],
+    filter: observationOnlyFilters,
     isTimestampFilter: (filter: FilterCondition): filter is TimeFilter => {
       return filter.column === "Start Time" && filter.type === "datetime";
     },
@@ -124,7 +149,7 @@ export const getObservationStream = async (props: {
   observationsFilter.push(
     ...createFilterFromFilterState(
       [
-        ...(filter ?? []),
+        ...observationOnlyFilters,
         {
           column: "startTime",
           operator: "<" as const,
@@ -141,7 +166,7 @@ export const getObservationStream = async (props: {
   const search = clickhouseSearchCondition(searchQuery, searchType, "o");
 
   const query = `
-   
+
       WITH scores_agg AS (
         SELECT
           trace_id,
@@ -214,7 +239,7 @@ export const getObservationStream = async (props: {
         if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token",
         o.input as input,
         o.output as output,
-        o.metadata as metadata, 
+        o.metadata as metadata,
         t.name as traceName,
         t.tags as traceTags,
         t.timestamp as traceTimestamp,
@@ -226,7 +251,7 @@ export const getObservationStream = async (props: {
         LEFT JOIN scores_agg s ON s.trace_id = o.trace_id AND s.observation_id = o.id
       WHERE ${appliedObservationsFilter.query}
         ${search.query}
-      LIMIT 1 BY o.id, o.project_id
+      ${skipDedup ? "" : "LIMIT 1 BY o.id, o.project_id"}
       limit {rowLimit: Int64}
   `;
 
@@ -236,7 +261,7 @@ export const getObservationStream = async (props: {
         | {
             name: string;
             value: number;
-            dataType: ScoreDataType;
+            dataType: ScoreDataTypeType;
             stringValue: string;
           }[]
         | undefined;
@@ -265,67 +290,138 @@ export const getObservationStream = async (props: {
     },
   });
 
-  // Convert async generator to Node.js Readable stream
-  let recordsProcessed = 0;
+  // Helper function to process a single observation row
   const modelCache = createModelCache(projectId);
+  const emptyScoreColumns = distinctScoreNames.reduce(
+    (acc, name) => ({ ...acc, [name]: null }),
+    {} as Record<string, null>,
+  );
+
+  type ObservationRow = ObservationRecordReadType & {
+    scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataTypeType;
+          stringValue: string;
+        }[]
+      | undefined;
+    score_categories: string[] | undefined;
+  } & {
+    traceName: string;
+    traceTags: string[];
+    traceTimestamp: Date;
+    userId: string | null;
+  };
+
+  const processObservationRow = async (
+    bufferedRow: ObservationRow,
+    commentsByObservation: Map<string, any[]>,
+  ) => {
+    // Fetch model data from cache (or database if not cached)
+    const model = await modelCache.getModel(bufferedRow.internal_model_id);
+    const modelData = enrichObservationWithModelData(model);
+
+    // Process numeric/boolean scores (tuples from ClickHouse)
+    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
+      name: score[0],
+      value: score[1],
+      dataType: score[2],
+      stringValue: score[3],
+    }));
+
+    // Process categorical scores (format: "name:value")
+    const categoricalScores = (bufferedRow.score_categories ?? []).map(
+      (cat: string) => {
+        const [name, ...valueParts] = cat.split(":");
+        return {
+          name,
+          value: null,
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+          stringValue: valueParts.join(":"),
+        };
+      },
+    );
+
+    const outputScores: Record<string, string[] | number[]> =
+      prepareScoresForOutput([...numericScores, ...categoricalScores]);
+
+    // Get comments for this observation
+    const observationComments = commentsByObservation.get(bufferedRow.id) ?? [];
+
+    return getChunkWithFlattenedScores(
+      [
+        {
+          ...convertObservation(bufferedRow, {
+            truncated: false,
+            shouldJsonParse: true,
+          }),
+          traceName: bufferedRow.traceName,
+          traceTags: bufferedRow.traceTags,
+          traceTimestamp: bufferedRow.traceTimestamp,
+          userId: bufferedRow.userId,
+          toolDefinitionsCount: null,
+          toolCallsCount: null,
+          ...modelData,
+          scores: outputScores,
+          comments: observationComments,
+        },
+      ],
+      emptyScoreColumns,
+    )[0];
+  };
+
+  // Convert async generator to Node.js Readable stream
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Counter for potential future instrumentation
+  let recordsProcessed = 0;
 
   return Readable.from(
     (async function* () {
+      let rowBuffer: ObservationRow[] = [];
+      let observationIds: string[] = [];
+
       for await (const row of asyncGenerator) {
-        recordsProcessed++;
-        if (recordsProcessed % 10000 === 0)
-          logger.info(
-            `Streaming observations for project ${projectId}: processed ${recordsProcessed} rows`,
+        rowBuffer.push(row);
+        observationIds.push(row.id);
+
+        // Process in batches
+        if (rowBuffer.length >= BATCH_SIZE) {
+          // Fetch comments for this batch
+          const commentsByObservation = await fetchCommentsForExport(
+            projectId,
+            "OBSERVATION",
+            observationIds,
           );
 
-        // Fetch model data from cache (or database if not cached)
-        const model = await modelCache.getModel(row.internal_model_id);
-        const modelData = enrichObservationWithModelData(model);
+          // Process each row in the buffer
+          for (const bufferedRow of rowBuffer) {
+            recordsProcessed++;
 
-        // Process numeric/boolean scores (tuples from ClickHouse)
-        const numericScores = (row.scores_avg ?? []).map((score: any) => ({
-          name: score[0],
-          value: score[1],
-          dataType: score[2],
-          stringValue: score[3],
-        }));
+            yield await processObservationRow(
+              bufferedRow,
+              commentsByObservation,
+            );
+          }
 
-        // Process categorical scores (format: "name:value")
-        const categoricalScores = (row.score_categories ?? []).map(
-          (cat: string) => {
-            const [name, ...valueParts] = cat.split(":");
-            return {
-              name,
-              value: null,
-              dataType: "CATEGORICAL" as ScoreDataType,
-              stringValue: valueParts.join(":"),
-            };
-          },
+          // Reset buffers
+          rowBuffer = [];
+          observationIds = [];
+        }
+      }
+
+      // Process remaining rows in buffer
+      if (rowBuffer.length > 0) {
+        const commentsByObservation = await fetchCommentsForExport(
+          projectId,
+          "OBSERVATION",
+          observationIds,
         );
 
-        const outputScores: Record<string, string[] | number[]> =
-          prepareScoresForOutput([...numericScores, ...categoricalScores]);
-
-        yield getChunkWithFlattenedScores(
-          [
-            {
-              ...convertObservation(row, {
-                truncated: false,
-                shouldJsonParse: true,
-              }),
-              traceName: row.traceName,
-              traceTags: row.traceTags,
-              traceTimestamp: row.traceTimestamp,
-              userId: row.userId,
-              ...modelData,
-              scores: outputScores,
-            },
-          ],
-          distinctScoreNames.reduce(
-            (acc, name) => ({ ...acc, [name]: null }),
-            {} as Record<string, null>,
-          ),
-        )[0];
+        for (const bufferedRow of rowBuffer) {
+          recordsProcessed++;
+          yield await processObservationRow(bufferedRow, commentsByObservation);
+        }
       }
     })(),
   );

@@ -22,18 +22,26 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
   },
   scoreMetadata,
   buttonVariant = "secondary",
-}: AnnotateDrawerProps<Target>) {
+  size = "default",
+}: AnnotateDrawerProps<Target> & {
+  size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+}) {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
   });
 
+  const hasNonAnnotationScores = scores.some(
+    (score) => score.source !== "ANNOTATION",
+  );
+
   return (
     <Drawer>
       <DrawerTrigger asChild>
         <Button
           variant={buttonVariant}
+          size={size}
           disabled={!hasAccess}
           className="rounded-r-none"
           onClick={() => {
@@ -48,7 +56,11 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           {!hasAccess ? (
             <LockIcon className="mr-1.5 h-3 w-3" />
           ) : (
-            <SquarePen className="mr-1.5 h-4 w-4" />
+            <SquarePen
+              className={
+                size === "sm" ? "mr-1.5 h-3.5 w-3.5" : "mr-1.5 h-4 w-4"
+              }
+            />
           )}
           <span>Annotate</span>
         </Button>
@@ -60,6 +72,11 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           analyticsData={analyticsData}
           scoreMetadata={scoreMetadata}
         />
+        {hasNonAnnotationScores && (
+          <div className="mt-4 text-xs text-muted-foreground">
+            API and eval scores visible on left. Add manual annotations above.
+          </div>
+        )}
       </DrawerContent>
     </Drawer>
   );

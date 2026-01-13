@@ -188,7 +188,7 @@ export function TableViewPresetsDrawer({
       if (fetchedViewData) {
         applyViewState(fetchedViewData);
       }
-    } catch (error) {
+    } catch {
       showErrorToast(
         "Failed to apply view selection",
         "Please try again",
@@ -387,7 +387,7 @@ export function TableViewPresetsDrawer({
                         {view.id === selectedViewId && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="xs"
                             className={cn(
                               "w-fit pl-0 text-xs",
                               hasWriteAccess
@@ -543,7 +543,7 @@ export function TableViewPresetsDrawer({
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <div className="flex items-center text-xs text-muted-foreground">
-                          <Avatar>
+                          <Avatar className="h-6 w-6">
                             <AvatarImage
                               src={view.createdByUser?.image ?? undefined}
                               alt={view.createdByUser?.name ?? "User Avatar"}
@@ -601,7 +601,6 @@ export function TableViewPresetsDrawer({
           </DialogHeader>
           <Form {...form}>
             <form
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={form.handleSubmit(onSubmit())}
               className="space-y-4"
             >

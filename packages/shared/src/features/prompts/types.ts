@@ -1,7 +1,12 @@
 import { z } from "zod/v4";
 import type { Prompt } from "../../../prisma/generated/types";
 import { jsonSchema } from "../../utils/zod";
-import { COMMIT_MESSAGE_MAX_LENGTH } from "./constants";
+import {
+  COMMIT_MESSAGE_MAX_LENGTH,
+  PROMPT_LABEL_MAX_LENGTH,
+  PROMPT_LABEL_REGEX,
+  PROMPT_LABEL_REGEX_ERROR,
+} from "./constants";
 import { PromptChatMessageSchema } from "../../server/llm/types";
 import { PromptNameSchema } from "./validation";
 
@@ -9,20 +14,16 @@ export const SingleChatMessageSchema = PromptChatMessageSchema;
 export type SingleChatMessage = z.infer<typeof SingleChatMessageSchema>;
 
 export enum PromptType {
-  // eslint-disable-next-line no-unused-vars
   Chat = "chat",
-  // eslint-disable-next-line no-unused-vars
+
   Text = "text",
 }
 
 export const PromptLabelSchema = z
   .string()
   .min(1)
-  .max(36)
-  .regex(
-    /^[a-z0-9_\-.]+$/,
-    "Label must be lowercase alphanumeric with optional underscores, hyphens, or periods",
-  );
+  .max(PROMPT_LABEL_MAX_LENGTH)
+  .regex(PROMPT_LABEL_REGEX, PROMPT_LABEL_REGEX_ERROR);
 
 const BaseCreateTextPromptSchema = z.object({
   name: PromptNameSchema,
@@ -91,12 +92,22 @@ export type GetPromptsMetaType = z.infer<typeof GetPromptsMetaSchema>;
 export const GetPromptSchema = z.object({
   name: z.string().transform((v) => decodeURIComponent(v)),
   version: z.coerce.number().int().nullish(),
+  resolve: z
+    .enum(["true", "false"])
+    .nullish()
+    .default("true")
+    .transform((v) => v === "true"), // Optional, defaults to true for backward compatibility
 });
 
 export const GetPromptByNameSchema = z.object({
   promptName: z.string(),
   version: z.coerce.number().int().nullish(),
   label: z.string().optional(),
+  resolve: z
+    .enum(["true", "false"])
+    .nullish()
+    .default("true")
+    .transform((v) => v === "true"), // Optional, defaults to true for backward compatibility
 });
 
 const BaseTextPromptSchema = z.object({

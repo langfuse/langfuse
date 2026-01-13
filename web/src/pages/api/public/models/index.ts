@@ -1,4 +1,4 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { clearModelCacheForProject } from "@langfuse/shared/src/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
@@ -12,7 +12,6 @@ import {
 import { InvalidRequestError } from "@langfuse/shared";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { type Decimal } from "decimal.js";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -42,8 +41,21 @@ export default withMiddlewares({
           },
         ],
         include: {
-          Price: {
-            select: { usageType: true, price: true },
+          pricingTiers: {
+            select: {
+              id: true,
+              name: true,
+              isDefault: true,
+              priority: true,
+              conditions: true,
+              prices: {
+                select: {
+                  usageType: true,
+                  price: true,
+                },
+              },
+            },
+            orderBy: { priority: "asc" },
           },
         },
         take: query.limit,
@@ -86,9 +98,23 @@ export default withMiddlewares({
           "matchPattern is not a valid regex pattern (Postgres)",
         );
       }
-      const { tokenizerConfig, ...rest } = body;
+      const { tokenizerConfig, pricingTiers: tierData, ...rest } = body;
 
       const model = await prisma.$transaction(async (tx) => {
+        const existingModelName = await tx.model.findFirst({
+          where: {
+            projectId: auth.scope.projectId,
+            modelName: body.modelName,
+          },
+        });
+
+        if (existingModelName) {
+          throw new InvalidRequestError(
+            `Model name '${body.modelName}' already exists in project`,
+          );
+        }
+
+        // 1. Create model
         const createdModel = await tx.model.create({
           data: {
             ...rest,
@@ -97,26 +123,73 @@ export default withMiddlewares({
           },
         });
 
-        const prices = [
-          { usageType: "input", price: body.inputPrice },
-          { usageType: "output", price: body.outputPrice },
-          { usageType: "total", price: body.totalPrice },
-        ];
+        // 2. Handle pricing: flat prices OR pricing tiers
+        if (tierData && tierData.length > 0) {
+          // NEW: Create pricing tiers
+          for (const tier of tierData) {
+            // Create tier (Prisma generates CUID)
+            const createdTier = await tx.pricingTier.create({
+              data: {
+                modelId: createdModel.id,
+                name: tier.name,
+                isDefault: tier.isDefault,
+                priority: tier.priority,
+                conditions: tier.conditions,
+              },
+            });
 
-        await Promise.all(
-          prices
-            .filter(({ price }) => price != null)
-            .map(({ usageType, price }) =>
-              tx.price.create({
-                data: {
-                  modelId: createdModel.id,
-                  projectId: createdModel.projectId,
-                  usageType,
-                  price: price as number, // type guard checked in array filter
-                },
-              }),
-            ),
-        );
+            // Create prices for this tier
+            await Promise.all(
+              Object.entries(tier.prices).map(([usageType, price]) =>
+                tx.price.create({
+                  data: {
+                    modelId: createdModel.id,
+                    projectId: createdModel.projectId,
+                    pricingTierId: createdTier.id,
+                    usageType,
+                    price: new Prisma.Decimal(price),
+                  },
+                }),
+              ),
+            );
+          }
+        } else {
+          // BACKWARD COMPATIBLE: Create default tier from flat prices
+          const defaultTierId = `${createdModel.id}_tier_default`;
+
+          const defaultTier = await tx.pricingTier.create({
+            data: {
+              id: defaultTierId,
+              modelId: createdModel.id,
+              name: "Standard",
+              isDefault: true,
+              priority: 0,
+              conditions: [],
+            },
+          });
+
+          const prices = [
+            { usageType: "input", price: body.inputPrice },
+            { usageType: "output", price: body.outputPrice },
+            { usageType: "total", price: body.totalPrice },
+          ];
+
+          await Promise.all(
+            prices
+              .filter(({ price }) => price != null)
+              .map(({ usageType, price }) =>
+                tx.price.create({
+                  data: {
+                    modelId: createdModel.id,
+                    projectId: createdModel.projectId,
+                    pricingTierId: defaultTier.id,
+                    usageType,
+                    price: new Prisma.Decimal(price as number), // type guard checked in array filter
+                  },
+                }),
+              ),
+          );
+        }
 
         await auditLog({
           action: "create",
@@ -134,15 +207,34 @@ export default withMiddlewares({
       // Clear model cache for the project after successful creation
       await clearModelCacheForProject(auth.scope.projectId);
 
-      return prismaToApiModelDefinition({
-        ...model,
-        Price: (["inputPrice", "outputPrice", "totalPrice"] as const)
-          .filter((key) => model[key] != null)
-          .map((key) => ({
-            usageType: key.split("Price")[0],
-            price: model[key] as Decimal,
-          })),
+      // Fetch the created model with pricingTiers relation
+      const modelWithTiers = await prisma.model.findUnique({
+        where: { id: model.id },
+        include: {
+          pricingTiers: {
+            select: {
+              id: true,
+              name: true,
+              isDefault: true,
+              priority: true,
+              conditions: true,
+              prices: {
+                select: {
+                  usageType: true,
+                  price: true,
+                },
+              },
+            },
+            orderBy: { priority: "asc" },
+          },
+        },
       });
+
+      if (!modelWithTiers) {
+        throw new InvalidRequestError("Failed to fetch created model");
+      }
+
+      return prismaToApiModelDefinition(modelWithTiers);
     },
   }),
 });

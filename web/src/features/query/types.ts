@@ -20,6 +20,8 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggregationFunction: z.string().optional(),
+      highCardinality: z.boolean().optional(),
     }),
   ),
   measures: z.record(
@@ -31,6 +33,7 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggs: z.record(z.string(), z.string()).optional(),
     }),
   ),
   tableRelations: z.record(
@@ -56,6 +59,16 @@ export const views = z.enum([
   // "sessions",
   // "users",
 ]);
+
+// V2 views - excludes "traces" which is not supported in v2 API
+export const viewsV2 = z.enum([
+  "observations",
+  "scores-numeric",
+  "scores-categorical",
+]);
+
+export const viewVersions = z.enum(["v1", "v2"]);
+export type ViewVersion = z.infer<typeof viewVersions>;
 
 export const dimension = z.object({
   field: z.string(),
@@ -128,3 +141,8 @@ export const query = z
       // Ensure fromTimestamp is before toTimestamp
       new Date(query.fromTimestamp) < new Date(query.toTimestamp),
   );
+
+export const useEventsTableSchema = z
+  .union([z.literal("true"), z.literal("false"), z.boolean()])
+  .optional()
+  .transform((val) => val === "true" || val === true);

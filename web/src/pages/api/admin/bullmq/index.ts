@@ -53,7 +53,11 @@ export default async function handler(
       return;
     }
 
-    if (!AdminApiAuthService.handleAdminAuth(req, res, false)) {
+    if (
+      !AdminApiAuthService.handleAdminAuth(req, res, {
+        isAllowedOnLangfuseCloud: true,
+      })
+    ) {
       return;
     }
 

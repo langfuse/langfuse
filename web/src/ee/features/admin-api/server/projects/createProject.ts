@@ -17,7 +17,7 @@ export async function handleCreateProject(
     // Validate project name
     try {
       projectNameSchema.parse({ name });
-    } catch (error) {
+    } catch {
       return res.status(400).json({
         message: "Invalid project name. Should be between 3 and 60 characters.",
       });
@@ -37,7 +37,7 @@ export async function handleCreateProject(
     if (retention !== undefined) {
       try {
         projectRetentionSchema.parse({ retention });
-      } catch (error) {
+      } catch {
         return res.status(400).json({
           message: "Invalid retention value. Must be 0 or at least 3 days.",
         });
@@ -64,6 +64,7 @@ export async function handleCreateProject(
       where: {
         name,
         orgId: scope.orgId,
+        deletedAt: null,
       },
     });
 

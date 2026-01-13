@@ -1,6 +1,6 @@
 import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import {
-  type APIScoreV2,
+  type ScoreDomain,
   type ScoreAggregate,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
@@ -34,7 +34,7 @@ const mockConfigs: ScoreConfigDomain[] = [
 
 describe("transformToAnnotationScores - flat scores", () => {
   it("should transform flat annotation scores correctly", () => {
-    const flatScores: APIScoreV2[] = [
+    const flatScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -54,6 +54,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
       {
         id: "score-2",
@@ -74,6 +77,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
     ];
 
@@ -92,6 +98,7 @@ describe("transformToAnnotationScores - flat scores", () => {
       traceId: "trace-1",
       observationId: null,
       sessionId: null,
+      timestamp: expect.any(Date),
     });
     expect(result[1]).toEqual({
       id: "score-2",
@@ -105,11 +112,12 @@ describe("transformToAnnotationScores - flat scores", () => {
       traceId: "trace-1",
       observationId: null,
       sessionId: null,
+      timestamp: expect.any(Date),
     });
   });
 
   it("should filter out non-ANNOTATION scores", () => {
-    const flatScores: APIScoreV2[] = [
+    const flatScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "quality",
@@ -129,6 +137,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: null,
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
       {
         id: "score-2",
@@ -149,6 +160,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
     ];
 
@@ -160,7 +174,7 @@ describe("transformToAnnotationScores - flat scores", () => {
   });
 
   it("should filter out scores without matching config", () => {
-    const flatScores: APIScoreV2[] = [
+    const flatScores: ScoreDomain[] = [
       {
         id: "score-1",
         name: "unknown",
@@ -180,6 +194,9 @@ describe("transformToAnnotationScores - flat scores", () => {
         updatedAt: new Date(),
         authorUserId: "user-1",
         queueId: null,
+        datasetRunId: null,
+        executionTraceId: null,
+        metadata: {},
       },
     ];
 
@@ -203,6 +220,7 @@ describe("transformToAnnotationScores - aggregates", () => {
         values: [8],
         average: 8,
         comment: "Good quality",
+        timestamp: new Date(),
       },
     };
 
@@ -226,6 +244,7 @@ describe("transformToAnnotationScores - aggregates", () => {
       traceId: "trace-1",
       observationId: "obs-1",
       sessionId: null,
+      timestamp: expect.any(Date),
     });
   });
 
@@ -236,6 +255,7 @@ describe("transformToAnnotationScores - aggregates", () => {
         type: "CATEGORICAL",
         values: ["positive"],
         valueCounts: [{ value: "positive", count: 1 }],
+        timestamp: new Date(),
         comment: null,
       },
     };
@@ -259,6 +279,7 @@ describe("transformToAnnotationScores - aggregates", () => {
       traceId: "trace-1",
       observationId: null,
       sessionId: null,
+      timestamp: expect.any(Date),
     });
   });
 

@@ -761,5 +761,38 @@ describe("LLM Connection Tests", () => {
       expect(completion.tool_calls[0].name).toBe("get_weather");
       expect(completion.tool_calls[0].args).toHaveProperty("location");
     }, 30_000);
+
+    test("single system message is converted to user message", async () => {
+      checkEnvVar();
+
+      // Regression test: Text prompts create a single system message.
+      // GoogleAIStudio must convert it to a user message to prevent:
+      // "GenerateContentRequest.contents is not specified" error
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "system",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.System,
+          },
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
+      });
+
+      expect(typeof completion).toBe("string");
+      expect(completion).toContain("4");
+    }, 30_000);
   });
 });

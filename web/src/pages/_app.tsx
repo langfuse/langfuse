@@ -12,7 +12,7 @@ import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import Layout from "@/src/components/layouts/layout";
+import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
@@ -76,6 +76,7 @@ import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownConte
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -99,6 +100,7 @@ if (
     },
     autocapture: false,
     enable_heatmaps: false,
+    persistence: "cookie",
   });
 }
 
@@ -142,13 +144,14 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     disableTransitionOnChange
                   >
                     <ScoreCacheProvider>
-                      <SupportDrawerProvider defaultOpen={false}>
-                        <Layout>
-                          <Component {...pageProps} />
-                          <UserTracking />
-                        </Layout>
-                      </SupportDrawerProvider>
-                      <BetterStackUptimeStatusMessage />
+                      <CorrectionCacheProvider>
+                        <SupportDrawerProvider defaultOpen={false}>
+                          <AppLayout>
+                            <Component {...pageProps} />
+                            <UserTracking />
+                          </AppLayout>
+                        </SupportDrawerProvider>
+                      </CorrectionCacheProvider>
                     </ScoreCacheProvider>
                   </ThemeProvider>
                 </MarkdownContextProvider>
@@ -201,10 +204,6 @@ function UserTracking() {
       });
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
-      // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
-        posthog.reset();
-      }
       // Sentry
       setUser(null);
     }
@@ -236,17 +235,4 @@ if (
     console.log("Signal: ", signal);
     return await shutdown(signal);
   });
-}
-
-function BetterStackUptimeStatusMessage() {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  if (!isLangfuseCloud) return null;
-  return (
-    <script
-      src="https://uptime.betterstack.com/widgets/announcement.js"
-      data-id="189328"
-      async={true}
-      type="text/javascript"
-    ></script>
-  );
 }

@@ -2,20 +2,35 @@ body:
   - type: textarea
     attributes:
       label: Describe your question
-      description: Please describe the question you have as clear and concise as possible.
+      description: Please describe the question you have as clear and concise as possible. Include error messages, unexpected behavior, or steps to reproduce the problem.
     validations:
       required: true
   - type: dropdown
-    id: hosting
     attributes:
-      label: Are you using Langfuse Cloud or self-host Langfuse?
+      label: Langfuse Cloud or Self-Hosted?
       options:
-        - Langfuse Cloud
-        - Self-hosted Langfuse
+        - "Langfuse Cloud"
+        - "Self-Hosted"
     validations:
       required: true
+  - type: input
+    attributes:
+      label: If Self-Hosted
+      description: What version are you running? We may ask you to upgrade to the latest version, as many issues are continuously being fixed.
+  - type: input
+    attributes:
+      label: If Langfuse Cloud
+      description: Please share the link to your Langfuse project or the specific view you have a question about. This helps us resolve requests faster.
+  - type: textarea
+    attributes:
+      label: SDK and integration versions
+      description: If you're experiencing an issue with an integration or SDK, please share all package versions you're using. If you are not on the latest version, try upgrading, as this will often resolve the issue.
   - type: checkboxes
     attributes:
-      label: I checked if there is already an [issue](https://github.com/langfuse/langfuse/issues) or [discussion](https://github.com/orgs/langfuse/discussions) for my question and asked the [Langfuse AI](https://langfuse.com/docs/ask-ai) for help.
+      label: Pre-Submission Checklist
+      description: Please check for existing [issues](https://github.com/langfuse/langfuse/issues) and [discussions](https://github.com/orgs/langfuse/discussions) and ask the [Langfuse AI chatbot](https://langfuse.com/docs/ask-ai).
+      options:
+        - label: I have checked for existing issues/discussions and consulted Langfuse AI.
+          required: true
     validations:
       required: true

@@ -1,18 +1,10 @@
 import { UploadIcon } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { useState } from "react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
+import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ActionButton } from "@/src/components/ActionButton";
-import { type CsvPreviewResult } from "@/src/features/datasets/lib/csvHelpers";
-import { PreviewCsvImport } from "@/src/features/datasets/components/PreviewCsvImport";
-import { UploadDatasetCsv } from "@/src/features/datasets/components/UploadDatasetCsv";
+import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 
 export const UploadDatasetCsvButton = (props: {
   projectId: string;
@@ -20,8 +12,6 @@ export const UploadDatasetCsvButton = (props: {
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const [preview, setPreview] = useState<CsvPreviewResult | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
@@ -29,7 +19,12 @@ export const UploadDatasetCsvButton = (props: {
   const capture = usePostHogClientCapture();
 
   return (
-    <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+    <CsvUploadDialog
+      open={hasAccess && open}
+      onOpenChange={setOpen}
+      projectId={props.projectId}
+      datasetId={props.datasetId}
+    >
       <DialogTrigger asChild className="hidden md:flex">
         <ActionButton
           variant="outline"
@@ -42,24 +37,6 @@ export const UploadDatasetCsvButton = (props: {
           Upload CSV
         </ActionButton>
       </DialogTrigger>
-      <DialogContent className="flex h-[80dvh] max-w-[80dvw] flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>Upload CSV</DialogTitle>
-        </DialogHeader>
-        {preview ? (
-          <PreviewCsvImport
-            preview={preview}
-            csvFile={csvFile}
-            projectId={props.projectId}
-            datasetId={props.datasetId}
-            setCsvFile={setCsvFile}
-            setPreview={setPreview}
-            setOpen={setOpen}
-          />
-        ) : (
-          <UploadDatasetCsv setPreview={setPreview} setCsvFile={setCsvFile} />
-        )}
-      </DialogContent>
-    </Dialog>
+    </CsvUploadDialog>
   );
 };

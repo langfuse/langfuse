@@ -14,7 +14,7 @@ service:
       errors:
         - commons.UnauthorizedError
         - commons.MethodNotAllowedError
-    
+
     create:
       docs: Create a new organization
       method: POST
@@ -32,7 +32,7 @@ service:
         - commons.Error
         - commons.UnauthorizedError
         - commons.MethodNotAllowedError
-    
+
     getById:
       docs: Get organization by ID
       method: GET
@@ -44,7 +44,7 @@ service:
         - commons.Error
         - commons.UnauthorizedError
         - commons.MethodNotAllowedError
-    
+
     update:
       docs: Update an organization
       method: PUT
@@ -64,7 +64,7 @@ service:
         - commons.Error
         - commons.UnauthorizedError
         - commons.MethodNotAllowedError
-    
+
     delete:
       docs: Delete an organization
       method: DELETE
@@ -137,6 +137,18 @@ types:
       metadata:
         type: map<string, unknown>
         docs: Metadata for the organization
+      projects: list<OrganizationProject>
+
+  OrganizationProject:
+    docs: Project belonging to an organization
+    properties:
+      id: string
+      name: string
+      metadata:
+        type: optional<map<string, unknown>>
+        docs: Metadata for the project
+      createdAt: datetime
+      updatedAt: datetime
 
   DeleteOrganizationResponse:
     docs: Response for successful organization deletion

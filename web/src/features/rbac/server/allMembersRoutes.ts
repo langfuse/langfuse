@@ -8,6 +8,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
+import { formatAuthProviderName } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
@@ -17,15 +18,17 @@ const orgLevelMemberQuery = z.object({
   ...paginationZod,
 });
 
-const projectLevelMemberQuery = orgLevelMemberQuery.extend({
-  projectId: z.string(), // optional, view project_role for specific project
+const projectLevelMemberQuery = z.object({
+  projectId: z.string(),
+  searchQuery: z.string().optional(),
+  ...paginationZod,
 });
 
 async function getMembers(
   prisma: PrismaClient,
   query:
     | z.infer<typeof orgLevelMemberQuery>
-    | z.infer<typeof projectLevelMemberQuery>,
+    | (z.infer<typeof projectLevelMemberQuery> & { orgId: string }),
   showAllOrgMembers: boolean = true,
 ) {
   // Build common where clause to ensure consistency between findMany and count queries
@@ -83,6 +86,11 @@ async function getMembers(
           id: true,
           name: true,
           email: true,
+          accounts: {
+            select: {
+              provider: true,
+            },
+          },
         },
       },
     },
@@ -118,6 +126,12 @@ async function getMembers(
   return {
     memberships: orgMemberships.map((om) => ({
       ...om,
+      user: {
+        ...om.user,
+        accounts: om.user.accounts.map((account) => ({
+          provider: formatAuthProviderName(account.provider),
+        })),
+      },
       projectRole: projectMemberships.find((pm) => pm.userId === om.userId)
         ?.role,
     })),
@@ -139,22 +153,33 @@ export const allMembersRoutes = {
   allFromProject: protectedProjectProcedure
     .input(projectLevelMemberQuery)
     .query(async ({ input, ctx }) => {
+      const orgId = ctx.session.orgId;
       const orgAccess = hasOrganizationAccess({
         session: ctx.session,
-        organizationId: input.orgId,
+        organizationId: orgId,
         scope: "organizationMembers:read",
       });
+
       const projectAccess = hasProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "projectMembers:read",
       });
+
       if (!orgAccess && !projectAccess) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "You do not have the required access rights",
         });
       }
-      return getMembers(ctx.prisma, input, orgAccess);
+
+      return getMembers(
+        ctx.prisma,
+        {
+          ...input,
+          orgId,
+        },
+        orgAccess,
+      );
     }),
 };

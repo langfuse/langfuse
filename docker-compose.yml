@@ -107,7 +107,7 @@ services:
       start_period: 1s
 
   minio:
-    image: docker.io/minio/minio
+    image: cgr.dev/chainguard/minio
     restart: always
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
@@ -133,6 +133,7 @@ services:
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
+      --maxmemory-policy noeviction
     ports:
       - 127.0.0.1:6379:6379
     healthcheck:

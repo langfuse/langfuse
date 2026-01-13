@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { z } from "zod/v4";
 import { eventTypes } from "./ingestion/types";
 import {
@@ -8,6 +7,7 @@ import {
 import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
+import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -15,6 +15,7 @@ export const IngestionEvent = z.object({
     eventBodyId: z.string(),
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
+    forwardToEventsTable: z.boolean().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -92,6 +93,9 @@ export const EvalExecutionEvent = z.object({
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
+export const MixpanelIntegrationProcessingEventSchema = z.object({
+  projectId: z.string(),
+});
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -161,6 +165,16 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       query: BatchActionQuerySchema,
     }),
+    z.object({
+      actionId: z.literal("observation-add-to-dataset"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      batchActionId: z.string(),
+      config: ObservationAddToDatasetConfigSchema,
+      type: z.enum(BatchActionType),
+    }),
   ],
 );
 
@@ -182,6 +196,23 @@ export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
 export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
+
+export const BatchProjectCleanerJobSchema = z.object({
+  table: z.enum(["traces", "observations", "scores", "events"]),
+});
+export type BatchProjectCleanerJobType = z.infer<
+  typeof BatchProjectCleanerJobSchema
+>;
+
+export const NotificationEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("COMMENT_MENTION"),
+    commentId: z.string(),
+    projectId: z.string(),
+    mentionedUserIds: z.array(z.string()),
+  }),
+  // Future notification types can be added here
+]);
 
 export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
@@ -231,6 +262,9 @@ export type ExperimentCreateEventType = z.infer<
 export type PostHogIntegrationProcessingEventType = z.infer<
   typeof PostHogIntegrationProcessingEventSchema
 >;
+export type MixpanelIntegrationProcessingEventType = z.infer<
+  typeof MixpanelIntegrationProcessingEventSchema
+>;
 export type DataRetentionProcessingEventType = z.infer<
   typeof DataRetentionProcessingEventSchema
 >;
@@ -243,6 +277,7 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
 
 export const RetryBaggage = z.object({
   originalJobTimestamp: z.date(),
@@ -267,6 +302,8 @@ export enum QueueName {
   ExperimentCreate = "experiment-create-queue",
   PostHogIntegrationQueue = "posthog-integration-queue",
   PostHogIntegrationProcessingQueue = "posthog-integration-processing-queue",
+  MixpanelIntegrationQueue = "mixpanel-integration-queue",
+  MixpanelIntegrationProcessingQueue = "mixpanel-integration-processing-queue",
   BlobStorageIntegrationQueue = "blobstorage-integration-queue",
   BlobStorageIntegrationProcessingQueue = "blobstorage-integration-processing-queue",
   CoreDataS3ExportQueue = "core-data-s3-export-queue",
@@ -281,6 +318,8 @@ export enum QueueName {
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
+  NotificationQueue = "notification-queue",
+  BatchProjectCleanerQueue = "batch-project-cleaner-queue",
 }
 
 export enum QueueJobs {
@@ -299,6 +338,8 @@ export enum QueueJobs {
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
+  MixpanelIntegrationJob = "mixpanel-integration-job",
+  MixpanelIntegrationProcessingJob = "mixpanel-integration-processing-job",
   BlobStorageIntegrationJob = "blobstorage-integration-job",
   BlobStorageIntegrationProcessingJob = "blobstorage-integration-processing-job",
   CoreDataS3ExportJob = "core-data-s3-export-job",
@@ -313,6 +354,8 @@ export enum QueueJobs {
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
+  NotificationJob = "notification-job",
+  BatchProjectCleanerJob = "batch-project-cleaner-job",
 }
 
 export type TQueueJobTypes = {
@@ -351,6 +394,7 @@ export type TQueueJobTypes = {
     id: string;
     payload: DatasetRunItemUpsertEventType;
     name: QueueJobs.DatasetRunItemUpsert;
+    retryBaggage?: RetryBaggage;
   };
   [QueueName.EvaluationExecution]: {
     timestamp: Date;
@@ -395,6 +439,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: PostHogIntegrationProcessingEventType;
     name: QueueJobs.PostHogIntegrationProcessingJob;
+  };
+  [QueueName.MixpanelIntegrationProcessingQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MixpanelIntegrationProcessingEventType;
+    name: QueueJobs.MixpanelIntegrationProcessingJob;
   };
   [QueueName.DataRetentionProcessingQueue]: {
     timestamp: Date;
@@ -456,5 +506,11 @@ export type TQueueJobTypes = {
       partition?: string;
     };
     name: QueueJobs.EventPropagationJob;
+  };
+  [QueueName.NotificationQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: NotificationEventType;
+    name: QueueJobs.NotificationJob;
   };
 };

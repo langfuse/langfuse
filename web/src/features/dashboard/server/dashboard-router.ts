@@ -167,27 +167,18 @@ export const dashboardRouter = createTRPCRouter({
       try {
         return executeQuery(input.projectId, input.query as QueryType);
       } catch (error) {
-        // If the error is a known invalid request, return a 400 error
         if (error instanceof InvalidRequestError) {
           logger.warn("Bad request in query execution", error, {
             projectId: input.projectId,
             query: input.query,
           });
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: error.message || "Invalid request",
-            cause: error,
-          });
+          throw error;
         }
         logger.error("Error executing query", error, {
           projectId: input.projectId,
           query: input.query,
         });
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to execute query",
-          cause: error,
-        });
+        throw error;
       }
     }),
 

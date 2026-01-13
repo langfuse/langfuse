@@ -15,9 +15,8 @@ import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { env } from "@/src/env.mjs";
 import { Input } from "@/src/components/ui/input";
+import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { Label } from "@/src/components/ui/label";
 import { cn } from "@/src/utils/tailwind";
 import { SubHeader } from "@/src/components/layouts/header";
@@ -167,7 +166,8 @@ export const ApiKeyRender = ({
   generatedKeys?: { secretKey: string; publicKey: string };
   className?: string;
 }) => {
-  const uiCustomization = useUiCustomization();
+  const envCode = useLangfuseEnvCode(generatedKeys);
+
   return (
     <div className={cn("space-y-6", className)}>
       <div>
@@ -189,11 +189,8 @@ export const ApiKeyRender = ({
         />
       </div>
       <div>
-        <SubHeader title="Host" />
-        <CodeView
-          content={`${uiCustomization?.hostname ?? window.origin}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`}
-          className="mt-2"
-        />
+        <SubHeader title=".env" />
+        <CodeView content={envCode} className="mt-2" />
       </div>
     </div>
   );

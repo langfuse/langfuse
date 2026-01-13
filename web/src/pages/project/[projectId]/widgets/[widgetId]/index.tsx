@@ -18,6 +18,7 @@ export default function EditWidget() {
   };
 
   // Fetch the widget details
+  const utils = api.useUtils();
   const { data: widgetData, isLoading: isWidgetLoading } =
     api.dashboardWidgets.get.useQuery(
       {
@@ -31,6 +32,9 @@ export default function EditWidget() {
 
   // Update widget mutation
   const updateWidgetMutation = api.dashboardWidgets.update.useMutation({
+    onSettled: () => {
+      utils.dashboardWidgets.invalidate();
+    },
     onSuccess: () => {
       showSuccessToast({
         title: "Widget updated successfully",

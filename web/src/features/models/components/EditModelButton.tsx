@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { UpsertModelFormDrawer } from "@/src/features/models/components/UpsertModelFormDrawer";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { type GetModelResult } from "@/src/features/models/validation";
 
 export const EditModelButton = ({
@@ -16,7 +16,7 @@ export const EditModelButton = ({
   });
 
   return (
-    <UpsertModelFormDrawer {...{ modelData, projectId, action: "edit" }}>
+    <UpsertModelFormDialog {...{ modelData, projectId, action: "edit" }}>
       <Button
         variant="outline"
         disabled={!hasAccess}
@@ -25,6 +25,6 @@ export const EditModelButton = ({
       >
         <span>Edit</span>
       </Button>
-    </UpsertModelFormDrawer>
+    </UpsertModelFormDialog>
   );
 };

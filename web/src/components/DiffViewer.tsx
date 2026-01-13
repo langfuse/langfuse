@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
-import { diffChars } from "diff";
+import { diffLines as calculateDiffLines, diffWords } from "diff";
 
-type DiffLine = {
+type DiffSegmentPart = {
+  value: string;
+  type?: "unchanged" | "removed" | "added" | "empty";
+};
+
+type DiffSegment = {
   text: string;
   type: "unchanged" | "removed" | "added" | "empty";
-  parts?: {
-    value: string;
-    type?: "removed" | "added";
-  }[];
+  parts?: DiffSegmentPart[];
 };
 
 type DiffViewerProps = {
@@ -31,8 +33,61 @@ const DIFF_COLORS = {
     text: "bg-destructive/60",
     line: "bg-destructive/10",
   },
-  empty: "bg-muted",
+  unchanged: {
+    text: "bg-muted",
+    line: "bg-muted",
+  },
+  empty: {
+    text: "bg-muted",
+    line: "bg-muted",
+  },
 } as const;
+
+/**
+ * Calculates the diff between two segments, word by word.
+ * @param oldString - The old string to compare
+ * @param newString - The new string to compare
+ * @returns The diff between the two strings
+ */
+const calculateSegmentDiff = (oldString: string, newString: string) => {
+  const segmentChanges = diffWords(oldString, newString, {});
+  const leftWords: DiffSegmentPart[] = [];
+  const rightWords: DiffSegmentPart[] = [];
+
+  for (let charIndex = 0; charIndex < segmentChanges.length; charIndex++) {
+    const change = segmentChanges[charIndex];
+
+    if (!change.added && !change.removed) {
+      // not added or removed, so it's unchanged.
+      leftWords.push({ value: change.value, type: "unchanged" });
+      rightWords.push({ value: change.value, type: "unchanged" });
+    } else if (change.removed) {
+      // removed, so we need to check if there is an addition next.
+      const nextChange = segmentChanges[charIndex + 1];
+      const areThereMoreCharacterChanges = nextChange !== undefined;
+      const addsCharacterNext =
+        areThereMoreCharacterChanges && segmentChanges[charIndex + 1].added;
+      if (addsCharacterNext) {
+        // there is addition next so we can show it as an update.
+        leftWords.push({ value: change.value, type: "removed" });
+        rightWords.push({ value: nextChange.value, type: "added" });
+
+        // skip the next change since we've already processed it.
+        charIndex++;
+      } else {
+        // no addition next, so we can show it as a removal.
+        leftWords.push({ value: change.value, type: "removed" });
+        rightWords.push({ value: "", type: "empty" });
+      }
+    } else {
+      // added, so we can show it as an addition.
+      leftWords.push({ value: "", type: "empty" });
+      rightWords.push({ value: change.value, type: "added" });
+    }
+  }
+
+  return { leftWords, rightWords };
+};
 
 const DiffViewer: React.FC<DiffViewerProps> = ({
   oldString,
@@ -44,84 +99,57 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
   className,
 }) => {
   const [diffLines, setDiffLines] = useState<{
-    left: DiffLine[];
-    right: DiffLine[];
+    left: DiffSegment[];
+    right: DiffSegment[];
   }>({ left: [], right: [] });
 
   useEffect(() => {
-    const left: DiffLine[] = [];
-    const right: DiffLine[] = [];
+    const left: DiffSegment[] = [];
+    const right: DiffSegment[] = [];
 
-    // Get the complete diff first
-    const changes = diffChars(oldString, newString, {});
+    const lineChanges = calculateDiffLines(oldString, newString, {});
 
-    // Group changes by line
-    const oldParts: { value: string; type?: "removed" }[][] = [[]];
-    const newParts: { value: string; type?: "added" }[][] = [[]];
+    for (let diffIndex = 0; diffIndex < lineChanges.length; diffIndex++) {
+      const part = lineChanges[diffIndex];
 
-    changes.forEach((part) => {
-      const lines = part.value.split("\n");
+      // No changes
+      if (!part.added && !part.removed) {
+        left.push({ text: part.value, type: "unchanged" });
+        right.push({ text: part.value, type: "unchanged" });
+      } else if (part.removed) {
+        // removed, so we need to check if there is an addition next.
+        const areThereMoreChanges = diffIndex < lineChanges.length - 1;
+        const isThereAnAdditionNext =
+          areThereMoreChanges && lineChanges[diffIndex + 1].added;
+        if (isThereAnAdditionNext) {
+          // there is another change and it's an addition, meaning there is a change in the segment.
+          const { leftWords, rightWords } = calculateSegmentDiff(
+            part.value,
+            lineChanges[diffIndex + 1].value,
+          );
 
-      lines.forEach((line, idx) => {
-        if (idx > 0) {
-          if (!part.added) oldParts.push([]);
-          if (!part.removed) newParts.push([]);
+          left.push({ parts: leftWords, text: "", type: "removed" });
+          right.push({ parts: rightWords, text: "", type: "added" });
+          diffIndex++;
+        } else {
+          // No addition next, meaning it's a removal of the part.
+          left.push({ text: part.value, type: "removed" });
+          right.push({ text: "", type: "empty" });
         }
-
-        if (!part.added) {
-          oldParts[oldParts.length - 1].push({
-            value: line,
-            type: part.removed ? "removed" : undefined,
-          });
-        }
-        if (!part.removed) {
-          newParts[newParts.length - 1].push({
-            value: line,
-            type: part.added ? "added" : undefined,
-          });
-        }
-      });
-    });
-
-    // Convert parts to DiffLines
-    const maxLength = Math.max(oldParts.length, newParts.length);
-    for (let i = 0; i < maxLength; i++) {
-      const oldLineParts = oldParts[i] || [];
-      const newLineParts = newParts[i] || [];
-
-      if (oldLineParts.length === 0 && newLineParts.length === 0) {
-        left.push({ text: "", type: "empty" });
-        right.push({ text: "", type: "empty" });
-        continue;
-      }
-
-      const oldText = oldLineParts.map((p) => p.value).join("");
-      const newText = newLineParts.map((p) => p.value).join("");
-
-      if (oldText === newText) {
-        left.push({ text: oldText, type: "unchanged" });
-        right.push({ text: newText, type: "unchanged" });
       } else {
-        left.push({
-          text: oldText,
-          type: oldText ? "removed" : "empty",
-          parts: oldLineParts.length ? oldLineParts : undefined,
-        });
-        right.push({
-          text: newText,
-          type: newText ? "added" : "empty",
-          parts: newLineParts.length ? newLineParts : undefined,
-        });
+        // No removal before this part, meaning it's a new part.
+        left.push({ text: "", type: "empty" });
+        right.push({ text: part.value, type: "added" });
       }
     }
 
     setDiffLines({ left, right });
   }, [oldString, newString]);
 
-  const DiffRow: React.FC<{ leftLine: DiffLine; rightLine: DiffLine }> = ({
-    leftLine,
-    rightLine,
-  }) => {
+  const DiffRow: React.FC<{
+    leftLine: DiffSegment;
+    rightLine: DiffSegment;
+  }> = ({ leftLine, rightLine }) => {
     const typeClasses = {
       unchanged: "",
       removed: DIFF_COLORS.removed.line,
@@ -129,7 +157,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({
       empty: DIFF_COLORS.empty,
     };
 
-    const renderContent = (line: DiffLine) =>
+    const renderContent = (line: DiffSegment) =>
       line.parts
         ? line.parts.map((part, idx) => (
             <span

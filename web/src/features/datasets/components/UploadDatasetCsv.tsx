@@ -7,15 +7,13 @@ import {
 } from "@/src/components/ui/card";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { z } from "zod/v4";
-import {
-  type CsvPreviewResult,
-  parseCsvClient,
-} from "@/src/features/datasets/lib/csvHelpers";
+import { parseCsvClient } from "@/src/features/datasets/lib/csv/helpers";
 import { DialogBody } from "@/src/components/ui/dialog";
 import {
   Dropzone,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
+import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;

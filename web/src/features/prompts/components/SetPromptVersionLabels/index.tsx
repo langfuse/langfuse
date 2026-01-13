@@ -125,7 +125,7 @@ export function SetPromptVersionLabels({
           />
           <Button
             variant="outline"
-            title="Add prompt version label"
+            title="Add prompt label"
             className={cn(
               "h-6 w-6 bg-muted-gray text-primary",
               showOnlyOnHover && "opacity-0 group-hover:opacity-100",
@@ -146,7 +146,7 @@ export function SetPromptVersionLabels({
           onClick={(event) => event.stopPropagation()}
           className="flex flex-col"
         >
-          <h2 className="text-md mb-3 font-semibold">Prompt version labels</h2>
+          <h2 className="text-md mb-3 font-semibold">Prompt labels</h2>
           <h2 className="mb-3 text-xs">
             Use labels to fetch prompts via SDKs. The{" "}
             <strong>production</strong> labeled prompt will be served by

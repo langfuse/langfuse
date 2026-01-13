@@ -63,7 +63,6 @@ export function MembershipInvitesPage({
   const invites = projectId
     ? api.members.allInvitesFromProject.useQuery(
         {
-          orgId,
           projectId,
           page: paginationState.pageIndex,
           limit: paginationState.pageSize,

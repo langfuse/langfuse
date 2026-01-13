@@ -1,15 +1,20 @@
-import { Trace } from "@/src/components/trace";
-import { ObservationPreview } from "@/src/components/trace/ObservationPreview";
-import { TracePreview } from "@/src/components/trace/TracePreview";
+import { Trace } from "@/src/components/trace2/Trace";
+import { ObservationPreview } from "@/src/components/trace2/ObservationPreview";
+import { TracePreview } from "@/src/components/trace2/TracePreview";
+import { JsonExpansionProvider } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
+import { api } from "@/src/utils/api";
+import { castToNumberMap } from "@/src/utils/map-utils";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { buildTraceUiData } from "@/src/components/trace2/lib/helpers";
 
 interface TraceAnnotationProcessorProps {
   item: AnnotationQueueItem & {
@@ -20,17 +25,52 @@ interface TraceAnnotationProcessorProps {
   view: "showTree" | "hideTree";
   configs: ScoreConfigDomain[];
   projectId: string;
-  onHasCommentDraftChange?: (hasDraft: boolean) => void;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, view, configs, projectId, onHasCommentDraftChange }) => {
+> = ({ item, data, view, configs, projectId }) => {
   const traceId = item.parentTraceId ?? item.objectId;
 
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
+  );
+
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+
+  const traceCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId: projectId,
+      objectId: traceId,
+      objectType: "TRACE",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      enabled: isAuthenticatedAndProjectMember,
+    },
+  );
+
+  const observationCommentCounts = api.comments.getCountByObjectType.useQuery(
+    {
+      projectId: projectId,
+      objectType: "OBSERVATION",
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      enabled: isAuthenticatedAndProjectMember,
+    },
   );
 
   useEffect(() => {
@@ -41,6 +81,13 @@ export const TraceAnnotationProcessor: React.FC<
       setCurrentObservationId(item.objectId);
     } else setCurrentObservationId(undefined);
   }, [view, item, setCurrentObservationId]);
+
+  const { tree: traceTree, nodeMap } = useMemo(() => {
+    if (!data || !data.observations) {
+      return { tree: null, nodeMap: new Map() };
+    }
+    return buildTraceUiData(data, data.observations);
+  }, [data]);
 
   if (!data) return <div className="p-3">Loading...</div>;
 
@@ -57,32 +104,43 @@ export const TraceAnnotationProcessor: React.FC<
 
   const leftPanel =
     view === "hideTree" ? (
-      <div className="flex h-full flex-col overflow-y-auto pl-4">
-        {item.objectType === AnnotationQueueObjectType.TRACE ? (
-          <TracePreview
-            key={data.id}
-            trace={data}
-            serverScores={data.scores}
-            observations={data.observations}
-            viewType="focused"
-          />
-        ) : (
-          <ObservationPreview
-            observations={data.observations}
-            serverScores={data.scores}
-            projectId={item.projectId}
-            currentObservationId={item.objectId}
-            traceId={traceId}
-            viewType="focused"
-          />
-        )}
-      </div>
+      <JsonExpansionProvider>
+        <div className="flex h-full flex-col overflow-y-auto pl-4">
+          {item.objectType === AnnotationQueueObjectType.TRACE ? (
+            <TracePreview
+              key={data.id}
+              trace={data}
+              serverScores={data.scores}
+              corrections={data.corrections}
+              observations={data.observations}
+              viewType="focused"
+              showCommentButton={true}
+              commentCounts={castToNumberMap(traceCommentCounts.data)}
+              precomputedCost={traceTree?.totalCost}
+            />
+          ) : (
+            <ObservationPreview
+              observations={data.observations}
+              serverScores={data.scores}
+              corrections={data.corrections}
+              projectId={item.projectId}
+              currentObservationId={item.objectId}
+              precomputedCost={nodeMap.get(item.objectId)?.totalCost}
+              traceId={traceId}
+              viewType="focused"
+              showCommentButton={true}
+              commentCounts={castToNumberMap(observationCommentCounts.data)}
+            />
+          )}
+        </div>
+      </JsonExpansionProvider>
     ) : (
       <div className="flex h-full flex-col overflow-y-auto">
         <Trace
           key={data.id}
           trace={data}
           scores={data.scores}
+          corrections={data.corrections}
           projectId={data.projectId}
           observations={data.observations}
           viewType="focused"
@@ -102,7 +160,6 @@ export const TraceAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
-      onHasCommentDraftChange={onHasCommentDraftChange}
     />
   );
 

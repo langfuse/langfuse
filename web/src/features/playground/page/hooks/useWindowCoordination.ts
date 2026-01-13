@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type PlaygroundHandle,
   type WindowCoordinationReturn,
@@ -34,7 +34,20 @@ const playgroundEventBus = new EventTarget();
  */
 export const useWindowCoordination = (): WindowCoordinationReturn => {
   const [isExecutingAll, setIsExecutingAll] = useState(false);
+  const [hasAnyModelConfigured, setHasAnyModelConfigured] = useState(false);
   const executionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  /**
+   * Check if any registered window has a model configured
+   * Updates the hasAnyModelConfigured state
+   */
+  const checkModelConfiguration = useCallback(() => {
+    const registeredWindows = Array.from(playgroundWindowRegistry.values());
+    const hasModel = registeredWindows.some((handle) =>
+      handle.hasModelConfigured(),
+    );
+    setHasAnyModelConfigured(hasModel);
+  }, []);
 
   /**
    * Register a playground window with the global coordination system
@@ -47,6 +60,9 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
     (windowId: string, handle: PlaygroundHandle) => {
       playgroundWindowRegistry.set(windowId, handle);
 
+      // Check model configuration after registration
+      checkModelConfiguration();
+
       // Dispatch registration event for potential listeners
       playgroundEventBus.dispatchEvent(
         new CustomEvent(PLAYGROUND_EVENTS.WINDOW_REGISTERED, {
@@ -54,7 +70,7 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
         }),
       );
     },
-    [],
+    [checkModelConfiguration],
   );
 
   /**
@@ -63,19 +79,25 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
    *
    * @param windowId - Unique identifier for the window to remove
    */
-  const unregisterWindow = useCallback((windowId: string) => {
-    const wasRegistered = playgroundWindowRegistry.has(windowId);
-    playgroundWindowRegistry.delete(windowId);
+  const unregisterWindow = useCallback(
+    (windowId: string) => {
+      const wasRegistered = playgroundWindowRegistry.has(windowId);
+      playgroundWindowRegistry.delete(windowId);
 
-    if (wasRegistered) {
-      // Dispatch unregistration event for potential listeners
-      playgroundEventBus.dispatchEvent(
-        new CustomEvent(PLAYGROUND_EVENTS.WINDOW_UNREGISTERED, {
-          detail: { windowId },
-        }),
-      );
-    }
-  }, []);
+      if (wasRegistered) {
+        // Check model configuration after unregistration
+        checkModelConfiguration();
+
+        // Dispatch unregistration event for potential listeners
+        playgroundEventBus.dispatchEvent(
+          new CustomEvent(PLAYGROUND_EVENTS.WINDOW_UNREGISTERED, {
+            detail: { windowId },
+          }),
+        );
+      }
+    },
+    [checkModelConfiguration],
+  );
 
   /**
    * Execute all registered playground windows in parallel
@@ -93,6 +115,15 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
       handle.getIsStreaming(),
     );
     if (alreadyExecuting) {
+      return;
+    }
+
+    // Check if any window has a model configured
+    const hasModel = registeredWindows.some((handle) =>
+      handle.hasModelConfigured(),
+    );
+    if (!hasModel) {
+      // Don't show error toast - the UI already shows a clear alert banner
       return;
     }
 
@@ -201,6 +232,25 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
     return `Executing ${executingCount} of ${totalCount} windows`;
   }, []);
 
+  // Listen for model configuration changes
+  useEffect(() => {
+    const handleModelConfigChange = () => {
+      checkModelConfiguration();
+    };
+
+    playgroundEventBus.addEventListener(
+      PLAYGROUND_EVENTS.WINDOW_MODEL_CONFIG_CHANGE,
+      handleModelConfigChange,
+    );
+
+    return () => {
+      playgroundEventBus.removeEventListener(
+        PLAYGROUND_EVENTS.WINDOW_MODEL_CONFIG_CHANGE,
+        handleModelConfigChange,
+      );
+    };
+  }, [checkModelConfiguration]);
+
   return {
     registerWindow,
     unregisterWindow,
@@ -208,6 +258,7 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
     stopAllWindows,
     getExecutionStatus,
     isExecutingAll,
+    hasAnyModelConfigured,
   };
 };
 

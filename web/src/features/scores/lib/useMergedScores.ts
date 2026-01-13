@@ -2,8 +2,9 @@ import { useMemo } from "react";
 import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import { mergeScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
-import { type APIScoreV2 } from "@langfuse/shared";
 import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTarget";
+import { type ScoreDomain } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**
  * Hook for merging server scores with cached scores
@@ -18,13 +19,13 @@ import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTa
  * @param serverScores - Flat scores from tRPC query
  * @param target - Target to filter cache by (traceId, observationId, sessionId)
  * @param mode - Describes whether to include child observation scores or only target scores. Defaults to only target scores.
- * @returns APIScoreV2[] with all cache operations applied
+ * @returns ScoreDomain[] with all cache operations applied
  */
 export function useMergedScores(
-  serverScores: APIScoreV2[],
+  serverScores: WithStringifiedMetadata<ScoreDomain>[],
   target: ScoreTarget,
   mode: "target-and-child-scores" | "target-scores-only" = "target-scores-only",
-): APIScoreV2[] {
+): WithStringifiedMetadata<ScoreDomain>[] {
   const { getAllForTarget, isDeleted } = useScoreCache();
 
   const cachedScores = getAllForTarget(mode, {

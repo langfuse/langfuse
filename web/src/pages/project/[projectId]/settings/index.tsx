@@ -12,6 +12,7 @@ import { MembershipInvitesPage } from "@/src/features/rbac/components/Membership
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
+import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
 import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -20,6 +21,7 @@ import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
+import { BatchActionsSettingsPage } from "@/src/features/batch-actions/components/BatchActionsSettingsPage";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
@@ -28,6 +30,7 @@ import ProtectedLabelsSettings from "@/src/features/prompts/components/Protected
 import { Slack } from "lucide-react";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
+import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -168,7 +171,7 @@ export const getProjectSettingsPages = ({
     show: showProtectedLabelsSettings,
   },
   {
-    title: "Scores / Evaluation",
+    title: "Scores Configs",
     slug: "scores",
     cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,
@@ -197,7 +200,7 @@ export const getProjectSettingsPages = ({
   {
     title: "Integrations",
     slug: "integrations",
-    cmdKKeywords: ["posthog"],
+    cmdKKeywords: ["posthog", "mixpanel", "analytics"],
     content: <Integrations projectId={project.id} />,
   },
   {
@@ -207,10 +210,22 @@ export const getProjectSettingsPages = ({
     content: <BatchExportsSettingsPage projectId={project.id} />,
   },
   {
+    title: "Batch Actions",
+    slug: "batch-actions",
+    cmdKKeywords: ["bulk", "batch", "action", "dataset", "delete"],
+    content: <BatchActionsSettingsPage projectId={project.id} />,
+  },
+  {
     title: "Audit Logs",
     slug: "audit-logs",
     cmdKKeywords: ["trail"],
     content: <AuditLogsSettingsPage projectId={project.id} />,
+  },
+  {
+    title: "Notifications",
+    slug: "notifications",
+    cmdKKeywords: ["inbox", "email", "mention", "alert"],
+    content: <NotificationSettings />,
   },
   {
     title: "Billing",
@@ -261,7 +276,7 @@ const Integrations = (props: { projectId: string }) => {
       <Header title="Integrations" />
       <div className="space-y-6">
         <Card className="p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {}
           <PostHogLogo className="mb-4 w-40 text-foreground" />
           <p className="mb-4 text-sm text-primary">
             We have teamed up with PostHog (OSS product analytics) to make
@@ -278,6 +293,31 @@ const Integrations = (props: { projectId: string }) => {
             <Button asChild variant="ghost">
               <Link
                 href="https://langfuse.com/integrations/analytics/posthog"
+                target="_blank"
+              >
+                Integration Docs ↗
+              </Link>
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <MixpanelLogo className="mb-4 w-20 text-foreground" />
+          <p className="mb-4 text-sm text-primary">
+            Integrate with Mixpanel to sync your Langfuse traces, generations,
+            and scores for advanced product analytics and insights.
+          </p>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              hasAccess={hasAccess}
+              href={`/project/${props.projectId}/settings/integrations/mixpanel`}
+            >
+              Configure
+            </ActionButton>
+            <Button asChild variant="ghost">
+              <Link
+                href="https://langfuse.com/integrations/analytics/mixpanel"
                 target="_blank"
               >
                 Integration Docs ↗

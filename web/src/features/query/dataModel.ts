@@ -1,9 +1,11 @@
-import { type z } from "zod/v4";
-import {
-  type views,
-  type ViewDeclarationType,
-  type DimensionsDeclarationType,
+import type z from "zod/v4";
+import type {
+  ViewVersion,
+  ViewDeclarationType,
+  DimensionsDeclarationType,
+  views,
 } from "@/src/features/query/types";
+import { InvalidRequestError } from "@langfuse/shared";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update ./dashboardUiTableToViewMapping.ts if you make changes
@@ -152,6 +154,160 @@ export const traceView: ViewDeclarationType = {
   baseCte: `traces FINAL`,
 };
 
+export const eventsTracesView: ViewDeclarationType = {
+  name: "events_traces",
+  description:
+    "Traces built from events table aggregation - mirrors v1 traces view with 100% API compatibility.",
+  dimensions: {
+    id: {
+      sql: "events_traces.trace_id",
+      alias: "id",
+      type: "string",
+      description: "Unique identifier of the trace.",
+      highCardinality: true,
+      // This is the GROUP BY identity column
+    },
+    name: {
+      sql: "nullIf(events_traces.trace_name, '')",
+      alias: "name",
+      type: "string",
+      description:
+        "Name assigned to the trace (often the endpoint or operation).",
+      aggregationFunction:
+        "argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> '')",
+    },
+    tags: {
+      sql: "events_traces.tags",
+      alias: "tags",
+      type: "string[]",
+      description: "User-defined tags associated with the trace.",
+      aggregationFunction:
+        "arrayDistinct(flatten(groupArray(events_traces.tags)))",
+    },
+    userId: {
+      sql: "nullIf(events_traces.user_id, '')",
+      alias: "userId",
+      type: "string",
+      description: "Identifier of the user triggering the trace.",
+      aggregationFunction:
+        "argMaxIf(events_traces.user_id, events_traces.event_ts, events_traces.user_id <> '')",
+      highCardinality: true,
+    },
+    sessionId: {
+      sql: "nullIf(events_traces.session_id, '')",
+      alias: "sessionId",
+      type: "string",
+      description: "Identifier of the session triggering the trace.",
+      aggregationFunction:
+        "argMaxIf(events_traces.session_id, events_traces.event_ts, events_traces.session_id <> '')",
+      highCardinality: true,
+    },
+    release: {
+      sql: "nullIf(events_traces.release, '')",
+      alias: "release",
+      type: "string",
+      description: "Release version of the trace.",
+      aggregationFunction:
+        "argMaxIf(events_traces.release, events_traces.event_ts, events_traces.release <> '')",
+    },
+    version: {
+      sql: "nullIf(events_traces.version, '')",
+      alias: "version",
+      type: "string",
+      description: "Version of the trace.",
+      aggregationFunction:
+        "argMaxIf(events_traces.version, events_traces.event_ts, events_traces.version <> '')",
+    },
+    environment: {
+      sql: "nullIf(events_traces.environment, '')",
+      alias: "environment",
+      type: "string",
+      description: "Deployment environment (e.g., production, staging).",
+      aggregationFunction:
+        "argMaxIf(events_traces.environment, events_traces.event_ts, events_traces.environment <> '')",
+    },
+    timestampMonth: {
+      sql: "events_traces.start_time",
+      alias: "timestampMonth",
+      type: "string",
+      description: "Month of the trace timestamp in YYYY-MM format.",
+      aggregationFunction:
+        "formatDateTime(min(events_traces.start_time), '%Y-%m')",
+    },
+  },
+  measures: {
+    count: {
+      sql: "count(*)",
+      alias: "count",
+      type: "integer",
+      description: "Total number of traces.",
+      unit: "traces",
+    },
+    observationsCount: {
+      sql: "uniq(events_traces.span_id)",
+      alias: "observationsCount",
+      type: "integer",
+      description: "Unique observations linked to the trace.",
+      unit: "observations",
+    },
+    scoresCount: {
+      sql: "uniq(scores.id)",
+      alias: "scoresCount",
+      type: "integer",
+      relationTable: "scores",
+      description: "Unique scores attached to the trace.",
+      unit: "scores",
+    },
+    uniqueUserIds: {
+      sql: "uniq(events_traces.user_id)",
+      alias: "uniqueUserIds",
+      type: "integer",
+      description: "Count of unique userIds.",
+      unit: "users",
+    },
+    uniqueSessionIds: {
+      sql: "uniq(events_traces.session_id)",
+      alias: "uniqueSessionIds",
+      type: "integer",
+      description: "Count of unique sessionIds.",
+      unit: "sessions",
+    },
+    latency: {
+      sql: "date_diff('millisecond', min(events_traces.start_time), max(events_traces.end_time))",
+      alias: "latency",
+      type: "integer",
+      description:
+        "Elapsed time between the first and last observation inside the trace.",
+      unit: "millisecond",
+    },
+    totalTokens: {
+      sql: "sumMap(events_traces.usage_details)['total']",
+      alias: "totalTokens",
+      type: "integer",
+      description: "Sum of tokens consumed by all observations in the trace.",
+      unit: "tokens",
+    },
+    totalCost: {
+      sql: "sum(events_traces.total_cost)",
+      alias: "totalCost",
+      type: "decimal",
+      description: "Total cost accumulated across observations in the trace.",
+      unit: "USD",
+    },
+  },
+  tableRelations: {
+    scores: {
+      name: "scores",
+      joinConditionSql:
+        "ON events_traces.trace_id = scores.trace_id AND events_traces.project_id = scores.project_id",
+      timeDimension: "timestamp",
+    },
+  },
+  segments: [],
+  timeDimension: "start_time",
+  baseCte: `events events_traces`,
+};
+
 export const observationsView: ViewDeclarationType = {
   name: "observations",
   description:
@@ -273,17 +429,31 @@ export const observationsView: ViewDeclarationType = {
       type: "string",
       description: "Month of the observation start_time in YYYY-MM format.",
     },
+    toolNames: {
+      sql: "mapKeys(observations.tool_definitions)",
+      alias: "toolNames",
+      type: "arrayString",
+      description: "Names of available tools defined for the observation.",
+    },
+    calledToolNames: {
+      sql: "observations.tool_call_names",
+      alias: "calledToolNames",
+      type: "arrayString",
+      description: "Names of tools that were called by the observation.",
+    },
   },
   measures: {
     count: {
-      sql: "count(*)",
+      sql: "@@AGG@@(1)",
+      aggs: { agg: "count" },
       alias: "count",
       type: "integer",
       description: "Total number of observations.",
       unit: "observations",
     },
     latency: {
-      sql: "date_diff('millisecond', any(observations.start_time), any(observations.end_time))",
+      sql: "date_diff('millisecond', @@AGG1@@(observations.start_time), @@AGG1@@(observations.end_time))",
+      aggs: { agg1: "any" },
       alias: "latency",
       type: "integer",
       description:
@@ -292,7 +462,8 @@ export const observationsView: ViewDeclarationType = {
     },
     streamingLatency: {
       // Return NULL if `completion_start_time` is NULL to avoid misleading latency values
-      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.completion_start_time), any(observations.end_time)))",
+      sql: "if(isNull(@@AGG1@@(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(observations.completion_start_time), @@AGG1@@(observations.end_time)))",
+      aggs: { agg1: "any" },
       alias: "streamingLatency",
       type: "integer",
       description:
@@ -300,21 +471,24 @@ export const observationsView: ViewDeclarationType = {
       unit: "millisecond",
     },
     inputTokens: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(usage_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
       alias: "inputTokens",
       type: "integer",
       description: "Sum of input tokens consumed by the observation.",
       unit: "tokens",
     },
     outputTokens: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
       alias: "outputTokens",
       type: "integer",
       description: "Sum of output tokens produced by the observation.",
       unit: "tokens",
     },
     totalTokens: {
-      sql: "sumMap(usage_details)['total']",
+      sql: "@@AGG1@@(usage_details)['total']",
+      aggs: { agg1: "sumMap" },
       alias: "totalTokens",
       type: "integer",
       description: "Sum of tokens consumed by the observation.",
@@ -324,7 +498,8 @@ export const observationsView: ViewDeclarationType = {
       // Calculate average output tokens per second. Denominator uses seconds to align
       // with the `tokens/s` unit; NULL values avoided by guarding against a 0-second
       // duration.
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(usage_details)))) / nullIf(date_diff('second', any(observations.completion_start_time), any(observations.end_time)), 0)",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details)))) / nullIf(date_diff('second', @@AGG1@@(observations.completion_start_time), @@AGG1@@(observations.end_time)), 0)",
+      aggs: { agg1: "any" },
       alias: "outputTokensPerSecond",
       type: "decimal",
       description:
@@ -332,7 +507,8 @@ export const observationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     tokensPerSecond: {
-      sql: "sumMap(usage_details)['total'] / date_diff('second', any(observations.start_time), any(observations.end_time))",
+      sql: "@@AGG1@@(usage_details)['total'] / nullIf(date_diff('second', @@AGG2@@(observations.start_time), @@AGG2@@(observations.end_time)), 0)",
+      aggs: { agg1: "sumMap", agg2: "any" },
       alias: "tokensPerSecond",
       type: "decimal",
       description:
@@ -340,21 +516,24 @@ export const observationsView: ViewDeclarationType = {
       unit: "tokens/s",
     },
     inputCost: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, any(cost_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
       alias: "inputCost",
       type: "decimal",
       description: "Sum of input cost incurred by the observation.",
       unit: "USD",
     },
     outputCost: {
-      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, any(cost_details))))",
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
       alias: "outputCost",
       type: "decimal",
       description: "Sum of output cost incurred by the observation.",
       unit: "USD",
     },
     totalCost: {
-      sql: "sum(total_cost)",
+      sql: "@@AGG1@@(total_cost)",
+      aggs: { agg1: "sum" },
       alias: "totalCost",
       type: "decimal",
       description: "Total cost incurred by the observation.",
@@ -362,7 +541,8 @@ export const observationsView: ViewDeclarationType = {
     },
     timeToFirstToken: {
       // Return NULL if `completion_start_time` is NULL to represent unknown TTFT
-      sql: "if(isNull(any(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', any(observations.start_time), any(observations.completion_start_time)))",
+      sql: "if(isNull(@@AGG1@@(observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(observations.start_time), @@AGG1@@(observations.completion_start_time)))",
+      aggs: { agg1: "any" },
       alias: "timeToFirstToken",
       type: "integer",
       description: "Time to first token for the observation.",
@@ -375,6 +555,22 @@ export const observationsView: ViewDeclarationType = {
       relationTable: "scores",
       description: "Unique scores attached to the observation.",
       unit: "scores",
+    },
+    toolDefinitions: {
+      sql: "nullIf(length(mapKeys(@@AGG1@@(tool_definitions))), 0)",
+      aggs: { agg1: "any" },
+      alias: "toolDefinitions",
+      type: "integer",
+      description: "Number of available tools per observation.",
+      unit: "tools",
+    },
+    toolCalls: {
+      sql: "nullIf(length(@@AGG1@@(tool_calls)), 0)",
+      aggs: { agg1: "any" },
+      alias: "toolCalls",
+      type: "integer",
+      description: "Number of tool calls per observation.",
+      unit: "calls",
     },
   },
   tableRelations: {
@@ -469,225 +665,618 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   },
 };
 
-export const scoresNumericView: ViewDeclarationType = {
-  name: "scores_numeric",
+// v2 scores dimensions
+const scoresV2BaseDimensions: DimensionsDeclarationType = {
+  sessionId: {
+    sql: "scores.session_id",
+    alias: "sessionId",
+    type: "string",
+    description: "Identifier of the session.",
+    highCardinality: true,
+  },
+  // Trace metadata on events table (accessed via events_traces JOIN)
+  traceName: {
+    sql: "nullIf(events_traces.trace_name, '')",
+    alias: "traceName",
+    type: "string",
+    relationTable: "events_traces",
+    description: "Name of the parent trace.",
+  },
+  userId: {
+    sql: "nullIf(events_traces.user_id, '')",
+    alias: "userId",
+    type: "string",
+    relationTable: "events_traces",
+    description: "Identifier of the user.",
+    highCardinality: true,
+  },
+  tags: {
+    sql: "events_traces.tags",
+    alias: "tags",
+    type: "string[]",
+    relationTable: "events_traces",
+    description: "User-defined tags.",
+  },
+  traceRelease: {
+    sql: "nullIf(events_traces.release, '')",
+    alias: "traceRelease",
+    type: "string",
+    relationTable: "events_traces",
+    description: "Release version.",
+  },
+  traceVersion: {
+    sql: "nullIf(events_traces.version, '')",
+    alias: "traceVersion",
+    type: "string",
+    relationTable: "events_traces",
+    description: "Version of the parent trace.",
+  },
+  // Observation fields from events table (accessed via events_observations JOIN)
+  observationName: {
+    sql: "events_observations.name",
+    alias: "observationName",
+    type: "string",
+    relationTable: "events_observations",
+    description: "Name of the observation associated with the score.",
+  },
+  observationModelName: {
+    sql: "nullIf(events_observations.provided_model_name, '')",
+    alias: "observationModelName",
+    type: "string",
+    relationTable: "events_observations",
+    description: "Name of the model used for the observation.",
+  },
+  observationPromptName: {
+    sql: "nullIf(events_observations.prompt_name, '')",
+    alias: "observationPromptName",
+    type: "string",
+    relationTable: "events_observations",
+    description: "Name of the prompt used for the observation.",
+  },
+  observationPromptVersion: {
+    sql: "events_observations.prompt_version",
+    alias: "observationPromptVersion",
+    type: "string",
+    relationTable: "events_observations",
+    description: "Version of the prompt used for the observation.",
+  },
+};
+
+// Factory for shared score-specific dimensions (both numeric and categorical)
+const createScoreSpecificDimensions = (
+  tableAlias: string,
+  isV2: boolean = false,
+): DimensionsDeclarationType => ({
+  id: {
+    sql: `${tableAlias}.id`,
+    alias: "id",
+    type: "string",
+    description: "Unique identifier of the score entry.",
+    ...(isV2 && { highCardinality: true }),
+  },
+  environment: {
+    sql: `${tableAlias}.environment`,
+    alias: "environment",
+    type: "string",
+    description: "Deployment environment (e.g., production, staging).",
+  },
+  name: {
+    sql: `${tableAlias}.name`,
+    alias: "name",
+    type: "string",
+    description: "Name of the score (e.g., accuracy, toxicity).",
+  },
+  source: {
+    sql: `${tableAlias}.source`,
+    alias: "source",
+    type: "string",
+    description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
+  },
+  dataType: {
+    sql: `${tableAlias}.data_type`,
+    alias: "dataType",
+    type: "string",
+    description:
+      "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
+  },
+  traceId: {
+    sql: `${tableAlias}.trace_id`,
+    alias: "traceId",
+    type: "string",
+    description: "Identifier of the parent trace.",
+    ...(isV2 && { highCardinality: true }),
+  },
+  configId: {
+    sql: `${tableAlias}.config_id`,
+    alias: "configId",
+    type: "string",
+    description: "Identifier of the config associated with the score.",
+  },
+  timestampMonth: {
+    sql: `formatDateTime(${tableAlias}.timestamp, '%Y-%m')`,
+    alias: "timestampMonth",
+    type: "string",
+    description: "Month of the score timestamp in YYYY-MM format.",
+  },
+  timestampDay: {
+    sql: `formatDateTime(${tableAlias}.timestamp, '%Y-%m-%d')`,
+    alias: "timestampDay",
+    type: "string",
+    description: "Day of the score timestamp in YYYY-MM-DD format.",
+  },
+  observationId: {
+    sql: `${tableAlias}.observation_id`,
+    alias: "observationId",
+    type: "string",
+    description: "Identifier of the observation associated with the score.",
+    ...(isV2 && { highCardinality: true }),
+  },
+});
+
+// Shared table relations factory
+const createScoreTableRelations = (
+  version: "v1" | "v2",
+): Record<
+  string,
+  { name: string; joinConditionSql: string; timeDimension: string }
+> => {
+  if (version === "v1") {
+    return {
+      traces: {
+        name: "traces",
+        joinConditionSql:
+          "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
+        timeDimension: "timestamp",
+      },
+      observations: {
+        name: "observations",
+        joinConditionSql:
+          "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
+        timeDimension: "start_time",
+      },
+    };
+  } else {
+    return {
+      events_traces: {
+        name: "events",
+        joinConditionSql:
+          "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
+        timeDimension: "start_time",
+      },
+      events_observations: {
+        name: "events",
+        joinConditionSql:
+          "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
+        timeDimension: "start_time",
+      },
+    };
+  }
+};
+
+function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
+  const baseDimensions =
+    version === "v1" ? scoreBaseDimensions : scoresV2BaseDimensions;
+  return {
+    name: "scores_numeric",
+    description:
+      "Scores are flexible objects that are used for evaluations. This view contains numeric and boolean scores.",
+    dimensions: {
+      ...baseDimensions, // v1 keeps trace-JOIN dimensions
+      ...createScoreSpecificDimensions("scores_numeric", version === "v2"),
+      value: {
+        sql: "scores_numeric.value",
+        alias: "value",
+        type: "number",
+        description: "Value of the score.",
+      },
+    },
+    measures: {
+      count: {
+        sql: "count(*)",
+        alias: "count",
+        type: "integer",
+        description: "Total number of scores.",
+        unit: "scores",
+      },
+      value: {
+        sql: "any(value)",
+        alias: "value",
+        type: "number",
+        description: "Value of the score.",
+      },
+    },
+    tableRelations: createScoreTableRelations(version),
+    segments: [
+      {
+        column: "data_type",
+        // We consider NUMERIC and BOOLEAN scores as numeric.
+        operator: "does not contain" as const,
+        value: "CATEGORICAL",
+        type: "string" as const,
+      },
+    ], // Numeric
+    timeDimension: "timestamp",
+    baseCte: `scores scores_numeric FINAL`,
+  };
+}
+
+function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
+  const baseDimensions =
+    version === "v1" ? scoreBaseDimensions : scoresV2BaseDimensions;
+  return {
+    name: "scores_categorical",
+    description:
+      "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
+    dimensions: {
+      ...baseDimensions,
+      ...createScoreSpecificDimensions("scores_categorical", version === "v2"),
+      stringValue: {
+        sql: "string_value",
+        alias: "stringValue",
+        type: "string",
+        description: "Value of the score.",
+      },
+    },
+    measures: {
+      count: {
+        sql: "count(*)",
+        alias: "count",
+        type: "integer",
+        description: "Total number of scores.",
+        unit: "scores",
+      },
+    },
+    tableRelations: createScoreTableRelations(version),
+    segments: [
+      {
+        column: "data_type",
+        operator: "=" as const,
+        value: "CATEGORICAL",
+        type: "string" as const,
+      },
+    ], // Categorical
+    timeDimension: "timestamp",
+    baseCte: `scores scores_categorical FINAL`,
+  };
+}
+
+export const scoresNumericView: ViewDeclarationType =
+  scoresNumericViewBase("v1");
+
+export const scoresCategoricalView: ViewDeclarationType =
+  scoresCategoricalViewBase("v1");
+
+// v2 Scores Views
+export const scoresNumericViewV2: ViewDeclarationType =
+  scoresNumericViewBase("v2");
+
+export const scoresCategoricalViewV2: ViewDeclarationType =
+  scoresCategoricalViewBase("v2");
+
+// Events-Observations View - queries from events table instead of observations table
+export const eventsObservationsView: ViewDeclarationType = {
+  name: "events_observations",
   description:
-    "Scores are flexible objects that are used for evaluations. This view contains numeric and boolean scores.",
+    "Observations represent individual requests or operations within a trace. They are grouped into Spans, Generations, and Events.",
   dimensions: {
-    ...scoreBaseDimensions,
     id: {
-      sql: "scores_numeric.id",
+      sql: "events_observations.span_id",
       alias: "id",
       type: "string",
-      description: "Unique identifier of the score entry.",
+      description: "Unique identifier for the observation.",
+      highCardinality: true,
+    },
+    traceId: {
+      sql: "events_observations.trace_id",
+      alias: "traceId",
+      type: "string",
+      description: "Identifier linking the observation to its parent trace.",
+      highCardinality: true,
     },
     environment: {
-      sql: "scores_numeric.environment",
+      sql: "nullIf(events_observations.environment, '')",
       alias: "environment",
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
-    name: {
-      sql: "scores_numeric.name",
-      alias: "name",
-      type: "string",
-      description: "Name of the score (e.g., accuracy, toxicity).",
-    },
-    source: {
-      sql: "scores_numeric.source",
-      alias: "source",
-      type: "string",
-      description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
-    },
-    dataType: {
-      sql: "scores_numeric.data_type",
-      alias: "dataType",
+    parentObservationId: {
+      sql: "nullIf(events_observations.parent_span_id, '')",
+      alias: "parentObservationId",
       type: "string",
       description:
-        "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
+        "Identifier of the parent observation. Empty for the root span.",
+      highCardinality: true,
     },
-    traceId: {
-      sql: "scores_numeric.trace_id",
-      alias: "traceId",
+    type: {
+      sql: "events_observations.type",
+      alias: "type",
       type: "string",
-      description: "Identifier of the parent trace.",
+      description:
+        "Type of the observation. Can be a SPAN, GENERATION, or EVENT.",
     },
-    configId: {
-      sql: "scores_numeric.config_id",
-      alias: "configId",
+    name: {
+      sql: "events_observations.name",
+      alias: "name",
       type: "string",
-      description: "Identifier of the config associated with the score.",
+      description: "Name of the observation.",
     },
-    timestampMonth: {
-      sql: "formatDateTime(scores_numeric.timestamp, '%Y-%m')",
-      alias: "timestampMonth",
+    level: {
+      sql: "events_observations.level",
+      alias: "level",
       type: "string",
-      description: "Month of the score timestamp in YYYY-MM format.",
+      description: "Logging level of the observation.",
     },
-    observationId: {
-      sql: "scores_numeric.observation_id",
-      alias: "observationId",
+    version: {
+      sql: "nullIf(events_observations.version, '')",
+      alias: "version",
       type: "string",
-      description: "Identifier of the observation associated with the score.",
+      description: "Version of the observation.",
     },
-    value: {
-      sql: "scores_numeric.value",
-      alias: "value",
-      type: "number",
-      description: "Value of the score.",
+    // Denormalized trace fields from events table
+    userId: {
+      sql: "nullIf(events_observations.user_id, '')",
+      alias: "userId",
+      type: "string",
+      description: "Identifier of the user triggering the observation.",
+      highCardinality: true,
+    },
+    sessionId: {
+      sql: "nullIf(events_observations.session_id, '')",
+      alias: "sessionId",
+      type: "string",
+      description: "Identifier of the session triggering the observation.",
+      highCardinality: true,
+    },
+    tags: {
+      sql: "events_observations.tags",
+      alias: "tags",
+      type: "string[]",
+      description: "User-defined tags associated with the trace.",
+    },
+    release: {
+      sql: "nullIf(events_observations.release, '')",
+      alias: "release",
+      type: "string",
+      description: "Release version.",
+    },
+    // Backwards-compatible field definitions (for API parity with v1)
+    traceName: {
+      sql: "nullIf(events_observations.trace_name, '')",
+      alias: "traceName",
+      type: "string",
+      description: "Name of the parent trace (backwards-compatible with v1).",
+    },
+    traceRelease: {
+      sql: "nullIf(events_observations.release, '')",
+      alias: "traceRelease",
+      type: "string",
+      description:
+        "Release version of the parent trace (backwards-compatible with v1, maps to denormalized release field).",
+    },
+    traceVersion: {
+      sql: "nullIf(events_observations.version, '')",
+      alias: "traceVersion",
+      type: "string",
+      description:
+        "Version of the parent trace (backwards-compatible with v1, maps to denormalized version field).",
+    },
+    providedModelName: {
+      sql: "nullIf(events_observations.provided_model_name, '')",
+      alias: "providedModelName",
+      type: "string",
+      description: "Name of the model used for the observation.",
+    },
+    promptName: {
+      sql: "nullIf(events_observations.prompt_name, '')",
+      alias: "promptName",
+      type: "string",
+      description: "Name of the prompt used for the observation.",
+    },
+    promptVersion: {
+      sql: "events_observations.prompt_version",
+      alias: "promptVersion",
+      type: "string",
+      description: "Version of the prompt used for the observation.",
+    },
+    startTimeMonth: {
+      sql: "formatDateTime(events_observations.start_time, '%Y-%m')",
+      alias: "startTimeMonth",
+      type: "string",
+      description: "Month of the observation start_time in YYYY-MM format.",
+    },
+    toolNames: {
+      sql: "mapKeys(events_observations.tool_definitions)",
+      alias: "toolNames",
+      type: "arrayString",
+      description: "Names of available tools defined for the observation.",
+    },
+    calledToolNames: {
+      sql: "events_observations.tool_call_names",
+      alias: "calledToolNames",
+      type: "arrayString",
+      description: "Names of tools that were called by the observation.",
     },
   },
   measures: {
     count: {
-      sql: "count(*)",
+      sql: "@@AGG@@(1)",
+      aggs: { agg: "count" },
       alias: "count",
       type: "integer",
-      description: "Total number of scores.",
-      unit: "scores",
+      description: "Total number of observations.",
+      unit: "observations",
     },
-    value: {
-      sql: "any(value)",
-      alias: "value",
-      type: "number",
-      description: "Value of the score.",
-    },
-  },
-  tableRelations: {
-    traces: {
-      name: "traces",
-      joinConditionSql:
-        "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
-      timeDimension: "timestamp",
-    },
-    observations: {
-      name: "observations",
-      joinConditionSql:
-        "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
-      timeDimension: "start_time",
-    },
-  },
-  segments: [
-    {
-      column: "data_type",
-      // We consider NUMERIC and BOOLEAN scores as numeric.
-      operator: "does not contain",
-      value: "CATEGORICAL",
-      type: "string",
-    },
-  ],
-  timeDimension: "timestamp",
-  baseCte: `scores scores_numeric FINAL`,
-};
-
-export const scoresCategoricalView: ViewDeclarationType = {
-  name: "scores_categorical",
-  description:
-    "Scores are flexible objects that are used for evaluations. This view contains categorical scores.",
-  dimensions: {
-    ...scoreBaseDimensions,
-    id: {
-      sql: "scores_categorical.id",
-      alias: "id",
-      type: "string",
-      description: "Unique identifier of the score entry.",
-    },
-    environment: {
-      sql: "scores_categorical.environment",
-      alias: "environment",
-      type: "string",
-      description: "Deployment environment (e.g., production, staging).",
-    },
-    name: {
-      sql: "scores_categorical.name",
-      alias: "name",
-      type: "string",
-      description: "Name of the score (e.g., accuracy, toxicity).",
-    },
-    source: {
-      sql: "scores_categorical.source",
-      alias: "source",
-      type: "string",
-      description: "Origin of the score. Can be API, ANNOTATION, or EVAL.",
-    },
-    dataType: {
-      sql: "scores_categorical.data_type",
-      alias: "dataType",
-      type: "string",
+    latency: {
+      sql: "date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.end_time))",
+      aggs: { agg1: "any" },
+      alias: "latency",
+      type: "integer",
       description:
-        "Internal data type of the score (NUMERIC, BOOLEAN, CATEGORICAL).",
+        "Latency of an individual observation (start time to end time).",
+      unit: "millisecond",
     },
-    traceId: {
-      sql: "scores_categorical.trace_id",
-      alias: "traceId",
-      type: "string",
-      description: "Identifier of the parent trace.",
-    },
-    configId: {
-      sql: "scores_categorical.config_id",
-      alias: "configId",
-      type: "string",
-      description: "Identifier of the config associated with the score.",
-    },
-    timestampMonth: {
-      sql: "formatDateTime(scores_categorical.timestamp, '%Y-%m')",
-      alias: "timestampMonth",
-      type: "string",
-      description: "Month of the score timestamp in YYYY-MM format.",
-    },
-    observationId: {
-      sql: "scores_categorical.observation_id",
-      alias: "observationId",
-      type: "string",
-      description: "Identifier of the observation associated with the score.",
-    },
-    stringValue: {
-      sql: "string_value",
-      alias: "stringValue",
-      type: "string",
-      description: "Value of the score.",
-    },
-  },
-  measures: {
-    count: {
-      sql: "count(*)",
-      alias: "count",
+    streamingLatency: {
+      sql: "if(isNull(@@AGG1@@(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(events_observations.completion_start_time), @@AGG1@@(events_observations.end_time)))",
+      aggs: { agg1: "any" },
+      alias: "streamingLatency",
       type: "integer",
-      description: "Total number of scores.",
+      description:
+        "Latency of the generation step (completion start time to end time).",
+      unit: "millisecond",
+    },
+    inputTokens: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
+      alias: "inputTokens",
+      type: "integer",
+      description: "Sum of input tokens consumed by the observation.",
+      unit: "tokens",
+    },
+    outputTokens: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details))))",
+      aggs: { agg1: "any" },
+      alias: "outputTokens",
+      type: "integer",
+      description: "Sum of output tokens produced by the observation.",
+      unit: "tokens",
+    },
+    totalTokens: {
+      sql: "@@AGG1@@(usage_details)['total']",
+      aggs: { agg1: "sumMap" },
+      alias: "totalTokens",
+      type: "integer",
+      description: "Sum of tokens consumed by the observation.",
+      unit: "tokens",
+    },
+    outputTokensPerSecond: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(usage_details)))) / nullIf(date_diff('second', @@AGG1@@(events_observations.completion_start_time), @@AGG1@@(events_observations.end_time)), 0)",
+      aggs: { agg1: "any" },
+      alias: "outputTokensPerSecond",
+      type: "decimal",
+      description:
+        "Average number of output tokens produced per second between completion start time and span end time.",
+      unit: "tokens/s",
+    },
+    tokensPerSecond: {
+      sql: "@@AGG1@@(usage_details)['total'] / nullIf(date_diff('second', @@AGG2@@(events_observations.start_time), @@AGG2@@(events_observations.end_time)), 0)",
+      aggs: { agg1: "sumMap", agg2: "any" },
+      alias: "tokensPerSecond",
+      type: "decimal",
+      description:
+        "Average number of tokens consumed per second by the observation.",
+      unit: "tokens/s",
+    },
+    inputCost: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
+      alias: "inputCost",
+      type: "decimal",
+      description: "Sum of input cost incurred by the observation.",
+      unit: "USD",
+    },
+    outputCost: {
+      sql: "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, @@AGG1@@(cost_details))))",
+      aggs: { agg1: "any" },
+      alias: "outputCost",
+      type: "decimal",
+      description: "Sum of output cost incurred by the observation.",
+      unit: "USD",
+    },
+    totalCost: {
+      sql: "@@AGG1@@(total_cost)",
+      aggs: { agg1: "sum" },
+      alias: "totalCost",
+      type: "decimal",
+      description: "Total cost incurred by the observation.",
+      unit: "USD",
+    },
+    timeToFirstToken: {
+      sql: "if(isNull(@@AGG1@@(events_observations.completion_start_time)), CAST(NULL AS Nullable(Int64)), date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.completion_start_time)))",
+      aggs: { agg1: "any" },
+      alias: "timeToFirstToken",
+      type: "integer",
+      description: "Time to first token for the observation.",
+      unit: "millisecond",
+    },
+    countScores: {
+      sql: "uniq(scores.id)",
+      alias: "countScores",
+      type: "integer",
+      relationTable: "scores",
+      description: "Unique scores attached to the observation.",
       unit: "scores",
+    },
+    toolDefinitions: {
+      sql: "nullIf(length(mapKeys(@@AGG1@@(events_observations.tool_definitions))), 0)",
+      aggs: { agg1: "any" },
+      alias: "toolDefinitions",
+      type: "integer",
+      description: "Number of available tools per observation.",
+      unit: "tools",
+    },
+    toolCalls: {
+      sql: "nullIf(length(@@AGG1@@(events_observations.tool_calls)), 0)",
+      aggs: { agg1: "any" },
+      alias: "toolCalls",
+      type: "integer",
+      description: "Number of tool calls per observation.",
+      unit: "calls",
     },
   },
   tableRelations: {
-    traces: {
-      name: "traces",
+    // No traces relation - userId, sessionId, tags are denormalized on events table
+    scores: {
+      name: "scores",
       joinConditionSql:
-        "ON scores.trace_id = traces.id AND scores.project_id = traces.project_id",
+        "ON events_observations.span_id = scores.observation_id AND events_observations.project_id = scores.project_id",
       timeDimension: "timestamp",
     },
-    observations: {
-      name: "observations",
-      joinConditionSql:
-        "ON scores.observation_id = observations.id AND scores.project_id = observations.project_id",
-      timeDimension: "start_time",
-    },
   },
-  segments: [
-    {
-      column: "data_type",
-      operator: "=",
-      value: "CATEGORICAL",
-      type: "string",
-    },
-  ],
-  timeDimension: "timestamp",
-  baseCte: `scores scores_categorical FINAL`,
+  segments: [],
+  timeDimension: "start_time",
+  baseCte: "events events_observations", // No FINAL modifier needed for events table
 };
 
-export const viewDeclarations: Record<
-  z.infer<typeof views>,
-  ViewDeclarationType
-> = {
-  traces: traceView,
-  observations: observationsView,
-  "scores-numeric": scoresNumericView,
-  "scores-categorical": scoresCategoricalView,
+// Define versioned structure type
+// Both v1 and v2 have all views (traces, observations, scores-numeric, scores-categorical)
+// v1 uses normalized tables (traces, observations), v2 uses events table
+type VersionedViewDeclarations = {
+  readonly [version in ViewVersion]: {
+    readonly [K in z.infer<typeof views>]: ViewDeclarationType;
+  };
 };
+
+// Versioned view declarations
+export const viewDeclarations: VersionedViewDeclarations = {
+  v1: {
+    traces: traceView,
+    observations: observationsView, // Old: observations table
+    "scores-numeric": scoresNumericView,
+    "scores-categorical": scoresCategoricalView,
+  },
+  v2: {
+    traces: eventsTracesView,
+    observations: eventsObservationsView,
+    "scores-numeric": scoresNumericViewV2,
+    "scores-categorical": scoresCategoricalViewV2,
+  },
+} as const;
+
+// Helper function for view resolution
+export function getViewDeclaration(
+  viewName: z.infer<typeof views>,
+  version: ViewVersion = "v1",
+): ViewDeclarationType {
+  const versionViews = viewDeclarations[version];
+
+  // TypeScript knows the exact shape of each version now
+  if (!(viewName in versionViews)) {
+    const supportedViews = Object.keys(versionViews).join(", ");
+    throw new InvalidRequestError(
+      `View '${viewName}' is not supported in version '${version}'. ` +
+        `Supported views for ${version}: ${supportedViews}`,
+    );
+  }
+
+  return versionViews[viewName as keyof typeof versionViews];
+}

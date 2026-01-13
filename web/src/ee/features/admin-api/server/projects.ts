@@ -10,6 +10,7 @@ export async function handleGetProjects(
   const projects = await prisma.project.findMany({
     where: {
       orgId,
+      deletedAt: null,
     },
     select: {
       id: true,

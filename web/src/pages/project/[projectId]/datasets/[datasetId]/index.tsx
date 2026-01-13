@@ -238,6 +238,10 @@ export default function Dataset() {
                     datasetName={dataset.data?.name ?? ""}
                     datasetDescription={dataset.data?.description ?? undefined}
                     datasetMetadata={dataset.data?.metadata}
+                    datasetInputSchema={dataset.data?.inputSchema ?? undefined}
+                    datasetExpectedOutputSchema={
+                      dataset.data?.expectedOutputSchema ?? undefined
+                    }
                   />
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

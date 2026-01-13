@@ -48,6 +48,7 @@ import {
   isTraceOrDatasetObject,
   isTraceTarget,
   type LangfuseObject,
+  type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import {
@@ -80,6 +81,25 @@ import { InfoIcon } from "lucide-react";
 const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
 );
+
+const OUTPUT_MAPPING = [
+  "generation",
+  "output",
+  "response",
+  "answer",
+  "completion",
+];
+
+const inferDefaultMapping = (
+  variable: string,
+): Pick<VariableMapping, "langfuseObject" | "selectedColumnId"> => {
+  return {
+    langfuseObject: "trace" as const,
+    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
+      ? "output"
+      : "input",
+  };
+};
 
 const fieldHasJsonSelectorOption = (
   selectedColumnId: string | undefined | null,
@@ -116,7 +136,7 @@ const TracesPreview = memo(
             Sample over the last 24 hours that match these filters
           </FormDescription>
         </div>
-        <div className="mb-4 flex max-h-[30dvh] flex-col overflow-hidden border-b border-l border-r">
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
             <TracesTable
               projectId={projectId}
@@ -284,8 +304,7 @@ export const InnerEvaluatorForm = (props: {
         "mapping",
         props.evalTemplate.vars.map((v) => ({
           templateVariable: v,
-          langfuseObject: "trace" as const,
-          selectedColumnId: "input",
+          ...inferDefaultMapping(v),
         })),
       );
       form.setValue("scoreName", `${props.evalTemplate.name}`);
@@ -408,9 +427,7 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         if ("message" in error && typeof error.message === "string") {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
           setFormError(error.message as string);
           return;
         } else {
@@ -653,7 +670,6 @@ export const InnerEvaluatorForm = (props: {
                             ) => {
                               field.onChange(value);
                               if (router.query.traceId) {
-                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                                 const { traceId, ...otherParams } =
                                   router.query;
                                 router.replace(
@@ -1145,7 +1161,6 @@ export const InnerEvaluatorForm = (props: {
   return (
     <Form {...form}>
       <form
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
           form.handleSubmit(onSubmit)(e);

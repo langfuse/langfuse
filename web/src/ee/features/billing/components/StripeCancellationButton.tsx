@@ -69,7 +69,7 @@ export const StripeCancellationButton = ({
         setOpId(opId);
       }
       await reactivateMutation.mutateAsync({ orgId, opId });
-    } catch (e) {
+    } catch (_e) {
       toast.error("Failed to reactivate subscription");
     }
   };
@@ -84,7 +84,7 @@ export const StripeCancellationButton = ({
         setOpId(opId);
       }
       await cancelMutation.mutateAsync({ orgId, opId });
-    } catch (e) {
+    } catch (_e) {
       toast.error("Failed to cancel subscription");
     }
   };

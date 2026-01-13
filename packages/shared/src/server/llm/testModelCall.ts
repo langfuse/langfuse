@@ -12,13 +12,11 @@ export const testModelCall = async ({
   provider,
   model,
   apiKey,
-  prompt,
   modelConfig,
 }: {
   provider: string;
   model: string;
   apiKey: z.infer<typeof LLMApiKeySchema>;
-  prompt?: string;
   modelConfig?: ModelConfig | null;
 }) => {
   await fetchLLMCompletion({
@@ -27,7 +25,8 @@ export const testModelCall = async ({
     messages: [
       {
         role: ChatMessageRole.User,
-        content: prompt ?? "mock content",
+        content:
+          'Extract a score (1-5) and reasoning from this text: "This is a test. It worked perfectly because it matched all passing criteria."',
         type: ChatMessageType.User,
       },
     ],

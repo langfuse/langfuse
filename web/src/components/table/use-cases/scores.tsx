@@ -5,13 +5,17 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { scoreFilterConfig } from "@/src/features/filters/config/scores-config";
+import {
+  scoreFilterConfig,
+  SCORE_COLUMN_TO_BACKEND_KEY,
+} from "@/src/features/filters/config/scores-config";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -23,10 +27,11 @@ import type { RouterOutput } from "@/src/utils/types";
 import {
   isPresent,
   type FilterState,
-  type ScoreDataType,
+  type ScoreDataTypeType,
   BatchExportTableName,
   BatchActionType,
   TableViewPresetTableName,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
@@ -53,7 +58,7 @@ export type ScoresTableRow = {
   timestamp: Date;
   source: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   value: string;
   author: {
     userId?: string;
@@ -155,6 +160,13 @@ export default function ScoresTable({
       },
     );
 
+  const environmentOptions = React.useMemo(
+    () =>
+      environmentFilterOptions.data?.map((value) => value.environment) ??
+      undefined,
+    [environmentFilterOptions.data],
+  );
+
   const [orderByState, setOrderByState] = useOrderByState({
     column: "timestamp",
     order: "DESC",
@@ -196,8 +208,8 @@ export default function ScoresTable({
     {
       projectId,
       timestampFilter:
-        dateRangeFilter[0]?.type === "datetime"
-          ? dateRangeFilter[0]
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
           : undefined,
     },
     {
@@ -219,17 +231,36 @@ export default function ScoresTable({
         filterOptions.data?.name?.map((n) => ({
           value: n.value,
           count: n.count !== undefined ? Number(n.count) : undefined,
-        })) || [],
+        })) ?? undefined,
       source: ["ANNOTATION", "API", "EVAL"],
       dataType: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
       value: [],
+      stringValue:
+        filterOptions.data?.stringValue?.map((sv) => ({
+          value: sv.value,
+          count: sv.count !== undefined ? Number(sv.count) : undefined,
+        })) ?? undefined,
+      traceName:
+        filterOptions.data?.traceName?.map((tn) => ({
+          value: tn.value,
+          count: tn.count !== undefined ? Number(tn.count) : undefined,
+        })) ?? undefined,
+      userId:
+        filterOptions.data?.userId?.map((u) => ({
+          value: u.value,
+          count: u.count !== undefined ? Number(u.count) : undefined,
+        })) ?? undefined,
+      tags: filterOptions.data?.tags?.map((t) => t.value) ?? undefined, // tags don't have counts
+      environment: environmentOptions,
     }),
-    [filterOptions.data],
+    [filterOptions.data, environmentOptions],
   );
 
   const queryFilter = useSidebarFilterState(
     scoreFilterConfig,
     newFilterOptions,
+    projectId,
+    filterOptions.isPending || environmentFilterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -254,7 +285,7 @@ export default function ScoresTable({
 
   const backendFilterState = transformFiltersForBackend(
     filterState,
-    {}, // No backend column remapping needed for scores
+    SCORE_COLUMN_TO_BACKEND_KEY,
     scoreFilterConfig.columnDefinitions,
   );
 
@@ -704,7 +735,7 @@ export default function ScoresTable({
               />
             ) : null,
             <BatchExportTableButton
-              {...{ projectId, filterState, orderByState }}
+              {...{ projectId, filterState: backendFilterState, orderByState }}
               tableName={BatchExportTableName.Scores}
               key="batchExport"
             />,
@@ -726,7 +757,7 @@ export default function ScoresTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -764,7 +795,7 @@ export default function ScoresTable({
               rowHeight={rowHeight}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

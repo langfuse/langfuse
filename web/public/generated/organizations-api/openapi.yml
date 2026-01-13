@@ -455,11 +455,41 @@ components:
           type: object
           additionalProperties: true
           description: Metadata for the organization
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationProject'
       required:
         - id
         - name
         - createdAt
         - metadata
+        - projects
+    OrganizationProject:
+      title: OrganizationProject
+      type: object
+      description: Project belonging to an organization
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Metadata for the project
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
     DeleteOrganizationResponse:
       title: DeleteOrganizationResponse
       type: object

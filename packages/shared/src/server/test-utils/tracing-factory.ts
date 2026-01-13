@@ -98,6 +98,9 @@ export const createObservation = (
     prompt_version: 1,
     end_time: Date.now(),
     completion_start_time: Date.now(),
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
     ...observation,
   };
 };
@@ -114,6 +117,8 @@ export const createTraceScore = (
     name: "test-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    string_value: null,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -139,6 +144,7 @@ export const createSessionScore = (
     name: "test-session-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -165,6 +171,7 @@ export const createDatasetRunScore = (
     name: "test-run-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -205,7 +212,6 @@ export const createEvent = (
 
   return {
     // Identifiers
-    org_id: null,
     project_id: v4(),
     trace_id: v4(),
     span_id: spanId,
@@ -217,6 +223,9 @@ export const createEvent = (
     type: "GENERATION",
     environment: "default",
     version: null,
+    release: null,
+
+    tags: [],
 
     user_id: null,
     session_id: null,
@@ -232,14 +241,18 @@ export const createEvent = (
     // Model
     model_id: null,
     provided_model_name: "gpt-3.5-turbo",
-    model_parameters: null,
+    model_parameters: "{}",
 
     // Usage & Cost
     provided_usage_details: { input: 1234, output: 5678, total: 6912 },
     usage_details: { input: 1234, output: 5678, total: 6912 },
     provided_cost_details: { input: 100, output: 200, total: 300 },
     cost_details: { input: 100, output: 200, total: 300 },
-    total_cost: 300,
+
+    // Tool calls
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
 
     // I/O
     input: "Hello World",
@@ -248,13 +261,21 @@ export const createEvent = (
     // Metadata - populate both JSON and array columns
     metadata: finalMetadata,
     metadata_names: metadataNames,
-    metadata_values: metadataValues,
-    // metadata_string_names: [],
-    // metadata_string_values: [],
-    // metadata_number_names: [],
-    // metadata_number_values: [],
-    // metadata_bool_names: [],
-    // metadata_bool_values: [],
+    metadata_raw_values: metadataValues,
+
+    // Experiment properties
+    experiment_id: null,
+    experiment_name: null,
+    experiment_metadata_names: [],
+    experiment_metadata_values: [],
+    experiment_description: null,
+    experiment_dataset_id: null,
+    experiment_item_id: null,
+    experiment_item_version: null,
+    experiment_item_expected_output: null,
+    experiment_item_metadata_names: [],
+    experiment_item_metadata_values: [],
+    experiment_item_root_span_id: null,
 
     // Source metadata (Instrumentation)
     source: "API",
@@ -268,7 +289,6 @@ export const createEvent = (
 
     // Generic props
     blob_storage_file_path: "",
-    event_raw: "{}",
     event_bytes: 2,
     is_deleted: 0,
 

@@ -359,7 +359,7 @@ describe("Dashboard Router - Pivot Table Integration", () => {
   });
 
   describe("Query Builder integration with pivot table configurations", () => {
-    it("should generate correct SQL for zero-dimension pivot table", () => {
+    it("should generate correct SQL for zero-dimension pivot table", async () => {
       const query: QueryType = {
         view: "traces",
         dimensions: [],
@@ -378,7 +378,10 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       };
 
       const queryBuilder = new QueryBuilder(query.chartConfig);
-      const { query: sql, parameters } = queryBuilder.build(query, projectId);
+      const { query: sql, parameters } = await queryBuilder.build(
+        query,
+        projectId,
+      );
 
       // Verify SQL generation
       expect(sql).toBeDefined();
@@ -393,7 +396,7 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       expect(sql.toLowerCase()).toContain("count(");
     });
 
-    it("should generate correct SQL for single-dimension pivot table", () => {
+    it("should generate correct SQL for single-dimension pivot table", async () => {
       const query: QueryType = {
         view: "traces",
         dimensions: [{ field: "environment" }],
@@ -412,7 +415,10 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       };
 
       const queryBuilder = new QueryBuilder(query.chartConfig);
-      const { query: sql, parameters } = queryBuilder.build(query, projectId);
+      const { query: sql, parameters } = await queryBuilder.build(
+        query,
+        projectId,
+      );
 
       // Verify SQL generation
       expect(sql).toBeDefined();
@@ -427,7 +433,7 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       expect(sql.toLowerCase()).toContain("order by");
     });
 
-    it("should generate correct SQL for two-dimension pivot table", () => {
+    it("should generate correct SQL for two-dimension pivot table", async () => {
       const query: QueryType = {
         view: "observations",
         dimensions: [{ field: "environment" }, { field: "providedModelName" }],
@@ -452,7 +458,10 @@ describe("Dashboard Router - Pivot Table Integration", () => {
       };
 
       const queryBuilder = new QueryBuilder(query.chartConfig);
-      const { query: sql, parameters } = queryBuilder.build(query, projectId);
+      const { query: sql, parameters } = await queryBuilder.build(
+        query,
+        projectId,
+      );
 
       // Verify SQL generation
       expect(sql).toBeDefined();

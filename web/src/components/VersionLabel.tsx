@@ -84,9 +84,13 @@ export const VersionLabel = ({ className }: { className?: string }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="xs" className={cn("text-xs", className)}>
+        <Button
+          variant="ghost"
+          size="xs"
+          className={cn("mt-[0.2px] text-[0.625rem]", className)}
+        >
           {VERSION}
-          {selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : null}
+          {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
           {showBackgroundMigrationStatus && (
             <StatusBadge
               type={backgroundMigrationStatus.data?.status.toLowerCase()}
@@ -95,7 +99,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             />
           )}
           {hasUpdate && !showBackgroundMigrationStatus && (
-            <ArrowUp className={`ml-1 h-3 w-3 ${color}`} />
+            <ArrowUp className={`h-3 w-3 ${color}`} />
           )}
         </Button>
       </DropdownMenuTrigger>

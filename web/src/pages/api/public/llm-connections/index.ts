@@ -17,6 +17,7 @@ export default withMiddlewares({
     name: "Get LLM Connections",
     querySchema: GetLlmConnectionsV1Query,
     responseSchema: GetLlmConnectionsV1Response,
+    isAdminApiKeyAuthAllowed: true,
     fn: async ({ query, auth }) => {
       const { limit, page } = query;
 
@@ -31,9 +32,10 @@ export default withMiddlewares({
           customModels: true,
           withDefaultModels: true,
           extraHeaderKeys: true,
+          config: true,
           createdAt: true,
           updatedAt: true,
-          // Explicitly exclude: secretKey, extraHeaders, config
+          // Explicitly exclude: secretKey, extraHeaders
         },
         where: {
           projectId: auth.scope.projectId,
@@ -72,6 +74,7 @@ export default withMiddlewares({
     name: "Upsert LLM Connection",
     bodySchema: PutLlmConnectionV1Body,
     responseSchema: PutLlmConnectionV1Response,
+    isAdminApiKeyAuthAllowed: true,
     fn: async ({ body, auth, res }) => {
       const projectId = auth.scope.projectId;
 
@@ -100,6 +103,7 @@ export default withMiddlewares({
         extraHeaderKeys: body.extraHeaders
           ? Object.keys(body.extraHeaders)
           : [],
+        config: body.config,
       };
 
       // Perform upsert
@@ -125,9 +129,10 @@ export default withMiddlewares({
           customModels: true,
           withDefaultModels: true,
           extraHeaderKeys: true,
+          config: true,
           createdAt: true,
           updatedAt: true,
-          // Explicitly exclude: secretKey, extraHeaders, config
+          // Explicitly exclude: secretKey, extraHeaders
         },
       });
 

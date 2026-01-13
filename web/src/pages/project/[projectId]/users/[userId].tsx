@@ -147,7 +147,7 @@ export default function UserPage() {
             </div>
           </div>
         </div>
-        {renderTabContent()}
+        <div className="flex flex-1 overflow-hidden">{renderTabContent()}</div>
       </>
     </Page>
   );

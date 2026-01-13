@@ -8,6 +8,8 @@ import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnte
 import { type MultiWindowState } from "@/src/features/playground/page/types";
 import Page from "@/src/components/layouts/page";
 import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
+import { NoModelConfiguredAlert } from "@/src/features/playground/page/components/NoModelConfiguredAlert";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 
 /**
  * PlaygroundPage Component
@@ -31,6 +33,7 @@ import MultiWindowPlayground from "@/src/features/playground/page/components/Mul
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
+  const projectId = useProjectIdFromURL();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
 
@@ -39,6 +42,7 @@ export default function PlaygroundPage() {
     executeAllWindows,
     getExecutionStatus,
     isExecutingAll: globalIsExecutingAll,
+    hasAnyModelConfigured,
   } = useWindowCoordination();
 
   /**
@@ -105,7 +109,7 @@ export default function PlaygroundPage() {
     ? getExecutionStatus() ||
       `Executing ${windowIds.length} window${windowIds.length === 1 ? "" : "s"}`
     : getExecutionStatus();
-  const isRunAllDisabled = globalIsExecutingAll;
+  const isRunAllDisabled = globalIsExecutingAll || !hasAnyModelConfigured;
 
   const windowState: MultiWindowState = {
     windowIds,
@@ -150,9 +154,13 @@ export default function PlaygroundPage() {
               onClick={handleExecuteAll}
               disabled={isRunAllDisabled}
               className="hidden flex-shrink-0 gap-1 md:flex"
-              title="Execute all playground windows simultaneously"
+              title={
+                !hasAnyModelConfigured
+                  ? "Please configure a model in Project Settings first"
+                  : "Execute all playground windows simultaneously"
+              }
             >
-              {isRunAllDisabled ? (
+              {globalIsExecutingAll ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
                 <Play className="h-3 w-3" />
@@ -166,11 +174,18 @@ export default function PlaygroundPage() {
         ),
       }}
     >
-      <MultiWindowPlayground
-        windowState={windowState}
-        onRemoveWindow={removeWindow}
-        onAddWindow={addWindow}
-      />
+      <div className="flex h-full flex-col">
+        {!hasAnyModelConfigured && projectId && (
+          <NoModelConfiguredAlert projectId={projectId} />
+        )}
+        <div className="flex-1 overflow-hidden">
+          <MultiWindowPlayground
+            windowState={windowState}
+            onRemoveWindow={removeWindow}
+            onAddWindow={addWindow}
+          />
+        </div>
+      </div>
     </Page>
   );
 }

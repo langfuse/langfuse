@@ -2,7 +2,9 @@ import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 
 // resource:action, only use snake_case
-const events = {
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const events = {
   table: [
     "filter_builder_open",
     "filter_builder_close",
@@ -80,7 +82,7 @@ const events = {
     "duplicate_button_click",
     "duplicate_form_submit",
   ],
-  session_detail: ["publish_button_click"],
+  session_detail: ["publish_button_click", "download_button_click"],
   eval_config: [
     "new_form_submit",
     "new_form_open",
@@ -99,8 +101,13 @@ const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
-  integrations: ["posthog_form_submitted", "blob_storage_form_submitted"],
+  integrations: [
+    "posthog_form_submitted",
+    "blob_storage_form_submitted",
+    "mixpanel_form_submitted",
+  ],
   sign_in: ["cloud_region_switch", "button_click"],
+  sign_up: ["button_click"],
   auth: ["reset_password_email_requested", "update_password_form_submit"],
   playground: [
     "execute_button_click",

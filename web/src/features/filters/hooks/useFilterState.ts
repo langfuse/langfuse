@@ -9,6 +9,7 @@ import {
   datasetRunsTableCols,
   datasetItemFilterColumns,
   datasetRunItemsTableCols,
+  usersTableCols,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -17,7 +18,6 @@ import {
   decodeDelimitedArray,
   withDefault,
 } from "use-query-params";
-import { usersTableCols } from "@/src/server/api/definitions/usersTable";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
@@ -53,7 +53,7 @@ const getCommaArrayParam = (table: TableName) => ({
                 ? f.value.join("|")
                 : f.value,
           )}`;
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
           if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
           return stringified;
         })
@@ -66,7 +66,7 @@ const getCommaArrayParam = (table: TableName) => ({
       ?.map((f) => {
         if (!f) return null;
         const [column, type, key, operator, value] = f.split(";");
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
         const decodedValue = value ? decodeURIComponent(value) : undefined;
@@ -84,7 +84,7 @@ const getCommaArrayParam = (table: TableName) => ({
                   : type === "boolean"
                     ? decodedValue === "true"
                     : decodedValue;
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column: getColumnName(table, column),

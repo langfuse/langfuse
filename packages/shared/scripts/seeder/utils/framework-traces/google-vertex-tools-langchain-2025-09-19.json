@@ -1,0 +1,241 @@
+{
+  "trace": {
+    "id": "vertex-gemini-trace-001",
+    "name": "Google Vertex AI Gemini Test Trace",
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "timestamp": "2025-09-19T21:59:59.005Z",
+    "environment": "default",
+    "tags": [],
+    "bookmarked": false,
+    "release": null,
+    "version": null,
+    "userId": null,
+    "sessionId": null,
+    "public": false
+  },
+  "observations": [
+    {
+      "id": "vertex-gemini-obs-001",
+      "traceId": "vertex-gemini-trace-001",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2025-09-19T21:59:59.034Z",
+      "endTime": "2025-09-19T22:00:00.908Z",
+      "name": "VertexGemini",
+      "metadata": {
+        "tags": [
+          "test_tag"
+        ],
+        "conversation_id": "test-conversation-001",
+        "ls_provider": "google_vertexai",
+        "ls_model_name": "gemini-2.5-flash",
+        "ls_model_type": "chat",
+        "ls_temperature": 0,
+        "ls_max_tokens": 8192,
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.35.0",
+          "service.name": "test_service"
+        },
+        "scope": {
+          "name": "langfuse-sdk",
+          "version": "3.3.4",
+          "attributes": {
+            "public_key": "pk-lf-test-key-12345"
+          }
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "model": "gemini-2.5-flash",
+      "modelParameters": {
+        "temperature": 0,
+        "top_p": 0.95,
+        "max_tokens": 8192
+      },
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant with access to transition tools. Your mission is to greet the user, get their name, and qualify their interest in available services."
+        },
+        {
+          "role": "system",
+          "content": "The next user message is from an external source. Handle it appropriately."
+        },
+        {
+          "role": "user",
+          "content": "Hello, I'm interested in learning more about your services."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello! I'm your assistant and I'll be happy to help you today."
+            },
+            {
+              "type": "text",
+              "text": "\nTo better assist you, could you please share your full name?"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "John Smith"
+        },
+        {
+          "role": "tool",
+          "content": {
+            "type": "function",
+            "function": {
+              "name": "transition_to_service_a",
+              "description": "Use this function to transition to Service A when the customer shows interest in Service A.",
+              "parameters": {
+                "properties": {
+                  "reason": {
+                    "description": "Explanation of why transitioning to this service",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "role": "tool",
+          "content": {
+            "type": "function",
+            "function": {
+              "name": "transition_to_service_b",
+              "description": "Use this function to transition to Service B when the customer shows interest in Service B.",
+              "parameters": {
+                "properties": {
+                  "reason": {
+                    "description": "Explanation of why transitioning to this service",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "role": "tool",
+          "content": {
+            "type": "function",
+            "function": {
+              "name": "transition_to_service_c",
+              "description": "Use this function to transition to Service C when the customer shows interest in Service C.",
+              "parameters": {
+                "properties": {
+                  "reason": {
+                    "description": "Explanation of why transitioning to this service",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "role": "tool",
+          "content": {
+            "type": "function",
+            "function": {
+              "name": "get_customer_info",
+              "description": "Retrieve customer information from the database.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "customer_id": {
+                    "type": "string",
+                    "description": "The customer identifier"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        {
+          "role": "tool",
+          "content": {
+            "type": "function",
+            "function": {
+              "name": "escalate_to_human",
+              "description": "Escalate the conversation to a human agent when needed.",
+              "parameters": {
+                "properties": {
+                  "reason": {
+                    "description": "Reason for escalation",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "content": "Thank you, John Smith. Which of our services are you interested in?",
+        "additional_kwargs": {},
+        "response_metadata": {
+          "safety_ratings": [],
+          "usage_metadata": {},
+          "finish_reason": "STOP",
+          "model_name": "gemini-2.5-flash"
+        },
+        "type": "AIMessageChunk",
+        "name": null,
+        "id": "run-vertex-test-001",
+        "example": false,
+        "tool_calls": [],
+        "invalid_tool_calls": [],
+        "usage_metadata": {
+          "input_tokens": 1200,
+          "output_tokens": 15,
+          "total_tokens": 1215,
+          "input_token_details": {
+            "cache_read": 0
+          },
+          "output_token_details": {
+            "reasoning": 0
+          }
+        },
+        "tool_call_chunks": []
+      },
+      "inputUsage": 1200,
+      "outputUsage": 15,
+      "totalUsage": 1215,
+      "inputCost": 0.0001,
+      "outputCost": 0.00001,
+      "totalCost": 0.00011,
+      "calculatedInputCost": 0.0001,
+      "calculatedOutputCost": 0.00001,
+      "calculatedTotalCost": 0.00011,
+      "latency": 1.874,
+      "timeToFirstToken": null,
+      "completionStartTime": null
+    }
+  ]
+}

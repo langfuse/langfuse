@@ -1,5 +1,4 @@
 import type { ColumnDefinition } from "@langfuse/shared";
-import type { ColumnToQueryKeyMap } from "./filter-query-encoding";
 
 interface CategoricalFacet {
   type: "categorical";
@@ -21,6 +20,7 @@ interface NumericFacet {
   label: string;
   min: number;
   max: number;
+  step?: number;
   unit?: string;
 }
 
@@ -62,7 +62,6 @@ export type Facet =
 
 export interface FilterConfig {
   tableName: string;
-  columnToQueryKey: ColumnToQueryKeyMap;
   columnDefinitions: ColumnDefinition[];
   defaultExpanded?: string[];
   defaultSidebarCollapsed?: boolean;

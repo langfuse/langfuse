@@ -5,6 +5,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -21,6 +22,8 @@ import {
   TableViewPresetTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  ActionId,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
@@ -51,6 +54,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export type SessionTableRow = {
   id: string;
@@ -139,7 +143,8 @@ export default function SessionsTable({
 
   const environmentOptions = useMemo(
     () =>
-      environmentFilterOptions.data?.map((value) => value.environment) || [],
+      environmentFilterOptions.data?.map((value) => value.environment) ??
+      undefined,
     [environmentFilterOptions.data],
   );
 
@@ -157,14 +162,14 @@ export default function SessionsTable({
     order: "DESC",
   });
 
-  // Extract and type-check the datetime filter from dateRangeFilter
-  // API expects specifically a datetime filter, but dateRangeFilter is FilterState which can contain any filter type
-  const createdAtFilter = dateRangeFilter.find((f) => f.column === "createdAt");
+  // dateRangeFilter contains only createdAt datetime filters, pass directly to API
   const filterOptions = api.sessions.filterOptions.useQuery(
     {
       projectId,
       timestampFilter:
-        createdAtFilter?.type === "datetime" ? createdAtFilter : undefined,
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
+          : undefined,
     },
     {
       trpc: {
@@ -183,9 +188,9 @@ export default function SessionsTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = filterOptions.data?.scores_avg || [];
+    const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
 
     return {
       bookmarked: ["Bookmarked", "Not bookmarked"],
@@ -194,8 +199,8 @@ export default function SessionsTable({
         filterOptions.data?.userIds.map((u) => ({
           value: u.value,
           count: Number(u.count),
-        })) || [],
-      tags: filterOptions.data?.tags.map((t) => t.value) || [], // tags don't have counts
+        })) ?? undefined,
+      tags: filterOptions.data?.tags.map((t) => t.value) ?? undefined, // tags don't have counts
       sessionDuration: [],
       countTraces: [],
       inputTokens: [],
@@ -212,6 +217,8 @@ export default function SessionsTable({
   const queryFilter = useSidebarFilterState(
     sessionFilterConfig,
     newFilterOptions,
+    projectId,
+    filterOptions.isPending || environmentFilterOptions.isPending,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -340,7 +347,7 @@ export default function SessionsTable({
 
   const tableActions: TableAction[] = [
     {
-      id: "session-add-to-annotation-queue",
+      id: ActionId.SessionAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
       description: "Add selected sessions to an annotation queue.",
@@ -705,6 +712,15 @@ export default function SessionsTable({
                 tableName={BatchExportTableName.Sessions}
               />
             ) : null,
+            <BatchExportTableButton
+              {...{
+                projectId,
+                filterState: backendFilterState,
+                orderByState,
+              }}
+              tableName={BatchExportTableName.Sessions}
+              key="batchExport"
+            />,
           ]}
           columns={columns}
           columnVisibility={columnVisibility}
@@ -734,7 +750,7 @@ export default function SessionsTable({
         />
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -797,7 +813,7 @@ export default function SessionsTable({
               rowHeight={rowHeight}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );

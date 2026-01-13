@@ -1,5 +1,6 @@
 import { Job, Processor } from "bullmq";
 import {
+  deleteEventsByProjectId,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
   deleteTracesByProjectId,
@@ -92,6 +93,9 @@ export const projectDeleteProcessor: Processor = async (
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
+    env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+      ? deleteEventsByProjectId(projectId)
+      : Promise.resolve(),
   ]);
 
   // Trigger async delete of dataset run items

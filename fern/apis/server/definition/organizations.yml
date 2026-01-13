@@ -59,6 +59,12 @@ service:
       path: /organizations/projects
       response: OrganizationProjectsResponse
 
+    getOrganizationApiKeys:
+      docs: Get all API keys for the organization associated with the API key (requires organization-scoped API key)
+      method: GET
+      path: /organizations/apiKeys
+      response: OrganizationApiKeysResponse
+
 types:
   MembershipRole:
     enum:
@@ -103,3 +109,17 @@ types:
   OrganizationProjectsResponse:
     properties:
       projects: list<OrganizationProject>
+
+  OrganizationApiKey:
+    properties:
+      id: string
+      createdAt: datetime
+      expiresAt: optional<datetime>
+      lastUsedAt: optional<datetime>
+      note: optional<string>
+      publicKey: string
+      displaySecretKey: string
+
+  OrganizationApiKeysResponse:
+    properties:
+      apiKeys: list<OrganizationApiKey>

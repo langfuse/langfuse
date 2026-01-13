@@ -72,7 +72,7 @@ function UpdateDisplayName() {
   return (
     <div>
       <Header title="Display Name" />
-      <Card className="mb-4 p-3">
+      <Card className="p-3">
         {form.getValues().name !== "" ? (
           <p className="mb-4 text-sm text-primary">
             Your display name will be updated from &quot;
@@ -88,11 +88,7 @@ function UpdateDisplayName() {
           </p>
         )}
         <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex-1"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1">
             <FormField
               control={form.control}
               name="name"
@@ -207,11 +203,7 @@ function DeleteAccountButton() {
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-8"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             {canDelete && (
               <DialogBody>
                 <FormField
@@ -290,13 +282,15 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
           <Header title="Password" />
           <Card className="p-3">
             <p className="mb-4 text-sm text-primary">
-              Reset your password using the password reset flow.
+              To change your password, we will send you a secure link to your
+              email address. Click the button below to start the password reset
+              process.
             </p>
             <Button asChild variant="secondary">
               <Link
                 href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`}
               >
-                Reset Password
+                Change Password
               </Link>
             </Button>
           </Card>

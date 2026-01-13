@@ -6,7 +6,6 @@ import {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
 
-/* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
 export const LLMJSONSchema = z.record(z.string(), z.any());
@@ -68,7 +67,10 @@ const GoogleAIStudioMessageContentWithToolUse = z.object({
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
-  args: z.record(z.string(), z.unknown()),
+  args: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .transform((val) => val ?? {}),
 });
 export type LLMToolCall = z.infer<typeof LLMToolCallSchema>;
 
@@ -308,6 +310,9 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.2-2025-12-11",
+  "gpt-5.1",
+  "gpt-5.1-2025-11-13",
   "gpt-5",
   "gpt-5-2025-08-07",
   "gpt-5-mini",
@@ -348,6 +353,9 @@ export const openAIModels = [
 type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
 export const openAIModelToReasoning: OpenAIReasoningMap = {
   // reasoning models
+  "gpt-5.2-2025-12-11": true,
+  "gpt-5.1": true,
+  "gpt-5.1-2025-11-13": true,
   "gpt-5": true,
   "gpt-5-2025-08-07": true,
   "gpt-5-mini": true,
@@ -403,6 +411,7 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-haiku-4-5-20251001",
+  "claude-opus-4-5-20251101",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-20250514",
@@ -420,15 +429,16 @@ export const anthropicModels = [
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
-  "gemini-2.5-pro",
   "gemini-2.5-flash",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-2.5-pro",
+  "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
+  "gemini-2.5-flash-preview-09-2025",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",
   "gemini-2.0-pro-exp-02-05",
   "gemini-2.0-flash-001",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-exp",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
@@ -439,12 +449,11 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
-  "gemini-2.5-flash-lite-preview-06-17",
-  "gemini-2.5-pro-preview-05-06",
-  "gemini-2.5-flash-preview-05-20",
+  "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",
-  "gemini-2.0-flash-lite-preview",
-  "gemini-2.0-flash-lite-preview-02-05",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",

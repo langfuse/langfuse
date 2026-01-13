@@ -10,6 +10,8 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   createDatasetRunItem,
   getDatasetItemIdsWithRunData,
+  createDatasetItem,
+  createManyDatasetItems,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -28,6 +30,10 @@ import {
 } from "@/src/features/scores/lib/aggregateScores";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+  "true";
+process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 describe("Fetch datasets for UI presentation", () => {
   it("should fetch dataset runs for UI", async () => {
@@ -71,40 +77,14 @@ describe("Fetch datasets for UI presentation", () => {
     const datasetItemId3 = v4();
     const datasetItemId4 = v4();
 
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
-    });
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId2,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
-    });
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId3,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
-    });
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId4,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    await createManyDatasetItems({
+      projectId,
+      items: [
+        { id: datasetItemId, datasetId, metadata: {} },
+        { id: datasetItemId2, datasetId, metadata: {} },
+        { id: datasetItemId3, datasetId, metadata: {} },
+        { id: datasetItemId4, datasetId, metadata: {} },
+      ],
     });
 
     const datasetRunItemId = v4();
@@ -321,6 +301,7 @@ describe("Fetch datasets for UI presentation", () => {
         id: undefined,
         comment: undefined,
         hasMetadata: undefined,
+        timestamp: undefined,
       },
       [`${anotherScoreName.replaceAll("-", "_")}-API-NUMERIC`]: {
         id: score3.id,
@@ -329,6 +310,7 @@ describe("Fetch datasets for UI presentation", () => {
         average: 1,
         comment: "some other comment for non run related score",
         hasMetadata: true,
+        timestamp: expect.any(Date),
       },
     };
 
@@ -381,16 +363,15 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
-    const datasetItemId = v4();
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    const res = await createDatasetItem({
+      datasetId,
+      metadata: {},
+      projectId,
     });
+    if (!res.success) {
+      throw new Error("Failed to create dataset item");
+    }
+    const datasetItemId = res.datasetItem.id;
 
     const datasetRunItemId = v4();
     const datasetRunItemId2 = v4();
@@ -492,6 +473,7 @@ describe("Fetch datasets for UI presentation", () => {
         comment: "comment",
         // createScore adds metadata to the score
         hasMetadata: true,
+        timestamp: expect.any(Date),
       },
     };
 
@@ -563,11 +545,12 @@ describe("Fetch datasets for UI presentation", () => {
       const itemId2 = v4();
       const itemId3 = v4();
 
-      await prisma.datasetItem.createMany({
-        data: [
-          { id: itemId1, datasetId, metadata: {}, projectId },
-          { id: itemId2, datasetId, metadata: {}, projectId },
-          { id: itemId3, datasetId, metadata: {}, projectId },
+      await createManyDatasetItems({
+        projectId,
+        items: [
+          { id: itemId1, datasetId, metadata: {} },
+          { id: itemId2, datasetId, metadata: {} },
+          { id: itemId3, datasetId, metadata: {} },
         ],
       });
 
@@ -773,8 +756,13 @@ describe("Fetch datasets for UI presentation", () => {
       const itemIds = [v4(), v4(), v4()];
       const traceIds = [v4(), v4(), v4()];
 
-      await prisma.datasetItem.createMany({
-        data: itemIds.map((id) => ({ id, datasetId, metadata: {}, projectId })),
+      await createManyDatasetItems({
+        projectId,
+        items: itemIds.map((id) => ({
+          id,
+          datasetId,
+          metadata: {},
+        })),
       });
 
       // Create dataset run items
@@ -986,8 +974,13 @@ describe("Fetch datasets for UI presentation", () => {
       const itemIds = [v4(), v4()];
       const traceIds = [v4(), v4()];
 
-      await prisma.datasetItem.createMany({
-        data: itemIds.map((id) => ({ id, datasetId, metadata: {}, projectId })),
+      await createManyDatasetItems({
+        projectId,
+        items: itemIds.map((id) => ({
+          id,
+          datasetId,
+          metadata: {},
+        })),
       });
 
       // Create dataset run items
@@ -1135,26 +1128,23 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
-    const datasetItemId = v4();
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    const res = await createDatasetItem({
+      datasetId,
+      metadata: {},
+      projectId,
     });
 
-    const datasetItemId2 = v4();
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId2,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    const res2 = await createDatasetItem({
+      datasetId,
+      metadata: {},
+      projectId,
     });
 
+    if (!res.success || !res2.success) {
+      throw new Error("Failed to create dataset item");
+    }
+    const datasetItemId = res.datasetItem.id;
+    const datasetItemId2 = res2.datasetItem.id;
     const datasetRunItemId1 = v4();
     const traceId1 = v4();
 
@@ -1273,6 +1263,7 @@ describe("Fetch datasets for UI presentation", () => {
         values: expect.arrayContaining([100.5]),
         average: 100.5,
         comment: "comment",
+        timestamp: expect.any(Date),
         // createScore adds metadata to the score
         hasMetadata: true,
       },
@@ -1349,9 +1340,9 @@ describe("Fetch datasets for UI presentation", () => {
         });
 
         // Create dataset items with same timestamp but different IDs for pagination testing
-        const baseTime = new Date();
-        await prisma.datasetItem.createMany({
-          data: itemIds.map((id, index) => ({
+        await createManyDatasetItems({
+          projectId,
+          items: itemIds.map((id, index) => ({
             id,
             datasetId,
             input: { prompt: `Test input ${index + 1}` },
@@ -1360,8 +1351,6 @@ describe("Fetch datasets for UI presentation", () => {
               category: index < 2 ? "category-a" : "category-b",
               difficulty: index % 2 === 0 ? "easy" : "hard",
             },
-            projectId,
-            createdAt: baseTime,
           })),
         });
 
@@ -1379,16 +1368,45 @@ describe("Fetch datasets for UI presentation", () => {
         await createTracesCh(traces);
 
         // Create observations for some traces (mix of trace-level and observation-level linkage)
+        const parentObsId = v4();
+        const childObs1Id = v4();
+        const childObs2Id = v4();
+
         const observations = [
-          // First two traces have observations (observation-level linkage)
+          // First trace: parent observation with 2 children
           createObservation({
+            id: parentObsId,
             trace_id: traceIds[0],
             project_id: projectId,
             type: "GENERATION",
-            name: "generation-1",
+            name: "parent-generation",
+            parent_observation_id: null,
             start_time: new Date().getTime() - 3500,
             end_time: new Date().getTime() - 2500,
             metadata: { model: "gpt-4" },
+            cost_details: { total: 0 }, // Parent has no direct cost
+          }),
+          createObservation({
+            id: childObs1Id,
+            trace_id: traceIds[0],
+            project_id: projectId,
+            type: "GENERATION",
+            name: "child-generation-1",
+            parent_observation_id: parentObsId,
+            start_time: new Date().getTime() - 3400,
+            end_time: new Date().getTime() - 3000,
+            cost_details: { total: 0.005 }, // Child 1 cost
+          }),
+          createObservation({
+            id: childObs2Id,
+            trace_id: traceIds[0],
+            project_id: projectId,
+            type: "GENERATION",
+            name: "child-generation-2",
+            parent_observation_id: parentObsId,
+            start_time: new Date().getTime() - 3000,
+            end_time: new Date().getTime() - 2600,
+            cost_details: { total: 0.008765 }, // Child 2 cost (total = 0.013765)
           }),
           createObservation({
             trace_id: traceIds[1],
@@ -1422,7 +1440,7 @@ describe("Fetch datasets for UI presentation", () => {
             dataset_run_id: run1Id,
             dataset_item_id: itemIds[0],
             trace_id: traceIds[0],
-            observation_id: observations[0].id, // Observation-level linkage
+            observation_id: parentObsId, // Link to parent observation (has children)
             project_id: projectId,
             dataset_id: datasetId,
             dataset_run_name: "run-1",
@@ -1624,6 +1642,10 @@ describe("Fetch datasets for UI presentation", () => {
         expect(item0Run1?.observation?.latency).toBeDefined();
         expect(typeof item0Run1?.observation?.latency).toBe("number");
         expect(item0Run1?.observation?.calculatedTotalCost).toBeDefined();
+        // Should calculate recursive cost (parent + 2 children: 0 + 0.005 + 0.008765 = 0.013765)
+        expect(
+          item0Run1?.observation?.calculatedTotalCost?.toNumber(),
+        ).toBeCloseTo(0.013765, 6);
 
         // Should have trace data
         expect(item0Run1?.trace).toBeDefined();
@@ -1756,11 +1778,11 @@ describe("Fetch datasets for UI presentation", () => {
         const item0Run1 = result.get(itemIds[0])?.[run1Id];
         expect(item0Run1?.observation?.latency).toBeDefined();
         // Observation 1: 3500ms - 2500ms = 1000ms latency, which translates to 1 second
-        expect(item0Run1?.observation?.latency).toBe(1);
+        expect(item0Run1?.observation?.latency).toBeCloseTo(1);
 
         const item0Run2 = result.get(itemIds[0])?.[run2Id];
         expect(item0Run2?.observation?.latency).toBeDefined();
-        expect(item0Run2?.observation?.latency).toBe(1); // Same observation
+        expect(item0Run2?.observation?.latency).toBeCloseTo(1); // Same observation
 
         // Test trace-level latency (calculated from trace timestamps and observations)
         const item1Run1 = result.get(itemIds[1])?.[run1Id];
@@ -2016,14 +2038,14 @@ describe("Fetch datasets for UI presentation", () => {
         });
 
         // Create dataset items
-        await prisma.datasetItem.createMany({
-          data: itemIds.map((id, index) => ({
+        await createManyDatasetItems({
+          projectId,
+          items: itemIds.map((id, index) => ({
             id,
             datasetId,
             input: { prompt: `Test prompt ${index + 1}` },
             expectedOutput: { response: `Expected response ${index + 1}` },
             metadata: { category: `category-${index % 3}` },
-            projectId,
           })),
         });
 

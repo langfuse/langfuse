@@ -5,9 +5,9 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
+import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TagTracePopover } from "@/src/features/tag/components/TagTracePopver";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
@@ -37,7 +37,9 @@ import {
   BatchExportTableName,
   AnnotationQueueObjectType,
   BatchActionType,
+  ActionId,
   TableViewPresetTableName,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
@@ -48,7 +50,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
@@ -77,8 +79,14 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import {
+  type RefreshInterval,
+  REFRESH_INTERVALS,
+} from "@/src/components/table/data-table-refresh-button";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import TagList from "@/src/features/tag/components/TagList";
 
 export type TracesTableRow = {
   // Shown by default
@@ -143,14 +151,57 @@ export default function TracesTable({
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const [rawRefreshInterval, setRawRefreshInterval] =
+    useSessionStorage<RefreshInterval>(
+      `tableRefreshInterval-${projectId}`,
+      null,
+    );
+
+  // Validate session storage value against allowed intervals to prevent too small intervals
+  const allowedValues = REFRESH_INTERVALS.map((i) => i.value);
+  const refreshInterval = allowedValues.includes(rawRefreshInterval)
+    ? rawRefreshInterval
+    : null;
+  const setRefreshInterval = useCallback(
+    (value: RefreshInterval) => {
+      if (allowedValues.includes(value)) {
+        setRawRefreshInterval(value);
+      }
+    },
+    [allowedValues, setRawRefreshInterval],
+  );
+
+  const [refreshTick, setRefreshTick] = useState(0);
   const { setDetailPageList } = useDetailPageLists();
+
+  // Auto-increment refresh tick to force date range recalculation
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+    void Promise.all([
+      utils.traces.all.invalidate(),
+      utils.traces.metrics.invalidate(),
+      utils.traces.countAll.invalidate(),
+      utils.traces.filterOptions.invalidate(),
+      utils.projects.environmentFilterOptions.invalidate(),
+    ]);
+  }, [utils]);
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
+  // refreshTick forces recalculation on each refresh cycle
   const tableDateRange = useMemo(() => {
     return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, refreshTick]);
 
   const dateRange = externalDateRange ?? tableDateRange;
 
@@ -206,7 +257,13 @@ export default function TracesTable({
     );
 
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
+    {
+      projectId,
+      timestampFilter:
+        dateRangeFilter.length > 0
+          ? (dateRangeFilter as TimeFilter[])
+          : undefined,
+    },
     {
       trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
@@ -224,32 +281,35 @@ export default function TracesTable({
           return acc;
         },
         {} as Record<string, string[]>,
-      ) || {};
+      ) ?? undefined;
 
-    const scoresNumeric = traceFilterOptionsResponse.data?.scores_avg || [];
+    const scoresNumeric =
+      traceFilterOptionsResponse.data?.scores_avg ?? undefined;
 
     return {
       name:
         traceFilterOptionsResponse.data?.name?.map((n) => ({
           value: n.value,
           count: Number(n.count),
-        })) || [],
+        })) ?? undefined,
       // tags don't have counts
-      tags: traceFilterOptionsResponse.data?.tags?.map((t) => t.value) || [],
+      tags:
+        traceFilterOptionsResponse.data?.tags?.map((t) => t.value) ?? undefined,
       environment:
-        environmentFilterOptions.data?.map((value) => value.environment) || [],
+        environmentFilterOptions.data?.map((value) => value.environment) ??
+        undefined,
       level: ["DEFAULT", "DEBUG", "WARNING", "ERROR"],
       bookmarked: ["Bookmarked", "Not bookmarked"],
       userId:
         traceFilterOptionsResponse.data?.users?.map((u) => ({
           value: u.value,
           count: Number(u.count),
-        })) || [],
+        })) ?? undefined,
       sessionId:
         traceFilterOptionsResponse.data?.sessions?.map((s) => ({
           value: s.value,
           count: Number(s.count),
-        })) || [],
+        })) ?? undefined,
       latency: [],
       inputTokens: [],
       outputTokens: [],
@@ -262,7 +322,13 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions);
+  const queryFilter = useSidebarFilterState(
+    traceFilterConfig,
+    filterOptions,
+    projectId,
+    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
+    hideControls, // Disable URL persistence for embedded preview tables
+  );
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
@@ -349,8 +415,6 @@ export default function TracesTable({
   // loading filter options individually from the remaining calls
   // traces.all should load first together with everything else.
   // This here happens in the background.
-
-  const traceFilterOptions = traceFilterOptionsResponse.data;
 
   const [storedRowHeight, setRowHeight] = useRowHeightLocalStorage(
     "traces",
@@ -456,10 +520,10 @@ export default function TracesTable({
     ...(hasTraceDeletionEntitlement
       ? [
           {
-            id: "trace-delete",
+            id: ActionId.TraceDelete,
             type: BatchActionType.Delete,
             label: "Delete Traces",
-            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 15 minutes.`,
+            description: `This action permanently deletes ${displayCount} traces and cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
             accessCheck: {
               scope: "traces:delete",
               entitlement: "trace-deletion",
@@ -469,7 +533,7 @@ export default function TracesTable({
         ]
       : []),
     {
-      id: "trace-add-to-annotation-queue",
+      id: ActionId.TraceAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
       description: "Add selected traces to an annotation queue.",
@@ -533,11 +597,7 @@ export default function TracesTable({
       enableSorting,
       cell: ({ row }) => {
         const value: TracesTableRow["name"] = row.getValue("name");
-        return value ? (
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        ) : undefined;
+        return value ?? undefined;
       },
     },
     {
@@ -703,24 +763,18 @@ export default function TracesTable({
         href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
-        const tags: TracesTableRow["tags"] = row.getValue("tags");
-        const traceId: TracesTableRow["id"] = row.getValue("id");
-        const filterOptionTags = traceFilterOptions?.tags ?? [];
-        const allTags = filterOptionTags.map((t) => t.value);
+        const traceTags: string[] | undefined = row.getValue("tags");
         return (
-          <TagTracePopover
-            tags={tags}
-            availableTags={allTags}
-            projectId={projectId}
-            traceId={traceId}
-            tracesFilter={tracesAllQueryFilter}
-            className={cn(
-              rowHeight === "s"
-                ? "overflow-x-auto"
-                : "max-h-full flex-wrap overflow-y-auto",
-            )}
-            hideControls={hideControls}
-          />
+          traceTags && (
+            <div
+              className={cn(
+                "flex gap-x-2 gap-y-1",
+                rowHeight !== "s" && "flex-wrap",
+              )}
+            >
+              <TagList selectedTags={traceTags} isLoading={false} />
+            </div>
+          )
         );
       },
       enableHiding: true,
@@ -1211,6 +1265,15 @@ export default function TracesTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
+            refreshConfig={{
+              onRefresh: handleRefresh,
+              isRefreshing:
+                traces.isFetching ||
+                traceMetrics.isFetching ||
+                totalCountQuery.isFetching,
+              interval: refreshInterval,
+              setInterval: setRefreshInterval,
+            }}
             multiSelect={{
               selectAll,
               setSelectAll,
@@ -1225,7 +1288,7 @@ export default function TracesTable({
         )}
 
         {/* Content area with sidebar and table */}
-        <div className="flex flex-1 overflow-hidden">
+        <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls queryFilter={queryFilter} filterWithAI />
           )}
@@ -1271,7 +1334,7 @@ export default function TracesTable({
               tableName={"traces"}
             />
           </div>
-        </div>
+        </ResizableFilterLayout>
       </div>
     </DataTableControlsProvider>
   );
@@ -1291,10 +1354,11 @@ const TracesDynamicCell = ({
   singleLine?: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
-    { traceId, projectId, timestamp, truncated: true },
+    { traceId, projectId, timestamp, verbosity: "compact" },
     {
       refetchOnMount: false, // prevents refetching loops
       staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -1309,7 +1373,10 @@ const TracesDynamicCell = ({
     <MemoizedIOTableCell
       isLoading={trace.isPending}
       data={data}
-      className={cn(col === "output" && "bg-accent-light-green")}
+      className={cn(
+        col === "output" && "bg-accent-light-green",
+        col === "input" && "bg-muted/50",
+      )}
       singleLine={singleLine}
     />
   );

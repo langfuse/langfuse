@@ -9,7 +9,7 @@ import {
   DeleteAnnotationQueueAssignmentBody,
   DeleteAnnotationQueueAssignmentResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { getUserProjectRoles } from "@/src/features/rbac/utils/userProjectRole";
+import { getUserProjectRoles } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({

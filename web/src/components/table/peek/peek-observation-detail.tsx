@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Trace } from "@/src/components/trace";
+import { Trace } from "@/src/components/trace2/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 
@@ -28,7 +28,7 @@ export const PeekViewObservationDetail = ({
   );
 
   if (!peekId || !trace.data) {
-    return <Skeleton className="h-full w-full" />;
+    return <Skeleton className="h-full w-full rounded-none" />;
   }
 
   return (
@@ -36,6 +36,7 @@ export const PeekViewObservationDetail = ({
       key={`${trace.data.id}-${peekId}`}
       trace={trace.data}
       scores={trace.data.scores}
+      corrections={trace.data.corrections}
       projectId={trace.data.projectId}
       observations={trace.data.observations}
       selectedTab={selectedTab}

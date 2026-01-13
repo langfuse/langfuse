@@ -7,7 +7,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod/v4";
-import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
+import { OpenAiMessageView } from "@/src/components/trace2/components/IOPreview/components/ChatMessageList";
 import {
   TabsBar,
   TabsBarList,
@@ -226,14 +226,19 @@ export const PromptDetail = ({
     ).data?.tags ?? []
   ).map((t) => t.value);
 
-  const commentCounts = api.comments.getCountByObjectId.useQuery(
+  const promptIds = useMemo(
+    () => promptHistory.data?.promptVersions.map((p) => p.id) ?? [],
+    [promptHistory.data?.promptVersions],
+  );
+
+  const commentCounts = api.comments.getCountByObjectIds.useQuery(
     {
       projectId: projectId as string,
-      objectId: prompt?.id as string,
       objectType: "PROMPT",
+      objectIds: promptIds,
     },
     {
-      enabled: Boolean(projectId) && Boolean(prompt?.id),
+      enabled: Boolean(projectId) && promptIds.length > 0,
       trpc: {
         context: {
           skipBatch: true,
@@ -274,6 +279,8 @@ export const PromptDetail = ({
     <Page
       headerProps={{
         title: prompt.name,
+        titleTooltip:
+          "Prompt names cannot be changed. Instead, duplicate this prompt to a different name.",
         itemType: "PROMPT",
         help: {
           description:
@@ -325,7 +332,7 @@ export const PromptDetail = ({
           <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
-              placeholder="Search versions"
+              placeholder="Search..."
               className="h-fit border-none py-0 text-sm font-light text-muted-foreground focus:ring-0"
             />
 
@@ -353,6 +360,7 @@ export const PromptDetail = ({
                 setCurrentPromptLabel(null);
               }}
               totalCount={promptHistory.data.totalCount}
+              commentCounts={commentCounts.data}
             />
           </div>
         </Command>
@@ -520,6 +528,9 @@ export const PromptDetail = ({
                   <div className="w-full">
                     <OpenAiMessageView
                       messages={chatMessages}
+                      shouldRenderMarkdown={true}
+                      currentView="pretty"
+                      messageToToolCallNumbers={new Map()}
                       collapseLongHistory={false}
                       projectIdForPromptButtons={projectId}
                     />

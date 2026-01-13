@@ -47,6 +47,10 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
+import {
+  DataTableRefreshButton,
+  type RefreshInterval,
+} from "@/src/components/table/data-table-refresh-button";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -59,12 +63,12 @@ export interface MultiSelect {
 }
 
 interface SearchConfig {
-  metadataSearchFields: string[];
+  metadataSearchFields?: string[];
   updateQuery: (event: string) => void;
   currentQuery?: string;
   tableAllowsFullTextSearch?: boolean;
-  setSearchType: ((newSearchType: TracingSearchType[]) => void) | undefined;
-  searchType: TracingSearchType[] | undefined;
+  setSearchType?: (newSearchType: TracingSearchType[]) => void;
+  searchType?: TracingSearchType[];
   customDropdownLabels?: {
     metadata: string;
     fullText: string;
@@ -82,6 +86,13 @@ interface TableViewConfig {
   tableName: TableViewPresetTableName;
   projectId: string;
   controllers: TableViewControllers;
+}
+
+interface RefreshConfig {
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  interval: RefreshInterval;
+  setInterval: (interval: RefreshInterval) => void;
 }
 
 interface DataTableToolbarProps<TData, TValue> {
@@ -102,6 +113,7 @@ interface DataTableToolbarProps<TData, TValue> {
   columnsWithCustomSelect?: string[];
   timeRange?: TimeRange;
   setTimeRange?: (timeRange: TimeRange) => void;
+  refreshConfig?: RefreshConfig;
   multiSelect?: MultiSelect;
   environmentFilter?: {
     values: string[];
@@ -130,6 +142,7 @@ export function DataTableToolbar<TData, TValue>({
   columnsWithCustomSelect,
   timeRange,
   setTimeRange,
+  refreshConfig,
   multiSelect,
   environmentFilter,
   className,
@@ -196,7 +209,7 @@ export function DataTableToolbar<TData, TValue>({
                 placeholder={
                   searchConfig.tableAllowsFullTextSearch
                     ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields.join(", ")})`
+                    : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
                 }
                 value={searchString}
                 onChange={(event) => {
@@ -239,14 +252,14 @@ export function DataTableToolbar<TData, TValue>({
                           ) ? (
                             <p className="text-xs font-normal text-primary">
                               Searches in Input/Output and{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {searchConfig.metadataSearchFields?.join(", ")}.
                               {!searchConfig.hidePerformanceWarning &&
                                 " For improved performance, please filter the table down."}
                             </p>
                           ) : (
                             <p className="text-xs font-normal text-primary">
                               Searches in{" "}
-                              {searchConfig.metadataSearchFields.join(", ")}.
+                              {searchConfig.metadataSearchFields?.join(", ")}.
                             </p>
                           )
                         }
@@ -300,6 +313,14 @@ export function DataTableToolbar<TData, TValue>({
             onTimeRangeChange={setTimeRange}
             timeRangePresets={TABLE_AGGREGATION_OPTIONS}
             className="my-0 max-w-full overflow-x-auto"
+          />
+        )}
+        {refreshConfig && (
+          <DataTableRefreshButton
+            onRefresh={refreshConfig.onRefresh}
+            isRefreshing={refreshConfig.isRefreshing}
+            interval={refreshConfig.interval}
+            setInterval={refreshConfig.setInterval}
           />
         )}
         {environmentFilter && (

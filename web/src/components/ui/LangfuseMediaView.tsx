@@ -4,7 +4,7 @@ import { ImageOff } from "lucide-react";
 import {
   MediaReferenceStringSchema,
   type ParsedMediaReferenceType,
-} from "@/src/components/schemas/ChatMlSchema";
+} from "@langfuse/shared";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
