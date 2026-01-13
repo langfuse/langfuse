@@ -48,7 +48,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { scores } = useTraceData();
+  const { mergedScores } = useTraceData();
   const {
     showDuration,
     showCostTokens,
@@ -81,8 +81,8 @@ export function SpanContent({
   // Filter scores for this node
   const nodeScores =
     node.type === "TRACE"
-      ? scores.filter((s) => s.observationId === null)
-      : scores.filter((s) => s.observationId === node.id);
+      ? mergedScores.filter((s) => s.observationId === null)
+      : mergedScores.filter((s) => s.observationId === node.id);
 
   return (
     <button

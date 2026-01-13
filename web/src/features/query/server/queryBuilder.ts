@@ -33,6 +33,7 @@ type AppliedMetricType = {
   alias?: string;
   relationTable?: string;
   aggs?: Record<string, string>;
+  measureName: string; // Original measure name for lookups
 };
 
 export class QueryBuilder {
@@ -120,6 +121,7 @@ export class QueryBuilder {
         ...view.measures[metric.measure],
         aggregation: metric.aggregation,
         aggs: view.measures[metric.measure].aggs,
+        measureName: metric.measure,
       };
     });
   }
@@ -401,10 +403,10 @@ export class QueryBuilder {
     aggs: Record<string, string>,
   ): string {
     let result = sql;
-    // Replace each @@AGGN@@ placeholder with its corresponding aggregation function
-    for (const [placeholder, aggFunc] of Object.entries(aggs)) {
+    // Replace each @@AGGN@@ placeholder with its corresponding value
+    for (const [placeholder, replacement] of Object.entries(aggs)) {
       const marker = `@@${placeholder.toUpperCase()}@@`;
-      result = result.replaceAll(marker, aggFunc);
+      result = result.replaceAll(marker, replacement);
     }
     return result;
   }
@@ -429,7 +431,9 @@ export class QueryBuilder {
       const shouldUseFinal = !(
         relation.name === "observations" && skipObservationsFinal
       );
-      let joinStatement = `LEFT JOIN ${relation.name}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
+      const alias =
+        relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
+      let joinStatement = `LEFT JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
@@ -752,6 +756,15 @@ export class QueryBuilder {
     return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", granularity)} STEP ${step}`;
   }
 
+  /**
+   * Builds a LIMIT clause for the query if row_limit is specified in chartConfig.
+   */
+  private buildLimitClause(): string {
+    const rowLimit = this.chartConfig?.row_limit;
+    if (!rowLimit) return "";
+    return `LIMIT ${rowLimit}`;
+  }
+
   private buildOuterSelect(
     outerDimensionsPart: string,
     outerMetricsPart: string,
@@ -759,6 +772,7 @@ export class QueryBuilder {
     groupByClause: string,
     orderByClause: string,
     withFillClause: string,
+    limitClause: string,
   ) {
     return `
       SELECT
@@ -767,7 +781,8 @@ export class QueryBuilder {
       FROM (${innerQuery})
       ${groupByClause}
       ${orderByClause}
-      ${withFillClause}`;
+      ${withFillClause}
+      ${limitClause}`;
   }
 
   private buildSingleLevelMetricsPart(
@@ -830,6 +845,7 @@ export class QueryBuilder {
     groupByClause: string,
     orderByClause: string,
     withFillClause: string,
+    limitClause: string,
   ): string {
     // Build dimensions using dedicated helper
     const dimensionsPart = this.buildSingleLevelDimensionsPart(
@@ -847,7 +863,8 @@ export class QueryBuilder {
       ${fromClause}
       ${groupByClause}
       ${orderByClause}
-      ${withFillClause}`;
+      ${withFillClause}
+      ${limitClause}`;
   }
 
   /**
@@ -1086,6 +1103,9 @@ export class QueryBuilder {
       parameters,
     );
 
+    // Build LIMIT clause for row limiting
+    const limitClause = this.buildLimitClause();
+
     // Build final query - branch based on optimization
     let sql: string;
     if (canOptimize) {
@@ -1099,6 +1119,7 @@ export class QueryBuilder {
         groupByClause,
         orderByClause,
         withFillClause,
+        limitClause,
       );
     } else {
       // Two-level query: Original approach
@@ -1132,6 +1153,7 @@ export class QueryBuilder {
         groupByClause,
         orderByClause,
         withFillClause,
+        limitClause,
       );
     }
 

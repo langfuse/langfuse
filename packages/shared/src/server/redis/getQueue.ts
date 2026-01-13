@@ -29,6 +29,7 @@ import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
+import { BatchProjectCleanerQueue } from "./batchProjectCleanerQueue";
 
 // IngestionQueue, OtelIngestionQueue, and TraceUpsert are sharded and require a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) or TraceUpsertQueue.getInstance({ shardName: queueName }) directly instead
@@ -99,9 +100,10 @@ export function getQueue(
       return EventPropagationQueue.getInstance();
     case QueueName.NotificationQueue:
       return NotificationQueue.getInstance();
+    case QueueName.BatchProjectCleanerQueue:
+      return BatchProjectCleanerQueue.getInstance();
     default: {
-      // eslint-disable-next-line no-case-declarations, no-unused-vars
-      const exhaustiveCheckDefault: never = queueName;
+      const _exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
     }
   }

@@ -96,7 +96,7 @@ const getMinTimestampForExport = async (
     case BlobStorageExportMode.FROM_CUSTOM_DATE:
       return exportStartDate || new Date(); // Use export start date or current time as fallback
     default:
-      // eslint-disable-next-line no-case-declarations, no-unused-vars
+      // eslint-disable-next-line no-case-declarations
       const _exhaustiveCheck: never = exportMode;
       throw new Error(`Invalid export mode: ${exportMode}`);
   }
@@ -137,8 +137,8 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
         extension: "jsonl",
       };
     default:
-      // eslint-disable-next-line no-case-declarations, no-unused-vars
-      const exhaustiveCheck: never = fileType;
+      // eslint-disable-next-line no-case-declarations
+      const _exhaustiveCheck: never = fileType;
       throw new Error(`Unsupported file type: ${fileType}`);
   }
 };

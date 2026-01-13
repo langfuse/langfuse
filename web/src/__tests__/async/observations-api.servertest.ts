@@ -40,6 +40,7 @@ type ObservationData = {
 const createObservationData = (
   useEventsTable: boolean,
   data: ObservationData,
+  trace?: ReturnType<typeof createTrace>,
 ) => {
   const id = data.id ?? randomUUID();
 
@@ -67,6 +68,9 @@ const createObservationData = (
       provided_cost_details: data.provided_cost_details,
       usage_details: data.provided_usage_details,
       cost_details: data.provided_cost_details,
+      // Propagate trace-level fields to events
+      user_id: trace?.user_id ?? null,
+      tags: trace?.tags ?? [],
     });
   } else {
     // For observations table: milliseconds, simpler structure
@@ -98,7 +102,7 @@ const createAndInsertObservations = async (
   await createTracesCh([trace]);
 
   const data = observations.map((obs) =>
-    createObservationData(useEventsTable, obs),
+    createObservationData(useEventsTable, obs, trace),
   );
 
   if (useEventsTable) {

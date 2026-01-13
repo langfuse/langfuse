@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { z } from "zod/v4";
 import { eventTypes } from "./ingestion/types";
 import {
@@ -198,6 +197,13 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const BatchProjectCleanerJobSchema = z.object({
+  table: z.enum(["traces", "observations", "scores", "events"]),
+});
+export type BatchProjectCleanerJobType = z.infer<
+  typeof BatchProjectCleanerJobSchema
+>;
+
 export const NotificationEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("COMMENT_MENTION"),
@@ -313,6 +319,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  BatchProjectCleanerQueue = "batch-project-cleaner-queue",
 }
 
 export enum QueueJobs {
@@ -348,6 +355,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  BatchProjectCleanerJob = "batch-project-cleaner-job",
 }
 
 export type TQueueJobTypes = {

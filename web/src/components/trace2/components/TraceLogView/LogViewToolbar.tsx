@@ -53,8 +53,8 @@ export interface LogViewToolbarProps {
   onDownloadJson?: () => void;
   /** Whether download/copy uses cached I/O only (doesn't load all) */
   isDownloadCacheOnly?: boolean;
-  /** Current view type (pretty/json) */
-  currentView?: "pretty" | "json";
+  /** Current view type (pretty/json/json-beta) */
+  currentView?: "pretty" | "json" | "json-beta";
   /** Whether indent visualization is enabled */
   indentEnabled?: boolean;
   /** Whether indent toggle is disabled (tree too deep) */
@@ -128,7 +128,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
         </HoverCard>
       )}
 
-      {/* Search input or spacer (hidden in JSON view) */}
+      {/* Search input or spacer (hidden in JSON dump view) */}
       {currentView === "json" ? (
         <div className="flex-1" />
       ) : (
@@ -145,8 +145,8 @@ export const LogViewToolbar = memo(function LogViewToolbar({
 
       {/* Action buttons */}
       <div className="flex items-center gap-0.5">
-        {/* Indent Toggle - only in formatted view */}
-        {currentView === "pretty" && onToggleIndent && (
+        {/* Indent Toggle - only in table view (pretty or json-beta) */}
+        {currentView !== "json" && onToggleIndent && (
           <HoverCard openDelay={200}>
             <HoverCardTrigger asChild>
               <Button
@@ -181,8 +181,8 @@ export const LogViewToolbar = memo(function LogViewToolbar({
           </HoverCard>
         )}
 
-        {/* Milliseconds Toggle - only in formatted view */}
-        {currentView === "pretty" && onToggleMilliseconds && (
+        {/* Milliseconds Toggle - only in table view (pretty or json-beta) */}
+        {currentView !== "json" && onToggleMilliseconds && (
           <Button
             variant={showMilliseconds ? "default" : "ghost"}
             size="icon"
@@ -198,7 +198,7 @@ export const LogViewToolbar = memo(function LogViewToolbar({
         )}
 
         {/* Expand/Collapse All - show disabled with tooltip when virtualized */}
-        {currentView === "pretty" && onToggleExpandAll && (
+        {currentView !== "json" && onToggleExpandAll && (
           <Tooltip>
             <TooltipTrigger asChild>
               <span>

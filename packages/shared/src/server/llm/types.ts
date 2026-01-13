@@ -6,7 +6,6 @@ import {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
 
-/* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
 export const LLMJSONSchema = z.record(z.string(), z.any());
@@ -433,6 +432,7 @@ export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
   "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash-lite-preview-09-2025",
@@ -450,6 +450,7 @@ export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",

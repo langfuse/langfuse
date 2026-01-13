@@ -53,6 +53,9 @@ export const observationRecordBaseSchema = z.object({
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
+  tool_definitions: z.record(z.string(), z.string()).optional(),
+  tool_calls: z.array(z.string()).optional(),
+  tool_call_names: z.array(z.string()).optional(),
   is_deleted: z.number(),
 });
 
@@ -215,6 +218,7 @@ export const scoreRecordBaseSchema = z.object({
   config_id: z.string().nullish(),
   data_type: z.string(),
   string_value: z.string().nullish(),
+  long_string_value: z.string(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),
   is_deleted: z.number(),
@@ -254,7 +258,7 @@ const datasetRunItemRecordBaseSchema = z.object({
   error: z.string().nullish(),
 });
 
-const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
+const _datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
   dataset_run_created_at: clickhouseStringDateSchema,
   dataset_item_version: clickhouseStringDateSchema.nullish(),
   created_at: clickhouseStringDateSchema,
@@ -262,7 +266,7 @@ const datasetRunItemRecordReadSchema = datasetRunItemRecordBaseSchema.extend({
   event_ts: clickhouseStringDateSchema,
 });
 export type DatasetRunItemRecordReadType = z.infer<
-  typeof datasetRunItemRecordReadSchema
+  typeof _datasetRunItemRecordReadSchema
 >;
 // Conditional type for dataset run item records with optional IO
 export type DatasetRunItemRecord<WithIO extends boolean = true> =
@@ -415,6 +419,11 @@ export const convertTraceToStagingObservation = (
     prompt_id: undefined,
     prompt_name: undefined,
     prompt_version: undefined,
+
+    // Tool fields - traces don't have tools
+    tool_definitions: undefined,
+    tool_calls: undefined,
+    tool_call_names: undefined,
 
     // System fields
     created_at: traceRecord.created_at,
@@ -570,6 +579,10 @@ export const convertPostgresObservationToInsert = (
     prompt_id: observation.prompt_id,
     prompt_name: observation.prompt_name,
     prompt_version: observation.prompt_version,
+    // Tool fields - Postgres observations don't have persisted tools
+    tool_definitions: undefined,
+    tool_calls: undefined,
+    tool_call_names: undefined,
     created_at: observation.created_at?.getTime(),
     updated_at: observation.updated_at?.getTime(),
     event_ts: observation.start_time?.getTime(),
@@ -602,6 +615,7 @@ export const convertPostgresScoreToInsert = (
     config_id: score.config_id,
     data_type: score.data_type,
     string_value: score.string_value,
+    long_string_value: "",
     queue_id: score.queue_id,
     execution_trace_id: null, // Postgres scores do not have eval execution traces
     created_at: score.created_at?.getTime(),
@@ -658,6 +672,11 @@ export const eventRecordBaseSchema = z.object({
 
   usage_pricing_tier_id: z.string().nullish(),
   usage_pricing_tier_name: z.string().nullish(),
+
+  // Tool calls
+  tool_definitions: z.record(z.string(), z.string()).default({}),
+  tool_calls: z.array(z.string()).default([]),
+  tool_call_names: z.array(z.string()).default([]),
 
   // I/O
   input: z.string().nullish(),

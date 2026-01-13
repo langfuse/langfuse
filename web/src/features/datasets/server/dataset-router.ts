@@ -152,7 +152,7 @@ const generateDatasetQuery = ({
 
   // Common ORDER BY and LIMIT clauses
   const orderAndLimit = Prisma.sql`
-   ${orderCondition.sql ? Prisma.sql`ORDER BY datasets.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
+   ${orderCondition.sql ? Prisma.sql`ORDER BY d.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
    LIMIT ${limit} OFFSET ${page * limit}`;
 
   if (pathPrefix) {
@@ -346,6 +346,7 @@ export const datasetRouter = createTRPCRouter({
             pathFilter, // SQL WHERE clause: filters DB to only datasets in current folder, derived from prefix.
             pathPrefix: input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
             searchFilter,
+            orderCondition: Prisma.sql`ORDER BY d.created_at DESC`,
           }),
         ),
         // datasetCount
@@ -1067,7 +1068,7 @@ export const datasetRouter = createTRPCRouter({
 
       // find a unique name for the new dataset
       // by appending a counter to the name in case of the name already exists
-      // e.g. "Copy of dataset" -> "Copy of dataset (1)"
+      // e.g. "dataset (copy)" -> "dataset (copy 2)"
       const existingDatasetNames = (
         await ctx.prisma.dataset.findMany({
           select: {
@@ -1076,7 +1077,7 @@ export const datasetRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             name: {
-              startsWith: "Copy of " + dataset.name,
+              startsWith: dataset.name + " (copy",
             },
           },
         })
@@ -1084,8 +1085,8 @@ export const datasetRouter = createTRPCRouter({
       let counter: number = 0;
       const duplicateDatasetName = (pCounter: number) =>
         pCounter === 0
-          ? `Copy of ${dataset.name}`
-          : `Copy of ${dataset.name} (${counter})`;
+          ? `${dataset.name} (copy)`
+          : `${dataset.name} (copy ${counter})`;
       while (true) {
         if (!existingDatasetNames.includes(duplicateDatasetName(counter))) {
           break;
@@ -1140,6 +1141,7 @@ export const datasetRouter = createTRPCRouter({
             });
           },
           [Implementation.VERSIONED]: async () => {
+            // always creates new dataset; hence no need to invalidate old rows
             await ctx.prisma.datasetItem.createMany({
               data: preparedItems,
             });

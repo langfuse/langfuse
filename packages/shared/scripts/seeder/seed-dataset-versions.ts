@@ -180,6 +180,21 @@ export async function seedDatasetVersions(
         totalInserts += batch.length;
       }
 
+      // After inserting the new version, update valid_to on previous versions
+      // This marks old versions as superseded by the new version
+      const itemIds = items.map((item) => item.id);
+      const validFrom = version.timestamp;
+
+      await prismaClient.$executeRaw`
+        UPDATE dataset_items
+        SET valid_to = ${validFrom}
+        WHERE project_id = ${projectId}
+          AND dataset_id = ${dataset.id}
+          AND id = ANY(${itemIds}::text[])
+          AND valid_from < ${validFrom}
+          AND valid_to IS NULL
+      `;
+
       if (totalInserts % 10000 === 0) {
         logger.info(`Inserted ${totalInserts} rows...`);
       }

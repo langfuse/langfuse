@@ -567,14 +567,13 @@ function TableBodyComponent<TData>({
                   <div
                     className={cn(
                       "flex",
-                      "items-start",
-                      isSmallRowHeight && "items-center",
+                      isSmallRowHeight ? "items-center" : "items-start",
                       !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}
                   >
                     {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 truncate">
+                      <div className="min-w-0 truncate leading-none">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

@@ -22,7 +22,6 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { ScoreDataType, ScoreDataTypeArray } from "@langfuse/shared";
 import {
   Select,
   SelectContent,
@@ -46,6 +45,7 @@ import {
   type UpdateConfig,
 } from "@/src/features/score-configs/lib/upsertFormTypes";
 import { validateScoreConfigUpsertFormInput } from "@/src/features/score-configs/lib/validateScoreConfigUpsertFormInput";
+import { ScoreConfigDataType } from "@langfuse/shared";
 
 export function UpsertScoreConfigDialog({
   projectId,
@@ -84,7 +84,7 @@ export function UpsertScoreConfigDialog({
   const form = useForm({
     resolver: zodResolver(id ? updateConfigSchema : createConfigSchema),
     defaultValues: defaultValues ?? {
-      dataType: ScoreDataType.NUMERIC,
+      dataType: ScoreConfigDataType.NUMERIC,
       minValue: undefined,
       maxValue: undefined,
       name: "",
@@ -161,11 +161,7 @@ export function UpsertScoreConfigDialog({
             </DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form
-              className="space-y-6"
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
-              onSubmit={form.handleSubmit(onSubmit)}
-            >
+            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
               <DialogBody>
                 <FormField
                   control={form.control}
@@ -196,16 +192,16 @@ export function UpsertScoreConfigDialog({
                         disabled={!!id}
                         defaultValue={field.value}
                         onValueChange={(value) => {
-                          field.onChange(
-                            value as (typeof ScoreDataTypeArray)[number],
-                          );
+                          field.onChange(value as ScoreConfigDataType);
                           form.clearErrors();
-                          if (isNumericDataType(value as ScoreDataType)) {
+                          if (isNumericDataType(value as ScoreConfigDataType)) {
                             form.setValue("categories", undefined);
                           } else {
                             form.setValue("minValue", undefined);
                             form.setValue("maxValue", undefined);
-                            if (isBooleanDataType(value as ScoreDataType)) {
+                            if (
+                              isBooleanDataType(value as ScoreConfigDataType)
+                            ) {
                               replace([
                                 { label: "True", value: 1 },
                                 { label: "False", value: 0 },
@@ -222,11 +218,13 @@ export function UpsertScoreConfigDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {ScoreDataTypeArray.map((role) => (
-                            <SelectItem value={role} key={role}>
-                              {role}
-                            </SelectItem>
-                          ))}
+                          {Object.values(ScoreConfigDataType).map(
+                            (dataType) => (
+                              <SelectItem value={dataType} key={dataType}>
+                                {dataType}
+                              </SelectItem>
+                            ),
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />

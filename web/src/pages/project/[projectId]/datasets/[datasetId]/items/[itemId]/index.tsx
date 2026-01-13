@@ -12,7 +12,7 @@ import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
 import { Button } from "@/src/components/ui/button";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { History, PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 
 function DatasetItemContent() {
@@ -109,7 +109,7 @@ function DatasetItemContent() {
             >
               {isVersionPanelOpen ? (
                 <>
-                  <PanelRightClose className="mr-2 h-4 w-4" />
+                  <History className="mr-2 h-4 w-4" />
                   Hide Version History
                 </>
               ) : (

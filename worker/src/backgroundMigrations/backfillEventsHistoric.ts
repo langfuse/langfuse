@@ -4,6 +4,9 @@ import {
   commandClickhouse,
   logger,
   queryClickhouse,
+  pollQueryStatus,
+  getQueryError,
+  sleep,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
@@ -17,17 +20,20 @@ const backgroundMigrationId = "d8cf9f5e-747e-4ffe-8156-dec0eaebce9d";
 // Types
 // ============================================================================
 
-interface ChunkTodo {
+export interface BaseChunkTodo {
   id: string; // Unique chunk identifier (e.g., "obs-202510-0")
   partition: string; // ClickHouse partition (e.g., "202510")
-  lowerBound: { projectId: string; traceId: string }; // From backfill_chunks table
-  upperBound: { projectId: string; traceId: string } | null; // null = end of partition
   status: "pending" | "in_progress" | "completed" | "failed";
   queryId?: string; // Client-generated UUID for tracking in system.query_log
   startedAt?: string;
   completedAt?: string;
   error?: string;
   retryCount?: number;
+}
+
+interface ChunkTodo extends BaseChunkTodo {
+  lowerBound: { projectId: string; traceId: string }; // From backfill_chunks table
+  upperBound: { projectId: string; traceId: string } | null; // null = end of partition
 }
 
 interface MigrationArgs {
@@ -51,133 +57,26 @@ const DEFAULT_CONFIG: MigrationState["config"] = {
   maxRetries: 3,
 };
 
-type OnQueryCompleteCallback = (
-  // eslint-disable-next-line no-unused-vars
-  todo: ChunkTodo,
-  // eslint-disable-next-line no-unused-vars
+export type OnQueryCompleteCallback<T extends BaseChunkTodo> = (
+  todo: T,
+
   success: boolean,
-  // eslint-disable-next-line no-unused-vars
+
   error?: string,
 ) => Promise<void>;
-
-// ============================================================================
-// Query Status Polling
-// ============================================================================
-
-type QueryStatus = "running" | "completed" | "failed" | "not_found";
-
-async function pollQueryStatus(queryId: string): Promise<QueryStatus> {
-  // First check if still running in system.processes
-  const running = await queryClickhouse<{ query_id: string }>({
-    query: `
-      SELECT query_id
-      FROM clusterAllReplicas('default', 'system.processes')
-      WHERE query_id = {queryId: String}
-      LIMIT 1
-    `,
-    params: { queryId },
-    clickhouseConfigs: {
-      request_timeout: 60_000, // 60s timeout for polling queries
-    },
-    clickhouseSettings: {
-      skip_unavailable_shards: 1,
-    },
-    tags: {
-      feature: "background-migration",
-      operation: "pollQueryStatus-processes",
-    },
-  });
-
-  if (running.length > 0) {
-    return "running";
-  }
-
-  // Check query_log for completion status
-  const result = await queryClickhouse<{
-    type: string;
-    exception_code: string;
-  }>({
-    query: `
-      SELECT type, exception_code
-      FROM clusterAllReplicas('default', 'system.query_log')
-      WHERE query_id = {queryId: String}
-        -- AND type != 'QueryStart'
-      ORDER BY event_time_microseconds DESC
-      LIMIT 1
-    `,
-    params: { queryId },
-    clickhouseConfigs: {
-      request_timeout: 60_000, // 60s timeout for polling queries
-    },
-    clickhouseSettings: {
-      skip_unavailable_shards: 1,
-    },
-    tags: {
-      feature: "background-migration",
-      operation: "pollQueryStatus-queryLog",
-    },
-  });
-
-  if (result.length === 0) {
-    return "not_found";
-  }
-
-  const { type, exception_code } = result[0];
-  if (type === "QueryStart") {
-    return "running";
-  }
-
-  if (
-    type === "ExceptionBeforeStart" ||
-    type === "ExceptionWhileProcessing" ||
-    parseInt(exception_code, 10) !== 0
-  ) {
-    return "failed";
-  }
-
-  if (type === "QueryFinish") {
-    return "completed";
-  }
-
-  throw new Error(`Unknown query log type: ${type}`);
-}
-
-async function getQueryError(queryId: string): Promise<string | undefined> {
-  const result = await queryClickhouse<{ exception_message: string }>({
-    query: `
-      SELECT exception as exception_message
-      FROM clusterAllReplicas('default', 'system.query_log')
-      WHERE query_id = {queryId: String}
-        AND type != 'QueryStart'
-        AND exception != ''
-      ORDER BY event_time_microseconds DESC
-      LIMIT 1
-    `,
-    params: { queryId },
-    clickhouseSettings: {
-      skip_unavailable_shards: 1,
-    },
-    tags: {
-      feature: "background-migration",
-      operation: "getQueryError",
-    },
-  });
-
-  return result[0]?.exception_message;
-}
 
 // ============================================================================
 // Concurrent Query Manager
 // ============================================================================
 
-class ConcurrentQueryManager {
-  private activeQueries: Map<string, ChunkTodo> = new Map();
+export class ConcurrentQueryManager<T extends BaseChunkTodo> {
+  private activeQueries: Map<string, T> = new Map();
   private pollInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
 
   startPolling(
     pollIntervalMs: number,
-    onComplete: OnQueryCompleteCallback,
+    onComplete: OnQueryCompleteCallback<T>,
     scheduleNext: () => Promise<void>,
   ): void {
     if (this.pollInterval) {
@@ -245,7 +144,7 @@ class ConcurrentQueryManager {
     }, pollIntervalMs);
   }
 
-  addQuery(todo: ChunkTodo, queryId: string): void {
+  addQuery(todo: T, queryId: string): void {
     this.activeQueries.set(queryId, todo);
   }
 
@@ -265,12 +164,8 @@ class ConcurrentQueryManager {
 // Helper Functions
 // ============================================================================
 
-function generateQueryId(chunkId: string): string {
+export function generateQueryId(chunkId: string): string {
   return `backfill-${chunkId}-${randomUUID().slice(0, 8)}`;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ============================================================================
@@ -543,7 +438,9 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         trace_name, user_id, session_id, level, status_message, completion_start_time,
         prompt_id, prompt_name, prompt_version, model_id, provided_model_name,
         model_parameters, provided_usage_details, usage_details,
-        provided_cost_details, cost_details, input, output, metadata,
+        provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names,
+        input, output, metadata,
+
         metadata_names, metadata_raw_values, source,
         blob_storage_file_path, event_bytes, created_at, updated_at, event_ts, is_deleted
       )
@@ -578,6 +475,10 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         o.usage_details,
         o.provided_cost_details,
         o.cost_details,
+        o.tool_definitions,
+        o.tool_calls,
+        o.tool_call_names,
+
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
         CAST(${metadataExpr}, 'JSON(max_dynamic_paths=0)') AS metadata,
@@ -839,7 +740,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     }
 
     // Phase 3: Execute chunks with concurrency
-    const manager = new ConcurrentQueryManager();
+    const manager = new ConcurrentQueryManager<ChunkTodo>();
 
     const scheduleNext = async (): Promise<void> => {
       if (this.isAborted) return;

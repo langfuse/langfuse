@@ -93,6 +93,11 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
   for (const [key, value] of Object.entries(val)) {
     if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
       result[key] = value;
+    } else if (typeof value === "string") {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        result[key] = parsed;
+      }
     }
   }
 
@@ -532,6 +537,13 @@ const createAllIngestionSchemas = ({
           }),
           dataType: z.literal("BOOLEAN"),
           configId: z.string().nullish(),
+        }),
+      ),
+      BaseScoreBody.merge(
+        z.object({
+          value: z.string(),
+          dataType: z.literal("CORRECTION"),
+          configId: z.undefined().nullish(), // Cannot have config
         }),
       ),
       BaseScoreBody.merge(

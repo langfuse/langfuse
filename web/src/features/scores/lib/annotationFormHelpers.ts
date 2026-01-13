@@ -1,8 +1,8 @@
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import {
   isPresent,
+  type ScoreConfigDataType,
   type ScoreConfigCategoryDomain,
-  type ScoreDataType,
 } from "@langfuse/shared";
 
 export const resolveConfigValue = ({
@@ -10,7 +10,7 @@ export const resolveConfigValue = ({
   dataType,
 }: {
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreConfigDataType;
 }) => {
   return `${getScoreDataTypeIcon(dataType)} ${name}`;
 };

@@ -174,6 +174,9 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     prompt_id,
     prompt_name,
     prompt_version,
+    tool_definitions,
+    tool_calls,
+    tool_call_names,
     created_at,
     updated_at,
     event_ts
@@ -291,6 +294,9 @@ export const getObservationForTraceIdByName = async ({
     prompt_id,
     prompt_name,
     prompt_version,
+    tool_definitions,
+    tool_calls,
+    tool_call_names,
     created_at,
     updated_at,
     event_ts
@@ -413,6 +419,9 @@ export const getObservationsById = async (
     prompt_id,
     prompt_name,
     prompt_version,
+    tool_definitions,
+    tool_calls,
+    tool_call_names,
     created_at,
     updated_at,
     event_ts
@@ -477,6 +486,9 @@ const getObservationByIdInternal = async ({
     prompt_id,
     prompt_name,
     prompt_version,
+    tool_definitions,
+    tool_calls,
+    tool_call_names,
     created_at,
     updated_at,
     event_ts
@@ -527,6 +539,9 @@ export type ObservationsTableQueryResult = ObservationRecordReadType & {
   trace_tags?: string[];
   trace_name?: string;
   trace_user_id?: string;
+  // Tool counts for list view performance (ClickHouse numbers as strings)
+  tool_definitions_count?: string;
+  tool_calls_count?: string;
 };
 
 export const getObservationsTableCount = async (
@@ -600,6 +615,11 @@ export const getObservationsTableWithModelData = async (
       traceTags: trace?.tags ?? [],
       traceTimestamp: trace?.timestamp ?? null,
       userId: trace?.userId ?? null,
+      // Tool counts for list view (actual data in toolDefinitions/toolCalls from domain)
+      toolDefinitionsCount: o.tool_definitions_count
+        ? Number(o.tool_definitions_count)
+        : null,
+      toolCallsCount: o.tool_calls_count ? Number(o.tool_calls_count) : null,
       ...enrichObservationWithModelData(model),
     };
   });
@@ -644,7 +664,9 @@ const getObservationsTableInternal = async <T>(
         o.prompt_version as "prompt_version",
         internal_model_id as "internal_model_id",
         if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time)) as latency,
-        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token"`;
+        if(isNull(completion_start_time), NULL,  date_diff('millisecond', start_time, completion_start_time)) as "time_to_first_token",
+        length(mapKeys(o.tool_definitions)) as "tool_definitions_count",
+        length(o.tool_calls) as "tool_calls_count"`;
 
   const {
     projectId,
@@ -994,6 +1016,102 @@ export const getObservationsGroupedByName = async (
   return res;
 };
 
+export const getObservationsGroupedByToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  const query = `
+    SELECT arrayJoin(mapKeys(o.tool_definitions)) as toolName
+    FROM observations o
+    WHERE ${appliedObservationsFilter.query}
+    AND length(mapKeys(o.tool_definitions)) > 0
+    GROUP BY toolName
+    ORDER BY count() DESC
+    LIMIT 1000;
+  `;
+
+  const res = await queryClickhouse<{ toolName: string }>({
+    query,
+    params: {
+      ...appliedObservationsFilter.params,
+    },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+export const getObservationsGroupedByCalledToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const observationsFilter = new FilterList([
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: projectId,
+      tablePrefix: "o",
+    }),
+  ]);
+
+  observationsFilter.push(
+    ...createFilterFromFilterState(
+      filter,
+      observationsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedObservationsFilter = observationsFilter.apply();
+
+  const query = `
+    SELECT arrayJoin(o.tool_call_names) as calledToolName
+    FROM observations o
+    WHERE ${appliedObservationsFilter.query}
+    AND length(o.tool_call_names) > 0
+    GROUP BY calledToolName
+    ORDER BY count() DESC
+    LIMIT 1000;
+  `;
+
+  const res = await queryClickhouse<{ calledToolName: string }>({
+    query,
+    params: {
+      ...appliedObservationsFilter.params,
+    },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
 export const getObservationsGroupedByPromptName = async (
   projectId: string,
   filter: FilterState,
@@ -1131,32 +1249,97 @@ export const deleteObservationsByTraceIds = async (
   });
 };
 
-export const deleteObservationsByProjectId = async (projectId: string) => {
+export const hasAnyObservation = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM observations
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "tracing",
+      type: "observation",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteObservationsByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyObservation(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String};
   `;
+  const tags = {
+    feature: "tracing",
+    type: "observation",
+    kind: "delete",
+    projectId,
+  };
+
   await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-    },
+    query,
+    params: { projectId },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags,
+  });
+
+  return true;
+};
+
+export const hasAnyObservationOlderThan = async (
+  projectId: string,
+  beforeDate: Date,
+) => {
+  const query = `
+    SELECT 1
+    FROM observations
+    WHERE project_id = {projectId: String}
+    AND start_time < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
       feature: "tracing",
       type: "observation",
-      kind: "delete",
+      kind: "hasAnyOlderThan",
       projectId,
     },
   });
+
+  return rows.length > 0;
 };
 
 export const deleteObservationsOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-) => {
+): Promise<boolean> => {
+  const hasData = await hasAnyObservationOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   const query = `
     DELETE FROM observations
     WHERE project_id = {projectId: String}
@@ -1178,6 +1361,8 @@ export const deleteObservationsOlderThanDays = async (
       projectId,
     },
   });
+
+  return true;
 };
 
 export const getObservationsWithPromptName = async (

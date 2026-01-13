@@ -46,6 +46,9 @@ import {
   traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
+  extractToolsFromObservation,
+  convertDefinitionsToMap,
+  convertCallsToArrays,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -117,6 +120,11 @@ export type EventInput = {
   usageDetails?: Record<string, number>;
   providedCostDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
+
+  // Tool Calls
+  toolDefinitions?: Record<string, string>;
+  toolCalls?: string[];
+  toolCallNames?: string[];
 
   // I/O
   input?: string;
@@ -216,8 +224,8 @@ export class IngestionService {
   constructor(
     private redis: Redis | Cluster,
     private prisma: PrismaClient,
-    private clickHouseWriter: ClickhouseWriter, // eslint-disable-line no-unused-vars
-    private clickhouseClient: ClickhouseClientType, // eslint-disable-line no-unused-vars
+    private clickHouseWriter: ClickhouseWriter,
+    private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -388,6 +396,11 @@ export class IngestionService {
 
       usage_pricing_tier_id: generationUsage?.usage_pricing_tier_id,
       usage_pricing_tier_name: generationUsage?.usage_pricing_tier_name,
+
+      // Tool Calls
+      tool_definitions: eventData.toolDefinitions ?? {},
+      tool_calls: eventData.toolCalls ?? [],
+      tool_call_names: eventData.toolCallNames ?? [],
 
       // I/O
       input: eventData.input,
@@ -591,6 +604,7 @@ export class IngestionService {
                 ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
                 : {},
               string_value: validatedScore.stringValue,
+              long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
               created_at: Date.now(),
@@ -854,6 +868,35 @@ export class IngestionService {
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
         clickhouseObservationRecord?.output,
     );
+
+    // Extract tool definitions and calls from raw input/output
+    try {
+      const rawInput = reversedRawRecords.find((record) => record?.body?.input)
+        ?.body?.input;
+      const rawOutput = reversedRawRecords.find(
+        (record) => record?.body?.output,
+      )?.body?.output;
+
+      const { toolDefinitions, toolArguments } = extractToolsFromObservation(
+        rawInput,
+        rawOutput,
+      );
+
+      if (toolDefinitions.length > 0) {
+        mergedObservationRecord.tool_definitions =
+          convertDefinitionsToMap(toolDefinitions);
+      }
+
+      if (toolArguments.length > 0) {
+        const { tool_calls, tool_call_names } =
+          convertCallsToArrays(toolArguments);
+        mergedObservationRecord.tool_calls = tool_calls;
+        mergedObservationRecord.tool_call_names = tool_call_names;
+      }
+    } catch (error) {
+      logger.error("Tool extraction failed", { error, projectId, entityId });
+      // Don't fail ingestion - just skip tool data
+    }
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
@@ -1168,11 +1211,19 @@ export class IngestionService {
       "usage_details" | "provided_usage_details"
     >
   > {
-    const providedUsageDetails = Object.fromEntries(
-      Object.entries(observationRecord.provided_usage_details).filter(
-        ([k, v]) => v != null && v >= 0, // eslint-disable-line no-unused-vars
-      ),
-    );
+    // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
+    // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+    const providedUsageDetails: Record<string, number> = {};
+    for (const [key, value] of Object.entries(
+      observationRecord.provided_usage_details,
+    )) {
+      if (value != null) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 0) {
+          providedUsageDetails[key] = numValue;
+        }
+      }
+    }
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
@@ -1300,7 +1351,7 @@ export class IngestionService {
     const { provided_cost_details } = observationRecord;
 
     const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null) // eslint-disable-line no-unused-vars
+      .filter(([_, value]) => value != null)
       .map(([key]) => key);
 
     // If user has provided any cost point, do not calculate any other cost points
@@ -1347,7 +1398,7 @@ export class IngestionService {
       finalTotalCost = finalCostDetails.total;
     } else if (finalCostEntries.length > 0) {
       finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost, // eslint-disable-line no-unused-vars
+        (acc, [_, cost]) => acc + cost,
         0,
       );
 
@@ -1360,7 +1411,6 @@ export class IngestionService {
     };
   }
 
-  // eslint-disable-next-line no-unused-vars
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1370,7 +1420,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<TraceRecordInsertType | null>;
-  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1380,7 +1430,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ScoreRecordInsertType | null>;
-  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1390,7 +1440,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ObservationRecordInsertType | null>;
-  // eslint-disable-next-line no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1617,7 +1667,7 @@ export class IngestionService {
         ...("usageDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.usageDetails ?? {}).filter(
-                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
+                ([_, val]) => val != null,
               ),
             ) as Record<string, number>)
           : {}),
@@ -1638,7 +1688,7 @@ export class IngestionService {
         ...("costDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.costDetails ?? {}).filter(
-                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
+                ([_, val]) => val != null,
               ),
             ) as Record<string, number>)
           : {}),

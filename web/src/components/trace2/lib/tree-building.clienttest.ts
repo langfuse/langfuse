@@ -46,6 +46,9 @@ const createMockObservation = (
   latency: null,
   usagePricingTierId: null,
   usagePricingTierName: null,
+  toolDefinitions: null,
+  toolCalls: null,
+  toolCallNames: null,
   ...overrides,
 });
 

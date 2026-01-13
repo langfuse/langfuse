@@ -759,6 +759,8 @@ export class DataGenerator {
     );
 
     // 6. GENERATION - Final summary generation
+    const toolObservation = observations[observations.length - 1];
+    const toolName = toolObservation.name || "WebSearchTool";
     observations.push(
       createObservation({
         id: `${traceId}-generation`,
@@ -800,6 +802,14 @@ export class DataGenerator {
           output: this.randomInt(35, 45) / 100000,
           total: this.randomInt(50, 70) / 100000,
         },
+        tool_definitions: {
+          WebSearchTool: "Search the web for information",
+          CalculatorTool: "Perform mathematical calculations",
+          WeatherForecastTool: "Get weather forecasts and data",
+          EmailSenderTool: "Send emails to recipients",
+        },
+        tool_calls: ["call_workflow_1"],
+        tool_call_names: [toolName],
       }),
     );
 
@@ -1121,6 +1131,16 @@ export class DataGenerator {
           updated_at: end,
           event_ts: start,
           is_deleted: 0,
+          tool_definitions: d.tool
+            ? {
+                "billing.lookup":
+                  "Look up billing records and transaction history",
+                "billing.refund":
+                  "Issue refunds for duplicate or erroneous charges",
+              }
+            : undefined,
+          tool_calls: d.tool ? [`call_${index}`] : undefined,
+          tool_call_names: d.tool ? [d.tool.name] : undefined,
         };
 
         if (!d.tool) return [baseGen];
@@ -1157,6 +1177,8 @@ export class DataGenerator {
           updated_at: start - 5,
           event_ts: start - 40,
           is_deleted: 0,
+          tool_definitions: undefined,
+          tool_calls: undefined,
         };
 
         return [toolObs, baseGen];
@@ -1184,6 +1206,7 @@ export class DataGenerator {
           config_id: null,
           data_type: "NUMERIC",
           string_value: null,
+          long_string_value: "",
           queue_id: null,
           created_at: baseTs,
           updated_at: baseTs,
@@ -1203,6 +1226,7 @@ export class DataGenerator {
           environment: "default",
           name: "safe",
           value: safeVal,
+          long_string_value: "",
           source: "API",
           comment: "Content safety",
           metadata: {},
@@ -1230,6 +1254,7 @@ export class DataGenerator {
               observation_id: null,
               environment: "default",
               name: "resolved",
+              long_string_value: "",
               value: 1,
               source: "API",
               comment: "Conversation resolved",

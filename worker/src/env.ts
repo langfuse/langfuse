@@ -58,6 +58,7 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(24),
+  BATCH_EXPORT_S3_PART_SIZE_MIB: z.coerce.number().min(5).max(100).default(10),
   BATCH_ACTION_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(50_000),
   LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT: z.coerce
     .number()
@@ -320,6 +321,27 @@ const EnvSchema = z.object({
     .positive()
     .default(1),
 
+  // Batch Project Cleaner configuration
+  LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000), // 1 minute between runs
+  LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000), // 10 minutes if nothing to do
+  LANGFUSE_BATCH_PROJECT_CLEANER_PROJECT_LIMIT: z.coerce
+    .number()
+    .positive()
+    .default(1000), // Max projects per batch
+  LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(5_400_000), // 1.5 hours for DELETE operations
+
   LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
     .enum(["true", "false"])
     .default("false"),
@@ -340,6 +362,7 @@ const EnvSchema = z.object({
     .positive()
     .default(5),
   LANGFUSE_WEBHOOK_TIMEOUT_MS: z.coerce.number().positive().default(10000),
+  LANGFUSE_WEBHOOK_MAX_REDIRECTS: z.coerce.number().positive().default(10),
   LANGFUSE_ENTITY_CHANGE_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()

@@ -30,7 +30,7 @@ export const transformTraceForMixpanel = (
   );
 
   // Extract session IDs and exclude from properties
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = trace;
 
   return {
@@ -64,7 +64,7 @@ export const transformGenerationForMixpanel = (
   );
 
   // Extract session IDs and exclude from properties
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = generation;
 
   return {
@@ -98,7 +98,7 @@ export const transformScoreForMixpanel = (
   );
 
   // Extract session IDs and exclude from properties
-  // eslint-disable-next-line no-unused-vars
+
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = score;
 
   return {

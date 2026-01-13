@@ -465,6 +465,7 @@ export function WidgetForm({
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
   const modelOptions = generationsFilterOptions.data?.model || [];
+  const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
 
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -499,6 +500,13 @@ export function WidgetForm({
       id: "tags",
       type: "arrayOptions",
       options: tagsOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "Tool Names",
+      id: "toolNames",
+      type: "arrayOptions",
+      options: toolNamesOptions,
       internal: "internalValue",
     },
     {

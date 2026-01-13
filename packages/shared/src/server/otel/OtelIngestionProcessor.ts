@@ -191,8 +191,6 @@ export class OtelIngestionProcessor {
             const events: any[] = [];
 
             for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
-              const isLangfuseSDKSpans =
-                scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
@@ -352,10 +350,7 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: this.extractCostDetails(
-                    spanAttributes,
-                    isLangfuseSDKSpans,
-                  ),
+                  providedCostDetails: this.extractCostDetails(spanAttributes),
 
                   // Properties
                   tags: this.extractTags(spanAttributes),
@@ -910,7 +905,7 @@ export class OtelIngestionProcessor {
         attributes,
         instrumentationScopeName,
       ),
-      costDetails: this.extractCostDetails(attributes, isLangfuseSDKSpans),
+      costDetails: this.extractCostDetails(attributes),
       input,
       output,
     };
@@ -1192,6 +1187,10 @@ export class OtelIngestionProcessor {
       ]),
     );
 
+    // TODO: Map gen_ai.tool.definitions to input.tools for backend extraction
+    // const toolDefs = attributes["gen_ai.tool.definitions"] || attributes["model_request_parameters"]?.function_tools;
+    // if (toolDefs && input && typeof input === "object") { input = { ...input, tools: toolDefs }; }
+
     // Langfuse
     input =
       domain === "trace" && attributes[LangfuseOtelSpanAttributes.TRACE_INPUT]
@@ -1383,7 +1382,7 @@ export class OtelIngestionProcessor {
       if (typeof eventsArray === "string") {
         try {
           events = JSON.parse(eventsArray);
-        } catch (e) {
+        } catch {
           events = [];
         }
       }
@@ -1594,7 +1593,7 @@ export class OtelIngestionProcessor {
             unknown
           >;
         }
-      } catch (e) {
+      } catch {
         // Continue with nested metadata extraction
       }
     }
@@ -1745,7 +1744,7 @@ export class OtelIngestionProcessor {
         return this.sanitizeModelParams(
           JSON.parse(attributes["llm.invocation_parameters"] as string),
         );
-      } catch (e) {
+      } catch {
         // fallthrough
       }
     }
@@ -1755,7 +1754,7 @@ export class OtelIngestionProcessor {
         return this.sanitizeModelParams(
           JSON.parse(attributes["model_config"] as string),
         );
-      } catch (e) {
+      } catch {
         // fallthrough
       }
     }
@@ -1880,34 +1879,38 @@ export class OtelIngestionProcessor {
             usageDetails["output_reasoning_tokens"] =
               typeof parsed === "number" ? parsed : JSON.parse(value).intValue;
           }
-        } else if (providerMetadata) {
-          // Fall back to providerMetadata
+        }
+
+        // Add additional usage details from provider metadata
+        if (providerMetadata) {
           const parsed = JSON.parse(providerMetadata as string);
 
           if ("openai" in parsed) {
             const openaiMetadata = parsed["openai"] as Record<string, number>;
 
-            usageDetails["input_cached_tokens"] =
+            usageDetails["input_cached_tokens"] ??=
               openaiMetadata["cachedPromptTokens"];
-            usageDetails["accepted_prediction_tokens"] =
+            usageDetails["accepted_prediction_tokens"] ??=
               openaiMetadata["acceptedPredictionTokens"];
-            usageDetails["rejected_prediction_tokens"] =
+            usageDetails["rejected_prediction_tokens"] ??=
               openaiMetadata["rejectedPredictionTokens"];
-            usageDetails["output_reasoning_tokens"] =
+            usageDetails["output_reasoning_tokens"] ??=
               openaiMetadata["reasoningTokens"];
           }
-          // "ai.response.providerMetadata": "{\"anthropic\":{\"cacheCreationInputTokens\":0,\"cacheReadInputTokens\":0}}"
-          if ("anthropic" in parsed) {
-            const openaiMetadata = parsed["anthropic"] as Record<
+
+          // "ai.response.providerMetadata": {"anthropic":{"usage":{"input_tokens":7,"cache_creation_input_tokens":2089,"cache_read_input_tokens":16399,"cache_creation":{"ephemeral_5m_input_tokens":2089,"ephemeral_1h_input_tokens":0},"output_tokens":445,"service_tier":"standard"},"cacheCreationInputTokens":2089,"stopSequence":null,"container":null,"contextManagement":null}}
+          if ("anthropic" in parsed && "usage" in parsed["anthropic"]) {
+            const anthropicMetadata = parsed["anthropic"]["usage"] as Record<
               string,
               number
             >;
 
-            usageDetails["input_cache_creation"] =
-              openaiMetadata["cacheCreationInputTokens"];
-            usageDetails["input_cache_read"] =
-              openaiMetadata["cacheReadInputTokens"];
+            usageDetails["input_cache_creation"] ??=
+              anthropicMetadata["cache_creation_input_tokens"];
+            usageDetails["input_cached_tokens"] ??=
+              anthropicMetadata["cache_read_input_tokens"];
           }
+
           // Bedrock provider metadata extraction
           // "ai.response.providerMetadata": "{\"bedrock\":{\"usage\":{\"cacheReadInputTokens\":4482,\"cacheWriteInputTokens\":0,\"cacheCreationInputTokens\":0}}}"
           if ("bedrock" in parsed) {
@@ -1917,27 +1920,33 @@ export class OtelIngestionProcessor {
               const usage = bedrockMetadata["usage"] as Record<string, number>;
 
               if (usage["cacheReadInputTokens"] !== undefined) {
-                usageDetails["input_cache_read"] =
+                usageDetails["input_cache_read"] ??=
                   usage["cacheReadInputTokens"];
               }
               if (usage["cacheWriteInputTokens"] !== undefined) {
-                usageDetails["input_cache_write"] =
+                usageDetails["input_cache_write"] ??=
                   usage["cacheWriteInputTokens"];
               }
               if (usage["cacheCreationInputTokens"] !== undefined) {
-                usageDetails["input_cache_creation"] =
+                usageDetails["input_cache_creation"] ??=
                   usage["cacheCreationInputTokens"];
               }
             }
           }
         }
 
-        // Subtract cached token count from total input
+        // Subtract cached token count from total input and output
         usageDetails["input"] = Math.max(
           (usageDetails["input"] ?? 0) -
             (usageDetails["input_cached_tokens"] ?? 0) -
             (usageDetails["input_cache_creation"] ?? 0) -
             (usageDetails["input_cache_read"] ?? 0),
+          0,
+        );
+
+        usageDetails["output"] = Math.max(
+          (usageDetails["output"] ?? 0) -
+            (usageDetails["output_reasoning_tokens"] ?? 0),
           0,
         );
 
@@ -1997,9 +2006,8 @@ export class OtelIngestionProcessor {
 
   private extractCostDetails(
     attributes: Record<string, unknown>,
-    isLangfuseSDKSpan: boolean,
   ): Record<string, unknown> {
-    if (isLangfuseSDKSpan) {
+    if (attributes[LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS]) {
       try {
         return JSON.parse(
           attributes[
@@ -2082,7 +2090,7 @@ export class OtelIngestionProcessor {
         if (Array.isArray(parsedTags)) {
           return parsedTags.map((tag) => String(tag));
         }
-      } catch (e) {
+      } catch {
         // Continue with other methods
       }
     }
@@ -2141,7 +2149,7 @@ export class OtelIngestionProcessor {
     if (experimentMetadataStr && typeof experimentMetadataStr === "string") {
       try {
         experimentMetadata = JSON.parse(experimentMetadataStr);
-      } catch (e) {
+      } catch {
         // If parsing fails, treat as empty
       }
     }
@@ -2158,7 +2166,7 @@ export class OtelIngestionProcessor {
     ) {
       try {
         experimentItemMetadata = JSON.parse(experimentItemMetadataStr);
-      } catch (e) {
+      } catch {
         // If parsing fails, treat as empty
       }
     }

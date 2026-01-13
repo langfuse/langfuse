@@ -16,6 +16,8 @@ import {
   singleFilter,
   timeFilter,
   type SessionOptions,
+  type ScoreDomain,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -108,6 +110,7 @@ const handleGetSessionById = async (input: {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
     onParseError: traceException,
   });
 
@@ -272,6 +275,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -392,8 +396,9 @@ export const sessionRouter = createTRPCRouter({
         }),
       ]);
 
-      const validatedScores = filterAndValidateDbScoreList({
+      const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 

@@ -1,7 +1,7 @@
 import {
   type ScoreAggregate,
   type FilterCondition,
-  type ScoreDataType,
+  type ScoreDataTypeType,
   type ScoreSourceType,
 } from "@langfuse/shared";
 
@@ -118,7 +118,7 @@ export const addPrefixToScoreKeys = (
   return prefixed;
 };
 
-export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
+export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {
   switch (dataType) {
     case "NUMERIC":
     default:
@@ -127,6 +127,8 @@ export const getScoreDataTypeIcon = (dataType: ScoreDataType): string => {
       return "Ⓒ";
     case "BOOLEAN":
       return "Ⓑ";
+    case "CORRECTION":
+      return "";
   }
 };
 
@@ -136,7 +138,7 @@ export const convertScoreColumnsToAnalyticsData = (
     | {
         key: string;
         name: string;
-        dataType: ScoreDataType;
+        dataType: ScoreDataTypeType;
         source: ScoreSourceType;
       }[]
     | undefined,
