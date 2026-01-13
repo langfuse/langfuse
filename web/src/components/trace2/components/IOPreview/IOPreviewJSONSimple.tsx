@@ -34,6 +34,12 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
  *
  * This is the "stable" JSON view that was used before the AdvancedJsonViewer
  * was introduced.
+ *
+ * LIMITATION: The react18-json-view library does NOT expose callbacks for
+ * individual node expansion. Only global collapse/expand state (via the
+ * fold/unfold button in the header) can be persisted. Per-node expansion
+ * state is NOT saved when navigating between traces/observations.
+ * Use Pretty view for full per-node expansion persistence.
  */
 export function IOPreviewJSONSimple({
   input,
