@@ -8,6 +8,8 @@ import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
 import { useMemo } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { Switch } from "@/src/components/ui/switch";
+import useLocalStorage from "@/src/components/useLocalStorage";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -27,6 +29,12 @@ export function CorrectedOutputField({
   environment = "default",
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
+
+  // JSON validation toggle (persisted in localStorage)
+  const [strictJsonMode, setStrictJsonMode] = useLocalStorage(
+    "correctionStrictJsonMode",
+    false,
+  );
 
   // Merge cache + server data
   const { effectiveCorrection, correctionValue } = useCorrectionData(
@@ -52,6 +60,7 @@ export function CorrectedOutputField({
       actualOutput,
       onSave: handleSave,
       setSaveStatus,
+      strictJsonMode,
     });
 
   const hasContent = value.trim().length > 0;
@@ -75,54 +84,66 @@ export function CorrectedOutputField({
   return (
     <div className="px-2">
       <div className="group relative rounded-md">
-        <div className="flex items-center justify-between bg-muted/30 py-1.5">
+        <div className="flex items-center justify-between py-1.5">
           <span className="text-sm font-medium">Corrected Output (Beta)</span>
-          <div className="-mr-1 flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-            {!isValidJson && isEditing && hasContent && (
-              <span className="mr-2 text-xs text-red-500">
-                Invalid JSON - fix to save
-              </span>
-            )}
-            {isValidJson &&
-              saveStatus === "idle" &&
-              isEditing &&
-              hasContent && (
-                <span className="mr-2 text-xs text-muted-foreground">
-                  DRAFT - Type any character to save
+          <div className="-mr-1 flex items-center">
+            <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {!isValidJson && isEditing && hasContent && (
+                <span className="mr-2 text-xs text-red-500">
+                  {strictJsonMode
+                    ? "Invalid JSON - fix to save"
+                    : "Cannot save empty content"}
                 </span>
               )}
-            {isValidJson && saveStatus === "saving" && (
-              <span className="mr-2 text-xs text-muted-foreground">
-                Saving...
-              </span>
-            )}
-            {isValidJson && saveStatus === "saved" && (
-              <span className="mr-2 text-xs">Saved ✓</span>
-            )}
-            {hasContent && !isEditing && (
-              <>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={handleEdit}
-                  disabled={!hasAccess}
-                  className="hover:bg-border"
-                  title="Edit corrected output"
-                >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={handleDelete}
-                  disabled={!hasAccess}
-                  className="hover:bg-border"
-                  title="Delete corrected output"
-                >
-                  <Trash className="h-3 w-3" />
-                </Button>
-              </>
-            )}
+              {isValidJson &&
+                saveStatus === "idle" &&
+                isEditing &&
+                hasContent && (
+                  <span className="mr-2 text-xs text-muted-foreground">
+                    DRAFT - Type any character to save
+                  </span>
+                )}
+              {isValidJson && saveStatus === "saving" && (
+                <span className="mr-2 w-fit text-xs text-muted-foreground">
+                  Saving...
+                </span>
+              )}
+              {isValidJson && saveStatus === "saved" && (
+                <span className="mr-2 w-fit text-xs">Saved ✓</span>
+              )}
+              {hasContent && !isEditing && (
+                <>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={handleEdit}
+                    disabled={!hasAccess}
+                    className="hover:bg-border"
+                    title="Edit corrected output"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={handleDelete}
+                    disabled={!hasAccess}
+                    className="hover:bg-border"
+                    title="Delete corrected output"
+                  >
+                    <Trash className="h-3 w-3" />
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={strictJsonMode}
+                onCheckedChange={setStrictJsonMode}
+                className="scale-75"
+              />
+              <span className="text-xs text-muted-foreground">JSON</span>
+            </div>
           </div>
         </div>
 
@@ -140,15 +161,15 @@ export function CorrectedOutputField({
           <CodeMirrorEditor
             value={displayValue}
             onChange={handleEditorChange}
-            mode="json"
+            mode={strictJsonMode ? "json" : "text"}
             minHeight={200}
-            placeholder="Enter corrected output as JSON..."
+            placeholder="Enter corrected output..."
             className="bg-accent-light-green"
           />
         ) : (
           <CodeMirrorEditor
             value={displayValue}
-            mode="json"
+            mode={strictJsonMode ? "json" : "text"}
             minHeight={200}
             editable={false}
             className="bg-accent-light-green"
