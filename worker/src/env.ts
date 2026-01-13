@@ -325,10 +325,6 @@ const EnvSchema = z.object({
   LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
-  LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS: z.coerce
-    .number()
-    .positive()
-    .default(60_000), // 1 minute between runs
   LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS: z.coerce
     .number()
     .positive()

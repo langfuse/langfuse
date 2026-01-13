@@ -1198,6 +1198,28 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Time to first token for the observation.",
       unit: "millisecond",
     },
+    tracesCount: {
+      sql: "uniq(events.trace_id)",
+      alias: "tracesCount",
+      type: "integer",
+      description: "Unique traces.",
+      unit: "observations",
+    },
+    uniqueUserIds: {
+      sql: "uniq(events.user_id)",
+      alias: "uniqueUserIds",
+      type: "integer",
+      description: "Count of unique userIds.",
+      unit: "users",
+    },
+    uniqueSessionIds: {
+      sql: "uniq(events.session_id)",
+      alias: "uniqueSessionIds",
+      type: "integer",
+      description: "Count of unique sessionIds.",
+      unit: "sessions",
+    },
+    // TODO trace sessions
     countScores: {
       sql: "uniq(scores.id)",
       alias: "countScores",
