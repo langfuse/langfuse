@@ -357,7 +357,8 @@ export class IngestionService {
       bookmarked: eventData.bookmarked ?? false,
       public: eventData.public ?? false,
 
-      // User/session
+      // Trace-level attributes: Name/User/session
+      trace_name: eventData.traceName,
       user_id: eventData.userId,
       session_id: eventData.sessionId,
 
