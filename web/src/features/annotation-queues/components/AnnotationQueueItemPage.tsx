@@ -243,8 +243,7 @@ export const AnnotationQueueItemPage: React.FC<{
               size="lg"
               className="px-4"
             >
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Back
+              <ArrowLeft className="h-4 w-4" />
             </Button>
           </div>
         )}
@@ -257,8 +256,7 @@ export const AnnotationQueueItemPage: React.FC<{
               className={`px-4 ${!relevantItem ? "w-full" : ""}`}
               variant="outline"
             >
-              Next
-              <ArrowRight className="ml-1 h-4 w-4" />
+              <ArrowRight className="h-4 w-4" />
             </Button>
           )}
           {!!relevantItem &&
