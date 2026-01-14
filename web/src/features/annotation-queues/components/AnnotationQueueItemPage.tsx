@@ -257,9 +257,7 @@ export const AnnotationQueueItemPage: React.FC<{
               className={`px-4 ${!relevantItem ? "w-full" : ""}`}
               variant="outline"
             >
-              {relevantItem?.status === AnnotationQueueStatus.PENDING
-                ? "Skip"
-                : "Next"}
+              Next
               <ArrowRight className="ml-1 h-4 w-4" />
             </Button>
           )}
@@ -273,9 +271,7 @@ export const AnnotationQueueItemPage: React.FC<{
                   completeMutation.isPending || !hasAccess || objectData.isError
                 }
               >
-                {isSingleItem || progressIndex + 1 === totalItems
-                  ? "Complete"
-                  : "Complete + Next"}
+                Mark Completed
               </Button>
             ) : (
               <div className="text-dark-gree inline-flex h-9 w-full items-center justify-center rounded-md border border-dark-green bg-light-green px-8 text-sm font-medium">
