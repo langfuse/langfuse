@@ -2,7 +2,7 @@
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@langfuse/shared/src/db";
+import { JobConfigFilterTarget, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 
@@ -77,6 +77,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -115,6 +116,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -176,6 +178,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -218,6 +221,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -249,6 +253,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -280,6 +285,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -325,6 +331,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -440,6 +447,7 @@ describe("evals trpc", () => {
           scoreName: "test-score",
           filter: [],
           targetObject: "trace",
+          filterTarget: JobConfigFilterTarget.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,

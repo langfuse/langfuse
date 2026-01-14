@@ -951,6 +951,12 @@ enum JobConfigState {
   INACTIVE
 }
 
+enum JobConfigFilterTarget {
+  DATASET
+  TRACE
+  OBSERVATION
+}
+
 model JobConfiguration {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")

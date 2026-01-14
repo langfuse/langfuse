@@ -158,18 +158,6 @@ export type JobTimeScope = z.infer<typeof JobTimeScopeZod>;
 
 export const TimeScopeSchema = z.array(JobTimeScopeZod).default(["NEW"]);
 
-// Filter target determines what triggers the evaluation
-// - 'trace': Triggered when a trace is ingested (existing behavior)
-// - 'dataset': Triggered when a dataset run item is created (existing behavior)
-// - 'observation': Triggered when an OTEL observation is ingested (new)
-export enum JobConfigurationFilterTarget {
-  TRACE = "trace",
-  DATASET = "dataset",
-  OBSERVATION = "observation",
-}
-export const FilterTargetZod = z.nativeEnum(JobConfigurationFilterTarget);
-export type FilterTarget = z.infer<typeof FilterTargetZod>;
-
 // Simplified variable mapping for observation-based evals.
 // Unlike trace-based evals, we don't need objectName since we're directly
 // targeting a specific observation - no need to specify which observation to extract from.

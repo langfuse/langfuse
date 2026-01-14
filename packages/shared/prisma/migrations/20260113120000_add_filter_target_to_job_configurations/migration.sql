@@ -3,15 +3,16 @@
 -- while target_object determines what gets scored
 
 -- Add filter_target column (nullable initially for migration)
-ALTER TABLE "job_configurations" ADD COLUMN "filter_target" TEXT;
+CREATE TYPE "JobConfigFilterTarget" AS ENUM ('TRACE', 'OBSERVATION', 'DATASET');
+ALTER TABLE "job_configurations" ADD COLUMN "filter_target" "JobConfigFilterTarget";
 
 -- Migrate existing records:
--- If target_object is 'dataset', filter_target is 'dataset'
--- Otherwise, filter_target is 'trace'
+-- If target_object is 'dataset', filter_target is 'DATASET'
+-- Otherwise, filter_target is 'TRACE'
 UPDATE "job_configurations"
 SET "filter_target" = CASE
-  WHEN "target_object" = 'dataset' THEN 'dataset'
-  ELSE 'trace'
+  WHEN "target_object" = 'dataset' THEN 'DATASET'::"JobConfigFilterTarget"
+  ELSE 'TRACE'::"JobConfigFilterTarget"
 END;
 
 -- Make column non-nullable after migration

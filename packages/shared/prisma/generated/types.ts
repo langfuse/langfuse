@@ -106,6 +106,13 @@ export const JobConfigState = {
 } as const;
 export type JobConfigState =
   (typeof JobConfigState)[keyof typeof JobConfigState];
+export const JobConfigFilterTarget = {
+  DATASET: "DATASET",
+  TRACE: "TRACE",
+  OBSERVATION: "OBSERVATION",
+} as const;
+export type JobConfigFilterTarget =
+  (typeof JobConfigFilterTarget)[keyof typeof JobConfigFilterTarget];
 export const JobExecutionStatus = {
   COMPLETED: "COMPLETED",
   ERROR: "ERROR",
