@@ -1769,21 +1769,26 @@ export class IngestionService {
 
   /**
    * Returns a partition-aware timestamp for staging table writes.
-   * If the createdAtTimestamp is within the last 3.5 minutes, returns it as-is.
+   * If the createdAtTimestamp is within the last 2 minutes, returns it as-is.
    * Otherwise, returns the current timestamp to prevent updates to old partitions.
    *
    * This implements the partition locking strategy where partitions are "locked"
-   * 4 minutes after creation (3.5 min + 30s buffer for writes).
+   * 4 minutes after creation (2 min + 2 min buffer for writes).
+   *
+   * Going down from 3.5min to 2min here, as we see gaps in the data that may come from deletions.
+   * This reduces that chance that updates are handled in the same batch, but should increase the chance
+   * that data is processed correctly. Worst case is slightly more duplication in the events table
+   * which should resolve automatically using the ReplacingMergeTree.
    */
   private getPartitionAwareTimestamp(createdAtTimestamp: Date): number {
     const now = Date.now();
     const createdAt = createdAtTimestamp.getTime();
     const ageInMs = now - createdAt;
-    const threeAndHalfMinutesInMs = 3.5 * 60 * 1000;
+    const twoMinutesInMs = 2 * 60 * 1000;
 
     // If the createdAtTimestamp is within the last 3.5 minutes, use it
     // Otherwise, use the current timestamp to avoid updating old partitions
-    return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
+    return ageInMs < twoMinutesInMs ? createdAt : now;
   }
 }
 
