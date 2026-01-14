@@ -36,6 +36,8 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { LazyTraceRow } from "@/src/components/session/TraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { Switch } from "@/src/components/ui/switch";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
@@ -169,6 +171,11 @@ export const SessionPage: React.FC<{
         return failureCount < 3;
       },
     },
+  );
+
+  const [showCorrections, setShowCorrections] = useLocalStorage(
+    "showCorrections",
+    false,
   );
 
   const sessionComments = api.comments.getByObjectId.useQuery({
@@ -369,6 +376,16 @@ export const SessionPage: React.FC<{
                 variant="outline"
               />
             </div>
+            <div className="flex items-center">
+              <Switch
+                checked={showCorrections}
+                onCheckedChange={setShowCorrections}
+                className="scale-75"
+              />
+              <span className="text-xs text-muted-foreground">
+                Show corrections
+              </span>
+            </div>
           </>
         ),
       }}
@@ -419,6 +436,7 @@ export const SessionPage: React.FC<{
                     openPeek={openPeek}
                     traceCommentCounts={traceCommentCounts.data}
                     index={virtualItem.index}
+                    showCorrections={showCorrections}
                     onLoad={() => {
                       // Force virtualizer to remeasure this specific item
                       virtualizer.measureElement(
@@ -454,10 +472,12 @@ export const SessionIO = ({
   traceId,
   projectId,
   timestamp,
+  showCorrections,
 }: {
   traceId: string;
   projectId: string;
   timestamp: Date;
+  showCorrections: boolean;
 }) => {
   const trace = api.traces.byId.useQuery(
     { traceId, projectId, timestamp },
@@ -499,6 +519,7 @@ export const SessionIO = ({
           projectId={projectId}
           traceId={traceId}
           environment={trace.data.environment}
+          showCorrections={showCorrections}
         />
       ) : (
         <div className="p-2 text-xs text-muted-foreground">

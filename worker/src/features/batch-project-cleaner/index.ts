@@ -13,6 +13,7 @@ export const BATCH_DELETION_TABLES = [
   "observations",
   "scores",
   "events",
+  "dataset_run_items_rmt",
 ] as const;
 
 export type BatchDeletionTable = (typeof BATCH_DELETION_TABLES)[number];
