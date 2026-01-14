@@ -988,6 +988,7 @@ model JobConfiguration {
   scoreName       String         @map("score_name")
   filter          Json
   targetObject    String         @map("target_object")
+  filterTarget    String         @map("filter_target") // 'trace', 'dataset', or 'observation'
   variableMapping Json           @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
@@ -995,6 +996,7 @@ model JobConfiguration {
   JobExecution    JobExecution[]
 
   @@index([projectId, id])
+  @@index([projectId, filterTarget, status])
   @@map("job_configurations")
 }
 

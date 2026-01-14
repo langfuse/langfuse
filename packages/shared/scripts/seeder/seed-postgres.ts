@@ -322,6 +322,10 @@ async function main() {
     }
 
     for (const evalConfig of SEED_EVALUATOR_CONFIGS) {
+      // Derive filterTarget from targetObject following the same logic as the migration
+      const filterTarget =
+        evalConfig.targetObject === "dataset" ? "dataset" : "trace";
+
       await prisma.jobConfiguration.upsert({
         where: {
           id: evalConfig.id,
@@ -336,6 +340,7 @@ async function main() {
           filter: evalConfig.filter,
           variableMapping: evalConfig.variableMapping,
           targetObject: evalConfig.targetObject,
+          filterTarget,
           sampling: evalConfig.sampling,
           delay: evalConfig.delay,
         },

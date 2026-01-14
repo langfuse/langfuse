@@ -18,6 +18,7 @@ import {
   JobConfigState,
   orderBy,
   jsonSchema,
+  JobConfigurationFilterTarget,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -31,6 +32,7 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearNoJobConfigsCache,
+  clearNoObservationEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -714,6 +716,10 @@ export const evalRouter = createTRPCRouter({
           evalTemplateId: input.evalTemplateId,
           scoreName: input.scoreName,
           targetObject: input.target,
+          filterTarget:
+            input.target === "dataset"
+              ? JobConfigurationFilterTarget.DATASET
+              : JobConfigurationFilterTarget.TRACE,
           filter: input.filter ?? [],
           variableMapping: input.mapping,
           sampling: input.sampling,
@@ -723,8 +729,9 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      // Clear the "no job configs" cache since we just created a new job configuration
+      // Clear the "no job configs" caches since we just created a new job configuration
       await clearNoJobConfigsCache(input.projectId);
+      await clearNoObservationEvalConfigsCache(input.projectId);
 
       if (input.timeScope.includes("EXISTING")) {
         logger.info(
@@ -1072,9 +1079,10 @@ export const evalRouter = createTRPCRouter({
         data: config,
       });
 
-      // Clear the "no job configs" cache if we're activating a job configuration
+      // Clear the "no job configs" caches if we're activating a job configuration
       if (config.status === "ACTIVE") {
         await clearNoJobConfigsCache(projectId);
+        await clearNoObservationEvalConfigsCache(projectId);
       }
 
       if (config.timeScope?.includes("EXISTING")) {
@@ -1152,6 +1160,11 @@ export const evalRouter = createTRPCRouter({
           projectId: projectId,
         },
       });
+
+      // Clear the "no job configs" caches to ensure they are re-evaluated
+      // This is conservative but ensures correctness after deletion
+      await clearNoJobConfigsCache(projectId);
+      await clearNoObservationEvalConfigsCache(projectId);
     }),
 
   // TODO: moved to LFE-4573

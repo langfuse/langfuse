@@ -157,3 +157,49 @@ export const JobTimeScopeZod = z.enum(["NEW", "EXISTING"]);
 export type JobTimeScope = z.infer<typeof JobTimeScopeZod>;
 
 export const TimeScopeSchema = z.array(JobTimeScopeZod).default(["NEW"]);
+
+// Filter target determines what triggers the evaluation
+// - 'trace': Triggered when a trace is ingested (existing behavior)
+// - 'dataset': Triggered when a dataset run item is created (existing behavior)
+// - 'observation': Triggered when an OTEL observation is ingested (new)
+export enum JobConfigurationFilterTarget {
+  TRACE = "trace",
+  DATASET = "dataset",
+  OBSERVATION = "observation",
+}
+export const FilterTargetZod = z.nativeEnum(JobConfigurationFilterTarget);
+export type FilterTarget = z.infer<typeof FilterTargetZod>;
+
+// Simplified variable mapping for observation-based evals.
+// Unlike trace-based evals, we don't need objectName since we're directly
+// targeting a specific observation - no need to specify which observation to extract from.
+export const observationVariableMapping = z.object({
+  templateVariable: z.string(), // variable name in the template
+  selectedColumnId: z.string(), // column to extract (input, output, metadata)
+  jsonSelector: z.string().nullish(), // optional JSON path selector
+});
+
+export const observationVariableMappingList = z.array(
+  observationVariableMapping,
+);
+export type ObservationVariableMapping = z.infer<
+  typeof observationVariableMapping
+>;
+
+// Available variables for observation-based evals.
+// Simpler than trace evals since we only have the single observation to extract from.
+export const availableObservationEvalVariables = [
+  {
+    id: "observation",
+    display: "Observation",
+    availableColumns: [
+      {
+        name: "Metadata",
+        id: "metadata",
+        type: "stringObject",
+      },
+      { name: "Input", id: "input" },
+      { name: "Output", id: "output" },
+    ],
+  },
+];

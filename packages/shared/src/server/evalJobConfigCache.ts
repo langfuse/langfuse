@@ -80,3 +80,86 @@ export const clearNoJobConfigsCache = async (
     logger.error("Failed to clear no eval job configs cache", error);
   }
 };
+
+/**
+ * Observation eval config cache utilities.
+ *
+ * Separate cache for observation-targeted eval configs (filterTarget: "observation").
+ * Uses the same pattern as trace eval configs but with a different key prefix.
+ */
+
+const NO_OBSERVATION_EVAL_CONFIG_PREFIX =
+  "langfuse:eval:no-observation-eval-configs";
+
+/**
+ * Check if a project has no observation eval configurations cached in Redis.
+ * Returns true if the cache indicates no observation eval configs exist.
+ *
+ * @param projectId - The project ID to check cache for
+ * @returns Promise<boolean> - true if no observation eval configs present
+ */
+export const hasNoObservationEvalConfigsCache = async (
+  projectId: string,
+): Promise<boolean> => {
+  if (!redis) {
+    return false;
+  }
+
+  try {
+    const cacheKey = `${NO_OBSERVATION_EVAL_CONFIG_PREFIX}:${projectId}`;
+    const cached = await redis.get(cacheKey);
+
+    return Boolean(cached);
+  } catch (error) {
+    logger.error("Failed to check no observation eval configs cache", error);
+
+    return false;
+  }
+};
+
+/**
+ * Cache that a project has no active observation eval configurations.
+ * This is set when a database query returns no active configs with filterTarget: "observation".
+ * The cache expires after 10 minutes to ensure eventual consistency.
+ *
+ * @param projectId - The project ID to cache
+ */
+export const setNoObservationEvalConfigsCache = async (
+  projectId: string,
+): Promise<void> => {
+  if (!redis) {
+    return;
+  }
+
+  try {
+    const cacheKey = `${NO_OBSERVATION_EVAL_CONFIG_PREFIX}:${projectId}`;
+    await redis.setex(cacheKey, 600, "1"); // Cache for 10 minutes
+    logger.debug(`Cached no observation eval configs for project ${projectId}`);
+  } catch (error) {
+    logger.error("Failed to cache no observation eval configs status", error);
+  }
+};
+
+/**
+ * Clear the "no observation eval configs" cache for a project.
+ * Should be called when observation-targeted job configurations are created or activated.
+ *
+ * @param projectId - The project ID to clear cache for
+ */
+export const clearNoObservationEvalConfigsCache = async (
+  projectId: string,
+): Promise<void> => {
+  if (!redis) {
+    return;
+  }
+
+  try {
+    const cacheKey = `${NO_OBSERVATION_EVAL_CONFIG_PREFIX}:${projectId}`;
+    await redis.del(cacheKey);
+    logger.debug(
+      `Cleared no observation eval configs cache for project ${projectId}`,
+    );
+  } catch (error) {
+    logger.error("Failed to clear no observation eval configs cache", error);
+  }
+};

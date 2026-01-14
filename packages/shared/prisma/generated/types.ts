@@ -528,6 +528,7 @@ export type JobConfiguration = {
   score_name: string;
   filter: unknown;
   target_object: string;
+  filter_target: string;
   variable_mapping: unknown;
   sampling: string;
   delay: number;
