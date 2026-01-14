@@ -58,16 +58,26 @@ export function CorrectedOutputField({
     });
 
   // Manage editor state & debouncing
-  const { isEditing, value, isValidJson, handleEdit, handleChange } =
-    useCorrectionEditor({
-      correctionValue,
-      actualOutput,
-      onSave: handleSave,
-      setSaveStatus,
-      strictJsonMode,
-    });
+  const {
+    isEditing,
+    setIsEditing,
+    value,
+    isValidJson,
+    handleEdit,
+    handleChange,
+  } = useCorrectionEditor({
+    correctionValue,
+    actualOutput,
+    onSave: handleSave,
+    setSaveStatus,
+    strictJsonMode,
+  });
 
-  const hasContent = value.trim().length > 0;
+  // When not editing, use correctionValue (source of truth from cache/server)
+  // When editing, use value (local state)
+  const hasContent = isEditing
+    ? value.trim().length > 0
+    : correctionValue.trim().length > 0;
 
   // Format JSON for display
   const displayValue = useMemo(() => {
@@ -83,6 +93,11 @@ export function CorrectedOutputField({
 
   const handleEditorChange = (newValue: string) => {
     handleChange(newValue);
+  };
+
+  const handleDeleteWithExitEdit = () => {
+    handleDelete();
+    setIsEditing(false);
   };
 
   return (
@@ -107,14 +122,6 @@ export function CorrectedOutputField({
                       : "Cannot save empty content"}
                   </span>
                 )}
-                {isValidJson &&
-                  saveStatus === "idle" &&
-                  isEditing &&
-                  hasContent && (
-                    <span className="mr-2 text-xs text-muted-foreground">
-                      DRAFT - Type any character to save
-                    </span>
-                  )}
                 {isValidJson && saveStatus === "saving" && (
                   <span className="mr-2 w-fit text-xs text-muted-foreground">
                     Saving...
@@ -135,29 +142,27 @@ export function CorrectedOutputField({
                       <FileDiff className="h-3 w-3" />
                     </Button>
                     {!isEditing && (
-                      <>
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          onClick={handleEdit}
-                          disabled={!hasAccess}
-                          className="hover:bg-border"
-                          title="Edit corrected output"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          onClick={handleDelete}
-                          disabled={!hasAccess}
-                          className="hover:bg-border"
-                          title="Delete corrected output"
-                        >
-                          <Trash className="h-3 w-3" />
-                        </Button>
-                      </>
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={handleEdit}
+                        disabled={!hasAccess}
+                        className="hover:bg-border"
+                        title="Edit corrected output"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
                     )}
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={handleDeleteWithExitEdit}
+                      disabled={!hasAccess}
+                      className="hover:bg-border"
+                      title="Delete corrected output"
+                    >
+                      <Trash className="h-3 w-3" />
+                    </Button>
                   </>
                 )}
               </div>
