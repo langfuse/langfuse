@@ -48,6 +48,20 @@ export const promptVersionProcessor = async (
     // Process each trigger
     for (const trigger of triggers) {
       try {
+        // Check if the event action is in the trigger's configured actions
+        if (!trigger.eventActions.includes(event.action)) {
+          logger.debug(
+            `Event action "${event.action}" not in trigger ${trigger.id} configured actions: ${trigger.eventActions.join(", ")}`,
+            {
+              promptId: event.promptId,
+              projectId: event.projectId,
+              action: event.action,
+              configuredActions: trigger.eventActions,
+            },
+          );
+          continue;
+        }
+
         // Create a unified data object that includes both prompt data and the action
         const eventData = {
           ...event.prompt,
