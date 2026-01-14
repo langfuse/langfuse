@@ -425,7 +425,14 @@ export const SimpleMultiSectionViewer = memo(
 
                   {/* Render section footer if exists */}
                   {jsonSection?.renderFooter && (
-                    <div>{jsonSection.renderFooter(sectionContext)}</div>
+                    <div
+                      style={{
+                        width: containerWidth ? `${containerWidth}px` : "100%",
+                        paddingBottom: "0.5rem",
+                      }}
+                    >
+                      {jsonSection.renderFooter(sectionContext)}
+                    </div>
                   )}
                 </div>
               );

@@ -30,6 +30,8 @@ export interface SectionConfig {
   backgroundColor?: string;
   /** Minimum height for section content (CSS value) */
   minHeight?: string;
+  /** Whether this section has a footer (triggers footer node creation) */
+  hasFooter?: boolean;
 }
 
 /**
@@ -242,7 +244,39 @@ export function buildMultiSectionTree(
       }
     }
 
-    // Recompute header offsets after adding JSON tree and spacer
+    // 2d. Create footer node if section has a footer
+    if (section.hasFooter) {
+      const footerNode: TreeNode = {
+        id: `${section.key}__footer`,
+        key: `${section.key}__footer`,
+        pathArray: ["__meta_root__", `${section.key}__footer`],
+        value: null,
+        type: "object",
+        depth: 0,
+        parentNode: headerNode,
+        children: [],
+        childCount: 0,
+        isExpandable: false,
+        isExpanded: true,
+        userExpand: undefined,
+        childOffsets: [],
+        visibleDescendantCount: 0,
+        absoluteLineNumber: absoluteLineNumber++,
+        indexInParent: headerNode.children.length,
+        isLastChild: false,
+        nodeType: "section-footer",
+        sectionKey: section.key,
+        backgroundColor: section.backgroundColor,
+        sectionLineNumber: undefined,
+      };
+
+      allNodes.push(footerNode);
+      nodeMap.set(footerNode.id, footerNode);
+      headerNode.children.push(footerNode);
+      headerNode.childCount += 1;
+    }
+
+    // Recompute header offsets after adding JSON tree, spacer, and footer
     recomputeNodeOffsets(headerNode);
   });
 

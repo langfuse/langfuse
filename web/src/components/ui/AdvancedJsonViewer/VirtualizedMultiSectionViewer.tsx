@@ -388,10 +388,7 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    minWidth: effectiveRowWidth
-                      ? `${effectiveRowWidth}px`
-                      : "100%",
-                    width: "max-content",
+                    width: containerWidth ? `${containerWidth}px` : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                     backgroundColor: node.backgroundColor || theme.background,
                   }}

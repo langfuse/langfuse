@@ -235,6 +235,19 @@ function IOPreviewJSONInner({
         data: parsedOutput,
         backgroundColor: outputBgColor,
         minHeight: "200px",
+        // Add corrected output as footer when corrections are enabled
+        renderFooter: () =>
+          showCorrections ? (
+            <CorrectedOutputField
+              actualOutput={parsedOutput}
+              existingCorrection={outputCorrection}
+              observationId={observationId}
+              projectId={projectId}
+              traceId={traceId}
+              environment={environment}
+              compact={true}
+            />
+          ) : undefined,
       });
     }
     if (showMetadata) {
@@ -257,6 +270,12 @@ function IOPreviewJSONInner({
     inputBgColor,
     outputBgColor,
     metadataBgColor,
+    showCorrections,
+    observationId,
+    outputCorrection,
+    projectId,
+    traceId,
+    environment,
   ]);
 
   // Wait for parsing to complete before rendering to avoid flicker
@@ -429,16 +448,6 @@ function IOPreviewJSONInner({
           </CommentableJsonView>
         ) : (
           viewerContent
-        )}
-        {showCorrections && (
-          <CorrectedOutputField
-            actualOutput={parsedOutput}
-            existingCorrection={outputCorrection}
-            observationId={observationId}
-            projectId={projectId}
-            traceId={traceId}
-            environment={environment}
-          />
         )}
       </div>
     </div>

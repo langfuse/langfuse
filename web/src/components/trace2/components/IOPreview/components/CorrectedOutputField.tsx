@@ -18,6 +18,7 @@ interface CorrectedOutputFieldProps {
   actualOutput?: unknown;
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
+  compact?: boolean; // Use smaller font size for JSON Beta view
 }
 
 export function CorrectedOutputField({
@@ -27,6 +28,7 @@ export function CorrectedOutputField({
   projectId,
   traceId,
   environment = "default",
+  compact = false,
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
 
@@ -85,7 +87,9 @@ export function CorrectedOutputField({
     <div className="px-2">
       <div className="group relative rounded-md">
         <div className="flex items-center justify-between py-1.5">
-          <span className="text-sm font-medium">Corrected Output (Beta)</span>
+          <span className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
+            Corrected Output (Beta)
+          </span>
           <div className="-mr-1 flex items-center">
             <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
               {!isValidJson && isEditing && hasContent && (
