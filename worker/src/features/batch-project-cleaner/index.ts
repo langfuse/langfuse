@@ -4,16 +4,10 @@ import {
   commandClickhouse,
   traceException,
   recordIncrement,
+  BATCH_DELETION_TABLES,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../env";
-
-export const BATCH_DELETION_TABLES = [
-  "traces",
-  "observations",
-  "scores",
-  "events",
-] as const;
 
 export type BatchDeletionTable = (typeof BATCH_DELETION_TABLES)[number];
 

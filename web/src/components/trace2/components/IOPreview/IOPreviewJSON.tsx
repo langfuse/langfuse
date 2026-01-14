@@ -54,6 +54,7 @@ export interface IOPreviewJSONProps {
   // Combined expansion state (paths are prefixed: "input.foo", "output.bar", etc.)
   expansionState?: Record<string, boolean>;
   onExpansionChange?: (expansion: Record<string, boolean>) => void;
+  showCorrections?: boolean;
 }
 
 /**
@@ -88,6 +89,7 @@ function IOPreviewJSONInner({
   environment = "default",
   expansionState,
   onExpansionChange,
+  showCorrections = true,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
@@ -434,14 +436,16 @@ function IOPreviewJSONInner({
         ) : (
           viewerContent
         )}
-        <CorrectedOutputField
-          actualOutput={parsedOutput}
-          existingCorrection={outputCorrection}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-        />
+        {showCorrections && (
+          <CorrectedOutputField
+            actualOutput={parsedOutput}
+            existingCorrection={outputCorrection}
+            observationId={observationId}
+            projectId={projectId}
+            traceId={traceId}
+            environment={environment}
+          />
+        )}
       </div>
     </div>
   );
