@@ -1786,7 +1786,7 @@ export class IngestionService {
     const ageInMs = now - createdAt;
     const twoMinutesInMs = 2 * 60 * 1000;
 
-    // If the createdAtTimestamp is within the last 3.5 minutes, use it
+    // If the createdAtTimestamp is within the last 2 minutes, use it
     // Otherwise, use the current timestamp to avoid updating old partitions
     return ageInMs < twoMinutesInMs ? createdAt : now;
   }
