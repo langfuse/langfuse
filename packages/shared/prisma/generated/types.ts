@@ -520,7 +520,7 @@ export type JobConfiguration = {
   score_name: string;
   filter: unknown;
   target_object: string;
-  filter_target: string;
+  filter_target: JobConfigFilterTarget;
   variable_mapping: unknown;
   sampling: string;
   delay: number;

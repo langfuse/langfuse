@@ -24,7 +24,7 @@ export function mapObservationFilterColumn(
     level: observation.level,
     metadata: observation.metadata,
     // Trace-level fields (from OTEL span attributes)
-    trace_name: observation.name, // In OTEL, trace name comes from span name
+    trace_name: observation.traceName, // In OTEL, trace name comes from span name
     user_id: observation.userId,
     session_id: observation.sessionId,
     tags: observation.tags,

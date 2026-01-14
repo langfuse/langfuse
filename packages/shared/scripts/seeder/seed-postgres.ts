@@ -11,6 +11,7 @@ import {
   ScoreConfigCategoryDomain,
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
+  JobConfigFilterTarget,
 } from "../../src/index";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
@@ -324,7 +325,9 @@ async function main() {
     for (const evalConfig of SEED_EVALUATOR_CONFIGS) {
       // Derive filterTarget from targetObject following the same logic as the migration
       const filterTarget =
-        evalConfig.targetObject === "dataset" ? "dataset" : "trace";
+        evalConfig.targetObject === "dataset"
+          ? JobConfigFilterTarget.DATASET
+          : JobConfigFilterTarget.TRACE;
 
       await prisma.jobConfiguration.upsert({
         where: {

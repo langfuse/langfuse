@@ -6,6 +6,7 @@ import {
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import {
+  observationVariableMappingList,
   variableMappingList,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -134,7 +135,7 @@ export async function processObservationEval({
   );
 
   // Extract variables from observation
-  const parsedVariableMapping = variableMappingList.parse(
+  const parsedVariableMapping = observationVariableMappingList.parse(
     config.variableMapping,
   ) as ObservationVariableMapping[];
 
