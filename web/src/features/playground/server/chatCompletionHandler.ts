@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   BaseError,
+  ForbiddenError,
   InternalServerError,
   InvalidRequestError,
 } from "@langfuse/shared";
@@ -11,6 +12,7 @@ import { PosthogCallbackHandler } from "./analytics/posthogCallback";
 import { authorizeRequestOrThrow } from "./authorizeRequest";
 import { validateChatCompletionBody } from "./validateChatCompletionBody";
 
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   LLMApiKeySchema,
@@ -24,6 +26,13 @@ export default async function chatCompletionHandler(req: NextRequest) {
   try {
     const body = validateChatCompletionBody(await req.json());
     const { userId } = await authorizeRequestOrThrow(body.projectId);
+
+    const blockedUsers = env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION;
+    if (blockedUsers.has(userId)) {
+      const reason = blockedUsers.get(userId);
+      logger.warn("Blocked chat completion access", { userId, reason });
+      throw new ForbiddenError("Access denied");
+    }
 
     const baggageCtx = contextWithLangfuseProps({
       userId: userId,
