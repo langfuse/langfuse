@@ -12,9 +12,9 @@ import { PosthogCallbackHandler } from "./analytics/posthogCallback";
 import { authorizeRequestOrThrow } from "./authorizeRequest";
 import { validateChatCompletionBody } from "./validateChatCompletionBody";
 
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  env,
   LLMApiKeySchema,
   logger,
   fetchLLMCompletion,

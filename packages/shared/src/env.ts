@@ -219,20 +219,6 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
-  LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
-    .string()
-    .optional()
-    .transform((val) => {
-      if (!val) return new Map<string, string>();
-      const map = new Map<string, string>();
-      for (const part of val.split(",")) {
-        const [userId, ...noteParts] = part.split(":");
-        if (userId?.trim()) {
-          map.set(userId.trim(), noteParts.join(":").trim() || "blocked");
-        }
-      }
-      return map;
-    }),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
