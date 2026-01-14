@@ -197,8 +197,16 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const BATCH_DELETION_TABLES = [
+  "traces",
+  "observations",
+  "scores",
+  "events",
+  "dataset_run_items_rmt",
+] as const;
+
 export const BatchProjectCleanerJobSchema = z.object({
-  table: z.enum(["traces", "observations", "scores", "events"]),
+  table: z.enum(BATCH_DELETION_TABLES),
 });
 export type BatchProjectCleanerJobType = z.infer<
   typeof BatchProjectCleanerJobSchema

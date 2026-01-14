@@ -5,6 +5,8 @@ import {
   createOrgProjectAndApiKey,
   createTracesCh,
   createTrace,
+  createDatasetRunItemsCh,
+  createDatasetRunItem,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -129,6 +131,55 @@ describe("BatchProjectCleaner", () => {
       // Verify both projects' traces were deleted
       expect(await getClickhouseCount(TEST_TABLE, projectId1)).toBe(0);
       expect(await getClickhouseCount(TEST_TABLE, projectId2)).toBe(0);
+    });
+
+    it("should delete dataset_run_items for soft-deleted project", async () => {
+      const TABLE = "dataset_run_items_rmt" as const;
+
+      // Create two projects
+      const { projectId: deletedProjectId } = await createOrgProjectAndApiKey();
+      const { projectId: activeProjectId } = await createOrgProjectAndApiKey();
+
+      // Soft-delete only one project
+      await prisma.project.update({
+        where: { id: deletedProjectId },
+        data: { deletedAt: new Date() },
+      });
+
+      // Insert dataset run items for both projects
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          id: randomUUID(),
+          project_id: deletedProjectId,
+        }),
+        createDatasetRunItem({
+          id: randomUUID(),
+          project_id: deletedProjectId,
+        }),
+        createDatasetRunItem({
+          id: randomUUID(),
+          project_id: activeProjectId,
+        }),
+        createDatasetRunItem({
+          id: randomUUID(),
+          project_id: activeProjectId,
+        }),
+        createDatasetRunItem({
+          id: randomUUID(),
+          project_id: activeProjectId,
+        }),
+      ]);
+
+      // Verify items exist before deletion
+      expect(await getClickhouseCount(TABLE, deletedProjectId)).toBe(2);
+      expect(await getClickhouseCount(TABLE, activeProjectId)).toBe(3);
+
+      // Run processBatch
+      await BatchProjectCleaner.processBatch(TABLE);
+
+      // Verify only deleted project's items were removed
+      expect(await getClickhouseCount(TABLE, deletedProjectId)).toBe(0);
+      expect(await getClickhouseCount(TABLE, activeProjectId)).toBe(3);
     });
   });
 });
