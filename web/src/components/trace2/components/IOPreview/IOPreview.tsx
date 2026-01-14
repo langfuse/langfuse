@@ -19,6 +19,7 @@ const EMPTY_IO_ALERT_ID = "empty-io";
 const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export interface ExpansionStateProps {
+  // Per-field expansion state (for formatted and json views)
   inputExpansionState?: Record<string, boolean> | boolean;
   outputExpansionState?: Record<string, boolean> | boolean;
   metadataExpansionState?: Record<string, boolean> | boolean;
@@ -31,6 +32,18 @@ export interface ExpansionStateProps {
   onMetadataExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  // Combined expansion state (for advanced-json view only)
+  // Paths are prefixed: "input.foo", "output.bar", "metadata.baz"
+  advancedJsonExpansionState?: Record<string, boolean>;
+  onAdvancedJsonExpansionChange?: (expansion: Record<string, boolean>) => void;
+  // Simple boolean expansion state (for legacy json view only)
+  // true = expanded, false = collapsed
+  jsonInputExpanded?: boolean;
+  jsonOutputExpanded?: boolean;
+  jsonMetadataExpanded?: boolean;
+  onJsonInputExpandedChange?: (expanded: boolean) => void;
+  onJsonOutputExpandedChange?: (expanded: boolean) => void;
+  onJsonMetadataExpandedChange?: (expanded: boolean) => void;
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
@@ -102,6 +115,14 @@ export function IOPreview({
   onInputExpansionChange,
   onOutputExpansionChange,
   onMetadataExpansionChange,
+  advancedJsonExpansionState,
+  onAdvancedJsonExpansionChange,
+  jsonInputExpanded,
+  jsonOutputExpanded,
+  jsonMetadataExpanded,
+  onJsonInputExpandedChange,
+  onJsonOutputExpandedChange,
+  onJsonMetadataExpandedChange,
   setIsPrettyViewAvailable,
   enableInlineComments,
   onAddInlineComment,
@@ -211,12 +232,8 @@ export function IOPreview({
           hideInput={hideInput}
           hideOutput={hideOutput}
           media={media}
-          inputExpansionState={inputExpansionState}
-          outputExpansionState={outputExpansionState}
-          metadataExpansionState={metadataExpansionState}
-          onInputExpansionChange={onInputExpansionChange}
-          onOutputExpansionChange={onOutputExpansionChange}
-          onMetadataExpansionChange={onMetadataExpansionChange}
+          expansionState={advancedJsonExpansionState}
+          onExpansionChange={onAdvancedJsonExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
           enableInlineComments={enableInlineComments}
           onAddInlineComment={onAddInlineComment}
@@ -227,7 +244,31 @@ export function IOPreview({
           environment={environment}
         />
       ) : selectedView === "json" ? (
-        <IOPreviewJSONSimple {...sharedProps} />
+        <IOPreviewJSONSimple
+          input={input}
+          output={output}
+          metadata={metadata}
+          outputCorrection={outputCorrection}
+          parsedInput={parsedInput}
+          parsedOutput={parsedOutput}
+          parsedMetadata={parsedMetadata}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          hideIfNull={hideIfNull}
+          hideInput={hideInput}
+          hideOutput={hideOutput}
+          media={media}
+          inputExpanded={jsonInputExpanded}
+          outputExpanded={jsonOutputExpanded}
+          metadataExpanded={jsonMetadataExpanded}
+          onInputExpandedChange={onJsonInputExpandedChange}
+          onOutputExpandedChange={onJsonOutputExpandedChange}
+          onMetadataExpandedChange={onJsonMetadataExpandedChange}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
+        />
       ) : (
         <IOPreviewPretty
           {...sharedProps}

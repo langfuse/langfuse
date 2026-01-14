@@ -26,8 +26,8 @@ import {
 } from "../utils/treeExpansion";
 import { debugLog, debugError } from "../utils/debug";
 import {
-  readExpansionFromStorage,
-  writeExpansionToStorage,
+  readFormattedExpansion,
+  writeFormattedExpansion,
 } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useMonospaceCharWidth } from "./useMonospaceCharWidth";
@@ -155,7 +155,7 @@ export function useTreeState(
     debugLog(
       `[useTreeState] Reading expansion state from storage for field: ${field}`,
     );
-    return readExpansionFromStorage(field);
+    return readFormattedExpansion(field);
   }, [field, initialExpansion]);
 
   // For small datasets, use direct useMemo (sync build)
@@ -251,7 +251,10 @@ export function useTreeState(
         `[useTreeState] Saving expansion state to storage for field: ${field}`,
       );
       const state = exportExpansionState(treeRef.current);
-      writeExpansionToStorage(field, state);
+      // exportExpansionState always returns Record (never boolean), safe to cast
+      if (typeof state !== "boolean") {
+        writeFormattedExpansion(field, state);
+      }
     },
     1000, // 1 second debounce
     false, // Don't execute first call immediately

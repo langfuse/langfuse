@@ -1,12 +1,17 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   buildMultiSectionTree,
   updateSpacerHeights,
   type SectionConfig,
 } from "../utils/multiSectionTree";
-import { toggleNodeExpansion } from "../utils/treeExpansion";
+import {
+  toggleNodeExpansion,
+  exportExpansionState,
+  applyExpansionState,
+} from "../utils/treeExpansion";
 import { searchInTree } from "../utils/searchJson";
 import { useMonospaceCharWidth } from "./useMonospaceCharWidth";
+import type { ExpansionState } from "../types";
 
 export interface UseMultiSectionTreeStateProps {
   /** Data configurations (no presentation logic) */
@@ -14,6 +19,10 @@ export interface UseMultiSectionTreeStateProps {
   searchQuery?: string;
   /** Indent size in pixels (default: 12) */
   indentSizePx?: number;
+  /** External expansion state (full paths like "input.messages.0") */
+  externalExpansionState?: ExpansionState;
+  /** Callback when expansion state changes (emits full paths) */
+  onExpansionChange?: (state: ExpansionState) => void;
 }
 
 /**
@@ -33,6 +42,8 @@ export function useMultiSectionTreeState({
   sectionConfigs,
   searchQuery,
   indentSizePx = 12,
+  externalExpansionState,
+  onExpansionChange,
 }: UseMultiSectionTreeStateProps) {
   // Measure actual monospace character width for accurate width estimation
   const charWidth = useMonospaceCharWidth();
@@ -57,14 +68,47 @@ export function useMultiSectionTreeState({
   // Tree reference (mutated in place)
   const tree = initialTree;
 
+  // Apply external expansion state when it changes OR when tree rebuilds.
+  //
+  // Why refs initialized with null (not current values):
+  // - If initialized with current values, first render would see no changes
+  //   (prevTreeRef.current === tree), so saved state would never be applied
+  // - With null, first render always triggers: null !== tree → apply saved state
+  //
+  // Why track both state AND tree:
+  // - stateChanged: User toggled nodes → state updated in context
+  // - treeChanged: Navigated to different observation → tree rebuilt from new data
+  // - Must apply saved state in both cases
+  const prevExternalStateRef = useRef<ExpansionState | null>(null);
+  const prevTreeRef = useRef<typeof tree | null>(null);
+  useEffect(() => {
+    const stateChanged =
+      prevExternalStateRef.current !== externalExpansionState;
+    const treeChanged = prevTreeRef.current !== tree;
+
+    if (externalExpansionState && (stateChanged || treeChanged)) {
+      prevExternalStateRef.current = externalExpansionState;
+      prevTreeRef.current = tree;
+      applyExpansionState(tree, externalExpansionState);
+      updateSpacerHeights(tree, 14);
+      setExpansionVersion((v) => v + 1);
+    }
+  }, [externalExpansionState, tree]);
+
   // Toggle expansion of any node (JSON nodes within sections)
   const handleToggleExpansion = useCallback(
     (nodeId: string) => {
       toggleNodeExpansion(tree, nodeId);
       updateSpacerHeights(tree, 14); // Update spacer heights after toggle
       setExpansionVersion((v) => v + 1);
+
+      // Export expansion state for persistence
+      if (onExpansionChange) {
+        const newState = exportExpansionState(tree);
+        onExpansionChange(newState);
+      }
     },
-    [tree],
+    [tree, onExpansionChange],
   );
 
   // Toggle section expansion (section headers)
@@ -74,8 +118,14 @@ export function useMultiSectionTreeState({
       toggleNodeExpansion(tree, headerNodeId);
       updateSpacerHeights(tree, 14); // Update spacer heights after toggle
       setExpansionVersion((v) => v + 1);
+
+      // Export expansion state for persistence
+      if (onExpansionChange) {
+        const newState = exportExpansionState(tree);
+        onExpansionChange(newState);
+      }
     },
-    [tree],
+    [tree, onExpansionChange],
   );
 
   // Auto-expand sections with search matches

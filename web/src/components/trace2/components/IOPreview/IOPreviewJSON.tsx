@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "next-themes";
-import { type ExpansionStateProps } from "./IOPreview";
 import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
 import {
   MultiSectionJsonViewer,
@@ -29,7 +28,7 @@ import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
-export interface IOPreviewJSONProps extends ExpansionStateProps {
+export interface IOPreviewJSONProps {
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
@@ -52,6 +51,9 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  // Combined expansion state (paths are prefixed: "input.foo", "output.bar", etc.)
+  expansionState?: Record<string, boolean>;
+  onExpansionChange?: (expansion: Record<string, boolean>) => void;
 }
 
 /**
@@ -84,12 +86,8 @@ function IOPreviewJSONInner({
   projectId,
   traceId,
   environment = "default",
-  inputExpansionState,
-  outputExpansionState,
-  metadataExpansionState,
-  onInputExpansionChange,
-  onOutputExpansionChange,
-  onMetadataExpansionChange,
+  expansionState,
+  onExpansionChange,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
@@ -290,6 +288,8 @@ function IOPreviewJSONInner({
       scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
       media={media}
       commentedPathsByField={commentedPathsByField}
+      externalExpansionState={expansionState}
+      onExpansionChange={onExpansionChange}
       theme={{
         fontSize: "0.7rem",
         lineHeight: 14,

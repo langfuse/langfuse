@@ -2,10 +2,9 @@ import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { type ExpansionStateProps } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
-export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
+export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
@@ -24,6 +23,13 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  // Simple boolean expansion state (true = expanded, false = collapsed)
+  inputExpanded?: boolean;
+  outputExpanded?: boolean;
+  metadataExpanded?: boolean;
+  onInputExpandedChange?: (expanded: boolean) => void;
+  onOutputExpandedChange?: (expanded: boolean) => void;
+  onMetadataExpandedChange?: (expanded: boolean) => void;
 }
 
 /**
@@ -55,12 +61,12 @@ export function IOPreviewJSONSimple({
   hideOutput = false,
   hideInput = false,
   media,
-  inputExpansionState,
-  outputExpansionState,
-  metadataExpansionState,
-  onInputExpansionChange,
-  onOutputExpansionChange,
-  onMetadataExpansionChange,
+  inputExpanded,
+  outputExpanded,
+  metadataExpanded,
+  onInputExpandedChange,
+  onOutputExpandedChange,
+  onMetadataExpandedChange,
   observationId,
   projectId,
   traceId,
@@ -98,8 +104,13 @@ export function IOPreviewJSONSimple({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "input") ?? []}
           currentView="json"
-          externalExpansionState={inputExpansionState}
-          onExternalExpansionChange={onInputExpansionChange}
+          externalExpansionState={inputExpanded}
+          // Cast: PrettyJsonView accepts union type, but JSON view only uses boolean
+          onExternalExpansionChange={
+            onInputExpandedChange as (
+              expansion: boolean | Record<string, boolean>,
+            ) => void
+          }
         />
       )}
       {showOutput && (
@@ -111,8 +122,12 @@ export function IOPreviewJSONSimple({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="json"
-          externalExpansionState={outputExpansionState}
-          onExternalExpansionChange={onOutputExpansionChange}
+          externalExpansionState={outputExpanded}
+          onExternalExpansionChange={
+            onOutputExpandedChange as (
+              expansion: boolean | Record<string, boolean>,
+            ) => void
+          }
         />
       )}
       <CorrectedOutputField
@@ -132,8 +147,12 @@ export function IOPreviewJSONSimple({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "metadata") ?? []}
           currentView="json"
-          externalExpansionState={metadataExpansionState}
-          onExternalExpansionChange={onMetadataExpansionChange}
+          externalExpansionState={metadataExpanded}
+          onExternalExpansionChange={
+            onMetadataExpandedChange as (
+              expansion: boolean | Record<string, boolean>,
+            ) => void
+          }
         />
       )}
     </div>
