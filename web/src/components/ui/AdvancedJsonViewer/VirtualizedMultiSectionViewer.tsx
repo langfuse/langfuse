@@ -391,6 +391,7 @@ export const VirtualizedMultiSectionViewer = memo(
                     width: containerWidth ? `${containerWidth}px` : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                     backgroundColor: node.backgroundColor || theme.background,
+                    paddingBottom: "0.5rem",
                   }}
                 >
                   {jsonSection?.renderFooter?.(sectionContext)}
