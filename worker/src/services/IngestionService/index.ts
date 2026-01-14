@@ -95,6 +95,7 @@ export type EventInput = {
   endTimeISO: string;
   completionStartTime?: string;
 
+  traceName?: string;
   tags?: string[];
   bookmarked?: boolean;
   public?: boolean;
