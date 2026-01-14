@@ -62,13 +62,31 @@ export function useCorrectionEditor({
             ? actualOutput
             : JSON.stringify(actualOutput);
         setValue(jsonValue);
+
+        // Validate the prefilled value
+        let valid = false;
+        if (strictJsonMode) {
+          try {
+            if (jsonValue.trim()) {
+              JSON.parse(jsonValue);
+              valid = true;
+            }
+          } catch {
+            valid = false;
+          }
+        } else {
+          valid = jsonValue.trim().length > 0;
+        }
+        setIsValidJson(valid);
       } catch {
-        setValue(String(actualOutput));
+        const stringValue = String(actualOutput);
+        setValue(stringValue);
+        setIsValidJson(stringValue.trim().length > 0);
       }
     }
     // Focus textarea after it renders
     setTimeout(() => textareaRef.current?.focus(), 0);
-  }, [value, actualOutput]);
+  }, [value, actualOutput, strictJsonMode]);
 
   const handleChange = useCallback(
     (newValue: string) => {
