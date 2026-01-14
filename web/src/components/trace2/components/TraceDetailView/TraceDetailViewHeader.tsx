@@ -40,6 +40,7 @@ export interface TraceDetailViewHeaderProps {
   };
   projectId: string;
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
+  outputCorrection?: ScoreDomain;
   commentCount: number | undefined;
   // Inline comment props
   pendingSelection?: SelectionData | null;
@@ -52,6 +53,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   trace,
   projectId,
   traceScores,
+  outputCorrection,
   commentCount,
   pendingSelection,
   onSelectionUsed,
@@ -79,6 +81,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             input={trace.input}
             output={trace.output}
             metadata={trace.metadata}
+            correction={outputCorrection}
             key={trace.id}
             size="sm"
           />

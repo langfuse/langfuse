@@ -48,6 +48,7 @@ import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { useCorrectionData } from "@/src/components/trace2/components/IOPreview/components/hooks/useCorrectionData";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -161,7 +162,14 @@ export function TraceDetailView({
     [corrections],
   );
 
-  const outputCorrection = getMostRecentCorrection(traceCorrections);
+  const serverOutputCorrection = getMostRecentCorrection(traceCorrections);
+
+  // Get merged correction (cache + server) for dataset item creation
+  const { effectiveCorrection: outputCorrection } = useCorrectionData(
+    serverOutputCorrection ?? null,
+    undefined,
+    trace.id,
+  );
 
   const showLogViewTab = observations.length > 0;
 
@@ -187,6 +195,7 @@ export function TraceDetailView({
         trace={trace}
         projectId={projectId}
         traceScores={traceScores}
+        outputCorrection={outputCorrection ?? undefined}
         commentCount={comments.get(trace.id)}
         pendingSelection={pendingSelection}
         onSelectionUsed={handleSelectionUsed}
@@ -333,7 +342,7 @@ export function TraceDetailView({
               input={trace.input ?? undefined}
               output={trace.output ?? undefined}
               metadata={trace.metadata ?? undefined}
-              outputCorrection={outputCorrection}
+              outputCorrection={outputCorrection ?? undefined}
               parsedInput={parsedInput}
               parsedOutput={parsedOutput}
               parsedMetadata={parsedMetadata}

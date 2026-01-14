@@ -21,7 +21,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { parseJsonPrioritised, type ScoreDomain } from "@langfuse/shared";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 
@@ -42,6 +42,7 @@ export const NewDatasetItemFromExistingObject = (props: {
   input: string | null;
   output: string | null;
   metadata: MetadataDomainClient;
+  correction?: ScoreDomain;
   isCopyItem?: boolean;
   buttonVariant?: "outline" | "secondary";
   size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
@@ -51,9 +52,14 @@ export const NewDatasetItemFromExistingObject = (props: {
       ? (parseJsonPrioritised(props.input) ?? null)
       : null;
 
+  // Use correction if available, otherwise use the original output
+  const outputToUse = props.correction
+    ? props.correction.longStringValue
+    : props.output;
+
   const parsedOutput =
-    props.output && typeof props.output === "string"
-      ? (parseJsonPrioritised(props.output) ?? null)
+    outputToUse && typeof outputToUse === "string"
+      ? (parseJsonPrioritised(outputToUse) ?? null)
       : null;
 
   const [isFormOpen, setIsFormOpen] = useState(false);

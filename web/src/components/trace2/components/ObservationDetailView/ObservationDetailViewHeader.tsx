@@ -57,6 +57,7 @@ export interface ObservationDetailViewHeaderProps {
   traceId: string;
   latencySeconds: number | null;
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
+  outputCorrection?: ScoreDomain;
   commentCount: number | undefined;
   // Inline comment props
   pendingSelection?: SelectionData | null;
@@ -73,6 +74,7 @@ export const ObservationDetailViewHeader = memo(
     traceId,
     latencySeconds,
     observationScores,
+    outputCorrection,
     commentCount,
     pendingSelection,
     onSelectionUsed,
@@ -113,6 +115,7 @@ export const ObservationDetailViewHeader = memo(
                 input={observationWithIO.input}
                 output={observationWithIO.output}
                 metadata={observationWithIO.metadata}
+                correction={outputCorrection}
                 key={observation.id}
                 size="sm"
               />

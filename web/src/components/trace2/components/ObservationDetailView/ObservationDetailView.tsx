@@ -35,6 +35,7 @@ import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansion
 import { useMedia } from "@/src/components/trace2/api/useMedia";
 import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
 import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
+import { useCorrectionData } from "@/src/components/trace2/components/IOPreview/components/hooks/useCorrectionData";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
@@ -135,7 +136,16 @@ export function ObservationDetailView({
     [corrections, observation.id],
   );
 
-  const outputCorrection = getMostRecentCorrection(observationCorrections);
+  const serverOutputCorrection = getMostRecentCorrection(
+    observationCorrections,
+  );
+
+  // Get merged correction (cache + server) for dataset item creation
+  const { effectiveCorrection: outputCorrection } = useCorrectionData(
+    serverOutputCorrection ?? null,
+    observation.id,
+    traceId,
+  );
 
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
@@ -202,6 +212,7 @@ export function ObservationDetailView({
         traceId={traceId}
         latencySeconds={latencySeconds}
         observationScores={observationScores}
+        outputCorrection={outputCorrection ?? undefined}
         commentCount={comments.get(observation.id)}
         pendingSelection={pendingSelection}
         onSelectionUsed={handleSelectionUsed}
@@ -268,7 +279,7 @@ export function ObservationDetailView({
               observationName={observation.name ?? undefined}
               input={observationWithIOCompat.data?.input ?? undefined}
               output={observationWithIOCompat.data?.output ?? undefined}
-              outputCorrection={outputCorrection}
+              outputCorrection={outputCorrection ?? undefined}
               metadata={observationWithIOCompat.data?.metadata ?? undefined}
               parsedInput={parsedInput}
               parsedOutput={parsedOutput}
