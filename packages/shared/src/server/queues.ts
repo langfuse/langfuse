@@ -301,7 +301,7 @@ export enum QueueName {
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
-  LLMAsJudgeExecution = "llm-as-judge-execution-queue", // Observation-based eval execution
+  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based eval execution
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   OtelIngestionQueue = "otel-ingestion-queue",
@@ -339,7 +339,7 @@ export enum QueueJobs {
   ProjectDelete = "project-delete",
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
-  LLMAsJudgeExecution = "llm-as-judge-execution-job",
+  LLMAsJudgeExecution = "llm-as-a-judge-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",

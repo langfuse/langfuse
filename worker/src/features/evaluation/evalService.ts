@@ -28,6 +28,7 @@ import {
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
   tableColumnsToSqlFilterAndPrefix,
+  LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -742,7 +743,7 @@ export async function executeLLMAsJudgeEvaluation({
       targetProjectId: projectId,
       traceId: executionTraceId,
       traceName: `Execute evaluator: ${template.name}`,
-      environment: "llm-as-judge",
+      environment: LangfuseInternalTraceEnvironment.LLMJudge,
       metadata: {
         ...executionMetadata,
         score_id: scoreId,
