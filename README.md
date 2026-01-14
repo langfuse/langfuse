@@ -119,6 +119,12 @@ Run Langfuse on your own infrastructure:
 
   # Run the langfuse docker compose
   docker compose up
+
+  # Stop the langfuse docker compose
+  docker compose down
+
+  # Upgrade Version
+  docker compose up --pull always
   ```
 
 - [VM](https://langfuse.com/self-hosting/docker-compose): Run Langfuse on a single Virtual Machine using Docker Compose.
