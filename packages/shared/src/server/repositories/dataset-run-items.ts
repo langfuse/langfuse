@@ -1073,20 +1073,45 @@ export const getDatasetRunItemsCountByDatasetIdCh = async (
   return Number(rows[0]?.count);
 };
 
-export const deleteDatasetRunItemsByProjectId = async ({
-  projectId,
-}: {
-  projectId: string;
-}) => {
+export const hasAnyDatasetRunItem = async (
+  projectId: string,
+): Promise<boolean> => {
   const query = `
-      DELETE FROM dataset_run_items_rmt
-      WHERE project_id = {projectId: String};
-    `;
-  await commandClickhouse({
-    query: query,
-    params: {
+    SELECT 1
+    FROM dataset_run_items_rmt
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "datasets",
+      type: "dataset-run-items",
+      kind: "hasAny",
       projectId,
     },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteDatasetRunItemsByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyDatasetRunItem(projectId);
+  if (!hasData) {
+    return false;
+  }
+
+  const query = `
+    DELETE FROM dataset_run_items_rmt
+    WHERE project_id = {projectId: String};
+  `;
+  await commandClickhouse({
+    query,
+    params: { projectId },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
@@ -1097,6 +1122,8 @@ export const deleteDatasetRunItemsByProjectId = async ({
       projectId,
     },
   });
+
+  return true;
 };
 
 export const deleteDatasetRunItemsByDatasetId = async ({

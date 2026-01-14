@@ -24,6 +24,7 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  showCorrections?: boolean;
 }
 
 /**
@@ -57,6 +58,7 @@ export function IOPreviewJSONSimple({
   projectId,
   traceId,
   environment = "default",
+  showCorrections = true,
 }: IOPreviewJSONSimpleProps) {
   // Parse data if not pre-parsed
   // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
@@ -107,14 +109,16 @@ export function IOPreviewJSONSimple({
           onExternalExpansionChange={onOutputExpansionChange}
         />
       )}
-      <CorrectedOutputField
-        actualOutput={effectiveOutput}
-        existingCorrection={outputCorrection}
-        observationId={observationId}
-        projectId={projectId}
-        traceId={traceId}
-        environment={environment}
-      />
+      {showCorrections && (
+        <CorrectedOutputField
+          actualOutput={effectiveOutput}
+          existingCorrection={outputCorrection}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
+        />
+      )}
       {showMetadata && (
         <PrettyJsonView
           title="Metadata"
