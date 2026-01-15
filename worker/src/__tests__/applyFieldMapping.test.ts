@@ -26,7 +26,7 @@ describe("applyFieldMapping", () => {
     metadata: {
       user_id: "user-123",
       session_id: "session-456",
-      tags: ["math", "simple"],
+      tags: ["math", "simple", "hello"],
     },
   };
 
@@ -125,6 +125,9 @@ describe("applyFieldMapping", () => {
       expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[1]")).toBe(
         "simple",
       );
+      expect(
+        evaluateJsonPath(sampleObservation.metadata, "$.tags[1:]"),
+      ).toEqual(["simple", "hello"]);
     });
   });
 

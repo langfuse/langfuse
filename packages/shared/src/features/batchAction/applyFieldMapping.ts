@@ -39,7 +39,10 @@ export function evaluateJsonPath(data: unknown, jsonPath: string): unknown {
   try {
     const parsed = typeof data === "string" ? JSON.parse(data) : data;
     const results = JSONPath({ path: jsonPath, json: parsed });
-    return results?.[0];
+
+    if (!results) return;
+
+    return results.length > 1 ? results : results[0];
   } catch {
     return undefined;
   }
