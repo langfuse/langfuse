@@ -53,6 +53,12 @@ service:
 
       response: PromptMetaListResponse
 
+    filterOptions:
+      docs: Get prompt filter options (names, tags, labels) for building prompt pickers/filters
+      method: GET
+      path: /prompts/filterOptions
+      response: PromptFilterOptionsResponse
+
     create:
       docs: Create a new version for the prompt with the given `name`
       method: POST
@@ -79,6 +85,16 @@ service:
             docs: Optional version to filter deletion. If specified, deletes only this specific version of the prompt.
 
 types:
+  PromptFilterOptionsResponse:
+    properties:
+      name: list<FilterOptionValue>
+      tags: list<FilterOptionValue>
+      labels: list<FilterOptionValue>
+
+  FilterOptionValue:
+    properties:
+      value: string
+
   PromptMetaListResponse:
     properties:
       data: list<PromptMeta>
