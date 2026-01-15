@@ -115,7 +115,7 @@
     "date-fns": "^3.3.1",
     "dd-trace": "^5.65.0",
     "decimal.js": "^10.4.3",
-    "diff": "^7.0.0",
+    "diff": "^8.0.3",
     "dompurify": "^3.2.4",
     "fastest-levenshtein": "^1.0.16",
     "graphql": "^16.9.0",
