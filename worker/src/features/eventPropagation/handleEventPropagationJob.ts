@@ -78,14 +78,14 @@ export const handleEventPropagationJob = async (
     );
 
     // Query for the next partition after the last processed one
-    // Filter for partitions older than 4 minutes and order by partition ASC to get the oldest first
+    // Filter for partitions older than 6 minutes and order by partition ASC to get the oldest first
     const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
           AND active = 1
-          AND toDateTime(partition) < now() - INTERVAL 4 MINUTE
+          AND toDateTime(partition) < now() - INTERVAL 6 MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}
         ORDER BY partition ASC
       `,
