@@ -235,7 +235,7 @@ export function expandToNode(tree: TreeState, nodeId: string): TreeState {
  * @param tree - Current tree state
  * @returns ExpansionState object
  */
-export function exportExpansionState(tree: TreeState): ExpansionState {
+export function exportExpansionState(tree: TreeState): Record<string, boolean> {
   const expansionState: Record<string, boolean> = {};
 
   // Iterate through all nodes

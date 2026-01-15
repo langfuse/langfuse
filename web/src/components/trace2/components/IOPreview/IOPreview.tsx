@@ -4,6 +4,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useLocalStorage from "@/src/components/useLocalStorage";
 import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
@@ -34,7 +35,8 @@ export interface ExpansionStateProps {
   ) => void;
   // Combined expansion state (for advanced-json view only)
   // Paths are prefixed: "input.foo", "output.bar", "metadata.baz"
-  advancedJsonExpansionState?: Record<string, boolean>;
+  // Input accepts ExpansionState (boolean shorthand allowed), callback receives Record (what viewer emits)
+  advancedJsonExpansionState?: ExpansionState;
   onAdvancedJsonExpansionChange?: (expansion: Record<string, boolean>) => void;
   // Simple boolean expansion state (for legacy json view only)
   // true = expanded, false = collapsed

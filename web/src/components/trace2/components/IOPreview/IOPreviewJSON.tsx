@@ -23,6 +23,7 @@ import {
 import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
+import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { type ScoreDomain } from "@langfuse/shared";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
@@ -52,7 +53,8 @@ export interface IOPreviewJSONProps {
   traceId: string;
   environment?: string;
   // Combined expansion state (paths are prefixed: "input.foo", "output.bar", etc.)
-  expansionState?: Record<string, boolean>;
+  // Input accepts ExpansionState (boolean shorthand), callback receives Record (what viewer emits)
+  expansionState?: ExpansionState;
   onExpansionChange?: (expansion: Record<string, boolean>) => void;
   showCorrections?: boolean;
 }

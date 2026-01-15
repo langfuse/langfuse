@@ -73,8 +73,9 @@ export interface MultiSectionJsonViewerProps {
   commentedPathsByField?: CommentedPathsByField;
 
   /** External expansion state for persistence */
+  // Input accepts ExpansionState (boolean shorthand), callback receives Record (what exportExpansionState emits)
   externalExpansionState?: ExpansionState;
-  onExpansionChange?: (state: ExpansionState) => void;
+  onExpansionChange?: (state: Record<string, boolean>) => void;
 }
 
 /**

@@ -251,10 +251,7 @@ export function useTreeState(
         `[useTreeState] Saving expansion state to storage for field: ${field}`,
       );
       const state = exportExpansionState(treeRef.current);
-      // exportExpansionState always returns Record (never boolean), safe to cast
-      if (typeof state !== "boolean") {
-        writeFormattedExpansion(field, state);
-      }
+      writeFormattedExpansion(field, state);
     },
     1000, // 1 second debounce
     false, // Don't execute first call immediately

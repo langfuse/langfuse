@@ -21,8 +21,8 @@ export interface UseMultiSectionTreeStateProps {
   indentSizePx?: number;
   /** External expansion state (full paths like "input.messages.0") */
   externalExpansionState?: ExpansionState;
-  /** Callback when expansion state changes (emits full paths) */
-  onExpansionChange?: (state: ExpansionState) => void;
+  /** Callback when expansion state changes (emits Record from exportExpansionState) */
+  onExpansionChange?: (state: Record<string, boolean>) => void;
 }
 
 /**
