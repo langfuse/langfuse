@@ -1,4 +1,4 @@
-import { Pencil, Trash, FileDiff } from "lucide-react";
+import { Pencil, Trash, FileDiff, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { type ScoreDomain } from "@langfuse/shared";
@@ -11,6 +11,12 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Switch } from "@/src/components/ui/switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import Link from "next/link";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -112,7 +118,33 @@ export function CorrectedOutputField({
       <div className="px-2">
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
-            <span className="text-sm font-medium">Corrected Output (Beta)</span>
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-medium">
+                Corrected Output (Beta)
+              </span>
+              <HoverCard>
+                <HoverCardTrigger asChild>
+                  <button className="text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-80 text-xs" side="right">
+                  <p>
+                    Corrected outputs allow you to save the expected output for
+                    a trace or observation. Learn more in the{" "}
+                    <Link
+                      href="https://langfuse.com/docs/observability/features/corrections"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      documentation
+                    </Link>
+                    .
+                  </p>
+                </HoverCardContent>
+              </HoverCard>
+            </div>
             <div className="-mr-1 flex items-center">
               <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                 {!isValidJson && isEditing && hasContent && (
