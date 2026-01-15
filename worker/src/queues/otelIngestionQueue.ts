@@ -24,6 +24,11 @@ import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { ForbiddenError } from "@langfuse/shared";
+import {
+  fetchObservationEvalConfigs,
+  scheduleObservationEvals,
+  createObservationEvalSchedulerDeps,
+} from "../features/evaluation/observationEval";
 
 /**
  * SDK information extracted from OTEL resourceSpans.
@@ -236,38 +241,76 @@ export const otelIngestionQueueProcessor: Processor = async (
     // Running everything concurrently might be detrimental to the event loop, but has probably
     // the highest possible throughput. Therefore, we start with a Promise.all.
     // If necessary, we may use a for each instead.
-    await Promise.all(
-      [
-        // Process traces
-        processEventBatch(traces, auth, {
-          delay: 0,
-          source: "otel",
-          forwardToEventsTable: shouldForwardToEventsTable,
-        }),
-        // Process observations
-        observations.map((observation) =>
-          ingestionService.mergeAndWrite(
-            getClickhouseEntityType(observation.type),
-            auth.scope.projectId,
-            observation.body.id || "", // id is always defined for observations
-            new Date(), // Use the current timestamp as event time
-            [observation],
-            shouldForwardToEventsTable,
-          ),
+
+    // Process observations via mergeAndWrite
+    const observationWritePromise = Promise.all(
+      observations.map((observation) =>
+        ingestionService.mergeAndWrite(
+          getClickhouseEntityType(observation.type),
+          auth.scope.projectId,
+          observation.body.id || "", // id is always defined for observations
+          new Date(), // Use the current timestamp as event time
+          [observation],
+          shouldForwardToEventsTable,
         ),
-      ].flat(),
+      ),
     );
 
+    // Process traces and observations concurrently
+    await Promise.all([
+      observationWritePromise,
+      processEventBatch(traces, auth, {
+        delay: 0,
+        source: "otel",
+        forwardToEventsTable: shouldForwardToEventsTable,
+      }),
+    ]);
+
+    // Get enriched observation data for eval scheduling via processToEvent
+    // This provides trace-level attributes (userId, sessionId, tags, release) needed for filtering
+    const enrichedEvents = processor.processToEvent(parsedSpans);
+
+    // Schedule observation evals for OTEL observations
+    if (enrichedEvents.length > 0) {
+      try {
+        const observationEvalConfigs =
+          await fetchObservationEvalConfigs(projectId);
+
+        if (observationEvalConfigs.length > 0) {
+          const schedulerDeps = createObservationEvalSchedulerDeps();
+
+          for (const observationEvent of enrichedEvents) {
+            try {
+              await scheduleObservationEvals({
+                observation: observationEvent,
+                configs: observationEvalConfigs,
+                schedulerDeps,
+              });
+            } catch (evalError) {
+              logger.warn(
+                `Failed to schedule observation eval for ${observationEvent.spanId}`,
+                evalError,
+              );
+            }
+          }
+        }
+      } catch (evalError) {
+        logger.warn(
+          `Failed to fetch observation eval configs for project ${projectId}`,
+          evalError,
+        );
+      }
+    }
+
     // If inserts into the events table are enabled AND observations qualify for direct write,
-    // run the dedicated processing for the otel spans and move them into the dedicated IngestionService processor.
+    // write the enriched events to the events table
     if (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
       useDirectEventWrite
     ) {
       try {
-        const events = processor.processToEvent(parsedSpans);
         await Promise.all(
-          events.map((e) => ingestionService.writeEvent(e, fileKey)),
+          enrichedEvents.map((e) => ingestionService.writeEvent(e, fileKey)),
         );
       } catch (e) {
         traceException(e); // Mark span as errored
