@@ -424,7 +424,7 @@ export const SimpleMultiSectionViewer = memo(
                   )}
 
                   {/* Render section footer if exists */}
-                  {jsonSection?.renderFooter && (
+                  {jsonSection?.renderFooter && sectionContext.isExpanded && (
                     <div
                       style={{
                         width: containerWidth ? `${containerWidth}px` : "100%",

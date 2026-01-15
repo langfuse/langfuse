@@ -32,6 +32,8 @@ export interface SectionConfig {
   minHeight?: string;
   /** Whether this section has a footer (triggers footer node creation) */
   hasFooter?: boolean;
+  /** Hide the data/key-value display, only show header/footer */
+  hideData?: boolean;
 }
 
 /**
@@ -152,59 +154,64 @@ export function buildMultiSectionTree(
     nodeMap.set(headerNode.id, headerNode);
     metaRoot.children.push(headerNode);
 
-    // 2b. Build JSON tree for this section
-    const jsonTree = buildTreeFromJSON(section.data, {
-      rootKey: section.key,
-      initialExpansion: getStoredExpansion(section.key) ?? true,
-      widthEstimator: config?.widthConfig,
-    });
+    // 2b. Build JSON tree for this section (skip if hideData is true)
+    if (!section.hideData) {
+      const jsonTree = buildTreeFromJSON(section.data, {
+        rootKey: section.key,
+        initialExpansion: getStoredExpansion(section.key) ?? true,
+        widthEstimator: config?.widthConfig,
+      });
 
-    // Track max content width from this section
-    maxContentWidth = Math.max(maxContentWidth, jsonTree.maxContentWidth);
+      // Track max content width from this section
+      maxContentWidth = Math.max(maxContentWidth, jsonTree.maxContentWidth);
 
-    // 2c. Re-parent JSON tree under header node and update properties
-    let sectionLineNumber = 1;
-    const stack: { node: TreeNode; newDepth: number }[] = [
-      { node: jsonTree.rootNode, newDepth: 0 },
-    ];
+      // 2c. Re-parent JSON tree under header node and update properties
+      let sectionLineNumber = 1;
+      const stack: { node: TreeNode; newDepth: number }[] = [
+        { node: jsonTree.rootNode, newDepth: 0 },
+      ];
 
-    while (stack.length > 0) {
-      const { node, newDepth } = stack.pop()!;
+      while (stack.length > 0) {
+        const { node, newDepth } = stack.pop()!;
 
-      // Update node properties for multi-section
-      node.depth = newDepth;
-      node.sectionKey = section.key;
-      node.backgroundColor = section.backgroundColor;
-      node.minHeight = section.minHeight;
-      node.nodeType = "json";
+        // Update node properties for multi-section
+        node.depth = newDepth;
+        node.sectionKey = section.key;
+        node.backgroundColor = section.backgroundColor;
+        node.minHeight = section.minHeight;
+        node.nodeType = "json";
 
-      // Set section line number (stable, assigned once during tree building)
-      node.sectionLineNumber = sectionLineNumber++;
+        // Set section line number (stable, assigned once during tree building)
+        node.sectionLineNumber = sectionLineNumber++;
 
-      // Update absolute line number
-      node.absoluteLineNumber = absoluteLineNumber++;
+        // Update absolute line number
+        node.absoluteLineNumber = absoluteLineNumber++;
 
-      // Track max depth
-      maxDepth = Math.max(maxDepth, node.depth);
+        // Track max depth
+        maxDepth = Math.max(maxDepth, node.depth);
 
-      // Add to collections
-      allNodes.push(node);
-      nodeMap.set(node.id, node);
+        // Add to collections
+        allNodes.push(node);
+        nodeMap.set(node.id, node);
 
-      // Process children in reverse order (for correct stack ordering)
-      for (let i = node.children.length - 1; i >= 0; i--) {
-        stack.push({ node: node.children[i]!, newDepth: newDepth + 1 });
+        // Process children in reverse order (for correct stack ordering)
+        for (let i = node.children.length - 1; i >= 0; i--) {
+          stack.push({ node: node.children[i]!, newDepth: newDepth + 1 });
+        }
       }
+
+      // Link JSON root to header
+      jsonTree.rootNode.parentNode = headerNode;
+      jsonTree.rootNode.indexInParent = 0;
+      headerNode.children.push(jsonTree.rootNode);
+      headerNode.childCount = 1;
+
+      // Set total descendant count (for row count display, independent of expansion)
+      headerNode.totalDescendantCount = jsonTree.totalNodeCount;
+    } else {
+      // No data to show, set counts to 0
+      headerNode.totalDescendantCount = 0;
     }
-
-    // Link JSON root to header
-    jsonTree.rootNode.parentNode = headerNode;
-    jsonTree.rootNode.indexInParent = 0;
-    headerNode.children.push(jsonTree.rootNode);
-    headerNode.childCount = 1;
-
-    // Set total descendant count (for row count display, independent of expansion)
-    headerNode.totalDescendantCount = jsonTree.totalNodeCount;
 
     // 2c. Create spacer node if minHeight is set and content is shorter
     if (section.minHeight) {

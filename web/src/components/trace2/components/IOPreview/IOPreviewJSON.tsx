@@ -6,6 +6,7 @@ import {
   MultiSectionJsonViewer,
   type MultiSectionJsonViewerHandle,
 } from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
+import { type JsonSection } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
@@ -235,6 +236,16 @@ function IOPreviewJSONInner({
         data: parsedOutput,
         backgroundColor: outputBgColor,
         minHeight: "200px",
+      });
+    }
+    if (showCorrections) {
+      result.push({
+        key: "corrections",
+        title: "Output correction",
+        data: null,
+        hideData: true, // Hide key/value display, only show header/footer
+        backgroundColor: outputBgColor,
+        minHeight: "4px",
         // Add corrected output as footer when corrections are enabled
         renderFooter: () =>
           showCorrections ? (

@@ -369,6 +369,9 @@ export const VirtualizedMultiSectionViewer = memo(
             }
 
             if (node.nodeType === "section-footer") {
+              // Skip footer if section is collapsed
+              if (!node.isExpanded) return null;
+
               const jsonSection = node.sectionKey
                 ? sectionsMap.get(node.sectionKey)
                 : null;

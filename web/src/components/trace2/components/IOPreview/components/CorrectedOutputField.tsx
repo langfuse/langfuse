@@ -87,8 +87,13 @@ export function CorrectedOutputField({
     <div className="px-2">
       <div className="group relative rounded-md">
         <div className="flex items-center justify-between py-1.5">
-          <span className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
-            Corrected Output (Beta)
+          <span
+            className={cn(
+              "text-sm font-medium",
+              compact ? "text-xs" : "text-sm",
+            )}
+          >
+            {compact ? "" : "Corrected Output (Beta)"}
           </span>
           <div className="-mr-1 flex items-center">
             <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
