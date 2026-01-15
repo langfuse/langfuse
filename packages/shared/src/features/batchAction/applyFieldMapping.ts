@@ -38,8 +38,8 @@ export function testJsonPath(props: { jsonPath: string; data: unknown }): {
 export function evaluateJsonPath(data: unknown, jsonPath: string): unknown {
   try {
     const parsed = typeof data === "string" ? JSON.parse(data) : data;
-    const results = JSONPath({ path: jsonPath, json: parsed });
-    return results?.[0];
+    const results = JSONPath({ path: jsonPath, json: parsed, wrap: false });
+    return results;
   } catch {
     return undefined;
   }
