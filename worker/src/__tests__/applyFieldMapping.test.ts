@@ -126,6 +126,37 @@ describe("applyFieldMapping", () => {
         "simple",
       );
     });
+
+    it("should return array when using wildcard to select multiple items", () => {
+      const result = evaluateJsonPath(sampleObservation.metadata, "$.tags[*]");
+      expect(result).toEqual(["math", "simple"]);
+    });
+
+    it("should return array when selecting multiple indices", () => {
+      const result = evaluateJsonPath(
+        sampleObservation.input,
+        "$.messages[0,1].content",
+      );
+      expect(result).toEqual(["You are a helpful assistant", "What is 2+2?"]);
+    });
+
+    it("should return array when using slice notation", () => {
+      const result = evaluateJsonPath(sampleObservation.metadata, "$.tags[1:]");
+      expect(result).toEqual(["simple"]);
+    });
+
+    it("should return array with all matching items for wildcard property access", () => {
+      const result = evaluateJsonPath(
+        sampleObservation.input,
+        "$.messages[*].role",
+      );
+      expect(result).toEqual(["system", "user"]);
+    });
+
+    it("should return array when using descendant operator with multiple matches", () => {
+      const result = evaluateJsonPath(sampleObservation.input, "$..content");
+      expect(result).toEqual(["You are a helpful assistant", "What is 2+2?"]);
+    });
   });
 
   describe("applyFieldMappingConfig - full mode", () => {
