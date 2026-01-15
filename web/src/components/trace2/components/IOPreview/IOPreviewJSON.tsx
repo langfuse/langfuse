@@ -253,18 +253,17 @@ function IOPreviewJSONInner({
         backgroundColor: outputBgColor,
         minHeight: "4px",
         // Add corrected output as footer when corrections are enabled
-        renderFooter: () =>
-          showCorrections ? (
-            <CorrectedOutputField
-              actualOutput={parsedOutput}
-              existingCorrection={outputCorrection}
-              observationId={observationId}
-              projectId={projectId}
-              traceId={traceId}
-              environment={environment}
-              compact={true}
-            />
-          ) : undefined,
+        renderFooter: () => (
+          <CorrectedOutputField
+            actualOutput={parsedOutput}
+            existingCorrection={outputCorrection}
+            observationId={observationId}
+            projectId={projectId}
+            traceId={traceId}
+            environment={environment}
+            compact={true}
+          />
+        ),
       });
     }
     if (showMetadata) {
