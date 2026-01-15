@@ -48,33 +48,6 @@ export function toggleNodeExpansion(
   // Propagate changes up the tree (recompute all ancestors)
   propagateOffsetsUpward(node.parentNode);
 
-  // Validate tree offsets
-  try {
-    const { validateTreeOffsets } = require("./treeNavigation");
-    validateTreeOffsets(tree.rootNode);
-  } catch (error) {
-    console.error(
-      "[toggleNodeExpansion] Tree offsets validation FAILED:",
-      error,
-    );
-    throw error;
-  }
-
-  // Validate getNodeByIndex consistency (only for small trees to avoid performance hit)
-  const totalVisible = 1 + tree.rootNode.visibleDescendantCount;
-  if (totalVisible < 1000) {
-    try {
-      const { validateGetNodeByIndex } = require("./treeNavigation");
-      validateGetNodeByIndex(tree.rootNode);
-    } catch (error) {
-      console.error(
-        "[toggleNodeExpansion] getNodeByIndex validation FAILED:",
-        error,
-      );
-      throw error;
-    }
-  }
-
   return tree;
 }
 
@@ -262,7 +235,7 @@ export function expandToNode(tree: TreeState, nodeId: string): TreeState {
  * @param tree - Current tree state
  * @returns ExpansionState object
  */
-export function exportExpansionState(tree: TreeState): ExpansionState {
+export function exportExpansionState(tree: TreeState): Record<string, boolean> {
   const expansionState: Record<string, boolean> = {};
 
   // Iterate through all nodes
@@ -281,6 +254,11 @@ export function exportExpansionState(tree: TreeState): ExpansionState {
  * Updates tree based on new expansion state from context.
  * Only called during initialization or manual sync.
  *
+ * Uses prefix matching: If a stored path doesn't exist exactly, expands
+ * ancestor nodes as far as possible. For example, if "input.messages.0.text"
+ * was expanded, navigating to an observation with only "input.messages.0"
+ * will expand "input" and "input.messages" and "input.messages.0".
+ *
  * @param tree - Current tree state
  * @param expansionState - New expansion state
  * @returns Updated tree state
@@ -291,8 +269,10 @@ export function applyExpansionState(
 ): TreeState {
   debugTime("[applyExpansionState]");
 
-  // Convert to collapsed paths set
+  // Convert to collapsed/expanded paths sets
   const collapsedPaths = new Set<string>();
+  const expandedPaths = new Set<string>();
+
   if (typeof expansionState === "boolean") {
     if (!expansionState) {
       collapsedPaths.add("*");
@@ -301,9 +281,21 @@ export function applyExpansionState(
     Object.entries(expansionState).forEach(([path, isExpanded]) => {
       if (!isExpanded) {
         collapsedPaths.add(path);
+      } else {
+        expandedPaths.add(path);
       }
     });
   }
+
+  // Pre-compute ancestors of all expanded paths for O(1) lookup per node
+  // This is O(expandedPaths × avgDepth) instead of O(nodes × expandedPaths)
+  const expandedAncestors = new Set<string>();
+  expandedPaths.forEach((path) => {
+    const parts = path.split(".");
+    for (let i = 1; i < parts.length; i++) {
+      expandedAncestors.add(parts.slice(0, i).join("."));
+    }
+  });
 
   // Apply to all nodes (bottom-up for correct offset computation)
   const postOrder: TreeNode[] = [];
@@ -337,12 +329,33 @@ export function applyExpansionState(
     } else if (typeof expansionState === "boolean") {
       shouldExpand = expansionState;
     } else if (collapsedPaths.has(node.id)) {
+      // Exact match: explicitly collapsed
       shouldExpand = false;
+    } else if (expandedPaths.has(node.id)) {
+      // Exact match: explicitly expanded
+      shouldExpand = true;
+    } else if (expandedAncestors.has(node.id)) {
+      // Prefix matching: This node is an ancestor of an expanded path
+      // e.g., if "messages.0.content.text" is expanded, expand "messages", "messages.0", etc.
+      shouldExpand = true;
     }
+    // No match: keep default (shouldExpand = true)
+    // This ensures nodes not explicitly in stored state stay expanded
 
     node.isExpanded = shouldExpand;
-    node.userExpand =
-      typeof expansionState === "boolean" ? undefined : expansionState[node.id];
+    // Set userExpand for:
+    // - Exact matches from expansionState
+    // - Ancestor nodes expanded via prefix matching (so they're tracked for export)
+    if (typeof expansionState === "boolean") {
+      node.userExpand = undefined;
+    } else if (expansionState[node.id] !== undefined) {
+      node.userExpand = expansionState[node.id];
+    } else if (expandedAncestors.has(node.id)) {
+      // Ancestors expanded via prefix matching should be tracked
+      node.userExpand = true;
+    } else {
+      node.userExpand = undefined;
+    }
 
     // Recompute offsets
     recomputeNodeOffsets(node);

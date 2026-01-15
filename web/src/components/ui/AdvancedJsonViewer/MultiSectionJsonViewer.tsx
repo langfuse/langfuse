@@ -11,6 +11,7 @@ import type {
   PartialJSONTheme,
   StringWrapMode,
   SectionContext,
+  ExpansionState,
 } from "./types";
 import { useMultiSectionTreeState } from "./hooks/useMultiSectionTreeState";
 import { useJsonTheme } from "./hooks/useJsonTheme";
@@ -70,6 +71,11 @@ export interface MultiSectionJsonViewerProps {
 
   /** Comment highlight ranges per field (for inline comments feature) */
   commentedPathsByField?: CommentedPathsByField;
+
+  /** External expansion state for persistence */
+  // Input accepts ExpansionState (boolean shorthand), callback receives Record (what exportExpansionState emits)
+  externalExpansionState?: ExpansionState;
+  onExpansionChange?: (state: Record<string, boolean>) => void;
 }
 
 /**
@@ -105,6 +111,8 @@ export const MultiSectionJsonViewer = forwardRef<
     scrollContainerRef,
     media,
     commentedPathsByField,
+    externalExpansionState,
+    onExpansionChange,
   },
   ref,
 ) {
@@ -140,6 +148,8 @@ export const MultiSectionJsonViewer = forwardRef<
     sectionConfigs,
     searchQuery,
     indentSizePx: theme.indentSize,
+    externalExpansionState,
+    onExpansionChange,
   });
 
   // Compute search matches

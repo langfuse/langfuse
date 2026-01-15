@@ -790,7 +790,37 @@ export function PrettyJsonView(props: {
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
-  const [jsonIsCollapsed, setJsonIsCollapsed] = useState(false);
+
+  // For JSON view: derive collapsed state from external expansion state
+  // false or empty object = collapsed, true or object with keys = expanded
+  const deriveJsonCollapsedFromExternal = useCallback(
+    (extState: Record<string, boolean> | boolean | undefined): boolean => {
+      if (extState === undefined) return false; // default: not collapsed
+      if (extState === false) return true; // explicitly collapsed
+      if (extState === true) return false; // explicitly expanded
+      // empty object = collapsed (user collapsed all)
+      if (typeof extState === "object" && Object.keys(extState).length === 0)
+        return true;
+      return false; // has keys = not collapsed
+    },
+    [],
+  );
+
+  const [jsonIsCollapsed, setJsonIsCollapsed] = useState(() =>
+    deriveJsonCollapsedFromExternal(props.externalExpansionState),
+  );
+
+  // Sync jsonIsCollapsed when external state changes (e.g., navigating between observations)
+  const prevExternalStateRef = useRef(props.externalExpansionState);
+  useEffect(() => {
+    if (prevExternalStateRef.current !== props.externalExpansionState) {
+      const newCollapsed = deriveJsonCollapsedFromExternal(
+        props.externalExpansionState,
+      );
+      prevExternalStateRef.current = props.externalExpansionState;
+      setJsonIsCollapsed(newCollapsed);
+    }
+  }, [props.externalExpansionState, deriveJsonCollapsedFromExternal]);
   const [expandedRowsWithChildren, setExpandedRowsWithChildren] = useState<
     Set<string>
   >(new Set());
@@ -893,8 +923,32 @@ export function PrettyJsonView(props: {
       props.externalExpansionState !== null &&
       Object.keys(props.externalExpansionState).length > 0
     ) {
-      // user set specific expansions
-      return props.externalExpansionState;
+      // user set specific expansions - apply with prefix matching
+
+      // Extract expanded paths for prefix matching
+      const expandedPaths = Object.entries(props.externalExpansionState)
+        .filter(([, isExpanded]) => isExpanded)
+        .map(([path]) => path);
+
+      // Apply prefix matching: for each expanded path, expand all its ancestors
+      // Example: if "messages.0.content.text" is expanded, also expand:
+      // "messages", "messages.0", "messages.0.content"
+      const enhancedState: Record<string, boolean> = {
+        ...props.externalExpansionState,
+      };
+
+      expandedPaths.forEach((path) => {
+        const parts = path.split(".");
+        // Generate all ancestor paths
+        for (let i = 1; i < parts.length; i++) {
+          const ancestorPath = parts.slice(0, i).join(".");
+          if (enhancedState[ancestorPath] === undefined) {
+            enhancedState[ancestorPath] = true;
+          }
+        }
+      });
+
+      return enhancedState;
     }
 
     // No external state -> use smart expansion
@@ -1097,7 +1151,11 @@ export function PrettyJsonView(props: {
   };
 
   const handleJsonToggleCollapse = () => {
-    setJsonIsCollapsed(!jsonIsCollapsed);
+    const newCollapsed = !jsonIsCollapsed;
+    setJsonIsCollapsed(newCollapsed);
+    if (props.onExternalExpansionChange) {
+      props.onExternalExpansionChange(!newCollapsed);
+    }
   };
 
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);

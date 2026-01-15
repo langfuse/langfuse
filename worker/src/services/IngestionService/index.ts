@@ -95,6 +95,7 @@ export type EventInput = {
   endTimeISO: string;
   completionStartTime?: string;
 
+  traceName?: string;
   tags?: string[];
   bookmarked?: boolean;
   public?: boolean;
@@ -357,7 +358,8 @@ export class IngestionService {
       bookmarked: eventData.bookmarked ?? false,
       public: eventData.public ?? false,
 
-      // User/session
+      // Trace-level attributes: Name/User/session
+      trace_name: eventData.traceName,
       user_id: eventData.userId,
       session_id: eventData.sessionId,
 
