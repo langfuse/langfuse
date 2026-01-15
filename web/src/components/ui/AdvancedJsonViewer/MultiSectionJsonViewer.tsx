@@ -132,6 +132,8 @@ export const MultiSectionJsonViewer = forwardRef<
         data: s.data,
         backgroundColor: s.backgroundColor,
         minHeight: s.minHeight,
+        hasFooter: !!s.renderFooter,
+        hideData: s.hideData,
       })),
     [sections],
   );

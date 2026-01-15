@@ -5,6 +5,7 @@ import {
   MultiSectionJsonViewer,
   type MultiSectionJsonViewerHandle,
 } from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
+import { type JsonSection } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
@@ -243,6 +244,28 @@ function IOPreviewJSONInner({
         minHeight: "200px",
       });
     }
+    if (showCorrections) {
+      result.push({
+        key: "corrections",
+        title: "Output correction",
+        data: null,
+        hideData: true, // Hide key/value display, only show header/footer
+        backgroundColor: outputBgColor,
+        minHeight: "4px",
+        // Add corrected output as footer when corrections are enabled
+        renderFooter: () => (
+          <CorrectedOutputField
+            actualOutput={parsedOutput}
+            existingCorrection={outputCorrection}
+            observationId={observationId}
+            projectId={projectId}
+            traceId={traceId}
+            environment={environment}
+            compact={true}
+          />
+        ),
+      });
+    }
     if (showMetadata) {
       result.push({
         key: "metadata",
@@ -263,6 +286,12 @@ function IOPreviewJSONInner({
     inputBgColor,
     outputBgColor,
     metadataBgColor,
+    showCorrections,
+    observationId,
+    outputCorrection,
+    projectId,
+    traceId,
+    environment,
   ]);
 
   // Wait for parsing to complete before rendering to avoid flicker
@@ -437,16 +466,6 @@ function IOPreviewJSONInner({
           </CommentableJsonView>
         ) : (
           viewerContent
-        )}
-        {showCorrections && (
-          <CorrectedOutputField
-            actualOutput={parsedOutput}
-            existingCorrection={outputCorrection}
-            observationId={observationId}
-            projectId={projectId}
-            traceId={traceId}
-            environment={environment}
-          />
         )}
       </div>
     </div>
