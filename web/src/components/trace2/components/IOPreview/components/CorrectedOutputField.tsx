@@ -114,106 +114,105 @@ export function CorrectedOutputField({
       <div className="px-2">
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
-          <span
-            className={cn(
-              "text-sm font-medium",
-              compact ? "text-xs" : "text-sm",
-            )}
-          >
-            {compact ? "" : "Corrected Output (Beta)"}
-          </span>
-              <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-                {!isValidJson && isEditing && hasContent && (
-                  <span className="mr-2 text-xs text-red-500">
-                    {strictJsonMode
-                      ? "Invalid JSON - fix to save"
-                      : "Cannot save empty content"}
-                  </span>
-                )}
-                {isValidJson && saveStatus === "saving" && (
-                  <span className="mr-2 w-fit text-xs text-muted-foreground">
-                    Saving...
-                  </span>
-                )}
-                {isValidJson && saveStatus === "saved" && (
-                  <span className="mr-2 w-fit text-xs">Saved ✓</span>
-                )}
-                {hasContent && (
-                  <>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => setIsDiffDialogOpen(true)}
-                      className="hover:bg-border"
-                      title={"View diff between original and corrected output"}
-                    >
-                      <FileDiff className="h-3 w-3" />
-                    </Button>
-                    {!isEditing && (
-                      <Button
-                        size="icon-xs"
-                        variant="ghost"
-                        onClick={handleEdit}
-                        disabled={!hasAccess}
-                        className="hover:bg-border"
-                        title="Edit corrected output"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                    )}
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={handleDeleteWithExitEdit}
-                      disabled={!hasAccess}
-                      className="hover:bg-border"
-                      title="Delete corrected output"
-                    >
-                      <Trash className="h-3 w-3" />
-                    </Button>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center">
-                <Switch
-                  checked={strictJsonMode}
-                  onCheckedChange={setStrictJsonMode}
-                  className="scale-75"
-                />
-                <span className="text-xs text-muted-foreground">JSON</span>
-              </div>
-            </div>
-          </div>
-
-          {!hasContent && !isEditing ? (
-            <button
-              onClick={handleEdit}
-              disabled={!hasAccess}
+            <span
               className={cn(
-                "w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted/50",
+                "text-sm font-medium",
+                compact ? "text-xs" : "text-sm",
               )}
             >
-              Click to add corrected output
-            </button>
-          ) : isEditing ? (
-            <CodeMirrorEditor
-              value={displayValue}
-              onChange={handleEditorChange}
-              mode={strictJsonMode ? "json" : "text"}
-              minHeight={200}
-              placeholder="Enter corrected output..."
-              className="bg-accent-light-green"
-            />
-          ) : (
-            <CodeMirrorEditor
-              value={displayValue}
-              mode={strictJsonMode ? "json" : "text"}
-              minHeight={200}
-              editable={false}
-              className="bg-accent-light-green"
-            />
-          )}
+              {compact ? "" : "Corrected Output (Beta)"}
+            </span>
+            <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {!isValidJson && isEditing && hasContent && (
+                <span className="mr-2 text-xs text-red-500">
+                  {strictJsonMode
+                    ? "Invalid JSON - fix to save"
+                    : "Cannot save empty content"}
+                </span>
+              )}
+              {isValidJson && saveStatus === "saving" && (
+                <span className="mr-2 w-fit text-xs text-muted-foreground">
+                  Saving...
+                </span>
+              )}
+              {isValidJson && saveStatus === "saved" && (
+                <span className="mr-2 w-fit text-xs">Saved ✓</span>
+              )}
+              {hasContent && (
+                <>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => setIsDiffDialogOpen(true)}
+                    className="hover:bg-border"
+                    title={"View diff between original and corrected output"}
+                  >
+                    <FileDiff className="h-3 w-3" />
+                  </Button>
+                  {!isEditing && (
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={handleEdit}
+                      disabled={!hasAccess}
+                      className="hover:bg-border"
+                      title="Edit corrected output"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={handleDeleteWithExitEdit}
+                    disabled={!hasAccess}
+                    className="hover:bg-border"
+                    title="Delete corrected output"
+                  >
+                    <Trash className="h-3 w-3" />
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={strictJsonMode}
+                onCheckedChange={setStrictJsonMode}
+                className="scale-75"
+              />
+              <span className="text-xs text-muted-foreground">JSON</span>
+            </div>
+          </div>
         </div>
+
+        {!hasContent && !isEditing ? (
+          <button
+            onClick={handleEdit}
+            disabled={!hasAccess}
+            className={cn(
+              "w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted/50",
+            )}
+          >
+            Click to add corrected output
+          </button>
+        ) : isEditing ? (
+          <CodeMirrorEditor
+            value={displayValue}
+            onChange={handleEditorChange}
+            mode={strictJsonMode ? "json" : "text"}
+            minHeight={200}
+            placeholder="Enter corrected output..."
+            className="bg-accent-light-green"
+          />
+        ) : (
+          <CodeMirrorEditor
+            value={displayValue}
+            mode={strictJsonMode ? "json" : "text"}
+            minHeight={200}
+            editable={false}
+            className="bg-accent-light-green"
+          />
+        )}
       </div>
     </>
   );
