@@ -62,7 +62,7 @@ function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
   });
 
-  return Array.isArray(result) && result.length > 0 ? result[0] : undefined;
+  return Array.isArray(result) ? result : undefined;
 }
 
 export function extractValueFromObject(
