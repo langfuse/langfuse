@@ -9,7 +9,12 @@ export const COMMENT_OBJECT_TYPES = [
   "PROMPT",
 ] as const;
 
-export const COMMENT_DATA_FIELDS = ["input", "output", "metadata"] as const;
+export const OBSERVATION_DATA_FIELDS = ["input", "output", "metadata"] as const;
+export const PROMPT_DATA_FIELDS = ["prompt", "config"] as const;
+export const COMMENT_DATA_FIELDS = [
+  ...OBSERVATION_DATA_FIELDS,
+  ...PROMPT_DATA_FIELDS,
+] as const;
 
 // JSON Path validation
 // TODO: simplify
@@ -68,6 +73,20 @@ export const CreateCommentData = z
       return true;
     },
     { message: "Each rangeStart must be less than corresponding rangeEnd" },
+  )
+  .refine(
+    (data) => {
+      if (!data.dataField) return true; // General comment, always valid
+
+      if (data.objectType === "PROMPT") {
+        return PROMPT_DATA_FIELDS.includes(data.dataField as any);
+      }
+      if (data.objectType === "TRACE" || data.objectType === "OBSERVATION") {
+        return OBSERVATION_DATA_FIELDS.includes(data.dataField as any);
+      }
+      return data.dataField === null; // SESSION doesn't support inline comments
+    },
+    { message: "Invalid dataField for objectType" },
   );
 
 export const DeleteCommentData = z.object({

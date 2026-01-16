@@ -15,12 +15,14 @@ export type CommentRange = {
 };
 
 /**
- * Type for comment ranges organized by field (input/output/metadata)
+ * Type for comment ranges organized by field (input/output/metadata/prompt/config)
  */
 export type CommentedPathsByField = {
   input?: Map<string, CommentRange[]>;
   output?: Map<string, CommentRange[]>;
   metadata?: Map<string, CommentRange[]>;
+  prompt?: Map<string, CommentRange[]>;
+  config?: Map<string, CommentRange[]>;
 };
 
 /**
@@ -35,7 +37,9 @@ export function getCommentCountForSection(
   if (
     sectionKey !== "input" &&
     sectionKey !== "output" &&
-    sectionKey !== "metadata"
+    sectionKey !== "metadata" &&
+    sectionKey !== "prompt" &&
+    sectionKey !== "config"
   ) {
     return 0;
   }
@@ -58,7 +62,9 @@ export function getCommentRangesForRow(
   if (
     sectionKey !== "input" &&
     sectionKey !== "output" &&
-    sectionKey !== "metadata"
+    sectionKey !== "metadata" &&
+    sectionKey !== "prompt" &&
+    sectionKey !== "config"
   ) {
     return undefined;
   }
