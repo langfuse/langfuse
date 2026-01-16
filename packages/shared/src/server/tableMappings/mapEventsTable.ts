@@ -221,6 +221,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events",
     clickhouseSelect: 'e."environment"',
   },
+  {
+    uiTableName: "Has Parent Observation",
+    uiTableId: "hasParentObservation",
+    clickhouseTableName: "events",
+    clickhouseSelect: "e.parent_span_id != ''",
+  },
 ];
 
 export const eventsTableUiColumnDefinitions: UiColumnMappings = [
