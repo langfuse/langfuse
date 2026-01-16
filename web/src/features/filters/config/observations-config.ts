@@ -137,12 +137,12 @@ export const observationFilterConfig: FilterConfig = {
     {
       type: "categorical" as const,
       column: "toolNames",
-      label: "Available Tool Names",
+      label: "Tool Names (Available)",
     },
     {
       type: "categorical" as const,
       column: "calledToolNames",
-      label: "Called Tool Names",
+      label: "Tool Names (Called)",
     },
     {
       type: "numeric" as const,
