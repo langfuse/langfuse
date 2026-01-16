@@ -1812,6 +1812,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       t.release as trace_release,
       t.tags as trace_tags,
       t.metadata['$posthog_session_id'] as posthog_session_id,
+      t.metadata['$posthog_distinct_id'] as posthog_distinct_id,
       t.metadata['$mixpanel_session_id'] as mixpanel_session_id
     FROM observations o FINAL
     LEFT JOIN ${traceTable} t FINAL ON o.trace_id = t.id AND o.project_id = t.project_id
@@ -1875,6 +1876,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       posthog_session_id: record.posthog_session_id ?? null,
+      posthog_distinct_id: record.posthog_distinct_id ?? null,
       mixpanel_session_id: record.mixpanel_session_id ?? null,
     } satisfies AnalyticsGenerationEvent;
   }

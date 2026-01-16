@@ -1329,6 +1329,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       t.tags as tags,
       t.environment as environment,
       t.metadata['$posthog_session_id'] as posthog_session_id,
+      t.metadata['$posthog_distinct_id'] as posthog_distinct_id,
       t.metadata['$mixpanel_session_id'] as mixpanel_session_id,
       o.total_cost as total_cost,
       o.latency_milliseconds / 1000 as latency,
@@ -1385,6 +1386,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       posthog_session_id: record.posthog_session_id ?? null,
+      posthog_distinct_id: record.posthog_distinct_id ?? null,
       mixpanel_session_id: record.mixpanel_session_id ?? null,
     } satisfies AnalyticsTraceEvent;
   }

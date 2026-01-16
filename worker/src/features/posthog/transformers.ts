@@ -16,26 +16,71 @@ type PostHogEvent = {
   uuid: string;
 };
 
+/**
+ * Determines the PostHog distinctId for an event.
+ * Priority: posthog_distinct_id (from metadata) > langfuse_user_id > generated UUID
+ * This allows users to map Langfuse traces to their existing PostHog user identities.
+ */
+const getDistinctId = (
+  posthogDistinctId: unknown,
+  langfuseUserId: unknown,
+  fallbackUuid: string,
+): string => {
+  if (posthogDistinctId) {
+    return posthogDistinctId as string;
+  }
+  if (langfuseUserId) {
+    return langfuseUserId as string;
+  }
+  return fallbackUuid;
+};
+
+/**
+ * Determines if this event should have person profile processing.
+ * Returns true if we have a user identity (either posthog_distinct_id or langfuse_user_id with user_url).
+ */
+const hasUserIdentity = (
+  posthogDistinctId: unknown,
+  langfuseUserId: unknown,
+  langfuseUserUrl: unknown,
+): boolean => {
+  return (
+    Boolean(posthogDistinctId) || Boolean(langfuseUserId && langfuseUserUrl)
+  );
+};
+
 export const transformTraceForPostHog = (
   trace: AnalyticsTraceEvent,
   projectId: string,
 ): PostHogEvent => {
   const uuid = v5(`${projectId}-${trace.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
 
-  // Extract posthog_session_id and map to $session_id
+  // Extract PostHog-specific fields to map to PostHog properties
+  const {
+    posthog_session_id,
+    posthog_distinct_id,
+    mixpanel_session_id,
+    ...otherProps
+  } = trace;
 
-  const { posthog_session_id, mixpanel_session_id, ...otherProps } = trace;
+  const distinctId = getDistinctId(
+    posthog_distinct_id,
+    trace.langfuse_user_id,
+    uuid,
+  );
 
   return {
-    distinctId: trace.langfuse_user_id
-      ? (trace.langfuse_user_id as string)
-      : uuid,
+    distinctId,
     event: "langfuse trace",
     properties: {
       ...otherProps,
       $session_id: posthog_session_id ?? null,
       // PostHog-specific: add user profile enrichment or mark as anonymous
-      ...(trace.langfuse_user_id && trace.langfuse_user_url
+      ...(hasUserIdentity(
+        posthog_distinct_id,
+        trace.langfuse_user_id,
+        trace.langfuse_user_url,
+      )
         ? {
             $set: {
               langfuse_user_url: trace.langfuse_user_url,
@@ -59,20 +104,32 @@ export const transformGenerationForPostHog = (
     POSTHOG_UUID_NAMESPACE,
   );
 
-  // Extract posthog_session_id and map to $session_id
+  // Extract PostHog-specific fields to map to PostHog properties
+  const {
+    posthog_session_id,
+    posthog_distinct_id,
+    mixpanel_session_id,
+    ...otherProps
+  } = generation;
 
-  const { posthog_session_id, mixpanel_session_id, ...otherProps } = generation;
+  const distinctId = getDistinctId(
+    posthog_distinct_id,
+    generation.langfuse_user_id,
+    uuid,
+  );
 
   return {
-    distinctId: generation.langfuse_user_id
-      ? (generation.langfuse_user_id as string)
-      : uuid,
+    distinctId,
     event: "langfuse generation",
     properties: {
       ...otherProps,
       $session_id: posthog_session_id ?? null,
       // PostHog-specific: add user profile enrichment or mark as anonymous
-      ...(generation.langfuse_user_id && generation.langfuse_user_url
+      ...(hasUserIdentity(
+        posthog_distinct_id,
+        generation.langfuse_user_id,
+        generation.langfuse_user_url,
+      )
         ? {
             $set: {
               langfuse_user_url: generation.langfuse_user_url,
@@ -93,20 +150,32 @@ export const transformScoreForPostHog = (
 ): PostHogEvent => {
   const uuid = v5(`${projectId}-${score.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
 
-  // Extract posthog_session_id and map to $session_id
+  // Extract PostHog-specific fields to map to PostHog properties
+  const {
+    posthog_session_id,
+    posthog_distinct_id,
+    mixpanel_session_id,
+    ...otherProps
+  } = score;
 
-  const { posthog_session_id, mixpanel_session_id, ...otherProps } = score;
+  const distinctId = getDistinctId(
+    posthog_distinct_id,
+    score.langfuse_user_id,
+    uuid,
+  );
 
   return {
-    distinctId: score.langfuse_user_id
-      ? (score.langfuse_user_id as string)
-      : uuid,
+    distinctId,
     event: "langfuse score",
     properties: {
       ...otherProps,
       $session_id: posthog_session_id ?? null,
       // PostHog-specific: add user profile enrichment or mark as anonymous
-      ...(score.langfuse_user_id && score.langfuse_user_url
+      ...(hasUserIdentity(
+        posthog_distinct_id,
+        score.langfuse_user_id,
+        score.langfuse_user_url,
+      )
         ? {
             $set: {
               langfuse_user_url: score.langfuse_user_url,

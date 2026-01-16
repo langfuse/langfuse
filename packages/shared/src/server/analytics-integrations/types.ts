@@ -19,6 +19,7 @@ export type AnalyticsTraceEvent = {
   langfuse_environment?: unknown;
   langfuse_event_version?: unknown;
   posthog_session_id?: unknown;
+  posthog_distinct_id?: unknown;
   mixpanel_session_id?: unknown;
 };
 
@@ -47,6 +48,7 @@ export type AnalyticsGenerationEvent = {
   langfuse_environment?: unknown;
   langfuse_event_version?: unknown;
   posthog_session_id?: unknown;
+  posthog_distinct_id?: unknown;
   mixpanel_session_id?: unknown;
 };
 
@@ -72,5 +74,6 @@ export type AnalyticsScoreEvent = {
   langfuse_score_entity_type?: unknown;
   langfuse_dataset_run_id?: unknown;
   posthog_session_id?: unknown;
+  posthog_distinct_id?: unknown;
   mixpanel_session_id?: unknown;
 };
