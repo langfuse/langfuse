@@ -142,6 +142,26 @@ export enum ChatMessageType {
   Placeholder = "placeholder",
 }
 
+// Compliant with LangChain "standard content blocks"
+// https://docs.langchain.com/oss/javascript/langchain/messages#standard-content-blocks
+export enum MessageContentType {
+  Text = "text",
+  Image = "image",
+  Audio = "audio",
+  Video = "video",
+  File = "file",
+  Unknown = "unknown",
+}
+
+export const MessageContentSchema = z.union([
+  z.object({
+    type: z.literal(MessageContentType.Text),
+    text: z.string(),
+  }),
+  //TODO: Support other types in subsequent PRs
+]);
+export type MessageContent = z.infer<typeof MessageContentSchema>;
+
 export const SystemMessageSchema = z.object({
   type: z.literal(ChatMessageType.System),
   role: z.literal(ChatMessageRole.System),
@@ -159,7 +179,7 @@ export type DeveloperMessage = z.infer<typeof DeveloperMessageSchema>;
 export const UserMessageSchema = z.object({
   type: z.literal(ChatMessageType.User),
   role: z.literal(ChatMessageRole.User),
-  content: z.string(),
+  content: z.string().or(z.array(MessageContentSchema)),
 });
 export type UserMessage = z.infer<typeof UserMessageSchema>;
 
@@ -237,7 +257,7 @@ export type ChatMessageWithIdNoPlaceholders = ChatMessage & { id: string };
 export const PromptChatMessageSchema = z.union([
   z.object({
     role: z.string(),
-    content: z.string(),
+    content: z.string().or(z.array(MessageContentSchema)),
   }),
   PlaceholderMessageSchema,
 ]);

@@ -90,6 +90,37 @@ describe("LLM Connection Tests", () => {
       expect(completion).toContain("4");
     }, 30_000);
 
+    test("completion with content block array", async () => {
+      checkEnvVar();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "What is 2+2?" },
+              { type: "text", text: "Answer only with the number." },
+            ],
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
+        },
+      });
+
+      expect(typeof completion).toBe("string");
+      expect(completion).toContain("4");
+    }, 30_000);
+
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
