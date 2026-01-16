@@ -47,12 +47,16 @@ export function useExperimentPromptData({
   const promptsByName = useMemo(
     () =>
       promptMeta.data?.reduce<
-        Record<string, Array<{ version: number; id: string }>>
+        Record<string, Array<{ version: number; id: string; labels: string[] }>>
       >((acc, prompt) => {
         if (!acc[prompt.name]) {
           acc[prompt.name] = [];
         }
-        acc[prompt.name].push({ version: prompt.version, id: prompt.id });
+        acc[prompt.name].push({
+          version: prompt.version,
+          id: prompt.id,
+          labels: prompt.labels,
+        });
         return acc;
       }, {}),
     [promptMeta.data],

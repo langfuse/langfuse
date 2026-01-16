@@ -29,6 +29,7 @@ import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 
 export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   projectId,
@@ -205,10 +206,21 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 form.clearErrors("promptId");
                               }}
                             >
-                              Version {prompt.version}
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <span className="shrink-0">
+                                  Version {prompt.version}
+                                </span>
+                                {prompt.labels.length > 0 && (
+                                  <TruncatedLabels
+                                    labels={prompt.labels}
+                                    maxVisibleLabels={2}
+                                    className="min-w-0"
+                                  />
+                                )}
+                              </div>
                               <CheckIcon
                                 className={cn(
-                                  "ml-auto h-4 w-4",
+                                  "ml-auto h-4 w-4 shrink-0",
                                   prompt.version === selectedPromptVersion
                                     ? "opacity-100"
                                     : "opacity-0",
