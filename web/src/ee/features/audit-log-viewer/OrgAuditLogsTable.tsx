@@ -1,0 +1,161 @@
+import { DataTable } from "@/src/components/table/data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { api } from "@/src/utils/api";
+import { safeExtract } from "@/src/utils/map-utils";
+import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/src/components/ui/avatar";
+import { cn } from "@/src/utils/tailwind";
+import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { type RouterOutputs } from "@/src/utils/api";
+import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+
+type OrgAuditLogRow = RouterOutputs["auditLogs"]["allByOrg"]["data"][number];
+
+export function OrgAuditLogsTable(props: { orgId: string }) {
+  const [paginationState, setPaginationState] = useQueryParams({
+    pageIndex: withDefault(NumberParam, 0),
+    pageSize: withDefault(NumberParam, 50),
+  });
+
+  const auditLogs = api.auditLogs.allByOrg.useQuery({
+    orgId: props.orgId,
+    page: paginationState.pageIndex,
+    limit: paginationState.pageSize,
+  });
+
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+    "orgAuditLogs",
+    "s",
+  );
+
+  const columns: LangfuseColumnDef<OrgAuditLogRow>[] = [
+    {
+      accessorKey: "createdAt",
+      header: "Time",
+      cell: (row) => {
+        const date = row.getValue() as Date;
+        return date.toLocaleString();
+      },
+    },
+    {
+      accessorKey: "actor",
+      header: "Actor",
+      headerTooltip: {
+        description: "The actor within Langfuse who performed the action.",
+      },
+      cell: (row) => {
+        const actor = row.getValue() as OrgAuditLogRow["actor"];
+        if (actor?.type === "USER") {
+          const user = actor.body;
+          return (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-6 w-6">
+                {user?.image && (
+                  <AvatarImage src={user.image} alt={user?.name ?? "User"} />
+                )}
+                <AvatarFallback>
+                  {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"}
+                </AvatarFallback>
+              </Avatar>
+              <span
+                className={cn(
+                  "text-sm",
+                  !user?.name && "text-muted-foreground",
+                )}
+              >
+                {user?.name ?? user?.email ?? user.id}
+              </span>
+            </div>
+          );
+        }
+
+        if (actor?.type === "API_KEY") {
+          const apiKey = actor.body;
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{apiKey?.publicKey ?? apiKey?.id}</span>
+            </div>
+          );
+        }
+
+        return null;
+      },
+    },
+    {
+      accessorKey: "resourceType",
+      header: "Resource Type",
+    },
+    {
+      accessorKey: "resourceId",
+      header: "Resource ID",
+    },
+    {
+      accessorKey: "action",
+      header: "Action",
+    },
+    {
+      accessorKey: "before",
+      header: "Before",
+      size: 300,
+      cell: (row) => {
+        const value = row.getValue() as string | null;
+        if (!value) return null;
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
+    },
+    {
+      accessorKey: "after",
+      header: "After",
+      size: 300,
+      cell: (row) => {
+        const value = row.getValue() as string | null;
+        if (!value) return null;
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
+    },
+  ];
+
+  return (
+    <>
+      <DataTableToolbar
+        columns={columns}
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+        className="px-0"
+      />
+      <SettingsTableCard>
+        <DataTable
+          tableName={"orgAuditLogs"}
+          columns={columns}
+          data={
+            auditLogs.isPending
+              ? { isLoading: true, isError: false }
+              : auditLogs.isError
+                ? {
+                    isLoading: false,
+                    isError: true,
+                    error: auditLogs.error.message,
+                  }
+                : {
+                    isLoading: false,
+                    isError: false,
+                    data: safeExtract(auditLogs.data, "data", []),
+                  }
+          }
+          pagination={{
+            totalCount: auditLogs.data?.totalCount ?? 0,
+            onChange: setPaginationState,
+            state: paginationState,
+          }}
+          rowHeight={rowHeight}
+        />
+      </SettingsTableCard>
+    </>
+  );
+}
