@@ -90,6 +90,20 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "t",
   },
   {
+    uiTableName: "Input",
+    uiTableId: "input",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "input",
+    queryPrefix: "t",
+  },
+  {
+    uiTableName: "Output",
+    uiTableId: "output",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "output",
+    queryPrefix: "t",
+  },
+  {
     uiTableName: "Warning Level Count",
     uiTableId: "warningCount",
     clickhouseTableName: "observations",
