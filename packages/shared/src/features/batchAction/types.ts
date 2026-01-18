@@ -21,6 +21,7 @@ export enum ActionId {
   ScoreDelete = "score-delete",
   TraceDelete = "trace-delete",
   TraceAddToAnnotationQueue = "trace-add-to-annotation-queue",
+  TraceAddToDataset = "trace-add-to-dataset",
   SessionAddToAnnotationQueue = "session-add-to-annotation-queue",
   ObservationAddToAnnotationQueue = "observation-add-to-annotation-queue",
   ObservationAddToDataset = "observation-add-to-dataset",

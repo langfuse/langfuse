@@ -49,8 +49,15 @@ export const AddToDatasetMappingSchema = z.object({
   metadata: FieldMappingConfigSchema,
 });
 
-// Config for the batch action
+// Config for the batch action (observations)
 export const ObservationAddToDatasetConfigSchema = z.object({
+  datasetId: z.string(),
+  datasetName: z.string(),
+  mapping: AddToDatasetMappingSchema,
+});
+
+// Config for the batch action (traces) - same structure as observations
+export const TraceAddToDatasetConfigSchema = z.object({
   datasetId: z.string(),
   datasetName: z.string(),
   mapping: AddToDatasetMappingSchema,
@@ -67,4 +74,7 @@ export type FieldMappingConfig = z.infer<typeof FieldMappingConfigSchema>;
 export type AddToDatasetMapping = z.infer<typeof AddToDatasetMappingSchema>;
 export type ObservationAddToDatasetConfig = z.infer<
   typeof ObservationAddToDatasetConfigSchema
+>;
+export type TraceAddToDatasetConfig = z.infer<
+  typeof TraceAddToDatasetConfigSchema
 >;
