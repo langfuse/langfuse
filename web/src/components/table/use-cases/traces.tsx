@@ -87,6 +87,7 @@ import {
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import { AddTracesToDatasetDialog } from "@/src/features/batch-actions/components/AddTracesToDatasetDialog";
 
 export type TracesTableRow = {
   // Shown by default
@@ -343,6 +344,7 @@ export default function TracesTable({
     pageSize: withDefault(NumberParam, 50),
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
+  const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
@@ -541,6 +543,16 @@ export default function TracesTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
+      },
+    },
+    {
+      id: ActionId.TraceAddToDataset,
+      type: BatchActionType.Create,
+      label: "Add to Dataset",
+      description: "Add selected traces to a dataset",
+      customDialog: true,
+      accessCheck: {
+        scope: "datasets:CUD",
       },
     },
   ];
@@ -1242,6 +1254,11 @@ export default function TracesTable({
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Traces}
+                  onCustomAction={(actionType) => {
+                    if (actionType === ActionId.TraceAddToDataset) {
+                      setShowAddToDatasetDialog(true);
+                    }
+                  }}
                 />
               ) : null,
               <BatchExportTableButton
@@ -1336,6 +1353,43 @@ export default function TracesTable({
           </div>
         </ResizableFilterLayout>
       </div>
+
+      {/* Add to Dataset Dialog */}
+      {showAddToDatasetDialog && (
+        <AddTracesToDatasetDialog
+          projectId={projectId}
+          selectedTraceIds={Object.keys(selectedRows).filter((traceId) =>
+            traces.data?.traces.map((t) => t.id).includes(traceId),
+          )}
+          query={{
+            filter: filterState,
+            orderBy: orderByState,
+            searchQuery: searchQuery ?? undefined,
+            searchType,
+          }}
+          selectAll={selectAll}
+          totalCount={totalCount ?? 0}
+          onClose={() => {
+            setShowAddToDatasetDialog(false);
+            setSelectedRows({});
+            setSelectAll(false);
+          }}
+          exampleTrace={(() => {
+            // Get the first selected trace to use for preview
+            const selectedIds = Object.keys(selectedRows).filter((traceId) =>
+              traces.data?.traces.map((t) => t.id).includes(traceId),
+            );
+            const firstId = selectedIds[0];
+            const firstTrace = traces.data?.traces.find(
+              (t) => t.id === firstId,
+            );
+            return {
+              id: firstTrace?.id ?? "",
+              timestamp: firstTrace?.timestamp ?? undefined,
+            };
+          })()}
+        />
+      )}
     </DataTableControlsProvider>
   );
 }
