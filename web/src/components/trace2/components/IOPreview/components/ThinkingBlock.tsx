@@ -18,9 +18,11 @@ export function ThinkingBlock({
 
   return (
     <div className="my-2 px-1">
-      <div
-        className="flex cursor-pointer items-start gap-1 text-muted-foreground hover:text-foreground"
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-start gap-1 text-left text-muted-foreground hover:text-foreground"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
       >
         <ChevronRight
           className={cn(
@@ -32,7 +34,7 @@ export function ThinkingBlock({
         {!expanded && (
           <span className="line-clamp-1 text-xs italic">{displayContent}</span>
         )}
-      </div>
+      </button>
 
       {expanded && (
         <div className="ml-4 mt-1 whitespace-pre-wrap text-sm italic text-muted-foreground">
@@ -57,9 +59,11 @@ export function RedactedThinkingBlock({
 
   return (
     <div className="my-2 px-1">
-      <div
-        className="flex cursor-pointer items-start gap-1 text-muted-foreground hover:text-foreground"
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-start gap-1 text-left text-muted-foreground hover:text-foreground"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
       >
         <ChevronRight
           className={cn(
@@ -71,7 +75,7 @@ export function RedactedThinkingBlock({
         {!expanded && (
           <span className="text-xs italic">[Encrypted thinking data]</span>
         )}
-      </div>
+      </button>
 
       {expanded && (
         <div className="ml-4 mt-1 break-all rounded bg-muted/50 p-2 font-mono text-xs text-muted-foreground">
