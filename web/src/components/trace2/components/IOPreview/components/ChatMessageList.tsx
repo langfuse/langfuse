@@ -5,6 +5,7 @@ import { ChatMessage, type ViewMode } from "./ChatMessage";
 import { SectionMedia } from "./SectionMedia";
 import { type ChatMlMessage, shouldRenderMessage } from "./chat-message-utils";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 
 const COLLAPSE_THRESHOLD = 3;
 
@@ -19,6 +20,10 @@ export interface ChatMessageListProps {
   collapseLongHistory?: boolean;
   projectIdForPromptButtons?: string;
   inputMessageCount?: number;
+  // Inline comment support
+  enableInlineComments?: boolean;
+  sectionKey?: string;
+  commentedPathsByField?: CommentedPathsByField;
 }
 
 /**
@@ -40,6 +45,9 @@ export function ChatMessageList({
   collapseLongHistory = true,
   projectIdForPromptButtons,
   inputMessageCount,
+  enableInlineComments,
+  sectionKey,
+  commentedPathsByField,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -68,31 +76,46 @@ export function ChatMessageList({
                 originalIndex === 0 ||
                 originalIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
             )
-            .map(({ message, originalIndex }) => (
-              <Fragment key={originalIndex}>
-                <ChatMessage
-                  message={message}
-                  shouldRenderMarkdown={shouldRenderMarkdown}
-                  currentView={currentView}
-                  toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
-                  projectIdForPromptButtons={projectIdForPromptButtons}
-                  isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
-                />
-                {/* Show collapse/expand button after first message */}
-                {isCollapsed !== null && originalIndex === 0 && (
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setCollapsed((v) => !v)}
-                    className="underline"
-                  >
-                    {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
-                      : "Hide history"}
-                  </Button>
-                )}
-              </Fragment>
-            ))}
+            .map(({ message, originalIndex }) => {
+              const messageRanges =
+                enableInlineComments && sectionKey && commentedPathsByField
+                  ? commentedPathsByField[
+                      sectionKey as keyof CommentedPathsByField
+                    ]?.get(`$.messages[${originalIndex}].content`)
+                  : undefined;
+
+              return (
+                <Fragment key={originalIndex}>
+                  <ChatMessage
+                    message={message}
+                    shouldRenderMarkdown={shouldRenderMarkdown}
+                    currentView={currentView}
+                    toolCallNumbers={messageToToolCallNumbers.get(
+                      originalIndex,
+                    )}
+                    projectIdForPromptButtons={projectIdForPromptButtons}
+                    isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
+                    enableInlineComments={enableInlineComments}
+                    messageIndex={originalIndex}
+                    sectionKey={sectionKey}
+                    commentedRanges={messageRanges}
+                  />
+                  {/* Show collapse/expand button after first message */}
+                  {isCollapsed !== null && originalIndex === 0 && (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setCollapsed((v) => !v)}
+                      className="underline"
+                    >
+                      {isCollapsed
+                        ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
+                        : "Hide history"}
+                    </Button>
+                  )}
+                </Fragment>
+              );
+            })}
         </div>
 
         {/* Additional input section */}

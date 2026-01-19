@@ -6,7 +6,7 @@
  */
 
 interface SelectionPathResult {
-  dataField: "input" | "output" | "metadata";
+  dataField: "input" | "output" | "metadata" | "prompt" | "config";
   path: string[];
   rangeStart: number[];
   rangeEnd: number[];
@@ -16,7 +16,7 @@ interface SelectionPathResult {
 export function selectionToPath(
   selection: Selection,
   containerElement: HTMLElement,
-  dataField: "input" | "output" | "metadata",
+  dataField: "input" | "output" | "metadata" | "prompt" | "config",
 ): SelectionPathResult | null {
   if (selection.rangeCount === 0 || selection.isCollapsed) {
     return null;

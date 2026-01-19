@@ -7,7 +7,7 @@ import {
 } from "react";
 
 export interface SelectionData {
-  dataField: "input" | "output" | "metadata";
+  dataField: "input" | "output" | "metadata" | "prompt" | "config";
   path: string[];
   rangeStart: number[];
   rangeEnd: number[];

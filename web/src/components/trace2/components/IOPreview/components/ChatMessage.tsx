@@ -19,6 +19,16 @@ import {
   isOnlyJsonMessage,
   parseToolCallsFromMessage,
 } from "./chat-message-utils";
+import {
+  highlightTextWithComments,
+  COMMENT_HIGHLIGHT_COLOR,
+} from "@/src/components/ui/AdvancedJsonViewer/utils/highlightText";
+import { type CommentRange } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 // View mode for pretty/json toggle
 export type ViewMode = "pretty" | "json";
@@ -31,6 +41,11 @@ export interface ChatMessageProps {
   toolCallNumbers?: number[];
   projectIdForPromptButtons?: string;
   isOutputMessage?: boolean;
+  // Inline comment support
+  enableInlineComments?: boolean;
+  messageIndex?: number;
+  sectionKey?: string;
+  commentedRanges?: CommentRange[];
 }
 
 /**
@@ -49,6 +64,10 @@ export function ChatMessage({
   toolCallNumbers,
   projectIdForPromptButtons,
   isOutputMessage,
+  enableInlineComments,
+  messageIndex,
+  sectionKey,
+  commentedRanges,
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -150,20 +169,93 @@ export function ChatMessage({
 
   // Content message (with optional tool calls)
   if (hasContent) {
+    const contentString =
+      typeof message.content === "string" ? message.content : "";
+    const hasCommentHighlights =
+      enableInlineComments && commentedRanges && commentedRanges.length > 0;
+
     return (
       <div className={cn("transition-colors hover:bg-muted")}>
         {/* Markdown view */}
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
-          <MarkdownJsonView
-            title={title}
-            content={message.content || '""'}
-            customCodeHeaderClassName={cn(
-              message.role === "assistant" && "bg-secondary",
-              message.role === "system" && "bg-primary-foreground",
+          <div
+            data-json-path={
+              enableInlineComments
+                ? `$.messages[${messageIndex}].content`
+                : undefined
+            }
+            data-section-key={enableInlineComments ? sectionKey : undefined}
+            data-json-key-value={enableInlineComments ? "true" : undefined}
+          >
+            {hasCommentHighlights && contentString ? (
+              // Render with comment highlighting
+              <div
+                className={cn(
+                  "io-message-content flex gap-2 whitespace-pre-wrap break-words rounded-sm border p-2 text-xs",
+                  message.role === "assistant" && "bg-secondary",
+                  message.role === "system" && "bg-primary-foreground",
+                )}
+              >
+                <MarkdownJsonViewHeader
+                  title={title}
+                  handleOnValueChange={() => {}}
+                  handleOnCopy={() => {
+                    void copyTextToClipboard(contentString);
+                  }}
+                  controlButtons={passthroughToggleButton}
+                />
+                <code className="whitespace-pre-wrap break-words font-mono">
+                  {highlightTextWithComments(
+                    contentString,
+                    undefined,
+                    undefined,
+                    commentedRanges,
+                  ).map((segment, index) => {
+                    const backgroundColor =
+                      segment.type === "comment"
+                        ? COMMENT_HIGHLIGHT_COLOR
+                        : "transparent";
+
+                    const highlightedSpan = (
+                      <span key={index} style={{ backgroundColor }}>
+                        {segment.text}
+                      </span>
+                    );
+
+                    if (segment.type === "comment" && segment.preview) {
+                      return (
+                        <Tooltip key={index}>
+                          <TooltipTrigger asChild>
+                            {highlightedSpan}
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            align="start"
+                            className="max-w-xs px-2 py-1 text-xs"
+                          >
+                            {segment.preview}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+
+                    return highlightedSpan;
+                  })}
+                </code>
+              </div>
+            ) : (
+              <MarkdownJsonView
+                title={title}
+                content={message.content || '""'}
+                customCodeHeaderClassName={cn(
+                  message.role === "assistant" && "bg-secondary",
+                  message.role === "system" && "bg-primary-foreground",
+                )}
+                audio={message.audio}
+                controlButtons={passthroughToggleButton}
+              />
             )}
-            audio={message.audio}
-            controlButtons={passthroughToggleButton}
-          />
+          </div>
           {toolCalls.length > 0 && (
             <div className="mt-2">
               <ToolCallInvocationsView
@@ -176,13 +268,23 @@ export function ChatMessage({
 
         {/* JSON view */}
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
-          <PrettyJsonView
-            title={title}
-            json={message.content}
-            projectIdForPromptButtons={projectIdForPromptButtons}
-            currentView={currentView}
-            controlButtons={passthroughToggleButton}
-          />
+          <div
+            data-json-path={
+              enableInlineComments
+                ? `$.messages[${messageIndex}].content`
+                : undefined
+            }
+            data-section-key={enableInlineComments ? sectionKey : undefined}
+            data-json-key-value={enableInlineComments ? "true" : undefined}
+          >
+            <PrettyJsonView
+              title={title}
+              json={message.content}
+              projectIdForPromptButtons={projectIdForPromptButtons}
+              currentView={currentView}
+              controlButtons={passthroughToggleButton}
+            />
+          </div>
           {toolCalls.length > 0 && (
             <div className="mt-2">
               <ToolCallInvocationsView
