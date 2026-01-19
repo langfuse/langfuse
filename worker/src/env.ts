@@ -328,7 +328,7 @@ const EnvSchema = z.object({
   LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS: z.coerce
     .number()
     .positive()
-    .default(600_000), // 10 minutes if nothing to do
+    .default(3_600_000), // 1hr
   LANGFUSE_BATCH_PROJECT_CLEANER_PROJECT_LIMIT: z.coerce
     .number()
     .positive()

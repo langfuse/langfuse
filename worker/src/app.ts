@@ -39,6 +39,7 @@ import {
   CloudFreeTierUsageThresholdQueue,
   EventPropagationQueue,
   BatchProjectCleanerQueue,
+  BATCH_DELETION_TABLES,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -76,7 +77,6 @@ import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
 import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
-import { BATCH_DELETION_TABLES } from "./features/batch-project-cleaner";
 import { batchProjectCleanerProcessor } from "./queues/batchProjectCleanerQueue";
 
 const app = express();
@@ -562,7 +562,13 @@ if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   WorkerManager.register(
     QueueName.BatchProjectCleanerQueue,
     batchProjectCleanerProcessor,
-    { concurrency: 1 }, // only 1 job at a time
+    {
+      concurrency: 1, // only 1 job at a time per process.
+      limiter: {
+        max: 1,
+        duration: env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS, // no more than 1 job at a time globally
+      },
+    },
   );
 
   // Schedule repeatable jobs for each table
