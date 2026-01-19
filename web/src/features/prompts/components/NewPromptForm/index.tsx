@@ -226,27 +226,6 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-6"
       >
-        {hadDraft && (
-          <div className="flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-            <span>Draft restored from previous session.</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                clearDraft();
-                form.reset(defaultValues);
-                setInitialMessages(
-                  initialPrompt?.type === PromptType.Chat
-                    ? initialPrompt.prompt
-                    : [],
-                );
-              }}
-            >
-              Discard draft
-            </Button>
-          </div>
-        )}
         {/* Prompt name field - text vs. chat only for new prompts */}
         {!initialPrompt ? (
           <FormField
@@ -340,6 +319,26 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   </TabsTrigger>
                 </TabsList>
               ) : null}
+              {hadDraft && (
+                <p className="-mt-2 mb-1 text-right text-xs text-muted-foreground">
+                  Draft restored.{" "}
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground"
+                    onClick={() => {
+                      clearDraft();
+                      form.reset(defaultValues);
+                      setInitialMessages(
+                        initialPrompt?.type === PromptType.Chat
+                          ? initialPrompt.prompt
+                          : [],
+                      );
+                    }}
+                  >
+                    Discard
+                  </button>
+                </p>
+              )}
               <TabsContent value={PromptType.Text}>
                 <FormField
                   control={form.control}
