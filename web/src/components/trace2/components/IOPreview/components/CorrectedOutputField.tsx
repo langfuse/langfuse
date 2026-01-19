@@ -1,4 +1,4 @@
-import { Pencil, Trash, FileDiff, Info, Loader2, Check } from "lucide-react";
+import { Pencil, Trash, FileDiff, Loader2, Check } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { type ScoreDomain } from "@langfuse/shared";
