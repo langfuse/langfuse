@@ -77,7 +77,7 @@ export const TraceLogView = ({
 }: TraceLogViewProps) => {
   const { tree, observations } = useTraceData();
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
 
   // Determine if we should virtualize based on observation count
   const isVirtualized =
@@ -92,16 +92,14 @@ export const TraceLogView = ({
   const expandedRowsKey = `logViewRows:${traceId}`;
 
   const expandedKeys = useMemo(() => {
-    const expandedRowsState = (expansionState[expandedRowsKey] ?? {}) as Record<
-      string,
-      boolean
-    >;
+    const expandedRowsState = (formattedExpansion[expandedRowsKey] ??
+      {}) as Record<string, boolean>;
     return new Set(
       Object.entries(expandedRowsState)
         .filter(([, isExpanded]) => isExpanded)
         .map(([id]) => id),
     );
-  }, [expansionState, expandedRowsKey]);
+  }, [formattedExpansion, expandedRowsKey]);
 
   // Update expanded keys in context
   const setExpandedKeys = useCallback(
@@ -117,9 +115,9 @@ export const TraceLogView = ({
         newState[id] = true;
       });
 
-      setFieldExpansion(expandedRowsKey, newState);
+      setFormattedFieldExpansion(expandedRowsKey, newState);
     },
-    [expandedKeys, setFieldExpansion, expandedRowsKey],
+    [expandedKeys, setFormattedFieldExpansion, expandedRowsKey],
   );
 
   // Local state for search
@@ -191,14 +189,23 @@ export const TraceLogView = ({
           traceId={traceId}
           projectId={projectId}
           currentView={currentView}
-          externalExpansionState={expansionState[observationExpansionKey]}
+          externalExpansionState={formattedExpansion[observationExpansionKey]}
           onExternalExpansionChange={(exp) =>
-            setFieldExpansion(observationExpansionKey, exp)
+            setFormattedFieldExpansion(
+              observationExpansionKey,
+              exp as Record<string, boolean>,
+            )
           }
         />
       );
     },
-    [traceId, projectId, currentView, expansionState, setFieldExpansion],
+    [
+      traceId,
+      projectId,
+      currentView,
+      formattedExpansion,
+      setFormattedFieldExpansion,
+    ],
   );
 
   // Track if all rows are expanded (for non-virtualized mode)
