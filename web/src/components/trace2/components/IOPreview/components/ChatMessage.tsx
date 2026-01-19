@@ -18,7 +18,10 @@ import {
   isPlaceholderMessage,
   isOnlyJsonMessage,
   parseToolCallsFromMessage,
+  hasThinkingContent,
+  hasRedactedThinkingContent,
 } from "./chat-message-utils";
+import { ThinkingBlock, RedactedThinkingBlock } from "./ThinkingBlock";
 
 // View mode for pretty/json toggle
 export type ViewMode = "pretty" | "json";
@@ -148,8 +151,30 @@ export function ChatMessage({
     );
   }
 
-  // Content message (with optional tool calls)
-  if (hasContent) {
+  // Content message (with optional tool calls and thinking)
+  if (
+    hasContent ||
+    hasThinkingContent(message) ||
+    hasRedactedThinkingContent(message)
+  ) {
+    // Thinking blocks to render after header
+    const thinkingBlocks = (
+      <>
+        {hasThinkingContent(message) &&
+          message.thinking?.map((t, i) => (
+            <ThinkingBlock
+              key={`thinking-${i}`}
+              content={t.content}
+              summary={t.summary}
+            />
+          ))}
+        {hasRedactedThinkingContent(message) &&
+          message.redacted_thinking?.map((t, i) => (
+            <RedactedThinkingBlock key={`redacted-${i}`} data={t.data} />
+          ))}
+      </>
+    );
+
     return (
       <div className={cn("transition-colors hover:bg-muted")}>
         {/* Markdown view */}
@@ -163,6 +188,7 @@ export function ChatMessage({
             )}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
+            afterHeader={thinkingBlocks}
           />
           {toolCalls.length > 0 && (
             <div className="mt-2">
@@ -182,6 +208,7 @@ export function ChatMessage({
             projectIdForPromptButtons={projectIdForPromptButtons}
             currentView={currentView}
             controlButtons={passthroughToggleButton}
+            afterHeader={thinkingBlocks}
           />
           {toolCalls.length > 0 && (
             <div className="mt-2">
