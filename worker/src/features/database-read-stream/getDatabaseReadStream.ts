@@ -25,6 +25,7 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  applyCommentFiltersToFilterState,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -189,11 +190,33 @@ export const getDatabaseReadStreamPaginated = async ({
       );
     }
 
-    case "sessions":
+    case "sessions": {
+      // Apply comment filters before creating the stream
+      // This converts commentCount/commentContent filters to ID-based filters
+      const sessionsCommentFilterResult =
+        await applyCommentFiltersToFilterState({
+          filterState: filter ?? [],
+          prisma,
+          projectId,
+          objectType: "SESSION",
+        });
+
+      // If comment filters matched nothing, return empty stream
+      if (sessionsCommentFilterResult.hasNoMatches) {
+        return new DatabaseReadStream<unknown>(
+          async () => [],
+          env.BATCH_EXPORT_PAGE_SIZE,
+          rowLimit,
+        );
+      }
+
+      const sessionsFilterWithComments =
+        sessionsCommentFilterResult.filterState;
+
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const finalFilter = filter
-            ? [...filter, createdAtCutoffFilter]
+          const finalFilter = sessionsFilterWithComments
+            ? [...sessionsFilterWithComments, createdAtCutoffFilter]
             : [createdAtCutoffFilter];
 
           const sessionsFilter = await getPublicSessionsFilter(
@@ -261,7 +284,30 @@ export const getDatabaseReadStreamPaginated = async ({
         env.BATCH_EXPORT_PAGE_SIZE,
         rowLimit,
       );
+    }
     case "observations": {
+      // Apply comment filters before creating the stream
+      // This converts commentCount/commentContent filters to ID-based filters
+      const observationsCommentFilterResult =
+        await applyCommentFiltersToFilterState({
+          filterState: filter ?? [],
+          prisma,
+          projectId,
+          objectType: "OBSERVATION",
+        });
+
+      // If comment filters matched nothing, return empty stream
+      if (observationsCommentFilterResult.hasNoMatches) {
+        return new DatabaseReadStream<unknown>(
+          async () => [],
+          env.BATCH_EXPORT_PAGE_SIZE,
+          rowLimit,
+        );
+      }
+
+      const observationsFilterWithComments =
+        observationsCommentFilterResult.filterState;
+
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
@@ -269,8 +315,8 @@ export const getDatabaseReadStreamPaginated = async ({
           const distinctScoreNames = await getDistinctScoreNames({
             projectId,
             cutoffCreatedAt,
-            filter: filter
-              ? [...filter, createdAtCutoffFilterCh]
+            filter: observationsFilterWithComments
+              ? [...observationsFilterWithComments, createdAtCutoffFilterCh]
               : [createdAtCutoffFilterCh],
             isTimestampFilter: isGenerationTimestampFilter,
             clickhouseConfigs,
@@ -285,8 +331,8 @@ export const getDatabaseReadStreamPaginated = async ({
             projectId,
             limit: pageSize,
             offset: offset,
-            filter: filter
-              ? [...filter, createdAtCutoffFilterCh]
+            filter: observationsFilterWithComments
+              ? [...observationsFilterWithComments, createdAtCutoffFilterCh]
               : [createdAtCutoffFilterCh],
             searchQuery,
             searchType: searchType ?? ["id" as const],
@@ -337,6 +383,26 @@ export const getDatabaseReadStreamPaginated = async ({
       );
     }
     case "traces": {
+      // Apply comment filters before creating the stream
+      // This converts commentCount/commentContent filters to ID-based filters
+      const tracesCommentFilterResult = await applyCommentFiltersToFilterState({
+        filterState: filter ?? [],
+        prisma,
+        projectId,
+        objectType: "TRACE",
+      });
+
+      // If comment filters matched nothing, return empty stream
+      if (tracesCommentFilterResult.hasNoMatches) {
+        return new DatabaseReadStream<unknown>(
+          async () => [],
+          env.BATCH_EXPORT_PAGE_SIZE,
+          rowLimit,
+        );
+      }
+
+      const tracesFilterWithComments = tracesCommentFilterResult.filterState;
+
       let emptyScoreColumns: Record<string, null>;
 
       return new DatabaseReadStream<unknown>(
@@ -344,8 +410,8 @@ export const getDatabaseReadStreamPaginated = async ({
           const distinctScoreNames = await getDistinctScoreNames({
             projectId,
             cutoffCreatedAt,
-            filter: filter
-              ? [...filter, createdAtCutoffFilter]
+            filter: tracesFilterWithComments
+              ? [...tracesFilterWithComments, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
             isTimestampFilter: isTraceTimestampFilter,
             clickhouseConfigs,
@@ -357,8 +423,8 @@ export const getDatabaseReadStreamPaginated = async ({
 
           const traces = await getTracesTable({
             projectId,
-            filter: filter
-              ? [...filter, createdAtCutoffFilter]
+            filter: tracesFilterWithComments
+              ? [...tracesFilterWithComments, createdAtCutoffFilter]
               : [createdAtCutoffFilter],
             searchQuery,
             searchType: searchType ?? ["id" as const],
@@ -372,7 +438,7 @@ export const getDatabaseReadStreamPaginated = async ({
             getTracesTableMetrics({
               projectId,
               filter: [
-                ...(filter ?? []),
+                ...(tracesFilterWithComments ?? []),
                 {
                   type: "stringOptions",
                   operator: "any of",
