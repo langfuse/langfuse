@@ -125,7 +125,14 @@ export function ObservationDetailView({
 
   // Get comments, scores, corrections, and expansion state from contexts
   const { comments, serverScores: scores, corrections } = useTraceData();
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const {
+    formattedExpansion,
+    setFormattedFieldExpansion,
+    jsonExpansion,
+    setJsonFieldExpansion,
+    advancedJsonExpansion,
+    setAdvancedJsonExpansion,
+  } = useJsonExpansion();
   const observationScores = useMemo(
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
@@ -278,11 +285,40 @@ export function ObservationDetailView({
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-              inputExpansionState={expansionState.input}
-              outputExpansionState={expansionState.output}
-              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              inputExpansionState={formattedExpansion.input}
+              outputExpansionState={formattedExpansion.output}
+              metadataExpansionState={formattedExpansion.metadata}
+              onInputExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "input",
+                  exp as Record<string, boolean>,
+                )
+              }
               onOutputExpansionChange={(exp) =>
-                setFieldExpansion("output", exp)
+                setFormattedFieldExpansion(
+                  "output",
+                  exp as Record<string, boolean>,
+                )
+              }
+              onMetadataExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "metadata",
+                  exp as Record<string, boolean>,
+                )
+              }
+              advancedJsonExpansionState={advancedJsonExpansion}
+              onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
+              jsonInputExpanded={jsonExpansion.input}
+              jsonOutputExpanded={jsonExpansion.output}
+              jsonMetadataExpanded={jsonExpansion.metadata}
+              onJsonInputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("input", expanded)
+              }
+              onJsonOutputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("output", expanded)
+              }
+              onJsonMetadataExpandedChange={(expanded) =>
+                setJsonFieldExpansion("metadata", expanded)
               }
               enableInlineComments={true}
               onAddInlineComment={handleAddInlineComment}
