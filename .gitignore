@@ -78,3 +78,6 @@ web/test-results/*
 
 # Refactoring planning files (local only)
 **/.refactor/
+
+# npm lock file (pnpm uses pnpm-lock.yaml)
+package-lock.json
