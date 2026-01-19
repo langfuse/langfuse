@@ -57,7 +57,8 @@ export const ScoresTableCell = ({
   const projectId = useProjectIdFromURL();
   const [copied, setCopied] = React.useState(false);
 
-  const handleCopy = async () => {
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
     if (aggregate.comment) {
       await copyTextToClipboard(aggregate.comment);
       setCopied(true);
