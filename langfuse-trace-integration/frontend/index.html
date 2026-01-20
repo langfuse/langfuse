@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LangFuse Trace 监控集成</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1>🧠 LangFuse Trace 监控</h1>
+        <div class="header-controls">
+          <a href="config.html" class="btn btn-secondary">⚙️ 配置</a>
+          <button id="refreshBtn" class="btn btn-primary">刷新</button>
+          <div class="status-indicator">
+            <span id="statusDot" class="status-dot"></span>
+            <span id="statusText">连接中...</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="filters">
+        <div class="filter-group">
+          <label for="searchInput">搜索:</label>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="搜索 trace 名称或 ID..."
+            class="input"
+          />
+        </div>
+        <div class="filter-group">
+          <label for="traceNameFilter">Trace 名称:</label>
+          <input
+            type="text"
+            id="traceNameFilter"
+            placeholder="输入 trace 名称过滤..."
+            class="input"
+          />
+        </div>
+        <div class="filter-group">
+          <label for="userFilter">用户:</label>
+          <input
+            type="text"
+            id="userFilter"
+            placeholder="用户 ID..."
+            class="input"
+          />
+        </div>
+        <div class="filter-group">
+          <label for="dateFrom">开始时间:</label>
+          <input type="datetime-local" id="dateFrom" class="input" />
+        </div>
+        <div class="filter-group">
+          <label for="dateTo">结束时间:</label>
+          <input type="datetime-local" id="dateTo" class="input" />
+        </div>
+        <button id="applyFiltersBtn" class="btn btn-secondary">应用过滤</button>
+        <button id="clearFiltersBtn" class="btn btn-outline">清除过滤</button>
+      </div>
+
+      <div class="main-content">
+        <div class="traces-section">
+          <h2>Trace 列表</h2>
+          <div
+            id="loadingSpinner"
+            class="loading-spinner"
+            style="display: none"
+          >
+            <div class="spinner"></div>
+            <span>加载中...</span>
+          </div>
+          <div id="tracesList" class="traces-list">
+            <!-- Trace items will be inserted here -->
+          </div>
+          <div class="pagination">
+            <button id="prevBtn" class="btn btn-secondary" disabled>
+              上一页
+            </button>
+            <span id="pageInfo">第 1 页</span>
+            <button id="nextBtn" class="btn btn-secondary">下一页</button>
+          </div>
+        </div>
+
+        <div class="trace-detail-section">
+          <h2>Trace 详情</h2>
+          <div id="traceDetail" class="trace-detail">
+            <div class="no-selection">
+              <p>👈 选择左侧的 trace 查看详情</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="metricsModal" class="modal" style="display: none">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Trace 指标</h3>
+            <button id="closeMetricsBtn" class="close-btn">&times;</button>
+          </div>
+          <div id="metricsContent" class="modal-body">
+            <!-- Metrics content will be inserted here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
