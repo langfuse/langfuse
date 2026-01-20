@@ -8,7 +8,7 @@ import {
   getObservationsTableCount,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
+import { applyCommentFilters } from "@langfuse/shared/src/server";
 
 const GetAllGenerationsInput = GenerationTableOptions.extend({
   ...paginationZod,
