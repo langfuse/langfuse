@@ -7,12 +7,11 @@ import {
   IngestionQueue,
   QueueJobs,
   LangfuseInternalTraceEnvironment,
-  type StorageService,
-  StorageServiceFactory,
   ScoreEventType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { buildEvalScoreSchema, buildEvalMessages } from "./evalExecutionUtils";
+import { getEvalS3StorageClient } from "./s3StorageClient";
 
 /**
  * Result of fetching model configuration.
@@ -125,25 +124,6 @@ export interface EvalExecutionDeps {
   ) => Promise<ModelConfigResult>;
 }
 
-// Singleton S3 client
-let s3StorageServiceClient: StorageService;
-
-function getS3StorageServiceClient(bucketName: string): StorageService {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
-  }
-  return s3StorageServiceClient;
-}
-
 /**
  * Creates the production implementation of eval execution dependencies.
  * This is the default implementation used in production code.
@@ -160,7 +140,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
     uploadScore: async (params) => {
       const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${params.projectId}/score/${params.scoreId}/${params.eventId}.json`;
 
-      await getS3StorageServiceClient(
+      await getEvalS3StorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       ).uploadJson(bucketPath, [
         params.event as unknown as Record<string, unknown>,

@@ -1,25 +1,60 @@
 import { describe, it, expect } from "vitest";
-import { extractObservationVariables } from "./extractObservationVariables";
-import { type ObservationEvent } from "./types";
+import { extractObservationVariables } from "../extractObservationVariables";
+import { type ObservationForEval } from "../types";
 import { type ObservationVariableMapping } from "@langfuse/shared";
 
 describe("extractObservationVariables", () => {
-  const mockObservation: ObservationEvent = {
-    projectId: "project-789",
+  const mockObservation: ObservationForEval = {
+    // Core identifiers
+    id: "obs-123",
     traceId: "trace-456",
-    spanId: "obs-123",
-    startTimeISO: new Date().toISOString(),
-    endTimeISO: new Date().toISOString(),
+    projectId: "project-789",
+    parentObservationId: null,
+
+    // Observation properties
     type: "generation",
     name: "chat-completion",
     environment: "production",
-    version: "v1.0",
-    release: "v2.0.0",
     level: "DEFAULT",
-    statusMessage: undefined,
-    modelName: "gpt-4",
-    modelId: "model-123",
-    modelParameters: { temperature: 0.7 },
+    statusMessage: null,
+    version: "v1.0",
+
+    // Trace-level properties
+    traceName: "my-trace",
+    userId: "user-abc",
+    sessionId: "session-xyz",
+    tags: ["tag1", "tag2"],
+    release: "v2.0.0",
+
+    // Model properties
+    model: "gpt-4",
+    modelParameters: '{"temperature": 0.7}',
+
+    // Prompt properties
+    promptId: null,
+    promptName: null,
+    promptVersion: null,
+
+    // Tool call properties
+    toolDefinitions: { search: '{"description": "Search the web"}' },
+    toolCalls: ['{"name": "search", "args": {"query": "test"}}'],
+    toolCallNames: ["search"],
+
+    // Usage & Cost
+    usageDetails: { input: 100, output: 50 },
+    costDetails: {},
+    providedUsageDetails: {},
+    providedCostDetails: {},
+
+    // Experiment properties
+    experimentId: null,
+    experimentName: null,
+    experimentDescription: null,
+    experimentDatasetId: null,
+    experimentItemId: null,
+    experimentItemExpectedOutput: "expected response",
+
+    // Data fields
     input: JSON.stringify({
       prompt: "Hello, how are you?",
       context: "greeting",
@@ -29,14 +64,6 @@ describe("extractObservationVariables", () => {
       sentiment: "positive",
     }),
     metadata: { userId: "user-123", customField: "custom-value" },
-    userId: "user-abc",
-    sessionId: "session-xyz",
-    tags: ["tag1", "tag2"],
-    providedUsageDetails: {},
-    usageDetails: { input: 100, output: 50 },
-    providedCostDetails: {},
-    costDetails: {},
-    source: "otel",
   };
 
   describe("basic variable extraction", () => {
@@ -106,6 +133,129 @@ describe("extractObservationVariables", () => {
     });
   });
 
+  describe("tool call extraction", () => {
+    it("should extract toolCalls variable", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "tools", selectedColumnId: "toolCalls" },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("tools");
+      expect(result[0].value).toBe(JSON.stringify(mockObservation.toolCalls));
+    });
+
+    it("should extract toolDefinitions variable", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "definitions",
+          selectedColumnId: "toolDefinitions",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("definitions");
+      expect(result[0].value).toBe(
+        JSON.stringify(mockObservation.toolDefinitions),
+      );
+    });
+  });
+
+  describe("model extraction", () => {
+    it("should extract model variable", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "modelName", selectedColumnId: "model" },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("modelName");
+      expect(result[0].value).toBe("gpt-4");
+    });
+
+    it("should extract modelParameters variable", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "params", selectedColumnId: "modelParameters" },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("params");
+      expect(result[0].value).toBe(mockObservation.modelParameters);
+    });
+  });
+
+  describe("experiment extraction", () => {
+    it("should extract experimentItemExpectedOutput variable", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "expected",
+          selectedColumnId: "experimentItemExpectedOutput",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("expected");
+      expect(result[0].value).toBe("expected response");
+    });
+  });
+
+  describe("usage extraction", () => {
+    it("should extract usageDetails variable", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "usage", selectedColumnId: "usageDetails" },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("usage");
+      expect(result[0].value).toBe(
+        JSON.stringify(mockObservation.usageDetails),
+      );
+    });
+
+    it("should extract costDetails variable", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "cost", selectedColumnId: "costDetails" },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].var).toBe("cost");
+      expect(result[0].value).toBe(JSON.stringify(mockObservation.costDetails));
+    });
+  });
+
   describe("environment extraction", () => {
     it("should include environment on the first variable", () => {
       const variableMapping: ObservationVariableMapping[] = [
@@ -123,9 +273,9 @@ describe("extractObservationVariables", () => {
     });
 
     it("should not include environment if observation has no environment", () => {
-      const obsWithoutEnv: ObservationEvent = {
+      const obsWithoutEnv: ObservationForEval = {
         ...mockObservation,
-        environment: undefined,
+        environment: "default",
       };
 
       const variableMapping: ObservationVariableMapping[] = [
@@ -137,7 +287,8 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].environment).toBeUndefined();
+      // "default" is truthy, so it should be included
+      expect(result[0].environment).toBe("default");
     });
   });
 
@@ -223,7 +374,7 @@ describe("extractObservationVariables", () => {
     });
 
     it("should handle null/undefined column values as empty strings", () => {
-      const observationWithNulls: ObservationEvent = {
+      const observationWithNulls: ObservationForEval = {
         ...mockObservation,
         input: null as unknown as string,
         output: undefined as unknown as string,
@@ -262,7 +413,7 @@ describe("extractObservationVariables", () => {
     });
 
     it("should handle non-JSON string column with JSON selector", () => {
-      const observationWithPlainText: ObservationEvent = {
+      const observationWithPlainText: ObservationForEval = {
         ...mockObservation,
         input: "plain text, not JSON",
       };

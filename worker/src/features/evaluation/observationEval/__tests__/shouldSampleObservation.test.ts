@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shouldSampleObservation } from "./shouldSampleObservation";
+import { shouldSampleObservation } from "../shouldSampleObservation";
 
 describe("shouldSampleObservation", () => {
   describe("edge cases", () => {

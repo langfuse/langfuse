@@ -1,15 +1,14 @@
 import {
-  type ObservationEvent,
+  type ObservationForEval,
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
 } from "./types";
 import { shouldSampleObservation } from "./shouldSampleObservation";
-import { mapObservationFilterColumn } from "./mapObservationFilterColumn";
 import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 
 interface ScheduleObservationEvalsParams {
-  observation: ObservationEvent;
+  observation: ObservationForEval;
   configs: ObservationEvalConfig[];
   schedulerDeps: ObservationEvalSchedulerDeps;
 }
@@ -23,7 +22,7 @@ interface ScheduleObservationEvalsParams {
  *
  * The observation is uploaded to S3 once (not per config) for efficiency.
  *
- * @param params.observation - The observation event from processToEvent()
+ * @param params.observation - The ObservationForEval (converted from processToEvent() or ClickHouse)
  * @param params.configs - Pre-fetched observation eval configs for this project
  * @param params.schedulerDeps - Dependencies for scheduling (S3, job execution, queue)
  */
@@ -40,7 +39,7 @@ export async function scheduleObservationEvals(
   // Upload observation to S3 once (not per config)
   const observationS3Path = await schedulerDeps.uploadObservationToS3({
     projectId: observation.projectId,
-    observationId: observation.spanId,
+    observationId: observation.id,
     data: observation,
   });
 
@@ -57,7 +56,7 @@ export async function scheduleObservationEvals(
       // Log error but continue with other configs
       logger.error("Failed to process observation eval config", {
         configId: config.id,
-        observationId: observation.spanId,
+        observationId: observation.id,
         projectId: observation.projectId,
         error,
       });
@@ -66,7 +65,7 @@ export async function scheduleObservationEvals(
 }
 
 interface ProcessConfigParams {
-  observation: ObservationEvent;
+  observation: ObservationForEval;
   config: ObservationEvalConfig;
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
@@ -80,7 +79,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
   if (!filterMatch) {
     logger.debug("Observation does not match eval config filter", {
       configId: config.id,
-      observationId: observation.spanId,
+      observationId: observation.id,
     });
     return;
   }
@@ -90,7 +89,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
   if (!shouldSampleObservation({ samplingRate })) {
     logger.debug("Observation sampled out for eval config", {
       configId: config.id,
-      observationId: observation.spanId,
+      observationId: observation.id,
       samplingRate,
     });
     return;
@@ -100,13 +99,13 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
   const existingJob = await schedulerDeps.findExistingJobExecution({
     projectId: observation.projectId,
     jobConfigurationId: config.id,
-    jobInputObservationId: observation.spanId,
+    jobInputObservationId: observation.id,
   });
 
   if (existingJob) {
     logger.debug("Job already exists for observation and config", {
       configId: config.id,
-      observationId: observation.spanId,
+      observationId: observation.id,
       existingJobId: existingJob.id,
     });
     return;
@@ -117,7 +116,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
     projectId: observation.projectId,
     jobConfigurationId: config.id,
     jobInputTraceId: observation.traceId,
-    jobInputObservationId: observation.spanId,
+    jobInputObservationId: observation.id,
     status: "PENDING",
   });
 
@@ -131,7 +130,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
 
   logger.debug("Scheduled observation eval job", {
     configId: config.id,
-    observationId: observation.spanId,
+    observationId: observation.id,
     jobExecutionId: jobExecution.id,
   });
 }
@@ -141,7 +140,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
  * Returns true if observation matches all filter conditions (or filter is empty).
  */
 function evaluateFilter(
-  observation: ObservationEvent,
+  observation: ObservationForEval,
   config: ObservationEvalConfig,
 ): boolean {
   const filterConditions = config.filter as FilterState;
@@ -156,10 +155,10 @@ function evaluateFilter(
   }
 
   // Use InMemoryFilterService to evaluate filter
+  // Column IDs are typed as keyof ObservationForEval, so direct property access is safe
   return InMemoryFilterService.evaluateFilter(
     observation,
     filterConditions,
-    (obs, columnId) =>
-      mapObservationFilterColumn({ observation: obs, columnId }),
+    (obs, columnId) => obs[columnId as keyof ObservationForEval],
   );
 }

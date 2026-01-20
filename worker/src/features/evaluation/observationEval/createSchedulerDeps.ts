@@ -4,30 +4,10 @@ import {
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   QueueName,
-  StorageService,
-  StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import { env } from "../../../env";
+import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationEvalSchedulerDeps } from "./types";
-
-let s3StorageServiceClient: StorageService;
-
-function getS3StorageServiceClient(bucketName: string): StorageService {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
-  }
-
-  return s3StorageServiceClient;
-}
 
 /**
  * Creates production dependencies for the observation eval scheduler.
@@ -64,7 +44,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
 
     uploadObservationToS3: async (params) => {
       const path = `observations/${params.projectId}/${params.observationId}.json`;
-      const s3Client = getS3StorageServiceClient(
+      const s3Client = getEvalS3StorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
       await s3Client.uploadJson(path, [params.data as Record<string, unknown>]);

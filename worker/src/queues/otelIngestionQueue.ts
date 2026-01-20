@@ -28,6 +28,7 @@ import {
   fetchObservationEvalConfigs,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
+  convertEventInputToObservationForEval,
 } from "../features/evaluation/observationEval";
 
 /**
@@ -279,16 +280,20 @@ export const otelIngestionQueueProcessor: Processor = async (
         if (observationEvalConfigs.length > 0) {
           const schedulerDeps = createObservationEvalSchedulerDeps();
 
-          for (const observationEvent of enrichedEvents) {
+          for (const eventInput of enrichedEvents) {
             try {
+              // Convert EventInput to ObservationForEval (validated, canonical type)
+              const observation =
+                convertEventInputToObservationForEval(eventInput);
+
               await scheduleObservationEvals({
-                observation: observationEvent,
+                observation,
                 configs: observationEvalConfigs,
                 schedulerDeps,
               });
             } catch (evalError) {
               logger.warn(
-                `Failed to schedule observation eval for ${observationEvent.spanId}`,
+                `Failed to schedule observation eval for ${eventInput.spanId}`,
                 evalError,
               );
             }

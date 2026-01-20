@@ -2,12 +2,9 @@ import { z } from "zod/v4";
 import {
   LLMAsJudgeExecutionEventSchema,
   logger,
-  StorageService,
-  StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 import {
   observationVariableMappingList,
-  variableMappingList,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -15,25 +12,29 @@ import { env } from "../../../env";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { extractObservationVariables } from "./extractObservationVariables";
 import { executeLLMAsJudgeEvaluation } from "../evalService";
-import { type ObservationEvent } from "./types";
+import { getEvalS3StorageClient } from "../s3StorageClient";
+import { type ObservationForEval } from "./types";
 
-let s3StorageServiceClient: StorageService;
+/**
+ * Dependencies for processing observation evals.
+ * Allows S3 operations to be injected for testability.
+ */
+export interface ObservationEvalProcessorDeps {
+  downloadObservationFromS3: (path: string) => Promise<string>;
+}
 
-function getS3StorageServiceClient(bucketName: string): StorageService {
-  if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
-  }
-
-  return s3StorageServiceClient;
+/**
+ * Creates production dependencies for the observation eval processor.
+ */
+export function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
+  return {
+    downloadObservationFromS3: async (path: string) => {
+      const s3Client = getEvalS3StorageClient(
+        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+      );
+      return s3Client.download(path);
+    },
+  };
 }
 
 /**
@@ -47,8 +48,10 @@ function getS3StorageServiceClient(bucketName: string): StorageService {
  */
 export async function processObservationEval({
   event,
+  deps = createObservationEvalProcessorDeps(),
 }: {
   event: z.infer<typeof LLMAsJudgeExecutionEventSchema>;
+  deps?: ObservationEvalProcessorDeps;
 }): Promise<void> {
   logger.debug(
     `Processing observation eval job ${event.jobExecutionId} for project ${event.projectId}`,
@@ -110,14 +113,12 @@ export async function processObservationEval({
   }
 
   // Download observation data from S3
-  const s3Client = getS3StorageServiceClient(
-    env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-  );
-
-  let observationData: ObservationEvent;
+  let observationData: ObservationForEval;
   try {
-    const downloadedString = await s3Client.download(event.observationS3Path);
-    const parsed = JSON.parse(downloadedString) as ObservationEvent[];
+    const downloadedString = await deps.downloadObservationFromS3(
+      event.observationS3Path,
+    );
+    const parsed = JSON.parse(downloadedString) as ObservationForEval[];
 
     if (!parsed || parsed.length === 0) {
       throw new Error("Empty observation data from S3");
@@ -131,7 +132,7 @@ export async function processObservationEval({
   }
 
   logger.debug(
-    `Downloaded observation data for job ${job.id}: spanId=${observationData.spanId}`,
+    `Downloaded observation data for job ${job.id}: id=${observationData.id}`,
   );
 
   // Extract variables from observation

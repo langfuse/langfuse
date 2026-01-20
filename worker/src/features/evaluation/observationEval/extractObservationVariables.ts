@@ -1,10 +1,10 @@
-import { type ObservationEvent } from "./types";
+import { type ObservationForEval } from "./types";
 import { type ObservationVariableMapping } from "@langfuse/shared";
 import { JSONPath } from "jsonpath-plus";
 import { logger } from "@langfuse/shared/src/server";
 
 /**
- * Extracted variable from trace/observation data for LLM-as-a-judge evaluation.
+ * Extracted variable from observation data for LLM-as-a-judge evaluation.
  */
 export interface ExtractedVariable {
   var: string;
@@ -13,7 +13,7 @@ export interface ExtractedVariable {
 }
 
 interface ExtractVariablesParams {
-  observation: ObservationEvent;
+  observation: ObservationForEval;
   variableMapping: ObservationVariableMapping[];
 }
 
@@ -21,9 +21,12 @@ interface ExtractVariablesParams {
  * Extracts variable values from an observation based on the variable mapping.
  *
  * For each mapping:
- * 1. Gets the value from the observation based on selectedColumnId
+ * 1. Gets the value from the observation based on selectedColumnId (direct property access)
  * 2. Optionally applies JSON selector if provided
  * 3. Returns an array of extracted variables compatible with executeLLMAsJudgeEvaluation()
+ *
+ * Column IDs are typed as keyof ObservationForEval (see observationEvalVariableColumns),
+ * ensuring compile-time safety when adding new columns.
  *
  * The first extracted variable includes the observation's environment.
  */
@@ -35,10 +38,9 @@ export function extractObservationVariables(
   let environmentIncluded = false;
 
   for (const mapping of variableMapping) {
-    const rawValue = getObservationColumnValue({
-      observation,
-      columnId: mapping.selectedColumnId,
-    });
+    // Direct property access - columnId is typed as keyof ObservationForEval
+    const rawValue =
+      observation[mapping.selectedColumnId as keyof ObservationForEval];
 
     const extractedValue = mapping.jsonSelector
       ? applyJsonSelector({ value: rawValue, selector: mapping.jsonSelector })
@@ -59,26 +61,6 @@ export function extractObservationVariables(
   }
 
   return variables;
-}
-
-interface GetColumnValueParams {
-  observation: ObservationEvent;
-  columnId: string;
-}
-
-/**
- * Maps column IDs to observation field values for variable extraction.
- */
-function getObservationColumnValue(params: GetColumnValueParams): unknown {
-  const { observation, columnId } = params;
-
-  const mapping: Record<string, unknown> = {
-    input: observation.input,
-    output: observation.output,
-    metadata: observation.metadata,
-  };
-
-  return mapping[columnId];
 }
 
 interface ApplyJsonSelectorParams {

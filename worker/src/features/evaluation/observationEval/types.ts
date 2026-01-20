@@ -1,12 +1,22 @@
-import { type PrismaClient, type Prisma } from "@langfuse/shared/src/db";
-import { type EventInput } from "../../../services/IngestionService";
+import { type Prisma } from "@langfuse/shared/src/db";
 
 /**
- * Re-export EventInput as the observation type for eval scheduling.
- * This type comes from processToEvent() and includes all trace-level
- * attributes (userId, sessionId, tags, release) needed for filtering.
+ * Re-export ObservationForEval as the canonical observation type for eval operations.
+ * This type is used for both filtering and variable extraction.
+ *
+ * @see packages/shared/src/features/evals/observationForEval.ts for schema definition
  */
-export type ObservationEvent = EventInput;
+export {
+  type ObservationForEval,
+  observationForEvalSchema,
+  observationEvalFilterColumns,
+  observationEvalVariableColumns,
+} from "@langfuse/shared";
+
+/**
+ * Re-export the EventInput converter for use in the OTEL ingestion queue.
+ */
+export { convertEventInputToObservationForEval } from "./convertEventInputToObservationForEval";
 
 /**
  * Observation eval job configuration.
@@ -59,29 +69,5 @@ export interface ObservationEvalSchedulerDeps {
     projectId: string;
     observationS3Path: string;
     delay: number;
-  }) => Promise<void>;
-}
-
-/**
- * Dependencies for executing observation evals.
- * The executor downloads observation data, calls the LLM, and creates scores.
- */
-export interface ObservationEvalExecutorDeps {
-  prisma: PrismaClient;
-  downloadFromS3: (params: { path: string }) => Promise<unknown>;
-  callLLM: (params: {
-    prompt: string;
-    model: string;
-    provider: string;
-  }) => Promise<{ score: number; reasoning: string }>;
-  createScore: (params: {
-    id: string;
-    projectId: string;
-    traceId: string;
-    observationId: string;
-    name: string;
-    value: number;
-    comment: string;
-    source: string;
   }) => Promise<void>;
 }

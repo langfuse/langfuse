@@ -1,42 +1,69 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { scheduleObservationEvals } from "./scheduleObservationEvals";
+import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import {
-  type ObservationEvent,
+  type ObservationForEval,
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
-} from "./types";
+} from "../types";
 import { type Prisma } from "@langfuse/shared/src/db";
 
 describe("scheduleObservationEvals", () => {
   const createMockObservation = (
-    overrides: Partial<ObservationEvent> = {},
-  ): ObservationEvent => ({
-    projectId: "project-789",
+    overrides: Partial<ObservationForEval> = {},
+  ): ObservationForEval => ({
+    // Core identifiers
+    id: "obs-123",
     traceId: "trace-456",
-    spanId: "obs-123",
-    startTimeISO: new Date().toISOString(),
-    endTimeISO: new Date().toISOString(),
+    projectId: "project-789",
+    parentObservationId: null,
+
+    // Observation properties
     type: "generation",
     name: "chat-completion",
     environment: "production",
-    version: "v1.0",
-    release: "v2.0.0",
     level: "DEFAULT",
-    statusMessage: undefined,
-    modelName: "gpt-4",
-    modelId: "model-123",
-    modelParameters: { temperature: 0.7 },
-    input: '{"prompt": "Hello"}',
-    output: '{"response": "World"}',
-    metadata: { key1: "value1" },
+    statusMessage: null,
+    version: "v1.0",
+
+    // Trace-level properties
+    traceName: "my-trace",
     userId: "user-abc",
     sessionId: "session-xyz",
     tags: ["tag1", "tag2"],
-    providedUsageDetails: {},
+    release: "v2.0.0",
+
+    // Model properties
+    model: "gpt-4",
+    modelParameters: '{"temperature": 0.7}',
+
+    // Prompt properties
+    promptId: null,
+    promptName: null,
+    promptVersion: null,
+
+    // Tool call properties
+    toolDefinitions: {},
+    toolCalls: [],
+    toolCallNames: [],
+
+    // Usage & Cost
     usageDetails: { input: 100, output: 50 },
-    providedCostDetails: {},
     costDetails: {},
-    source: "otel",
+    providedUsageDetails: {},
+    providedCostDetails: {},
+
+    // Experiment properties
+    experimentId: null,
+    experimentName: null,
+    experimentDescription: null,
+    experimentDatasetId: null,
+    experimentItemId: null,
+    experimentItemExpectedOutput: null,
+
+    // Data fields
+    input: '{"prompt": "Hello"}',
+    output: '{"response": "World"}',
+    metadata: { key1: "value1" },
     ...overrides,
   });
 

@@ -212,90 +212,6 @@ export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 
-// Columns for observation-based eval filtering.
-// These are evaluated in-memory against the processed observation record.
-// Includes both observation-level fields and trace-level fields extracted from OTEL attributes.
-export const evalObservationFilterCols: ColumnDefinition[] = [
-  // Observation-level fields
-  {
-    name: "Type",
-    id: "type",
-    type: "stringOptions",
-    internal: "type",
-    options: [{ value: "SPAN" }, { value: "GENERATION" }, { value: "EVENT" }],
-  },
-  {
-    name: "Name",
-    id: "name",
-    type: "stringOptions",
-    internal: "name",
-    options: [], // to be filled in at runtime
-    nullable: true,
-  },
-  {
-    name: "Model",
-    id: "model",
-    type: "stringOptions",
-    internal: "model",
-    options: [], // to be filled in at runtime
-    nullable: true,
-  },
-  {
-    name: "Level",
-    id: "level",
-    type: "stringOptions",
-    internal: "level",
-    options: [
-      { value: "DEBUG" },
-      { value: "DEFAULT" },
-      { value: "WARNING" },
-      { value: "ERROR" },
-    ] as { value: ObservationLevelType }[],
-  },
-  {
-    name: "Metadata",
-    id: "metadata",
-    type: "stringObject",
-    internal: "metadata",
-  },
-  // Trace-level fields (extracted from OTEL attributes)
-  {
-    name: "Trace Name",
-    id: "trace_name",
-    type: "stringOptions",
-    internal: "trace_name",
-    options: [], // to be filled in at runtime
-    nullable: true,
-  },
-  {
-    name: "User ID",
-    id: "user_id",
-    type: "string",
-    internal: "user_id",
-    nullable: true,
-  },
-  {
-    name: "Session ID",
-    id: "session_id",
-    type: "string",
-    internal: "session_id",
-    nullable: true,
-  },
-  {
-    name: "Tags",
-    id: "tags",
-    type: "arrayOptions",
-    internal: "tags",
-    options: [], // to be filled in at runtime
-  },
-  {
-    name: "Release",
-    id: "release",
-    type: "string",
-    internal: "release",
-    nullable: true,
-  },
-];
 export type TraceOptions = {
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
@@ -305,13 +221,6 @@ export type TraceOptions = {
 };
 export type DatasetOptions = {
   datasetId: Array<SingleValueOption>;
-};
-
-export type ObservationFilterOptions = {
-  name?: Array<SingleValueOption>;
-  model?: Array<SingleValueOption>;
-  trace_name?: Array<SingleValueOption>;
-  tags?: Array<SingleValueOption>;
 };
 
 // Used only for dataset evaluator, not on dataset table
@@ -346,27 +255,6 @@ export function tracesTableColsWithOptions(
     }
     if (col.id === "score_categories") {
       return formatColumnOptions(col, options?.score_categories ?? []);
-    }
-    return col;
-  });
-}
-
-export function observationFilterColsWithOptions(
-  options?: ObservationFilterOptions,
-  cols: ColumnDefinition[] = evalObservationFilterCols,
-): ColumnDefinition[] {
-  return cols.map((col) => {
-    if (col.id === "name") {
-      return formatColumnOptions(col, options?.name ?? []);
-    }
-    if (col.id === "model") {
-      return formatColumnOptions(col, options?.model ?? []);
-    }
-    if (col.id === "trace_name") {
-      return formatColumnOptions(col, options?.trace_name ?? []);
-    }
-    if (col.id === "tags") {
-      return formatColumnOptions(col, options?.tags ?? []);
     }
     return col;
   });
