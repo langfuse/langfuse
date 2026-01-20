@@ -30,6 +30,7 @@ const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   observations: "OBSERVATION",
   sessions: "SESSION",
 };
+import { getEventsStream } from "../database-read-stream/event-stream";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
