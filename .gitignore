@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+
+# Windows special files
+nul
 /.pnp
 .pnp.js
 migrate
@@ -78,3 +81,6 @@ web/test-results/*
 
 # Refactoring planning files (local only)
 **/.refactor/
+
+# project specific ignores
+.langfuse-trace-integration
