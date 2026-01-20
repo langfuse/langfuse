@@ -7,6 +7,7 @@ import {
   getTracesForAnalyticsIntegrations,
   getGenerationsForAnalyticsIntegrations,
   getScoresForAnalyticsIntegrations,
+  getEventsForAnalyticsIntegrations,
   getCurrentSpan,
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
@@ -14,6 +15,7 @@ import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
   transformScoreForPostHog,
+  transformEventForPostHog,
 } from "./transformers";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
@@ -155,6 +157,48 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
   );
 };
 
+const processPostHogEvents = async (config: PostHogExecutionConfig) => {
+  const events = getEventsForAnalyticsIntegrations(
+    config.projectId,
+    config.minTimestamp,
+    config.maxTimestamp,
+  );
+
+  logger.info(`Sending events for project ${config.projectId} to PostHog`);
+
+  // Send each via PostHog SDK
+  const posthog = new PostHog(config.decryptedPostHogApiKey, {
+    host: config.postHogHost,
+    ...postHogSettings,
+  });
+
+  posthog.on("error", (error) => {
+    logger.error(
+      `Error sending events to PostHog for project ${config.projectId}: ${error}`,
+    );
+    throw new Error(
+      `Error sending events to PostHog for project ${config.projectId}: ${error}`,
+    );
+  });
+
+  let count = 0;
+  for await (const analyticsEvent of events) {
+    count++;
+    const event = transformEventForPostHog(analyticsEvent, config.projectId);
+    posthog.capture(event);
+    if (count % 10000 === 0) {
+      await posthog.flush();
+      logger.info(
+        `Sent ${count} events to PostHog for project ${config.projectId}`,
+      );
+    }
+  }
+  await posthog.flush();
+  logger.info(
+    `Sent ${count} events to PostHog for project ${config.projectId}`,
+  );
+};
+
 export const handlePostHogIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.PostHogIntegrationProcessingQueue]>,
 ) => {
@@ -209,6 +253,7 @@ export const handlePostHogIntegrationProjectJob = async (
     processPostHogTraces(executionConfig),
     processPostHogGenerations(executionConfig),
     processPostHogScores(executionConfig),
+    processPostHogEvents(executionConfig),
   ]);
 
   // Update the last run information for the postHogIntegration record
