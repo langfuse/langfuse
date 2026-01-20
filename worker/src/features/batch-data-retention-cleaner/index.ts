@@ -38,7 +38,7 @@ interface ProjectCount {
  * project retention settings.
  *
  * Each invocation processes one table (traces, observations, scores, events).
- * BullMQ handles schedulling. Normally, there shouldn't be more than one job
+ * BullMQ handles scheduling. Normally, there shouldn't be more than one job
  * for a given table's at a time.
  *
  * Flow:
