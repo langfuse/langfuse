@@ -211,6 +211,11 @@ export function CodeMirrorEditor({
           "&.cm-focused": {
             outline: "none",
           },
+          // Override global overscroll-behavior-y: none to allow scroll propagation
+          // to parent. Required for Chrome 144+ (see globals.css).
+          ".cm-scroller": {
+            overscrollBehavior: "auto",
+          },
         }),
         // Hide gutter when lineNumbers is false
         // Fix missing gutter border
@@ -249,7 +254,9 @@ export function CodeMirrorEditor({
       }}
       onBlur={onBlur}
       className={cn(
-        "overflow-hidden overflow-y-auto rounded-md border text-xs",
+        // overscroll-y-auto overrides global overscroll-behavior-y: none to allow
+        // scroll propagation to parent. Required for Chrome 144+ (see globals.css).
+        "overflow-hidden overflow-y-auto overscroll-y-auto rounded-md border text-xs",
         className,
       )}
       editable={editable}
