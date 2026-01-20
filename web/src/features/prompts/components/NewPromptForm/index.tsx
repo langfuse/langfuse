@@ -320,7 +320,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                 </TabsList>
               ) : null}
               {hadDraft && (
-                <p className="-mt-2 mb-1 text-right text-xs text-muted-foreground">
+                <p
+                  className={`mb-1 text-right text-xs text-muted-foreground ${initialPrompt ? "-mt-2" : "mt-1"}`}
+                >
                   Draft restored.{" "}
                   <button
                     type="button"
