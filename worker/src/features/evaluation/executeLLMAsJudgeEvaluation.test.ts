@@ -117,6 +117,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
         config: mockJobConfiguration,
         template: mockEvalTemplate,
         extractedVariables,
+        environment: "production",
         deps,
       });
 
@@ -189,6 +190,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
         config: mockJobConfiguration,
         template: mockEvalTemplate,
         extractedVariables,
+        environment: "production",
         deps,
       });
 
@@ -203,7 +205,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       );
     });
 
-    it("should use environment from variables", async () => {
+    it("should use provided environment", async () => {
       const uploadScore = vi.fn();
       const deps = createMockEvalExecutionDeps({
         fetchModelConfig: vi.fn().mockResolvedValue({
@@ -230,9 +232,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
         job: mockJobExecution,
         config: mockJobConfiguration,
         template: mockEvalTemplate,
-        extractedVariables: [
-          { var: "output", value: "test", environment: "staging" },
-        ],
+        extractedVariables: [{ var: "output", value: "test" }],
+        environment: "staging",
         deps,
       });
 
@@ -247,7 +248,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       );
     });
 
-    it("should default to 'default' environment when not provided", async () => {
+    it("should use 'default' environment when explicitly passed", async () => {
       const uploadScore = vi.fn();
       const deps = createMockEvalExecutionDeps({
         fetchModelConfig: vi.fn().mockResolvedValue({
@@ -274,7 +275,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
         job: mockJobExecution,
         config: mockJobConfiguration,
         template: mockEvalTemplate,
-        extractedVariables: [{ var: "output", value: "test" }], // no environment
+        extractedVariables: [{ var: "output", value: "test" }],
+        environment: "default",
         deps,
       });
 
@@ -307,6 +309,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           config: mockJobConfiguration,
           template: mockEvalTemplate,
           extractedVariables,
+          environment: "production",
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
@@ -328,6 +331,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           config: mockJobConfiguration,
           template: templateWithBadSchema,
           extractedVariables,
+          environment: "production",
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
@@ -361,6 +365,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           config: mockJobConfiguration,
           template: mockEvalTemplate,
           extractedVariables,
+          environment: "production",
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
@@ -391,6 +396,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           config: mockJobConfiguration,
           template: mockEvalTemplate,
           extractedVariables,
+          environment: "production",
           deps,
         }),
       ).rejects.toThrow(UnrecoverableError);
@@ -424,6 +430,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           config: mockJobConfiguration,
           template: mockEvalTemplate,
           extractedVariables,
+          environment: "production",
           deps,
         }),
       ).rejects.toThrow("Failed to write score");
@@ -458,6 +465,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           config: mockJobConfiguration,
           template: mockEvalTemplate,
           extractedVariables,
+          environment: "production",
           deps,
         }),
       ).rejects.toThrow("Failed to write score");
@@ -500,6 +508,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
         config: mockJobConfiguration,
         template: templateWithBadPrompt,
         extractedVariables,
+        environment: "production",
         deps,
       });
 

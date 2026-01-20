@@ -5,7 +5,7 @@ import {
 } from "./types";
 import { shouldSampleObservation } from "./shouldSampleObservation";
 import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
-import { type FilterState } from "@langfuse/shared";
+import { JobExecutionStatus, type FilterState } from "@langfuse/shared";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -53,7 +53,6 @@ export async function scheduleObservationEvals(
         schedulerDeps,
       });
     } catch (error) {
-      // Log error but continue with other configs
       logger.error("Failed to process observation eval config", {
         configId: config.id,
         observationId: observation.id,
@@ -75,12 +74,13 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
   const { observation, config, observationS3Path, schedulerDeps } = params;
 
   // Step 1: Evaluate filter
-  const filterMatch = evaluateFilter(observation, config);
-  if (!filterMatch) {
+  const isTargeted = evaluateFilter(observation, config);
+  if (!isTargeted) {
     logger.debug("Observation does not match eval config filter", {
       configId: config.id,
       observationId: observation.id,
     });
+
     return;
   }
 
@@ -92,6 +92,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
       observationId: observation.id,
       samplingRate,
     });
+
     return;
   }
 
@@ -108,6 +109,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
       observationId: observation.id,
       existingJobId: existingJob.id,
     });
+
     return;
   }
 
@@ -117,7 +119,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
     jobConfigurationId: config.id,
     jobInputTraceId: observation.traceId,
     jobInputObservationId: observation.id,
-    status: "PENDING",
+    status: JobExecutionStatus.PENDING,
   });
 
   // Step 5: Enqueue eval job

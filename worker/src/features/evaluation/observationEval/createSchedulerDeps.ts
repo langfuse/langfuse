@@ -16,12 +16,19 @@ import { type ObservationEvalSchedulerDeps } from "./types";
 export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDeps {
   return {
     createJobExecution: async (params) => {
+      const {
+        projectId,
+        jobConfigurationId,
+        jobInputTraceId,
+        jobInputObservationId,
+      } = params;
+
       const jobExecution = await prisma.jobExecution.create({
         data: {
-          projectId: params.projectId,
-          jobConfigurationId: params.jobConfigurationId,
-          jobInputTraceId: params.jobInputTraceId,
-          jobInputObservationId: params.jobInputObservationId,
+          projectId,
+          jobConfigurationId,
+          jobInputTraceId,
+          jobInputObservationId,
           status: params.status as "PENDING",
         },
       });
@@ -30,11 +37,13 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
     },
 
     findExistingJobExecution: async (params) => {
+      const { projectId, jobConfigurationId, jobInputObservationId } = params;
+
       const existing = await prisma.jobExecution.findFirst({
         where: {
-          projectId: params.projectId,
-          jobConfigurationId: params.jobConfigurationId,
-          jobInputObservationId: params.jobInputObservationId,
+          projectId,
+          jobConfigurationId,
+          jobInputObservationId,
         },
         select: { id: true },
       });
@@ -43,11 +52,12 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
     },
 
     uploadObservationToS3: async (params) => {
-      const path = `observations/${params.projectId}/${params.observationId}.json`;
+      const path = `evals/${params.projectId}/observations/${params.observationId}.json`;
       const s3Client = getEvalS3StorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
-      await s3Client.uploadJson(path, [params.data as Record<string, unknown>]);
+
+      await s3Client.uploadJson(path, params.data);
 
       return path;
     },

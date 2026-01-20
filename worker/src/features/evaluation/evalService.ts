@@ -29,6 +29,7 @@ import {
   mapDatasetRunItemFilterColumn,
   tableColumnsToSqlFilterAndPrefix,
   LangfuseInternalTraceEnvironment,
+  DEFAULT_TRACE_ENVIRONMENT,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -655,6 +656,7 @@ export async function executeLLMAsJudgeEvaluation({
   config,
   template,
   extractedVariables,
+  environment,
   deps = createProductionEvalExecutionDeps(),
 }: {
   projectId: string;
@@ -663,16 +665,12 @@ export async function executeLLMAsJudgeEvaluation({
   config: JobConfiguration;
   template: EvalTemplate;
   extractedVariables: ExtractedVariable[];
+  environment: string;
   deps?: EvalExecutionDeps;
 }): Promise<void> {
   logger.debug(
     `Executing LLM-as-judge evaluation for job ${jobExecutionId} in project ${projectId}`,
   );
-
-  logger.debug(`Executing eval job ${job.id} with template ${template.id}`);
-
-  // Get environment from extracted variables
-  const environment = getEnvironmentFromVariables(extractedVariables);
 
   // Compile the prompt with extracted variables
   let prompt: string;
@@ -776,7 +774,7 @@ export async function executeLLMAsJudgeEvaluation({
     scoreName: config.scoreName,
     value: parsedLLMOutput.data.score,
     reasoning: parsedLLMOutput.data.reasoning,
-    environment: environment ?? "default",
+    environment,
     executionTraceId,
     metadata: executionMetadata,
   });
@@ -913,6 +911,9 @@ export const evaluate = async ({
     config,
     template,
     extractedVariables,
+    environment:
+      getEnvironmentFromVariables(extractedVariables) ??
+      DEFAULT_TRACE_ENVIRONMENT,
   });
 };
 

@@ -282,7 +282,6 @@ export const otelIngestionQueueProcessor: Processor = async (
 
           for (const eventInput of enrichedEvents) {
             try {
-              // Convert EventInput to ObservationForEval (validated, canonical type)
               const observation =
                 convertEventInputToObservationForEval(eventInput);
 

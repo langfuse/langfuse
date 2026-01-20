@@ -60,7 +60,7 @@ export interface ObservationEvalSchedulerDeps {
   uploadObservationToS3: (params: {
     projectId: string;
     observationId: string;
-    data: unknown;
+    data: Record<string, unknown>;
   }) => Promise<string>;
 
   /** Enqueue the eval job for execution */

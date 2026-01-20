@@ -256,42 +256,6 @@ describe("extractObservationVariables", () => {
     });
   });
 
-  describe("environment extraction", () => {
-    it("should include environment on the first variable", () => {
-      const variableMapping: ObservationVariableMapping[] = [
-        { templateVariable: "input", selectedColumnId: "input" },
-        { templateVariable: "output", selectedColumnId: "output" },
-      ];
-
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
-
-      expect(result[0].environment).toBe("production");
-      expect(result[1].environment).toBeUndefined();
-    });
-
-    it("should not include environment if observation has no environment", () => {
-      const obsWithoutEnv: ObservationForEval = {
-        ...mockObservation,
-        environment: "default",
-      };
-
-      const variableMapping: ObservationVariableMapping[] = [
-        { templateVariable: "input", selectedColumnId: "input" },
-      ];
-
-      const result = extractObservationVariables({
-        observation: obsWithoutEnv,
-        variableMapping,
-      });
-
-      // "default" is truthy, so it should be included
-      expect(result[0].environment).toBe("default");
-    });
-  });
-
   describe("JSON selector extraction", () => {
     it("should apply JSON selector to extract nested field from input", () => {
       const variableMapping: ObservationVariableMapping[] = [

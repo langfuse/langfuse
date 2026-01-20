@@ -230,7 +230,7 @@ export const llmAsJudgeExecutionQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>,
 ) => {
   try {
-    logger.info("Executing LLM-as-Judge Observation Evaluation Job", job.data);
+    logger.debug("Executing LLM-as-Judge Observation Evaluation Job", job.data);
 
     const span = getCurrentSpan();
 

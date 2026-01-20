@@ -254,7 +254,7 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
   {
     id: "toolCalls",
     name: "Tool Calls",
-    description: "Executed tool calls",
+    description: "Tool calls with arguments",
   },
 
   // Model data

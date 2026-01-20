@@ -28,14 +28,14 @@ interface ExtractVariablesParams {
  * Column IDs are typed as keyof ObservationForEval (see observationEvalVariableColumns),
  * ensuring compile-time safety when adding new columns.
  *
- * The first extracted variable includes the observation's environment.
+ * Note: Environment is passed directly to executeLLMAsJudgeEvaluation() by the caller,
+ * not embedded in variables.
  */
 export function extractObservationVariables(
   params: ExtractVariablesParams,
 ): ExtractedVariable[] {
   const { observation, variableMapping } = params;
   const variables: ExtractedVariable[] = [];
-  let environmentIncluded = false;
 
   for (const mapping of variableMapping) {
     // Direct property access - columnId is typed as keyof ObservationForEval
@@ -46,18 +46,10 @@ export function extractObservationVariables(
       ? applyJsonSelector({ value: rawValue, selector: mapping.jsonSelector })
       : rawValue;
 
-    const variable: ExtractedVariable = {
+    variables.push({
       var: mapping.templateVariable,
       value: parseUnknownToString(extractedValue),
-    };
-
-    // Include environment on the first variable
-    if (!environmentIncluded && observation.environment) {
-      variable.environment = observation.environment;
-      environmentIncluded = true;
-    }
-
-    variables.push(variable);
+    });
   }
 
   return variables;

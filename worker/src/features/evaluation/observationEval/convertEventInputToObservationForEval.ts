@@ -94,21 +94,3 @@ export function convertEventInputToObservationForEval(
 ): ObservationForEval {
   return observationForEvalSchema.parse(mapEventInputToSchemaInput(event));
 }
-
-/**
- * Safely convert from EventInput, returning null on validation failure.
- *
- * Use this when processing batches where individual failures should be
- * logged and skipped rather than throwing an error.
- *
- * @param event - Event from OtelIngestionProcessor.processToEvent()
- * @returns ObservationForEval instance or null if validation fails
- */
-export function safeConvertEventInputToObservationForEval(
-  event: EventInput,
-): ObservationForEval | null {
-  const result = observationForEvalSchema.safeParse(
-    mapEventInputToSchemaInput(event),
-  );
-  return result.success ? result.data : null;
-}

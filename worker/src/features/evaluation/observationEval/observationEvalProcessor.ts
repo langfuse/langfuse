@@ -1,9 +1,11 @@
 import { z } from "zod/v4";
 import {
+  DEFAULT_TRACE_ENVIRONMENT,
   LLMAsJudgeExecutionEventSchema,
   logger,
 } from "@langfuse/shared/src/server";
 import {
+  observationForEvalSchema,
   observationVariableMappingList,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -118,15 +120,17 @@ export async function processObservationEval({
     const downloadedString = await deps.downloadObservationFromS3(
       event.observationS3Path,
     );
-    const parsed = JSON.parse(downloadedString) as ObservationForEval[];
+    const parsed = observationForEvalSchema.safeParse(
+      JSON.parse(downloadedString),
+    );
 
-    if (!parsed || parsed.length === 0) {
-      throw new Error("Empty observation data from S3");
+    if (!parsed.success) {
+      throw new Error("Invalid observation data from S3: ", parsed.error);
     }
 
-    observationData = parsed[0];
+    observationData = parsed.data;
   } catch (e) {
-    throw new UnrecoverableError(
+    throw new Error(
       `Failed to download observation from S3 at ${event.observationS3Path}: ${e}`,
     );
   }
@@ -157,5 +161,6 @@ export async function processObservationEval({
     config,
     template,
     extractedVariables,
+    environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
   });
 }

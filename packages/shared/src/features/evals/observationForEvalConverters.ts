@@ -9,7 +9,9 @@ import {
  * Maps EventRecordReadType fields to ObservationForEval schema input.
  * Single source of truth for field mapping to avoid duplication.
  */
-function mapEventRecordToSchemaInput(record: EventRecordReadType) {
+function mapEventRecordToSchemaInput(
+  record: EventRecordReadType,
+): ObservationForEval {
   return {
     // Core identifiers
     id: record.span_id,
