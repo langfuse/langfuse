@@ -624,8 +624,8 @@ importers:
         specifier: ^10.4.3
         version: 10.4.3
       diff:
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^8.0.3
+        version: 8.0.3
       dompurify:
         specifier: ^3.2.4
         version: 3.2.4
@@ -816,9 +816,6 @@ importers:
       '@types/cors':
         specifier: ^2.8.17
         version: 2.8.17
-      '@types/diff':
-        specifier: ^7.0.0
-        version: 7.0.0
       '@types/dompurify':
         specifier: ^3.0.5
         version: 3.0.5
@@ -5999,9 +5996,6 @@ packages:
   '@types/diff-match-patch@1.0.36':
     resolution: {integrity: sha512-xFdR6tkm0MWvBfO8xXCSsinYxHcqkQUlcHeSpMC2ukzOb6lwQAfDmW+Qt0AvlGd8HpsS28qKsB+oPeJn9I39jg==}
 
-  '@types/diff@7.0.0':
-    resolution: {integrity: sha512-sVpkpbnTJL9CYoDf4U+tHaQLe5HiTaHWY7m9FuYA7oMCHwC9ie0Vh9eIGapyzYrU3+pILlSY2fAc4elfw5m4dg==}
-
   '@types/dompurify@3.0.5':
     resolution: {integrity: sha512-1Wg0g3BtQF7sSb27fJQAKck1HECM6zV1EB66j8JH9i3LCjYabJa0FSdiSgsD5K/RbrsR0SiraKacLB+T8ZVYAg==}
 
@@ -7589,8 +7583,8 @@ packages:
     resolution: {integrity: sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A==}
     engines: {node: '>=0.3.1'}
 
-  diff@7.0.0:
-    resolution: {integrity: sha512-PJWHUb1RFevKCwaFA9RlG5tCd+FO5iRh9A8HEtkmBH2Li03iJriB6m6JIN4rGz3K3JLawI7/veA1xzRKP6ISBw==}
+  diff@8.0.3:
+    resolution: {integrity: sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ==}
     engines: {node: '>=0.3.1'}
 
   dir-glob@3.0.1:
@@ -19962,8 +19956,6 @@ snapshots:
 
   '@types/diff-match-patch@1.0.36': {}
 
-  '@types/diff@7.0.0': {}
-
   '@types/dompurify@3.0.5':
     dependencies:
       '@types/trusted-types': 2.0.7
@@ -21717,7 +21709,7 @@ snapshots:
 
   diff@4.0.2: {}
 
-  diff@7.0.0: {}
+  diff@8.0.3: {}
 
   dir-glob@3.0.1:
     dependencies:
