@@ -42,7 +42,11 @@ import {
   DEFAULT_RENDERING_PROPS,
   RenderingProps,
 } from "../utils/rendering";
-import { commandClickhouse, queryClickhouse } from "./clickhouse";
+import {
+  commandClickhouse,
+  queryClickhouse,
+  queryClickhouseStream,
+} from "./clickhouse";
 import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
 import {
   ObservationsTableQueryResult,
@@ -2106,4 +2110,67 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
   }));
+};
+
+/**
+ * Streams events from ClickHouse for blob storage export.
+ * Follows the pattern of getTracesForBlobStorageExport and getObservationsForBlobStorageExport.
+ */
+export const getEventsForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const query = `
+    SELECT
+      span_id as id,
+      trace_id,
+      project_id,
+      environment,
+      type,
+      parent_span_id as parent_observation_id,
+      start_time,
+      end_time,
+      name,
+      mapFromArrays(metadata_names, metadata_prefixes) as metadata,
+      level,
+      status_message,
+      version,
+      input,
+      output,
+      provided_model_name,
+      model_parameters,
+      usage_details,
+      cost_details,
+      completion_start_time,
+      prompt_name,
+      prompt_version,
+      tags,
+      release,
+      trace_name,
+      user_id,
+      session_id
+    FROM events FINAL
+    WHERE project_id = {projectId: String}
+    AND start_time >= {minTimestamp: DateTime64(3)}
+    AND start_time <= {maxTimestamp: DateTime64(3)}
+  `;
+
+  return queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: {
+      projectId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      feature: "blobstorage",
+      type: "event",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
+  });
 };
