@@ -10,9 +10,27 @@ import { getCacheKey } from "../storage/keys";
  * @returns Object with playgroundCache state and setPlaygroundCache function.
  */
 export default function usePlaygroundCache(windowId?: string) {
-  const [cache, setCache] = useState<PlaygroundCache>(null);
-
   const playgroundCacheKey = getCacheKey(windowId ?? "");
+
+  // Initialize synchronously from sessionStorage to avoid race conditions
+  // with effects that depend on playgroundCache being available on first render
+  const [cache, setCache] = useState<PlaygroundCache>(() => {
+    if (typeof window === "undefined") return null;
+    const savedCache = sessionStorage.getItem(playgroundCacheKey);
+    if (savedCache) {
+      try {
+        return JSON.parse(savedCache);
+      } catch (e) {
+        console.error(
+          `Failed to parse playground cache for window ${windowId}`,
+          e,
+        );
+        sessionStorage.removeItem(playgroundCacheKey);
+        return null;
+      }
+    }
+    return null;
+  });
 
   /**
    * Set playground cache for this specific window.
@@ -28,10 +46,7 @@ export default function usePlaygroundCache(windowId?: string) {
     }
   };
 
-  /**
-   * Load cached state from sessionStorage on mount and when windowId changes
-   * Attempts to parse JSON and handles errors gracefully
-   */
+  // Handle windowId changes - re-read from storage if key changes
   useEffect(() => {
     const savedCache = sessionStorage.getItem(playgroundCacheKey);
     if (savedCache) {
@@ -42,7 +57,6 @@ export default function usePlaygroundCache(windowId?: string) {
           `Failed to parse playground cache for window ${windowId}`,
           e,
         );
-        // Clear corrupted cache
         sessionStorage.removeItem(playgroundCacheKey);
         setCache(null);
       }
