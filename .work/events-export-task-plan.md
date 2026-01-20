@@ -2,39 +2,44 @@
 
 ## Phase 1: Foundation and CSV Export
 
-### [ ] Step 1: Add Events to BatchTableNames Enum
+### [x] Step 1: Add Events to BatchTableNames Enum
 - **Task**: Add `Events = "events"` to the `BatchTableNames` enum. This is a foundational change that enables all other features since the enum is used throughout the codebase for type safety and validation.
 - **Files**:
   - `packages/shared/src/interfaces/tableNames.ts`: Add `Events = "events"` to the enum
 - **Step Dependencies**: None (foundational change)
 - **User Instructions**: None
 
-### [ ] Step 2: Create Events Stream Function for Batch Exports
+### [x] Step 2: Create Events Stream Function for Batch Exports
 - **Task**: Create `getEventsStream()` function in the worker package following the exact pattern of `getTraceStream()` and `getObservationStream()`. This function will query ClickHouse events table with filters, fetch comments in batches, and return a Node.js Readable stream for batch export processing.
 - **Files**:
   - `worker/src/features/database-read-stream/event-stream.ts`: Create new file with `getEventsStream()` function
-    - Import necessary dependencies (FilterCondition, TracingSearchType, EventsQueryBuilder, etc.)
-    - Implement streaming query using EventsQueryBuilder
+    - Import necessary dependencies (FilterCondition, TracingSearchType, etc.)
+    - Implement streaming query using raw SQL (following existing patterns)
     - Add comment fetching in batches (use "OBSERVATION" type since events are observations)
     - Return Readable stream with event records
     - Include progress logging every 10,000 rows
+  - `worker/src/features/database-read-stream/types.ts`: Add `BatchExportEventsRow` type
+  - `worker/src/features/database-read-stream/getDatabaseReadStream.ts`:
+    - Add `events: "startTime"` to time filter column mappings
+    - Update `getChunkWithFlattenedScores` to accept `BatchExportEventsRow[]`
+  - `packages/shared/src/server/tableMappings/index.ts`: Export `eventsTableUiColumnDefinitions`
 - **Step Dependencies**: Step 1 (needs BatchTableNames.Events)
 - **User Instructions**: None
 
-### [ ] Step 3: Update Batch Export Worker Handler
+### [x] Step 3: Update Batch Export Worker Handler
 - **Task**: Add Events case to the batch export handler to route Events table exports to the new `getEventsStream()` function.
 - **Files**:
-  - `worker/src/features/batchExport/handleBatchExportJob.ts`: 
+  - `worker/src/features/batchExport/handleBatchExportJob.ts`:
     - Add import for `getEventsStream` from `../database-read-stream/event-stream`
     - Add case in stream selection logic: `parsedQuery.data.tableName === BatchExportTableName.Events`
     - Call `getEventsStream()` with appropriate parameters
 - **Step Dependencies**: Step 1, Step 2
 - **User Instructions**: None
 
-### [ ] Step 4: Update UI Export Button Warning Message
+### [x] Step 4: Update UI Export Button Warning Message
 - **Task**: Add a warning message for Events table exports to inform users that comment filters are not included in event exports.
 - **Files**:
-  - `web/src/components/BatchExportTableButton.tsx`: 
+  - `web/src/components/BatchExportTableButton.tsx`:
     - Add case `BatchTableNames.Events` in `getWarningMessage()` function
     - Return: "Note: Filters on Comments are not included in event exports. You may receive more data than expected."
 - **Step Dependencies**: Step 1
