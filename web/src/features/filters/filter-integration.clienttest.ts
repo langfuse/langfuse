@@ -215,6 +215,28 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
           },
         ],
       },
+      {
+        description: "empty arrayOptions",
+        filters: [
+          {
+            column: "tags",
+            type: "arrayOptions",
+            operator: "all of",
+            value: [],
+          },
+        ],
+      },
+      {
+        description: "empty stringOptions (filter for empty trace name)",
+        filters: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: [""],
+          },
+        ],
+      },
     ];
 
     edgeCases.forEach(({ filters }) => {

@@ -39,8 +39,8 @@ export function encodeFiltersGeneric(filters: FilterState): string {
           // Determine the key field (for categoryOptions, numberObject, stringObject)
           const key =
             f.type === "numberObject" ||
-            f.type === "stringObject" ||
-            f.type === "categoryOptions"
+              f.type === "stringObject" ||
+              f.type === "categoryOptions"
               ? (f as any).key || ""
               : "";
 
@@ -102,11 +102,13 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type === "arrayOptions" ||
       type === "categoryOptions"
     ) {
+      // For arrayOptions (e.g., tags), empty value means no filter selected → return []
+      // For stringOptions/categoryOptions, empty string can be a valid filter value (e.g., empty trace name) → return [""]
       parsedValue = decodedValue
         ? decodedValue.split("|")
-        : decodedValue === ""
-          ? [""] // allow empty strings (i.e, filter for empty trace name)
-          : [decodedValue];
+        : type === "arrayOptions"
+          ? []
+          : [""];
     } else if (type === "boolean") {
       parsedValue = decodedValue === "true";
     } else {
