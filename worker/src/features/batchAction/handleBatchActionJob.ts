@@ -6,6 +6,7 @@ import {
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
@@ -16,7 +17,6 @@ import {
   getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
-import { processClickhouseTraceDelete } from "../traces/processClickhouseTraceDelete";
 import { env } from "../../env";
 import { Job } from "bullmq";
 import {
@@ -24,11 +24,12 @@ import {
   processAddSessionsToQueue,
   processAddTracesToQueue,
 } from "./processAddToQueue";
-import { processPostgresTraceDelete } from "../traces/processPostgresTraceDelete";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
+import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
+import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -50,13 +51,7 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
-        await Promise.all([
-          processPostgresTraceDelete(projectId, chunkIds),
-          processClickhouseTraceDelete(projectId, chunkIds),
-        ]);
-        logger.info(
-          `Deleted ${chunkIds.length} traces for project ${projectId}`,
-        );
+        await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
         break;
 
       case "trace-add-to-annotation-queue":
@@ -312,6 +307,50 @@ export const handleBatchActionJob = async (
     logger.info(
       `Batch action job completed, projectId: ${batchActionJob.payload.projectId}, ${count} elements`,
     );
+  } else if (actionId === "observation-add-to-dataset") {
+    const { projectId, query, cutoffCreatedAt, config, batchActionId } =
+      batchActionEvent;
+
+    // Parse and validate config
+    const parsedConfig = ObservationAddToDatasetConfigSchema.parse(config);
+
+    // Get observation stream
+    const dbReadStream = await getObservationStream({
+      projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      searchQuery: query.searchQuery ?? undefined,
+      searchType: query.searchType ?? ["id" as const],
+    });
+
+    // Collect all observations
+    const observations: Array<{
+      id: string;
+      traceId: string;
+      input: unknown;
+      output: unknown;
+      metadata: unknown;
+    }> = [];
+
+    for await (const record of dbReadStream) {
+      if (record?.id) {
+        observations.push({
+          id: record.id,
+          traceId: record.traceId,
+          input: record.input,
+          output: record.output,
+          metadata: record.metadata,
+        });
+      }
+    }
+
+    // Process observations and add to dataset
+    await processAddObservationsToDataset({
+      projectId,
+      batchActionId: batchActionId as string,
+      config: parsedConfig,
+      observations,
+    });
   }
 
   logger.info(

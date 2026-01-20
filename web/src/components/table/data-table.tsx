@@ -555,7 +555,7 @@ function TableBodyComponent<TData>({
                 <TableCell
                   key={cell.id}
                   className={cn(
-                    "overflow-hidden border-b p-1 text-xs first:pl-2",
+                    "overflow-hidden border-b px-1 text-xs first:pl-2",
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
                   )}
@@ -567,13 +567,13 @@ function TableBodyComponent<TData>({
                   <div
                     className={cn(
                       "flex",
-                      "items-start",
-                      isSmallRowHeight && "items-center",
+                      isSmallRowHeight ? "items-center" : "items-start",
+                      !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}
                   >
                     {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 truncate">
+                      <div className="min-w-0 truncate leading-none">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

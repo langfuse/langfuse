@@ -32,9 +32,10 @@ export default withMiddlewares({
           customModels: true,
           withDefaultModels: true,
           extraHeaderKeys: true,
+          config: true,
           createdAt: true,
           updatedAt: true,
-          // Explicitly exclude: secretKey, extraHeaders, config
+          // Explicitly exclude: secretKey, extraHeaders
         },
         where: {
           projectId: auth.scope.projectId,
@@ -102,6 +103,7 @@ export default withMiddlewares({
         extraHeaderKeys: body.extraHeaders
           ? Object.keys(body.extraHeaders)
           : [],
+        config: body.config,
       };
 
       // Perform upsert
@@ -127,9 +129,10 @@ export default withMiddlewares({
           customModels: true,
           withDefaultModels: true,
           extraHeaderKeys: true,
+          config: true,
           createdAt: true,
           updatedAt: true,
-          // Explicitly exclude: secretKey, extraHeaders, config
+          // Explicitly exclude: secretKey, extraHeaders
         },
       });
 

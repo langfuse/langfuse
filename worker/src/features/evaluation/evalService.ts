@@ -7,7 +7,6 @@ import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
   setNoJobConfigsCache,
@@ -31,6 +30,7 @@ import {
   mapDatasetRunItemFilterColumn,
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -52,7 +52,7 @@ import {
   DatasetItem,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { compileHandlebarString, createW3CTraceId } from "../utils";
+import { compileTemplateString, createW3CTraceId } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
@@ -259,10 +259,13 @@ export const createEvalJobs = async ({
         traceId: event.traceId,
         projectId: event.projectId,
         timestamp:
-          "timestamp" in event
-            ? new Date(event.timestamp)
-            : new Date(jobTimestamp),
+          "exactTimestamp" in event && event.exactTimestamp
+            ? new Date(event.exactTimestamp)
+            : "timestamp" in event
+              ? new Date(event.timestamp)
+              : new Date(jobTimestamp),
         clickhouseFeatureTag: "eval-create",
+        excludeInputOutput: true,
       });
 
       recordIncrement("langfuse.evaluation-execution.trace_cache_fetch", 1, {
@@ -430,12 +433,21 @@ export const createEvalJobs = async ({
           Array<{ id: string }>
         >(Prisma.sql`
           SELECT id
-          FROM dataset_items as di
-          WHERE project_id = ${event.projectId}
-            AND id = ${event.datasetItemId}
-            ${condition}
+          FROM (
+            SELECT id, is_deleted
+            FROM dataset_items as di
+            WHERE project_id = ${event.projectId}
+              AND valid_to IS NULL 
+              AND id = ${event.datasetItemId}
+              ${condition}
+            LIMIT 1
+          ) latest
+          WHERE is_deleted = false
         `);
-        datasetItem = datasetItems.shift();
+        const latestDatasetItem = datasetItems.shift();
+        datasetItem = latestDatasetItem
+          ? { id: latestDatasetItem.id }
+          : undefined;
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.
         // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
@@ -708,7 +720,7 @@ export const evaluate = async ({
   // compile the prompt and send out the LLM request
   let prompt;
   try {
-    prompt = compileHandlebarString(template.prompt, {
+    prompt = compileTemplateString(template.prompt, {
       ...Object.fromEntries(
         mappingResult.map(({ var: key, value }) => [key, value]),
       ),
@@ -969,6 +981,7 @@ export async function extractVariablesFromTracingData({
         ) // query the internal column name raw
         .where("id", "=", datasetItemId)
         .where("project_id", "=", projectId)
+        .where("valid_to", "is", null)
         .executeTakeFirst()) as DatasetItem;
 
       // user facing errors

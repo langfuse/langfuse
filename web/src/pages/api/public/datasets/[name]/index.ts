@@ -4,10 +4,14 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   GetDatasetV1Query,
   GetDatasetV1Response,
-  transformDbDatasetItemToAPIDatasetItem,
+  transformDbDatasetItemDomainToAPIDatasetItem,
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  createDatasetItemFilterState,
+  getDatasetItems,
+} from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -24,12 +28,6 @@ export default withMiddlewares({
           projectId: auth.scope.projectId,
         },
         include: {
-          datasetItems: {
-            where: {
-              status: "ACTIVE",
-            },
-            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          },
           datasetRuns: {
             select: {
               name: true,
@@ -42,16 +40,20 @@ export default withMiddlewares({
         throw new LangfuseNotFoundError("Dataset not found");
       }
 
-      const { datasetItems, datasetRuns, ...params } = dataset;
+      const datasetItems = await getDatasetItems({
+        projectId: auth.scope.projectId,
+        filterState: createDatasetItemFilterState({
+          datasetIds: [dataset.id],
+          status: "ACTIVE",
+        }),
+        includeDatasetName: true,
+      });
+
+      const { datasetRuns, ...params } = dataset;
 
       return {
         ...transformDbDatasetToAPIDataset(params),
-        items: datasetItems
-          .map((item) => ({
-            ...item,
-            datasetName: dataset.name,
-          }))
-          .map(transformDbDatasetItemToAPIDatasetItem),
+        items: datasetItems.map(transformDbDatasetItemDomainToAPIDatasetItem),
         runs: datasetRuns.map((run) => run.name),
       };
     },

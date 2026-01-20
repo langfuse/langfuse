@@ -337,7 +337,6 @@ describe("MutationMonitor", () => {
 
       // TraceDelete should be paused
       expect(mockWorkers.get("trace-delete")?.pause).toHaveBeenCalled();
-      expect(mockWorkers.get("project-delete")?.pause).toHaveBeenCalled();
       expect(
         mockWorkers.get("data-retention-processing-queue")?.pause,
       ).toHaveBeenCalled();

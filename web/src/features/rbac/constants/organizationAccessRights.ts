@@ -1,6 +1,8 @@
 import { type Role } from "@langfuse/shared/src/db";
 
-const organizationScopes = [
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const organizationScopes = [
   "projects:create",
   "projects:transfer_org",
   "organization:CRUD_apiKeys",
@@ -9,6 +11,7 @@ const organizationScopes = [
   "organizationMembers:read",
   "organizationMembers:CUD",
   "langfuseCloudBilling:CRUD",
+  "auditLogs:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "organizationMembers:read"
@@ -24,6 +27,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organizationMembers:CUD",
     "organizationMembers:read",
     "langfuseCloudBilling:CRUD",
+    "auditLogs:read",
   ],
   ADMIN: [
     "projects:create",
@@ -32,6 +36,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organization:update",
     "organizationMembers:CUD",
     "organizationMembers:read",
+    "auditLogs:read",
   ],
   MEMBER: ["organizationMembers:read"],
   VIEWER: [],

@@ -16,11 +16,13 @@ export * from "./utils/objects";
 export * from "./utils/typeChecks";
 export * from "./utils/prompts";
 export * from "./utils/jsonSchemaValidation";
+export * from "./utils/chatml";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
 export * from "./domain/webhooks";
 export * from "./domain/dataset-run-items";
+export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
 
 // llm api
@@ -32,6 +34,8 @@ export * from "./features/evals/utilities";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
+export * from "./features/batchAction/addToDatasetTypes";
+export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
 
 // annotation

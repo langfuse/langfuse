@@ -135,6 +135,7 @@ export const KeycloakProviderSchema = base.extend({
   authProvider: z.literal("keycloak"),
   authConfig: z
     .object({
+      name: z.string().optional(),
       clientId: z.string(),
       clientSecret: z.string(),
       issuer: z.string(),

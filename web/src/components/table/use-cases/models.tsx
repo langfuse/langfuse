@@ -25,6 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
@@ -44,7 +45,6 @@ export type ModelTableRow = {
   prices?: Record<string, number>;
   tokenizerId?: string;
   config?: Prisma.JsonValue;
-  lastUsed?: Date | null;
   serverResponse: GetModelResult;
 };
 
@@ -91,6 +91,18 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     },
   );
   const totalCount = models.data?.totalCount ?? null;
+
+  const modelIds = models.data?.models.map((m) => m.id) ?? [];
+  const lastUsed = api.models.lastUsedByModelIds.useQuery(
+    { projectId, modelIds },
+    {
+      enabled: models.isSuccess && modelIds.length > 0,
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: false,
+      staleTime: 1000 * 60 * 10,
+    },
+  );
   const { priceUnit } = usePriceUnitMultiplier();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
 
@@ -224,7 +236,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       size: 120,
       cell: ({ row }) => {
-        const value: Date | null | undefined = row.getValue("lastUsed");
+        if (!lastUsed.data) return <Skeleton className="h-4 w-20" />;
+        const value = lastUsed.data[row.original.modelId];
         return value?.toLocaleString() ?? "";
       },
     },
@@ -280,7 +293,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       prices,
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
-      lastUsed: model.lastUsed,
       serverResponse: model,
     };
   };

@@ -14,6 +14,7 @@ export function TimelineRow({
   item,
   isSelected,
   onSelect,
+  onHover,
   onToggleCollapse,
   hasChildren,
   isCollapsed,
@@ -95,6 +96,7 @@ export function TimelineRow({
         metrics={metrics}
         isSelected={isSelected}
         onSelect={onSelect}
+        onHover={onHover}
         showDuration={showDuration}
         showCostTokens={showCostTokens}
         showScores={showScores}

@@ -134,7 +134,7 @@ export function PromptTable() {
   const promptsRowData = joinTableCoreAndMetrics<CoreType, MetricType>(
     prompts.data?.prompts.map((p) => ({
       ...p,
-      id: p.name,
+      id: buildFullPath(currentFolderPath, p.name),
     })),
     promptMetrics.data?.map((pm) => ({
       ...pm,
@@ -150,8 +150,9 @@ export function PromptTable() {
 
     for (const prompt of promptsRowData.rows) {
       const isFolder = (prompt as { row_type?: string }).row_type === "folder";
-      const itemName = prompt.id; // id actually contains the name due to type mapping
-      const fullPath = buildFullPath(currentFolderPath, itemName);
+      const fullPath = prompt.id; // id now contains the full path (used for metrics join)
+      // Extract just the name portion (last segment) for display
+      const itemName = fullPath.split("/").pop() ?? fullPath;
       const type = isFolder ? "folder" : (prompt.type as "text" | "chat");
 
       combinedRows.push(
@@ -177,7 +178,7 @@ export function PromptTable() {
       ...promptsRowData,
       rows: combinedRows,
     };
-  }, [promptsRowData, currentFolderPath]);
+  }, [promptsRowData]);
 
   const promptFilterOptions = api.prompts.filterOptions.useQuery(
     {

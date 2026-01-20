@@ -39,14 +39,14 @@ export const createAjvInstanceInternal = () => {
 export function isValidJSONSchema(schema: unknown): boolean {
   try {
     const stringified = JSON.stringify(schema);
-    if (stringified.length > 1_000) return false; // Schema too large
+    if (stringified.length > 10_000) return false; // Schema too large
 
     const ajv = createAjvInstanceInternal();
     // This will throw an error if the schema is invalid
     ajv.compile(schema as AnySchema);
 
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }

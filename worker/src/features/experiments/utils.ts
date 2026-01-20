@@ -11,7 +11,7 @@ import {
   PromptType,
   stringifyValue,
 } from "@langfuse/shared";
-import { compileHandlebarString } from "../utils/utilities";
+import { compileTemplateString } from "../utils/utilities";
 import {
   logger,
   PromptService,
@@ -81,16 +81,16 @@ export const replaceVariablesInPrompt = (
   }
 
   const processContent = (content: string) => {
-    // Extract only Handlebars variables from itemInput (exclude message placeholders)
+    // Extract only template variables from itemInput (exclude message placeholders)
     const filteredContext = Object.fromEntries(
       Object.entries(itemInput).filter(
         ([key]) => variables.includes(key) && !placeholderNames.includes(key),
       ),
     );
 
-    // Apply Handlebars ONLY if the content contains `{{variable}}` pattern
+    // Apply template ONLY if the content contains `{{variable}}` pattern
     if (content.includes("{{")) {
-      return compileHandlebarString(content, filteredContext);
+      return compileTemplateString(content, filteredContext);
     }
     return content; // Return original content if no placeholders are found
   };

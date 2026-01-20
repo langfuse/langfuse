@@ -37,7 +37,7 @@ export function ModelBadge({
     );
   }
 
-  // Unlinked model - show create form drawer
+  // Unlinked model - show create form dialog
   return (
     <UpsertModelFormDialog
       action="create"

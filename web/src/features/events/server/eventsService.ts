@@ -15,8 +15,10 @@ import {
   getEventsGroupedByEnvironment,
   getNumericScoresGroupedByName,
   getTracesGroupedByTags,
+  getObservationsBatchIOFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { type timeFilter } from "@langfuse/shared";
+import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 
@@ -54,8 +56,8 @@ export async function getEventList(params: GetObservationsListParams) {
     searchType: params.searchType,
     orderBy: params.orderBy,
     limit: params.limit,
-    offset: params.page * params.limit,
-    selectIOAndMetadata: true, // Include input/output truncated fields
+    offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
+    selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
@@ -204,4 +206,28 @@ export async function getEventFilterOptions(
         count: i.count,
       })),
   };
+}
+
+interface GetEventBatchIOParams {
+  projectId: string;
+  observations: Array<{
+    id: string;
+    traceId: string;
+  }>;
+  minStartTime: Date;
+  maxStartTime: Date;
+}
+
+/**
+ * Batch fetch input/output and metadata for multiple observations
+ */
+export async function getEventBatchIO(
+  params: GetEventBatchIOParams,
+): Promise<Array<EventBatchIOOutput>> {
+  return getObservationsBatchIOFromEventsTable({
+    projectId: params.projectId,
+    observations: params.observations,
+    minStartTime: params.minStartTime,
+    maxStartTime: params.maxStartTime,
+  });
 }

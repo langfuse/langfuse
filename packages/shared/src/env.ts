@@ -60,9 +60,17 @@ const EnvSchema = z.object({
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
+  CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS: z.coerce
+    .number()
+    .int()
+    .min(50)
+    .optional(),
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  CLICKHOUSE_UPDATE_PARALLEL_MODE: z
+    .enum(["sync", "async", "auto"])
+    .default("auto"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -77,10 +85,15 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS: z.coerce.number().positive().default(2),
   LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -131,6 +144,13 @@ const EnvSchema = z.object({
     .default("true"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(3600), // 1 hour
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -177,7 +197,7 @@ const EnvSchema = z.object({
         }
 
         return map;
-      } catch (err) {
+      } catch {
         return new Map<string, number>();
       }
     }),
@@ -258,10 +278,10 @@ const EnvSchema = z.object({
   // Dataset Service
   LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

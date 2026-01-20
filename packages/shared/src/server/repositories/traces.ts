@@ -452,6 +452,7 @@ export const getTraceById = async ({
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
   preferredClickhouseService,
+  excludeInputOutput = false,
 }: {
   traceId: string;
   projectId: string;
@@ -460,6 +461,8 @@ export const getTraceById = async ({
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
   preferredClickhouseService?: PreferredClickhouseService;
+  /** When true, sets input/output columns to empty in the query to reduce database load */
+  excludeInputOutput?: boolean;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -484,6 +487,17 @@ export const getTraceById = async ({
       },
     },
     fn: (input) => {
+      const inputColumn = excludeInputOutput
+        ? "''"
+        : renderingProps.truncated
+          ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+          : "input";
+      const outputColumn = excludeInputOutput
+        ? "''"
+        : renderingProps.truncated
+          ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+          : "output";
+
       const query = `
         SELECT
           id,
@@ -497,8 +511,8 @@ export const getTraceById = async ({
           public as public,
           bookmarked as bookmarked,
           tags,
-          ${renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
-          ${renderingProps.truncated ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          ${inputColumn} as input,
+          ${outputColumn} as output,
           session_id as session_id,
           0 as is_deleted,
           timestamp,
@@ -869,16 +883,7 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
       const query = `
         DELETE FROM traces
         WHERE project_id = {projectId: String}
-        AND id IN ({traceIds: Array(String)})
-        AND (project_id, timestamp, id) IN  (
-	        SELECT
-	          project_id,
-	          timestamp,
-	          id
-	        FROM traces
-	        WHERE project_id = {projectId: String}
-	        AND id IN ({traceIds: Array(String)})
-        );
+        AND id IN ({traceIds: Array(String)});
       `;
       await commandClickhouse({
         query: query,
@@ -892,10 +897,44 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   });
 };
 
-export const deleteTracesOlderThanDays = async (
+export const hasAnyTraceOlderThan = async (
   projectId: string,
   beforeDate: Date,
 ) => {
+  const query = `
+    SELECT 1
+    FROM traces
+    WHERE project_id = {projectId: String}
+    AND timestamp < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "hasAnyOlderThan",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteTracesOlderThanDays = async (
+  projectId: string,
+  beforeDate: Date,
+): Promise<boolean> => {
+  const hasData = await hasAnyTraceOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   await measureAndReturn({
     operationName: "deleteTracesOlderThanDays",
     projectId,
@@ -927,9 +966,18 @@ export const deleteTracesOlderThanDays = async (
       });
     },
   });
+
+  return true;
 };
 
-export const deleteTracesByProjectId = async (projectId: string) => {
+export const deleteTracesByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyTrace(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   await measureAndReturn({
     operationName: "deleteTracesByProjectId",
     projectId,
@@ -949,8 +997,9 @@ export const deleteTracesByProjectId = async (projectId: string) => {
         DELETE FROM traces
         WHERE project_id = {projectId: String};
       `;
+
       await commandClickhouse({
-        query: query,
+        query,
         params: input.params,
         clickhouseConfigs: {
           request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
@@ -959,6 +1008,8 @@ export const deleteTracesByProjectId = async (projectId: string) => {
       });
     },
   });
+
+  return true;
 };
 
 export const hasAnyUser = async (projectId: string) => {

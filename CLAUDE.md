@@ -82,11 +82,11 @@ The web package uses JEST for unit tests.
 Depending on the file location (sync, async)
 `web` related tests must go into the `web/src/__tests__/` folder.
 ```sh
-pnpm test-sync --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+pnpm test-sync --testPathPatterns="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
 # For tests in the async folder:
-pnpm test -- --testPathPattern="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
+pnpm test -- --testPathPatterns="$FILE_LOCATION_PATTERN" --testNamePattern="$TEST_NAME_PATTERN"
 # For client tests:
-pnpm test-client --testPathPattern="buildStepData" --testNamePattern="buildStepData"
+pnpm test-client --testPathPatterns="buildStepData" --testNamePattern="buildStepData"
 ```
 
 ### Testing in the Worker Package
@@ -192,6 +192,21 @@ To get a project, use the `get_project` capability with the full project name as
 
 ## TypeScript Best Practices
 - In TypeScript, if possible, don't use the `any` type
+- **Use a single params object for functions with multiple arguments** - This makes code more readable at call sites and prevents bugs when arguments of the same type are accidentally swapped:
+
+```typescript
+// ❌ Bad - positional arguments are unclear and can be swapped without type errors
+function sendMessage(userId: string, sessionId: string, projectId: string) {
+  // ...
+}
+sendMessage(someString, someOtherString, anotherString); // Which is which?
+
+// ✅ Good - params object makes intent clear and prevents argument swapping
+function sendMessage(params: { userId: string; sessionId: string; projectId: string }) {
+  // ...
+}
+sendMessage({ userId: someString, sessionId: someOtherString, projectId: anotherString });
+```
 
 ## General Coding Guidelines
 - For easier code reviews, prefer not to move functions etc around within a file unless necessary or instructed to do so

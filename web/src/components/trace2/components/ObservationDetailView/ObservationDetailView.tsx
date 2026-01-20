@@ -17,14 +17,7 @@
  * - View mode toggle changes
  */
 
-import {
-  type ObservationType,
-  AnnotationQueueObjectType,
-  isGenerationLike,
-} from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import {
   TabsBar,
   TabsBarContent,
@@ -32,34 +25,25 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import useLocalStorage from "@/src/components/useLocalStorage";
-import { useMemo, useState } from "react";
-import {
-  LatencyBadge,
-  TimeToFirstTokenBadge,
-  EnvironmentBadge,
-  VersionBadge,
-  LevelBadge,
-  StatusMessageBadge,
-} from "./ObservationMetadataBadgesSimple";
-import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
-import { ModelBadge } from "./ObservationMetadataBadgeModel";
-import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
+import { Switch } from "@/src/components/ui/switch";
+import { useCallback, useMemo, useState } from "react";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { api } from "@/src/utils/api";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace2/api/useMedia";
+import { useSelection } from "@/src/components/trace2/contexts/SelectionContext";
+import { useViewPreferences } from "@/src/components/trace2/contexts/ViewPreferencesContext";
 
-// Header action components
-import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
-import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+// Contexts and hooks
 import { useTraceData } from "@/src/components/trace2/contexts/TraceDataContext";
+import { useParsedObservation } from "@/src/hooks/useParsedObservation";
+import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
+import { api } from "@/src/utils/api";
+
+// Extracted components
+import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -72,35 +56,115 @@ export function ObservationDetailView({
   projectId,
   traceId,
 }: ObservationDetailViewProps) {
-  const [selectedTab, setSelectedTab] = useState<"preview" | "scores">(
-    "preview",
-  );
-  const [currentView, setCurrentView] = useLocalStorage<"pretty" | "json">(
-    "jsonViewPreference",
-    "pretty",
-  );
-  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  // Tab and view state from URL (via SelectionContext)
+  // For observations, "log" tab doesn't apply - map to "preview"
+  const {
+    selectedTab: globalSelectedTab,
+    setSelectedTab: setGlobalSelectedTab,
+  } = useSelection();
 
-  // Get comments, scores, and expansion state from contexts
-  const { comments, scores } = useTraceData();
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  // Map global tab to observation-specific tabs (preview, scores)
+  // "log" tab doesn't exist for observations, so fall back to "preview"
+  const selectedTab =
+    globalSelectedTab === "scores" ? "scores" : ("preview" as const);
+
+  const setSelectedTab = (tab: "preview" | "scores") => {
+    setGlobalSelectedTab(tab);
+  };
+
+  // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
+  const {
+    jsonViewPreference,
+    setJsonViewPreference,
+    jsonBetaEnabled,
+    setJsonBetaEnabled,
+  } = useViewPreferences();
+
+  // Map jsonViewPreference to currentView format expected by child components
+  const currentView = jsonViewPreference;
+
+  const selectedViewTab =
+    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+
+  const handleViewTabChange = useCallback(
+    (tab: string) => {
+      if (tab === "pretty") {
+        setJsonViewPreference("pretty");
+      } else {
+        // When switching to JSON, use beta preference
+        setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      }
+    },
+    [jsonBetaEnabled, setJsonViewPreference],
+  );
+
+  const handleBetaToggle = useCallback(
+    (enabled: boolean) => {
+      setJsonBetaEnabled(enabled);
+      setJsonViewPreference(enabled ? "json-beta" : "json");
+    },
+    [setJsonBetaEnabled, setJsonViewPreference],
+  );
+
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
+
+  // states for the inline comments
+  const [pendingSelection, setPendingSelection] =
+    useState<SelectionData | null>(null);
+  const [isCommentDrawerOpen, setIsCommentDrawerOpen] = useState(false);
+
+  const handleAddInlineComment = useCallback((selection: SelectionData) => {
+    setPendingSelection(selection);
+    setIsCommentDrawerOpen(true);
+  }, []);
+
+  const handleSelectionUsed = useCallback(() => {
+    setPendingSelection(null);
+  }, []);
+
+  // Get comments, scores, corrections, and expansion state from contexts
+  const { comments, serverScores: scores, corrections } = useTraceData();
+  const {
+    formattedExpansion,
+    setFormattedFieldExpansion,
+    jsonExpansion,
+    setJsonFieldExpansion,
+    advancedJsonExpansion,
+    setAdvancedJsonExpansion,
+  } = useJsonExpansion();
   const observationScores = useMemo(
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
   );
-
-  // Fetch observation input/output (not included in ObservationReturnTypeWithMetadata)
-  const observationWithIO = api.observations.byId.useQuery(
-    {
-      observationId: observation.id,
-      traceId: traceId,
-      projectId: projectId,
-      startTime: observation.startTime,
-    },
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-    },
+  const observationCorrections = useMemo(
+    () => corrections.filter((c) => c.observationId === observation.id),
+    [corrections, observation.id],
   );
+
+  const outputCorrection = getMostRecentCorrection(observationCorrections);
+
+  // Fetch and parse observation input/output in background (Web Worker)
+  // This combines tRPC fetch + non-blocking JSON parsing
+  const {
+    observation: observationWithIO,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    isLoadingObservation,
+    isWaitingForParsing,
+  } = useParsedObservation({
+    observationId: observation.id,
+    traceId: traceId,
+    projectId: projectId,
+    startTime: observation.startTime,
+  });
+
+  // For backward compatibility, create observationWithIO query-like object
+  const observationWithIOCompat = {
+    data: observationWithIO,
+    isLoading: isLoadingObservation,
+  };
 
   // Fetch media for this observation
   const observationMedia = useMedia({
@@ -108,6 +172,19 @@ export function ObservationDetailView({
     traceId,
     observationId: observation.id,
   });
+
+  const observationComments = api.comments.getByObjectId.useQuery(
+    {
+      projectId,
+      objectId: observation.id,
+      objectType: "OBSERVATION",
+    },
+    {
+      refetchOnMount: false,
+    },
+  );
+
+  const commentedPathsByField = useCommentedPaths(observationComments.data);
 
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
@@ -122,131 +199,22 @@ export function ObservationDetailView({
     return null;
   }, [observation.latency, observation.startTime, observation.endTime]);
 
-  // Format cost and usage values
-  const totalCost = observation.totalCost;
-  const totalUsage = observation.totalUsage;
-  const inputUsage = observation.inputUsage;
-  const outputUsage = observation.outputUsage;
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header section */}
-      <div className="flex-shrink-0 space-y-2 border-b p-4 @container">
-        {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
-          <div className="flex w-full flex-row items-start gap-1">
-            <div className="mt-1.5">
-              <ItemBadge type={observation.type as ObservationType} isSmall />
-            </div>
-            <span className="mb-0 ml-1 line-clamp-2 min-w-0 break-all font-medium md:break-normal md:break-words">
-              {observation.name || observation.id}
-            </span>
-            <CopyIdsPopover
-              idItems={[
-                { id: traceId, name: "Trace ID" },
-                { id: observation.id, name: "Observation ID" },
-              ]}
-            />
-          </div>
-          {/* Action buttons */}
-          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            {observationWithIO.data && (
-              <NewDatasetItemFromExistingObject
-                traceId={traceId}
-                observationId={observation.id}
-                projectId={projectId}
-                input={observationWithIO.data.input}
-                output={observationWithIO.data.output}
-                metadata={observationWithIO.data.metadata}
-                key={observation.id}
-                size="sm"
-              />
-            )}
-            <div className="flex items-start">
-              <AnnotateDrawer
-                key={"annotation-drawer-" + observation.id}
-                projectId={projectId}
-                scoreTarget={{
-                  type: "trace",
-                  traceId: traceId,
-                  observationId: observation.id,
-                }}
-                scores={observationScores}
-                scoreMetadata={{
-                  projectId: projectId,
-                  environment: observation.environment,
-                }}
-                size="sm"
-              />
-              <CreateNewAnnotationQueueItem
-                projectId={projectId}
-                objectId={observation.id}
-                objectType={AnnotationQueueObjectType.OBSERVATION}
-                size="sm"
-              />
-            </div>
-            {observationWithIO.data &&
-              isGenerationLike(observationWithIO.data.type) && (
-                <JumpToPlaygroundButton
-                  source="generation"
-                  generation={observationWithIO.data}
-                  analyticsEventName="trace_detail:test_in_playground_button_click"
-                  size="sm"
-                />
-              )}
-            <CommentDrawerButton
-              projectId={projectId}
-              objectId={observation.id}
-              objectType="OBSERVATION"
-              count={comments.get(observation.id)}
-              size="sm"
-            />
-          </div>
-        </div>
-
-        {/* Metadata badges */}
-        <div className="flex flex-col gap-1">
-          {/* Timestamp on its own row */}
-          <div className="flex items-center">
-            <LocalIsoDate
-              date={observation.startTime}
-              accuracy="millisecond"
-              className="text-xs"
-            />
-          </div>
-          {/* Other badges on second row */}
-          <div className="flex flex-wrap items-center gap-1">
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
-            <EnvironmentBadge environment={observation.environment} />
-            <CostBadge
-              totalCost={totalCost}
-              costDetails={observation.costDetails}
-            />
-            <UsageBadge
-              type={observation.type}
-              inputUsage={inputUsage}
-              outputUsage={outputUsage}
-              totalUsage={totalUsage}
-              usageDetails={observation.usageDetails}
-            />
-            <VersionBadge version={observation.version} />
-            <ModelBadge
-              model={observation.model}
-              internalModelId={observation.internalModelId}
-              projectId={projectId}
-              usageDetails={observation.usageDetails}
-            />
-            <ModelParametersBadges
-              modelParameters={observation.modelParameters}
-            />
-            <LevelBadge level={observation.level} />
-            <StatusMessageBadge statusMessage={observation.statusMessage} />
-          </div>
-        </div>
-      </div>
+      {/* Header section (extracted component) */}
+      <ObservationDetailViewHeader
+        observation={observation}
+        observationWithIO={observationWithIO}
+        projectId={projectId}
+        traceId={traceId}
+        latencySeconds={latencySeconds}
+        observationScores={observationScores}
+        commentCount={comments.get(observation.id)}
+        pendingSelection={pendingSelection}
+        onSelectionUsed={handleSelectionUsed}
+        isCommentDrawerOpen={isCommentDrawerOpen}
+        onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+      />
 
       {/* Tabs section */}
       <TabsBar
@@ -260,22 +228,33 @@ export function ObservationDetailView({
 
           {/* View toggle (Formatted/JSON) - show for preview tab when pretty view is available */}
           {selectedTab === "preview" && isPrettyViewAvailable && (
-            <Tabs
-              className="ml-auto mr-1 h-fit px-2 py-0.5"
-              value={currentView}
-              onValueChange={(value) => {
-                setCurrentView(value as "pretty" | "json");
-              }}
-            >
-              <TabsList className="h-fit py-0.5">
-                <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                  Formatted
-                </TabsTrigger>
-                <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                  JSON
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <>
+              <Tabs
+                className="ml-auto h-fit px-2 py-0.5"
+                value={selectedViewTab}
+                onValueChange={handleViewTabChange}
+              >
+                <TabsList className="h-fit py-0.5">
+                  <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                    Formatted
+                  </TabsTrigger>
+                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                    JSON
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              {/* Beta toggle - only show when JSON is selected */}
+              {selectedViewTab === "json" && (
+                <div className="mr-1 flex items-center gap-1.5">
+                  <Switch
+                    size="sm"
+                    checked={jsonBetaEnabled}
+                    onCheckedChange={handleBetaToggle}
+                  />
+                  <span className="text-xs text-muted-foreground">Beta</span>
+                </div>
+              )}
+            </>
           )}
         </TabsBarList>
 
@@ -284,40 +263,75 @@ export function ObservationDetailView({
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div className="flex w-full flex-col gap-2 overflow-y-auto p-4">
+          <div
+            className={`flex min-h-0 w-full flex-1 flex-col ${
+              currentView === "json-beta" && isJSONBetaVirtualized
+                ? "overflow-hidden"
+                : "overflow-auto pb-4"
+            }`}
+          >
             <IOPreview
               key={observation.id}
               observationName={observation.name ?? undefined}
-              input={observationWithIO.data?.input ?? undefined}
-              output={observationWithIO.data?.output ?? undefined}
-              metadata={observationWithIO.data?.metadata ?? undefined}
-              isLoading={observationWithIO.isLoading}
+              input={observationWithIOCompat.data?.input ?? undefined}
+              output={observationWithIOCompat.data?.output ?? undefined}
+              outputCorrection={outputCorrection}
+              metadata={observationWithIOCompat.data?.metadata ?? undefined}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              parsedMetadata={parsedMetadata}
+              isLoading={observationWithIOCompat.isLoading}
+              isParsing={isWaitingForParsing}
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-              inputExpansionState={expansionState.input}
-              outputExpansionState={expansionState.output}
-              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
-              onOutputExpansionChange={(exp) =>
-                setFieldExpansion("output", exp)
+              inputExpansionState={formattedExpansion.input}
+              outputExpansionState={formattedExpansion.output}
+              metadataExpansionState={formattedExpansion.metadata}
+              onInputExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "input",
+                  exp as Record<string, boolean>,
+                )
               }
+              onOutputExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "output",
+                  exp as Record<string, boolean>,
+                )
+              }
+              onMetadataExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "metadata",
+                  exp as Record<string, boolean>,
+                )
+              }
+              advancedJsonExpansionState={advancedJsonExpansion}
+              onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
+              jsonInputExpanded={jsonExpansion.input}
+              jsonOutputExpanded={jsonExpansion.output}
+              jsonMetadataExpanded={jsonExpansion.metadata}
+              onJsonInputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("input", expanded)
+              }
+              onJsonOutputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("output", expanded)
+              }
+              onJsonMetadataExpandedChange={(expanded) =>
+                setJsonFieldExpansion("metadata", expanded)
+              }
+              enableInlineComments={true}
+              onAddInlineComment={handleAddInlineComment}
+              commentedPathsByField={commentedPathsByField}
+              showMetadata
+              observationId={observation.id}
+              onVirtualizationChange={setIsJSONBetaVirtualized}
+              projectId={projectId}
+              traceId={traceId}
+              environment={observation.environment}
             />
-            {observationWithIO.data?.metadata && (
-              <div className="px-2">
-                <PrettyJsonView
-                  key={observationWithIO.data.id + "-metadata"}
-                  title="Metadata"
-                  json={observationWithIO.data.metadata}
-                  media={observationMedia.data?.filter(
-                    (m) => m.field === "metadata",
-                  )}
-                  currentView={currentView}
-                  externalExpansionState={expansionState.metadata}
-                  onExternalExpansionChange={(exp) =>
-                    setFieldExpansion("metadata", exp)
-                  }
-                />
-              </div>
+            {currentView !== "json-beta" && (
+              <div className="h-4 w-full flex-shrink-0" />
             )}
           </div>
         </TabsBarContent>

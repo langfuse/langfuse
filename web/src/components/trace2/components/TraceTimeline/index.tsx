@@ -8,13 +8,14 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { useSelection } from "../../contexts/SelectionContext";
 import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
+import { useHandlePrefetchObservation } from "../../hooks/useHandlePrefetchObservation";
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
 import { calculateStepSize, SCALE_WIDTH } from "./timeline-calculations";
 import { TimelineScale } from "./TimelineScale";
 import { TimelineRow } from "./TimelineRow";
 
 export function TraceTimeline() {
-  const { tree, scores, comments } = useTraceData();
+  const { tree, serverScores: scores, comments } = useTraceData();
   const { collapsedNodes, toggleCollapsed, selectedNodeId, setSelectedNodeId } =
     useSelection();
   const {
@@ -24,6 +25,7 @@ export function TraceTimeline() {
     showComments,
     colorCodeMetrics,
   } = useViewPreferences();
+  const { handleHover } = useHandlePrefetchObservation();
 
   const timeIndexRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -187,6 +189,7 @@ export function TraceTimeline() {
                   item={item}
                   isSelected={isSelected}
                   onSelect={() => setSelectedNodeId(nodeId)}
+                  onHover={() => handleHover(item.node)}
                   onToggleCollapse={() => toggleCollapsed(nodeId)}
                   hasChildren={hasChildren}
                   isCollapsed={isCollapsed}

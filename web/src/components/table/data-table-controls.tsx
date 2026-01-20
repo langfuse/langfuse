@@ -141,23 +141,42 @@ export function DataTableControls({
     >
       <div className="sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b bg-background px-3">
         <span className="text-sm font-medium">Filters</span>
-        {filterWithAI && isLangfuseCloud && (
-          <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+        <div className="flex items-center gap-1">
+          {queryFilter.isFiltered && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <WandSparkles className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => queryFilter.clearAll()}
+                  className="h-7 px-2 text-xs"
+                >
+                  Clear all
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>Filter with AI</TooltipContent>
+              <TooltipContent>Clear all filters</TooltipContent>
             </Tooltip>
-            <PopoverContent align="center" className="w-[400px]">
-              <DataTableAIFilters onFiltersGenerated={handleFiltersGenerated} />
-            </PopoverContent>
-          </Popover>
-        )}
+          )}
+          {filterWithAI && isLangfuseCloud && (
+            <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <WandSparkles className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Filter with AI</TooltipContent>
+              </Tooltip>
+              <PopoverContent align="center" className="w-[400px]">
+                <DataTableAIFilters
+                  onFiltersGenerated={handleFiltersGenerated}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
       </div>
       <div className="pb-10">
         <Accordion
@@ -816,7 +835,7 @@ export function NumericFacet({
             <Slider
               min={min}
               max={max}
-              step={1}
+              step={max - min <= 1000 ? 0.01 : 1}
               value={localValue}
               onValueChange={handleSliderChange}
             />
@@ -1190,6 +1209,10 @@ export function FilterValueCheckbox({
   // Show "All" when clicking would reverse selection (only one item selected)
   const labelText = checked && totalSelected === 1 ? "All" : "Only";
 
+  // Display placeholder for empty strings to ensure clickable area
+  const displayLabel = label === "" ? "(empty)" : label;
+  const displayTitle = label === "" ? "(empty)" : label;
+
   return (
     <div
       className={cn(
@@ -1216,8 +1239,14 @@ export function FilterValueCheckbox({
         )}
         onClick={onLabelClick}
       >
-        <span className="min-w-0 flex-1 truncate text-xs" title={label}>
-          {label}
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-xs",
+            label === "" && "italic text-muted-foreground",
+          )}
+          title={displayTitle}
+        >
+          {displayLabel}
         </span>
 
         {/* "Only" or "All" indicator when hovering label */}

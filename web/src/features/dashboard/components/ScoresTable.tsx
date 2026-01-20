@@ -1,7 +1,7 @@
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import {
-  type ScoreDataType,
+  type ScoreDataTypeType,
   type ScoreSourceType,
   type FilterState,
 } from "@langfuse/shared";
@@ -12,24 +12,30 @@ import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAligned
 import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
-import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
+import {
+  isBooleanDataType,
+  isCategoricalDataType,
+  isNumericDataType,
+} from "@/src/features/scores/lib/helpers";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 const dropValuesForCategoricalScores = (
   value: number,
-  scoreDataType: ScoreDataType,
+  scoreDataType: ScoreDataTypeType,
 ): string => {
-  return isCategoricalDataType(scoreDataType)
-    ? "-"
-    : compactNumberFormatter(value);
+  if (isCategoricalDataType(scoreDataType)) return "-";
+  if (isBooleanDataType(scoreDataType) || isNumericDataType(scoreDataType)) {
+    return compactNumberFormatter(value);
+  }
+  return "-";
 };
 
 const scoreNameSourceDataTypeMatch =
   (
     scoreName: string,
     scoreSource: ScoreSourceType,
-    scoreDataType: ScoreDataType,
+    scoreDataType: ScoreDataTypeType,
   ) =>
   (item: DatabaseRow) =>
     item.scoreName === scoreName &&
@@ -148,7 +154,7 @@ export const ScoresTable = ({
     return metrics.data.map((metric) => {
       const scoreName = metric.scoreName as string;
       const scoreSource = metric.scoreSource as ScoreSourceType;
-      const scoreDataType = metric.scoreDataType as ScoreDataType;
+      const scoreDataType = metric.scoreDataType as ScoreDataTypeType;
 
       const zeroValueScore = zeroValueScores.data.find(
         scoreNameSourceDataTypeMatch(scoreName, scoreSource, scoreDataType),

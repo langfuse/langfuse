@@ -47,7 +47,7 @@ function evaluateCondition(
       default:
         return false;
     }
-  } catch (error) {
+  } catch {
     return false; // Fail-safe: condition fails on error
   }
 }

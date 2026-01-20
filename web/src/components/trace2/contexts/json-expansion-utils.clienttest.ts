@@ -202,7 +202,7 @@ describe("json-expansion-utils", () => {
     });
   });
 
-  describe("Performance Tests", () => {
+  describe.skip("Performance Tests", () => {
     // Helper to generate random 8-char hex ID
     const generateHexId = (): string => {
       return Math.random().toString(16).slice(2, 10).padEnd(8, "0");

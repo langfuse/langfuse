@@ -20,6 +20,12 @@ export const ScoreBodyWithoutConfig = applyScoreValidation(
     ),
     PostScoreBodyFoundationSchema.merge(
       z.object({
+        value: z.string(),
+        dataType: z.literal("CORRECTION"),
+      }),
+    ),
+    PostScoreBodyFoundationSchema.merge(
+      z.object({
         value: z.number().refine((val) => val === 0 || val === 1, {
           message: "Value must be either 0 or 1",
         }),

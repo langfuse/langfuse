@@ -3,36 +3,6 @@
 
 import { UiColumnMappings } from "../../tableDefinitions";
 
-// TODO
-// Leaving these here for temporary compatibility with legacy traces UI (this may require fixing search condition)
-// user_id should be moved to the main list, and the rest removed.
-export const eventsTableLegacyTraceUiColumnDefinitions: UiColumnMappings = [
-  {
-    uiTableName: "Trace Tags",
-    uiTableId: "traceTags",
-    clickhouseTableName: "traces",
-    clickhouseSelect: "t.tags",
-  },
-  {
-    uiTableName: "User ID",
-    uiTableId: "userId",
-    clickhouseTableName: "traces",
-    clickhouseSelect: 't."user_id"',
-  },
-  {
-    uiTableName: "Trace Name",
-    uiTableId: "traceName",
-    clickhouseTableName: "traces",
-    clickhouseSelect: 't."name"',
-  },
-  {
-    uiTableName: "Trace Environment",
-    uiTableId: "traceEnvironment",
-    clickhouseTableName: "traces",
-    clickhouseSelect: 't."environment"',
-  },
-];
-
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Environment",
@@ -221,10 +191,39 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events",
     clickhouseSelect: 'e."session_id"',
   },
+  {
+    uiTableName: "Trace Name",
+    uiTableId: "traceName",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."trace_name"',
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."user_id"',
+  },
+  {
+    uiTableName: "Trace Tags",
+    uiTableId: "traceTags",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."tags"',
+  },
+  {
+    uiTableName: "Tags",
+    uiTableId: "tags",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."tags"',
+  },
+  {
+    uiTableName: "Trace Environment",
+    uiTableId: "traceEnvironment",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."environment"',
+  },
 ];
 
 export const eventsTableUiColumnDefinitions: UiColumnMappings = [
-  ...eventsTableLegacyTraceUiColumnDefinitions,
   ...eventsTableNativeUiColumnDefinitions,
   // Scores column duplicated to allow renaming column name. Will be removed once session storage cache is outdated
   // Column names are cached in user sessions - changing them breaks existing filters

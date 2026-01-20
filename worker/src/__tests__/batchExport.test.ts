@@ -8,12 +8,17 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
+  createManyDatasetItems,
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
+// Set environment variable before any imports to ensure it's picked up by env module
+process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+  "true";
+process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
@@ -1124,18 +1129,15 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is AI?" },
         expectedOutput: { answer: "Artificial Intelligence" },
         metadata: { category: "tech" },
-        sourceTraceId: null,
-        sourceObservationId: null,
+        sourceTraceId: undefined,
+        sourceObservationId: undefined,
       },
       {
         id: randomUUID(),
         datasetId,
-        projectId,
         status: DatasetStatus.ARCHIVED,
         input: { question: "What is ML?" },
         expectedOutput: { answer: "Machine Learning" },
@@ -1146,28 +1148,27 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
         sourceTraceId: randomUUID(),
-        sourceObservationId: null,
+        sourceObservationId: undefined,
       },
       {
         id: randomUUID(),
         datasetId: datasetId2,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
         sourceTraceId: randomUUID(),
-        sourceObservationId: null,
+        sourceObservationId: undefined,
       },
     ];
 
-    await prisma.datasetItem.createMany({ data: datasetItems });
+    await createManyDatasetItems({
+      projectId,
+      items: datasetItems,
+    });
 
     // Export dataset items
     const stream = await getDatabaseReadStreamPaginated({
@@ -1176,10 +1177,10 @@ describe("batch export test suite", () => {
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
-          type: "string",
-          operator: "=",
+          type: "stringOptions",
+          operator: "any of",
           column: "datasetId",
-          value: datasetId,
+          value: [datasetId],
         },
       ],
       orderBy: { column: "createdAt", order: "DESC" },
@@ -1293,7 +1294,7 @@ describe("batch export test suite", () => {
         projectId,
         status: DatasetStatus.ACTIVE,
         sourceTraceId: traceId2,
-        sourceObservationId: null,
+        sourceObservationId: undefined,
         input: { from: "trace_only" },
       },
       {
@@ -1301,13 +1302,16 @@ describe("batch export test suite", () => {
         datasetId,
         projectId,
         status: DatasetStatus.ACTIVE,
-        sourceTraceId: null,
-        sourceObservationId: null,
+        sourceTraceId: undefined,
+        sourceObservationId: undefined,
         input: { from: "manual" },
       },
     ];
 
-    await prisma.datasetItem.createMany({ data: datasetItems });
+    await createManyDatasetItems({
+      projectId,
+      items: datasetItems,
+    });
 
     // Export dataset items
     const stream = await getDatabaseReadStreamPaginated({
@@ -1996,5 +2000,85 @@ describe("batch export test suite", () => {
     expect(rowsByIdVariant).toHaveLength(1);
     expect(rowsByIdVariant[0].id).toBe("other-trace-id-456");
     expect(rowsByIdVariant[0].name).toBe("other-trace");
+  });
+
+  it("should properly export traces with Thai and other non-ASCII characters", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces with Thai, Chinese, Arabic, and emoji characters
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        name: "สวัสดี ภาษาไทย", // Thai: "Hello Thai language"
+        user_id: "ผู้ใช้", // Thai: "user"
+        metadata: {
+          description: "การทดสอบภาษาไทย", // Thai: "Thai language test"
+          mixed: "Hello สวัสดี 世界 مرحبا 🌍",
+        },
+        tags: ["ไทย", "テスト", "测试"],
+      }),
+      createTrace({
+        project_id: projectId,
+        name: "中文测试", // Chinese: "Chinese test"
+        user_id: "用户", // Chinese: "user"
+        metadata: {
+          description: "这是中文测试", // Chinese: "This is a Chinese test"
+        },
+        tags: ["中文", "汉字"],
+      }),
+      createTrace({
+        project_id: projectId,
+        name: "العربية", // Arabic: "Arabic"
+        user_id: "مستخدم", // Arabic: "user"
+        metadata: {
+          description: "اختبار اللغة العربية", // Arabic: "Arabic language test"
+        },
+        tags: ["عربي"],
+      }),
+    ];
+
+    await createTracesCh(traces);
+
+    // Export all traces
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(3);
+
+    // Verify Thai characters are preserved
+    const thaiTrace = rows.find((r) => r.name === "สวัสดี ภาษาไทย");
+    expect(thaiTrace).toBeDefined();
+    expect(thaiTrace?.userId).toBe("ผู้ใช้");
+    expect(thaiTrace?.metadata).toEqual({
+      description: "การทดสอบภาษาไทย",
+      mixed: "Hello สวัสดี 世界 مرحبا 🌍",
+    });
+    expect(thaiTrace?.tags).toEqual(["ไทย", "テスト", "测试"]);
+
+    // Verify Chinese characters are preserved
+    const chineseTrace = rows.find((r) => r.name === "中文测试");
+    expect(chineseTrace).toBeDefined();
+    expect(chineseTrace?.userId).toBe("用户");
+    expect(chineseTrace?.metadata).toEqual({
+      description: "这是中文测试",
+    });
+    expect(chineseTrace?.tags).toEqual(["中文", "汉字"]);
+
+    // Verify Arabic characters are preserved
+    const arabicTrace = rows.find((r) => r.name === "العربية");
+    expect(arabicTrace).toBeDefined();
+    expect(arabicTrace?.userId).toBe("مستخدم");
+    expect(arabicTrace?.metadata).toEqual({
+      description: "اختبار اللغة العربية",
+    });
+    expect(arabicTrace?.tags).toEqual(["عربي"]);
   });
 });

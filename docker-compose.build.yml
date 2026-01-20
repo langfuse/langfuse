@@ -98,7 +98,7 @@ services:
       start_period: 1s
 
   minio:
-    image: docker.io/minio/minio
+    image: cgr.dev/chainguard/minio
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -122,6 +122,7 @@ services:
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
+      --maxmemory-policy noeviction
     ports:
       - 6379:6379
     healthcheck:

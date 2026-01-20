@@ -16,6 +16,11 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
@@ -43,6 +48,31 @@ import { ReactionPicker } from "@/src/features/comments/ReactionPicker";
 import { ReactionBar } from "@/src/features/comments/ReactionBar";
 import { stripMarkdown } from "@/src/utils/markdown";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
+import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
+import { Badge } from "@/src/components/ui/badge";
+import { useTheme } from "next-themes";
+
+// IO field background colors - same as IOPreviewJSON.tsx
+const IO_FIELD_COLORS = {
+  input: { light: "rgb(249, 252, 255)", dark: "rgb(15, 23, 42)" },
+  output: { light: "rgb(248, 253, 250)", dark: "rgb(20, 30, 41)" },
+  metadata: { light: "rgb(253, 251, 254)", dark: "rgb(30, 20, 40)" },
+} as const;
+
+/**
+ * Convert JSON path to human-readable format
+ * $.messages[1].text → messages › 1 › text
+ * $ → (root)
+ */
+function humanizeJsonPath(path: string): string {
+  if (path === "$") return "(root)";
+  return path
+    .replace(/^\$\.?/, "") // remove leading $. or $
+    .replace(/\[(\d+)\]/g, ".$1") // [0] → .0
+    .split(".")
+    .filter(Boolean)
+    .join(" › ");
+}
 
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
@@ -56,6 +86,8 @@ export function CommentList({
   onDraftChange,
   onMentionDropdownChange,
   isDrawerOpen = false,
+  pendingSelection,
+  onSelectionUsed,
 }: {
   projectId: string;
   objectId: string;
@@ -65,9 +97,13 @@ export function CommentList({
   onDraftChange?: (hasDraft: boolean) => void;
   onMentionDropdownChange?: (isOpen: boolean) => void;
   isDrawerOpen?: boolean;
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
 }) {
   const session = useSession();
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [cursorPosition, setCursorPosition] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const commentsContainerRef = useRef<HTMLDivElement>(null);
@@ -217,6 +253,16 @@ export function CommentList({
     }
   }, [comments.data, highlightedCommentId]);
 
+  // Focus textarea when pendingSelection changes (user clicked comment button)
+  useEffect(() => {
+    if (pendingSelection && textareaRef.current) {
+      // Delay to allow drawer animation to complete
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 150);
+    }
+  }, [pendingSelection]);
+
   // CMD+F keyboard shortcut to focus search (only when drawer is open)
   useEffect(() => {
     if (!isDrawerOpen) return; // Only capture when drawer is open
@@ -252,6 +298,9 @@ export function CommentList({
     onSuccess: async () => {
       await Promise.all([utils.comments.invalidate()]);
       form.reset();
+
+      // Clear pending selection after successful comment creation
+      onSelectionUsed?.();
 
       // Reset textarea height
       if (textareaRef.current) {
@@ -364,6 +413,10 @@ export function CommentList({
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation.mutateAsync({
       ...values,
+      dataField: pendingSelection?.dataField,
+      path: pendingSelection?.path,
+      rangeStart: pendingSelection?.rangeStart,
+      rangeEnd: pendingSelection?.rangeEnd,
     });
   }
 
@@ -538,6 +591,41 @@ export function CommentList({
                     className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
                   />
 
+                  {/* Inline comment position indicator */}
+                  {"dataField" in comment &&
+                    comment.dataField &&
+                    "path" in comment &&
+                    Array.isArray(comment.path) &&
+                    comment.path.length > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="mt-1 flex w-fit items-center gap-1.5 text-xs">
+                            <Badge
+                              className="pointer-events-none px-1.5 py-0 text-[10px] font-medium text-foreground"
+                              style={{
+                                backgroundColor:
+                                  IO_FIELD_COLORS[
+                                    comment.dataField as keyof typeof IO_FIELD_COLORS
+                                  ]?.[isDark ? "dark" : "light"],
+                              }}
+                            >
+                              {comment.dataField.toUpperCase()}
+                            </Badge>
+                            <span className="text-muted-foreground">
+                              {humanizeJsonPath(comment.path[0])}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          className="px-2 py-1 text-xs"
+                        >
+                          The location of the text commented on
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+
                   {/* Reactions */}
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <ReactionBar
@@ -610,7 +698,7 @@ export function CommentList({
             <div className="relative ml-2.5 mr-4 mt-2 flex flex-row items-center justify-between text-xs text-muted-foreground">
               <span className="sr-only">New comment</span>
               <span></span>
-              <span>Markdown supported</span>
+              <span>Markdown and @-mentions support</span>
             </div>
             <div className="relative mb-2 ml-2 mr-3 mt-0.5 min-h-[70px] flex-shrink-0 rounded-lg border border-border/60 pt-1">
               {/* Visually hidden header for accessibility */}
@@ -625,7 +713,7 @@ export function CommentList({
                         <div>
                           <FormControl>
                             <Textarea
-                              placeholder="Add a comment... (Markdown supported)"
+                              placeholder="Add a comment..."
                               {...field}
                               ref={(el) => {
                                 if (textareaRef.current !== el) {

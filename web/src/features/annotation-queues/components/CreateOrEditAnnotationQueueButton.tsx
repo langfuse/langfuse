@@ -186,7 +186,7 @@ export const CreateOrEditAnnotationQueueButton = ({
       setIsOpen(false);
 
       // capture posthog event
-    } catch (error) {
+    } catch {
       showErrorToast(
         "Operation failed",
         "Failed to create or update queue or assign users. Please try again.",

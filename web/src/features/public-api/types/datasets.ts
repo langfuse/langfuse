@@ -5,10 +5,10 @@ import {
   paginationMetaResponseZod,
   queryStringZod,
   type DatasetRuns as DbDatasetRuns,
-  type DatasetItem as DbDatasetItems,
   type Dataset as DbDataset,
   removeObjectKeys,
   type DatasetRunItemDomain,
+  type DatasetItemDomain,
 } from "@langfuse/shared";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
 import { z } from "zod/v4";
@@ -84,10 +84,12 @@ export const transformDbDatasetRunToAPIDatasetRun = (
 ): z.infer<typeof APIDatasetRun> =>
   removeObjectKeys(dbDatasetRun, ["projectId"]);
 
-export const transformDbDatasetItemToAPIDatasetItem = (
-  dbDatasetItem: DbDatasetItems & { datasetName: string },
+export const transformDbDatasetItemDomainToAPIDatasetItem = (
+  dbDatasetItem: DatasetItemDomain & {
+    datasetName: string;
+  },
 ): z.infer<typeof APIDatasetItem> =>
-  removeObjectKeys(dbDatasetItem, ["projectId"]);
+  removeObjectKeys(dbDatasetItem, ["projectId", "validFrom"]);
 
 export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
   dbDatasetRunItem: DatasetRunItemDomain,

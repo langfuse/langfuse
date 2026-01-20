@@ -13,7 +13,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { ModelUsageUnit, paginationZod } from "@langfuse/shared";
+import { ModelUsageUnit, paginationZod, Prisma } from "@langfuse/shared";
 import {
   clearModelCacheForProject,
   queryClickhouse,
@@ -109,7 +109,11 @@ export const modelRouter = createTRPCRouter({
     .input(ModelAllOptions)
     .query(async ({ input, ctx }) => {
       const { projectId, page, limit, searchString } = input;
-      const searchStringCondition = `%${searchString}%`;
+
+      const searchStringTemplate = `%${searchString}%`;
+      const searchStringCondition = searchString
+        ? Prisma.sql`AND model_name ILIKE ${searchStringTemplate}`
+        : Prisma.sql`AND 1=1`;
 
       const [allModelsQueryResult, totalCountQuery] = await Promise.all([
         // All models
@@ -156,7 +160,7 @@ export const modelRouter = createTRPCRouter({
             models m
           WHERE
             (project_id IS NULL OR project_id = ${projectId})
-			      AND model_name ILIKE ${searchStringCondition}
+			      ${searchStringCondition}
           ORDER BY
             project_id,
             model_name,
@@ -172,7 +176,7 @@ export const modelRouter = createTRPCRouter({
           SELECT COUNT(DISTINCT (project_id, model_name))
           FROM models
           WHERE (project_id IS NULL OR project_id = ${projectId})
-          AND model_name ILIKE ${searchStringCondition};
+          ${searchStringCondition};
         `,
       ]);
 
@@ -181,60 +185,54 @@ export const modelRouter = createTRPCRouter({
         .parse(allModelsQueryResult);
       const totalCount = z.coerce.number().parse(totalCountQuery[0].count);
 
-      // Check whether model was used in last month
-      const lastUsedQuery = `
-            SELECT 
-                internal_model_id as modelId,
-                MAX(start_time) as lastUsed
-            FROM 
-                observations
-            WHERE
-                project_id = {projectId: String}
-                AND internal_model_id IS NOT NULL
-            GROUP BY
-                internal_model_id
-      `;
-
-      const lastUsedQueryResult = ModelLastUsedQueryResult.safeParse(
-        await queryClickhouse({
-          query: lastUsedQuery,
-          params: { projectId },
-        }),
-      );
-
-      if (lastUsedQueryResult.success) {
-        const lastUsedMap = new Map(
-          lastUsedQueryResult.data.map((res) => [res.modelId, res.lastUsed]),
-        );
-
-        const sortedModels = allModels
-          .map((m) => ({ ...m, lastUsed: lastUsedMap.get(m.id) }))
-          .sort((a, b) => {
-            const lastUsedA = lastUsedMap.get(a.id);
-            const lastUsedB = lastUsedMap.get(b.id);
-
-            if (lastUsedA && lastUsedB) {
-              return lastUsedB.getTime() - lastUsedA.getTime();
-            } else if (lastUsedA) {
-              return -1;
-            } else if (lastUsedB) {
-              return 1;
-            }
-
-            return 0;
-          });
-
-        return {
-          models: paginateArray({ data: sortedModels, page, limit }),
-          totalCount,
-        };
-      }
-
       return {
         models: paginateArray({ data: allModels, page, limit }),
         totalCount,
       };
     }),
+
+  lastUsedByModelIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        modelIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input }) => {
+      const { projectId, modelIds } = input;
+
+      if (modelIds.length === 0) return {};
+
+      const lastUsedQuery = `
+        SELECT
+          internal_model_id as modelId,
+          MAX(start_time) as lastUsed
+        FROM observations
+        WHERE project_id = {projectId: String}
+          AND type = 'GENERATION'
+          AND internal_model_id IN ({modelIds: Array(String)})
+        GROUP BY internal_model_id
+      `;
+
+      const result = ModelLastUsedQueryResult.safeParse(
+        await queryClickhouse({
+          query: lastUsedQuery,
+          params: { projectId, modelIds },
+        }),
+      );
+
+      if (!result.success) return {};
+
+      return result.data.reduce(
+        (acc, { modelId, lastUsed }) => {
+          acc[modelId] = lastUsed;
+
+          return acc;
+        },
+        {} as Record<string, Date>,
+      );
+    }),
+
   upsert: protectedProjectProcedure
     .input(UpsertModelSchema)
     .mutation(async ({ input, ctx }) => {

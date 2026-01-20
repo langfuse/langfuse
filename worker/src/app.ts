@@ -28,6 +28,7 @@ import {
   PostHogIntegrationQueue,
   MixpanelIntegrationQueue,
   QueueName,
+  QueueJobs,
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
@@ -36,6 +37,8 @@ import {
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   EventPropagationQueue,
+  BatchProjectCleanerQueue,
+  BATCH_DELETION_TABLES,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -73,6 +76,7 @@ import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
 import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
+import { batchProjectCleanerProcessor } from "./queues/batchProjectCleanerQueue";
 
 const app = express();
 
@@ -161,6 +165,11 @@ if (env.LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_TRACE_DELETE_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(QueueName.TraceDelete, traceDeleteProcessor, {
     concurrency: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
+    // Same configuration as EvaluationExecution or
+    // BlobStorageIntegrationProcessingQueue queue, see detailed comment there
+    maxStalledCount: 3,
+    lockDuration: 60000, // 60 seconds
+    stalledInterval: 120000, // 120 seconds
     limiter: {
       // Process at most `max` delete jobs per 2 min
       max: env.LANGFUSE_TRACE_DELETE_CONCURRENCY,
@@ -533,6 +542,42 @@ if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
 if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
   // Start the ClickHouse mutation monitor after all workers are registered
   MutationMonitor.start();
+}
+
+// Batch project cleaners for bulk deletion of ClickHouse data
+if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.BatchProjectCleanerQueue,
+    batchProjectCleanerProcessor,
+    {
+      concurrency: 1, // only 1 job at a time per process.
+      limiter: {
+        max: 1,
+        duration: env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS, // no more than 1 job at a time globally
+      },
+    },
+  );
+
+  // Schedule repeatable jobs for each table
+  const queue = BatchProjectCleanerQueue.getInstance();
+  if (queue) {
+    const tables = BATCH_DELETION_TABLES.filter(
+      (t) =>
+        t !== "events" ||
+        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
+    );
+    for (const table of tables) {
+      queue
+        .upsertJobScheduler(
+          `batch-project-cleaner-${table}`,
+          { every: env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS },
+          { name: QueueJobs.BatchProjectCleanerJob, data: { table } },
+        )
+        .catch((err) =>
+          logger.error(`Error scheduling batch-project-cleaner-${table}`, err),
+        );
+    }
+  }
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

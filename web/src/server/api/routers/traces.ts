@@ -12,6 +12,7 @@ import {
   BatchActionQuerySchema,
   BatchExportTableName,
   BatchActionType,
+  ActionId,
   filterAndValidateDbScoreList,
   orderBy,
   paginationZod,
@@ -19,6 +20,9 @@ import {
   timeFilter,
   type Observation,
   TracingSearchType,
+  type ScoreDomain,
+  AGGREGATABLE_SCORE_TYPES,
+  ScoreDataTypeEnum,
 } from "@langfuse/shared";
 import {
   traceException,
@@ -43,6 +47,7 @@ import {
   getTracesGroupedByUsers,
   getTracesGroupedBySessionId,
   updateEvents,
+  getScoresAndCorrectionsForTraces,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
@@ -56,6 +61,7 @@ import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import { partition } from "lodash";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -218,7 +224,7 @@ export const traceRouter = createTRPCRouter({
         ],
       });
 
-      const scores = await getScoresForTraces({
+      const traceScores = await getScoresForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
         limit: 1000,
@@ -228,7 +234,8 @@ export const traceRouter = createTRPCRouter({
       });
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
+        scores: traceScores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         includeHasMetadata: true,
         onParseError: traceException,
       });
@@ -340,14 +347,14 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const [observations, scores] = await Promise.all([
+      const [observations, traceScores] = await Promise.all([
         getObservationsForTrace({
           traceId: input.traceId,
           projectId: input.projectId,
           timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
           includeIO: false,
         }),
-        getScoresForTraces({
+        getScoresAndCorrectionsForTraces({
           projectId: input.projectId,
           traceIds: [input.traceId],
           timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
@@ -355,9 +362,15 @@ export const traceRouter = createTRPCRouter({
       ]);
 
       const validatedScores = filterAndValidateDbScoreList({
-        scores,
+        scores: traceScores,
+        dataTypes: [...AGGREGATABLE_SCORE_TYPES, ScoreDataTypeEnum.CORRECTION],
         onParseError: traceException,
       });
+
+      const [corrections, scores] = partition(
+        validatedScores,
+        (s) => s.dataType === ScoreDataTypeEnum.CORRECTION,
+      );
 
       const obsStartTimes = observations
         .map((o) => o.startTime)
@@ -377,11 +390,15 @@ export const traceRouter = createTRPCRouter({
               : undefined
           : undefined;
 
+      const scoresDomain =
+        toDomainArrayWithStringifiedMetadata<ScoreDomain>(scores);
+
       return {
         ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
         output: ctx.trace.output ? JSON.stringify(ctx.trace.output) : null,
-        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
+        scores: scoresDomain,
+        corrections,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
         observations: observations.map((o) => ({
           ...toDomainWithStringifiedMetadata(o),
@@ -415,7 +432,7 @@ export const traceRouter = createTRPCRouter({
       if (input.isBatchAction && input.query) {
         await createBatchActionJob({
           projectId: input.projectId,
-          actionId: "trace-delete",
+          actionId: ActionId.TraceDelete,
           actionType: BatchActionType.Delete,
           tableName: BatchExportTableName.Traces,
           session: ctx.session,

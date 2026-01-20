@@ -27,7 +27,7 @@ import type { RouterOutput } from "@/src/utils/types";
 import {
   isPresent,
   type FilterState,
-  type ScoreDataType,
+  type ScoreDataTypeType,
   BatchExportTableName,
   BatchActionType,
   TableViewPresetTableName,
@@ -58,7 +58,7 @@ export type ScoresTableRow = {
   timestamp: Date;
   source: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   value: string;
   author: {
     userId?: string;

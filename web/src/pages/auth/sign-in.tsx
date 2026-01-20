@@ -65,7 +65,11 @@ export type PageProps = {
     azureAd: boolean;
     auth0: boolean;
     cognito: boolean;
-    keycloak: boolean;
+    keycloak:
+      | {
+          name: string;
+        }
+      | boolean;
     workos:
       | {
           organizationId: string;
@@ -87,7 +91,7 @@ export type PageProps = {
 };
 
 // Also used in src/pages/auth/sign-up.tsx
-// eslint-disable-next-line @typescript-eslint/require-await
+
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
   return {
@@ -134,7 +138,11 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         keycloak:
           env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
           env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
-          env.AUTH_KEYCLOAK_ISSUER !== undefined,
+          env.AUTH_KEYCLOAK_ISSUER !== undefined
+            ? env.AUTH_KEYCLOAK_NAME !== undefined
+              ? { name: env.AUTH_KEYCLOAK_NAME }
+              : true
+            : false,
         workos:
           env.AUTH_WORKOS_CLIENT_ID !== undefined &&
           env.AUTH_WORKOS_CLIENT_SECRET !== undefined
@@ -338,7 +346,11 @@ export function SSOButtons({
           {authProviders.keycloak && (
             <AuthProviderButton
               icon={<SiKeycloak className="mr-3" size={18} />}
-              label="Keycloak"
+              label={
+                typeof authProviders.keycloak === "object"
+                  ? authProviders.keycloak.name
+                  : "Keycloak"
+              }
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
                 onProviderSelect?.("keycloak");
@@ -474,7 +486,7 @@ export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
     const isInIframe = () => {
       try {
         return window.self !== window.top;
-      } catch (e) {
+      } catch {
         return true;
       }
     };
@@ -721,7 +733,6 @@ export default function SignIn({
                 <Form {...credentialsForm}>
                   <form
                     className="space-y-6"
-                    // eslint-disable-next-line @typescript-eslint/no-misused-promises
                     onSubmit={
                       showPasswordStep
                         ? credentialsForm.handleSubmit(onCredentialsSubmit)
@@ -739,7 +750,12 @@ export default function SignIn({
                         <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="jsdoe@example.com" {...field} />
+                            <Input
+                              placeholder="jsdoe@example.com"
+                              allowPasswordManager
+                              autoComplete="email"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

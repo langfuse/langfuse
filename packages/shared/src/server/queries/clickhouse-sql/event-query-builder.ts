@@ -49,6 +49,11 @@ const EVENTS_FIELDS = {
   promptName: 'e.prompt_name as "prompt_name"',
   promptVersion: 'e.prompt_version as "prompt_version"',
 
+  // Tool fields
+  toolDefinitions: 'e.tool_definitions as "tool_definitions"',
+  toolCalls: 'e.tool_calls as "tool_calls"',
+  toolCallNames: 'e.tool_call_names as "tool_call_names"',
+
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
@@ -99,10 +104,14 @@ const FIELD_SETS = {
     "internalModelId",
     "userId",
     "sessionId",
+    "toolDefinitions",
+    "toolCalls",
+    "toolCallNames",
   ],
   calculated: ["latency", "timeToFirstToken"],
   io: ["input", "output"],
   metadata: ["metadata"],
+  tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
   eventTs: ["eventTs"],
 
   // getById field sets (reuse the same fields - all queries use `FROM events e`)
@@ -120,6 +129,9 @@ const FIELD_SETS = {
     "level",
     "statusMessage",
     "version",
+    "toolDefinitions",
+    "toolCalls",
+    "toolCallNames",
   ],
   byIdModel: [
     "providedModelName",
@@ -158,13 +170,7 @@ const FIELD_SETS = {
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
-  usage: [
-    "usageDetails",
-    "costDetails",
-    "totalCost",
-    "providedUsageDetails",
-    "providedCostDetails",
-  ],
+  usage: ["usageDetails", "costDetails", "totalCost"],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
 } as const;
@@ -181,7 +187,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(name, event_ts, parent_span_id = '') AS name",
+  name: "argMaxIf(trace_name, event_ts, trace_name <> '') AS name",
   timestamp: "min(start_time) as timestamp",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
@@ -218,9 +224,8 @@ const EVENTS_AGGREGATION_FIELDS = {
   default_count: "countIf(level = 'DEFAULT') as default_count",
   debug_count: "countIf(level = 'DEBUG') as debug_count",
 
-  // Legacy fields for backward compatibility
-  tags: "array() AS tags",
-  release: "'' AS release",
+  tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
+  release: "argMaxIf(release, event_ts, release <> '') AS release",
 } as const;
 
 /**
@@ -314,7 +319,7 @@ abstract class AbstractQueryBuilder {
   when<T extends AbstractQueryBuilder>(
     this: T,
     condition: boolean,
-    // eslint-disable-next-line no-unused-vars
+
     fn: (builder: T) => T,
   ): T {
     return condition ? fn(this) : this;
@@ -404,7 +409,7 @@ abstract class BaseEventsQueryBuilder<
   protected projectId: string | NoProjectIdType;
 
   constructor(
-    protected fields: TFields, // eslint-disable-line no-unused-vars
+    protected fields: TFields,
     options: { projectId: string | NoProjectIdType },
   ) {
     super();
@@ -499,6 +504,8 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_FIELDS
 > {
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
+  // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
+  private metadataExpansionKeys: string[] | null = null;
 
   /**
    * Constructor
@@ -513,6 +520,23 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   constructor(options: { projectId: string | NoProjectIdType }) {
     super(EVENTS_FIELDS, options);
+  }
+
+  /**
+   * Select metadata with expanded values for specified keys.
+   * Expands truncated metadata values by coalescing with metadata_long_values.
+   *
+   * @param keys - Keys to expand. Only the specified keys will have their full values returned.
+   *
+   * @example
+   * // Expand specific keys only
+   * builder.selectMetadataExpanded(['transcript', 'transitions'])
+   */
+  selectMetadataExpanded(keys: string[]): this {
+    this.metadataExpansionKeys = keys;
+    // Also ensure metadata is in the select fields (will be replaced in buildSelectClause)
+    this.selectFields.add("metadata");
+    return this;
   }
 
   /**
@@ -542,10 +566,22 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   protected buildSelectClause(): string {
     // Build field expressions from field keys
-    // If ioFields are configured, exclude regular input/output from selectFields
-    const fieldsToProcess = this.ioFields
-      ? [...this.selectFields].filter((f) => f !== "input" && f !== "output")
-      : [...this.selectFields];
+    // Exclude fields that have custom handling (IO, metadata)
+    let fieldsToExclude: string[] = [];
+    if (this.ioFields) {
+      fieldsToExclude.push("input", "output");
+    }
+    // Only exclude metadata if we have actual keys to expand
+    if (
+      this.metadataExpansionKeys !== null &&
+      this.metadataExpansionKeys.length > 0
+    ) {
+      fieldsToExclude.push("metadata");
+    }
+
+    const fieldsToProcess = [...this.selectFields].filter(
+      (f) => !fieldsToExclude.includes(f),
+    );
 
     const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
       const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
@@ -561,6 +597,30 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       } else {
         fieldExpressions.push("input, output");
       }
+    }
+
+    // Add metadata field with expansion if configured
+    if (
+      this.metadataExpansionKeys !== null &&
+      this.metadataExpansionKeys.length > 0 &&
+      this.selectFields.has("metadata")
+    ) {
+      // Add keys to params for safe parameterized query
+      this.params.expandMetadataKeys = this.metadataExpansionKeys;
+
+      fieldExpressions.push(`mapFromArrays(
+        e.metadata_names,
+        arrayMap(
+          (name, prefix, hash) -> if(
+            has({expandMetadataKeys: Array(String)}, name) AND isNotNull(hash) AND mapContains(e.metadata_long_values, hash),
+            e.metadata_long_values[hash],
+            prefix
+          ),
+          e.metadata_names,
+          e.metadata_prefixes,
+          e.metadata_hashes
+        )
+      ) as metadata`);
     }
 
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;

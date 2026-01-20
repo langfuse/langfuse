@@ -4,7 +4,7 @@ import { z } from "zod/v4";
  * Schema for tool/function definitions in ChatML.
  * Used to define available tools for LLM function calling.
  */
-const ToolDefinitionSchema = z.object({
+export const ToolDefinitionSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   parameters: z.record(z.string(), z.any()).optional(),
@@ -14,7 +14,7 @@ const ToolDefinitionSchema = z.object({
  * Schema for tool/function call invocations in ChatML.
  * Represents an LLM's request to call a specific tool.
  */
-const ToolCallSchema = z.object({
+export const ToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
   arguments: z.string(), // JSON string of arguments
@@ -91,6 +91,31 @@ const OpenAIInputAudioContentPart = z.object({
     data: MediaReferenceStringSchema,
   }),
 });
+
+/**
+ * Thinking content part schema.
+ * Used to represent model reasoning/thinking output from various providers.
+ * Normalized format across the different adapters by the providers
+ */
+export const ThinkingContentPartSchema = z.object({
+  type: z.literal("thinking"),
+  content: z.string(),
+  signature: z.string().optional(), // Anthropic's cryptographic signature
+  summary: z.string().optional(), // OpenAI provides summaries
+});
+export type ThinkingContentPart = z.infer<typeof ThinkingContentPartSchema>;
+
+/**
+ * Redacted thinking content part.
+ * Anthropic sometimes encrypts thinking content for safety reasons.
+ */
+export const RedactedThinkingContentPartSchema = z.object({
+  type: z.literal("redacted_thinking"),
+  data: z.string(), // Encrypted blob
+});
+export type RedactedThinkingContentPart = z.infer<
+  typeof RedactedThinkingContentPartSchema
+>;
 
 /**
  * OpenAI text content part.
@@ -211,6 +236,9 @@ export const BaseChatMlMessageSchema = z
     tools: z.array(ToolDefinitionSchema).optional(),
     tool_calls: z.array(ToolCallSchema).optional(),
     tool_call_id: z.string().optional(),
+    // Thinking/reasoning content from models
+    thinking: z.array(ThinkingContentPartSchema).optional(),
+    redacted_thinking: z.array(RedactedThinkingContentPartSchema).optional(),
   })
   .passthrough();
 
@@ -230,7 +258,7 @@ export const BaseChatMlMessageSchema = z
  */
 const SimpleChatMessageSchema = z
   .object({
-    role: z.string().optional(),
+    role: z.string(),
     content: z
       .union([
         z.string(), // Simple string content
@@ -246,3 +274,53 @@ const SimpleChatMessageSchema = z
  * Used for backend extraction - validates array has at least one message.
  */
 export const SimpleChatMlArraySchema = z.array(SimpleChatMessageSchema).min(1);
+
+/**
+ * Full ChatML message schema with frontend transforms.
+ *
+ * NOTE: Moved to shared package to enable testing.
+ * Reason: Worker tests cannot import from web package and
+ * in the current setup web tests cannot import from shared.
+ * Therefore, we moved frontend specific transformation logic to the
+ * shared package for now, until web tests can import from shared.
+ *
+ * Includes transforms for frontend rendering:
+ * - Spreads additional_kwargs into message (makes fields accessible)
+ * - Moves unknown fields to json property (enables PrettyJsonView)
+ */
+export const ChatMlMessageSchema = BaseChatMlMessageSchema.refine(
+  (value) => value.content !== null || value.role !== undefined,
+)
+  .transform(({ additional_kwargs, ...other }) => ({
+    ...other,
+    ...additional_kwargs,
+  }))
+  .transform(
+    ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      thinking,
+      redacted_thinking,
+      ...other
+    }) => ({
+      role,
+      name,
+      content,
+      audio,
+      type,
+      tools,
+      tool_calls,
+      tool_call_id,
+      thinking,
+      redacted_thinking,
+      ...(Object.keys(other).length === 0 ? {} : { json: other }),
+    }),
+  );
+
+export const ChatMlArraySchema = z.array(ChatMlMessageSchema).min(1);

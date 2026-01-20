@@ -829,7 +829,7 @@ describe("SCIM API", () => {
             undefined,
             createBasicAuthHeader(orgApiKey, orgSecretKey),
           );
-        } catch (e) {
+        } catch (_e) {
           // ignore
         }
 

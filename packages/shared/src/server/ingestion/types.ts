@@ -68,13 +68,41 @@ export const usage = MixedUsage.nullish()
   .pipe(Usage.nullish());
 
 const CostDetails = z
-  .record(z.string(), z.number().nonnegative().nullish())
+  .record(z.string(), z.unknown())
+  .nullish()
+  .transform((val) => {
+    if (!val) return val;
+
+    const result: Record<string, number> = {};
+
+    for (const [key, value] of Object.entries(val)) {
+      if (typeof value === "number" && !isNaN(value) && value >= 0) {
+        result[key] = value;
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
+  })
   .nullish();
 
-const RawUsageDetails = z.record(
-  z.string(),
-  z.number().int().nonnegative().nullish(),
-);
+const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
+  if (!val) return;
+
+  const result: Record<string, number> = {};
+
+  for (const [key, value] of Object.entries(val)) {
+    if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+      result[key] = value;
+    } else if (typeof value === "string") {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        result[key] = parsed;
+      }
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+});
 
 const OpenAICompletionUsageSchema = z
   .object({
@@ -509,6 +537,13 @@ const createAllIngestionSchemas = ({
           }),
           dataType: z.literal("BOOLEAN"),
           configId: z.string().nullish(),
+        }),
+      ),
+      BaseScoreBody.merge(
+        z.object({
+          value: z.string(),
+          dataType: z.literal("CORRECTION"),
+          configId: z.undefined().nullish(), // Cannot have config
         }),
       ),
       BaseScoreBody.merge(
