@@ -11,6 +11,7 @@ export * from "./services/PromptService/types";
 export * from "./services/traces-ui-table-service";
 export * from "./services/InMemoryFilterService";
 export * from "./services/DatasetService";
+export * from "./services/commentFilterService";
 export * from "./datasets/schemaValidation";
 export * from "./datasets/schemaTypes";
 export * from "./evalJobConfigCache";
