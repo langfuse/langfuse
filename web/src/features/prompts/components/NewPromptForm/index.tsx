@@ -207,7 +207,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     formId,
     projectId: projectId ?? "",
     form,
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && !shouldLoadPlaygroundCache,
     onDraftRestored: (draft) => {
       // Restore chat messages if present
       if (
