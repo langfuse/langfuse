@@ -17,21 +17,42 @@ import { SettingsTableCard } from "@/src/components/layouts/settings-table-card"
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
 
+// Both endpoints return the same shape
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
 
-export function AuditLogsTable(props: { projectId: string }) {
+type AuditLogsTableProps =
+  | { scope: "project"; projectId: string }
+  | { scope: "organization"; orgId: string };
+
+export function AuditLogsTable(props: AuditLogsTableProps) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const auditLogs = api.auditLogs.all.useQuery({
-    projectId: props.projectId,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-  });
+  // Use the appropriate query based on scope
+  const projectAuditLogs = api.auditLogs.all.useQuery(
+    {
+      projectId: props.scope === "project" ? props.projectId : "",
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    { enabled: props.scope === "project" },
+  );
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage("auditLogs", "s");
+  const orgAuditLogs = api.auditLogs.allByOrg.useQuery(
+    {
+      orgId: props.scope === "organization" ? props.orgId : "",
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+    },
+    { enabled: props.scope === "organization" },
+  );
+
+  const auditLogs = props.scope === "project" ? projectAuditLogs : orgAuditLogs;
+
+  const tableId = props.scope === "project" ? "auditLogs" : "orgAuditLogs";
+  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(tableId, "s");
 
   const columns: LangfuseColumnDef<AuditLogRow>[] = [
     {
@@ -50,7 +71,7 @@ export function AuditLogsTable(props: { projectId: string }) {
       },
       cell: (row) => {
         const actor = row.getValue() as AuditLogRow["actor"];
-        if (actor.type === "USER") {
+        if (actor?.type === "USER") {
           const user = actor.body;
           return (
             <div className="flex items-center gap-2">
@@ -74,7 +95,7 @@ export function AuditLogsTable(props: { projectId: string }) {
           );
         }
 
-        if (actor.type === "API_KEY") {
+        if (actor?.type === "API_KEY") {
           const apiKey = actor.body;
           return (
             <div className="flex items-center gap-2">
@@ -126,20 +147,24 @@ export function AuditLogsTable(props: { projectId: string }) {
         columns={columns}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        actionButtons={[
-          <BatchExportTableButton
-            key="audit-logs-export"
-            projectId={props.projectId}
-            tableName={BatchExportTableName.AuditLogs}
-            filterState={[]}
-            orderByState={{ column: "createdAt", order: "DESC" }}
-          />,
-        ]}
+        actionButtons={
+          props.scope === "project"
+            ? [
+                <BatchExportTableButton
+                  key="audit-logs-export"
+                  projectId={props.projectId}
+                  tableName={BatchExportTableName.AuditLogs}
+                  filterState={[]}
+                  orderByState={{ column: "createdAt", order: "DESC" }}
+                />,
+              ]
+            : []
+        }
         className="px-0"
       />
       <SettingsTableCard>
         <DataTable
-          tableName={"auditLogs"}
+          tableName={tableId}
           columns={columns}
           data={
             auditLogs.isPending
