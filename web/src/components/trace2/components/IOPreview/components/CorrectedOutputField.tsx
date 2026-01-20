@@ -1,15 +1,22 @@
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash, FileDiff, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { type ScoreDomain } from "@langfuse/shared";
 import { useCorrectionData } from "./hooks/useCorrectionData";
 import { useCorrectionMutations } from "./hooks/useCorrectionMutations";
 import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Switch } from "@/src/components/ui/switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import Link from "next/link";
 
 interface CorrectedOutputFieldProps {
   projectId: string;
@@ -36,6 +43,9 @@ export function CorrectedOutputField({
     false,
   );
 
+  // Diff dialog state
+  const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false);
+
   // Merge cache + server data
   const { effectiveCorrection, correctionValue } = useCorrectionData(
     existingCorrection,
@@ -54,16 +64,26 @@ export function CorrectedOutputField({
     });
 
   // Manage editor state & debouncing
-  const { isEditing, value, isValidJson, handleEdit, handleChange } =
-    useCorrectionEditor({
-      correctionValue,
-      actualOutput,
-      onSave: handleSave,
-      setSaveStatus,
-      strictJsonMode,
-    });
+  const {
+    isEditing,
+    setIsEditing,
+    value,
+    isValidJson,
+    handleEdit,
+    handleChange,
+  } = useCorrectionEditor({
+    correctionValue,
+    actualOutput,
+    onSave: handleSave,
+    setSaveStatus,
+    strictJsonMode,
+  });
 
-  const hasContent = value.trim().length > 0;
+  // When not editing, use correctionValue (source of truth from cache/server)
+  // When editing, use value (local state)
+  const hasContent = isEditing
+    ? value.trim().length > 0
+    : correctionValue.trim().length > 0;
 
   // Format JSON for display
   const displayValue = useMemo(() => {
@@ -81,101 +101,144 @@ export function CorrectedOutputField({
     handleChange(newValue);
   };
 
+  const handleDeleteWithExitEdit = () => {
+    handleDelete();
+    setIsEditing(false);
+  };
+
   return (
-    <div className="px-2">
-      <div className="group relative rounded-md">
-        <div className="flex items-center justify-between py-1.5">
-          <span className="text-sm font-medium">Corrected Output (Beta)</span>
-          <div className="-mr-1 flex items-center">
-            <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-              {!isValidJson && isEditing && hasContent && (
-                <span className="mr-2 text-xs text-red-500">
-                  {strictJsonMode
-                    ? "Invalid JSON - fix to save"
-                    : "Cannot save empty content"}
-                </span>
-              )}
-              {isValidJson &&
-                saveStatus === "idle" &&
-                isEditing &&
-                hasContent && (
-                  <span className="mr-2 text-xs text-muted-foreground">
-                    DRAFT - Type any character to save
+    <>
+      <CorrectedOutputDiffDialog
+        isOpen={isDiffDialogOpen}
+        setIsOpen={setIsDiffDialogOpen}
+        actualOutput={actualOutput}
+        correctedOutput={value}
+        strictJsonMode={strictJsonMode}
+      />
+      <div className="px-2">
+        <div className="group relative rounded-md">
+          <div className="flex items-center justify-between py-1.5">
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-medium">
+                Corrected Output (Beta)
+              </span>
+              <HoverCard>
+                <HoverCardTrigger asChild>
+                  <button className="text-muted-foreground hover:text-foreground">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-80 text-xs" side="right">
+                  <p>
+                    Corrected outputs allow you to save the expected output for
+                    a trace or observation. Learn more in the{" "}
+                    <Link
+                      href="https://langfuse.com/docs/observability/features/corrections"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      documentation
+                    </Link>
+                    .
+                  </p>
+                </HoverCardContent>
+              </HoverCard>
+            </div>
+            <div className="-mr-1 flex items-center">
+              <div className="flex items-center -space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+                {!isValidJson && isEditing && hasContent && (
+                  <span className="mr-2 text-xs text-red-500">
+                    {strictJsonMode
+                      ? "Invalid JSON - fix to save"
+                      : "Cannot save empty content"}
                   </span>
                 )}
-              {isValidJson && saveStatus === "saving" && (
-                <span className="mr-2 w-fit text-xs text-muted-foreground">
-                  Saving...
-                </span>
-              )}
-              {isValidJson && saveStatus === "saved" && (
-                <span className="mr-2 w-fit text-xs">Saved ✓</span>
-              )}
-              {hasContent && !isEditing && (
-                <>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={handleEdit}
-                    disabled={!hasAccess}
-                    className="hover:bg-border"
-                    title="Edit corrected output"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={handleDelete}
-                    disabled={!hasAccess}
-                    className="hover:bg-border"
-                    title="Delete corrected output"
-                  >
-                    <Trash className="h-3 w-3" />
-                  </Button>
-                </>
-              )}
-            </div>
-            <div className="flex items-center">
-              <Switch
-                checked={strictJsonMode}
-                onCheckedChange={setStrictJsonMode}
-                className="scale-75"
-              />
-              <span className="text-xs text-muted-foreground">JSON</span>
+                {isValidJson && saveStatus === "saving" && (
+                  <span className="mr-2 w-fit text-xs text-muted-foreground">
+                    Saving...
+                  </span>
+                )}
+                {isValidJson && saveStatus === "saved" && (
+                  <span className="mr-2 w-fit text-xs">Saved ✓</span>
+                )}
+                {hasContent && (
+                  <>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => setIsDiffDialogOpen(true)}
+                      className="hover:bg-border"
+                      title={"View diff between original and corrected output"}
+                    >
+                      <FileDiff className="h-3 w-3" />
+                    </Button>
+                    {!isEditing && (
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={handleEdit}
+                        disabled={!hasAccess}
+                        className="hover:bg-border"
+                        title="Edit corrected output"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    )}
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={handleDeleteWithExitEdit}
+                      disabled={!hasAccess}
+                      className="hover:bg-border"
+                      title="Delete corrected output"
+                    >
+                      <Trash className="h-3 w-3" />
+                    </Button>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={strictJsonMode}
+                  onCheckedChange={setStrictJsonMode}
+                  className="scale-75"
+                />
+                <span className="text-xs text-muted-foreground">JSON</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {!hasContent && !isEditing ? (
-          <button
-            onClick={handleEdit}
-            disabled={!hasAccess}
-            className={cn(
-              "w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted/50",
-            )}
-          >
-            Click to add corrected output
-          </button>
-        ) : isEditing ? (
-          <CodeMirrorEditor
-            value={displayValue}
-            onChange={handleEditorChange}
-            mode={strictJsonMode ? "json" : "text"}
-            minHeight={200}
-            placeholder="Enter corrected output..."
-            className="bg-accent-light-green"
-          />
-        ) : (
-          <CodeMirrorEditor
-            value={displayValue}
-            mode={strictJsonMode ? "json" : "text"}
-            minHeight={200}
-            editable={false}
-            className="bg-accent-light-green"
-          />
-        )}
+          {!hasContent && !isEditing ? (
+            <button
+              onClick={handleEdit}
+              disabled={!hasAccess}
+              className={cn(
+                "w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs text-muted-foreground transition-colors hover:bg-muted/50",
+              )}
+            >
+              Click to add corrected output
+            </button>
+          ) : isEditing ? (
+            <CodeMirrorEditor
+              value={displayValue}
+              onChange={handleEditorChange}
+              mode={strictJsonMode ? "json" : "text"}
+              minHeight={200}
+              placeholder="Enter corrected output..."
+              className="bg-accent-light-green"
+            />
+          ) : (
+            <CodeMirrorEditor
+              value={displayValue}
+              mode={strictJsonMode ? "json" : "text"}
+              minHeight={200}
+              editable={false}
+              className="bg-accent-light-green"
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

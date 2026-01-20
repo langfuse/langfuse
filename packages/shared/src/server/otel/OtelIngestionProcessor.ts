@@ -360,6 +360,9 @@ export class OtelIngestionProcessor {
                   // Properties
                   tags: this.extractTags(spanAttributes),
                   public: this.extractPublic(spanAttributes),
+                  traceName:
+                    spanAttributes?.[LangfuseOtelSpanAttributes.TRACE_NAME] ??
+                    null,
                   userId: this.extractUserId(spanAttributes),
                   sessionId: this.extractSessionId(spanAttributes),
 
