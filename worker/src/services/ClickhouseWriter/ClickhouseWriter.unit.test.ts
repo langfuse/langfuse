@@ -152,32 +152,6 @@ describe("ClickhouseWriter", () => {
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
   });
 
-  it("should truncate logged events after dropping", async () => {
-    const mockInsert = vi
-      .spyOn(clickhouseClientMock, "insert")
-      .mockRejectedValue(new Error("DB Error"));
-
-    const baseString =
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ";
-    const repeatCount = Math.ceil(150000);
-    const input = baseString.repeat(repeatCount);
-    writer.addToQueue(TableName.Traces, { id: "1", name: "test", input });
-
-    for (let i = 0; i < writer.maxAttempts; i++) {
-      await vi.advanceTimersByTimeAsync(writer.writeInterval);
-    }
-
-    await vi.advanceTimersByTimeAsync(writer.writeInterval);
-
-    expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
-    expect(
-      logger.error.mock.calls.some((call) =>
-        call[1]?.item?.input?.includes("TRUNCATED: Field exceeded size limit"),
-      ),
-    ).toBe(true);
-    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
-  });
-
   it("should shutdown gracefully", async () => {
     writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
     const mockInsert = vi

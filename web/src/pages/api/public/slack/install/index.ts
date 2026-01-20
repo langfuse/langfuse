@@ -2,6 +2,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { handleInstallPath } from "@/src/features/slack/server/oauth-handlers";
 import { logger } from "@langfuse/shared/src/server";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { getServerAuthSession } from "@/src/server/auth";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export default async function handler(
   req: NextApiRequest,
@@ -21,7 +23,34 @@ export default async function handler(
       return res.status(400).json({ error: "Missing projectId parameter" });
     }
 
-    logger.info("Slack install request received", { projectId });
+    // Verify user is authenticated
+    const session = await getServerAuthSession({ req, res });
+    if (!session) {
+      logger.warn("Unauthenticated Slack install attempt", { projectId });
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Verify user has permission to modify automations for this project
+    const hasAccess = hasProjectAccess({
+      session,
+      projectId,
+      scope: "automations:CUD",
+    });
+
+    if (!hasAccess) {
+      logger.warn("Unauthorized Slack install attempt", {
+        projectId,
+        userId: session.user?.id,
+      });
+      return res.status(403).json({
+        error: "You do not have permission to configure Slack for this project",
+      });
+    }
+
+    logger.info("Slack install request received", {
+      projectId,
+      userId: session.user?.id,
+    });
 
     // Let SlackOAuthHandlers handle the installation page rendering
     // This includes:
