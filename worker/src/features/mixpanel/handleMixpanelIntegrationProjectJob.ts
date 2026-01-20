@@ -7,6 +7,7 @@ import {
   getTracesForAnalyticsIntegrations,
   getGenerationsForAnalyticsIntegrations,
   getScoresForAnalyticsIntegrations,
+  getEventsForAnalyticsIntegrations,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -15,6 +16,7 @@ import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
   transformScoreForMixpanel,
+  transformEventForMixpanel,
 } from "./transformers";
 
 type MixpanelExecutionConfig = {
@@ -126,6 +128,39 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
   );
 };
 
+const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
+  const events = getEventsForAnalyticsIntegrations(
+    config.projectId,
+    config.minTimestamp,
+    config.maxTimestamp,
+  );
+
+  logger.info(`Sending events for project ${config.projectId} to Mixpanel`);
+
+  const mixpanel = new MixpanelClient({
+    projectToken: config.decryptedMixpanelProjectToken,
+    region: config.mixpanelRegion,
+  });
+
+  let count = 0;
+  for await (const analyticsEvent of events) {
+    count++;
+    const event = transformEventForMixpanel(analyticsEvent, config.projectId);
+    mixpanel.addEvent(event);
+
+    if (count % 1000 === 0) {
+      await mixpanel.flush();
+      logger.info(
+        `Sent ${count} events to Mixpanel for project ${config.projectId}`,
+      );
+    }
+  }
+  await mixpanel.flush();
+  logger.info(
+    `Sent ${count} events to Mixpanel for project ${config.projectId}`,
+  );
+};
+
 export const handleMixpanelIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.MixpanelIntegrationProcessingQueue]>,
 ) => {
@@ -170,6 +205,7 @@ export const handleMixpanelIntegrationProjectJob = async (
     processMixpanelTraces(executionConfig),
     processMixpanelGenerations(executionConfig),
     processMixpanelScores(executionConfig),
+    processMixpanelEvents(executionConfig),
   ]);
 
   // Update the last run information for the mixpanelIntegration record
