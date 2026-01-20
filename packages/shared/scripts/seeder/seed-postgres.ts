@@ -541,6 +541,8 @@ export async function createDatasets(
         datasetItemIds.push(itemId);
 
         // Create dataset items in versioned format with all required fields
+        // Set validFrom to 30 days ago so experiment runs can reference this version
+        const validFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         itemsToCreate.push({
           id: itemId,
           projectId,
@@ -551,7 +553,7 @@ export async function createDatasets(
           expectedOutput: item.output,
           metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
           status: "ACTIVE" as const,
-          validFrom: new Date(),
+          validFrom,
           isDeleted: false,
         });
       }

@@ -16,6 +16,10 @@ import {
 import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 
 const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};
 const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
@@ -1684,6 +1688,72 @@ export async function listDatasetVersions(props: {
       );
 
       return result.map((row) => row.valid_from);
+    },
+  });
+}
+
+/**
+ * Resolves the dataset version that was active for a specific experiment run.
+ *
+ * 1. Queries MAX(created_at) from dataset_run_items - represents when last item was added
+ * 2. Uses that timestamp to resolve the dataset version - MAX(valid_from) satisfying temporal condition
+ *
+ * @returns The valid_from timestamp representing the dataset version, or null if not found
+ */
+export async function getDatasetVersionForRun(params: {
+  projectId: string;
+  datasetId: string;
+  runId: string;
+}): Promise<Date | null> {
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () => {
+      // No versioning in stateful mode
+      return null;
+    },
+    [Implementation.VERSIONED]: async () => {
+      // Step 1: Get the latest creation timestamp from dataset run items (ClickHouse)
+      const maxCreatedAtResult = await queryClickhouse<{
+        max_created_at: string | null;
+      }>({
+        query: `
+          SELECT maxOrNull(created_at) as max_created_at
+          FROM dataset_run_items_rmt
+          WHERE project_id = {projectId: String}
+            AND dataset_id = {datasetId: String}
+            AND dataset_run_id = {runId: String}
+        `,
+        params: {
+          projectId: params.projectId,
+          datasetId: params.datasetId,
+          runId: params.runId,
+        },
+        tags: {
+          feature: "datasets",
+          operation: "getDatasetVersionForRun",
+        },
+      });
+
+      const maxCreatedAt = maxCreatedAtResult[0]?.max_created_at ?? null;
+
+      if (!maxCreatedAt) {
+        return null;
+      }
+
+      const timestamp = parseClickhouseUTCDateTimeFormat(maxCreatedAt);
+      // Step 2: Resolve to dataset version using temporal query (PostgreSQL)
+      const result = await prisma.$queryRaw<Array<{ valid_from: Date | null }>>(
+        Prisma.sql`
+          SELECT MAX(valid_from) as valid_from
+          FROM dataset_items
+          WHERE project_id = ${params.projectId}
+            AND dataset_id = ${params.datasetId}
+            AND is_deleted = false
+            AND valid_from <= ${timestamp}
+            AND (valid_to IS NULL OR valid_to > ${timestamp})
+        `,
+      );
+
+      return result[0]?.valid_from ?? null;
     },
   });
 }
