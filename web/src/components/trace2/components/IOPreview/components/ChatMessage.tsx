@@ -130,8 +130,13 @@ export function ChatMessage({
     );
   }
 
-  // Tool-call-only message (no content)
-  if (!hasContent && toolCalls.length > 0) {
+  // Tool-call-only message (no content, no thinking)
+  if (
+    !hasContent &&
+    !hasThinkingContent(message) &&
+    !hasRedactedThinkingContent(message) &&
+    toolCalls.length > 0
+  ) {
     return (
       <div className={cn("transition-colors hover:bg-muted")}>
         <MarkdownJsonViewHeader
