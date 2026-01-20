@@ -186,7 +186,7 @@ export function ChatMessage({
         <div style={{ display: shouldRenderMarkdown ? "block" : "none" }}>
           <MarkdownJsonView
             title={title}
-            content={message.content || '""'}
+            content={message.content || ""}
             customCodeHeaderClassName={cn(
               message.role === "assistant" && "bg-secondary",
               message.role === "system" && "bg-primary-foreground",
