@@ -1,6 +1,6 @@
 # Implementation Plan: Events Export Feature
 
-## Phase 1: Foundation and CSV Export
+## Phase 1: CSV Export (PR #1 - COMPLETED)
 
 ### [x] Step 1: Add Events to BatchTableNames Enum
 - **Task**: Add `Events = "events"` to the `BatchTableNames` enum. This is a foundational change that enables all other features since the enum is used throughout the codebase for type safety and validation.
@@ -45,9 +45,61 @@
 - **Step Dependencies**: Step 1
 - **User Instructions**: None
 
-## Phase 2: Scheduled Integrations
+### [x] Step 5: Add Tests for CSV Export
+- **Task**: Add tests for the events stream function and batch export handler.
+- **Files**:
+  - `worker/src/__tests__/batchExport.test.ts`: Add events export tests
+- **Step Dependencies**: Steps 1-4
+- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- batchExport.test.ts -t "should export events"`
 
-### [ ] Step 5: Add AnalyticsEventEvent Type
+---
+
+## Phase 2A: S3/Blob Storage Export (PR #2)
+
+This PR adds events export support for S3/Blob Storage scheduled integrations.
+
+### [x] Step 6: Add Events Export Function for Blob Storage
+- **Task**: Add `getEventsForBlobStorageExport()` function to the events repository file. Follow the pattern of `getScoresForBlobStorageExport()` in `scores.ts`.
+- **Files**:
+  - `packages/shared/src/server/repositories/events.ts`: 
+    - Add `getEventsForBlobStorageExport()` function at the end of the file
+      - Use raw SQL query (not EventsQueryBuilder) matching the pattern in traces.ts/scores.ts
+      - Filter by time range (minTimestamp to maxTimestamp)
+      - Use queryClickhouseStream directly
+      - Return the stream directly (not wrapped in async generator)
+  - `packages/shared/src/server/repositories/index.ts`: 
+    - Export the new function (if not already exported via `export * from "./events"`)
+- **Step Dependencies**: None
+- **User Instructions**: None
+
+### [x] Step 7: Update Blob Storage Integration Handler
+- **Task**: Add Events table support to the blob storage integration handler so events can be exported to S3/S3-compatible storage on a schedule.
+- **Files**:
+  - `worker/src/features/blobstorage/handleBlobStorageIntegrationProjectJob.ts`: 
+    - Add import: `getEventsForBlobStorageExport` from `@langfuse/shared/src/server`
+    - Update `processBlobStorageExport` function signature: Add `"events"` to table type union
+    - Add case in switch statement: `case "events"` that calls `getEventsForBlobStorageExport()`
+- **Step Dependencies**: Step 6
+- **User Instructions**: None
+
+### [ ] Step 8: Add Tests for Blob Storage Integration
+- **Task**: Add test cases to verify Events table export works in blob storage integration.
+- **Files**:
+  - `worker/src/__tests__/blobStorage.test.ts`: 
+    - Add test case for events table export to blob storage (using Vitest)
+    - Verify events are exported to S3
+    - Test time range filtering
+    - Mock external dependencies
+- **Step Dependencies**: Step 7
+- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- blobStorage`
+
+---
+
+## Phase 2B: PostHog Integration (PR #3)
+
+This PR adds events export support for PostHog scheduled integrations. Includes shared analytics foundation code that will also be used by Mixpanel.
+
+### [ ] Step 9: Add AnalyticsEventEvent Type
 - **Task**: Create `AnalyticsEventEvent` type in the analytics-integrations types file, following the pattern of existing `AnalyticsTraceEvent`, `AnalyticsGenerationEvent`, and `AnalyticsScoreEvent` types.
 - **Files**:
   - `packages/shared/src/server/analytics-integrations/types.ts`: 
@@ -63,46 +115,20 @@
 - **Step Dependencies**: None
 - **User Instructions**: None
 
-### [ ] Step 6: Add Events Export Functions to Repository
-- **Task**: Add `getEventsForBlobStorageExport()` and `getEventsForAnalyticsIntegrations()` functions to the events repository file. These functions will be used by S3, PostHog, and Mixpanel integrations. Follow the pattern of `getScoresForBlobStorageExport()` and `getScoresForAnalyticsIntegrations()` in `scores.ts`.
+### [ ] Step 10: Add Events Export Function for Analytics Integrations
+- **Task**: Add `getEventsForAnalyticsIntegrations()` function to the events repository file. Follow the pattern of `getScoresForAnalyticsIntegrations()` in `scores.ts`.
 - **Files**:
   - `packages/shared/src/server/repositories/events.ts`: 
-    - Add `getEventsForBlobStorageExport()` function at the end of the file
-      - Use raw SQL query (not EventsQueryBuilder) matching the pattern in traces.ts/scores.ts
-      - Filter by time range (minTimestamp to maxTimestamp)
-      - Use queryClickhouseStream directly
-      - Return the stream directly (not wrapped in async generator)
     - Add `getEventsForAnalyticsIntegrations()` async generator function
       - Query ClickHouse for events with analytics-relevant fields
       - Transform raw records to `AnalyticsEventEvent` format in yield
       - Include URL construction using `env.NEXTAUTH_URL`
   - `packages/shared/src/server/repositories/index.ts`: 
-    - Export the new functions (if not already exported via `export * from "./events"`)
-- **Step Dependencies**: Step 1, Step 5 (needs AnalyticsEventEvent type)
+    - Export the new function (if not already exported via `export * from "./events"`)
+- **Step Dependencies**: Step 9 (needs AnalyticsEventEvent type)
 - **User Instructions**: None
 
-### [ ] Step 7: Verify Events Functions Export from Server Index
-- **Task**: Verify the new events export functions are exported from the shared server index so they can be imported by worker handlers.
-- **Files**:
-  - `packages/shared/src/server/repositories/index.ts`:
-    - **Already exists**: `export * from "./events"` (line 4) - no changes needed
-  - `packages/shared/src/server/index.ts`:
-    - **Already exists**: `export * from "./repositories"` (line 94) - no changes needed
-    - **Already exists**: `export * from "./analytics-integrations/types"` (line 120) - exports AnalyticsEventEvent
-- **Step Dependencies**: Step 5, Step 6
-- **User Instructions**: None (verification only - exports already configured)
-
-### [ ] Step 8: Update Blob Storage Integration Handler
-- **Task**: Add Events table support to the blob storage integration handler so events can be exported to S3/S3-compatible storage on a schedule.
-- **Files**:
-  - `worker/src/features/blobstorage/handleBlobStorageIntegrationProjectJob.ts`: 
-    - Add import: `getEventsForBlobStorageExport` from `@langfuse/shared/src/server`
-    - Update `processBlobStorageExport` function signature: Add `"events"` to table type union
-    - Add case in switch statement: `case "events"` that calls `getEventsForBlobStorageExport()`
-- **Step Dependencies**: Step 6, Step 7
-- **User Instructions**: None
-
-### [ ] Step 9: Create PostHog Event Transformer
+### [ ] Step 11: Create PostHog Event Transformer
 - **Task**: Create transformer function to convert `AnalyticsEventEvent` to PostHog event format, following the exact pattern of `transformTraceForPostHog`, `transformGenerationForPostHog`, and `transformScoreForPostHog`.
 - **Files**:
   - `worker/src/features/posthog/transformers.ts`: 
@@ -116,10 +142,10 @@
       - uuid: generated using v5 UUID
       - properties: spread `otherProps`, set `$session_id` from `posthog_session_id`
       - Handle anonymous events with `$process_person_profile: false`
-- **Step Dependencies**: Step 5 (needs AnalyticsEventEvent type)
+- **Step Dependencies**: Step 9 (needs AnalyticsEventEvent type)
 - **User Instructions**: None
 
-### [ ] Step 10: Update PostHog Integration Handler
+### [ ] Step 12: Update PostHog Integration Handler
 - **Task**: Add events processing to PostHog integration handler so events are sent to PostHog alongside traces, generations, and scores.
 - **Files**:
   - `worker/src/features/posthog/handlePostHogIntegrationProjectJob.ts`: 
@@ -131,10 +157,27 @@
       - Send via PostHog SDK with batching (flush every 10,000 events)
       - Include error handling
     - Update main handler: Add `processPostHogEvents(executionConfig)` to Promise.all()
-- **Step Dependencies**: Step 6, Step 7, Step 9
+- **Step Dependencies**: Steps 10, 11
 - **User Instructions**: None
 
-### [ ] Step 11: Create Mixpanel Event Transformer
+### [ ] Step 13: Add Tests for PostHog Integration
+- **Task**: Add test cases to verify Events are sent to PostHog correctly.
+- **Files**:
+  - `worker/src/__tests__/posthog.test.ts`: 
+    - Add test case for events being sent to PostHog (using Vitest)
+    - Verify transformer is called correctly
+    - Verify PostHog SDK is called with correct event format
+    - Mock PostHog SDK
+- **Step Dependencies**: Step 12
+- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- posthog`
+
+---
+
+## Phase 2C: Mixpanel Integration (PR #4)
+
+This PR adds events export support for Mixpanel scheduled integrations. Depends on Phase 2B (PostHog) being merged first for shared analytics foundation code.
+
+### [ ] Step 14: Create Mixpanel Event Transformer
 - **Task**: Create transformer function to convert `AnalyticsEventEvent` to Mixpanel event format, following the exact pattern of `transformTraceForMixpanel`, `transformGenerationForMixpanel`, and `transformScoreForMixpanel`.
 - **Files**:
   - `worker/src/features/mixpanel/transformers.ts`: 
@@ -148,10 +191,10 @@
       - properties.$insert_id: generated using v5 UUID
       - properties.session_id: from `mixpanel_session_id` or `langfuse_session_id`
       - Spread remaining properties
-- **Step Dependencies**: Step 5 (needs AnalyticsEventEvent type)
+- **Step Dependencies**: Phase 2B merged (needs AnalyticsEventEvent type and getEventsForAnalyticsIntegrations)
 - **User Instructions**: None
 
-### [ ] Step 12: Update Mixpanel Integration Handler
+### [ ] Step 15: Update Mixpanel Integration Handler
 - **Task**: Add events processing to Mixpanel integration handler so events are sent to Mixpanel alongside traces, generations, and scores.
 - **Files**:
   - `worker/src/features/mixpanel/handleMixpanelIntegrationProjectJob.ts`: 
@@ -163,60 +206,10 @@
       - Send via MixpanelClient with batching (flush every 1,000 events)
       - Include error handling
     - Update main handler: Add `processMixpanelEvents(executionConfig)` to Promise.all()
-- **Step Dependencies**: Step 6, Step 7, Step 11
+- **Step Dependencies**: Step 14
 - **User Instructions**: None
 
-## Phase 3: Testing
-
-**Note**: Worker uses **Vitest** (not Jest). Use Vitest imports: `import { describe, it, expect, vi } from 'vitest'`
-
-### [ ] Step 13: Add Unit Tests for Events Stream
-- **Task**: Create unit tests for the `getEventsStream()` function to verify it correctly streams events with various filters and handles edge cases.
-- **Files**:
-  - `worker/src/__tests__/event-stream.test.ts`: Create new test file using Vitest
-    - Test streaming events with filters
-    - Test empty results handling
-    - Test comment fetching
-    - Test progress logging
-    - Mock ClickHouse queries appropriately
-    - Ensure tests are independent (no shared state)
-- **Step Dependencies**: Step 2
-- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- event-stream`
-
-### [ ] Step 14: Add Integration Tests for Batch Export
-- **Task**: Add test cases to verify Events table batch export works end-to-end in the batch export handler.
-- **Files**:
-  - `worker/src/__tests__/batchExport.test.ts`: 
-    - Add test case for Events table export (using Vitest)
-    - Verify stream is called with correct parameters
-    - Verify file is uploaded to S3
-    - Mock external dependencies (S3, ClickHouse)
-- **Step Dependencies**: Step 3
-- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- batchExport`
-
-### [ ] Step 15: Add Integration Tests for Blob Storage Integration
-- **Task**: Add test cases to verify Events table export works in blob storage integration.
-- **Files**:
-  - `worker/src/__tests__/blobStorage.test.ts`: 
-    - Add test case for events table export to blob storage (using Vitest)
-    - Verify events are exported to S3
-    - Test time range filtering
-    - Mock external dependencies
-- **Step Dependencies**: Step 8
-- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- blobStorage`
-
-### [ ] Step 16: Add Integration Tests for PostHog Integration
-- **Task**: Add test cases to verify Events are sent to PostHog correctly.
-- **Files**:
-  - `worker/src/__tests__/posthog.test.ts`: 
-    - Add test case for events being sent to PostHog (using Vitest)
-    - Verify transformer is called correctly
-    - Verify PostHog SDK is called with correct event format
-    - Mock PostHog SDK
-- **Step Dependencies**: Step 10
-- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- posthog`
-
-### [ ] Step 17: Add Integration Tests for Mixpanel Integration
+### [ ] Step 16: Add Tests for Mixpanel Integration
 - **Task**: Add test cases to verify Events are sent to Mixpanel correctly.
 - **Files**:
   - `worker/src/__tests__/mixpanel.test.ts`: 
@@ -224,30 +217,23 @@
     - Verify transformer is called correctly
     - Verify MixpanelClient is called with correct event format
     - Mock MixpanelClient
-- **Step Dependencies**: Step 12
+- **Step Dependencies**: Step 15
 - **User Instructions**: Run tests with: `pnpm run test --filter=worker -- mixpanel`
+
+---
 
 ## Summary
 
-### Implementation Approach
-This plan implements the Events Export feature in three phases:
+### PR Structure
 
-1. **Phase 1 (Steps 1-4)**: Foundation and CSV Export Button
-   - Adds Events to the enum system
-   - Creates the worker stream function for batch exports
-   - Updates the batch export handler
-   - Updates UI warning messages
+| PR | Phase | Scope | Steps | Dependencies |
+|----|-------|-------|-------|--------------|
+| **PR #1** | Phase 1 | CSV Export | Steps 1-5 | None (COMPLETED) |
+| **PR #2** | Phase 2A | S3/Blob Storage | Steps 6-8 | PR #1 merged |
+| **PR #3** | Phase 2B | PostHog + Analytics Foundation | Steps 9-13 | PR #1 merged |
+| **PR #4** | Phase 2C | Mixpanel | Steps 14-16 | PR #3 merged |
 
-2. **Phase 2 (Steps 5-12)**: Scheduled Integrations
-   - **Step 5**: Creates `AnalyticsEventEvent` type for analytics integrations
-   - **Steps 6-7**: Adds repository functions for blob storage and analytics integrations
-   - **Step 8**: Updates S3/blob storage handler
-   - **Steps 9-10**: Creates PostHog transformer and updates handler
-   - **Steps 11-12**: Creates Mixpanel transformer and updates handler
-
-3. **Phase 3 (Steps 13-17)**: Testing
-   - Comprehensive unit and integration tests using **Vitest**
-   - Tests for each integration point
+**Note**: PR #2 and PR #3 can be developed in parallel after PR #1 is merged, as they don't depend on each other.
 
 ### Key Considerations
 
@@ -258,19 +244,27 @@ This plan implements the Events Export feature in three phases:
 5. **Error Handling**: Follow existing error handling patterns in each handler
 6. **Testing**: Worker tests use Vitest. All tests must be independent and not rely on shared state
 
-### Dependencies Between Steps
-- Step 1 (enum) is foundational and must come first
-- Steps 2-4 (Phase 1) can be done in sequence
-- Step 5 (AnalyticsEventEvent type) is required before Steps 6 and transformer steps (9, 11)
-- Steps 6-12 (Phase 2) depend on Step 1 and Step 5
-- Steps 13-17 (Phase 3) depend on their respective implementation steps
+### Dependencies Between PRs
 
-### File Modification Count
-- Most steps modify 1-3 files
-- No step modifies more than 5 files
-- Well within the 20-file limit per step
+```
+PR #1 (CSV Export) ✓
+    ↓
+    ├── PR #2 (S3/Blob Storage)
+    │
+    └── PR #3 (PostHog + Analytics Foundation)
+            ↓
+            └── PR #4 (Mixpanel)
+```
+
+### File Modification Count Per PR
+
+- **PR #1**: 6 files (completed)
+- **PR #2**: 3 files (repository, handler, tests)
+- **PR #3**: 5 files (types, repository, transformer, handler, tests)
+- **PR #4**: 3 files (transformer, handler, tests)
 
 ### User Actions Required
+
 - No manual database migrations needed
 - No configuration changes required
 - All code changes are self-contained

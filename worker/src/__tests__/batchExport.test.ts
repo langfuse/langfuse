@@ -11,6 +11,7 @@ import {
   createManyDatasetItems,
   createEvent,
   createEventsCh,
+  getEventsForBlobStorageExport,
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -2844,5 +2845,112 @@ describe("batch export test suite", () => {
     // Results should be sorted by start_time DESC (default)
     const exportedNames = rows.map((row) => row.name);
     expect(exportedNames).toEqual(["gen-event-3", "gen-event-1"]);
+  });
+});
+
+describe("getEventsForBlobStorageExport", () => {
+  it("should stream events for blob storage export", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "test-blob-event",
+      start_time: now * 1000, // microseconds
+    });
+
+    await createEventsCh([event]);
+
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000), // 1 hour ago
+      new Date(now + 60 * 60 * 1000), // 1 hour from now
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(event.span_id);
+    expect(rows[0].name).toBe("test-blob-event");
+    expect(rows[0].type).toBe("GENERATION");
+  });
+
+  it("should filter events by time range", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    // Create events at different times
+    const oldEvent = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "SPAN",
+      name: "old-event",
+      start_time: (now - 3 * 60 * 60 * 1000) * 1000, // 3 hours ago (microseconds)
+    });
+
+    const recentEvent = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "recent-event",
+      start_time: now * 1000, // now (microseconds)
+    });
+
+    await createEventsCh([oldEvent, recentEvent]);
+
+    // Query for events in the last 2 hours only
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 2 * 60 * 60 * 1000), // 2 hours ago
+      new Date(now + 60 * 60 * 1000), // 1 hour from now
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    // Should only include the recent event (old event is outside time range)
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(recentEvent.span_id);
+    expect(rows[0].name).toBe("recent-event");
+  });
+
+  it("should return empty stream when no events match time range", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const now = Date.now();
+    const traceId = randomUUID();
+
+    // Create event in the past
+    const pastEvent = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "SPAN",
+      name: "past-event",
+      start_time: (now - 5 * 60 * 60 * 1000) * 1000, // 5 hours ago (microseconds)
+    });
+
+    await createEventsCh([pastEvent]);
+
+    // Query for events in the last hour only (event is older)
+    const stream = getEventsForBlobStorageExport(
+      projectId,
+      new Date(now - 60 * 60 * 1000), // 1 hour ago
+      new Date(now + 60 * 60 * 1000), // 1 hour from now
+    );
+
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of stream) {
+      rows.push(row);
+    }
+
+    expect(rows).toHaveLength(0);
   });
 });

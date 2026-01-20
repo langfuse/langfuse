@@ -11,6 +11,7 @@ import {
   getObservationsForBlobStorageExport,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
+  getEventsForBlobStorageExport,
   getCurrentSpan,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -155,7 +156,7 @@ const processBlobStorageExport = async (config: {
   prefix?: string;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
-  table: "traces" | "observations" | "scores";
+  table: "traces" | "observations" | "scores" | "events";
   fileType: BlobStorageIntegrationFileType;
 }) => {
   logger.info(
@@ -206,6 +207,13 @@ const processBlobStorageExport = async (config: {
         break;
       case "scores":
         dataStream = getScoresForBlobStorageExport(
+          config.projectId,
+          config.minTimestamp,
+          config.maxTimestamp,
+        );
+        break;
+      case "events":
+        dataStream = getEventsForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
           config.maxTimestamp,
@@ -356,7 +364,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list
       logger.info(
-        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export, skipping observations and scores`,
+        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export, skipping observations, scores, and events`,
       );
       await processBlobStorageExport({ ...executionConfig, table: "traces" });
     } else {
@@ -365,6 +373,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         processBlobStorageExport({ ...executionConfig, table: "traces" }),
         processBlobStorageExport({ ...executionConfig, table: "observations" }),
         processBlobStorageExport({ ...executionConfig, table: "scores" }),
+        processBlobStorageExport({ ...executionConfig, table: "events" }),
       ]);
     }
 
