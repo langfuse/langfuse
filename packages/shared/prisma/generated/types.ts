@@ -452,24 +452,9 @@ export type DatasetItem = {
   dataset_id: string;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
-  sys_id: Generated<string | null>;
   valid_from: Generated<Timestamp>;
   valid_to: Timestamp | null;
   is_deleted: Generated<boolean>;
-};
-export type DatasetItemEvent = {
-  id: string;
-  item_id: string;
-  project_id: string;
-  dataset_id: string;
-  status: DatasetStatus | null;
-  input: unknown | null;
-  expected_output: unknown | null;
-  metadata: unknown | null;
-  source_trace_id: string | null;
-  source_observation_id: string | null;
-  created_at: Timestamp | null;
-  deleted_at: Timestamp | null;
 };
 export type DatasetRunItems = {
   id: string;
@@ -959,7 +944,6 @@ export type DB = {
   cron_jobs: CronJobs;
   dashboard_widgets: DashboardWidget;
   dashboards: Dashboard;
-  dataset_item_events: DatasetItemEvent;
   dataset_items: DatasetItem;
   dataset_run_items: DatasetRunItems;
   dataset_runs: DatasetRuns;

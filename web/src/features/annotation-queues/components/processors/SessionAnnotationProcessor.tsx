@@ -126,6 +126,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceId={trace.id}
                   projectId={projectId}
                   timestamp={trace.timestamp}
+                  showCorrections
                 />
               </Card>
             ))}

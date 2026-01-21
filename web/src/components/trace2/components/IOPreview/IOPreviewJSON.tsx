@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "next-themes";
-import { type ExpansionStateProps } from "./IOPreview";
 import { countJsonRows } from "@/src/components/ui/AdvancedJsonViewer/utils/rowCount";
 import {
   MultiSectionJsonViewer,
@@ -24,12 +23,13 @@ import {
 import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
+import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { type ScoreDomain } from "@langfuse/shared";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
-export interface IOPreviewJSONProps extends ExpansionStateProps {
+export interface IOPreviewJSONProps {
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
@@ -52,6 +52,11 @@ export interface IOPreviewJSONProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  // Combined expansion state (paths are prefixed: "input.foo", "output.bar", etc.)
+  // Input accepts ExpansionState (boolean shorthand), callback receives Record (what viewer emits)
+  expansionState?: ExpansionState;
+  onExpansionChange?: (expansion: Record<string, boolean>) => void;
+  showCorrections?: boolean;
 }
 
 /**
@@ -84,6 +89,9 @@ function IOPreviewJSONInner({
   projectId,
   traceId,
   environment = "default",
+  expansionState,
+  onExpansionChange,
+  showCorrections = true,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
 
@@ -284,6 +292,8 @@ function IOPreviewJSONInner({
       scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
       media={media}
       commentedPathsByField={commentedPathsByField}
+      externalExpansionState={expansionState}
+      onExpansionChange={onExpansionChange}
       theme={{
         fontSize: "0.7rem",
         lineHeight: 14,
@@ -428,14 +438,16 @@ function IOPreviewJSONInner({
         ) : (
           viewerContent
         )}
-        <CorrectedOutputField
-          actualOutput={parsedOutput}
-          existingCorrection={outputCorrection}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-        />
+        {showCorrections && (
+          <CorrectedOutputField
+            actualOutput={parsedOutput}
+            existingCorrection={outputCorrection}
+            observationId={observationId}
+            projectId={projectId}
+            traceId={traceId}
+            environment={environment}
+          />
+        )}
       </div>
     </div>
   );
