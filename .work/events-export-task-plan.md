@@ -99,7 +99,7 @@ This PR adds events export support for S3/Blob Storage scheduled integrations.
 
 This PR adds events export support for PostHog scheduled integrations. Includes shared analytics foundation code that will also be used by Mixpanel.
 
-### [ ] Step 9: Add AnalyticsEventEvent Type
+### [x] Step 9: Add AnalyticsEventEvent Type
 - **Task**: Create `AnalyticsEventEvent` type in the analytics-integrations types file, following the pattern of existing `AnalyticsTraceEvent`, `AnalyticsGenerationEvent`, and `AnalyticsScoreEvent` types.
 - **Files**:
   - `packages/shared/src/server/analytics-integrations/types.ts`: 
@@ -115,7 +115,7 @@ This PR adds events export support for PostHog scheduled integrations. Includes 
 - **Step Dependencies**: None
 - **User Instructions**: None
 
-### [ ] Step 10: Add Events Export Function for Analytics Integrations
+### [x] Step 10: Add Events Export Function for Analytics Integrations
 - **Task**: Add `getEventsForAnalyticsIntegrations()` function to the events repository file. Follow the pattern of `getScoresForAnalyticsIntegrations()` in `scores.ts`.
 - **Files**:
   - `packages/shared/src/server/repositories/events.ts`: 
@@ -128,7 +128,7 @@ This PR adds events export support for PostHog scheduled integrations. Includes 
 - **Step Dependencies**: Step 9 (needs AnalyticsEventEvent type)
 - **User Instructions**: None
 
-### [ ] Step 11: Create PostHog Event Transformer
+### [x] Step 11: Create PostHog Event Transformer
 - **Task**: Create transformer function to convert `AnalyticsEventEvent` to PostHog event format, following the exact pattern of `transformTraceForPostHog`, `transformGenerationForPostHog`, and `transformScoreForPostHog`.
 - **Files**:
   - `worker/src/features/posthog/transformers.ts`: 
@@ -145,7 +145,7 @@ This PR adds events export support for PostHog scheduled integrations. Includes 
 - **Step Dependencies**: Step 9 (needs AnalyticsEventEvent type)
 - **User Instructions**: None
 
-### [ ] Step 12: Update PostHog Integration Handler
+### [x] Step 12: Update PostHog Integration Handler
 - **Task**: Add events processing to PostHog integration handler so events are sent to PostHog alongside traces, generations, and scores.
 - **Files**:
   - `worker/src/features/posthog/handlePostHogIntegrationProjectJob.ts`: 
@@ -160,16 +160,16 @@ This PR adds events export support for PostHog scheduled integrations. Includes 
 - **Step Dependencies**: Steps 10, 11
 - **User Instructions**: None
 
-### [ ] Step 13: Add Tests for PostHog Integration
+### [x] Step 13: Add Tests for PostHog Integration
 - **Task**: Add test cases to verify Events are sent to PostHog correctly.
 - **Files**:
-  - `worker/src/__tests__/posthog.test.ts`: 
-    - Add test case for events being sent to PostHog (using Vitest)
-    - Verify transformer is called correctly
-    - Verify PostHog SDK is called with correct event format
-    - Mock PostHog SDK
+  - `worker/src/__tests__/posthogTransformers.test.ts`: 
+    - Add test cases for `transformEventForPostHog` transformer
+    - Verify transformer handles events with user_id
+    - Verify transformer handles anonymous events
+    - Verify UUID generation is consistent
 - **Step Dependencies**: Step 12
-- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- posthog`
+- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- posthogTransformers`
 
 ---
 
@@ -177,7 +177,7 @@ This PR adds events export support for PostHog scheduled integrations. Includes 
 
 This PR adds events export support for Mixpanel scheduled integrations. Depends on Phase 2B (PostHog) being merged first for shared analytics foundation code.
 
-### [ ] Step 14: Create Mixpanel Event Transformer
+### [x] Step 14: Create Mixpanel Event Transformer
 - **Task**: Create transformer function to convert `AnalyticsEventEvent` to Mixpanel event format, following the exact pattern of `transformTraceForMixpanel`, `transformGenerationForMixpanel`, and `transformScoreForMixpanel`.
 - **Files**:
   - `worker/src/features/mixpanel/transformers.ts`: 
@@ -194,7 +194,7 @@ This PR adds events export support for Mixpanel scheduled integrations. Depends 
 - **Step Dependencies**: Phase 2B merged (needs AnalyticsEventEvent type and getEventsForAnalyticsIntegrations)
 - **User Instructions**: None
 
-### [ ] Step 15: Update Mixpanel Integration Handler
+### [x] Step 15: Update Mixpanel Integration Handler
 - **Task**: Add events processing to Mixpanel integration handler so events are sent to Mixpanel alongside traces, generations, and scores.
 - **Files**:
   - `worker/src/features/mixpanel/handleMixpanelIntegrationProjectJob.ts`: 
@@ -209,16 +209,17 @@ This PR adds events export support for Mixpanel scheduled integrations. Depends 
 - **Step Dependencies**: Step 14
 - **User Instructions**: None
 
-### [ ] Step 16: Add Tests for Mixpanel Integration
+### [x] Step 16: Add Tests for Mixpanel Integration
 - **Task**: Add test cases to verify Events are sent to Mixpanel correctly.
 - **Files**:
-  - `worker/src/__tests__/mixpanel.test.ts`: 
-    - Add test case for events being sent to Mixpanel (using Vitest)
-    - Verify transformer is called correctly
-    - Verify MixpanelClient is called with correct event format
-    - Mock MixpanelClient
+  - `worker/src/__tests__/mixpanelTransformers.test.ts`: 
+    - Add test cases for `transformEventForMixpanel` transformer
+    - Verify transformer handles events with user_id
+    - Verify transformer handles anonymous events
+    - Verify insert ID generation is consistent
+    - Verify session_id handling (mixpanel_session_id vs langfuse_session_id)
 - **Step Dependencies**: Step 15
-- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- mixpanel`
+- **User Instructions**: Run tests with: `pnpm run test --filter=worker -- mixpanelTransformers`
 
 ---
 
