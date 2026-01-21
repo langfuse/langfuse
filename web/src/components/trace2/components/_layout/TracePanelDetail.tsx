@@ -25,20 +25,20 @@ export function TracePanelDetail() {
   const { selectedNodeId, setSelectedNodeId } = useSelection();
   const {
     trace,
-    tree,
+    roots,
     nodeMap,
     observations,
     serverScores: scores,
     corrections,
   } = useTraceData();
 
-  // Auto-select root observation when tree root is an observation (not TRACE)
-  // This happens for events-based traces with a single root observation
+  // Auto-select first root observation when roots are observations (not TRACE wrapped)
+  // This happens for events-based traces with observation roots
   useEffect(() => {
-    if (!selectedNodeId && tree.type !== "TRACE") {
-      setSelectedNodeId(tree.id);
+    if (!selectedNodeId && roots.length > 0 && roots[0].type !== "TRACE") {
+      setSelectedNodeId(roots[0].id);
     }
-  }, [selectedNodeId, tree.id, tree.type, setSelectedNodeId]);
+  }, [selectedNodeId, roots, setSelectedNodeId]);
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {
@@ -62,8 +62,8 @@ export function TracePanelDetail() {
         );
       }
 
-      // Check if this observation is the tree root (events-based trace with single root)
-      const isRoot = tree.type !== "TRACE" && selectedNodeId === tree.id;
+      // Check if this observation is one of the roots (events-based trace)
+      const isRoot = roots.some((r) => r.id === selectedNodeId);
 
       return (
         <ObservationDetailView
@@ -71,6 +71,8 @@ export function TracePanelDetail() {
           projectId={trace.projectId}
           traceId={trace.id}
           isRoot={isRoot}
+          sessionId={trace.sessionId}
+          userId={trace.userId}
         />
       );
     }
@@ -84,7 +86,15 @@ export function TracePanelDetail() {
         projectId={trace.projectId}
       />
     );
-  }, [selectedNodeId, nodeMap, trace, tree, observations, scores, corrections]);
+  }, [
+    selectedNodeId,
+    nodeMap,
+    trace,
+    roots,
+    observations,
+    scores,
+    corrections,
+  ]);
 
   return (
     <div className="h-full w-full overflow-y-auto bg-background">{content}</div>
