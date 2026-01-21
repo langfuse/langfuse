@@ -2171,9 +2171,9 @@ export const getEventsForAnalyticsIntegrations = async function* (
       "e.usage_details['total'] as input_tokens",
       "e.usage_details['output'] as output_tokens",
       "e.cost_details['total'] as total_tokens",
-      // Analytics integration session IDs from metadata
-      "e.metadata['$posthog_session_id'] as posthog_session_id",
-      "e.metadata['$mixpanel_session_id'] as mixpanel_session_id",
+      // Analytics integration session IDs from metadata (constructed from array columns)
+      "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$posthog_session_id'] as posthog_session_id",
+      "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$mixpanel_session_id'] as mixpanel_session_id",
     )
     .whereRaw(
       "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
