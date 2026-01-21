@@ -59,7 +59,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
     delay: 0,
     status: "ACTIVE" as const,
     timeScope: ["NEW" as const],
-    filterTarget: "trace",
   };
 
   const mockEvalTemplate = {

@@ -16,7 +16,7 @@ interface ScheduleObservationEvalsParams {
 /**
  * Schedule observation evals for a given observation.
  *
- * This function receives pre-fetched configs (already filtered by filterTarget: "observation"
+ * This function receives pre-fetched configs (already filtered by targetObject: "event"
  * and project). It evaluates each config's filter and sampling against the observation,
  * checks for deduplication, and creates job executions for matching configs.
  *

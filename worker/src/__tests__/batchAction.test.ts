@@ -19,7 +19,7 @@ import {
   createDatasetRunItem,
   createDatasetItem,
 } from "@langfuse/shared/src/server";
-import { JobConfigFilterTarget, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
 import waitForExpect from "wait-for-expect";
 
@@ -271,7 +271,6 @@ describe("select all test suite", () => {
         delay: 0,
         sampling: new Decimal("1"),
         targetObject: "trace",
-        filterTarget: JobConfigFilterTarget.TRACE,
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
         evalTemplateId: templateId,
@@ -286,7 +285,6 @@ describe("select all test suite", () => {
         projectId,
         actionId: "eval-create" as const,
         targetObject: "trace" as const,
-        filterTarget: JobConfigFilterTarget.TRACE,
         configId,
         cutoffCreatedAt: new Date(),
         query: {
@@ -468,7 +466,6 @@ describe("select all test suite", () => {
         delay: 0,
         sampling: new Decimal("1"),
         targetObject: "dataset",
-        filterTarget: JobConfigFilterTarget.DATASET,
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
         evalTemplateId: templateId,

@@ -88,7 +88,7 @@ const clearNoEvalConfigsCache = async (
   }
 };
 
-// Trace-targeted eval config cache (filterTarget: "trace")
+// Trace-targeted eval config cache (targetObject: "trace" or "dataset")
 export const hasNoJobConfigsCache = (projectId: string) =>
   hasNoEvalConfigsCache(projectId, "trace");
 export const setNoJobConfigsCache = (projectId: string) =>
@@ -96,7 +96,7 @@ export const setNoJobConfigsCache = (projectId: string) =>
 export const clearNoJobConfigsCache = (projectId: string) =>
   clearNoEvalConfigsCache(projectId, "trace");
 
-// Observation-targeted eval config cache (filterTarget: "observation")
+// Event-targeted eval config cache (targetObject: "event")
 export const hasNoObservationEvalConfigsCache = (projectId: string) =>
   hasNoEvalConfigsCache(projectId, "observation");
 export const setNoObservationEvalConfigsCache = (projectId: string) =>

@@ -6,7 +6,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
-import { prisma, JobConfigFilterTarget } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../../../env";
 import { createObservationEvalSchedulerDeps } from "../observationEval/createSchedulerDeps";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
@@ -76,8 +76,7 @@ describe("Production Dependency Factories Integration Tests", () => {
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "observation",
-            filterTarget: JobConfigFilterTarget.OBSERVATION,
+            targetObject: "event",
             scoreName: "test-score",
             variableMapping: [],
           },
@@ -126,8 +125,7 @@ describe("Production Dependency Factories Integration Tests", () => {
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "observation",
-            filterTarget: JobConfigFilterTarget.OBSERVATION,
+            targetObject: "event",
             scoreName: "test-score",
             variableMapping: [],
           },
@@ -170,8 +168,7 @@ describe("Production Dependency Factories Integration Tests", () => {
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "observation",
-            filterTarget: JobConfigFilterTarget.OBSERVATION,
+            targetObject: "event",
             scoreName: "test-score",
             variableMapping: [],
           },
@@ -245,8 +242,7 @@ describe("Production Dependency Factories Integration Tests", () => {
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "observation",
-            filterTarget: JobConfigFilterTarget.OBSERVATION,
+            targetObject: "event",
             scoreName: "test-score",
             variableMapping: [],
           },
@@ -302,8 +298,7 @@ describe("Production Dependency Factories Integration Tests", () => {
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "observation",
-            filterTarget: JobConfigFilterTarget.OBSERVATION,
+            targetObject: "event",
             scoreName: "test-score",
             variableMapping: [],
           },
@@ -395,8 +390,7 @@ describe("Production Dependency Factories Integration Tests", () => {
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "observation",
-          filterTarget: JobConfigFilterTarget.OBSERVATION,
+          targetObject: "event",
           scoreName: "integration-test-score",
           variableMapping: [],
         },

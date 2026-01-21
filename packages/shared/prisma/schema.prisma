@@ -951,12 +951,6 @@ enum JobConfigState {
   INACTIVE
 }
 
-enum JobConfigFilterTarget {
-  DATASET
-  TRACE
-  OBSERVATION
-}
-
 model JobConfiguration {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
@@ -970,18 +964,16 @@ model JobConfiguration {
   evalTemplateId String?        @map("eval_template_id")
   evalTemplate   EvalTemplate?  @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 
-  scoreName       String                @map("score_name")
+  scoreName       String         @map("score_name")
   filter          Json
-  targetObject    String                @map("target_object")
-  filterTarget    JobConfigFilterTarget @map("filter_target") // 'trace', 'dataset', or 'observation'
-  variableMapping Json                  @map("variable_mapping")
+  targetObject    String         @map("target_object")
+  variableMapping Json           @map("variable_mapping")
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
-  timeScope       String[]              @default(["NEW"]) @map("time_scope")
+  timeScope       String[]       @default(["NEW"]) @map("time_scope")
   JobExecution    JobExecution[]
 
   @@index([projectId, id])
-  @@index([projectId, filterTarget, status])
   @@map("job_configurations")
 }
 

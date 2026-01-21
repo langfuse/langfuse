@@ -77,7 +77,7 @@ describe("scheduleObservationEvals", () => {
     evalTemplateId: "template-1",
     scoreName: "quality",
     variableMapping: [],
-    targetObject: "observation",
+    targetObject: "event",
     delay: 0,
     ...overrides,
   });

@@ -20,7 +20,7 @@ export { convertEventInputToObservationForEval } from "./convertEventInputToObse
 
 /**
  * Observation eval job configuration.
- * Represents a job configuration with filterTarget: "observation".
+ * Represents a job configuration with targetObject: "event".
  * Passed to the scheduler after being fetched once per batch.
  */
 export interface ObservationEvalConfig {

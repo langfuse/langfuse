@@ -18,7 +18,6 @@ import {
   JobConfigState,
   orderBy,
   jsonSchema,
-  JobConfigFilterTarget,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -716,10 +715,6 @@ export const evalRouter = createTRPCRouter({
           evalTemplateId: input.evalTemplateId,
           scoreName: input.scoreName,
           targetObject: input.target,
-          filterTarget:
-            input.target === "dataset"
-              ? JobConfigFilterTarget.DATASET
-              : JobConfigFilterTarget.TRACE,
           filter: input.filter ?? [],
           variableMapping: input.mapping,
           sampling: input.sampling,

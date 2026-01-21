@@ -91,7 +91,7 @@ export function createTestEvalConfig(
     sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
     evalTemplateId: `template-${randomUUID()}`,
     scoreName: "test-score",
-    targetObject: "observation",
+    targetObject: "event",
     variableMapping: [
       { templateVariable: "output", selectedColumnId: "output" },
     ],
@@ -205,7 +205,6 @@ export function createMockJobConfiguration(
     delay: number;
     status: string;
     timeScope: string[];
-    filterTarget: string;
     createdAt: Date;
     updatedAt: Date;
   }> = {},
@@ -216,7 +215,7 @@ export function createMockJobConfiguration(
     jobType: overrides.jobType ?? "EVAL",
     evalTemplateId: overrides.evalTemplateId ?? `template-${randomUUID()}`,
     scoreName: overrides.scoreName ?? "test-score",
-    targetObject: overrides.targetObject ?? "observation",
+    targetObject: overrides.targetObject ?? "event",
     filter: overrides.filter ?? [],
     variableMapping: overrides.variableMapping ?? [
       { templateVariable: "output", selectedColumnId: "output" },
@@ -225,7 +224,6 @@ export function createMockJobConfiguration(
     delay: overrides.delay ?? 0,
     status: overrides.status ?? "ACTIVE",
     timeScope: overrides.timeScope ?? ["NEW"],
-    filterTarget: overrides.filterTarget ?? "observation",
     createdAt: overrides.createdAt ?? new Date(),
     updatedAt: overrides.updatedAt ?? new Date(),
   };

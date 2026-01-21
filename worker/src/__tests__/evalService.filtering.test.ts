@@ -1,6 +1,5 @@
 import { ObservationLevel, singleFilter } from "@langfuse/shared";
 import {
-  JobConfigFilterTarget,
   JobConfiguration,
   kyselyPrisma,
   prisma,
@@ -142,7 +141,6 @@ const test = baseTest.extend<{
           delay: 0,
           sampling: new Decimal("1"),
           targetObject: "trace",
-          filterTarget: JobConfigFilterTarget.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           ...job,
