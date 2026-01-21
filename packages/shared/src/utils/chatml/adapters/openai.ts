@@ -62,12 +62,72 @@ const OpenAIOutputSingleMessageSchema = z.looseObject({
   ),
 });
 
+/**
+ * Extract thinking content from OpenAI Responses API reasoning item
+ * Format: { type: "reasoning", content: [...], summary: [...] }
+ */
+function extractReasoningContent(item: Record<string, unknown>): {
+  thinking: Array<{ type: "thinking"; content: string; summary?: string }>;
+} | null {
+  if (item.type !== "reasoning") return null;
+
+  const contentArr = Array.isArray(item.content) ? item.content : [];
+  const summaryArr = Array.isArray(item.summary) ? item.summary : [];
+
+  // Extract text from content array (may contain {type: "text", text: "..."})
+  const contentText = contentArr
+    .map((c: unknown) => {
+      if (typeof c === "string") return c;
+      if (c && typeof c === "object" && "text" in c) {
+        return (c as { text: string }).text;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  // Extract summary text
+  const summaryText = summaryArr
+    .map((s: unknown) => {
+      if (typeof s === "string") return s;
+      if (s && typeof s === "object" && "text" in s) {
+        return (s as { text: string }).text;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  if (!contentText && !summaryText) return null;
+
+  return {
+    thinking: [
+      {
+        type: "thinking" as const,
+        content: contentText || summaryText,
+        ...(summaryText && contentText ? { summary: summaryText } : {}),
+      },
+    ],
+  };
+}
+
 function normalizeMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
 
   // we want to do type-based conversions BEFORE removeNullFields
   // because removeNullFields moves unrecognized fields to json passthrough
   let working = msg as Record<string, unknown>;
+
+  // Handle OpenAI Responses API reasoning item
+  // Format: { type: "reasoning", content: [...], summary: [...] }
+  const reasoningContent = extractReasoningContent(working);
+  if (reasoningContent) {
+    return {
+      role: "assistant",
+      content: "",
+      ...reasoningContent,
+    };
+  }
 
   // Convert direct function call message to tool_calls array format
   // Format: { type: "function_call", name: "...", arguments: {...}, call_id: "..." }

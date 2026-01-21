@@ -85,7 +85,7 @@ export const handleEventPropagationJob = async (
         FROM system.parts
         WHERE table = 'observations_batch_staging'
           AND active = 1
-          AND toDateTime(partition) < now() - INTERVAL 6 MINUTE
+          AND toDateTime(partition) < now() - INTERVAL 10 MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}
         ORDER BY partition ASC
       `,
