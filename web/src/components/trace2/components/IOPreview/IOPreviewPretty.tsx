@@ -129,8 +129,10 @@ export function IOPreviewPretty({
   media,
   inputExpansionState,
   outputExpansionState,
+  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  onMetadataExpansionChange,
   showMetadata = false,
   observationId,
   projectId,
@@ -295,6 +297,8 @@ export function IOPreviewPretty({
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "metadata") ?? []}
             currentView="pretty"
+            externalExpansionState={metadataExpansionState}
+            onExternalExpansionChange={onMetadataExpansionChange}
           />
         </div>
       )}

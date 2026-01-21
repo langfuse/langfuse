@@ -1047,6 +1047,7 @@ export const promptRouter = createTRPCRouter({
           version: true,
           type: true,
           prompt: true,
+          labels: true,
         },
         where: {
           projectId: input.projectId,
