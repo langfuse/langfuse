@@ -399,6 +399,12 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+
+  // Tokenizer configuration
+  // Set to "false" to disable Langfuse's built-in tokenizer for token counting.
+  // This is useful when your LLM provider or SDK (e.g., LiteLLM) already provides
+  // accurate token counts via the API, and you want to avoid double-counting.
+  LANGFUSE_TOKENIZER_ENABLED: z.enum(["true", "false"]).default("true"),
 });
 
 export const env: z.infer<typeof EnvSchema> =

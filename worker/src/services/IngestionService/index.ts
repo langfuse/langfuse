@@ -53,6 +53,7 @@ import {
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
+import { env } from "../../env";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 import {
   convertJsonSchemaToRecord,
@@ -1229,6 +1230,8 @@ export class IngestionService {
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
+      // Can be disabled globally via LANGFUSE_TOKENIZER_ENABLED=false
+      env.LANGFUSE_TOKENIZER_ENABLED === "true" &&
       model &&
       Object.keys(providedUsageDetails).length === 0 &&
       observationRecord.level !== ObservationLevel.ERROR
