@@ -18,6 +18,7 @@ import {
   JobConfigState,
   orderBy,
   jsonSchema,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -963,7 +964,7 @@ export const evalRouter = createTRPCRouter({
             projectId: projectId,
             evalTemplateId: evalTemplateId,
             status: oldStatus,
-            targetObject: "dataset",
+            targetObject: EvalTargetObject.DATASET,
           },
         });
 

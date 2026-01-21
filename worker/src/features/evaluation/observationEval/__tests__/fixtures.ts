@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import { randomUUID } from "crypto";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { type ObservationForEval } from "@langfuse/shared";
+import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
 import {
   type ObservationEvalConfig,
   type ObservationEvalSchedulerDeps,
@@ -91,7 +91,7 @@ export function createTestEvalConfig(
     sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
     evalTemplateId: `template-${randomUUID()}`,
     scoreName: "test-score",
-    targetObject: "event",
+    targetObject: EvalTargetObject.EVENT,
     variableMapping: [
       { templateVariable: "output", selectedColumnId: "output" },
     ],
@@ -215,7 +215,7 @@ export function createMockJobConfiguration(
     jobType: overrides.jobType ?? "EVAL",
     evalTemplateId: overrides.evalTemplateId ?? `template-${randomUUID()}`,
     scoreName: overrides.scoreName ?? "test-score",
-    targetObject: overrides.targetObject ?? "event",
+    targetObject: overrides.targetObject ?? EvalTargetObject.EVENT,
     filter: overrides.filter ?? [],
     variableMapping: overrides.variableMapping ?? [
       { templateVariable: "output", selectedColumnId: "output" },

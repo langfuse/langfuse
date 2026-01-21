@@ -47,6 +47,7 @@ import {
   TraceDomain,
   Observation,
   DatasetItem,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
@@ -283,7 +284,9 @@ export const createEvalJobs = async ({
   // Note: We could parallelize this cache fetch with the getTraceById call above.
   // This should increase throughput, but will also put more pressure on ClickHouse.
   // Will keep it as-is for now, but that might be a useful change.
-  const datasetConfigs = configs.filter((c) => c.target_object === "dataset");
+  const datasetConfigs = configs.filter(
+    (c) => c.target_object === EvalTargetObject.DATASET,
+  );
   let cachedDatasetItemIds: { id: string; datasetId: string }[] | null = null;
   if (datasetConfigs.length > 1) {
     try {
@@ -341,7 +344,8 @@ export const createEvalJobs = async ({
 
     // Use cached trace for in-memory filtering when possible, i.e. all fields can
     // be checked in-memory.
-    const traceFilter = config.target_object === "trace" ? validatedFilter : [];
+    const traceFilter =
+      config.target_object === EvalTargetObject.TRACE ? validatedFilter : [];
     if (cachedTrace && !requiresDatabaseLookup(traceFilter)) {
       // Evaluate filter in memory using the cached trace
       traceExists = InMemoryFilterService.evaluateFilter(
@@ -408,14 +412,16 @@ export const createEvalJobs = async ({
       exists: String(traceExists),
     });
 
-    const isDatasetConfig = config.target_object === "dataset";
+    const isDatasetConfig = config.target_object === EvalTargetObject.DATASET;
     let datasetItem:
       | { id: string }
       | { id: string; observationId: string | null }
       | undefined;
     if (isDatasetConfig) {
       const condition = tableColumnsToSqlFilterAndPrefix(
-        config.target_object === "dataset" ? validatedFilter : [],
+        config.target_object === EvalTargetObject.DATASET
+          ? validatedFilter
+          : [],
         evalDatasetFormFilterCols,
         "dataset_items",
       );
@@ -451,7 +457,9 @@ export const createEvalJobs = async ({
           datasetItem = cachedDatasetItemIds.find((di) =>
             InMemoryFilterService.evaluateFilter(
               di,
-              config.target_object === "dataset" ? validatedFilter : [],
+              config.target_object === EvalTargetObject.DATASET
+                ? validatedFilter
+                : [],
               mapDatasetRunItemFilterColumn,
             ),
           );
@@ -459,7 +467,10 @@ export const createEvalJobs = async ({
           const datasetItemIds = await getDatasetItemIdsByTraceIdCh({
             projectId: event.projectId,
             traceId: event.traceId,
-            filter: config.target_object === "dataset" ? validatedFilter : [],
+            filter:
+              config.target_object === EvalTargetObject.DATASET
+                ? validatedFilter
+                : [],
           });
           datasetItem = datasetItemIds.shift();
         }

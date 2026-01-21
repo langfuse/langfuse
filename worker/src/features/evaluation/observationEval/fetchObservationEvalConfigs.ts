@@ -1,3 +1,4 @@
+import { EvalTargetObject } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   hasNoObservationEvalConfigsCache,
@@ -33,7 +34,7 @@ export async function fetchObservationEvalConfigs(
   const configs = await prisma.jobConfiguration.findMany({
     where: {
       projectId,
-      targetObject: "event",
+      targetObject: EvalTargetObject.EVENT,
       status: "ACTIVE",
     },
     select: {

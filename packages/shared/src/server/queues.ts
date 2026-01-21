@@ -8,6 +8,7 @@ import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
+import { EvalTargetObjectSchema } from "../features/evals/types";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -166,7 +167,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
     }),
     z.object({
       actionId: z.literal("eval-create"),
-      targetObject: z.enum(["trace", "dataset"]),
+      targetObject: EvalTargetObjectSchema,
       configId: z.string(),
       projectId: z.string(),
       cutoffCreatedAt: z.date(),

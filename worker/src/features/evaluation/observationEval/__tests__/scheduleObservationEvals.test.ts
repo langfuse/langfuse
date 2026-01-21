@@ -6,6 +6,7 @@ import {
   type ObservationEvalSchedulerDeps,
 } from "../types";
 import { type Prisma } from "@langfuse/shared/src/db";
+import { EvalTargetObject } from "@langfuse/shared";
 
 describe("scheduleObservationEvals", () => {
   const createMockObservation = (
@@ -77,7 +78,7 @@ describe("scheduleObservationEvals", () => {
     evalTemplateId: "template-1",
     scoreName: "quality",
     variableMapping: [],
-    targetObject: "event",
+    targetObject: EvalTargetObject.EVENT,
     delay: 0,
     ...overrides,
   });

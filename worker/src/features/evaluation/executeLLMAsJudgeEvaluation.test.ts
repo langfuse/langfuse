@@ -4,6 +4,7 @@ import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { EvalTargetObject } from "@langfuse/shared";
 
 /**
  * Unit tests for executeLLMAsJudgeEvaluation with mocked dependencies.
@@ -52,7 +53,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     jobType: "EVAL" as const,
     evalTemplateId: "template-xyz",
     scoreName: "accuracy",
-    targetObject: "trace",
+    targetObject: EvalTargetObject.TRACE,
     filter: [],
     variableMapping: [],
     sampling: "1.0",

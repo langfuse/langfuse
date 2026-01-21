@@ -8,7 +8,7 @@ import {
   createTestEvalConfig,
   createFullyMockedEvalPipeline,
 } from "./fixtures";
-import { type ObservationForEval } from "@langfuse/shared";
+import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
 
 // Mock prisma for processObservationEval
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -163,7 +163,7 @@ describe("Observation Eval E2E Pipeline", () => {
         jobType: "EVAL",
         evalTemplateId: config.evalTemplateId,
         scoreName: config.scoreName,
-        targetObject: "event",
+        targetObject: EvalTargetObject.EVENT,
         filter: config.filter,
         variableMapping: config.variableMapping,
         sampling: "1.0",
@@ -415,7 +415,7 @@ describe("Observation Eval E2E Pipeline", () => {
         jobType: "EVAL",
         evalTemplateId: config.evalTemplateId,
         scoreName: config.scoreName,
-        targetObject: "event",
+        targetObject: EvalTargetObject.EVENT,
         filter: [],
         variableMapping: config.variableMapping,
         sampling: "1.0",
@@ -515,7 +515,7 @@ describe("Observation Eval E2E Pipeline", () => {
         jobType: "EVAL",
         evalTemplateId: config.evalTemplateId,
         scoreName: config.scoreName,
-        targetObject: "event",
+        targetObject: EvalTargetObject.EVENT,
         filter: [],
         variableMapping: config.variableMapping,
         sampling: "1.0",
