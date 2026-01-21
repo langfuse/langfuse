@@ -116,22 +116,38 @@ export async function processObservationEval({
 
   // Download observation data from S3
   let observationData: ObservationForEval;
+  let downloadedString: string;
+
   try {
-    const downloadedString = await deps.downloadObservationFromS3(
+    downloadedString = await deps.downloadObservationFromS3(
       event.observationS3Path,
     );
-    const parsed = observationForEvalSchema.safeParse(
-      JSON.parse(downloadedString),
+  } catch (e) {
+    // S3 download failures are retryable (network issues, temporary unavailability)
+    throw new Error(
+      `Failed to download observation from S3 at ${event.observationS3Path}: ${e}`,
     );
+  }
+
+  // Parse and validate the downloaded data - these are permanent failures
+  try {
+    const parsedJson = JSON.parse(downloadedString);
+    const parsed = observationForEvalSchema.safeParse(parsedJson);
 
     if (!parsed.success) {
-      throw new Error("Invalid observation data from S3: ", parsed.error);
+      throw new UnrecoverableError(
+        `Invalid observation data from S3: schema validation failed - ${parsed.error.message}`,
+      );
     }
 
     observationData = parsed.data;
   } catch (e) {
-    throw new Error(
-      `Failed to download observation from S3 at ${event.observationS3Path}: ${e}`,
+    if (e instanceof UnrecoverableError) {
+      throw e;
+    }
+    // JSON parse errors are permanent - the data won't change on retry
+    throw new UnrecoverableError(
+      `Invalid observation data from S3 at ${event.observationS3Path}: invalid JSON - ${e}`,
     );
   }
 
