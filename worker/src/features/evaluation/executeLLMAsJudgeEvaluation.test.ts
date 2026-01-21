@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import { JobExecutionStatus } from "@prisma/client";
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
@@ -20,6 +20,10 @@ import { ExtractedVariable } from "./observationEval/extractObservationVariables
 describe("executeLLMAsJudgeEvaluation", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "test-job-execution-456";
+
+  // ============================================================================
+  // Test Fixtures
+  // ============================================================================
 
   const mockJobExecution = {
     id: jobExecutionId,
@@ -84,47 +88,83 @@ describe("executeLLMAsJudgeEvaluation", () => {
     },
   ];
 
+  // ============================================================================
+  // Mock Helpers
+  // ============================================================================
+
+  /** Default valid model configuration for OpenAI GPT-4 */
+  const defaultModelConfig = {
+    provider: "openai",
+    model: "gpt-4",
+    apiKey: { adapter: "openai", secretKey: "test-key" },
+    modelParams: {},
+  };
+
+  /** Creates a mock for fetchModelConfig that returns a valid config */
+  const mockValidFetchModelConfig = () =>
+    vi.fn().mockResolvedValue({
+      valid: true,
+      config: defaultModelConfig,
+    });
+
+  /** Creates a mock for callLLM with a successful response */
+  const mockSuccessfulLLMCall = (score: number, reasoning: string) =>
+    vi.fn().mockResolvedValue({ score, reasoning });
+
+  /** Creates standard deps with all mocks for a successful execution flow */
+  const createSuccessfulDeps = (
+    overrides: {
+      callLLM?: Mock;
+      uploadScore?: Mock;
+      enqueueScoreIngestion?: Mock;
+      updateJobExecution?: Mock;
+    } = {},
+  ) =>
+    createMockEvalExecutionDeps({
+      fetchModelConfig: mockValidFetchModelConfig(),
+      callLLM: overrides.callLLM ?? mockSuccessfulLLMCall(0.8, "Good"),
+      uploadScore: overrides.uploadScore ?? vi.fn(),
+      enqueueScoreIngestion: overrides.enqueueScoreIngestion ?? vi.fn(),
+      updateJobExecution: overrides.updateJobExecution ?? vi.fn(),
+    });
+
+  /** Standard execution params for most tests */
+  const createExecutionParams = (
+    overrides: {
+      job?: typeof mockJobExecution;
+      template?: typeof mockEvalTemplate;
+      variables?: ExtractedVariable[];
+      environment?: string;
+      deps?: ReturnType<typeof createMockEvalExecutionDeps>;
+    } = {},
+  ) => ({
+    projectId,
+    jobExecutionId,
+    job: overrides.job ?? mockJobExecution,
+    config: mockJobConfiguration,
+    template: overrides.template ?? mockEvalTemplate,
+    extractedVariables: overrides.variables ?? extractedVariables,
+    environment: overrides.environment ?? "production",
+    deps: overrides.deps ?? createSuccessfulDeps(),
+  });
+
   describe("successful execution", () => {
     it("should complete evaluation successfully", async () => {
-      const updateJobExecution = vi.fn();
+      const callLLM = mockSuccessfulLLMCall(0.85, "High accuracy observed");
       const uploadScore = vi.fn();
       const enqueueScoreIngestion = vi.fn();
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 0.85,
-        reasoning: "High accuracy observed",
-      });
+      const updateJobExecution = vi.fn();
 
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
+      const deps = createSuccessfulDeps({
         callLLM,
         uploadScore,
         enqueueScoreIngestion,
         updateJobExecution,
       });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
-      // Verify LLM was called
       expect(callLLM).toHaveBeenCalledTimes(1);
-
-      // Verify score was uploaded
       expect(uploadScore).toHaveBeenCalledTimes(1);
       expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -138,11 +178,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
           }),
         }),
       );
-
-      // Verify score ingestion was enqueued
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(1);
-
-      // Verify job execution was updated to completed
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
           id: jobExecutionId,
@@ -158,41 +194,18 @@ describe("executeLLMAsJudgeEvaluation", () => {
     });
 
     it("should include observation ID in score when present", async () => {
-      const jobWithObservation = {
-        ...mockJobExecution,
-        jobInputObservationId: "obs-123",
-      };
-
       const uploadScore = vi.fn();
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.9,
-          reasoning: "Excellent",
-        }),
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(0.9, "Excellent"),
         uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
       });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: jobWithObservation,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          job: { ...mockJobExecution, jobInputObservationId: "obs-123" },
+          deps,
+        }),
+      );
 
       expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -207,35 +220,15 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
     it("should use provided environment", async () => {
       const uploadScore = vi.fn();
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.7,
-          reasoning: "Good",
-        }),
-        uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
-      });
+      const deps = createSuccessfulDeps({ uploadScore });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables: [{ var: "output", value: "test" }],
-        environment: "staging",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          variables: [{ var: "output", value: "test" }],
+          environment: "staging",
+          deps,
+        }),
+      );
 
       expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -250,35 +243,18 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
     it("should use 'default' environment when explicitly passed", async () => {
       const uploadScore = vi.fn();
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.5,
-          reasoning: "Average",
-        }),
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(0.5, "Average"),
         uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
       });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables: [{ var: "output", value: "test" }],
-        environment: "default",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          variables: [{ var: "output", value: "test" }],
+          environment: "default",
+          deps,
+        }),
+      );
 
       expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -302,38 +278,23 @@ describe("executeLLMAsJudgeEvaluation", () => {
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow(UnrecoverableError);
     });
 
     it("should throw UnrecoverableError if output schema invalid", async () => {
       const templateWithBadSchema = {
         ...mockEvalTemplate,
-        outputSchema: { invalidKey: "value" }, // missing score and reasoning
+        outputSchema: { invalidKey: "value" },
       };
 
-      const deps = createMockEvalExecutionDeps({});
-
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: templateWithBadSchema,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            template: templateWithBadSchema,
+            deps: createMockEvalExecutionDeps({}),
+          }),
+        ),
       ).rejects.toThrow(UnrecoverableError);
     });
   });
@@ -341,64 +302,29 @@ describe("executeLLMAsJudgeEvaluation", () => {
   describe("LLM response errors", () => {
     it("should throw UnrecoverableError for invalid LLM response", async () => {
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
+        fetchModelConfig: mockValidFetchModelConfig(),
         callLLM: vi.fn().mockResolvedValue({
-          // Invalid response - score is string instead of number
-          score: "high",
+          score: "high", // Invalid - should be number
           reasoning: "Good response",
         }),
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow(UnrecoverableError);
     });
 
     it("should throw UnrecoverableError for missing LLM response fields", async () => {
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
+        fetchModelConfig: mockValidFetchModelConfig(),
         callLLM: vi.fn().mockResolvedValue({
-          // Missing reasoning field
           score: 0.8,
+          // Missing reasoning field
         }),
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow(UnrecoverableError);
     });
   });
@@ -406,51 +332,20 @@ describe("executeLLMAsJudgeEvaluation", () => {
   describe("score persistence errors", () => {
     it("should throw error if score upload fails", async () => {
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.8,
-          reasoning: "Good",
-        }),
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: mockSuccessfulLLMCall(0.8, "Good"),
         uploadScore: vi.fn().mockRejectedValue(new Error("S3 upload failed")),
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Failed to write score");
     });
 
     it("should throw error if score ingestion queue fails", async () => {
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.8,
-          reasoning: "Good",
-        }),
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: mockSuccessfulLLMCall(0.8, "Good"),
         uploadScore: vi.fn(),
         enqueueScoreIngestion: vi
           .fn()
@@ -458,61 +353,29 @@ describe("executeLLMAsJudgeEvaluation", () => {
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Failed to write score");
     });
   });
 
   describe("prompt compilation", () => {
     it("should handle prompt compilation errors gracefully", async () => {
-      // Template with invalid syntax - the function should fall back to raw template
       const templateWithBadPrompt = {
         ...mockEvalTemplate,
         prompt: "Evaluate {{unclosed_bracket",
       };
 
       const uploadScore = vi.fn();
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.5,
-          reasoning: "Could not parse properly",
-        }),
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(0.5, "Could not parse properly"),
         uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
       });
 
       // Should not throw - falls back to raw template
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: templateWithBadPrompt,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({ template: templateWithBadPrompt, deps }),
+      );
 
-      // Should still complete (with fallback prompt)
       expect(uploadScore).toHaveBeenCalled();
     });
 
@@ -528,39 +391,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
         { var: "output", value: "The answer is 4" },
       ];
 
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 1.0,
-        reasoning: "Perfect match",
-      });
+      const callLLM = mockSuccessfulLLMCall(1.0, "Perfect match");
+      const deps = createSuccessfulDeps({ callLLM });
 
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          template: multiVarTemplate,
+          variables: multiVariables,
+          deps,
         }),
-        callLLM,
-        uploadScore: vi.fn(),
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
-      });
+      );
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: multiVarTemplate,
-        extractedVariables: multiVariables,
-        environment: "production",
-        deps,
-      });
-
-      // Verify the compiled prompt contains both variables
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           messages: expect.arrayContaining([
@@ -576,43 +417,16 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
   describe("LLM call parameters", () => {
     it("should pass correct traceSinkParams to LLM for observability", async () => {
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 0.8,
-        reasoning: "Good response",
-      });
+      const callLLM = mockSuccessfulLLMCall(0.8, "Good response");
+      const deps = createSuccessfulDeps({ callLLM });
 
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM,
-        uploadScore: vi.fn(),
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
-      });
-
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           traceSinkParams: expect.objectContaining({
             targetProjectId: projectId,
-            traceId: expect.any(String), // executionTraceId
+            traceId: expect.any(String),
             traceName: `Execute evaluator: ${mockEvalTemplate.name}`,
             environment: "langfuse-llm-as-a-judge",
             metadata: expect.objectContaining({
@@ -627,37 +441,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
     });
 
     it("should pass structured output schema to LLM", async () => {
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 0.8,
-        reasoning: "Good response",
-      });
+      const callLLM = mockSuccessfulLLMCall(0.8, "Good response");
+      const deps = createSuccessfulDeps({ callLLM });
 
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM,
-        uploadScore: vi.fn(),
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
-      });
-
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -672,22 +459,18 @@ describe("executeLLMAsJudgeEvaluation", () => {
     });
 
     it("should pass model config to LLM", async () => {
-      const modelConfig = {
+      const customModelConfig = {
         provider: "anthropic",
         model: "claude-3-opus",
         apiKey: { adapter: "anthropic", secretKey: "anthropic-key" },
         modelParams: { temperature: 0.5 },
       };
 
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 0.9,
-        reasoning: "Excellent",
-      });
-
+      const callLLM = mockSuccessfulLLMCall(0.9, "Excellent");
       const deps = createMockEvalExecutionDeps({
         fetchModelConfig: vi.fn().mockResolvedValue({
           valid: true,
-          config: modelConfig,
+          config: customModelConfig,
         }),
         callLLM,
         uploadScore: vi.fn(),
@@ -695,20 +478,11 @@ describe("executeLLMAsJudgeEvaluation", () => {
         updateJobExecution: vi.fn(),
       });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
-          modelConfig,
+          modelConfig: customModelConfig,
         }),
       );
     });
@@ -716,45 +490,23 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
   describe("execution metadata", () => {
     it("should include dataset item ID in metadata when present", async () => {
-      const jobWithDatasetItem = {
-        ...mockJobExecution,
-        jobInputDatasetItemId: "dataset-item-123",
-      };
-
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 0.75,
-        reasoning: "Dataset evaluation complete",
-      });
+      const callLLM = mockSuccessfulLLMCall(
+        0.75,
+        "Dataset evaluation complete",
+      );
       const uploadScore = vi.fn();
+      const deps = createSuccessfulDeps({ callLLM, uploadScore });
 
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          job: {
+            ...mockJobExecution,
+            jobInputDatasetItemId: "dataset-item-123",
           },
+          deps,
         }),
-        callLLM,
-        uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
-      });
+      );
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: jobWithDatasetItem,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
-
-      // Verify metadata in LLM call includes dataset item ID
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           traceSinkParams: expect.objectContaining({
@@ -765,7 +517,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
 
-      // Verify metadata in score event includes dataset item ID
       expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
           event: expect.objectContaining({
@@ -780,45 +531,20 @@ describe("executeLLMAsJudgeEvaluation", () => {
     });
 
     it("should include observation ID in metadata when present", async () => {
-      const jobWithObservation = {
-        ...mockJobExecution,
-        jobInputObservationId: "obs-456",
-      };
-
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 0.85,
-        reasoning: "Observation evaluation complete",
-      });
+      const callLLM = mockSuccessfulLLMCall(
+        0.85,
+        "Observation evaluation complete",
+      );
       const uploadScore = vi.fn();
+      const deps = createSuccessfulDeps({ callLLM, uploadScore });
 
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          job: { ...mockJobExecution, jobInputObservationId: "obs-456" },
+          deps,
         }),
-        callLLM,
-        uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
-      });
+      );
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: jobWithObservation,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
-
-      // Verify metadata in LLM call includes observation ID
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           traceSinkParams: expect.objectContaining({
@@ -829,7 +555,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
 
-      // Verify metadata in score event includes observation ID
       expect(uploadScore).toHaveBeenCalledWith(
         expect.objectContaining({
           event: expect.objectContaining({
@@ -850,40 +575,14 @@ describe("executeLLMAsJudgeEvaluation", () => {
         jobInputDatasetItemId: "dataset-full",
       };
 
-      const callLLM = vi.fn().mockResolvedValue({
-        score: 0.95,
-        reasoning: "Complete evaluation",
-      });
+      const callLLM = mockSuccessfulLLMCall(0.95, "Complete evaluation");
       const uploadScore = vi.fn();
+      const deps = createSuccessfulDeps({ callLLM, uploadScore });
 
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM,
-        uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
-      });
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({ job: fullJob, deps }),
+      );
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: fullJob,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
-
-      // Verify all identifiers are in metadata
       const expectedMetadata = {
         job_execution_id: jobExecutionId,
         job_configuration_id: fullJob.jobConfigurationId,
@@ -915,36 +614,12 @@ describe("executeLLMAsJudgeEvaluation", () => {
   describe("score event structure", () => {
     it("should build complete score event with all required fields", async () => {
       const uploadScore = vi.fn();
-
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.88,
-          reasoning: "Well structured response",
-        }),
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(0.88, "Well structured response"),
         uploadScore,
-        enqueueScoreIngestion: vi.fn(),
-        updateJobExecution: vi.fn(),
       });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
       expect(uploadScore).toHaveBeenCalledWith({
         projectId,
@@ -978,42 +653,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
     it("should use same scoreId in uploadScore and updateJobExecution", async () => {
       const uploadScore = vi.fn();
       const updateJobExecution = vi.fn();
-
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.7,
-          reasoning: "Consistent IDs",
-        }),
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(0.7, "Consistent IDs"),
         uploadScore,
-        enqueueScoreIngestion: vi.fn(),
         updateJobExecution,
       });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
-      // Extract the scoreId from uploadScore call
       const uploadCall = uploadScore.mock.calls[0][0];
       const scoreId = uploadCall.scoreId;
 
-      // Verify the same scoreId is used in updateJobExecution
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -1026,42 +676,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
     it("should use same executionTraceId in score event and job update", async () => {
       const uploadScore = vi.fn();
       const updateJobExecution = vi.fn();
-
-      const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.6,
-          reasoning: "Trace ID consistency",
-        }),
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(0.6, "Trace ID consistency"),
         uploadScore,
-        enqueueScoreIngestion: vi.fn(),
         updateJobExecution,
       });
 
-      await executeLLMAsJudgeEvaluation({
-        projectId,
-        jobExecutionId,
-        job: mockJobExecution,
-        config: mockJobConfiguration,
-        template: mockEvalTemplate,
-        extractedVariables,
-        environment: "production",
-        deps,
-      });
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
 
-      // Extract the executionTraceId from uploadScore call
       const uploadCall = uploadScore.mock.calls[0][0];
       const executionTraceId = uploadCall.event.body.executionTraceId;
 
-      // Verify the same executionTraceId is used in updateJobExecution
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -1074,32 +699,15 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
   describe("LLM errors", () => {
     it("should propagate LLM exception for BullMQ retry", async () => {
-      const llmError = new Error("LLM service unavailable");
-
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockRejectedValue(llmError),
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: vi
+          .fn()
+          .mockRejectedValue(new Error("LLM service unavailable")),
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("LLM service unavailable");
     });
 
@@ -1109,29 +717,12 @@ describe("executeLLMAsJudgeEvaluation", () => {
         true;
 
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
+        fetchModelConfig: mockValidFetchModelConfig(),
         callLLM: vi.fn().mockRejectedValue(rateLimitError),
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Rate limit exceeded");
     });
   });
@@ -1139,19 +730,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
   describe("job execution update errors", () => {
     it("should propagate updateJobExecution errors", async () => {
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.8,
-          reasoning: "Good",
-        }),
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: mockSuccessfulLLMCall(0.8, "Good"),
         uploadScore: vi.fn(),
         enqueueScoreIngestion: vi.fn(),
         updateJobExecution: vi
@@ -1160,16 +740,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        }),
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Database connection lost");
     });
 
@@ -1178,19 +749,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
       const enqueueScoreIngestion = vi.fn();
 
       const deps = createMockEvalExecutionDeps({
-        fetchModelConfig: vi.fn().mockResolvedValue({
-          valid: true,
-          config: {
-            provider: "openai",
-            model: "gpt-4",
-            apiKey: { adapter: "openai", secretKey: "test-key" },
-            modelParams: {},
-          },
-        }),
-        callLLM: vi.fn().mockResolvedValue({
-          score: 0.8,
-          reasoning: "Good",
-        }),
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: mockSuccessfulLLMCall(0.8, "Good"),
         uploadScore,
         enqueueScoreIngestion,
         updateJobExecution: vi
@@ -1199,16 +759,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       });
 
       try {
-        await executeLLMAsJudgeEvaluation({
-          projectId,
-          jobExecutionId,
-          job: mockJobExecution,
-          config: mockJobConfiguration,
-          template: mockEvalTemplate,
-          extractedVariables,
-          environment: "production",
-          deps,
-        });
+        await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
       } catch {
         // Expected to throw
       }
