@@ -1,5 +1,6 @@
 import React from "react";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import ObservationsTable from "@/src/components/table/use-cases/observations";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -22,7 +23,11 @@ import {
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { data: session } = useSession();
   const { isBetaEnabled, setBetaEnabled } = useObservationListBeta();
+
+  // TODO: remove for prod go-live
+  const showBetaToggle = session?.user?.email?.endsWith("@langfuse.com");
 
   // Check if the user has tracing configured
   const { data: hasTracingConfigured, isLoading } =
@@ -41,7 +46,7 @@ export default function Generations() {
 
   const showOnboarding = !isLoading && !hasTracingConfigured;
 
-  const betaToggle = (
+  const betaToggle = showBetaToggle ? (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -61,7 +66,7 @@ export default function Generations() {
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
+  ) : null;
 
   return (
     <Page

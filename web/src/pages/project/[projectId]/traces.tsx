@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -22,8 +23,12 @@ import {
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { data: session } = useSession();
   const { isBetaEnabled, setBetaEnabled } = useObservationListBeta();
   const hasAppliedDefaultFilter = useRef(false);
+
+  // TODO: remove for prod go-live
+  const showBetaToggle = session?.user?.email?.endsWith("@langfuse.com");
 
   // Apply default filter when beta is enabled on traces page
   useEffect(() => {
@@ -74,7 +79,7 @@ export default function Traces() {
 
   const showOnboarding = !isLoading && !hasTracingConfigured;
 
-  const betaToggle = (
+  const betaToggle = showBetaToggle ? (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -95,7 +100,7 @@ export default function Traces() {
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
+  ) : null;
 
   if (showOnboarding) {
     return (
