@@ -131,6 +131,7 @@ export const ObservationPreview = ({
     traceId: traceId,
     projectId: projectId,
     startTime: currentObservation?.startTime,
+    baseObservation: currentObservation,
   });
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(

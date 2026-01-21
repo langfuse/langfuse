@@ -158,6 +158,7 @@ export function ObservationDetailView({
     traceId: traceId,
     projectId: projectId,
     startTime: observation.startTime,
+    baseObservation: observation,
   });
 
   // For backward compatibility, create observationWithIO query-like object
