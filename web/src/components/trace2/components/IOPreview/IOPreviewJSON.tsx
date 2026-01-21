@@ -5,7 +5,6 @@ import {
   MultiSectionJsonViewer,
   type MultiSectionJsonViewerHandle,
 } from "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer";
-import { type JsonSection } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
