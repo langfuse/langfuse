@@ -208,6 +208,7 @@ export function useParsedObservation({
       observations: [{ id: observationId, traceId }],
       minStartTime: startTime ?? new Date(0),
       maxStartTime: startTime ?? new Date(),
+      truncated: false,
     },
     {
       enabled: isBetaEnabled,
