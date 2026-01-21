@@ -60,6 +60,12 @@ import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError"
 
 let s3StorageServiceClient: StorageService;
 
+// Cached schema for output schema validation (avoids recreating on every evaluate() call)
+const outputSchemaValidator = z.object({
+  score: z.string(),
+  reasoning: z.string(),
+});
+
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
     s3StorageServiceClient = StorageServiceFactory.getInstance({
@@ -628,6 +634,9 @@ export const createEvalJobs = async ({
         });
       }
     }
+
+    // Yield to event loop between config iterations to prevent stalls
+    await new Promise((resolve) => setImmediate(resolve));
   }
 };
 
@@ -737,12 +746,7 @@ export const evaluate = async ({
     `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`,
   );
 
-  const parsedOutputSchema = z
-    .object({
-      score: z.string(),
-      reasoning: z.string(),
-    })
-    .parse(template.outputSchema);
+  const parsedOutputSchema = outputSchemaValidator.parse(template.outputSchema);
 
   if (!parsedOutputSchema) {
     throw new UnrecoverableError(
