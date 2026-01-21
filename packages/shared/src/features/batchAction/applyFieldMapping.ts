@@ -5,6 +5,7 @@ import type {
   SourceField,
   AddToDatasetMapping,
 } from "./addToDatasetTypes";
+import { parseJsonPrioritised } from "../../utils/json";
 
 type ObservationData = {
   input: unknown;
@@ -37,9 +38,14 @@ export function testJsonPath(props: { jsonPath: string; data: unknown }): {
  */
 export function evaluateJsonPath(data: unknown, jsonPath: string): unknown {
   try {
-    const parsed = typeof data === "string" ? JSON.parse(data) : data;
-    const results = JSONPath({ path: jsonPath, json: parsed });
-    return results?.[0];
+    const parsed = typeof data === "string" ? parseJsonPrioritised(data) : data;
+    const result = JSONPath({
+      path: jsonPath,
+      json: parsed as string | object,
+      wrap: false,
+    });
+
+    return result;
   } catch {
     return undefined;
   }

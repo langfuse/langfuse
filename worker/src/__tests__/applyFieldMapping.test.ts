@@ -26,7 +26,7 @@ describe("applyFieldMapping", () => {
     metadata: {
       user_id: "user-123",
       session_id: "session-456",
-      tags: ["math", "simple"],
+      tags: ["math", "simple", "hello"],
     },
   };
 
@@ -74,6 +74,11 @@ describe("applyFieldMapping", () => {
   });
 
   describe("evaluateJsonPath", () => {
+    it("should return the full object if on root '$' and object is string", () => {
+      const result = evaluateJsonPath("Hello", "$");
+      expect(result).toBe("Hello");
+    });
+
     it("should extract nested values using JSON path", () => {
       expect(
         evaluateJsonPath(sampleObservation.input, "$.messages[0].content"),
@@ -125,6 +130,9 @@ describe("applyFieldMapping", () => {
       expect(evaluateJsonPath(sampleObservation.metadata, "$.tags[1]")).toBe(
         "simple",
       );
+      expect(
+        evaluateJsonPath(sampleObservation.metadata, "$.tags[1:]"),
+      ).toEqual(["simple", "hello"]);
     });
   });
 
