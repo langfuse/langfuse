@@ -1,4 +1,5 @@
 import { api } from "@/src/utils/api";
+import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
 
 export type UsePrefetchObservationParams = {
   projectId: string;
@@ -12,23 +13,41 @@ export function usePrefetchObservation({
   projectId,
 }: UsePrefetchObservationParams) {
   const utils = api.useUtils();
+  const { isBetaEnabled } = useObservationListBeta();
 
   const prefetch = (
     observationId: string,
     traceId: string,
     startTime?: Date,
   ) => {
-    void utils.observations.byId.prefetch(
-      {
-        observationId,
-        traceId,
-        projectId,
-        startTime,
-      },
-      {
-        staleTime: 5 * 60 * 1000, // 5 minutes - matches old trace behavior
-      },
-    );
+    if (isBetaEnabled) {
+      // Beta ON: prefetch from events table via batchIO
+      if (!startTime) return;
+      void utils.events.batchIO.prefetch(
+        {
+          projectId,
+          observations: [{ id: observationId, traceId }],
+          minStartTime: startTime,
+          maxStartTime: startTime,
+        },
+        {
+          staleTime: 5 * 60 * 1000, // 5 minutes
+        },
+      );
+    } else {
+      // Beta OFF: prefetch from observations table
+      void utils.observations.byId.prefetch(
+        {
+          observationId,
+          traceId,
+          projectId,
+          startTime,
+        },
+        {
+          staleTime: 5 * 60 * 1000, // 5 minutes
+        },
+      );
+    }
   };
 
   return { prefetch };

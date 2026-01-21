@@ -13,6 +13,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/src/utils/api";
+import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
 import type {
   ParseRequest,
   ParseResponse,
@@ -184,7 +185,9 @@ export function useParsedObservation({
   projectId,
   startTime,
 }: UseParsedObservationParams) {
-  // Step 1: Fetch raw observation data via tRPC (React Query caches this)
+  const { isBetaEnabled } = useObservationListBeta();
+
+  // Step 1a: Fetch raw observation data from observations table (beta OFF)
   const observationQuery = api.observations.byId.useQuery(
     {
       observationId,
@@ -193,9 +196,31 @@ export function useParsedObservation({
       startTime,
     },
     {
+      enabled: !isBetaEnabled,
       staleTime: 5 * 60 * 1000, // 5 minutes
     },
   );
+
+  // Step 1b: Fetch raw observation data from events table (beta ON)
+  const eventsQuery = api.events.batchIO.useQuery(
+    {
+      projectId,
+      observations: [{ id: observationId, traceId }],
+      minStartTime: startTime ?? new Date(0),
+      maxStartTime: startTime ?? new Date(),
+    },
+    {
+      enabled: isBetaEnabled,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      select: (data) => data[0], // Extract single result from batch
+    },
+  );
+
+  // Use the appropriate data source
+  const rawData = isBetaEnabled ? eventsQuery.data : observationQuery.data;
+  const isLoadingRaw = isBetaEnabled
+    ? eventsQuery.isLoading
+    : observationQuery.isLoading;
 
   // Step 2: Parse the data in Web Worker (React Query caches THIS too!)
   const parseQuery = useQuery({
@@ -203,29 +228,29 @@ export function useParsedObservation({
       "parsed-observation",
       observationId,
       // Include data hash to detect changes
-      observationQuery.data?.input,
-      observationQuery.data?.output,
-      observationQuery.data?.metadata,
+      rawData?.input,
+      rawData?.output,
+      rawData?.metadata,
     ],
     queryFn: async () => {
-      if (!observationQuery.data) {
+      if (!rawData) {
         throw new Error("No observation data to parse");
       }
 
       return parseObservationData(
-        observationQuery.data.input,
-        observationQuery.data.output,
-        observationQuery.data.metadata,
+        rawData.input,
+        rawData.output,
+        rawData.metadata,
       );
     },
-    enabled: !!observationQuery.data, // Only run when we have data
+    enabled: !!rawData, // Only run when we have data
     staleTime: Infinity, // Parsed data never goes stale (input data is the source of truth)
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes after unmount
   });
 
   return {
     // Original observation data (cached by tRPC/React Query)
-    observation: observationQuery.data,
+    observation: rawData,
 
     // Parsed data (cached by React Query)
     parsedInput: parseQuery.data?.input,
@@ -233,16 +258,13 @@ export function useParsedObservation({
     parsedMetadata: parseQuery.data?.metadata,
 
     // Loading states
-    isLoadingObservation: observationQuery.isLoading,
+    isLoadingObservation: isLoadingRaw,
     isParsing: parseQuery.isLoading,
     isReady:
-      !observationQuery.isLoading &&
-      !parseQuery.isLoading &&
-      parseQuery.data !== undefined,
+      !isLoadingRaw && !parseQuery.isLoading && parseQuery.data !== undefined,
     // True when we have raw data but parsing hasn't completed yet
     isWaitingForParsing:
-      !!observationQuery.data &&
-      (parseQuery.isLoading || parseQuery.data === undefined),
+      !!rawData && (parseQuery.isLoading || parseQuery.data === undefined),
 
     // Debug info
     parseTime: parseQuery.data?.parseTime,

@@ -1753,6 +1753,54 @@ export const deleteEventsByProjectId = async (
   return true;
 };
 
+export async function getAgentGraphDataFromEventsTable(params: {
+  projectId: string;
+  traceId: string;
+  chMinStartTime: string;
+  chMaxStartTime: string;
+}) {
+  const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
+
+  const query = `
+    SELECT
+      e.span_id as id,
+      e.parent_span_id as parent_observation_id,
+      e.type as type,
+      e.name as name,
+      e.start_time as start_time,
+      e.end_time as end_time,
+      mapFromArrays(e.metadata_names, e.metadata_prefixes)['langgraph_node'] AS node,
+      mapFromArrays(e.metadata_names, e.metadata_prefixes)['langgraph_step'] AS step
+    FROM events e
+    WHERE
+      e.project_id = {projectId: String}
+      AND e.trace_id = {traceId: String}
+      AND e.start_time >= {chMinStartTime: DateTime64(3)}
+      AND e.start_time <= {chMaxStartTime: DateTime64(3)}
+  `;
+
+  return measureAndReturn({
+    operationName: "getAgentGraphDataFromEventsTable",
+    projectId,
+    input: {
+      params: { projectId, traceId, chMinStartTime, chMaxStartTime },
+      tags: {
+        feature: "tracing",
+        type: "events",
+        kind: "agentGraphData",
+        projectId,
+      },
+    },
+    fn: async (input) => {
+      return queryClickhouse({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+  });
+}
+
 export const hasAnyEventOlderThan = async (
   projectId: string,
   beforeDate: Date,
