@@ -44,6 +44,11 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
+      column: "traceName",
+      label: getEventsColumnName("traceName"),
+    },
+    {
+      type: "categorical" as const,
       column: "name",
       label: getEventsColumnName("name"),
     },

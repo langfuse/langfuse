@@ -29,6 +29,7 @@ export function usePrefetchObservation({
           observations: [{ id: observationId, traceId }],
           minStartTime: startTime,
           maxStartTime: startTime,
+          truncated: false, // Must match useLogViewObservationIO for cache hit
         },
         {
           staleTime: 5 * 60 * 1000, // 5 minutes

@@ -1374,6 +1374,45 @@ export const getEventsGroupedByName = async (
 };
 
 /**
+ * Get grouped trace names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByTraceName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.trace_name",
+    selectExpression: "e.trace_name as traceName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.trace_name IS NOT NULL AND length(e.trace_name) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ traceName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Get grouped prompt names from events table
  * Used for filter options
  */
@@ -1876,12 +1915,15 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   }>;
   minStartTime: Date;
   maxStartTime: Date;
+  truncated?: boolean; // Default true for performance, false for full data
 }): Promise<
   Array<Pick<Observation, "id" | "input" | "output" | "metadata">>
 > => {
   if (opts.observations.length === 0) {
     return [];
   }
+
+  const truncated = opts.truncated ?? true;
 
   // Extract IDs and trace IDs for filtering
   const observationIds = opts.observations.map((o) => o.id);
@@ -1891,11 +1933,18 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
   const maxTimestamp = new Date(opts.maxStartTime.getTime() + 1000); // +1 second buffer
 
+  const inputSelect = truncated
+    ? `leftUTF8(e.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`
+    : `e.input as input`;
+  const outputSelect = truncated
+    ? `leftUTF8(e.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output`
+    : `e.output as output`;
+
   const query = `
     SELECT
       e.span_id as id,
-      leftUTF8(e.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input,
-      leftUTF8(e.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,
+      ${inputSelect},
+      ${outputSelect},
       mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata
     FROM events e
     WHERE e.project_id = {projectId: String}

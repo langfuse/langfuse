@@ -74,6 +74,14 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Trace Name",
+    id: "traceName",
+    type: "stringOptions",
+    internal: "e.trace_name",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Level",
     id: "level",
     type: "stringOptions",

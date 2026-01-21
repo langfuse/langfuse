@@ -57,6 +57,7 @@ export function useLogViewObservationIO({
       observations: [{ id: observationId, traceId }],
       minStartTime: startTime,
       maxStartTime: startTime,
+      truncated: false,
     },
     {
       enabled: enabled && isBetaEnabled,
