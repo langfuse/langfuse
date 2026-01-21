@@ -2153,71 +2153,49 @@ export const getEventsForBlobStorageExport = function (
 
 /**
  * Streams events from ClickHouse for analytics integrations (PostHog, Mixpanel).
- * Follows the pattern of getGenerationsForAnalyticsIntegrations.
+ * Uses EventsQueryBuilder for consistent query construction.
+ * All fields come directly from the events table (which has denormalized trace-level data).
  */
 export const getEventsForAnalyticsIntegrations = async function* (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
-  const traceTable = "traces";
+  const queryBuilder = new EventsQueryBuilder({ projectId })
+    // Use export field set for most fields (id, traceId, name, type, level, version,
+    // environment, userId, sessionId, tags, release, traceName, totalCost, latency, etc.)
+    .selectFieldSet("export")
+    // Add analytics-specific computed fields
+    .selectRaw(
+      // Token counts from usage/cost details
+      "e.usage_details['total'] as input_tokens",
+      "e.usage_details['output'] as output_tokens",
+      "e.cost_details['total'] as total_tokens",
+      // Analytics integration session IDs from metadata
+      "e.metadata['$posthog_session_id'] as posthog_session_id",
+      "e.metadata['$mixpanel_session_id'] as mixpanel_session_id",
+    )
+    .whereRaw(
+      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
+      {
+        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      },
+    );
 
-  const query = `
-    SELECT
-      e.name as name,
-      e.start_time as start_time,
-      e.span_id as id,
-      e.total_cost as total_cost,
-      if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time)) as time_to_first_token,
-      e.usage_details['total'] as input_tokens,
-      e.usage_details['output'] as output_tokens,
-      e.cost_details['total'] as total_tokens,
-      e.project_id as project_id,
-      if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency,
-      e.provided_model_name as model,
-      e.level as level,
-      e.version as version,
-      e.environment as environment,
-      e.type as type,
-      e.tags as tags,
-      e.release as release,
-      t.id as trace_id,
-      t.name as trace_name,
-      t.session_id as trace_session_id,
-      t.user_id as trace_user_id,
-      t.release as trace_release,
-      t.tags as trace_tags,
-      t.metadata['$posthog_session_id'] as posthog_session_id,
-      t.metadata['$mixpanel_session_id'] as mixpanel_session_id
-    FROM events e FINAL
-    LEFT JOIN ${traceTable} t FINAL ON e.trace_id = t.id AND e.project_id = t.project_id
-    WHERE e.project_id = {projectId: String}
-    AND t.project_id = {projectId: String}
-    AND e.start_time >= {minTimestamp: DateTime64(3)}
-    AND e.start_time <= {maxTimestamp: DateTime64(3)}
-    AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-    AND t.timestamp <= {maxTimestamp: DateTime64(3)}
-  `;
+  const { query, params } = queryBuilder.buildWithParams();
 
   const records = queryClickhouseStream<Record<string, unknown>>({
     query,
-    params: {
-      projectId,
-      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-    },
+    params,
     tags: {
-      feature: "posthog",
+      feature: "analytics-integration",
       type: "event",
       kind: "analytic",
       projectId,
     },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
-      clickhouse_settings: {
-        join_algorithm: "grace_hash",
-        grace_hash_join_initial_buckets: "32",
-      },
     },
   });
 
@@ -2228,26 +2206,26 @@ export const getEventsForAnalyticsIntegrations = async function* (
       langfuse_event_name: record.name,
       langfuse_trace_name: record.trace_name,
       langfuse_trace_id: record.trace_id,
-      langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
-      langfuse_user_url: record.trace_user_id
-        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.trace_user_id as string)}`
+      langfuse_url: `${baseUrl}/project/${projectId}/events/${encodeURIComponent(record.id as string)}`,
+      langfuse_user_url: record.user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
         : undefined,
       langfuse_id: record.id,
       langfuse_cost_usd: record.total_cost,
       langfuse_input_units: record.input_tokens,
       langfuse_output_units: record.output_tokens,
       langfuse_total_units: record.total_tokens,
-      langfuse_session_id: record.trace_session_id,
+      langfuse_session_id: record.session_id,
       langfuse_project_id: projectId,
-      langfuse_user_id: record.trace_user_id || null,
+      langfuse_user_id: record.user_id || null,
       langfuse_latency: record.latency,
       langfuse_time_to_first_token: record.time_to_first_token,
-      langfuse_release: record.release || record.trace_release,
+      langfuse_release: record.release,
       langfuse_version: record.version,
-      langfuse_model: record.model,
+      langfuse_model: record.provided_model_name,
       langfuse_level: record.level,
       langfuse_type: record.type,
-      langfuse_tags: record.tags || record.trace_tags,
+      langfuse_tags: record.tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
       posthog_session_id: record.posthog_session_id ?? null,
