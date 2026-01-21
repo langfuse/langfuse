@@ -22,7 +22,8 @@ import {
   createFilterFromFilterState,
   eventsTableUiColumnDefinitions,
   clickhouseSearchCondition,
-  StringFilter,
+  EventsQueryBuilder,
+  eventsScoresAggregation,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -99,19 +100,9 @@ export const getEventsStream = async (props: {
     {} as Record<string, null>,
   );
 
-  // Build filters for events
-  const eventsFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "events",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-      tablePrefix: "e",
-    }),
-  ]);
-
-  eventsFilter.push(
-    ...createFilterFromFilterState(
+  // Build filters for events (project_id is handled by the query builder)
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
       [
         ...eventOnlyFilters,
         {
@@ -127,18 +118,6 @@ export const getEventsStream = async (props: {
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  // Scores filter
-  const scoresFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "scores",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-    }),
-  ]);
-
-  const appliedScoresFilter = scoresFilter.apply();
-
   const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
     "span_id",
     "name",
@@ -147,90 +126,26 @@ export const getEventsStream = async (props: {
     "trace_id",
   ]);
 
-  const query = `
-    WITH scores_agg AS (
-      SELECT
-        trace_id,
-        observation_id,
-        -- For numeric scores, use tuples of (name, avg_value, data_type, string_value)
-        groupArrayIf(
-          tuple(name, avg_value, data_type, string_value),
-          data_type IN ('NUMERIC', 'BOOLEAN')
-        ) AS scores_avg,
-        -- For categorical scores, use name:value format for improved query performance
-        groupArrayIf(
-          concat(name, ':', string_value),
-          data_type = 'CATEGORICAL' AND notEmpty(string_value)
-        ) AS score_categories
-      FROM (
-        SELECT
-          trace_id,
-          observation_id,
-          name,
-          avg(value) avg_value,
-          string_value,
-          data_type,
-          comment
-        FROM
-          scores final
-        WHERE ${appliedScoresFilter.query}
-        GROUP BY
-          trace_id,
-          observation_id,
-          name,
-          string_value,
-          data_type,
-          comment,
-          execution_trace_id
-        ORDER BY
-          trace_id
-      ) tmp
-      GROUP BY
-        trace_id,
-        observation_id
+  // Build the query using EventsQueryBuilder
+  const eventsQuery = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("export")
+    .selectIO(false) // Full I/O, no truncation
+    .selectMetadataDirect() // Use direct JSON metadata column
+    .selectRaw(
+      "s.scores_avg as scores_avg",
+      "s.score_categories as score_categories",
     )
-    SELECT
-      e.span_id as id,
-      e.trace_id as "trace_id",
-      e.project_id as "project_id",
-      e.start_time as "start_time",
-      e.end_time as "end_time",
-      e.name as name,
-      e.type as type,
-      e.environment as environment,
-      e.version as version,
-      e.user_id as "user_id",
-      e.session_id as "session_id",
-      e.level as level,
-      e.status_message as "status_message",
-      e.prompt_name as "prompt_name",
-      e.prompt_id as "prompt_id",
-      e.prompt_version as "prompt_version",
-      e.model_id as "model_id",
-      e.provided_model_name as "provided_model_name",
-      e."model_parameters" as model_parameters,
-      e.usage_details as "usage_details",
-      e.cost_details as "cost_details",
-      e.total_cost as "total_cost",
-      e.input as input,
-      e.output as output,
-      e.metadata as metadata,
-      e.completion_start_time as "completion_start_time",
-      if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency,
-      if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time)) as "time_to_first_token",
-      e.tags as tags,
-      e.release as release,
-      e.trace_name as "trace_name",
-      e.parent_span_id as "parent_observation_id",
-      s.scores_avg as scores_avg,
-      s.score_categories as score_categories
-    FROM events e
-      LEFT JOIN scores_agg s ON s.trace_id = e.trace_id AND s.observation_id = e.span_id
-    WHERE ${appliedEventsFilter.query}
-      ${search.query}
-    LIMIT 1 BY e.span_id, e.project_id
-    LIMIT {rowLimit: Int64}
-  `;
+    .withCTE("scores_agg", eventsScoresAggregation({ projectId }))
+    .leftJoin(
+      "scores_agg s",
+      "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
+    )
+    .where(appliedEventsFilter)
+    .where(search)
+    .limitBy("e.span_id", "e.project_id")
+    .limit(rowLimit);
+
+  const { query, params: queryParams } = eventsQuery.buildWithParams();
 
   type EventRow = {
     id: string;
@@ -278,13 +193,7 @@ export const getEventsStream = async (props: {
 
   const asyncGenerator = queryClickhouseStream<EventRow>({
     query,
-    params: {
-      projectId,
-      rowLimit,
-      ...appliedEventsFilter.params,
-      ...appliedScoresFilter.params,
-      ...search.params,
-    },
+    params: queryParams,
     clickhouseConfigs,
     tags: {
       feature: "batch-export",
