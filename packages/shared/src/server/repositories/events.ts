@@ -2115,55 +2115,30 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
 
 /**
  * Streams events from ClickHouse for blob storage export.
- * Follows the pattern of getTracesForBlobStorageExport and getObservationsForBlobStorageExport.
+ * Uses EventsQueryBuilder for consistent query construction.
  */
 export const getEventsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
-  const query = `
-    SELECT
-      span_id as id,
-      trace_id,
-      project_id,
-      environment,
-      type,
-      parent_span_id as parent_observation_id,
-      start_time,
-      end_time,
-      name,
-      mapFromArrays(metadata_names, metadata_prefixes) as metadata,
-      level,
-      status_message,
-      version,
-      input,
-      output,
-      provided_model_name,
-      model_parameters,
-      usage_details,
-      cost_details,
-      completion_start_time,
-      prompt_name,
-      prompt_version,
-      tags,
-      release,
-      trace_name,
-      user_id,
-      session_id
-    FROM events FINAL
-    WHERE project_id = {projectId: String}
-    AND start_time >= {minTimestamp: DateTime64(3)}
-    AND start_time <= {maxTimestamp: DateTime64(3)}
-  `;
+  const queryBuilder = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("export")
+    .selectIO(false) // Full I/O, no truncation
+    .selectFieldSet("metadata")
+    .whereRaw(
+      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
+      {
+        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      },
+    );
+
+  const { query, params } = queryBuilder.buildWithParams();
 
   return queryClickhouseStream<Record<string, unknown>>({
     query,
-    params: {
-      projectId,
-      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-    },
+    params,
     tags: {
       feature: "blobstorage",
       type: "event",
