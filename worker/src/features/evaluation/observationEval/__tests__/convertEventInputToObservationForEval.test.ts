@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  convertEventInputToObservationForEval,
-  safeConvertEventInputToObservationForEval,
-} from "../convertEventInputToObservationForEval";
+import { convertEventInputToObservationForEval } from "../convertEventInputToObservationForEval";
 import { type EventInput } from "../../../../services/IngestionService";
 
 describe("convertEventInputToObservationForEval", () => {
@@ -308,40 +305,5 @@ describe("convertEventInputToObservationForEval", () => {
       expect(result.experimentItemId).toBeUndefined();
       expect(result.experimentItemExpectedOutput).toBeUndefined();
     });
-  });
-});
-
-describe("safeConvertEventInputToObservationForEval", () => {
-  const createValidEventInput = (): EventInput => ({
-    projectId: "project-123",
-    traceId: "trace-456",
-    spanId: "span-789",
-    startTimeISO: "2024-01-01T00:00:00Z",
-    endTimeISO: "2024-01-01T00:00:01Z",
-    type: "generation",
-    name: "test",
-    environment: "production",
-    level: "DEFAULT",
-    metadata: {},
-    source: "otel",
-  });
-
-  it("should return ObservationForEval for valid input", () => {
-    const input = createValidEventInput();
-    const result = safeConvertEventInputToObservationForEval(input);
-
-    expect(result).not.toBeNull();
-    expect(result?.id).toBe("span-789");
-  });
-
-  it("should return null for invalid input", () => {
-    const invalidInput = {
-      // Missing required fields
-      spanId: 123, // Wrong type
-    } as unknown as EventInput;
-
-    const result = safeConvertEventInputToObservationForEval(invalidInput);
-
-    expect(result).toBeNull();
   });
 });
