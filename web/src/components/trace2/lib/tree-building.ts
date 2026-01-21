@@ -33,6 +33,9 @@ type TraceType = Omit<
   input: string | null;
   output: string | null;
   latency?: number;
+  // For events-based traces: when set, root observation becomes tree root
+  rootObservationType?: string;
+  rootObservationId?: string;
 };
 
 /**
@@ -379,6 +382,22 @@ function buildTraceTree(
     }
   }
 
+  // When rootObservationType is set (events-based trace) and there's exactly one root observation,
+  // use that observation as the tree root directly (no TRACE wrapper)
+  if (trace.rootObservationType && rootIds.length === 1) {
+    const singleRoot = nodeRegistry.get(rootIds[0]!)!;
+    const tree = singleRoot.treeNode!;
+
+    // Root observation is now depth 0 (not wrapped in TRACE at depth -1)
+    // Depths were already calculated correctly during graph building (root obs = 0)
+    // No need to recalculate since root obs started at depth 0
+
+    nodeMap.set(tree.id, tree);
+    return { tree, hiddenObservationsCount, nodeMap };
+  }
+
+  // Fallback: create TRACE wrapper (multiple roots or no rootObservationType)
+
   // Calculate trace root total cost
   const traceTotalCost = rootTreeNodes.reduce<Decimal | undefined>(
     (acc, child) => {
@@ -442,7 +461,12 @@ export function buildTraceUiData(
 
   // Use pre-computed totals for heatmap scaling (computed in buildTreeNodesBottomUp)
   const rootTotalCost = tree.totalCost;
-  const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
+  // For observation-rooted trees (events-based), calculate duration from startTime/endTime
+  const rootDuration = tree.latency
+    ? tree.latency * 1000
+    : tree.endTime
+      ? tree.endTime.getTime() - tree.startTime.getTime()
+      : undefined;
 
   // Build flat search items list (iterative to avoid stack overflow on deep trees)
   const searchItems: TraceSearchListItem[] = [];

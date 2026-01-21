@@ -8,6 +8,8 @@ export type SyntheticTrace = WithStringifiedMetadata<
   input: string | null;
   output: string | null;
   latency?: number;
+  rootObservationType?: string;
+  rootObservationId?: string;
 };
 
 export interface AdaptedTraceData {
@@ -70,6 +72,8 @@ export function adaptEventsToTraceFormat(params: {
     latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
     createdAt: earliest.createdAt,
     updatedAt: earliest.updatedAt,
+    rootObservationType: root?.type,
+    rootObservationId: root?.id,
   };
 
   // Map events to ObservationReturnTypeWithMetadata
