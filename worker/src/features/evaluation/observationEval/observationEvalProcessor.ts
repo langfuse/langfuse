@@ -152,7 +152,7 @@ export async function processObservationEval({
   }
 
   logger.debug(
-    `Downloaded observation data for job ${job.id}: id=${observationData.id}`,
+    `Downloaded observation data for job ${job.id}: span_id=${observationData.span_id}`,
   );
 
   // Extract variables from observation

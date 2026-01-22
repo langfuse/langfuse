@@ -3,137 +3,68 @@ import { z } from "zod/v4";
 import { eventRecordBaseSchema } from "../../server/repositories/definitions";
 
 /**
- * Extract field schemas from the source of truth (eventRecordBaseSchema).
+ * ObservationForEval schema - a subset of eventRecordBaseSchema fields
+ * needed for observation-level evaluations.
  *
- * This ensures that any changes to field types in the base schema are automatically
- * reflected in the ObservationForEval schema. If a field is removed from the base
- * schema, TypeScript will error here, preventing silent drift.
+ * IMPORTANT:
+ * - This schema uses snake_case field names matching eventRecordBaseSchema
+ * - The shape dictates the S3 JSON format for observation evals
+ * - Changes here affect ingestion, in-flight evaluations, and historical evals
  */
-const baseFields = eventRecordBaseSchema.shape;
+export const observationForEvalSchema = eventRecordBaseSchema.pick({
+  // Identifiers
+  span_id: true,
+  trace_id: true,
+  project_id: true,
+  parent_span_id: true,
 
-/**
- * Canonical type for observation data used in eval filtering and variable extraction.
- *
- * IMPORTANT: Field schemas are derived from eventRecordBaseSchema to ensure consistency.
- * If you need to change a field type, change it in eventRecordBaseSchema first.
- *
- * This type is produced by two sources:
- * 1. Fresh OTEL events: convertEventInputToObservationForEval()
- * 2. Historical ClickHouse records: convertEventRecordToObservationForEval()
- *
- * It serves as the single source of truth for:
- * - Filter evaluation (shouldEval decision via InMemoryFilterService)
- * - Variable extraction (filling LLM-as-a-judge templates)
- * - S3 storage (serialized observation data for deferred execution)
- */
-export const observationForEvalSchema = z.object({
-  // ============================================================
-  // CORE IDENTIFIERS
-  // ============================================================
-  /** Observation/span ID */
-  id: baseFields.span_id,
-  /** Parent trace ID */
-  traceId: baseFields.trace_id,
-  /** Project ID */
-  projectId: baseFields.project_id,
-  /** Parent observation ID (for nested spans) */
-  parentObservationId: baseFields.parent_span_id,
+  // Core properties
+  type: true,
+  name: true,
+  environment: true,
+  version: true,
+  release: true,
+  level: true,
+  status_message: true,
 
-  // ============================================================
-  // OBSERVATION PROPERTIES (for filtering)
-  // ============================================================
-  /** Observation type: SPAN, GENERATION, EVENT */
-  type: baseFields.type,
-  /** Observation name */
-  name: baseFields.name,
-  /** Environment (e.g., production, staging) */
-  environment: baseFields.environment,
-  /** Log level: DEFAULT, DEBUG, WARNING, ERROR */
-  level: baseFields.level,
-  /** Status message (error details, etc.) */
-  statusMessage: baseFields.status_message,
-  /** Version string */
-  version: baseFields.version,
+  // Trace-level properties
+  trace_name: true,
+  user_id: true,
+  session_id: true,
+  tags: true,
 
-  // ============================================================
-  // TRACE-LEVEL PROPERTIES (from OTEL span attributes, for filtering)
-  // ============================================================
-  /** Trace name (from langfuse.trace.name attribute) */
-  traceName: baseFields.trace_name,
-  /** User ID associated with the trace */
-  userId: baseFields.user_id,
-  /** Session ID associated with the trace */
-  sessionId: baseFields.session_id,
-  /** Tags array */
-  tags: baseFields.tags,
-  /** Release version */
-  release: baseFields.release,
+  // Model
+  provided_model_name: true,
+  model_parameters: true,
 
-  // ============================================================
-  // MODEL PROPERTIES (for filtering and variable extraction)
-  // ============================================================
-  /** Model name (e.g., gpt-4, claude-3) */
-  model: baseFields.provided_model_name,
-  /** Model parameters (temperature, max_tokens, etc.) as JSON string */
-  modelParameters: baseFields.model_parameters,
+  // Prompt
+  prompt_id: true,
+  prompt_name: true,
+  prompt_version: true,
 
-  // ============================================================
-  // PROMPT PROPERTIES (for filtering)
-  // ============================================================
-  /** Langfuse prompt ID */
-  promptId: baseFields.prompt_id,
-  /** Langfuse prompt name */
-  promptName: baseFields.prompt_name,
-  /** Langfuse prompt version */
-  promptVersion: baseFields.prompt_version,
+  // Usage & Cost
+  provided_usage_details: true,
+  provided_cost_details: true,
+  usage_details: true,
+  cost_details: true,
 
-  // ============================================================
-  // TOOL CALL PROPERTIES (for filtering and variable extraction)
-  // ============================================================
-  /** Tool definitions map: tool_name -> tool_definition_json */
-  toolDefinitions: baseFields.tool_definitions,
-  /** Array of tool call JSON strings */
-  toolCalls: baseFields.tool_calls,
-  /** Array of tool call names (for efficient filtering) */
-  toolCallNames: baseFields.tool_call_names,
+  // Tool calls
+  tool_definitions: true,
+  tool_calls: true,
+  tool_call_names: true,
 
-  // ============================================================
-  // USAGE & COST (for filtering and variable extraction)
-  // ============================================================
-  /** Calculated usage details (tokens) */
-  usageDetails: baseFields.usage_details,
-  /** Calculated cost details */
-  costDetails: baseFields.cost_details,
-  /** User-provided usage details */
-  providedUsageDetails: baseFields.provided_usage_details,
-  /** User-provided cost details */
-  providedCostDetails: baseFields.provided_cost_details,
+  // Experiment
+  experiment_id: true,
+  experiment_name: true,
+  experiment_description: true,
+  experiment_dataset_id: true,
+  experiment_item_id: true,
+  experiment_item_expected_output: true,
 
-  // ============================================================
-  // EXPERIMENT PROPERTIES (for filtering and variable extraction)
-  // ============================================================
-  /** Experiment ID */
-  experimentId: baseFields.experiment_id,
-  /** Experiment name */
-  experimentName: baseFields.experiment_name,
-  /** Experiment description */
-  experimentDescription: baseFields.experiment_description,
-  /** Dataset ID associated with experiment */
-  experimentDatasetId: baseFields.experiment_dataset_id,
-  /** Dataset item ID */
-  experimentItemId: baseFields.experiment_item_id,
-  /** Expected output from dataset item (for comparison in evals) */
-  experimentItemExpectedOutput: baseFields.experiment_item_expected_output,
-
-  // ============================================================
-  // DATA FIELDS (primary variable extraction targets)
-  // ============================================================
-  /** Input data (JSON string) */
-  input: baseFields.input,
-  /** Output data (JSON string) */
-  output: baseFields.output,
-  /** Metadata map */
-  metadata: baseFields.metadata,
+  // Data
+  input: true,
+  output: true,
+  metadata: true,
 });
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
@@ -171,24 +102,24 @@ export const observationEvalFilterColumns: ObservationEvalFilterColumn[] = [
   { id: "version", name: "Version", type: "string" },
 
   // Trace-level properties
-  { id: "traceName", name: "Trace Name", type: "string" },
-  { id: "userId", name: "User ID", type: "string" },
-  { id: "sessionId", name: "Session ID", type: "string" },
+  { id: "trace_name", name: "Trace Name", type: "string" },
+  { id: "user_id", name: "User ID", type: "string" },
+  { id: "session_id", name: "Session ID", type: "string" },
   { id: "tags", name: "Tags", type: "arrayOptions" },
   { id: "release", name: "Release", type: "string" },
 
   // Model properties
-  { id: "model", name: "Model", type: "stringOptions" },
+  { id: "provided_model_name", name: "Model", type: "stringOptions" },
 
   // Prompt properties
-  { id: "promptName", name: "Prompt Name", type: "stringOptions" },
+  { id: "prompt_name", name: "Prompt Name", type: "stringOptions" },
 
   // Tool properties
-  { id: "toolCallNames", name: "Tool Call Names", type: "arrayOptions" },
+  { id: "tool_call_names", name: "Tool Call Names", type: "arrayOptions" },
 
   // Experiment properties
-  { id: "experimentId", name: "Experiment ID", type: "string" },
-  { id: "experimentName", name: "Experiment Name", type: "string" },
+  { id: "experiment_id", name: "Experiment ID", type: "string" },
+  { id: "experiment_name", name: "Experiment Name", type: "string" },
 
   // Metadata (supports JSON path filtering)
   { id: "metadata", name: "Metadata", type: "stringObject" },
@@ -247,43 +178,43 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
 
   // Tool call data
   {
-    id: "toolDefinitions",
+    id: "tool_definitions",
     name: "Tool Definitions",
     description: "Available tool definitions",
   },
   {
-    id: "toolCalls",
+    id: "tool_calls",
     name: "Tool Calls",
     description: "Tool calls with arguments",
   },
 
   // Model data
   {
-    id: "model",
+    id: "provided_model_name",
     name: "Model",
     description: "Model name used",
   },
   {
-    id: "modelParameters",
+    id: "model_parameters",
     name: "Model Parameters",
     description: "Model configuration parameters",
   },
 
   // Usage data
   {
-    id: "usageDetails",
+    id: "usage_details",
     name: "Usage Details",
     description: "Token usage breakdown",
   },
   {
-    id: "costDetails",
+    id: "cost_details",
     name: "Cost Details",
     description: "Cost breakdown",
   },
 
   // Experiment data
   {
-    id: "experimentItemExpectedOutput",
+    id: "experiment_item_expected_output",
     name: "Expected Output",
     description: "Expected output from dataset item",
   },

@@ -61,11 +61,11 @@ describe("Observation Eval E2E Pipeline", () => {
     it("should schedule and process observation through full eval pipeline", async () => {
       // ARRANGE: Create observation and config
       const observation = createTestObservation({
-        id: `obs-${randomUUID()}`,
-        traceId: `trace-${randomUUID()}`,
-        projectId,
+        span_id: `obs-${randomUUID()}`,
+        trace_id: `trace-${randomUUID()}`,
+        project_id: projectId,
         type: "generation",
-        model: "gpt-4",
+        provided_model_name: "gpt-4",
         environment: "production",
         output: '{"response": "The capital of France is Paris."}',
       });
@@ -117,7 +117,7 @@ describe("Observation Eval E2E Pipeline", () => {
       expect(pipeline.schedulerDeps.uploadObservationToS3).toHaveBeenCalledWith(
         {
           projectId,
-          observationId: observation.id,
+          observationId: observation.span_id,
           data: observation,
         },
       );
@@ -125,8 +125,8 @@ describe("Observation Eval E2E Pipeline", () => {
         expect.objectContaining({
           projectId,
           jobConfigurationId: config.id,
-          jobInputTraceId: observation.traceId,
-          jobInputObservationId: observation.id,
+          jobInputTraceId: observation.trace_id,
+          jobInputObservationId: observation.span_id,
           status: JobExecutionStatus.PENDING,
         }),
       );
@@ -143,8 +143,8 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         status: JobExecutionStatus.PENDING,
         jobConfigurationId: config.id,
-        jobInputTraceId: observation.traceId,
-        jobInputObservationId: observation.id,
+        jobInputTraceId: observation.trace_id,
+        jobInputObservationId: observation.span_id,
         createdAt: new Date(),
         updatedAt: new Date(),
         startTime: new Date(),
@@ -227,7 +227,7 @@ describe("Observation Eval E2E Pipeline", () => {
 
     it("should not schedule eval when filter does not match", async () => {
       const observation = createTestObservation({
-        projectId,
+        project_id: projectId,
         type: "span", // Not a generation
       });
 
@@ -259,7 +259,7 @@ describe("Observation Eval E2E Pipeline", () => {
     });
 
     it("should not schedule eval when sampled out", async () => {
-      const observation = createTestObservation({ projectId });
+      const observation = createTestObservation({ project_id: projectId });
 
       const config = createTestEvalConfig({
         projectId,
@@ -280,9 +280,9 @@ describe("Observation Eval E2E Pipeline", () => {
 
     it("should schedule multiple evals for multiple matching configs", async () => {
       const observation = createTestObservation({
-        projectId,
+        project_id: projectId,
         type: "generation",
-        model: "gpt-4",
+        provided_model_name: "gpt-4",
       });
 
       const config1 = createTestEvalConfig({
@@ -305,7 +305,7 @@ describe("Observation Eval E2E Pipeline", () => {
         scoreName: "relevance",
         filter: [
           {
-            column: "model",
+            column: "provided_model_name",
             type: "stringOptions",
             operator: "any of",
             value: ["gpt-4"],
@@ -346,7 +346,7 @@ describe("Observation Eval E2E Pipeline", () => {
     });
 
     it("should skip scheduling when job already exists (deduplication)", async () => {
-      const observation = createTestObservation({ projectId });
+      const observation = createTestObservation({ project_id: projectId });
       const config = createTestEvalConfig({ projectId });
 
       const pipeline = createFullyMockedEvalPipeline({ observation });
@@ -365,7 +365,7 @@ describe("Observation Eval E2E Pipeline", () => {
       ).toHaveBeenCalledWith({
         projectId,
         jobConfigurationId: config.id,
-        jobInputObservationId: observation.id,
+        jobInputObservationId: observation.span_id,
       });
       expect(pipeline.schedulerDeps.createJobExecution).not.toHaveBeenCalled();
     });
@@ -374,7 +374,7 @@ describe("Observation Eval E2E Pipeline", () => {
   describe("variable extraction scenarios", () => {
     it("should extract input and output for comparison evals", async () => {
       const observation = createTestObservation({
-        projectId,
+        project_id: projectId,
         input: '{"question": "What is 2+2?"}',
         output: '{"answer": "4"}',
       });
@@ -395,8 +395,8 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         status: JobExecutionStatus.PENDING,
         jobConfigurationId: config.id,
-        jobInputTraceId: observation.traceId,
-        jobInputObservationId: observation.id,
+        jobInputTraceId: observation.trace_id,
+        jobInputObservationId: observation.span_id,
         createdAt: new Date(),
         updatedAt: new Date(),
         startTime: null,
@@ -472,9 +472,9 @@ describe("Observation Eval E2E Pipeline", () => {
 
     it("should extract expected output for experiment evals", async () => {
       const observation = createTestObservation({
-        projectId,
+        project_id: projectId,
         output: '{"generated": "Paris"}',
-        experimentItemExpectedOutput: "Paris",
+        experiment_item_expected_output: "Paris",
       });
 
       const config = createTestEvalConfig({
@@ -483,7 +483,7 @@ describe("Observation Eval E2E Pipeline", () => {
           { templateVariable: "generated", selectedColumnId: "output" },
           {
             templateVariable: "expected",
-            selectedColumnId: "experimentItemExpectedOutput",
+            selectedColumnId: "experiment_item_expected_output",
           },
         ],
       });
@@ -495,8 +495,8 @@ describe("Observation Eval E2E Pipeline", () => {
         projectId,
         status: JobExecutionStatus.PENDING,
         jobConfigurationId: config.id,
-        jobInputTraceId: observation.traceId,
-        jobInputObservationId: observation.id,
+        jobInputTraceId: observation.trace_id,
+        jobInputObservationId: observation.span_id,
         createdAt: new Date(),
         updatedAt: new Date(),
         startTime: null,
@@ -570,12 +570,12 @@ describe("Observation Eval E2E Pipeline", () => {
   describe("filter scenarios", () => {
     it("should filter by environment", async () => {
       const prodObservation = createTestObservation({
-        projectId,
+        project_id: projectId,
         environment: "production",
       });
 
       const stagingObservation = createTestObservation({
-        projectId,
+        project_id: projectId,
         environment: "staging",
       });
 
@@ -618,12 +618,12 @@ describe("Observation Eval E2E Pipeline", () => {
 
     it("should filter by tags", async () => {
       const taggedObservation = createTestObservation({
-        projectId,
+        project_id: projectId,
         tags: ["important", "test"],
       });
 
       const untaggedObservation = createTestObservation({
-        projectId,
+        project_id: projectId,
         tags: ["other"],
       });
 

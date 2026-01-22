@@ -6,7 +6,6 @@ export {
   createObservationEvalProcessorDeps,
   type ObservationEvalProcessorDeps,
 } from "./observationEvalProcessor";
-export { convertEventInputToObservationForEval } from "./convertEventInputToObservationForEval";
 export type {
   ObservationForEval,
   ObservationEvalConfig,

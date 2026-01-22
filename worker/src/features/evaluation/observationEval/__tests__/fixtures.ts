@@ -15,59 +15,60 @@ import {
 /**
  * Creates a test ObservationForEval with sensible defaults.
  * All fields can be overridden.
+ * Note: Uses snake_case field names matching eventRecordBaseSchema.
  */
 export function createTestObservation(
   overrides: Partial<ObservationForEval> = {},
 ): ObservationForEval {
   return {
     // Core identifiers
-    id: `obs-${randomUUID()}`,
-    traceId: `trace-${randomUUID()}`,
-    projectId: "test-project-123",
-    parentObservationId: null,
+    span_id: `obs-${randomUUID()}`,
+    trace_id: `trace-${randomUUID()}`,
+    project_id: "test-project-123",
+    parent_span_id: null,
 
     // Observation properties
-    type: "generation",
+    type: "GENERATION",
     name: "test-observation",
     environment: "test",
     level: "DEFAULT",
-    statusMessage: null,
+    status_message: null,
     version: "v1.0",
 
     // Trace-level properties
-    traceName: "test-trace",
-    userId: "user-123",
-    sessionId: "session-456",
+    trace_name: "test-trace",
+    user_id: "user-123",
+    session_id: "session-456",
     tags: ["test-tag"],
     release: "v1.0.0",
 
     // Model properties
-    model: "gpt-4",
-    modelParameters: '{"temperature": 0.7}',
+    provided_model_name: "gpt-4",
+    model_parameters: '{"temperature": 0.7}',
 
     // Prompt properties
-    promptId: null,
-    promptName: null,
-    promptVersion: null,
+    prompt_id: null,
+    prompt_name: null,
+    prompt_version: null,
 
     // Tool call properties
-    toolDefinitions: {},
-    toolCalls: [],
-    toolCallNames: [],
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
 
     // Usage & Cost
-    usageDetails: { input: 100, output: 50 },
-    costDetails: {},
-    providedUsageDetails: {},
-    providedCostDetails: {},
+    usage_details: { input: 100, output: 50 },
+    cost_details: {},
+    provided_usage_details: {},
+    provided_cost_details: {},
 
     // Experiment properties
-    experimentId: null,
-    experimentName: null,
-    experimentDescription: null,
-    experimentDatasetId: null,
-    experimentItemId: null,
-    experimentItemExpectedOutput: null,
+    experiment_id: null,
+    experiment_name: null,
+    experiment_description: null,
+    experiment_dataset_id: null,
+    experiment_item_id: null,
+    experiment_item_expected_output: null,
 
     // Data fields
     input: '{"prompt": "Hello, how are you?"}',

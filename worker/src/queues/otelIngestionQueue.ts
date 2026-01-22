@@ -23,12 +23,14 @@ import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
-import { ForbiddenError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  convertEventRecordToObservationForEval,
+} from "@langfuse/shared";
 import {
   fetchObservationEvalConfigs,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
-  convertEventInputToObservationForEval,
 } from "../features/evaluation/observationEval";
 
 /**
@@ -267,59 +269,103 @@ export const otelIngestionQueueProcessor: Processor = async (
       }),
     ]);
 
-    // Get enriched observation data for eval scheduling via processToEvent
-    // This provides trace-level attributes (userId, sessionId, tags, release) needed for filtering
-    const enrichedEvents = processor.processToEvent(parsedSpans);
+    // =========================================================================
+    // PHASE 3: Process events for observation evals and direct event writes
+    // =========================================================================
+    // This phase handles two independent concerns:
+    // 1. Scheduling observation-level evals (if eval configs exist)
+    // 2. Writing directly to events table (if SDK version requirements are met)
+    //
+    // Both require enriched event records with trace-level attributes
+    // (userId, sessionId, tags, release) that processToEvent provides.
+    // =========================================================================
 
-    // Schedule observation evals for OTEL observations
-    if (enrichedEvents.length > 0) {
-      try {
-        const observationEvalConfigs =
-          await fetchObservationEvalConfigs(projectId);
+    const eventInputs = processor.processToEvent(parsedSpans);
 
-        if (observationEvalConfigs.length > 0) {
-          const schedulerDeps = createObservationEvalSchedulerDeps();
-
-          for (const eventInput of enrichedEvents) {
-            try {
-              const observation =
-                convertEventInputToObservationForEval(eventInput);
-
-              await scheduleObservationEvals({
-                observation,
-                configs: observationEvalConfigs,
-                schedulerDeps,
-              });
-            } catch (evalError) {
-              logger.warn(
-                `Failed to schedule observation eval for ${eventInput.spanId}`,
-                evalError,
-              );
-            }
-          }
-        }
-      } catch (evalError) {
-        logger.warn(
-          `Failed to fetch observation eval configs for project ${projectId}`,
-          evalError,
-        );
-      }
+    if (eventInputs.length === 0) {
+      return;
     }
 
-    // If inserts into the events table are enabled AND observations qualify for direct write,
-    // write the enriched events to the events table
-    if (
+    // Determine what processing is needed
+    const shouldWriteToEventsTable =
+      useDirectEventWrite &&
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-      useDirectEventWrite
-    ) {
-      try {
-        await Promise.all(
-          enrichedEvents.map((e) => ingestionService.writeEvent(e, fileKey)),
+      env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true";
+
+    const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
+      (error) => {
+        traceException(error);
+        logger.warn(
+          `Failed to fetch observation eval configs for project ${projectId}`,
+          error,
         );
-      } catch (e) {
-        traceException(e); // Mark span as errored
-        logger.warn(`Failed to process events for ${projectId}: ${e}`, e);
-        // Fallthrough while setting is experimental
+
+        return [];
+      },
+    );
+    const hasEvalConfigs = evalConfigs.length > 0;
+
+    // Early exit if no processing needed
+    if (!hasEvalConfigs && !shouldWriteToEventsTable) {
+      return;
+    }
+
+    // Create scheduler deps only if we have eval configs
+    const evalSchedulerDeps = hasEvalConfigs
+      ? createObservationEvalSchedulerDeps()
+      : null;
+
+    // Process each event independently
+    for (const eventInput of eventInputs) {
+      // Step 1: Create enriched event record (required for both evals and writes)
+      let eventRecord;
+      try {
+        eventRecord = await ingestionService.createEventRecord(
+          eventInput,
+          fileKey,
+        );
+      } catch (error) {
+        traceException(error);
+        logger.error(
+          `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+          error,
+        );
+
+        continue;
+      }
+
+      // Step 2: Schedule observation evals (independent of event writes)
+      if (hasEvalConfigs && evalSchedulerDeps) {
+        try {
+          const observation =
+            convertEventRecordToObservationForEval(eventRecord);
+
+          await scheduleObservationEvals({
+            observation,
+            configs: evalConfigs,
+            schedulerDeps: evalSchedulerDeps,
+          });
+        } catch (error) {
+          traceException(error);
+
+          logger.error(
+            `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+            error,
+          );
+        }
+      }
+
+      // Step 3: Write to events table (independent of eval scheduling)
+      if (shouldWriteToEventsTable) {
+        try {
+          ingestionService.writeEventRecord(eventRecord);
+        } catch (error) {
+          traceException(error);
+          logger.error(
+            `Failed to write event record for ${eventInput.spanId}`,
+            error,
+          );
+        }
       }
     }
   } catch (e) {

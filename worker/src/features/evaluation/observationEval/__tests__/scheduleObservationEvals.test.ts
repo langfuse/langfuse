@@ -12,54 +12,54 @@ describe("scheduleObservationEvals", () => {
   const createMockObservation = (
     overrides: Partial<ObservationForEval> = {},
   ): ObservationForEval => ({
-    // Core identifiers
-    id: "obs-123",
-    traceId: "trace-456",
-    projectId: "project-789",
-    parentObservationId: null,
+    // Core identifiers (snake_case)
+    span_id: "obs-123",
+    trace_id: "trace-456",
+    project_id: "project-789",
+    parent_span_id: null,
 
     // Observation properties
-    type: "generation",
+    type: "GENERATION",
     name: "chat-completion",
     environment: "production",
     level: "DEFAULT",
-    statusMessage: null,
+    status_message: null,
     version: "v1.0",
 
     // Trace-level properties
-    traceName: "my-trace",
-    userId: "user-abc",
-    sessionId: "session-xyz",
+    trace_name: "my-trace",
+    user_id: "user-abc",
+    session_id: "session-xyz",
     tags: ["tag1", "tag2"],
     release: "v2.0.0",
 
     // Model properties
-    model: "gpt-4",
-    modelParameters: '{"temperature": 0.7}',
+    provided_model_name: "gpt-4",
+    model_parameters: '{"temperature": 0.7}',
 
     // Prompt properties
-    promptId: null,
-    promptName: null,
-    promptVersion: null,
+    prompt_id: null,
+    prompt_name: null,
+    prompt_version: null,
 
     // Tool call properties
-    toolDefinitions: {},
-    toolCalls: [],
-    toolCallNames: [],
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
 
     // Usage & Cost
-    usageDetails: { input: 100, output: 50 },
-    costDetails: {},
-    providedUsageDetails: {},
-    providedCostDetails: {},
+    usage_details: { input: 100, output: 50 },
+    cost_details: {},
+    provided_usage_details: {},
+    provided_cost_details: {},
 
     // Experiment properties
-    experimentId: null,
-    experimentName: null,
-    experimentDescription: null,
-    experimentDatasetId: null,
-    experimentItemId: null,
-    experimentItemExpectedOutput: null,
+    experiment_id: null,
+    experiment_name: null,
+    experiment_description: null,
+    experiment_dataset_id: null,
+    experiment_item_id: null,
+    experiment_item_expected_output: null,
 
     // Data fields
     input: '{"prompt": "Hello"}',

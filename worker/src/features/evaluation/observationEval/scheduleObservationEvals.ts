@@ -38,8 +38,8 @@ export async function scheduleObservationEvals(
 
   // Upload observation to S3 once (not per config)
   const observationS3Path = await schedulerDeps.uploadObservationToS3({
-    projectId: observation.projectId,
-    observationId: observation.id,
+    projectId: observation.project_id,
+    observationId: observation.span_id,
     data: observation,
   });
 
@@ -55,8 +55,8 @@ export async function scheduleObservationEvals(
     } catch (error) {
       logger.error("Failed to process observation eval config", {
         configId: config.id,
-        observationId: observation.id,
-        projectId: observation.projectId,
+        observationId: observation.span_id,
+        projectId: observation.project_id,
         error,
       });
     }
@@ -78,7 +78,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
   if (!isTargeted) {
     logger.debug("Observation does not match eval config filter", {
       configId: config.id,
-      observationId: observation.id,
+      observationId: observation.span_id,
     });
 
     return;
@@ -89,7 +89,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
   if (!shouldSampleObservation({ samplingRate })) {
     logger.debug("Observation sampled out for eval config", {
       configId: config.id,
-      observationId: observation.id,
+      observationId: observation.span_id,
       samplingRate,
     });
 
@@ -98,15 +98,15 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
 
   // Step 3: Check deduplication (job already exists?)
   const existingJob = await schedulerDeps.findExistingJobExecution({
-    projectId: observation.projectId,
+    projectId: observation.project_id,
     jobConfigurationId: config.id,
-    jobInputObservationId: observation.id,
+    jobInputObservationId: observation.span_id,
   });
 
   if (existingJob) {
     logger.debug("Job already exists for observation and config", {
       configId: config.id,
-      observationId: observation.id,
+      observationId: observation.span_id,
       existingJobId: existingJob.id,
     });
 
@@ -115,24 +115,24 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
 
   // Step 4: Create job execution
   const jobExecution = await schedulerDeps.createJobExecution({
-    projectId: observation.projectId,
+    projectId: observation.project_id,
     jobConfigurationId: config.id,
-    jobInputTraceId: observation.traceId,
-    jobInputObservationId: observation.id,
+    jobInputTraceId: observation.trace_id,
+    jobInputObservationId: observation.span_id,
     status: JobExecutionStatus.PENDING,
   });
 
   // Step 5: Enqueue eval job
   await schedulerDeps.enqueueEvalJob({
     jobExecutionId: jobExecution.id,
-    projectId: observation.projectId,
+    projectId: observation.project_id,
     observationS3Path,
     delay: config.delay,
   });
 
   logger.debug("Scheduled observation eval job", {
     configId: config.id,
-    observationId: observation.id,
+    observationId: observation.span_id,
     jobExecutionId: jobExecution.id,
   });
 }

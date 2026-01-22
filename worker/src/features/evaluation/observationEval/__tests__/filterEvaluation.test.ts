@@ -57,7 +57,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("equals operator", () => {
       it("should match when name equals filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "my-generation",
         });
 
@@ -75,7 +75,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when name does not equal filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "my-generation",
         });
 
@@ -95,7 +95,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("contains operator", () => {
       it("should match when name contains filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "my-special-generation",
         });
 
@@ -113,7 +113,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when name does not contain filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "my-generation",
         });
 
@@ -133,7 +133,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("does not contain operator", () => {
       it("should match when name does not contain filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "my-generation",
         });
 
@@ -151,7 +151,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when name contains filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "my-special-generation",
         });
 
@@ -171,7 +171,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("starts with operator", () => {
       it("should match when name starts with filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "chat-completion-v2",
         });
 
@@ -189,7 +189,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when name does not start with filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "completion-chat-v2",
         });
 
@@ -209,7 +209,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("ends with operator", () => {
       it("should match when name ends with filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "chat-completion-v2",
         });
 
@@ -227,7 +227,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when name does not end with filter value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           name: "chat-completion-v1",
         });
 
@@ -247,7 +247,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("null/undefined handling", () => {
       it("should treat null as empty string for string filters", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           version: null as unknown as string,
         });
 
@@ -269,8 +269,8 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("any of operator", () => {
       it("should match when type is in allowed list", async () => {
         const observation = createTestObservation({
-          projectId,
-          type: "generation",
+          project_id: projectId,
+          type: "GENERATION",
         });
 
         const matched = await testFilterMatch(observation, [
@@ -278,7 +278,7 @@ describe("Filter Evaluation for Observation Evals", () => {
             column: "type",
             type: "stringOptions",
             operator: "any of",
-            value: ["generation", "span"],
+            value: ["GENERATION", "SPAN"],
           },
         ]);
 
@@ -287,8 +287,8 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when type is not in allowed list", async () => {
         const observation = createTestObservation({
-          projectId,
-          type: "event",
+          project_id: projectId,
+          type: "EVENT",
         });
 
         const matched = await testFilterMatch(observation, [
@@ -296,7 +296,7 @@ describe("Filter Evaluation for Observation Evals", () => {
             column: "type",
             type: "stringOptions",
             operator: "any of",
-            value: ["generation", "span"],
+            value: ["GENERATION", "SPAN"],
           },
         ]);
 
@@ -305,7 +305,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should match single value in list", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           environment: "production",
         });
 
@@ -325,8 +325,8 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("none of operator", () => {
       it("should match when type is not in excluded list", async () => {
         const observation = createTestObservation({
-          projectId,
-          type: "event",
+          project_id: projectId,
+          type: "EVENT",
         });
 
         const matched = await testFilterMatch(observation, [
@@ -334,7 +334,7 @@ describe("Filter Evaluation for Observation Evals", () => {
             column: "type",
             type: "stringOptions",
             operator: "none of",
-            value: ["generation", "span"],
+            value: ["GENERATION", "SPAN"],
           },
         ]);
 
@@ -343,8 +343,8 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when type is in excluded list", async () => {
         const observation = createTestObservation({
-          projectId,
-          type: "generation",
+          project_id: projectId,
+          type: "GENERATION",
         });
 
         const matched = await testFilterMatch(observation, [
@@ -352,7 +352,7 @@ describe("Filter Evaluation for Observation Evals", () => {
             column: "type",
             type: "stringOptions",
             operator: "none of",
-            value: ["generation", "span"],
+            value: ["GENERATION", "SPAN"],
           },
         ]);
 
@@ -363,13 +363,13 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("model filtering", () => {
       it("should filter by model name", async () => {
         const gpt4Observation = createTestObservation({
-          projectId,
-          model: "gpt-4",
+          project_id: projectId,
+          provided_model_name: "gpt-4",
         });
 
         const matched = await testFilterMatch(gpt4Observation, [
           {
-            column: "model",
+            column: "provided_model_name",
             type: "stringOptions",
             operator: "any of",
             value: ["gpt-4", "gpt-4-turbo"],
@@ -381,13 +381,13 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should exclude specific models", async () => {
         const gpt35Observation = createTestObservation({
-          projectId,
-          model: "gpt-3.5-turbo",
+          project_id: projectId,
+          provided_model_name: "gpt-3.5-turbo",
         });
 
         const matched = await testFilterMatch(gpt35Observation, [
           {
-            column: "model",
+            column: "provided_model_name",
             type: "stringOptions",
             operator: "none of",
             value: ["gpt-3.5-turbo"],
@@ -401,7 +401,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("level filtering", () => {
       it("should filter by log level", async () => {
         const errorObservation = createTestObservation({
-          projectId,
+          project_id: projectId,
           level: "ERROR",
         });
 
@@ -423,7 +423,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("any of operator", () => {
       it("should match when any tag is in filter list", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: ["important", "reviewed", "production"],
         });
 
@@ -441,7 +441,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when no tags are in filter list", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: ["test", "staging"],
         });
 
@@ -459,7 +459,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when tags is empty array", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: [],
         });
 
@@ -479,7 +479,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("none of operator", () => {
       it("should match when no tags are in excluded list", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: ["reviewed", "production"],
         });
 
@@ -497,7 +497,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when any tag is in excluded list", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: ["production", "test"],
         });
 
@@ -515,7 +515,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should match when tags is empty (nothing to exclude)", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: [],
         });
 
@@ -535,7 +535,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("all of operator", () => {
       it("should match when all filter values are in tags", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: ["important", "reviewed", "production"],
         });
 
@@ -553,7 +553,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when not all filter values are in tags", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           tags: ["important", "production"],
         });
 
@@ -570,16 +570,16 @@ describe("Filter Evaluation for Observation Evals", () => {
       });
     });
 
-    describe("toolCallNames filtering", () => {
+    describe("tool_call_names filtering", () => {
       it("should filter by tool call names", async () => {
         const observation = createTestObservation({
-          projectId,
-          toolCallNames: ["search", "calculate"],
+          project_id: projectId,
+          tool_call_names: ["search", "calculate"],
         });
 
         const matched = await testFilterMatch(observation, [
           {
-            column: "toolCallNames",
+            column: "tool_call_names",
             type: "arrayOptions",
             operator: "any of",
             value: ["search"],
@@ -595,7 +595,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("equals operator with key", () => {
       it("should match metadata key value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           metadata: { customer: "acme", tier: "premium" },
         });
 
@@ -614,7 +614,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when metadata key has different value", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           metadata: { customer: "other-corp" },
         });
 
@@ -633,7 +633,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       it("should not match when metadata key does not exist", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           metadata: { tier: "premium" },
         });
 
@@ -654,7 +654,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     describe("contains operator with key", () => {
       it("should match when metadata key value contains substring", async () => {
         const observation = createTestObservation({
-          projectId,
+          project_id: projectId,
           metadata: { environment: "production-us-west-2" },
         });
 
@@ -676,9 +676,9 @@ describe("Filter Evaluation for Observation Evals", () => {
   describe("multiple filter conditions (AND logic)", () => {
     it("should match when all conditions are satisfied", async () => {
       const observation = createTestObservation({
-        projectId,
-        type: "generation",
-        model: "gpt-4",
+        project_id: projectId,
+        type: "GENERATION",
+        provided_model_name: "gpt-4",
         environment: "production",
       });
 
@@ -687,10 +687,10 @@ describe("Filter Evaluation for Observation Evals", () => {
           column: "type",
           type: "stringOptions",
           operator: "any of",
-          value: ["generation"],
+          value: ["GENERATION"],
         },
         {
-          column: "model",
+          column: "provided_model_name",
           type: "stringOptions",
           operator: "any of",
           value: ["gpt-4", "gpt-4-turbo"],
@@ -708,9 +708,9 @@ describe("Filter Evaluation for Observation Evals", () => {
 
     it("should not match when any condition fails", async () => {
       const observation = createTestObservation({
-        projectId,
-        type: "generation",
-        model: "gpt-3.5-turbo", // Doesn't match gpt-4 filter
+        project_id: projectId,
+        type: "GENERATION",
+        provided_model_name: "gpt-3.5-turbo", // Doesn't match gpt-4 filter
         environment: "production",
       });
 
@@ -719,10 +719,10 @@ describe("Filter Evaluation for Observation Evals", () => {
           column: "type",
           type: "stringOptions",
           operator: "any of",
-          value: ["generation"],
+          value: ["GENERATION"],
         },
         {
-          column: "model",
+          column: "provided_model_name",
           type: "stringOptions",
           operator: "any of",
           value: ["gpt-4", "gpt-4-turbo"],
@@ -740,8 +740,8 @@ describe("Filter Evaluation for Observation Evals", () => {
 
     it("should handle complex filter combinations", async () => {
       const observation = createTestObservation({
-        projectId,
-        type: "generation",
+        project_id: projectId,
+        type: "GENERATION",
         name: "chat-completion-handler",
         tags: ["important", "production"],
         metadata: { version: "2.0" },
@@ -752,7 +752,7 @@ describe("Filter Evaluation for Observation Evals", () => {
           column: "type",
           type: "stringOptions",
           operator: "any of",
-          value: ["generation"],
+          value: ["GENERATION"],
         },
         {
           column: "name",
@@ -782,8 +782,8 @@ describe("Filter Evaluation for Observation Evals", () => {
   describe("empty filter", () => {
     it("should match all observations when filter is empty array", async () => {
       const observation = createTestObservation({
-        projectId,
-        type: "span",
+        project_id: projectId,
+        type: "SPAN",
         name: "any-name",
       });
 
@@ -793,7 +793,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     });
 
     it("should match all observations when filter is null-ish", async () => {
-      const observation = createTestObservation({ projectId });
+      const observation = createTestObservation({ project_id: projectId });
       const config = createTestEvalConfig({
         projectId,
         filter: null as unknown as Prisma.JsonValue,
@@ -813,15 +813,15 @@ describe("Filter Evaluation for Observation Evals", () => {
   });
 
   describe("trace-level property filtering", () => {
-    it("should filter by traceName", async () => {
+    it("should filter by trace_name", async () => {
       const observation = createTestObservation({
-        projectId,
-        traceName: "user-query-handler",
+        project_id: projectId,
+        trace_name: "user-query-handler",
       });
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "traceName",
+          column: "trace_name",
           type: "string",
           operator: "contains",
           value: "query",
@@ -831,15 +831,15 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
-    it("should filter by userId", async () => {
+    it("should filter by user_id", async () => {
       const observation = createTestObservation({
-        projectId,
-        userId: "user-123",
+        project_id: projectId,
+        user_id: "user-123",
       });
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "userId",
+          column: "user_id",
           type: "string",
           operator: "=",
           value: "user-123",
@@ -849,15 +849,15 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
-    it("should filter by sessionId", async () => {
+    it("should filter by session_id", async () => {
       const observation = createTestObservation({
-        projectId,
-        sessionId: "session-abc",
+        project_id: projectId,
+        session_id: "session-abc",
       });
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "sessionId",
+          column: "session_id",
           type: "string",
           operator: "=",
           value: "session-abc",
@@ -869,7 +869,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
     it("should filter by release", async () => {
       const observation = createTestObservation({
-        projectId,
+        project_id: projectId,
         release: "v2.0.0",
       });
 
@@ -887,15 +887,15 @@ describe("Filter Evaluation for Observation Evals", () => {
   });
 
   describe("experiment property filtering", () => {
-    it("should filter by experimentName", async () => {
+    it("should filter by experiment_name", async () => {
       const observation = createTestObservation({
-        projectId,
-        experimentName: "prompt-optimization-v2",
+        project_id: projectId,
+        experiment_name: "prompt-optimization-v2",
       });
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "experimentName",
+          column: "experiment_name",
           type: "string",
           operator: "contains",
           value: "optimization",
@@ -905,15 +905,15 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
-    it("should filter by experimentId", async () => {
+    it("should filter by experiment_id", async () => {
       const observation = createTestObservation({
-        projectId,
-        experimentId: "exp-123",
+        project_id: projectId,
+        experiment_id: "exp-123",
       });
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "experimentId",
+          column: "experiment_id",
           type: "string",
           operator: "=",
           value: "exp-123",
@@ -925,15 +925,15 @@ describe("Filter Evaluation for Observation Evals", () => {
   });
 
   describe("prompt property filtering", () => {
-    it("should filter by promptName", async () => {
+    it("should filter by prompt_name", async () => {
       const observation = createTestObservation({
-        projectId,
-        promptName: "customer-support-v3",
+        project_id: projectId,
+        prompt_name: "customer-support-v3",
       });
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "promptName",
+          column: "prompt_name",
           type: "stringOptions",
           operator: "any of",
           value: ["customer-support-v3", "customer-support-v2"],

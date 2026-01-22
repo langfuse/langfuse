@@ -365,6 +365,12 @@ export class OtelIngestionProcessor {
                     null,
                   userId: this.extractUserId(spanAttributes),
                   sessionId: this.extractSessionId(spanAttributes),
+                  release:
+                    (spanAttributes?.[
+                      LangfuseOtelSpanAttributes.RELEASE
+                    ] as string) ??
+                    resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+                    null,
 
                   input,
                   output,

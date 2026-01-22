@@ -14,11 +14,6 @@ export {
 } from "@langfuse/shared";
 
 /**
- * Re-export the EventInput converter for use in the OTEL ingestion queue.
- */
-export { convertEventInputToObservationForEval } from "./convertEventInputToObservationForEval";
-
-/**
  * Observation eval job configuration.
  * Represents a job configuration with targetObject: "event".
  * Passed to the scheduler after being fetched once per batch.

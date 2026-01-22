@@ -200,7 +200,7 @@ describe("processObservationEval", () => {
         id: "template-456",
         projectId,
       });
-      const observation = createTestObservation({ projectId });
+      const observation = createTestObservation({ project_id: projectId });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
@@ -442,7 +442,10 @@ describe("processObservationEval", () => {
         variableMapping: [
           { templateVariable: "input", selectedColumnId: "input" },
           { templateVariable: "output", selectedColumnId: "output" },
-          { templateVariable: "model", selectedColumnId: "model" },
+          {
+            templateVariable: "model",
+            selectedColumnId: "provided_model_name",
+          },
         ],
       });
       const template = createMockEvalTemplate({
@@ -450,10 +453,10 @@ describe("processObservationEval", () => {
         projectId,
       });
       const observation = createTestObservation({
-        projectId,
+        project_id: projectId,
         input: '{"prompt": "Hello"}',
         output: '{"response": "World"}',
-        model: "gpt-4",
+        provided_model_name: "gpt-4",
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
