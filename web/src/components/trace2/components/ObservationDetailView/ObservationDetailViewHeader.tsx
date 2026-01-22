@@ -67,10 +67,6 @@ export interface ObservationDetailViewHeaderProps {
   onSelectionUsed?: () => void;
   isCommentDrawerOpen?: boolean;
   onCommentDrawerOpenChange?: (open: boolean) => void;
-  // shows trace-like properties (userId, sessionId) if true
-  isRoot?: boolean;
-  sessionId?: string | null;
-  userId?: string | null;
 }
 
 export const ObservationDetailViewHeader = memo(
@@ -86,9 +82,6 @@ export const ObservationDetailViewHeader = memo(
     onSelectionUsed,
     isCommentDrawerOpen,
     onCommentDrawerOpenChange,
-    isRoot = false,
-    sessionId,
-    userId,
   }: ObservationDetailViewHeaderProps) {
     // Format cost and usage values
     const totalCost = observation.totalCost;
@@ -190,16 +183,14 @@ export const ObservationDetailViewHeader = memo(
             <TimeToFirstTokenBadge
               timeToFirstToken={observation.timeToFirstToken}
             />
-            {/* Trace-like badges shown when this is root observation */}
-            {isRoot && (
-              <SessionBadge
-                sessionId={sessionId ?? null}
-                projectId={projectId}
-              />
-            )}
-            {isRoot && (
-              <UserIdBadge userId={userId ?? null} projectId={projectId} />
-            )}
+            <SessionBadge
+              sessionId={observation.sessionId ?? null}
+              projectId={projectId}
+            />
+            <UserIdBadge
+              userId={observation.userId ?? null}
+              projectId={projectId}
+            />
             <EnvironmentBadge environment={observation.environment} />
             <CostBadge
               totalCost={totalCost}
