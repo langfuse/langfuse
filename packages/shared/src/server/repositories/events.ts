@@ -1708,14 +1708,7 @@ export const deleteEventsByTraceIds = async (
   const query = `
     DELETE FROM events
     WHERE project_id = {projectId: String}
-    AND trace_id IN ({traceIds: Array(String)})
-    AND (project_id, start_time, xxHash32(trace_id), span_id) IN
-    (
-      SELECT project_id, start_time, xxHash32(trace_id), span_id
-      FROM events
-      WHERE project_id = {projectId: String}
-      AND trace_id IN ({traceIds: Array(String)})
-    );
+    AND trace_id IN ({traceIds: Array(String)});
   `;
   await commandClickhouse({
     query,
