@@ -1,5 +1,5 @@
 import { JSONPath } from "jsonpath-plus";
-import { set } from "lodash";
+import set from "lodash/set";
 import type {
   FieldMappingConfig,
   SourceField,

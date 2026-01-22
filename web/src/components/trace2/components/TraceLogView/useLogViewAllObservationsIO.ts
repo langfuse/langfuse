@@ -9,7 +9,7 @@
 
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { chunk } from "lodash";
+import chunk from "lodash/chunk";
 import { api } from "@/src/utils/api";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
 import { type FlatLogItem } from "./log-view-types";
