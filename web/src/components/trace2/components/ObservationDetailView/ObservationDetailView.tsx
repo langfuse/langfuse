@@ -49,12 +49,19 @@ export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
   projectId: string;
   traceId: string;
+  // shows trace-like properties (userId, sessionId) if true
+  isRoot?: boolean;
+  sessionId?: string | null;
+  userId?: string | null;
 }
 
 export function ObservationDetailView({
   observation,
   projectId,
   traceId,
+  isRoot = false,
+  sessionId,
+  userId,
 }: ObservationDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   // For observations, "log" tab doesn't apply - map to "preview"
@@ -147,7 +154,7 @@ export function ObservationDetailView({
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
   const {
-    observation: observationWithIO,
+    observation: observationWithIORaw,
     parsedInput,
     parsedOutput,
     parsedMetadata,
@@ -158,7 +165,15 @@ export function ObservationDetailView({
     traceId: traceId,
     projectId: projectId,
     startTime: observation.startTime,
+    baseObservation: observation,
   });
+
+  // Type narrowing: when baseObservation is provided, result has full observation fields
+  // (EventBatchIOOutput case only occurs when baseObservation is missing)
+  const observationWithIO =
+    observationWithIORaw && "type" in observationWithIORaw
+      ? observationWithIORaw
+      : undefined;
 
   // For backward compatibility, create observationWithIO query-like object
   const observationWithIOCompat = {
@@ -214,6 +229,9 @@ export function ObservationDetailView({
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+        isRoot={isRoot}
+        sessionId={sessionId}
+        userId={userId}
       />
 
       {/* Tabs section */}

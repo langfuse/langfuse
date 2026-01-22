@@ -1,4 +1,4 @@
-import { capitalize } from "lodash";
+import capitalize from "lodash/capitalize";
 import router from "next/router";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";

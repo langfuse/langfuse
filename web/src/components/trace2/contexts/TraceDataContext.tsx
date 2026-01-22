@@ -34,7 +34,7 @@ interface TraceDataContextValue {
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
   mergedScores: WithStringifiedMetadata<ScoreDomain>[];
   corrections: ScoreDomain[];
-  tree: TreeNode;
+  roots: TreeNode[];
   nodeMap: Map<string, TreeNode>;
   searchItems: TraceSearchListItem[];
   hiddenObservationsCount: number;
@@ -95,7 +95,7 @@ export function TraceDataProvider({
       serverScores: serverScores,
       mergedScores,
       corrections,
-      tree: uiData.tree,
+      roots: uiData.roots,
       nodeMap: uiData.nodeMap,
       searchItems: uiData.searchItems,
       hiddenObservationsCount: uiData.hiddenObservationsCount,
