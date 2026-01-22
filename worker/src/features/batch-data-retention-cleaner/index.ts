@@ -116,13 +116,6 @@ export class BatchDataRetentionCleaner {
       return;
     }
 
-    if (workloads.length === 0) {
-      logger.info(
-        `${instanceName}: No projects with retention and data to delete`,
-      );
-      return;
-    }
-
     const totalExpiredRows = workloads.reduce(
       (sum, w) => sum + w.expiredRowCount,
       0,
@@ -134,6 +127,13 @@ export class BatchDataRetentionCleaner {
     recordGauge(`${METRIC_PREFIX}.pending_rows`, totalExpiredRows, {
       table: tableName,
     });
+
+    if (workloads.length === 0) {
+      logger.info(
+        `${instanceName}: No projects with retention and data to delete`,
+      );
+      return;
+    }
 
     logger.info(`${instanceName}: Processing ${workloads.length} projects`, {
       projectIds: workloads.map((w) => w.projectId),
