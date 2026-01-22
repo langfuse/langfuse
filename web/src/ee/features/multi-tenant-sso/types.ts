@@ -4,6 +4,7 @@ const base = z.object({
   domain: z.string().refine((v) => v === v.toLowerCase(), {
     message: "Domain must be lowercase",
   }),
+  callbackUrlId: z.string().nullable(),
 });
 
 export const GoogleProviderSchema = base.extend({

@@ -257,13 +257,21 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
 /**
  * Get the custom SSO providerId for a database SSO configuration. To be used with NextAuth's `signIn(providerId)`.
  *
- * @param {DbSsoConfig} dbSsoConfig - The SSO configuration from the database.
+ * For new configs with callbackUrlId (hashed format), returns the hash.
+ * For legacy configs without callbackUrlId, returns `{domain}.{authProvider}`.
+ *
+ * @param {SsoProviderSchema} dbSsoConfig - The SSO configuration from the database.
  * @returns {string} - The providerId used in NextAuth.
  */
 const getAuthProviderIdForSsoConfig = (
   dbSsoConfig: SsoProviderSchema,
 ): string => {
   if (!dbSsoConfig.authConfig) return dbSsoConfig.authProvider;
+
+  // Use hashed ID if available (new format)
+  if (dbSsoConfig.callbackUrlId) return dbSsoConfig.callbackUrlId;
+
+  // Fall back to legacy format
   return `${dbSsoConfig.domain}.${dbSsoConfig.authProvider}`;
 };
 
