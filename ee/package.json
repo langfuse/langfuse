@@ -38,6 +38,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
     "@typescript-eslint/parser": "^8.50.1",
+    "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-standard": "^17.1.0",

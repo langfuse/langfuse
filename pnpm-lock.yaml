@@ -77,6 +77,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.50.1
         version: 8.50.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260122.3
+        version: 7.0.0-dev.20260122.3
       eslint:
         specifier: ^9.39.2
         version: 9.39.2(jiti@2.6.1)
