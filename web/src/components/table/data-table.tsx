@@ -4,6 +4,8 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useRef,
+  useEffect,
   type CSSProperties,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -167,6 +169,9 @@ export function DataTable<TData extends object, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
   const capture = usePostHogClientCapture();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollPositionToRestore = useRef<number | null>(null);
+
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
 
@@ -180,6 +185,17 @@ export function DataTable<TData extends object, TValue>({
   }, [columns]);
 
   const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
+
+  // Restore scroll position after sorting changes
+  useEffect(() => {
+    if (
+      scrollPositionToRestore.current !== null &&
+      scrollContainerRef.current
+    ) {
+      scrollContainerRef.current.scrollLeft = scrollPositionToRestore.current;
+      scrollPositionToRestore.current = null;
+    }
+  }, [orderBy]);
 
   // Infer column pinning state from column properties
   const columnPinning = useMemo<ColumnPinningState>(
@@ -291,6 +307,7 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
+          ref={scrollContainerRef}
           className={cn("relative min-h-full w-full overflow-auto border-t")}
           style={{ ...columnSizeVars }}
         >
@@ -328,6 +345,12 @@ export function DataTable<TData extends object, TValue>({
 
                           if (!setOrderBy || !columnDef.id || !sortingEnabled) {
                             return;
+                          }
+
+                          // Preserve horizontal scroll position before sorting
+                          if (scrollContainerRef.current) {
+                            scrollPositionToRestore.current =
+                              scrollContainerRef.current.scrollLeft;
                           }
 
                           if (orderBy?.column === columnDef.id) {
