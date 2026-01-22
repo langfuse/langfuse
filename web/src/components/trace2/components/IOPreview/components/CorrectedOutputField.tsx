@@ -25,6 +25,7 @@ interface CorrectedOutputFieldProps {
   actualOutput?: unknown;
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
+  compact?: boolean; // Use smaller font size for JSON Beta view
 }
 
 export function CorrectedOutputField({
@@ -34,6 +35,7 @@ export function CorrectedOutputField({
   projectId,
   traceId,
   environment = "default",
+  compact = false,
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
 
@@ -158,8 +160,13 @@ export function CorrectedOutputField({
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
             <div className="flex items-center gap-1">
-              <span className="text-sm font-medium">
-                Corrected Output (Beta)
+              <span
+                className={cn(
+                  "text-sm font-medium",
+                  compact ? "text-xs" : "text-sm",
+                )}
+              >
+                {compact ? "" : "Corrected Output (Beta)"}
               </span>
               <HoverCard>
                 <HoverCardTrigger asChild>
