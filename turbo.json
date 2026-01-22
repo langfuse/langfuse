@@ -35,7 +35,8 @@
       "dependsOn": ["db:generate"]
     },
     "db:generate": {
-      "cache": false,
+      "inputs": ["packages/shared/prisma/schema.prisma"],
+      "cache": true,
       "dependsOn": ["^db:generate"]
     },
     "lint": {
