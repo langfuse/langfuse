@@ -185,6 +185,7 @@ export function DataTableToolbar<TData, TValue>({
             )}
           </Button>
         )}
+        {viewModeToggle}
         {searchConfig && (
           <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
             <div
@@ -317,7 +318,6 @@ export function DataTableToolbar<TData, TValue>({
             className="my-0 max-w-full overflow-x-auto"
           />
         )}
-        {viewModeToggle}
         {refreshConfig && (
           <DataTableRefreshButton
             onRefresh={refreshConfig.onRefresh}
