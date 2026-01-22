@@ -14,6 +14,9 @@ import {
   getEventsGroupedBySessionId,
   getEventsGroupedByLevel,
   getEventsGroupedByEnvironment,
+  getEventsGroupedByExperimentDatasetId,
+  getEventsGroupedByExperimentId,
+  getEventsGroupedByExperimentName,
   getNumericScoresGroupedByName,
   getTracesGroupedByTags,
   getObservationsBatchIOFromEventsTable,
@@ -129,6 +132,9 @@ export async function getEventFilterOptions(
     sessionIds,
     levels,
     environments,
+    experimentDatasetIds,
+    experimentIds,
+    experimentNames,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
@@ -144,6 +150,9 @@ export async function getEventFilterOptions(
     getEventsGroupedBySessionId(projectId, startTimeFilter ?? []),
     getEventsGroupedByLevel(projectId, startTimeFilter ?? []),
     getEventsGroupedByEnvironment(projectId, startTimeFilter ?? []),
+    getEventsGroupedByExperimentDatasetId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByExperimentId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByExperimentName(projectId, startTimeFilter ?? []),
   ]);
 
   return {
@@ -212,6 +221,24 @@ export async function getEventFilterOptions(
       .filter((i) => i.environment !== null)
       .map((i) => ({
         value: i.environment as string,
+        count: i.count,
+      })),
+    experimentDatasetId: experimentDatasetIds
+      .filter((i) => i.experimentDatasetId !== null)
+      .map((i) => ({
+        value: i.experimentDatasetId as string,
+        count: i.count,
+      })),
+    experimentId: experimentIds
+      .filter((i) => i.experimentId !== null)
+      .map((i) => ({
+        value: i.experimentId as string,
+        count: i.count,
+      })),
+    experimentName: experimentNames
+      .filter((i) => i.experimentName !== null)
+      .map((i) => ({
+        value: i.experimentName as string,
         count: i.count,
       })),
   };

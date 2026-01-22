@@ -249,4 +249,28 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "boolean",
     internal: "e.parent_span_id != ''",
   },
+  {
+    name: "Experiment Dataset ID",
+    id: "experimentDatasetId",
+    type: "stringOptions",
+    internal: "e.experiment_dataset_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment ID",
+    id: "experimentId",
+    type: "stringOptions",
+    internal: "e.experiment_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment Name",
+    id: "experimentName",
+    type: "stringOptions",
+    internal: "e.experiment_name",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
 ];
