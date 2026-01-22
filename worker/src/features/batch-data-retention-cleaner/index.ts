@@ -46,29 +46,31 @@ function buildRetentionConditions(
   timestampColumn: string,
   projects: ProjectWorkload[],
 ): { conditions: string; params: Record<string, unknown> } {
-  // Build key map and check for collisions
-  const keyToProjectId = new Map<string, string>();
+  // Compute hashes once and check for collisions
+  const projectToKey = new Map<string, string>();
+  const keyToProject = new Map<string, string>();
   for (const p of projects) {
     const key = toParamKey(p.projectId);
-    const existing = keyToProjectId.get(key);
+    const existing = keyToProject.get(key);
     if (existing && existing !== p.projectId) {
       throw new Error(
         `Hash collision detected: projectIds "${existing}" and "${p.projectId}" both hash to "${key}"`,
       );
     }
-    keyToProjectId.set(key, p.projectId);
+    projectToKey.set(p.projectId, key);
+    keyToProject.set(key, p.projectId);
   }
 
   const conditions = projects
     .map((p) => {
-      const key = toParamKey(p.projectId);
+      const key = projectToKey.get(p.projectId)!;
       return `(project_id = {pid_${key}: String} AND ${timestampColumn} < {cutoff_${key}: DateTime64(3)})`;
     })
     .join(" OR ");
 
   const params: Record<string, unknown> = {};
   for (const p of projects) {
-    const key = toParamKey(p.projectId);
+    const key = projectToKey.get(p.projectId)!;
     params[`pid_${key}`] = p.projectId;
     params[`cutoff_${key}`] = convertDateToClickhouseDateTime(p.cutoffDate);
   }
