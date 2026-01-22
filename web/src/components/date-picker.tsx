@@ -347,10 +347,8 @@ export function TimeRangePicker({
   const onCalendarSelection = (range?: RDPDateRange) => {
     const newRange = range
       ? {
-          from: range.from
-            ? setBeginningOfDay(new Date(range.from))
-            : undefined,
-          to: range.to ? setEndOfDay(new Date(range.to)) : undefined,
+          from: range.from ? setBeginningOfDay(range.from) : undefined,
+          to: range.to ? setEndOfDay(range.to) : undefined,
         }
       : undefined;
 

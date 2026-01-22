@@ -599,7 +599,6 @@ model Dataset {
   updatedAt               DateTime           @default(now()) @updatedAt @map("updated_at")
   datasetItems            DatasetItem[]
   datasetRuns             DatasetRuns[]
-  datasetItemEvents       DatasetItemEvent[]
 
   @@id([id, projectId])
   @@unique([projectId, name])
@@ -622,7 +621,6 @@ model DatasetItem {
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at")
   // dataset version cols
-  sysId               String?        @default(dbgenerated()) @map("sys_id")
   validFrom           DateTime       @default(now()) @map("valid_from")
   validTo             DateTime?      @map("valid_to")
   isDeleted           Boolean        @default(false) @map("is_deleted")
@@ -636,25 +634,6 @@ model DatasetItem {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_items")
-}
-
-model DatasetItemEvent {
-  id                  String         @id @default(cuid())
-  itemId              String         @map("item_id")
-  projectId           String         @map("project_id")
-  datasetId           String         @map("dataset_id")
-  dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
-  status              DatasetStatus?
-  input               Json?
-  expectedOutput      Json?          @map("expected_output")
-  metadata            Json?
-  sourceTraceId       String?        @map("source_trace_id")
-  sourceObservationId String?        @map("source_observation_id")
-  createdAt           DateTime?      @map("created_at")
-  deletedAt           DateTime?      @map("deleted_at")
-
-  @@index([projectId, datasetId, itemId, createdAt])
-  @@map("dataset_item_events")
 }
 
 enum DatasetStatus {

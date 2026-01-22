@@ -49,12 +49,19 @@ export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
   projectId: string;
   traceId: string;
+  // shows trace-like properties (userId, sessionId) if true
+  isRoot?: boolean;
+  sessionId?: string | null;
+  userId?: string | null;
 }
 
 export function ObservationDetailView({
   observation,
   projectId,
   traceId,
+  isRoot = false,
+  sessionId,
+  userId,
 }: ObservationDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   // For observations, "log" tab doesn't apply - map to "preview"
@@ -125,7 +132,14 @@ export function ObservationDetailView({
 
   // Get comments, scores, corrections, and expansion state from contexts
   const { comments, serverScores: scores, corrections } = useTraceData();
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const {
+    formattedExpansion,
+    setFormattedFieldExpansion,
+    jsonExpansion,
+    setJsonFieldExpansion,
+    advancedJsonExpansion,
+    setAdvancedJsonExpansion,
+  } = useJsonExpansion();
   const observationScores = useMemo(
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
@@ -140,7 +154,7 @@ export function ObservationDetailView({
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
   const {
-    observation: observationWithIO,
+    observation: observationWithIORaw,
     parsedInput,
     parsedOutput,
     parsedMetadata,
@@ -151,7 +165,15 @@ export function ObservationDetailView({
     traceId: traceId,
     projectId: projectId,
     startTime: observation.startTime,
+    baseObservation: observation,
   });
+
+  // Type narrowing: when baseObservation is provided, result has full observation fields
+  // (EventBatchIOOutput case only occurs when baseObservation is missing)
+  const observationWithIO =
+    observationWithIORaw && "type" in observationWithIORaw
+      ? observationWithIORaw
+      : undefined;
 
   // For backward compatibility, create observationWithIO query-like object
   const observationWithIOCompat = {
@@ -207,6 +229,9 @@ export function ObservationDetailView({
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+        isRoot={isRoot}
+        sessionId={sessionId}
+        userId={userId}
       />
 
       {/* Tabs section */}
@@ -278,11 +303,40 @@ export function ObservationDetailView({
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-              inputExpansionState={expansionState.input}
-              outputExpansionState={expansionState.output}
-              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              inputExpansionState={formattedExpansion.input}
+              outputExpansionState={formattedExpansion.output}
+              metadataExpansionState={formattedExpansion.metadata}
+              onInputExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "input",
+                  exp as Record<string, boolean>,
+                )
+              }
               onOutputExpansionChange={(exp) =>
-                setFieldExpansion("output", exp)
+                setFormattedFieldExpansion(
+                  "output",
+                  exp as Record<string, boolean>,
+                )
+              }
+              onMetadataExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "metadata",
+                  exp as Record<string, boolean>,
+                )
+              }
+              advancedJsonExpansionState={advancedJsonExpansion}
+              onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
+              jsonInputExpanded={jsonExpansion.input}
+              jsonOutputExpanded={jsonExpansion.output}
+              jsonMetadataExpanded={jsonExpansion.metadata}
+              onJsonInputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("input", expanded)
+              }
+              onJsonOutputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("output", expanded)
+              }
+              onJsonMetadataExpandedChange={(expanded) =>
+                setJsonFieldExpansion("metadata", expanded)
               }
               enableInlineComments={true}
               onAddInlineComment={handleAddInlineComment}

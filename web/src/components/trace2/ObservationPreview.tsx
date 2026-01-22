@@ -97,7 +97,14 @@ export const ObservationPreview = ({
   const router = useRouter();
   const { peek } = router.query;
   const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const {
+    formattedExpansion,
+    setFormattedFieldExpansion,
+    jsonExpansion,
+    setJsonFieldExpansion,
+    advancedJsonExpansion,
+    setAdvancedJsonExpansion,
+  } = useJsonExpansion();
 
   const currentObservation = observations.find(
     (o) => o.id === currentObservationId,
@@ -113,7 +120,7 @@ export const ObservationPreview = ({
 
   // Fetch and parse observation input/output in background (Web Worker)
   const {
-    observation: observationWithIO,
+    observation: observationWithIORaw,
     parsedInput,
     parsedOutput,
     parsedMetadata,
@@ -124,7 +131,15 @@ export const ObservationPreview = ({
     traceId: traceId,
     projectId: projectId,
     startTime: currentObservation?.startTime,
+    baseObservation: currentObservation,
   });
+
+  // Type narrowing: when baseObservation is provided, result has full observation fields
+  // (EventBatchIOOutput case only occurs when baseObservation is missing)
+  const observationWithIO =
+    observationWithIORaw && "type" in observationWithIORaw
+      ? observationWithIORaw
+      : undefined;
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -505,14 +520,30 @@ export const ObservationPreview = ({
                   media={observationMedia.data}
                   currentView={currentView}
                   setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-                  inputExpansionState={expansionState.input}
-                  outputExpansionState={expansionState.output}
+                  inputExpansionState={formattedExpansion.input}
+                  outputExpansionState={formattedExpansion.output}
                   onInputExpansionChange={(expansion) =>
-                    setFieldExpansion("input", expansion)
+                    setFormattedFieldExpansion(
+                      "input",
+                      expansion as Record<string, boolean>,
+                    )
                   }
                   onOutputExpansionChange={(expansion) =>
-                    setFieldExpansion("output", expansion)
+                    setFormattedFieldExpansion(
+                      "output",
+                      expansion as Record<string, boolean>,
+                    )
                   }
+                  jsonInputExpanded={jsonExpansion.input}
+                  jsonOutputExpanded={jsonExpansion.output}
+                  onJsonInputExpandedChange={(expanded) =>
+                    setJsonFieldExpansion("input", expanded)
+                  }
+                  onJsonOutputExpandedChange={(expanded) =>
+                    setJsonFieldExpansion("output", expanded)
+                  }
+                  advancedJsonExpansionState={advancedJsonExpansion}
+                  onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
                   projectId={projectId}
                   traceId={traceId}
                   environment={preloadedObservation.environment}
@@ -542,9 +573,12 @@ export const ObservationPreview = ({
                     currentView={
                       currentView === "json-beta" ? "pretty" : currentView
                     }
-                    externalExpansionState={expansionState.metadata}
+                    externalExpansionState={formattedExpansion.metadata}
                     onExternalExpansionChange={(expansion) =>
-                      setFieldExpansion("metadata", expansion)
+                      setFormattedFieldExpansion(
+                        "metadata",
+                        expansion as Record<string, boolean>,
+                      )
                     }
                   />
                 )}
