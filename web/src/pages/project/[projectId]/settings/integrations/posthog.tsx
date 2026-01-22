@@ -15,8 +15,16 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { EXPORT_SOURCE_OPTIONS } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -128,6 +136,7 @@ const PostHogIntegrationSettings = ({
       posthogHostname: state?.posthogHostName ?? "",
       posthogProjectApiKey: state?.posthogApiKey ?? "",
       enabled: state?.enabled ?? false,
+      exportSource: state?.exportSource ?? "EVENTS",
     },
     disabled: isLoading,
   });
@@ -137,6 +146,7 @@ const PostHogIntegrationSettings = ({
       posthogHostname: state?.posthogHostName ?? "",
       posthogProjectApiKey: state?.posthogApiKey ?? "",
       enabled: state?.enabled ?? false,
+      exportSource: state?.exportSource ?? "EVENTS",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -212,6 +222,34 @@ const PostHogIntegrationSettings = ({
                   className="ml-4 mt-1"
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={posthogForm.control}
+          name="exportSource"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Export Source</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select data to export" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {EXPORT_SOURCE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Choose which data sources to export to PostHog. Scores are
+                always included.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

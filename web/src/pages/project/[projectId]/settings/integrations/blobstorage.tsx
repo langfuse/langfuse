@@ -40,7 +40,9 @@ import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
+  AnalyticsIntegrationExportSource,
   type BlobStorageIntegration,
+  EXPORT_SOURCE_OPTIONS,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
@@ -188,6 +190,8 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
+      exportSource:
+        state?.exportSource || AnalyticsIntegrationExportSource.EVENTS,
     },
     disabled: isLoading,
   });
@@ -211,6 +215,8 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
+      exportSource:
+        state?.exportSource || AnalyticsIntegrationExportSource.EVENTS,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -562,6 +568,35 @@ const BlobStorageIntegrationSettingsForm = ({
                 Choose when to start exporting data. &quot;Today&quot; and
                 &quot;Custom date&quot; modes will not include historical data
                 before the specified date.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={blobStorageForm.control}
+          name="exportSource"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Export Source</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select data to export" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {EXPORT_SOURCE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Choose which data sources to export to blob storage. Scores are
+                always included.
               </FormDescription>
               <FormMessage />
             </FormItem>

@@ -27,6 +27,7 @@ import {
   MIXPANEL_REGIONS,
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
+import { EXPORT_SOURCE_OPTIONS } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -140,6 +141,7 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
+      exportSource: state?.exportSource ?? "EVENTS",
     },
     disabled: isLoading,
   });
@@ -151,6 +153,7 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
+      exportSource: state?.exportSource ?? "EVENTS",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -243,6 +246,34 @@ const MixpanelIntegrationSettingsForm = ({
                   className="ml-4 mt-1"
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={mixpanelForm.control}
+          name="exportSource"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Export Source</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select data to export" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {EXPORT_SOURCE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Choose which data sources to export to Mixpanel. Scores are
+                always included.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

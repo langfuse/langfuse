@@ -355,26 +355,52 @@ export const handleBlobStorageIntegrationProjectJob = async (
       fileType: blobStorageIntegration.fileType,
     };
 
-    // Check if this project should only export traces
+    // Check if this project should only export traces (legacy behavior via env var)
     const isTraceOnlyProject =
       env.LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS.includes(
         projectId,
       );
 
     if (isTraceOnlyProject) {
-      // Only process traces table for projects in the trace-only list
+      // Only process traces table for projects in the trace-only list (legacy behavior)
       logger.info(
-        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export, skipping observations, scores, and events`,
+        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
       );
       await processBlobStorageExport({ ...executionConfig, table: "traces" });
     } else {
-      // Process all tables for projects not in the trace-only list
-      await Promise.all([
-        processBlobStorageExport({ ...executionConfig, table: "traces" }),
-        processBlobStorageExport({ ...executionConfig, table: "observations" }),
+      // Process tables based on exportSource setting
+      const processPromises: Promise<void>[] = [];
+
+      // Always include scores
+      processPromises.push(
         processBlobStorageExport({ ...executionConfig, table: "scores" }),
-        processBlobStorageExport({ ...executionConfig, table: "events" }),
-      ]);
+      );
+
+      // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+      if (
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+      ) {
+        processPromises.push(
+          processBlobStorageExport({ ...executionConfig, table: "traces" }),
+          processBlobStorageExport({
+            ...executionConfig,
+            table: "observations",
+          }),
+        );
+      }
+
+      // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+      if (
+        blobStorageIntegration.exportSource === "EVENTS" ||
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+      ) {
+        processPromises.push(
+          processBlobStorageExport({ ...executionConfig, table: "events" }),
+        );
+      }
+
+      await Promise.all(processPromises);
     }
 
     // Determine if we've caught up with present-day data

@@ -201,12 +201,31 @@ export const handleMixpanelIntegrationProjectJob = async (
     mixpanelRegion: mixpanelIntegration.mixpanelRegion,
   };
 
-  await Promise.all([
-    processMixpanelTraces(executionConfig),
-    processMixpanelGenerations(executionConfig),
-    processMixpanelScores(executionConfig),
-    processMixpanelEvents(executionConfig),
-  ]);
+  const processPromises: Promise<void>[] = [];
+
+  // Always include scores
+  processPromises.push(processMixpanelScores(executionConfig));
+
+  // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+  if (
+    mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+    mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+  ) {
+    processPromises.push(
+      processMixpanelTraces(executionConfig),
+      processMixpanelGenerations(executionConfig),
+    );
+  }
+
+  // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+  if (
+    mixpanelIntegration.exportSource === "EVENTS" ||
+    mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+  ) {
+    processPromises.push(processMixpanelEvents(executionConfig));
+  }
+
+  await Promise.all(processPromises);
 
   // Update the last run information for the mixpanelIntegration record
   await prisma.mixpanelIntegration.update({

@@ -249,12 +249,31 @@ export const handlePostHogIntegrationProjectJob = async (
     postHogHost: postHogIntegration.posthogHostName,
   };
 
-  await Promise.all([
-    processPostHogTraces(executionConfig),
-    processPostHogGenerations(executionConfig),
-    processPostHogScores(executionConfig),
-    processPostHogEvents(executionConfig),
-  ]);
+  const processPromises: Promise<void>[] = [];
+
+  // Always include scores
+  processPromises.push(processPostHogScores(executionConfig));
+
+  // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+  if (
+    postHogIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+    postHogIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+  ) {
+    processPromises.push(
+      processPostHogTraces(executionConfig),
+      processPostHogGenerations(executionConfig),
+    );
+  }
+
+  // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+  if (
+    postHogIntegration.exportSource === "EVENTS" ||
+    postHogIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+  ) {
+    processPromises.push(processPostHogEvents(executionConfig));
+  }
+
+  await Promise.all(processPromises);
 
   // Update the last run information for the postHogIntegration record
   await prisma.posthogIntegration.update({
