@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 import { prisma } from "@langfuse/shared/src/db";
 import {
   commandClickhouse,
@@ -29,26 +31,47 @@ interface ProjectWorkload {
 }
 
 /**
+ * Hash projectId to a short key for ClickHouse parameter names.
+ */
+function toParamKey(projectId: string): string {
+  return createHash("md5").update(projectId).digest("hex").slice(0, 8);
+}
+
+/**
  * Build OR conditions for project-specific cutoffs.
  * Used by both count and delete queries.
- * Returns SQL conditions string and params object.
+ * Uses hashed projectId keys to prevent index mismatch bugs.
  */
 function buildRetentionConditions(
   timestampColumn: string,
   projects: ProjectWorkload[],
 ): { conditions: string; params: Record<string, unknown> } {
+  // Build key map and check for collisions
+  const keyToProjectId = new Map<string, string>();
+  for (const p of projects) {
+    const key = toParamKey(p.projectId);
+    const existing = keyToProjectId.get(key);
+    if (existing && existing !== p.projectId) {
+      throw new Error(
+        `Hash collision detected: projectIds "${existing}" and "${p.projectId}" both hash to "${key}"`,
+      );
+    }
+    keyToProjectId.set(key, p.projectId);
+  }
+
   const conditions = projects
-    .map(
-      (_, i) =>
-        `(project_id = {projectId${i}: String} AND ${timestampColumn} < {cutoff${i}: DateTime64(3)})`,
-    )
+    .map((p) => {
+      const key = toParamKey(p.projectId);
+      return `(project_id = {pid_${key}: String} AND ${timestampColumn} < {cutoff_${key}: DateTime64(3)})`;
+    })
     .join(" OR ");
 
   const params: Record<string, unknown> = {};
-  projects.forEach((p, i) => {
-    params[`projectId${i}`] = p.projectId;
-    params[`cutoff${i}`] = convertDateToClickhouseDateTime(p.cutoffDate);
-  });
+  for (const p of projects) {
+    const key = toParamKey(p.projectId);
+    params[`pid_${key}`] = p.projectId;
+    params[`cutoff_${key}`] = convertDateToClickhouseDateTime(p.cutoffDate);
+  }
 
   return { conditions, params };
 }
