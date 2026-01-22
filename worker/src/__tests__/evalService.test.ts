@@ -1013,6 +1013,84 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobsAfterTrace[0].start_time).not.toBeNull();
     }, 10_000);
 
+    test("does not create job for 'event' config", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.EVENT,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          status: "INACTIVE",
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(0);
+    }, 10_000);
+
+    test("does not create job for 'experiment' config", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          status: "INACTIVE",
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(0);
+    }, 10_000);
+
     test("does not create job for inactive config", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();

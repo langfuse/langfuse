@@ -12,6 +12,7 @@ export const EvalTargetObject = {
   TRACE: "trace",
   DATASET: "dataset",
   EVENT: "event",
+  EXPERIMENT: "experiment",
 } as const;
 
 export type EvalTargetObject =

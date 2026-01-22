@@ -34,7 +34,9 @@ export async function fetchObservationEvalConfigs(
   const configs = await prisma.jobConfiguration.findMany({
     where: {
       projectId,
-      targetObject: EvalTargetObject.EVENT,
+      targetObject: {
+        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      },
       status: "ACTIVE",
     },
     select: {
@@ -46,7 +48,6 @@ export async function fetchObservationEvalConfigs(
       scoreName: true,
       targetObject: true,
       variableMapping: true,
-      delay: true,
     },
   });
 

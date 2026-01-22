@@ -11,11 +11,11 @@ import { redis } from "./";
  */
 
 /** Cache types for different eval job configuration targets */
-type EvalConfigCacheType = "trace" | "observation";
+type EvalConfigCacheType = "trace" | "event";
 
 const CACHE_PREFIXES: Record<EvalConfigCacheType, string> = {
   trace: "langfuse:eval:no-job-configs",
-  observation: "langfuse:eval:no-observation-eval-configs",
+  event: "langfuse:eval:no-event-eval-configs",
 };
 
 const CACHE_TTL_SECONDS = 600; // 10 minutes
@@ -35,9 +35,11 @@ const hasNoEvalConfigsCache = async (
   try {
     const cacheKey = `${CACHE_PREFIXES[cacheType]}:${projectId}`;
     const cached = await redis.get(cacheKey);
+
     return Boolean(cached);
   } catch (error) {
     logger.error(`Failed to check no ${cacheType} eval configs cache`, error);
+
     return false;
   }
 };
@@ -98,8 +100,8 @@ export const clearNoJobConfigsCache = (projectId: string) =>
 
 // Event-targeted eval config cache (targetObject: "event")
 export const hasNoObservationEvalConfigsCache = (projectId: string) =>
-  hasNoEvalConfigsCache(projectId, "observation");
+  hasNoEvalConfigsCache(projectId, "event");
 export const setNoObservationEvalConfigsCache = (projectId: string) =>
-  setNoEvalConfigsCache(projectId, "observation");
+  setNoEvalConfigsCache(projectId, "event");
 export const clearNoObservationEvalConfigsCache = (projectId: string) =>
-  clearNoEvalConfigsCache(projectId, "observation");
+  clearNoEvalConfigsCache(projectId, "event");
