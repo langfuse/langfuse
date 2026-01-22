@@ -62,6 +62,7 @@ export function useEventsFilterOptions({
       modelId: filterOptions.data?.modelId ?? undefined,
       promptName: filterOptions.data?.promptName ?? undefined,
       traceTags: filterOptions.data?.traceTags ?? undefined,
+      traceName: filterOptions.data?.traceName ?? undefined,
       userId: filterOptions.data?.userId ?? undefined,
       sessionId: filterOptions.data?.sessionId ?? undefined,
       version: filterOptions.data?.version ?? undefined,

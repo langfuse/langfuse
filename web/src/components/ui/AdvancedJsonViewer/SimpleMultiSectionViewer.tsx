@@ -93,7 +93,8 @@ export const SimpleMultiSectionViewer = memo(
         if (!container) return;
 
         const updateWidth = () => {
-          setContainerWidth(container.clientWidth);
+          const newWidth = container.clientWidth;
+          setContainerWidth((prev) => (prev === newWidth ? prev : newWidth));
         };
 
         updateWidth(); // Initial measurement
@@ -106,7 +107,7 @@ export const SimpleMultiSectionViewer = memo(
           resizeObserver.observe(container);
           return () => resizeObserver.disconnect();
         }
-      }); // Remove dependency array - run on every render
+      }, [scrollContainerRef]);
 
       // Get all visible nodes
       const allNodes = useMemo(() => {

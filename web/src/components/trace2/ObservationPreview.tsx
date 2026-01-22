@@ -120,7 +120,7 @@ export const ObservationPreview = ({
 
   // Fetch and parse observation input/output in background (Web Worker)
   const {
-    observation: observationWithIO,
+    observation: observationWithIORaw,
     parsedInput,
     parsedOutput,
     parsedMetadata,
@@ -131,7 +131,15 @@ export const ObservationPreview = ({
     traceId: traceId,
     projectId: projectId,
     startTime: currentObservation?.startTime,
+    baseObservation: currentObservation,
   });
+
+  // Type narrowing: when baseObservation is provided, result has full observation fields
+  // (EventBatchIOOutput case only occurs when baseObservation is missing)
+  const observationWithIO =
+    observationWithIORaw && "type" in observationWithIORaw
+      ? observationWithIORaw
+      : undefined;
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
     {
