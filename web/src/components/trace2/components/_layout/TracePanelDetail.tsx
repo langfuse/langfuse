@@ -80,15 +80,7 @@ export function TracePanelDetail() {
         projectId={trace.projectId}
       />
     );
-  }, [
-    selectedNodeId,
-    nodeMap,
-    trace,
-    roots,
-    observations,
-    scores,
-    corrections,
-  ]);
+  }, [selectedNodeId, nodeMap, trace, observations, scores, corrections]);
 
   return (
     <div className="h-full w-full overflow-y-auto bg-background">{content}</div>
