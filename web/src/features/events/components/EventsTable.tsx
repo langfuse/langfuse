@@ -62,6 +62,12 @@ import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
+import {
+  type RefreshInterval,
+  REFRESH_INTERVALS,
+} from "@/src/components/table/data-table-refresh-button";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { api } from "@/src/utils/api";
 
 export type EventsTableRow = {
   // Identity fields
@@ -187,10 +193,55 @@ export default function ObservationsEventsTable({
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
+  // for auto data refresh
+  const utils = api.useUtils();
+  const [rawRefreshInterval, setRawRefreshInterval] =
+    useSessionStorage<RefreshInterval>(
+      `tableRefreshInterval-events-${projectId}`,
+      null,
+    );
+
+  // Validate session storage value against allowed intervals
+  const allowedValues = REFRESH_INTERVALS.map((i) => i.value);
+  const refreshInterval = allowedValues.includes(rawRefreshInterval)
+    ? rawRefreshInterval
+    : null;
+  const setRefreshInterval = useCallback(
+    (value: RefreshInterval) => {
+      if (allowedValues.includes(value)) {
+        setRawRefreshInterval(value);
+      }
+    },
+    [allowedValues, setRawRefreshInterval],
+  );
+
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Auto-increment refresh tick to force date range recalculation
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+    void Promise.all([
+      utils.events.all.invalidate(),
+      utils.events.countAll.invalidate(),
+      utils.events.filterOptions.invalidate(),
+    ]);
+  }, [utils]);
+
   // Convert timeRange to absolute date range for compatibility
+  // Include refreshTick to force recalculation on refresh
   const dateRange = useMemo(() => {
+    // refreshTick forces recalculation but isn't used in computation
+    void refreshTick;
     return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+  }, [timeRange, refreshTick]);
 
   const dateRangeFilter: FilterState = dateRange
     ? [
@@ -998,6 +1049,12 @@ export default function ObservationsEventsTable({
           setRowHeight={setRowHeight}
           timeRange={timeRange}
           setTimeRange={setTimeRange}
+          refreshConfig={{
+            onRefresh: handleRefresh,
+            isRefreshing: observations.status === "loading",
+            interval: refreshInterval,
+            setInterval: setRefreshInterval,
+          }}
           actionButtons={[
             <BatchExportTableButton
               {...{

@@ -6,6 +6,7 @@ import {
   getEventsGroupedByModel,
   getEventsGroupedByModelId,
   getEventsGroupedByName,
+  getEventsGroupedByTraceName,
   getEventsGroupedByPromptName,
   getEventsGroupedByType,
   getEventsGroupedByUserId,
@@ -120,6 +121,7 @@ export async function getEventFilterOptions(
     name,
     promptNames,
     traceTags,
+    traceNames,
     modelId,
     types,
     userIds,
@@ -134,6 +136,7 @@ export async function getEventFilterOptions(
     getEventsGroupedByName(projectId, startTimeFilter ?? []),
     getEventsGroupedByPromptName(projectId, startTimeFilter ?? []),
     getClickhouseTraceTags(),
+    getEventsGroupedByTraceName(projectId, startTimeFilter ?? []),
     getEventsGroupedByModelId(projectId, startTimeFilter ?? []),
     getEventsGroupedByType(projectId, startTimeFilter ?? []),
     getEventsGroupedByUserId(projectId, startTimeFilter ?? []),
@@ -168,6 +171,12 @@ export async function getEventFilterOptions(
       .filter((i) => i.tag !== null)
       .map((i) => ({
         value: i.tag as string,
+      })),
+    traceName: traceNames
+      .filter((i) => i.traceName !== null)
+      .map((i) => ({
+        value: i.traceName as string,
+        count: i.count,
       })),
     type: types
       .filter((i) => i.type !== null)
@@ -216,6 +225,7 @@ interface GetEventBatchIOParams {
   }>;
   minStartTime: Date;
   maxStartTime: Date;
+  truncated?: boolean;
 }
 
 /**
@@ -229,5 +239,6 @@ export async function getEventBatchIO(
     observations: params.observations,
     minStartTime: params.minStartTime,
     maxStartTime: params.maxStartTime,
+    truncated: params.truncated,
   });
 }

@@ -33,6 +33,9 @@ type TraceType = Omit<
   input: string | null;
   output: string | null;
   latency?: number;
+  // For events-based traces: when set, root observation becomes tree root
+  rootObservationType?: string;
+  rootObservationId?: string;
 };
 
 /**
@@ -323,13 +326,17 @@ function buildTreeNodesBottomUp(
  * Builds hierarchical tree from trace and observations (ITERATIVE - optimal).
  * Uses topological sort for bottom-up cost aggregation.
  * Handles unlimited tree depth without stack overflow.
+ *
+ * Returns `roots` array:
+ * - Traditional traces: [TRACE node] with observations as children
+ * - Events-based traces (rootObservationType set): [obs1, obs2, ...] directly. Array because there could be multiple roots now
  */
 function buildTraceTree(
   trace: TraceType,
   observations: ObservationReturnType[],
   minLevel?: ObservationLevelType,
 ): {
-  tree: TreeNode;
+  roots: TreeNode[];
   hiddenObservationsCount: number;
   nodeMap: Map<string, TreeNode>;
 } {
@@ -339,6 +346,12 @@ function buildTraceTree(
 
   // Handle empty case
   if (sortedObservations.length === 0) {
+    // For events-based traces with no observations, return empty roots
+    if (trace.rootObservationType) {
+      return { roots: [], hiddenObservationsCount, nodeMap: new Map() };
+    }
+
+    // Traditional traces: return TRACE node with no children
     const emptyTree: TreeNode = {
       id: `trace-${trace.id}`,
       type: "TRACE",
@@ -350,12 +363,13 @@ function buildTraceTree(
       totalCost: undefined,
       startTimeSinceTrace: 0,
       startTimeSinceParentStart: null,
+      // depth: -1 for TRACE wrapper so its children (observations) start at depth 0
       depth: -1,
       childrenDepth: 0,
     };
     const nodeMap = new Map<string, TreeNode>();
     nodeMap.set(emptyTree.id, emptyTree);
-    return { tree: emptyTree, hiddenObservationsCount, nodeMap };
+    return { roots: [emptyTree], hiddenObservationsCount, nodeMap };
   }
 
   // Phase 2: Build dependency graph
@@ -370,7 +384,7 @@ function buildTraceTree(
     trace.timestamp,
   );
 
-  // Phase 4: Build trace root
+  // Phase 4: Build roots array
   const rootTreeNodes: TreeNode[] = [];
   for (const rootId of rootIds) {
     const rootNode = nodeRegistry.get(rootId)!;
@@ -378,6 +392,16 @@ function buildTraceTree(
       rootTreeNodes.push(rootNode.treeNode);
     }
   }
+
+  // Sort roots by startTime for consistent ordering
+  rootTreeNodes.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+  // Events-based traces (rootObservationType set): return observations as roots directly
+  if (trace.rootObservationType) {
+    return { roots: rootTreeNodes, hiddenObservationsCount, nodeMap };
+  }
+
+  // Traditional traces: wrap in TRACE node
 
   // Calculate trace root total cost
   const traceTotalCost = rootTreeNodes.reduce<Decimal | undefined>(
@@ -395,7 +419,7 @@ function buildTraceTree(
       : 0;
 
   // Create trace root node
-  const tree: TreeNode = {
+  const traceNode: TreeNode = {
     id: `trace-${trace.id}`,
     type: "TRACE",
     name: trace.name ?? "",
@@ -406,20 +430,21 @@ function buildTraceTree(
     totalCost: traceTotalCost,
     startTimeSinceTrace: 0,
     startTimeSinceParentStart: null,
+    // depth: -1 for TRACE wrapper so its children (observations) start at depth 0
     depth: -1,
     childrenDepth: traceChildrenDepth,
   };
 
-  nodeMap.set(tree.id, tree);
+  nodeMap.set(traceNode.id, traceNode);
 
-  return { tree, hiddenObservationsCount, nodeMap };
+  return { roots: [traceNode], hiddenObservationsCount, nodeMap };
 }
 
 /**
  * Main entry point: builds complete UI data from trace and observations.
  *
  * Returns:
- * - tree: Hierarchical TreeNode structure with trace as root
+ * - roots: Array of root TreeNodes (single TRACE root for traditional, multiple obs roots for events-based)
  * - nodeMap: Map<id, TreeNode> for O(1) lookup
  * - searchItems: Flattened list for search/virtualized rendering
  * - hiddenObservationsCount: Number filtered by minLevel
@@ -429,24 +454,50 @@ export function buildTraceUiData(
   observations: ObservationReturnType[],
   minLevel?: ObservationLevelType,
 ): {
-  tree: TreeNode;
+  roots: TreeNode[];
   hiddenObservationsCount: number;
   searchItems: TraceSearchListItem[];
   nodeMap: Map<string, TreeNode>;
 } {
-  const { tree, hiddenObservationsCount, nodeMap } = buildTraceTree(
+  const { roots, hiddenObservationsCount, nodeMap } = buildTraceTree(
     trace,
     observations,
     minLevel,
   );
 
-  // Use pre-computed totals for heatmap scaling (computed in buildTreeNodesBottomUp)
-  const rootTotalCost = tree.totalCost;
-  const rootDuration = tree.latency ? tree.latency * 1000 : undefined;
+  // Handle empty roots case
+  if (roots.length === 0) {
+    return { roots, hiddenObservationsCount, searchItems: [], nodeMap };
+  }
+
+  // TODO: Extract aggregation logic to shared utility - duplicated in TraceTree.tsx and TraceTimeline/index.tsx
+  // Calculate aggregated totals across all roots for heatmap scaling
+  const rootTotalCost = roots.reduce<Decimal | undefined>((acc, r) => {
+    if (!r.totalCost) return acc;
+    return acc ? acc.plus(r.totalCost) : r.totalCost;
+  }, undefined);
+
+  const rootDuration =
+    roots.length > 0
+      ? Math.max(
+          ...roots.map((r) =>
+            r.latency
+              ? r.latency * 1000
+              : r.endTime
+                ? r.endTime.getTime() - r.startTime.getTime()
+                : 0,
+          ),
+        )
+      : undefined;
 
   // Build flat search items list (iterative to avoid stack overflow on deep trees)
   const searchItems: TraceSearchListItem[] = [];
-  const stack: TreeNode[] = [tree];
+
+  // Initialize stack with all roots (in reverse order for correct DFS traversal)
+  const stack: TreeNode[] = [];
+  for (let i = roots.length - 1; i >= 0; i--) {
+    stack.push(roots[i]!);
+  }
 
   while (stack.length > 0) {
     const node = stack.pop()!;
@@ -462,5 +513,5 @@ export function buildTraceUiData(
     }
   }
 
-  return { tree, hiddenObservationsCount, searchItems, nodeMap };
+  return { roots, hiddenObservationsCount, searchItems, nodeMap };
 }
