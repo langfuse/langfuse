@@ -1698,6 +1698,129 @@ export const getEventsGroupedByEnvironment = async (
 };
 
 /**
+ * Get grouped experiment dataset IDs from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentDatasetId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_dataset_id",
+    selectExpression:
+      "e.experiment_dataset_id as experimentDatasetId, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw(
+      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
+    )
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    experimentDatasetId: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped experiment IDs from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_id",
+    selectExpression: "e.experiment_id as experimentId, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.experiment_id IS NOT NULL AND length(e.experiment_id) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ experimentId: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped experiment names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_name",
+    selectExpression: "e.experiment_name as experimentName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ experimentName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */

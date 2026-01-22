@@ -103,6 +103,21 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("sessionId"),
     },
     {
+      type: "categorical" as const,
+      column: "experimentDatasetId",
+      label: getEventsColumnName("experimentDatasetId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "experimentId",
+      label: getEventsColumnName("experimentId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "experimentName",
+      label: getEventsColumnName("experimentName"),
+    },
+    {
       type: "numeric" as const,
       column: "latency",
       label: getEventsColumnName("latency"),
