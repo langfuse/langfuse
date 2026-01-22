@@ -62,17 +62,11 @@ export function TracePanelDetail() {
         );
       }
 
-      // Check if this observation is one of the roots (events-based trace)
-      const isRoot = roots.some((r) => r.id === selectedNodeId);
-
       return (
         <ObservationDetailView
           observation={observationData}
           projectId={trace.projectId}
           traceId={trace.id}
-          isRoot={isRoot}
-          sessionId={trace.sessionId}
-          userId={trace.userId}
         />
       );
     }
@@ -86,15 +80,7 @@ export function TracePanelDetail() {
         projectId={trace.projectId}
       />
     );
-  }, [
-    selectedNodeId,
-    nodeMap,
-    trace,
-    roots,
-    observations,
-    scores,
-    corrections,
-  ]);
+  }, [selectedNodeId, nodeMap, trace, observations, scores, corrections]);
 
   return (
     <div className="h-full w-full overflow-y-auto bg-background">{content}</div>
