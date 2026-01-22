@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "typecheck": "dotenv -e ../.env -- tsgo -p tsconfig.build.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev --turbopack",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
     "lint": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --max-warnings 0",
@@ -192,6 +194,7 @@
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^8.50.1",
     "@typescript-eslint/parser": "^8.50.1",
+    "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "autoprefixer": "^10.4.19",
     "cross-env": "^7.0.3",
     "dotenv-cli": "^7.4.2",

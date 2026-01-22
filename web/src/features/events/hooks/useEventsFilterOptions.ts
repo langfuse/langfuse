@@ -5,11 +5,13 @@ import { type FilterState, type TimeFilter } from "@langfuse/shared";
 type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterState;
+  hasParentObservation?: boolean;
 };
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
+  hasParentObservation,
 }: UseEventsFilterOptionsParams) {
   // Extract start time filters for filter options query
   const startTimeFilters = useMemo(() => {
@@ -26,6 +28,7 @@ export function useEventsFilterOptions({
       projectId,
       startTimeFilter:
         startTimeFilters.length > 0 ? startTimeFilters : undefined,
+      hasParentObservation,
     },
     {
       trpc: {
@@ -37,6 +40,9 @@ export function useEventsFilterOptions({
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: Infinity,
+      // Keep showing previous options while fetching new ones to avoid sidebar flicker
+      // TODO: maybe remove b/c unnecessary?
+      placeholderData: (prev) => prev,
     },
   );
 

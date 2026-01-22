@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
+import { useQueryParams, StringParam } from "use-query-params";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -24,43 +25,23 @@ export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { data: session } = useSession();
-  const { isBetaEnabled, setBetaEnabled } = useObservationListBeta();
-  const hasAppliedDefaultFilter = useRef(false);
+  const { isBetaEnabled, setBetaEnabled: setBetaEnabledRaw } =
+    useObservationListBeta();
+
+  // clear viewMode param query when beta is turned off
+  const [, setQueryParams] = useQueryParams({ viewMode: StringParam });
+  const setBetaEnabled = useCallback(
+    (enabled: boolean) => {
+      setBetaEnabledRaw(enabled);
+      if (!enabled) {
+        setQueryParams({ viewMode: undefined });
+      }
+    },
+    [setBetaEnabledRaw, setQueryParams],
+  );
 
   // TODO: remove for prod go-live
   const showBetaToggle = session?.user?.email?.endsWith("@langfuse.com");
-
-  // Apply default filter when beta is enabled on traces page
-  useEffect(() => {
-    if (!isBetaEnabled || !projectId) return;
-
-    // Only apply on fresh navigation (not on back button)
-    if (hasAppliedDefaultFilter.current) return;
-    hasAppliedDefaultFilter.current = true;
-
-    const currentFilter = router.query.filter as string | undefined;
-    if (currentFilter?.includes("hasParentObservation")) return;
-
-    // Apply default filter: hasParentObservation = false
-    const defaultFilter = "hasParentObservation;boolean;;=;false";
-    const newFilter = currentFilter
-      ? `${currentFilter},${defaultFilter}`
-      : defaultFilter;
-
-    void router.replace(
-      {
-        pathname: router.pathname,
-        query: { ...router.query, filter: newFilter },
-      },
-      undefined,
-      { shallow: true },
-    );
-  }, [isBetaEnabled, projectId, router]);
-
-  // Reset ref on beta toggle or unmount
-  useEffect(() => {
-    if (!isBetaEnabled) hasAppliedDefaultFilter.current = false;
-  }, [isBetaEnabled]);
 
   // Check if the user has tracing configured
   const { data: hasTracingConfigured, isLoading } =
