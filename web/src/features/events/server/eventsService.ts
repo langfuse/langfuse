@@ -6,6 +6,7 @@ import {
   getEventsGroupedByModel,
   getEventsGroupedByModelId,
   getEventsGroupedByName,
+  getEventsGroupedByTraceName,
   getEventsGroupedByPromptName,
   getEventsGroupedByType,
   getEventsGroupedByUserId,
@@ -13,6 +14,9 @@ import {
   getEventsGroupedBySessionId,
   getEventsGroupedByLevel,
   getEventsGroupedByEnvironment,
+  getEventsGroupedByExperimentDatasetId,
+  getEventsGroupedByExperimentId,
+  getEventsGroupedByExperimentName,
   getNumericScoresGroupedByName,
   getTracesGroupedByTags,
   getObservationsBatchIOFromEventsTable,
@@ -120,6 +124,7 @@ export async function getEventFilterOptions(
     name,
     promptNames,
     traceTags,
+    traceNames,
     modelId,
     types,
     userIds,
@@ -127,6 +132,9 @@ export async function getEventFilterOptions(
     sessionIds,
     levels,
     environments,
+    experimentDatasetIds,
+    experimentIds,
+    experimentNames,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
@@ -134,6 +142,7 @@ export async function getEventFilterOptions(
     getEventsGroupedByName(projectId, startTimeFilter ?? []),
     getEventsGroupedByPromptName(projectId, startTimeFilter ?? []),
     getClickhouseTraceTags(),
+    getEventsGroupedByTraceName(projectId, startTimeFilter ?? []),
     getEventsGroupedByModelId(projectId, startTimeFilter ?? []),
     getEventsGroupedByType(projectId, startTimeFilter ?? []),
     getEventsGroupedByUserId(projectId, startTimeFilter ?? []),
@@ -141,6 +150,9 @@ export async function getEventFilterOptions(
     getEventsGroupedBySessionId(projectId, startTimeFilter ?? []),
     getEventsGroupedByLevel(projectId, startTimeFilter ?? []),
     getEventsGroupedByEnvironment(projectId, startTimeFilter ?? []),
+    getEventsGroupedByExperimentDatasetId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByExperimentId(projectId, startTimeFilter ?? []),
+    getEventsGroupedByExperimentName(projectId, startTimeFilter ?? []),
   ]);
 
   return {
@@ -168,6 +180,12 @@ export async function getEventFilterOptions(
       .filter((i) => i.tag !== null)
       .map((i) => ({
         value: i.tag as string,
+      })),
+    traceName: traceNames
+      .filter((i) => i.traceName !== null)
+      .map((i) => ({
+        value: i.traceName as string,
+        count: i.count,
       })),
     type: types
       .filter((i) => i.type !== null)
@@ -205,6 +223,24 @@ export async function getEventFilterOptions(
         value: i.environment as string,
         count: i.count,
       })),
+    experimentDatasetId: experimentDatasetIds
+      .filter((i) => i.experimentDatasetId !== null)
+      .map((i) => ({
+        value: i.experimentDatasetId as string,
+        count: i.count,
+      })),
+    experimentId: experimentIds
+      .filter((i) => i.experimentId !== null)
+      .map((i) => ({
+        value: i.experimentId as string,
+        count: i.count,
+      })),
+    experimentName: experimentNames
+      .filter((i) => i.experimentName !== null)
+      .map((i) => ({
+        value: i.experimentName as string,
+        count: i.count,
+      })),
   };
 }
 
@@ -216,6 +252,7 @@ interface GetEventBatchIOParams {
   }>;
   minStartTime: Date;
   maxStartTime: Date;
+  truncated?: boolean;
 }
 
 /**
@@ -229,5 +266,6 @@ export async function getEventBatchIO(
     observations: params.observations,
     minStartTime: params.minStartTime,
     maxStartTime: params.maxStartTime,
+    truncated: params.truncated,
   });
 }

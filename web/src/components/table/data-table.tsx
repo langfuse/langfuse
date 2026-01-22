@@ -44,7 +44,7 @@ import {
   type DataTablePeekViewProps,
   TablePeekView,
 } from "@/src/components/table/peek";
-import { isEqual } from "lodash";
+import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 

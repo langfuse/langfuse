@@ -61,7 +61,7 @@ import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
-import { partition } from "lodash";
+import partition from "lodash/partition";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -79,6 +79,9 @@ export type ObservationReturnTypeWithMetadata = Omit<
 > & {
   traceId: string;
   metadata: string | null;
+  // optional, because in v4 an observation can have those properties
+  userId?: string | null;
+  sessionId?: string | null;
 };
 
 export type ObservationReturnType = Omit<

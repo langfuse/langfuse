@@ -28,7 +28,7 @@ import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod/v4";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
