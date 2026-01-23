@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 import { prisma } from "@langfuse/shared/src/db";
 import {
   commandClickhouse,
@@ -25,12 +27,55 @@ interface ProjectWorkload {
   projectId: string;
   retentionDays: number;
   cutoffDate: Date;
-  totalRowCount: number;
+  expiredRowCount: number;
 }
 
-interface ProjectCount {
-  project_id: string;
-  count: number;
+/**
+ * Hash projectId to a short key for ClickHouse parameter names.
+ */
+function toParamKey(projectId: string): string {
+  return createHash("md5").update(projectId).digest("hex").slice(0, 8);
+}
+
+/**
+ * Build OR conditions for project-specific cutoffs.
+ * Used by both count and delete queries.
+ * Uses hashed projectId keys to prevent index mismatch bugs.
+ */
+function buildRetentionConditions(
+  timestampColumn: string,
+  projects: ProjectWorkload[],
+): { conditions: string; params: Record<string, unknown> } {
+  // Compute hashes once and check for collisions
+  const projectToKey = new Map<string, string>();
+  const keyToProject = new Map<string, string>();
+  for (const p of projects) {
+    const key = toParamKey(p.projectId);
+    const existing = keyToProject.get(key);
+    if (existing && existing !== p.projectId) {
+      throw new Error(
+        `Hash collision detected: projectIds "${existing}" and "${p.projectId}" both hash to "${key}"`,
+      );
+    }
+    projectToKey.set(p.projectId, key);
+    keyToProject.set(key, p.projectId);
+  }
+
+  const conditions = projects
+    .map((p) => {
+      const key = projectToKey.get(p.projectId)!;
+      return `(project_id = {pid_${key}: String} AND ${timestampColumn} < {cutoff_${key}: DateTime64(3)})`;
+    })
+    .join(" OR ");
+
+  const params: Record<string, unknown> = {};
+  for (const p of projects) {
+    const key = projectToKey.get(p.projectId)!;
+    params[`pid_${key}`] = p.projectId;
+    params[`cutoff_${key}`] = convertDateToClickhouseDateTime(p.cutoffDate);
+  }
+
+  return { conditions, params };
 }
 
 /**
@@ -39,13 +84,13 @@ interface ProjectCount {
  *
  * Each invocation processes one table (traces, observations, scores, events).
  * BullMQ handles scheduling. Normally, there shouldn't be more than one job
- * for a given table's at a time.
+ * for a given table at a time.
  *
  * Flow:
  * 1. Query PG for all projects with retentionDays > 0
- * 2. Chunk project IDs and query CH for row counts per chunk
- * 3. Combine results, sort by count DESC, select top N
- * 4. Calculate cutoff dates based on each project's retentionDays
+ * 2. Calculate retention cutoff dates for each project
+ * 3. Chunk projects and query CH for expired row counts (retention-aware)
+ * 4. Sort by expired count DESC, select top N projects with expired data
  * 5. Execute single batch DELETE with OR conditions
  */
 export class BatchDataRetentionCleaner {
@@ -78,12 +123,21 @@ export class BatchDataRetentionCleaner {
       return;
     }
 
+    const totalExpiredRows = workloads.reduce(
+      (sum, w) => sum + w.expiredRowCount,
+      0,
+    );
+
     recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
+      table: tableName,
+    });
+    recordGauge(`${METRIC_PREFIX}.pending_rows`, totalExpiredRows, {
       table: tableName,
     });
 
     logger.info(`${instanceName}: Processing ${workloads.length} projects`, {
       projectIds: workloads.map((w) => w.projectId),
+      totalExpiredRows,
     });
 
     // Step 2: Execute single batch DELETE for all selected projects
@@ -121,15 +175,17 @@ export class BatchDataRetentionCleaner {
   /**
    * Get project workloads using chunked queries:
    * 1. PostgreSQL: Get all projects with retention enabled
-   * 2. Chunk project IDs and query ClickHouse for each chunk
-   * 3. Combine results, sort by count, select top N
-   * 4. Calculate cutoffs for selected projects
+   * 2. Calculate cutoffs for all projects
+   * 3. Chunk projects and query ClickHouse for expired row counts
+   * 4. Combine results, sort by count, select top N
    *
    * Chunking prevents running into CH query and param size limits.
    */
   private static async getProjectWorkloads(
     tableName: BatchDataRetentionTable,
   ): Promise<ProjectWorkload[]> {
+    const timestampColumn = TIMESTAMP_COLUMN_MAP[tableName];
+
     // Step 1: Get all projects with retention from PostgreSQL
     const projectsWithRetention = await prisma.project.findMany({
       select: { id: true, retentionDays: true },
@@ -143,72 +199,80 @@ export class BatchDataRetentionCleaner {
       return [];
     }
 
-    // Build retention map for later
-    const retentionMap = new Map(
-      projectsWithRetention.map((p) => [p.id, p.retentionDays!]),
+    // Step 2: Calculate cutoffs for all projects upfront
+    const now = new Date();
+    const allProjectRetentions: ProjectWorkload[] = projectsWithRetention.map(
+      (p) => ({
+        projectId: p.id,
+        retentionDays: p.retentionDays!,
+        cutoffDate: getRetentionCutoffDate(p.retentionDays!, now),
+        expiredRowCount: 0,
+      }),
     );
-    const projectIds = projectsWithRetention.map((p) => p.id);
 
-    // Step 2: Chunk project IDs and query ClickHouse for each chunk
+    // Step 3: Chunk projects and query ClickHouse for expired row counts
     const chunkSize = env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE;
-    const chunks: string[][] = [];
-    for (let i = 0; i < projectIds.length; i += chunkSize) {
-      chunks.push(projectIds.slice(i, i + chunkSize));
+    const chunks: (typeof allProjectRetentions)[] = [];
+    for (let i = 0; i < allProjectRetentions.length; i += chunkSize) {
+      chunks.push(allProjectRetentions.slice(i, i + chunkSize));
     }
 
-    // Query each chunk in parallel
+    // Query each chunk in parallel (counts only expired rows)
     const chunkResults = await Promise.all(
       chunks.map((chunk) =>
-        BatchDataRetentionCleaner.countProjectsInChunk(tableName, chunk),
+        BatchDataRetentionCleaner.countExpiredRowsInChunk(
+          tableName,
+          timestampColumn,
+          chunk,
+        ),
       ),
     );
 
-    // Step 3: Combine results, sort by count DESC, select top N
+    // Step 4: Combine results, sort by count DESC, select top N
     const allCounts = chunkResults.flat();
-    allCounts.sort((a, b) => b.count - a.count);
-    const topN = allCounts.slice(
+    allCounts.sort((a, b) => b.expiredRowCount - a.expiredRowCount);
+
+    // Filter out projects with no expired rows
+    const withExpiredRows = allCounts.filter((p) => p.expiredRowCount > 0);
+
+    return withExpiredRows.slice(
       0,
       env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
     );
-
-    if (topN.length === 0) {
-      return [];
-    }
-
-    // Step 4: Calculate cutoffs for selected projects
-    const now = new Date();
-    return topN.map((p) => {
-      const retentionDays = retentionMap.get(p.project_id)!;
-      return {
-        projectId: p.project_id,
-        retentionDays,
-        cutoffDate: getRetentionCutoffDate(retentionDays, now),
-        totalRowCount: p.count,
-      };
-    });
   }
 
   /**
-   * Count rows for a chunk of project IDs in ClickHouse.
+   * Count expired rows for a chunk of projects in ClickHouse.
+   * Uses the same retention conditions as delete to count only rows that will be deleted.
    */
-  private static async countProjectsInChunk(
+  private static async countExpiredRowsInChunk(
     tableName: BatchDataRetentionTable,
-    projectIds: string[],
-  ): Promise<ProjectCount[]> {
-    if (projectIds.length === 0) {
+    timestampColumn: string,
+    projects: ProjectWorkload[],
+  ): Promise<ProjectWorkload[]> {
+    if (projects.length === 0) {
       return [];
     }
+
+    const { conditions, params } = buildRetentionConditions(
+      timestampColumn,
+      projects,
+    );
 
     const query = `
       SELECT project_id, count() as count
       FROM ${tableName}
-      WHERE project_id IN ({projectIds: Array(String)})
+      WHERE ${conditions}
       GROUP BY project_id
+      HAVING count > 0
     `;
 
-    const result = await queryClickhouse<ProjectCount>({
+    const result = await queryClickhouse<{
+      project_id: string;
+      count: number;
+    }>({
       query,
-      params: { projectIds },
+      params,
       tags: {
         feature: "batch-data-retention-cleaner",
         table: tableName,
@@ -216,9 +280,15 @@ export class BatchDataRetentionCleaner {
       },
     });
 
-    return result.map((r) => ({
-      project_id: r.project_id,
-      count: Number(r.count),
+    // Build a map of counts from the result
+    const countMap = new Map(
+      result.map((r) => [r.project_id, Number(r.count)]),
+    );
+
+    // Return workloads for all projects (with 0 count if not in result)
+    return projects.map((p) => ({
+      ...p,
+      expiredRowCount: countMap.get(p.projectId) ?? 0,
     }));
   }
 
@@ -235,19 +305,10 @@ export class BatchDataRetentionCleaner {
       return;
     }
 
-    // Build OR conditions: (project_id = 'p1' AND ts < cutoff1) OR ...
-    const conditions = workloads
-      .map(
-        (_, i) =>
-          `(project_id = {projectId${i}: String} AND ${timestampColumn} < {cutoff${i}: DateTime64(3)})`,
-      )
-      .join(" OR ");
-
-    const params: Record<string, unknown> = {};
-    workloads.forEach((w, i) => {
-      params[`projectId${i}`] = w.projectId;
-      params[`cutoff${i}`] = convertDateToClickhouseDateTime(w.cutoffDate);
-    });
+    const { conditions, params } = buildRetentionConditions(
+      timestampColumn,
+      workloads,
+    );
 
     const query = `DELETE FROM ${tableName} WHERE ${conditions}`;
 

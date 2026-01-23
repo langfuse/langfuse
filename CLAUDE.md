@@ -72,9 +72,11 @@ pnpm run infra:dev:up      # Start Docker services (PostgreSQL, ClickHouse, Redi
 pnpm run infra:dev:down    # Stop Docker services
 ```
 
-### Building
+### Building & Type Checking
 ```sh
 pnpm --filter=PACKAGE_NAME run build  # Runs the build command, will show real typescript errors etc.
+pnpm tc                               # Fast typecheck across all packages (alias for pnpm typecheck)
+pnpm build:check                      # Full Next.js build to alternate dir (can run parallel with dev server)
 ```
 
 ### Testing in Web Package

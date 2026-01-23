@@ -227,6 +227,24 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events",
     clickhouseSelect: "e.parent_span_id != ''",
   },
+  {
+    uiTableName: "Experiment Dataset ID",
+    uiTableId: "experimentDatasetId",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."experiment_dataset_id"',
+  },
+  {
+    uiTableName: "Experiment ID",
+    uiTableId: "experimentId",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."experiment_id"',
+  },
+  {
+    uiTableName: "Experiment Name",
+    uiTableId: "experimentName",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."experiment_name"',
+  },
 ];
 
 export const eventsTableUiColumnDefinitions: UiColumnMappings = [
