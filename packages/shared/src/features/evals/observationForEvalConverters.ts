@@ -32,14 +32,3 @@ export function convertEventRecordToObservationForEval(
 ): ObservationForEval {
   return observationForEvalSchema.parse(record);
 }
-
-/**
- * Safe version that returns null on validation failure.
- * Use when processing batches where individual failures should be skipped.
- */
-export function safeConvertEventRecordToObservationForEval(
-  record: EventRecordBaseType,
-): ObservationForEval | null {
-  const result = observationForEvalSchema.safeParse(record);
-  return result.success ? result.data : null;
-}

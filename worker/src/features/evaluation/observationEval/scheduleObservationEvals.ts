@@ -109,23 +109,19 @@ interface ProcessConfigParams {
 async function processMatchingConfig(
   params: ProcessConfigParams,
 ): Promise<void> {
-  const {
-    observation,
-    matchingConfig: config,
-    observationS3Path,
-    schedulerDeps,
-  } = params;
+  const { observation, matchingConfig, observationS3Path, schedulerDeps } =
+    params;
 
   // Check deduplication (job already exists?)
   const existingJob = await schedulerDeps.findExistingJobExecution({
     projectId: observation.project_id,
-    jobConfigurationId: config.id,
+    jobConfigurationId: matchingConfig.id,
     jobInputObservationId: observation.span_id,
   });
 
   if (existingJob) {
     logger.debug("Job already exists for observation and config", {
-      configId: config.id,
+      configId: matchingConfig.id,
       observationId: observation.span_id,
       existingJobId: existingJob.id,
     });
@@ -136,7 +132,7 @@ async function processMatchingConfig(
   // Create job execution
   const jobExecution = await schedulerDeps.createJobExecution({
     projectId: observation.project_id,
-    jobConfigurationId: config.id,
+    jobConfigurationId: matchingConfig.id,
     jobInputTraceId: observation.trace_id,
     jobInputObservationId: observation.span_id,
     status: JobExecutionStatus.PENDING,
@@ -147,11 +143,11 @@ async function processMatchingConfig(
     jobExecutionId: jobExecution.id,
     projectId: observation.project_id,
     observationS3Path,
-    delay: config.delay,
+    delay: matchingConfig.delay,
   });
 
   logger.debug("Scheduled observation eval job", {
-    configId: config.id,
+    configId: matchingConfig.id,
     observationId: observation.span_id,
     jobExecutionId: jobExecution.id,
   });

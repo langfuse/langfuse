@@ -5,6 +5,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import {
+  JobExecutionStatus,
   observationForEvalSchema,
   observationVariableMappingList,
   type ObservationVariableMapping,
@@ -34,6 +35,7 @@ export function createObservationEvalProcessorDeps(): ObservationEvalProcessorDe
       const s3Client = getEvalS3StorageClient(
         env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
       );
+
       return s3Client.download(path);
     },
   };
@@ -71,18 +73,20 @@ export async function processObservationEval({
     logger.info(
       `Job execution ${event.jobExecutionId} not found. It may have been deleted.`,
     );
+
     return;
   }
 
-  // Check if job was cancelled
-  if (job.status === "CANCELLED") {
+  if (job.status === JobExecutionStatus.CANCELLED) {
     logger.debug(`Job ${job.id} was cancelled, deleting execution record.`);
+
     await prisma.jobExecution.delete({
       where: {
         id: job.id,
         projectId: event.projectId,
       },
     });
+
     return;
   }
 
@@ -132,19 +136,8 @@ export async function processObservationEval({
   // Parse and validate the downloaded data - these are permanent failures
   try {
     const parsedJson = JSON.parse(downloadedString);
-    const parsed = observationForEvalSchema.safeParse(parsedJson);
-
-    if (!parsed.success) {
-      throw new UnrecoverableError(
-        `Invalid observation data from S3: schema validation failed - ${parsed.error.message}`,
-      );
-    }
-
-    observationData = parsed.data;
+    observationData = observationForEvalSchema.parse(parsedJson);
   } catch (e) {
-    if (e instanceof UnrecoverableError) {
-      throw e;
-    }
     // JSON parse errors are permanent - the data won't change on retry
     throw new UnrecoverableError(
       `Invalid observation data from S3 at ${event.observationS3Path}: invalid JSON - ${e}`,
