@@ -28,6 +28,7 @@ interface ProjectWorkload {
   retentionDays: number;
   cutoffDate: Date;
   expiredRowCount: number;
+  oldestAgeSeconds: number | null;
 }
 
 /**
@@ -116,6 +117,25 @@ export class BatchDataRetentionCleaner {
       return;
     }
 
+    recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
+      table: tableName,
+    });
+
+    // Compute seconds past cutoff for each workload and find the max
+    const SECONDS_PER_DAY = 86400;
+    const maxSecondsPastCutoff = workloads
+      .filter((w) => w.oldestAgeSeconds !== null)
+      .map((w) => w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY)
+      .reduce((max, val) => Math.max(max, val), -Infinity);
+
+    recordGauge(
+      `${METRIC_PREFIX}.seconds_past_cutoff`,
+      Math.max(maxSecondsPastCutoff, 0),
+      {
+        table: tableName,
+      },
+    );
+
     if (workloads.length === 0) {
       logger.info(
         `${instanceName}: No projects with retention and data to delete`,
@@ -123,21 +143,9 @@ export class BatchDataRetentionCleaner {
       return;
     }
 
-    const totalExpiredRows = workloads.reduce(
-      (sum, w) => sum + w.expiredRowCount,
-      0,
-    );
-
-    recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
-      table: tableName,
-    });
-    recordGauge(`${METRIC_PREFIX}.pending_rows`, totalExpiredRows, {
-      table: tableName,
-    });
-
     logger.info(`${instanceName}: Processing ${workloads.length} projects`, {
       projectIds: workloads.map((w) => w.projectId),
-      totalExpiredRows,
+      secondsPastCutoff: maxSecondsPastCutoff,
     });
 
     // Step 2: Execute single batch DELETE for all selected projects
@@ -207,6 +215,7 @@ export class BatchDataRetentionCleaner {
         retentionDays: p.retentionDays!,
         cutoffDate: getRetentionCutoffDate(p.retentionDays!, now),
         expiredRowCount: 0,
+        oldestAgeSeconds: null,
       }),
     );
 
@@ -260,7 +269,10 @@ export class BatchDataRetentionCleaner {
     );
 
     const query = `
-      SELECT project_id, count() as count
+      SELECT
+        project_id,
+        count() as count,
+        dateDiff('second', min(event_ts), now()) as oldest_age_seconds
       FROM ${tableName}
       WHERE ${conditions}
       GROUP BY project_id
@@ -270,6 +282,7 @@ export class BatchDataRetentionCleaner {
     const result = await queryClickhouse<{
       project_id: string;
       count: number;
+      oldest_age_seconds: number;
     }>({
       query,
       params,
@@ -280,16 +293,26 @@ export class BatchDataRetentionCleaner {
       },
     });
 
-    // Build a map of counts from the result
-    const countMap = new Map(
-      result.map((r) => [r.project_id, Number(r.count)]),
+    // Build maps from the result
+    const resultMap = new Map(
+      result.map((r) => [
+        r.project_id,
+        {
+          count: Number(r.count),
+          oldestAgeSeconds: Number(r.oldest_age_seconds),
+        },
+      ]),
     );
 
     // Return workloads for all projects (with 0 count if not in result)
-    return projects.map((p) => ({
-      ...p,
-      expiredRowCount: countMap.get(p.projectId) ?? 0,
-    }));
+    return projects.map((p) => {
+      const data = resultMap.get(p.projectId);
+      return {
+        ...p,
+        expiredRowCount: data?.count ?? 0,
+        oldestAgeSeconds: data?.oldestAgeSeconds ?? null,
+      };
+    });
   }
 
   /**
