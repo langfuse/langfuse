@@ -126,7 +126,7 @@ export class BatchDataRetentionCleaner {
     const maxSecondsPastCutoff = workloads
       .filter((w) => w.oldestAgeSeconds !== null)
       .map((w) => w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY)
-      .reduce((max, val) => Math.max(max, val), Number.MIN_VALUE);
+      .reduce((max, val) => Math.max(max, val), -Infinity);
 
     recordGauge(
       `${METRIC_PREFIX}.seconds_past_cutoff`,
