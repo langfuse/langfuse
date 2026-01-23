@@ -320,7 +320,7 @@ function extractHslToHex(cssVar: string): string {
       if (computed && computed.startsWith("rgb")) {
         return chroma(computed).hex();
       }
-    } catch (e) {
+    } catch (_e) {
       // Fall through to default fallback
     }
   }

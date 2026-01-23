@@ -12,6 +12,8 @@
 import { type PropsWithChildren, useEffect } from "react";
 import { useRouter } from "next/router";
 import { signOut } from "next-auth/react";
+import posthog from "posthog-js";
+import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ErrorPageWithSentry } from "@/src/components/error-page";
 
@@ -79,13 +81,15 @@ export function AppLayout(props: PropsWithChildren) {
     return <LoadingLayout message={authGuard.message} />;
   }
 
-  // Project access denied - only check for authenticated users on non-publishable paths
-  // Publishable paths (traces, sessions) should be accessible without authentication
-  if (
-    session.status === "authenticated" &&
-    !isPublishable &&
-    !projectAccess.hasAccess
-  ) {
+  // Project access denied - handle based on path type
+  if (session.status === "authenticated" && !projectAccess.hasAccess) {
+    // For publishable paths (shared traces/sessions), render minimal layout without sidebar
+    // This allows authenticated users to view shared content without seeing project navigation
+    if (isPublishable) {
+      return <MinimalLayout>{props.children}</MinimalLayout>;
+    }
+
+    // For non-publishable paths, show error page
     return (
       <ErrorPageWithSentry
         title="Project Not Found"
@@ -125,11 +129,10 @@ export function AppLayout(props: PropsWithChildren) {
 
   const handleSignOut = async () => {
     sessionStorage.clear();
-    // Redirect to sign-in with current path as targetPath for post-login redirect
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-    const targetPath = encodeURIComponent(basePath + router.asPath);
-    // explicitly set callbackUrl to avoid error pages when the user is currently on a publishable path without a published entity
-    await signOut({ callbackUrl: `/auth/sign-in?targetPath=${targetPath}` });
+    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+      posthog.reset();
+    }
+    await signOut({ callbackUrl: `/auth/sign-in` });
   };
 
   return (

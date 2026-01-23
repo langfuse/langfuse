@@ -24,7 +24,7 @@ import {
   GetTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import { randomUUID } from "crypto";
-import { snakeCase } from "lodash";
+import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
@@ -118,6 +118,7 @@ const createTraceWithObservations = async (
       trace_id: trace.id,
       project_id: trace.project_id,
       name: trace.name ?? "trace",
+      trace_name: trace.name ?? "trace",
       type: "GENERATION", // Trace events are typically GENERATION type
       start_time: trace.timestamp * 1000, // Convert ms to microseconds
       end_time: null,
@@ -139,6 +140,7 @@ const createTraceWithObservations = async (
         environment: rootTraceEvent.environment,
         user_id: rootTraceEvent.user_id,
         session_id: rootTraceEvent.session_id,
+        trace_name: rootTraceEvent.name,
       }),
     );
 

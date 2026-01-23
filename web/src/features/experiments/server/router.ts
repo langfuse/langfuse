@@ -2,7 +2,9 @@ import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import {
   type ExperimentMetadata,
+  createDatasetItemFilterState,
   ExperimentCreateQueue,
+  getDatasetItems,
   PromptService,
   QueueJobs,
   QueueName,
@@ -14,8 +16,6 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type DatasetItem,
-  DatasetStatus,
   extractVariables,
   validateDatasetItem,
   UnauthorizedError,
@@ -23,6 +23,7 @@ import {
   extractPlaceholderNames,
   type PromptMessage,
   isPresent,
+  type DatasetItemDomain,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -43,7 +44,7 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
 ]);
 
 const countValidDatasetItems = (
-  datasetItems: DatasetItem[],
+  datasetItems: Omit<DatasetItemDomain, "status">[],
   variables: string[],
 ): Record<string, number> => {
   const variableMap: Record<string, number> = {};
@@ -140,22 +141,22 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const datasetItems = await ctx.prisma.datasetItem.findMany({
-        where: {
-          datasetId: input.datasetId,
-          projectId: input.projectId,
-          status: DatasetStatus.ACTIVE,
-        },
+      const items = await getDatasetItems({
+        projectId: input.projectId,
+        filterState: createDatasetItemFilterState({
+          datasetIds: [input.datasetId],
+          status: "ACTIVE",
+        }),
       });
 
-      if (!Boolean(datasetItems.length)) {
+      if (!Boolean(items.length)) {
         return {
           isValid: false,
           message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
-      const variablesMap = countValidDatasetItems(datasetItems, allVariables);
+      const variablesMap = countValidDatasetItems(items, allVariables);
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
@@ -166,7 +167,7 @@ export const experimentsRouter = createTRPCRouter({
 
       return {
         isValid: true,
-        totalItems: datasetItems.length,
+        totalItems: items.length,
         variablesMap: variablesMap,
       };
     }),

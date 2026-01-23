@@ -13,6 +13,7 @@ import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { type ParsedUrlQuery } from "querystring";
+import { type ReactNode } from "react";
 
 type TabDefinition = {
   value: string;
@@ -43,6 +44,10 @@ export type PageHeaderProps = {
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
+  showSidebarTrigger?: boolean;
+  leadingControl?: ReactNode;
+  titleBadges?: ReactNode;
+  breadcrumbBadges?: ReactNode;
 };
 
 const PageHeader = ({
@@ -56,6 +61,10 @@ const PageHeader = ({
   tabsProps,
   container = false,
   className,
+  showSidebarTrigger = true,
+  leadingControl,
+  titleBadges,
+  breadcrumbBadges,
 }: PageHeaderProps) => {
   const router = useRouter();
   return (
@@ -75,11 +84,20 @@ const PageHeader = ({
               container && "lg:container",
             )}
           >
-            <SidebarTrigger />
+            {showSidebarTrigger ? (
+              <SidebarTrigger />
+            ) : (
+              leadingControl && (
+                <div className="flex items-center">{leadingControl}</div>
+              )
+            )}
             <div>
               <EnvLabel />
             </div>
-            <BreadcrumbComponent items={breadcrumb} />
+            <div className="flex items-center gap-2">
+              <BreadcrumbComponent items={breadcrumb} />
+              {breadcrumbBadges}
+            </div>
           </div>
         </div>
 
@@ -148,6 +166,11 @@ const PageHeader = ({
                     )}
                   </h2>
                 </div>
+                {titleBadges && (
+                  <div className="ml-1 flex items-center gap-1">
+                    {titleBadges}
+                  </div>
+                )}
               </div>
               {actionButtonsLeft && (
                 <div className="flex flex-wrap items-center gap-1 self-center">

@@ -1,4 +1,4 @@
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 

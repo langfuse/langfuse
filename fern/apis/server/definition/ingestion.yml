@@ -278,7 +278,9 @@ types:
       sessionId: optional<string>
       observationId: optional<string>
       datasetRunId: optional<string>
-      name: string
+      name:
+        type: string
+        docs: The name of the score. Always overrides "output" for correction scores.
       environment: optional<string>
       queueId:
         type: optional<string>

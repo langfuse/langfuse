@@ -1,4 +1,4 @@
-import { capitalize } from "lodash";
+import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "lucide-react";
 import { memo, useState, useCallback } from "react";
 import {

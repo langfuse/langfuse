@@ -35,6 +35,7 @@ export function JSONView(props: {
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
   scrollable?: boolean;
+  borderless?: boolean;
   projectIdForPromptButtons?: string;
   controlButtons?: React.ReactNode;
   externalJsonCollapsed?: boolean;
@@ -86,52 +87,66 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex gap-2 whitespace-pre-wrap break-words p-2 text-xs",
+          "io-message-content flex gap-2 whitespace-pre-wrap break-words text-xs",
+          props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green"
             : "",
           props.title === "system" || props.title === "Input"
             ? "bg-primary-foreground"
             : "",
-          props.scrollable ? "" : "rounded-sm border",
+          props.scrollable || props.borderless ? "" : "rounded-sm border",
           props.codeClassName,
         )}
       >
         {props.isLoading ? (
           <Skeleton className="h-3 w-3/4" />
         ) : props.projectIdForPromptButtons ? (
-          <code className="whitespace-pre-wrap break-words">
+          <code
+            className="whitespace-pre-wrap break-words"
+            dir="auto"
+            style={{ unicodeBidi: "plaintext" }}
+          >
             {renderRichPromptContent(
               props.projectIdForPromptButtons,
               String(parsedJson),
             )}
           </code>
         ) : (
-          <React18JsonView
-            src={parsedJson}
-            theme="github"
-            dark={resolvedTheme === "dark"}
-            collapsed={isCollapsed ? 1 : false}
-            collapseObjectsAfterLength={isCollapsed ? 0 : 20}
-            collapseStringsAfterLength={collapseStringsAfterLength}
-            collapseStringMode="word"
-            customizeCollapseStringUI={(fullSTring, truncated) =>
-              truncated ? (
-                <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
-              ) : (
-                ""
-              )
-            }
-            displaySize={isCollapsed ? "collapsed" : "expanded"}
-            matchesURL={true}
-            customizeCopy={(node) => stringifyJsonNode(node)}
-            className="w-full"
-          />
+          <div
+            onClick={() => {
+              // If externally collapsed and user clicks to expand, sync the state
+              if (props.externalJsonCollapsed && props.onToggleCollapse) {
+                props.onToggleCollapse();
+              }
+            }}
+          >
+            <React18JsonView
+              src={parsedJson}
+              theme="github"
+              dark={resolvedTheme === "dark"}
+              collapsed={isCollapsed ? 1 : false}
+              collapseObjectsAfterLength={isCollapsed ? 0 : 20}
+              collapseStringsAfterLength={collapseStringsAfterLength}
+              collapseStringMode="word"
+              customizeCollapseStringUI={(fullSTring, truncated) =>
+                truncated ? (
+                  <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+                ) : (
+                  ""
+                )
+              }
+              displaySize={isCollapsed ? "collapsed" : "expanded"}
+              matchesURL={true}
+              customizeCopy={(node) => stringifyJsonNode(node)}
+              className="w-full"
+            />
+          </div>
         )}
       </div>
       {props.media && props.media.length > 0 && (
         <>
-          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+          <div className="my-1 px-0 py-1 text-xs text-muted-foreground">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
@@ -272,10 +287,12 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative flex-1 whitespace-pre-wrap break-all px-4 py-3 font-mono text-xs",
+            "relative flex-1 whitespace-pre-wrap break-words px-4 py-3 font-mono text-xs",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}
+          dir="auto"
+          style={{ unicodeBidi: "plaintext" }}
         >
           {props.content}
         </code>
@@ -296,14 +313,22 @@ export function CodeView(props: {
 }
 
 export const JsonSkeleton = ({
-  className,
   numRows = 10,
+  borderless = false,
+  className,
 }: {
   numRows?: number;
+  borderless?: boolean;
   className?: string;
 }) => {
   return (
-    <div className={cn("w-[400px] rounded-md border", className)}>
+    <div
+      className={cn(
+        "w-[400px] rounded-md",
+        borderless ? "" : "border",
+        className,
+      )}
+    >
       <div className="flex flex-col gap-1">
         {[...Array<number>(numRows)].map((_, i) => (
           <Skeleton

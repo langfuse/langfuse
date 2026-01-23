@@ -53,6 +53,34 @@ export function getSafeRedirectPath(
     return safeDefault;
   }
 
+  // If basePath is configured, check if the path already starts with it
+  // This prevents double-prepending when the path already includes the base path
+  if (basePath && trimmed.startsWith(basePath)) {
+    return trimmed;
+  }
+
   // Prepend basePath if configured
   return basePath + trimmed;
+}
+
+/**
+ * Strips NEXT_PUBLIC_BASE_PATH from a path so it can be used with
+ * Next.js' router (which already prepends the basePath automatically).
+ */
+export function stripBasePath(path: string): string {
+  const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
+  if (!basePath) {
+    return path || "/";
+  }
+
+  if (!path) {
+    return "/";
+  }
+
+  if (!path.startsWith(basePath)) {
+    return path;
+  }
+
+  const stripped = path.slice(basePath.length) || "/";
+  return stripped.startsWith("/") ? stripped : `/${stripped}`;
 }

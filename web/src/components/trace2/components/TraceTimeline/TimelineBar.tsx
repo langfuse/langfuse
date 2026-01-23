@@ -18,6 +18,7 @@ export function TimelineBar({
   metrics,
   isSelected,
   onSelect,
+  onHover,
   showDuration,
   showCostTokens,
   showScores,
@@ -41,6 +42,7 @@ export function TimelineBar({
       <div
         className="group my-0.5 flex w-full min-w-fit cursor-pointer flex-row items-center"
         onClick={onSelect}
+        onMouseEnter={onHover}
       >
         <div
           className={cn(
@@ -125,6 +127,7 @@ export function TimelineBar({
     <div
       className="group my-0.5 flex w-full min-w-fit cursor-pointer flex-row items-center"
       onClick={onSelect}
+      onMouseEnter={onHover}
     >
       <div className="relative" style={{ marginLeft: `${startOffset}px` }}>
         <div

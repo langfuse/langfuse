@@ -75,7 +75,7 @@ export const SlackTestMessageButton: React.FC<SlackTestMessageButtonProps> = ({
         channelId: selectedChannel.id,
         channelName: selectedChannel.name,
       });
-    } catch (error) {
+    } catch {
       // Error handling is done in the mutation
     }
   };

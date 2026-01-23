@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 export enum LangfuseOtelSpanAttributes {
   // Langfuse-Trace attributes
   TRACE_NAME = "langfuse.trace.name",
@@ -47,6 +46,7 @@ export enum LangfuseOtelSpanAttributes {
   EXPERIMENT_DESCRIPTION = "langfuse.experiment.description",
   EXPERIMENT_DATASET_ID = "langfuse.experiment.dataset.id",
   EXPERIMENT_ITEM_ID = "langfuse.experiment.item.id",
+  EXPERIMENT_ITEM_VERSION = "langfuse.experiment.item.version",
   EXPERIMENT_ITEM_METADATA = "langfuse.experiment.item.metadata",
   EXPERIMENT_ITEM_ROOT_OBSERVATION_ID = "langfuse.experiment.item.root_observation_id",
   EXPERIMENT_ITEM_EXPECTED_OUTPUT = "langfuse.experiment.item.expected_output",

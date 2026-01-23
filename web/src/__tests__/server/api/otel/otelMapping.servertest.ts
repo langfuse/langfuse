@@ -492,102 +492,6 @@ describe("OTel Resource Span Mapping", () => {
         environment: "production",
       });
     });
-
-    it("should throw an error if langfuse scope spans have wrong project ID", async () => {
-      const langfuseOtelSpans = [
-        {
-          resource: {
-            attributes: [
-              {
-                key: "telemetry.sdk.language",
-                value: {
-                  stringValue: "python",
-                },
-              },
-              {
-                key: "telemetry.sdk.name",
-                value: {
-                  stringValue: "opentelemetry",
-                },
-              },
-              {
-                key: "telemetry.sdk.version",
-                value: {
-                  stringValue: "1.32.0",
-                },
-              },
-              {
-                key: "service.name",
-                value: {
-                  stringValue: "unknown_service",
-                },
-              },
-            ],
-          },
-          scopeSpans: [
-            {
-              scope: {
-                name: "langfuse-sdk",
-                version: "2.60.3",
-                attributes: [
-                  {
-                    key: "public_key",
-                    value: {
-                      stringValue: "pk-lf-another",
-                    },
-                  },
-                ],
-              },
-              spans: [
-                {
-                  traceId: {
-                    type: "Buffer",
-                    data: [
-                      219, 242, 249, 255, 154, 168, 21, 165, 233, 52, 222, 186,
-                      28, 97, 54, 95,
-                    ],
-                  },
-                  spanId: {
-                    type: "Buffer",
-                    data: [128, 191, 93, 22, 69, 180, 81, 135],
-                  },
-                  name: "t1",
-                  kind: 1,
-                  startTimeUnixNano: {
-                    low: -1422874264,
-                    high: 406650983,
-                    unsigned: true,
-                  },
-                  endTimeUnixNano: {
-                    low: -904695264,
-                    high: 406650983,
-                    unsigned: true,
-                  },
-                  attributes: [
-                    {
-                      key: "langfuse.observation.type",
-                      value: {
-                        stringValue: "span",
-                      },
-                    },
-                  ],
-                  status: {},
-                },
-              ],
-            },
-          ],
-        },
-      ];
-
-      await expect(
-        Promise.all(
-          langfuseOtelSpans.map(
-            async (span) =>
-              await convertOtelSpanToIngestionEvent(span, new Set(), publicKey),
-          ),
-        ),
-      ).rejects.toThrowError("Langfuse OTEL SDK span has different public key");
-    });
   });
 
   describe("Vendor Spans", () => {
@@ -1322,6 +1226,159 @@ describe("OTel Resource Span Mapping", () => {
         expect(observationEvent?.type).toBe(expectedEventType);
       },
     );
+
+    it("should map Pydantic AI tool call to TOOL observation type via gen_ai.tool.* attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const pydanticAiToolSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.36.0" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "0.7.4",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                parentSpanId: Buffer.from("fedcba0987654321", "hex"),
+                name: "tool-call",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "roulette_wheel" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.id",
+                    value: { stringValue: "call_idvalue" },
+                  },
+                  {
+                    key: "tool_arguments",
+                    value: { stringValue: '{"square": 18}' },
+                  },
+                  {
+                    key: "tool_response",
+                    value: { stringValue: "winner" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "running tool: roulette_wheel" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiToolSpan,
+        new Set([traceId]),
+      );
+
+      const toolObservation = events.find((e) => e.type === "tool-create");
+
+      // Should map to TOOL observation type
+      expect(toolObservation).toBeDefined();
+      expect(toolObservation?.type).toBe("tool-create");
+
+      // Tool name should come from gen_ai.tool.name
+      expect(toolObservation?.body.name).toBe("roulette_wheel");
+
+      // Verify trace structure
+      expect(toolObservation?.body.traceId).toBe(traceId);
+    });
+
+    it("should prioritize gen_ai.tool.name over logfire.msg for tool observation name", async () => {
+      // why? because the logfire.msg value usually has: "running tool: roulette_wheel" whereas the gen_ai.tool.name value is "roulette_wheel"
+      // that is cleaner!
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const toolSpanWithBothNames = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "0.7.4",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "span-name",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: [
+                  {
+                    key: "gen_ai.tool.name",
+                    value: { stringValue: "correct_tool_name" },
+                  },
+                  {
+                    key: "gen_ai.tool.call.id",
+                    value: { stringValue: "call_123" },
+                  },
+                  {
+                    key: "logfire.msg",
+                    value: { stringValue: "wrong name from logfire" },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        toolSpanWithBothNames,
+        new Set([traceId]),
+      );
+
+      const toolObservation = events.find((e) => e.type === "tool-create");
+
+      // Should use gen_ai.tool.name, NOT logfire.msg
+      expect(toolObservation?.body.name).toBe("correct_tool_name");
+    });
 
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
@@ -4972,7 +5029,118 @@ describe("OTel Resource Span Mapping", () => {
     });
   });
 
-  describe("Vercel AI SDK Bedrock Provider Cache Tokens", () => {
+  describe("Vercel AI SDK Usage details", () => {
+    it("should extract usage details from both provider metadata and 'ai.usage'", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "1234567890abcdef";
+
+      const vercelAIAnthropicSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "ai", // Vercel AI SDK scope
+              version: "4.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "bedrock-generation",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 18495, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 445, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "ai.usage.cachedInputTokens",
+                    value: { stringValue: "16399" },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 7,
+                            cache_creation_input_tokens: 2089,
+                            cache_read_input_tokens: 16399,
+                            cache_creation: {
+                              ephemeral_5m_input_tokens: 2089,
+                              ephemeral_1h_input_tokens: 0,
+                            },
+                            output_tokens: 445,
+                            service_tier: "standard",
+                          },
+                          cacheCreationInputTokens: 2089,
+                          stopSequence: null,
+                          container: null,
+                          contextManagement: null,
+                        },
+                      }),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        vercelAIAnthropicSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // Verify basic token usage
+      expect(observationEvent?.body.usageDetails.input).toBe(7);
+      expect(observationEvent?.body.usageDetails.output).toBe(445);
+
+      // Verify cache tokens are extracted
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        16399,
+      );
+      expect(
+        observationEvent?.body.usageDetails.input_cache_read,
+      ).toBeUndefined(); // no double accounting
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        2089,
+      );
+      expect(
+        observationEvent?.body.usageDetails.input_cache_write,
+      ).toBeUndefined(); // no double accounting
+    });
     it("should extract all Bedrock cache token types from Vercel AI SDK provider metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
       const spanId = "1234567890abcdef";
@@ -5069,7 +5237,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent).toBeDefined();
 
       // Verify basic token usage
-      expect(observationEvent?.body.usageDetails.input).toBe(5734);
+      expect(observationEvent?.body.usageDetails.input).toBe(1152);
       expect(observationEvent?.body.usageDetails.output).toBe(178);
       expect(observationEvent?.body.usageDetails.total).toBe(10394);
 
@@ -5140,7 +5308,7 @@ describe("OTel Resource Span Mapping", () => {
       );
 
       expect(observationEvent).toBeDefined();
-      expect(observationEvent?.body.usageDetails.input).toBe(100);
+      expect(observationEvent?.body.usageDetails.input).toBe(0);
       expect(observationEvent?.body.usageDetails.input_cache_read).toBe(5000);
       // Other cache tokens should not be set
       expect(

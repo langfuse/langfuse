@@ -35,6 +35,7 @@ interface SpanContentProps {
   parentTotalDuration?: number;
   commentCount?: number;
   onSelect?: () => void;
+  onHover?: () => void;
   className?: string;
 }
 
@@ -44,9 +45,10 @@ export function SpanContent({
   parentTotalDuration,
   commentCount,
   onSelect,
+  onHover,
   className,
 }: SpanContentProps) {
-  const { scores } = useTraceData();
+  const { mergedScores } = useTraceData();
   const {
     showDuration,
     showCostTokens,
@@ -79,8 +81,8 @@ export function SpanContent({
   // Filter scores for this node
   const nodeScores =
     node.type === "TRACE"
-      ? scores.filter((s) => s.observationId === null)
-      : scores.filter((s) => s.observationId === node.id);
+      ? mergedScores.filter((s) => s.observationId === null)
+      : mergedScores.filter((s) => s.observationId === node.id);
 
   return (
     <button
@@ -89,6 +91,7 @@ export function SpanContent({
         e.stopPropagation();
         onSelect?.();
       }}
+      onMouseEnter={onHover}
       title={node.name}
       className={cn(
         "peer relative flex min-w-0 flex-1 items-start rounded-md py-0.5 pl-1 pr-2 text-left",

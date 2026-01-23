@@ -7,7 +7,6 @@ import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  tableColumnsToSqlFilterAndPrefix,
   traceException,
   eventTypes,
   setNoJobConfigsCache,
@@ -31,6 +30,7 @@ import {
   mapDatasetRunItemFilterColumn,
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
+  tableColumnsToSqlFilterAndPrefix,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -52,13 +52,19 @@ import {
   DatasetItem,
 } from "@langfuse/shared";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
-import { compileHandlebarString, createW3CTraceId } from "../utils";
+import { compileTemplateString, createW3CTraceId } from "../utils";
 import { env } from "../../env";
 import { JSONPath } from "jsonpath-plus";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 
 let s3StorageServiceClient: StorageService;
+
+// Cached schema for output schema validation (avoids recreating on every evaluate() call)
+const outputSchemaValidator = z.object({
+  score: z.string(),
+  reasoning: z.string(),
+});
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
@@ -259,9 +265,11 @@ export const createEvalJobs = async ({
         traceId: event.traceId,
         projectId: event.projectId,
         timestamp:
-          "timestamp" in event
-            ? new Date(event.timestamp)
-            : new Date(jobTimestamp),
+          "exactTimestamp" in event && event.exactTimestamp
+            ? new Date(event.exactTimestamp)
+            : "timestamp" in event
+              ? new Date(event.timestamp)
+              : new Date(jobTimestamp),
         clickhouseFeatureTag: "eval-create",
         excludeInputOutput: true,
       });
@@ -431,12 +439,21 @@ export const createEvalJobs = async ({
           Array<{ id: string }>
         >(Prisma.sql`
           SELECT id
-          FROM dataset_items as di
-          WHERE project_id = ${event.projectId}
-            AND id = ${event.datasetItemId}
-            ${condition}
+          FROM (
+            SELECT id, is_deleted
+            FROM dataset_items as di
+            WHERE project_id = ${event.projectId}
+              AND valid_to IS NULL 
+              AND id = ${event.datasetItemId}
+              ${condition}
+            LIMIT 1
+          ) latest
+          WHERE is_deleted = false
         `);
-        datasetItem = datasetItems.shift();
+        const latestDatasetItem = datasetItems.shift();
+        datasetItem = latestDatasetItem
+          ? { id: latestDatasetItem.id }
+          : undefined;
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.
         // The dataset is the only allowed filter today, so it should be easy to check using our existing in memory filter.
@@ -617,6 +634,9 @@ export const createEvalJobs = async ({
         });
       }
     }
+
+    // Yield to event loop between config iterations to prevent stalls
+    await new Promise((resolve) => setImmediate(resolve));
   }
 };
 
@@ -699,9 +719,11 @@ export const evaluate = async ({
     variableMapping: parsedVariableMapping,
   });
 
-  logger.debug(
-    `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
-  );
+  if (logger.isLevelEnabled("debug")) {
+    logger.debug(
+      `Evaluating job ${event.jobExecutionId} extracted variables ${JSON.stringify(mappingResult)} `,
+    );
+  }
 
   // Get environment from trace or observation variables
   const environment = mappingResult.find((r) => r.environment)?.environment;
@@ -709,7 +731,7 @@ export const evaluate = async ({
   // compile the prompt and send out the LLM request
   let prompt;
   try {
-    prompt = compileHandlebarString(template.prompt, {
+    prompt = compileTemplateString(template.prompt, {
       ...Object.fromEntries(
         mappingResult.map(({ var: key, value }) => [key, value]),
       ),
@@ -726,12 +748,7 @@ export const evaluate = async ({
     `Evaluating job ${event.jobExecutionId} compiled prompt ${prompt}`,
   );
 
-  const parsedOutputSchema = z
-    .object({
-      score: z.string(),
-      reasoning: z.string(),
-    })
-    .parse(template.outputSchema);
+  const parsedOutputSchema = outputSchemaValidator.parse(template.outputSchema);
 
   if (!parsedOutputSchema) {
     throw new UnrecoverableError(
@@ -815,9 +832,11 @@ export const evaluate = async ({
     );
   }
 
-  logger.debug(
-    `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
-  );
+  if (logger.isLevelEnabled("debug")) {
+    logger.debug(
+      `Evaluating job ${event.jobExecutionId} Parsed LLM output ${JSON.stringify(parsedLLMOutput)}`,
+    );
+  }
 
   const baseScore = {
     id: scoreId,
@@ -970,6 +989,7 @@ export async function extractVariablesFromTracingData({
         ) // query the internal column name raw
         .where("id", "=", datasetItemId)
         .where("project_id", "=", projectId)
+        .where("valid_to", "is", null)
         .executeTakeFirst()) as DatasetItem;
 
       // user facing errors
@@ -1110,9 +1130,11 @@ export const parseDatabaseRowToString = (
   let jsonSelectedColumn;
 
   if (mapping.jsonSelector) {
-    logger.debug(
-      `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
-    );
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
+      );
+    }
 
     try {
       jsonSelectedColumn = JSONPath({

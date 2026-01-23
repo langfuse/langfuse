@@ -66,7 +66,12 @@ export function TableActionDialog({
   );
 
   const handleConfirm = async () => {
-    await action.execute({ projectId, targetId: form.getValues().targetId });
+    if ("execute" in action) {
+      await action.execute({
+        projectId,
+        targetId: form.getValues().targetId,
+      });
+    }
     setSelectAll(false);
     onClose();
   };
@@ -76,7 +81,9 @@ export function TableActionDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{action.label}</DialogTitle>
-          <DialogDescription>{action.description}</DialogDescription>
+          <DialogDescription className="mt-2">
+            {action.description}
+          </DialogDescription>
         </DialogHeader>
 
         {action.type === "create" && (

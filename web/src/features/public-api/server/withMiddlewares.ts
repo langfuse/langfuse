@@ -16,7 +16,9 @@ import {
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 
-const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
+// Exported to silence @typescript-eslint/no-unused-vars v8 warning
+// (used for type extraction via typeof, which is a legitimate pattern)
+export const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
 type Handlers = {
   [Method in HttpMethod]?: (

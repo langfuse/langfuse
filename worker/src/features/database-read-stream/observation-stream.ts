@@ -1,6 +1,7 @@
 import {
   FilterCondition,
-  ScoreDataType,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
 } from "@langfuse/shared";
@@ -97,6 +98,10 @@ export const getObservationStream = async (props: {
     request_timeout: 180_000, // 3 minutes
     clickhouse_settings: {
       join_algorithm: "partial_merge" as const,
+      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
+      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
     },
   };
 
@@ -256,7 +261,7 @@ export const getObservationStream = async (props: {
         | {
             name: string;
             value: number;
-            dataType: ScoreDataType;
+            dataType: ScoreDataTypeType;
             stringValue: string;
           }[]
         | undefined;
@@ -297,7 +302,7 @@ export const getObservationStream = async (props: {
       | {
           name: string;
           value: number;
-          dataType: ScoreDataType;
+          dataType: ScoreDataTypeType;
           stringValue: string;
         }[]
       | undefined;
@@ -332,7 +337,7 @@ export const getObservationStream = async (props: {
         return {
           name,
           value: null,
-          dataType: "CATEGORICAL" as ScoreDataType,
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
           stringValue: valueParts.join(":"),
         };
       },
@@ -355,6 +360,8 @@ export const getObservationStream = async (props: {
           traceTags: bufferedRow.traceTags,
           traceTimestamp: bufferedRow.traceTimestamp,
           userId: bufferedRow.userId,
+          toolDefinitionsCount: null,
+          toolCallsCount: null,
           ...modelData,
           scores: outputScores,
           comments: observationComments,
@@ -365,7 +372,8 @@ export const getObservationStream = async (props: {
   };
 
   // Convert async generator to Node.js Readable stream
-  // eslint-disable-next-line no-unused-vars
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Counter for potential future instrumentation
   let recordsProcessed = 0;
 
   return Readable.from(

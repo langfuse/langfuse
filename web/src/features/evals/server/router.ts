@@ -789,7 +789,6 @@ export const evalRouter = createTRPCRouter({
           model: modelConfig.config.model,
           apiKey: modelConfig.config.apiKey,
           modelConfig: input.modelParams,
-          prompt: input.prompt,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -1237,7 +1236,7 @@ export const evalRouter = createTRPCRouter({
               | "jobConfigurationId"
               | "executionTraceId"
               | "error"
-            >
+            > & { sessionId: string | null }
           >
         >(
           generateExecutionsQuery(
@@ -1250,7 +1249,8 @@ export const evalRouter = createTRPCRouter({
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
             je.execution_trace_id as "executionTraceId",
-            je.error
+            je.error,
+            t.session_id as "sessionId"
             `,
             input.projectId,
             filterCondition,
@@ -1407,6 +1407,8 @@ const generateExecutionsQuery = (
   SELECT
    ${select}
    FROM job_executions je
+   LEFT JOIN traces t ON je.job_input_trace_id = t.id AND je.project_id = t.project_id
+   LEFT JOIN scores s ON je.job_output_score_id = s.id AND je.project_id = s.project_id
    WHERE je.project_id = ${projectId}
    ${filterCondition}
    AND je.status != 'CANCELLED'

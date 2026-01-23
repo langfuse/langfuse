@@ -53,6 +53,14 @@ const slackSchema = z.object({
   messageTemplate: z.string().optional(),
 });
 
+// Define GitHub Dispatch action schema
+const githubDispatchSchema = z.object({
+  url: z.string().url("Invalid URL"),
+  eventType: z.string().min(1, "Event type is required").max(100),
+  githubToken: z.string(),
+  displayGitHubToken: z.string().optional(),
+});
+
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
   Prompt = "prompt",
@@ -78,13 +86,21 @@ const formSchema = z.discriminatedUnion("actionType", [
     actionType: z.literal("SLACK"),
     slack: slackSchema,
   }),
+  baseFormSchema.extend({
+    actionType: z.literal("GITHUB_DISPATCH"),
+    githubDispatch: githubDispatchSchema,
+  }),
 ]);
 
 type FormValues = z.infer<typeof formSchema>;
 
 interface AutomationFormProps {
   projectId: string;
-  onSuccess?: (automationId?: string, webhookSecret?: string) => void;
+  onSuccess?: (
+    automationId?: string,
+    webhookSecret?: string,
+    actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
+  ) => void;
   onCancel?: () => void;
   automation?: AutomationDomain;
   isEditing?: boolean;
@@ -182,6 +198,22 @@ export const AutomationForm = ({
           messageTemplate: slackDefaults.slack.messageTemplate || "",
         },
       };
+    } else if (actionType === "GITHUB_DISPATCH") {
+      // Use action handler to get default values with proper typing
+      const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
+      const githubDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "GITHUB_DISPATCH" as const,
+        eventSource: TriggerEventSource.Prompt,
+        githubDispatch: {
+          url: githubDefaults.githubDispatch.url || "",
+          eventType: githubDefaults.githubDispatch.eventType || "",
+          githubToken: githubDefaults.githubDispatch.githubToken || "",
+          displayGitHubToken:
+            githubDefaults.githubDispatch.displayGitHubToken || undefined,
+        },
+      };
     } else {
       throw new Error("Invalid action type");
     }
@@ -262,7 +294,11 @@ export const AutomationForm = ({
         description: `Successfully created automation "${data.name}".`,
       });
 
-      onSuccess?.(result.automation.id, result.webhookSecret);
+      onSuccess?.(
+        result.automation.id,
+        result.webhookSecret,
+        data.actionType as "WEBHOOK" | "GITHUB_DISPATCH",
+      );
     }
   };
 
@@ -283,6 +319,10 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("SLACK");
       const defaultValues = handler.getDefaultValues();
       form.setValue("slack", defaultValues.slack);
+    } else if (value === "GITHUB_DISPATCH") {
+      const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("githubDispatch", defaultValues.githubDispatch);
     }
 
     // If we are creating a new automation, update the default name
@@ -502,7 +542,9 @@ export const AutomationForm = ({
                               ? "Webhook"
                               : actionType === "SLACK"
                                 ? "Slack"
-                                : "Annotation Queue"}
+                                : actionType === "GITHUB_DISPATCH"
+                                  ? "GitHub Dispatch"
+                                  : "Annotation Queue"}
                           </SelectItem>
                         ),
                       )}

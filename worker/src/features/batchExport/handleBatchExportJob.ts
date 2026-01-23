@@ -15,11 +15,20 @@ import {
   type BatchExportJobType,
   logger,
   getCurrentSpan,
+  applyCommentFilters,
+  type CommentObjectType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import { getTraceStream } from "../database-read-stream/trace-stream";
+
+// Map table names to comment object types for preprocessing
+const tableToCommentType: Record<string, CommentObjectType | undefined> = {
+  traces: "TRACE",
+  observations: "OBSERVATION",
+  sessions: "SESSION",
+};
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -55,6 +64,14 @@ export const handleBatchExportJob = async (
     throw new LangfuseNotFoundError(
       `Job not found for project: ${projectId} and export ${batchExportId}`,
     );
+  }
+
+  // Check if the batch export has been cancelled
+  if (jobDetails.status === BatchExportStatus.CANCELLED) {
+    logger.info(
+      `Batch export ${batchExportId} has been cancelled. Skipping processing.`,
+    );
+    return; // Exit early without processing
   }
 
   // Check if the batch export is older than 30 days
@@ -117,6 +134,38 @@ export const handleBatchExportJob = async (
     );
   }
 
+  // Process comment filters before creating stream
+  const commentObjectType = tableToCommentType[parsedQuery.data.tableName];
+  let processedFilter = parsedQuery.data.filter ?? [];
+
+  if (commentObjectType) {
+    const { filterState, hasNoMatches } = await applyCommentFilters({
+      filterState: parsedQuery.data.filter ?? [],
+      prisma,
+      projectId,
+      objectType: commentObjectType,
+    });
+
+    if (hasNoMatches) {
+      // No matching items - complete export with empty results
+      logger.info(
+        `Batch export ${batchExportId}: comment filter matched no items, completing with empty export`,
+      );
+
+      // Create an empty stream by using a filter that matches nothing
+      processedFilter = [
+        {
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          column: "id",
+          value: [],
+        },
+      ];
+    } else {
+      processedFilter = filterState;
+    }
+  }
+
   // handle db read stream
 
   const dbReadStream =
@@ -125,17 +174,20 @@ export const handleBatchExportJob = async (
           projectId,
           cutoffCreatedAt: jobDetails.createdAt,
           ...parsedQuery.data,
+          filter: processedFilter,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
         ? await getTraceStream({
             projectId,
             cutoffCreatedAt: jobDetails.createdAt,
             ...parsedQuery.data,
+            filter: processedFilter,
           })
         : await getDatabaseReadStreamPaginated({
             projectId,
             cutoffCreatedAt: jobDetails.createdAt,
             ...parsedQuery.data,
+            filter: processedFilter,
           });
 
   // Transform data to desired format
@@ -198,7 +250,7 @@ export const handleBatchExportJob = async (
       exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
     data: fileStream,
     expiresInSeconds,
-    partSize: 100 * 1024 * 1024, // 100 MB for CSV
+    partSize: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
     queueSize: 4,
   });
 

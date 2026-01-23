@@ -6,7 +6,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
 import {
-  type ScoreDataType,
+  type ScoreConfigDataType,
   type Prisma,
   type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
@@ -34,7 +34,7 @@ import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components
 type ScoreConfigTableRow = {
   id: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreConfigDataType;
   createdAt: string;
   updatedAt: string;
   range: {

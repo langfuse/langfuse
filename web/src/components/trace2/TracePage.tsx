@@ -8,6 +8,14 @@ import { ErrorPage } from "@/src/components/error-page";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace2/Trace";
+import { useSession } from "next-auth/react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { stripBasePath } from "@/src/utils/redirect";
+import { Badge } from "@/src/components/ui/badge";
+import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
+import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
 
 export function TracePage({
   traceId,
@@ -17,14 +25,19 @@ export function TracePage({
   timestamp?: Date;
 }) {
   const router = useRouter();
+  const session = useSession();
+  const routeProjectId = (router.query.projectId as string) ?? "";
+  const { isBetaEnabled } = useObservationListBeta();
 
-  const trace = api.traces.byIdWithObservationsAndScores.useQuery(
+  // Old path: fetch from traces table (beta OFF)
+  const tracesQuery = api.traces.byIdWithObservationsAndScores.useQuery(
     {
       traceId,
       timestamp,
-      projectId: router.query.projectId as string,
+      projectId: routeProjectId,
     },
     {
+      enabled: !isBetaEnabled,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -36,15 +49,38 @@ export function TracePage({
     },
   );
 
+  // New path: fetch from events table (beta ON)
+  const eventsData = useEventsTraceData({
+    projectId: routeProjectId,
+    traceId,
+    timestamp,
+    enabled: isBetaEnabled,
+  });
+
+  // Use the appropriate data source based on beta toggle
+  const trace = isBetaEnabled
+    ? {
+        data: eventsData.data,
+        isLoading: eventsData.isLoading,
+        error: eventsData.error as typeof tracesQuery.error,
+      }
+    : tracesQuery;
+
+  const projectIdForAccessCheck = trace.data?.projectId ?? routeProjectId;
+  const hasProjectAccess = useIsAuthenticatedAndProjectMember(
+    projectIdForAccessCheck,
+  );
+
   const [selectedTab, setSelectedTab] = useQueryParam(
     "display",
     withDefault(StringParam, "details"),
   );
 
-  if (trace.error?.data?.code === "UNAUTHORIZED")
+  // Handle errors - for events path, we check if there's no data after loading
+  if (!isBetaEnabled && tracesQuery.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
 
-  if (trace.error?.data?.code === "NOT_FOUND")
+  if (!isBetaEnabled && tracesQuery.error?.data?.code === "NOT_FOUND")
     return (
       <ErrorPage
         title="Trace not found"
@@ -56,7 +92,56 @@ export function TracePage({
       />
     );
 
+  // For events path: show not found if no observations found after loading
+  if (isBetaEnabled && !eventsData.isLoading && !eventsData.data)
+    return (
+      <ErrorPage
+        title="Trace not found"
+        message="No observations found for this trace. The trace may still be processing or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
+
   if (!trace.data) return <div className="p-3">Loading...</div>;
+
+  const isSharedTrace = trace.data.public;
+  const showPublicIndicators = isSharedTrace && !hasProjectAccess;
+  const encodedTargetPath = encodeURIComponent(
+    stripBasePath(router.asPath || "/"),
+  );
+  const leadingControl = showPublicIndicators ? (
+    session.status === "authenticated" ? (
+      <Button
+        asChild
+        size="sm"
+        variant="outline"
+        title="Back to Langfuse"
+        className="px-3"
+      >
+        <Link href="/">Langfuse</Link>
+      </Button>
+    ) : (
+      <Button
+        asChild
+        size="sm"
+        variant="default"
+        title="Sign in to Langfuse"
+        className="px-3"
+      >
+        <Link href={`/auth/sign-in?targetPath=${encodedTargetPath}`}>
+          Sign in
+        </Link>
+      </Button>
+    )
+  ) : undefined;
+  const sharedBadge = showPublicIndicators ? (
+    <Badge variant="outline" className="text-xs font-medium">
+      Public
+    </Badge>
+  ) : undefined;
 
   return (
     <Page
@@ -71,6 +156,9 @@ export function TracePage({
             href: `/project/${router.query.projectId as string}/traces`,
           },
         ],
+        showSidebarTrigger: !showPublicIndicators,
+        leadingControl,
+        breadcrumbBadges: sharedBadge,
         actionButtonsLeft: (
           <div className="ml-1 flex items-center gap-1">
             <div className="flex items-center gap-0">
@@ -112,7 +200,7 @@ export function TracePage({
                   ? `?${queryParams.toString()}`
                   : "";
 
-                return `/project/${projectId as string}/traces2/${entry.id}${finalQueryString}`;
+                return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
             />
@@ -131,6 +219,7 @@ export function TracePage({
         <Trace
           trace={trace.data}
           scores={trace.data.scores}
+          corrections={trace.data.corrections}
           projectId={trace.data.projectId}
           observations={trace.data.observations}
           selectedTab={selectedTab}

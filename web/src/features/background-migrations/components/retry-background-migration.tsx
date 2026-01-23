@@ -50,7 +50,7 @@ export function RetryBackgroundMigration({
         name: backgroundMigrationName,
         adminApiKey: "Bearer " + adminApiKey.trim(),
       });
-    } catch (e) {
+    } catch (_e) {
       // Error handled in onError
     }
   };

@@ -1,7 +1,12 @@
 import CodeMirror, {
   EditorView,
   type ReactCodeMirrorRef,
+  Decoration,
+  type DecorationSet,
+  ViewPlugin,
+  type ViewUpdate,
 } from "@uiw/react-codemirror";
+import { RangeSetBuilder } from "@codemirror/state";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
@@ -106,7 +111,7 @@ const promptLinter = linter((view) => {
           message: "Malformed prompt dependency tag",
         });
       }
-    } catch (error) {
+    } catch {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
@@ -121,6 +126,38 @@ const promptLinter = linter((view) => {
 
 // Create a language support instance that combines the language and its configuration
 const promptSupport = new LanguageSupport(promptLanguage);
+
+// RTL/bidirectional text support
+const dirAutoDecoration = Decoration.line({ attributes: { dir: "auto" } });
+
+const bidiSupport = [
+  EditorView.perLineTextDirection.of(true),
+  ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = this.build(view);
+      }
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.build(update.view);
+        }
+      }
+      build(view: EditorView) {
+        const builder = new RangeSetBuilder<Decoration>();
+        for (const { from, to } of view.visibleRanges) {
+          for (let pos = from; pos <= to; ) {
+            const line = view.state.doc.lineAt(pos);
+            builder.add(line.from, line.from, dirAutoDecoration);
+            pos = line.to + 1;
+          }
+        }
+        return builder.finish();
+      }
+    },
+    { decorations: (v) => v.decorations },
+  ),
+];
 
 export function CodeMirrorEditor({
   value,
@@ -167,6 +204,8 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // RTL/bidi support - must be early for proper line decoration
+        ...bidiSupport,
         // Remove outline if field is focussed
         EditorView.theme({
           "&.cm-focused": {

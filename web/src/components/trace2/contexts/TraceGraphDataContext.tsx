@@ -10,6 +10,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { api } from "@/src/utils/api";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
 
 const MAX_NODES_FOR_GRAPH_UI = 5000;
 
@@ -49,30 +50,66 @@ export function TraceGraphDataProvider({
   traceId,
   observations,
 }: TraceGraphDataProviderProps) {
-  // Calculate time bounds from observations
-  const observationStartTimes = observations.map((o) => o.startTime.getTime());
-  const minStartTime = new Date(
-    Math.min(...observationStartTimes, Date.now()),
-  ).toISOString();
-  const maxStartTime = new Date(
-    Math.max(...observationStartTimes, 0),
-  ).toISOString();
+  const { isBetaEnabled } = useObservationListBeta();
 
-  const query = api.traces.getAgentGraphData.useQuery(
-    {
-      projectId,
-      traceId,
-      minStartTime,
-      maxStartTime,
-    },
-    {
-      enabled: observations.length > 0,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 50 * 60 * 1000, // 50 minutes
-    },
-  );
+  // Skip graph data entirely for large traces to avoid performance issues
+  const exceedsThreshold = observations.length >= MAX_NODES_FOR_GRAPH_UI;
+
+  // Calculate time bounds using loop to avoid stack overflow from spread operator
+  // Math.min(...array) with 10k+ elements can exceed JavaScript call stack limit
+  const { minStartTime, maxStartTime } = useMemo(() => {
+    if (exceedsThreshold || observations.length === 0) {
+      return { minStartTime: null, maxStartTime: null };
+    }
+
+    let minTime = Infinity;
+    let maxTime = 0;
+    for (const obs of observations) {
+      const t = obs.startTime.getTime();
+      if (t < minTime) minTime = t;
+      if (t > maxTime) maxTime = t;
+    }
+
+    return {
+      minStartTime: new Date(minTime).toISOString(),
+      maxStartTime: new Date(maxTime).toISOString(),
+    };
+  }, [observations, exceedsThreshold]);
+
+  const queryEnabled =
+    !exceedsThreshold &&
+    observations.length > 0 &&
+    minStartTime !== null &&
+    maxStartTime !== null;
+
+  const queryInput = {
+    projectId,
+    traceId,
+    minStartTime: minStartTime ?? "",
+    maxStartTime: maxStartTime ?? "",
+  };
+
+  const queryOptions = {
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    staleTime: 50 * 60 * 1000, // 50 minutes
+  };
+
+  // Beta OFF: Query from observations table (existing behavior)
+  const tracesQuery = api.traces.getAgentGraphData.useQuery(queryInput, {
+    ...queryOptions,
+    enabled: queryEnabled && !isBetaEnabled,
+  });
+
+  // Beta ON: Query from events table (v4)
+  const eventsQuery = api.events.getAgentGraphData.useQuery(queryInput, {
+    ...queryOptions,
+    enabled: queryEnabled && isBetaEnabled,
+  });
+
+  // Use appropriate query based on beta toggle
+  const query = isBetaEnabled ? eventsQuery : tracesQuery;
 
   const agentGraphData = useMemo(() => query.data ?? [], [query.data]);
 
