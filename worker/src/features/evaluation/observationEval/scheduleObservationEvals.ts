@@ -40,25 +40,57 @@ export async function scheduleObservationEvals(
     return;
   }
 
-  // Upload observation to S3 once (not per config)
+  // Filter configs that match this observation (filter + sampling)
+  // This is done before S3 upload to avoid unnecessary uploads
+  const matchingConfigs = configs.filter((config) => {
+    // Check filter
+    const isTargeted = evaluateFilter(observation, config);
+    if (!isTargeted) {
+      logger.debug("Observation does not match eval config filter", {
+        configId: config.id,
+        observationId: observation.span_id,
+      });
+
+      return false;
+    }
+
+    // Check sampling
+    const samplingRate = config.sampling.toNumber();
+    if (!shouldSampleObservation({ samplingRate })) {
+      logger.debug("Observation sampled out for eval config", {
+        configId: config.id,
+        observationId: observation.span_id,
+        samplingRate,
+      });
+
+      return false;
+    }
+
+    return true;
+  });
+
+  // Early return if no configs match - no S3 upload needed
+  if (matchingConfigs.length === 0) return;
+
+  // Upload observation to S3 once
   const observationS3Path = await schedulerDeps.uploadObservationToS3({
     projectId: observation.project_id,
     observationId: observation.span_id,
     data: observation,
   });
 
-  // Process each config
-  for (const config of configs) {
+  // Process each matching config
+  for (const matchingConfig of matchingConfigs) {
     try {
-      await processConfig({
+      await processMatchingConfig({
         observation,
-        config,
+        matchingConfig,
         observationS3Path,
         schedulerDeps,
       });
     } catch (error) {
       logger.error("Failed to process observation eval config", {
-        configId: config.id,
+        configId: matchingConfig.id,
         observationId: observation.span_id,
         projectId: observation.project_id,
         error,
@@ -69,38 +101,22 @@ export async function scheduleObservationEvals(
 
 interface ProcessConfigParams {
   observation: ObservationForEval;
-  config: ObservationEvalConfig;
+  matchingConfig: ObservationEvalConfig;
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
 }
 
-async function processConfig(params: ProcessConfigParams): Promise<void> {
-  const { observation, config, observationS3Path, schedulerDeps } = params;
+async function processMatchingConfig(
+  params: ProcessConfigParams,
+): Promise<void> {
+  const {
+    observation,
+    matchingConfig: config,
+    observationS3Path,
+    schedulerDeps,
+  } = params;
 
-  // Step 1: Evaluate filter
-  const isTargeted = evaluateFilter(observation, config);
-  if (!isTargeted) {
-    logger.debug("Observation does not match eval config filter", {
-      configId: config.id,
-      observationId: observation.span_id,
-    });
-
-    return;
-  }
-
-  // Step 2: Check sampling
-  const samplingRate = config.sampling.toNumber();
-  if (!shouldSampleObservation({ samplingRate })) {
-    logger.debug("Observation sampled out for eval config", {
-      configId: config.id,
-      observationId: observation.span_id,
-      samplingRate,
-    });
-
-    return;
-  }
-
-  // Step 3: Check deduplication (job already exists?)
+  // Check deduplication (job already exists?)
   const existingJob = await schedulerDeps.findExistingJobExecution({
     projectId: observation.project_id,
     jobConfigurationId: config.id,
@@ -117,7 +133,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
     return;
   }
 
-  // Step 4: Create job execution
+  // Create job execution
   const jobExecution = await schedulerDeps.createJobExecution({
     projectId: observation.project_id,
     jobConfigurationId: config.id,
@@ -126,7 +142,7 @@ async function processConfig(params: ProcessConfigParams): Promise<void> {
     status: JobExecutionStatus.PENDING,
   });
 
-  // Step 5: Enqueue eval job
+  // Enqueue eval job
   await schedulerDeps.enqueueEvalJob({
     jobExecutionId: jobExecution.id,
     projectId: observation.project_id,

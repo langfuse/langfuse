@@ -151,7 +151,7 @@ describe("scheduleObservationEvals", () => {
   });
 
   describe("filter evaluation", () => {
-    it("should skip config when filter does not match", async () => {
+    it("should skip config and S3 upload when filter does not match", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation({ type: "span" });
 
@@ -172,6 +172,7 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
+      expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
       expect(schedulerDeps.createJobExecution).not.toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
@@ -217,7 +218,7 @@ describe("scheduleObservationEvals", () => {
   });
 
   describe("sampling", () => {
-    it("should skip config when sampled out (sampling rate 0)", async () => {
+    it("should skip config and S3 upload when sampled out (sampling rate 0)", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation();
 
@@ -231,6 +232,7 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
+      expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
       expect(schedulerDeps.createJobExecution).not.toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
