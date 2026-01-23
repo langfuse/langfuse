@@ -66,8 +66,8 @@ export default function UsersPage() {
         title: "Users",
         help: {
           description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See [docs](https://langfuse.com/docs/user-explorer) to learn more.",
-          href: "https://langfuse.com/docs/user-explorer",
+            "Attribute data in Langfuse to a user by adding a userId to your traces. See [docs](https://langfuse.com/docs/observability/features/users) to learn more.",
+          href: "https://langfuse.com/docs/observability/features/users",
         },
       }}
       scrollable={showOnboarding}
