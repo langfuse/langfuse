@@ -533,6 +533,7 @@ export type JobExecution = {
   job_input_trace_timestamp: Timestamp | null;
   job_input_observation_id: string | null;
   job_input_dataset_item_id: string | null;
+  job_input_dataset_item_valid_from: Timestamp | null;
   job_output_score_id: string | null;
   execution_trace_id: string | null;
 };
