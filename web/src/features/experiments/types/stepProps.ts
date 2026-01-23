@@ -100,6 +100,7 @@ export interface PromptModelStepProps {
 }
 
 export interface DatasetStepProps {
+  projectId: string;
   formState: FormState;
   datasetState: DatasetState;
   promptInfo: {

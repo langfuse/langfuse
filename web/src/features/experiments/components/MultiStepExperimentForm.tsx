@@ -478,6 +478,7 @@ export const MultiStepExperimentForm = ({
 
               {activeStep === "dataset" && (
                 <DatasetStep
+                  projectId={projectId}
                   formState={formState}
                   datasetState={datasetState}
                   promptInfo={{
