@@ -166,26 +166,26 @@ function evaluateFilter(
   config: ObservationEvalConfig,
 ): boolean {
   const filterConditions = config.filter as FilterState;
+  const isExperimentConfig =
+    config.targetObject === EvalTargetObject.EXPERIMENT;
+  const isExperimentRoot =
+    observation.span_id === observation.experiment_item_root_span_id;
 
-  // For experiments, we only need to check if observation is an experiment root span
-  if (config.targetObject === EvalTargetObject.EXPERIMENT) {
-    return observation.span_id === observation.experiment_item_root_span_id;
-  }
-
-  // Empty filter matches all
-  if (
+  // Empty filter matches all (for filter purposes)
+  const isEmptyFilter =
     !filterConditions ||
     !Array.isArray(filterConditions) ||
-    filterConditions.length === 0
-  ) {
-    return true;
-  }
+    filterConditions.length === 0;
 
-  // Use InMemoryFilterService to evaluate filter
-  // Column IDs are typed as keyof ObservationForEval, so direct property access is safe
-  return InMemoryFilterService.evaluateFilter(
-    observation,
-    filterConditions,
-    (obs, columnId) => obs[columnId as keyof ObservationForEval],
-  );
+  // Use InMemoryFilterService to evaluate filter if there are conditions
+  const isFilterMatch = isEmptyFilter
+    ? true
+    : InMemoryFilterService.evaluateFilter(
+        observation,
+        filterConditions,
+        (obs, columnId) => obs[columnId as keyof ObservationForEval],
+      );
+
+  // For experiment configs, must also match experiment root span
+  return isExperimentConfig ? isFilterMatch && isExperimentRoot : isFilterMatch;
 }

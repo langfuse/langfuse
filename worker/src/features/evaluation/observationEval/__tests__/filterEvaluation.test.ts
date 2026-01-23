@@ -360,44 +360,6 @@ describe("Filter Evaluation for Observation Evals", () => {
       });
     });
 
-    describe("model filtering", () => {
-      it("should filter by model name", async () => {
-        const gpt4Observation = createTestObservation({
-          project_id: projectId,
-          provided_model_name: "gpt-4",
-        });
-
-        const matched = await testFilterMatch(gpt4Observation, [
-          {
-            column: "provided_model_name",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["gpt-4", "gpt-4-turbo"],
-          },
-        ]);
-
-        expect(matched).toBe(true);
-      });
-
-      it("should exclude specific models", async () => {
-        const gpt35Observation = createTestObservation({
-          project_id: projectId,
-          provided_model_name: "gpt-3.5-turbo",
-        });
-
-        const matched = await testFilterMatch(gpt35Observation, [
-          {
-            column: "provided_model_name",
-            type: "stringOptions",
-            operator: "none of",
-            value: ["gpt-3.5-turbo"],
-          },
-        ]);
-
-        expect(matched).toBe(false);
-      });
-    });
-
     describe("level filtering", () => {
       it("should filter by log level", async () => {
         const errorObservation = createTestObservation({
@@ -569,26 +531,6 @@ describe("Filter Evaluation for Observation Evals", () => {
         expect(matched).toBe(false);
       });
     });
-
-    describe("tool_call_names filtering", () => {
-      it("should filter by tool call names", async () => {
-        const observation = createTestObservation({
-          project_id: projectId,
-          tool_call_names: ["search", "calculate"],
-        });
-
-        const matched = await testFilterMatch(observation, [
-          {
-            column: "tool_call_names",
-            type: "arrayOptions",
-            operator: "any of",
-            value: ["search"],
-          },
-        ]);
-
-        expect(matched).toBe(true);
-      });
-    });
   });
 
   describe("stringObject filters (metadata)", () => {
@@ -678,7 +620,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       const observation = createTestObservation({
         project_id: projectId,
         type: "GENERATION",
-        provided_model_name: "gpt-4",
+        level: "DEFAULT",
         environment: "production",
       });
 
@@ -690,10 +632,10 @@ describe("Filter Evaluation for Observation Evals", () => {
           value: ["GENERATION"],
         },
         {
-          column: "provided_model_name",
+          column: "level",
           type: "stringOptions",
           operator: "any of",
-          value: ["gpt-4", "gpt-4-turbo"],
+          value: ["DEFAULT", "DEBUG"],
         },
         {
           column: "environment",
@@ -710,7 +652,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       const observation = createTestObservation({
         project_id: projectId,
         type: "GENERATION",
-        provided_model_name: "gpt-3.5-turbo", // Doesn't match gpt-4 filter
+        level: "ERROR", // Doesn't match DEFAULT filter
         environment: "production",
       });
 
@@ -722,10 +664,10 @@ describe("Filter Evaluation for Observation Evals", () => {
           value: ["GENERATION"],
         },
         {
-          column: "provided_model_name",
+          column: "level",
           type: "stringOptions",
           operator: "any of",
-          value: ["gpt-4", "gpt-4-turbo"],
+          value: ["DEFAULT", "DEBUG"],
         },
         {
           column: "environment",
@@ -886,64 +828,6 @@ describe("Filter Evaluation for Observation Evals", () => {
     });
   });
 
-  describe("experiment property filtering", () => {
-    it("should filter by experiment_name", async () => {
-      const observation = createTestObservation({
-        project_id: projectId,
-        experiment_name: "prompt-optimization-v2",
-      });
-
-      const matched = await testFilterMatch(observation, [
-        {
-          column: "experiment_name",
-          type: "string",
-          operator: "contains",
-          value: "optimization",
-        },
-      ]);
-
-      expect(matched).toBe(true);
-    });
-
-    it("should filter by experiment_id", async () => {
-      const observation = createTestObservation({
-        project_id: projectId,
-        experiment_id: "exp-123",
-      });
-
-      const matched = await testFilterMatch(observation, [
-        {
-          column: "experiment_id",
-          type: "string",
-          operator: "=",
-          value: "exp-123",
-        },
-      ]);
-
-      expect(matched).toBe(true);
-    });
-  });
-
-  describe("prompt property filtering", () => {
-    it("should filter by prompt_name", async () => {
-      const observation = createTestObservation({
-        project_id: projectId,
-        prompt_name: "customer-support-v3",
-      });
-
-      const matched = await testFilterMatch(observation, [
-        {
-          column: "prompt_name",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["customer-support-v3", "customer-support-v2"],
-        },
-      ]);
-
-      expect(matched).toBe(true);
-    });
-  });
-
   describe("experiment target object filtering", () => {
     /**
      * Helper to test experiment target object filtering.
@@ -1011,27 +895,72 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(false);
     });
 
-    it("should ignore filter conditions when targetObject is EXPERIMENT", async () => {
+    it("should apply filter conditions when targetObject is EXPERIMENT", async () => {
       const spanId = "span-123";
       const observation = createTestObservation({
         project_id: projectId,
         span_id: spanId,
         experiment_item_root_span_id: spanId,
-        name: "my-generation", // This would NOT match the filter below
+        experiment_dataset_id: "dataset-123",
       });
 
-      // Filter that would normally exclude this observation
+      // Filter that excludes this observation's dataset
       const matched = await testExperimentFilterMatch(observation, [
         {
-          column: "name",
-          type: "string",
-          operator: "=",
-          value: "different-name", // Observation name is "my-generation"
+          column: "experiment_dataset_id",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["dataset-456"], // Observation has dataset-123
         },
       ]);
 
-      // Should still match because experiment filtering bypasses regular filters
+      // Should NOT match because filter conditions are applied for experiment configs
+      expect(matched).toBe(false);
+    });
+
+    it("should match experiment when filter matches and is root span", async () => {
+      const spanId = "span-123";
+      const observation = createTestObservation({
+        project_id: projectId,
+        span_id: spanId,
+        experiment_item_root_span_id: spanId,
+        experiment_dataset_id: "dataset-123",
+      });
+
+      // Filter that includes this observation's dataset
+      const matched = await testExperimentFilterMatch(observation, [
+        {
+          column: "experiment_dataset_id",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["dataset-123", "dataset-456"],
+        },
+      ]);
+
+      // Should match because filter passes AND observation is experiment root span
       expect(matched).toBe(true);
+    });
+
+    it("should not match experiment when filter matches but is not root span", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        span_id: "child-span-456",
+        experiment_item_root_span_id: "root-span-123",
+        experiment_dataset_id: "dataset-123",
+      });
+
+      // Filter matches the observation
+      const matched = await testExperimentFilterMatch(observation, [
+        {
+          column: "experiment_dataset_id",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["dataset-123"],
+        },
+      ]);
+
+      // Should NOT match because observation is not the experiment root span
+      expect(matched).toBe(false);
     });
 
     it("should not match child spans even if they have experiment properties", async () => {

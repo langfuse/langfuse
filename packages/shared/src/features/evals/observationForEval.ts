@@ -130,18 +130,8 @@ export const observationEvalFilterColumns: ObservationEvalFilterColumn[] = [
   { id: "tags", name: "Tags", type: "arrayOptions" },
   { id: "release", name: "Release", type: "string" },
 
-  // Model properties
-  { id: "provided_model_name", name: "Model", type: "stringOptions" },
-
-  // Prompt properties
-  { id: "prompt_name", name: "Prompt Name", type: "stringOptions" },
-
-  // Tool properties
-  { id: "tool_call_names", name: "Tool Call Names", type: "arrayOptions" },
-
   // Experiment properties
-  { id: "experiment_id", name: "Experiment ID", type: "string" },
-  { id: "experiment_name", name: "Experiment Name", type: "string" },
+  { id: "experiment_dataset_id", name: "Dataset", type: "stringOptions" },
 
   // Metadata (supports JSON path filtering)
   { id: "metadata", name: "Metadata", type: "stringObject" },
