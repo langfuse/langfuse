@@ -1,5 +1,3 @@
-import { EvalTargetObject } from "../../../src/features/evals/types";
-
 // Datasets
 const SEED_DATASET_ITEMS_COUNTRIES = [
   { input: { country: "France" }, output: "Paris" },
@@ -720,7 +718,7 @@ export const SEED_EVALUATOR_CONFIGS = [
         templateVariable: "output",
       },
     ],
-    targetObject: EvalTargetObject.TRACE,
+    targetObject: "trace",
     sampling: 1,
     delay: 5_000,
   },
