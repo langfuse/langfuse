@@ -121,21 +121,20 @@ export class BatchDataRetentionCleaner {
       table: tableName,
     });
 
-    // Find the oldest expired row across all workloads
-    const maxAgeSeconds = workloads
-      .map((w) => w.oldestAgeSeconds)
-      .filter((age): age is number => age !== null)
-      .reduce((max, age) => Math.max(max, age), 0);
+    // Compute seconds past cutoff for each workload and find the max
+    const SECONDS_PER_DAY = 86400;
+    const maxSecondsPastCutoff = workloads
+      .filter((w) => w.oldestAgeSeconds !== null)
+      .map((w) => w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY)
+      .reduce((max, val) => Math.max(max, val), Number.MIN_VALUE);
 
-    if (maxAgeSeconds >= 0) {
-      recordGauge(
-        `${METRIC_PREFIX}.oldest_expired_age_seconds`,
-        maxAgeSeconds,
-        {
-          table: tableName,
-        },
-      );
-    }
+    recordGauge(
+      `${METRIC_PREFIX}.seconds_past_cutoff`,
+      Math.max(maxSecondsPastCutoff, 0),
+      {
+        table: tableName,
+      },
+    );
 
     if (workloads.length === 0) {
       logger.info(
@@ -146,7 +145,7 @@ export class BatchDataRetentionCleaner {
 
     logger.info(`${instanceName}: Processing ${workloads.length} projects`, {
       projectIds: workloads.map((w) => w.projectId),
-      oldestAgeSeconds: maxAgeSeconds,
+      secondsPastCutoff: maxSecondsPastCutoff,
     });
 
     // Step 2: Execute single batch DELETE for all selected projects

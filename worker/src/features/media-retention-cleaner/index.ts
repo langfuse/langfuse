@@ -17,7 +17,7 @@ interface ProjectWorkload {
   retentionDays: number;
   cutoffDate: Date;
   expiredMediaCount: number;
-  oldestAgeSeconds: number | null;
+  secondsPastCutoff: number | null;
 }
 
 /**
@@ -54,11 +54,11 @@ export class MediaRetentionCleaner {
       projectId: workload.projectId,
     });
 
-    // Record gauge for oldest expired media age
-    if (workload.oldestAgeSeconds !== null && workload.oldestAgeSeconds >= 0) {
+    // Record gauge for how far past cutoff the oldest expired item is
+    if (workload.secondsPastCutoff !== null) {
       recordGauge(
-        `${METRIC_PREFIX}.oldest_expired_age_seconds`,
-        workload.oldestAgeSeconds,
+        `${METRIC_PREFIX}.seconds_past_cutoff`,
+        Math.max(workload.secondsPastCutoff, 0),
       );
     }
 
@@ -66,7 +66,7 @@ export class MediaRetentionCleaner {
       projectId: workload.projectId,
       retentionDays: workload.retentionDays,
       expiredMediaCount: workload.expiredMediaCount,
-      oldestAgeSeconds: workload.oldestAgeSeconds,
+      secondsPastCutoff: workload.secondsPastCutoff,
     });
 
     try {
@@ -98,14 +98,16 @@ export class MediaRetentionCleaner {
         project_id: string;
         retention_days: number;
         expired_count: bigint;
-        oldest_age_seconds: number;
+        seconds_past_cutoff: number;
       }>
     >`
       SELECT
         p.id as project_id,
         p.retention_days,
         COUNT(m.id) as expired_count,
-        EXTRACT(EPOCH FROM (NOW() - MIN(m.created_at)))::int as oldest_age_seconds
+        EXTRACT(EPOCH FROM (
+          (NOW() - (p.retention_days || ' days')::interval) - MIN(m.created_at)
+        ))::int as seconds_past_cutoff
       FROM projects p
       INNER JOIN media m ON m.project_id = p.id
       WHERE p.retention_days > 0
@@ -126,7 +128,7 @@ export class MediaRetentionCleaner {
       retentionDays: row.retention_days,
       cutoffDate: getRetentionCutoffDate(row.retention_days, now),
       expiredMediaCount: Number(row.expired_count),
-      oldestAgeSeconds: row.oldest_age_seconds,
+      secondsPastCutoff: row.seconds_past_cutoff,
     };
   }
 
