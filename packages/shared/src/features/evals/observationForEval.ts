@@ -1,70 +1,91 @@
 import { z } from "zod/v4";
 
-import { eventRecordBaseSchema } from "../../server/repositories/definitions";
-
 /**
- * ObservationForEval schema - a subset of eventRecordBaseSchema fields
- * needed for observation-level evaluations.
+ * ObservationForEval schema - fields needed for observation-level evaluations.
  *
- * IMPORTANT:
- * - This schema uses snake_case field names matching eventRecordBaseSchema
- * - The shape dictates the S3 JSON format for observation evals
- * - Changes here affect ingestion, in-flight evaluations, and historical evals
+ * IMPORTANT: Why this is a custom schema instead of picking from eventRecordBaseSchema
+ * =====================================================================================
+ *
+ * The ingestion pipeline (createEventRecord in IngestionService) intentionally uses
+ * loose types that don't strictly conform to eventRecordBaseSchema. This is by design:
+ *
+ * 1. The ClickHouse SDK performs its own type transformations (e.g., objects to JSON strings)
+ * 2. We want flexibility during ingestion to accept various OTEL SDK formats
+ * 3. Strict schema validation at ingestion time would reject valid data from vendor SDKs
+ *
+ * As a result, eventRecordBaseSchema expects strict types (e.g., model_parameters as string)
+ * but createEventRecord produces looser types (e.g., model_parameters as object).
+ *
+ * This schema uses relaxed types to accept data directly from the ingestion pipeline:
+ * - model_parameters: accepts both string (from ClickHouse reads) and object (from ingestion)
+ * - prompt_version: accepts both string and number
+ * - input/output: accepts string, array, or object (different OTEL SDKs produce different formats)
+ * - metadata: accepts Record<string, unknown> for flexibility
+ *
+ * Test coverage: worker/src/queues/__tests__/otelToObservationForEval.test.ts
+ * verifies that OTEL spans from various SDKs pass this schema after ingestion.
  */
-export const observationForEvalSchema = eventRecordBaseSchema.pick({
+
+// Flexible schema for usage/cost that accepts number values directly from ingestion
+const flexibleUsageCostSchema = z.record(z.string(), z.number().nullable());
+
+export const observationForEvalSchema = z.object({
   // Identifiers
-  span_id: true,
-  trace_id: true,
-  project_id: true,
-  parent_span_id: true,
+  span_id: z.string(),
+  trace_id: z.string(),
+  project_id: z.string(),
+  parent_span_id: z.string().nullish(),
 
   // Core properties
-  type: true,
-  name: true,
-  environment: true,
-  version: true,
-  release: true,
-  level: true,
-  status_message: true,
+  type: z.string(),
+  name: z.string(),
+  environment: z.string().default("default"),
+  version: z.string().nullish(),
+  release: z.string().nullish(),
+  level: z.string(),
+  status_message: z.string().nullish(),
 
   // Trace-level properties
-  trace_name: true,
-  user_id: true,
-  session_id: true,
-  tags: true,
+  trace_name: z.string().nullish(),
+  user_id: z.string().nullish(),
+  session_id: z.string().nullish(),
+  tags: z.array(z.string()).default([]),
 
   // Model
-  provided_model_name: true,
-  model_parameters: true,
+  provided_model_name: z.string().nullish(),
+  // Accepts string, object, or any other type from ingestion
+  model_parameters: z.unknown().optional(),
 
   // Prompt
-  prompt_id: true,
-  prompt_name: true,
-  prompt_version: true,
+  prompt_id: z.string().nullish(),
+  prompt_name: z.string().nullish(),
+  // Accepts string, number, or any other type from ingestion
+  prompt_version: z.unknown().optional(),
 
-  // Usage & Cost
-  provided_usage_details: true,
-  provided_cost_details: true,
-  usage_details: true,
-  cost_details: true,
+  // Usage & Cost - accepts number values directly from ingestion
+  provided_usage_details: flexibleUsageCostSchema,
+  provided_cost_details: flexibleUsageCostSchema,
+  usage_details: flexibleUsageCostSchema,
+  cost_details: flexibleUsageCostSchema,
 
   // Tool calls
-  tool_definitions: true,
-  tool_calls: true,
-  tool_call_names: true,
+  tool_definitions: z.record(z.string(), z.string()).default({}),
+  tool_calls: z.array(z.string()).default([]),
+  tool_call_names: z.array(z.string()).default([]),
 
   // Experiment
-  experiment_id: true,
-  experiment_name: true,
-  experiment_description: true,
-  experiment_dataset_id: true,
-  experiment_item_id: true,
-  experiment_item_expected_output: true,
+  experiment_id: z.string().nullish(),
+  experiment_name: z.string().nullish(),
+  experiment_description: z.string().nullish(),
+  experiment_dataset_id: z.string().nullish(),
+  experiment_item_id: z.string().nullish(),
+  experiment_item_expected_output: z.string().nullish(),
 
-  // Data
-  input: true,
-  output: true,
-  metadata: true,
+  // Data - accepts any type (string, array, object) from different OTEL SDKs
+  input: z.unknown().optional(),
+  output: z.unknown().optional(),
+  // Flexible metadata that accepts any value types
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
@@ -198,6 +219,13 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     id: "model_parameters",
     name: "Model Parameters",
     description: "Model configuration parameters",
+  },
+
+  // Prompt data
+  {
+    id: "prompt_version",
+    name: "Prompt Version",
+    description: "Version of the prompt used",
   },
 
   // Usage data
