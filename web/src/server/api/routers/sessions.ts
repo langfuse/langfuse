@@ -40,7 +40,7 @@ import {
   getCategoricalScoresGroupedByName,
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
-import { chunk } from "lodash";
+import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 

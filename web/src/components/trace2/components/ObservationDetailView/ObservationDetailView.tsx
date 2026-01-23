@@ -147,7 +147,7 @@ export function ObservationDetailView({
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
   const {
-    observation: observationWithIO,
+    observation: observationWithIORaw,
     parsedInput,
     parsedOutput,
     parsedMetadata,
@@ -158,7 +158,15 @@ export function ObservationDetailView({
     traceId: traceId,
     projectId: projectId,
     startTime: observation.startTime,
+    baseObservation: observation,
   });
+
+  // Type narrowing: when baseObservation is provided, result has full observation fields
+  // (EventBatchIOOutput case only occurs when baseObservation is missing)
+  const observationWithIO =
+    observationWithIORaw && "type" in observationWithIORaw
+      ? observationWithIORaw
+      : undefined;
 
   // For backward compatibility, create observationWithIO query-like object
   const observationWithIOCompat = {

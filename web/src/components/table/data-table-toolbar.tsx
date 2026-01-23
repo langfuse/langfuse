@@ -124,6 +124,7 @@ interface DataTableToolbarProps<TData, TValue> {
   viewConfig?: TableViewConfig;
   filterWithAI?: boolean;
   className?: string;
+  viewModeToggle?: React.ReactNode;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -149,6 +150,7 @@ export function DataTableToolbar<TData, TValue>({
   orderByState,
   viewConfig,
   filterWithAI = false,
+  viewModeToggle,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -183,6 +185,7 @@ export function DataTableToolbar<TData, TValue>({
             )}
           </Button>
         )}
+        {viewModeToggle}
         {searchConfig && (
           <div className="flex max-w-[30rem] flex-shrink-0 items-stretch md:min-w-[24rem]">
             <div
