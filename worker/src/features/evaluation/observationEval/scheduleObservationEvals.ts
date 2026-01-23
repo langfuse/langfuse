@@ -5,7 +5,11 @@ import {
 } from "./types";
 import { shouldSampleObservation } from "./shouldSampleObservation";
 import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
-import { JobExecutionStatus, type FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  JobExecutionStatus,
+  type FilterState,
+} from "@langfuse/shared";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -146,6 +150,11 @@ function evaluateFilter(
   config: ObservationEvalConfig,
 ): boolean {
   const filterConditions = config.filter as FilterState;
+
+  // For experiments, we only need to check if observation is an experiment root span
+  if (config.targetObject === EvalTargetObject.EXPERIMENT) {
+    return observation.span_id === observation.experiment_item_root_span_id;
+  }
 
   // Empty filter matches all
   if (

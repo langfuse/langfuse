@@ -6,7 +6,7 @@ import {
   createTestEvalConfig,
   createMockSchedulerDeps,
 } from "./fixtures";
-import { type ObservationForEval } from "@langfuse/shared";
+import { type ObservationForEval, EvalTargetObject } from "@langfuse/shared";
 
 // Mock logger to avoid noise in tests
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -941,6 +941,112 @@ describe("Filter Evaluation for Observation Evals", () => {
       ]);
 
       expect(matched).toBe(true);
+    });
+  });
+
+  describe("experiment target object filtering", () => {
+    /**
+     * Helper to test experiment target object filtering.
+     * Returns true if createJobExecution was called (meaning filter matched).
+     */
+    async function testExperimentFilterMatch(
+      observation: ObservationForEval,
+      filter: unknown[] = [],
+    ): Promise<boolean> {
+      const config = createTestEvalConfig({
+        projectId,
+        filter,
+        sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
+        targetObject: EvalTargetObject.EXPERIMENT,
+      });
+
+      const deps = createMockSchedulerDeps();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [config],
+        schedulerDeps: deps,
+      });
+
+      return (
+        (deps.createJobExecution as ReturnType<typeof vi.fn>).mock.calls
+          .length > 0
+      );
+    }
+
+    it("should match when span_id equals experiment_item_root_span_id", async () => {
+      const spanId = "span-123";
+      const observation = createTestObservation({
+        project_id: projectId,
+        span_id: spanId,
+        experiment_item_root_span_id: spanId,
+      });
+
+      const matched = await testExperimentFilterMatch(observation);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match when span_id does not equal experiment_item_root_span_id", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        span_id: "span-123",
+        experiment_item_root_span_id: "span-456",
+      });
+
+      const matched = await testExperimentFilterMatch(observation);
+
+      expect(matched).toBe(false);
+    });
+
+    it("should not match when experiment_item_root_span_id is null", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        span_id: "span-123",
+        experiment_item_root_span_id: null,
+      });
+
+      const matched = await testExperimentFilterMatch(observation);
+
+      expect(matched).toBe(false);
+    });
+
+    it("should ignore filter conditions when targetObject is EXPERIMENT", async () => {
+      const spanId = "span-123";
+      const observation = createTestObservation({
+        project_id: projectId,
+        span_id: spanId,
+        experiment_item_root_span_id: spanId,
+        name: "my-generation", // This would NOT match the filter below
+      });
+
+      // Filter that would normally exclude this observation
+      const matched = await testExperimentFilterMatch(observation, [
+        {
+          column: "name",
+          type: "string",
+          operator: "=",
+          value: "different-name", // Observation name is "my-generation"
+        },
+      ]);
+
+      // Should still match because experiment filtering bypasses regular filters
+      expect(matched).toBe(true);
+    });
+
+    it("should not match child spans even if they have experiment properties", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        span_id: "child-span-456",
+        experiment_item_root_span_id: "root-span-123",
+        experiment_id: "exp-1",
+        experiment_name: "my-experiment",
+      });
+
+      const matched = await testExperimentFilterMatch(observation);
+
+      // Child spans should not match, only the root span
+      expect(matched).toBe(false);
     });
   });
 });

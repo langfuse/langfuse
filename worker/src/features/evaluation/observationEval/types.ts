@@ -1,4 +1,4 @@
-import { type Prisma } from "@langfuse/shared/src/db";
+import { JobConfiguration } from "@langfuse/shared/src/db";
 
 /**
  * Re-export ObservationForEval as the canonical observation type for eval operations.
@@ -18,17 +18,18 @@ export {
  * Represents a job configuration with targetObject: "event".
  * Passed to the scheduler after being fetched once per batch.
  */
-export interface ObservationEvalConfig {
-  id: string;
-  projectId: string;
-  filter: Prisma.JsonValue;
-  sampling: Prisma.Decimal;
-  evalTemplateId: string;
-  scoreName: string;
-  targetObject: string;
-  variableMapping: Prisma.JsonValue;
-  delay: number;
-}
+export type ObservationEvalConfig = Pick<
+  JobConfiguration,
+  | "id"
+  | "projectId"
+  | "filter"
+  | "sampling"
+  | "evalTemplateId"
+  | "scoreName"
+  | "targetObject"
+  | "variableMapping"
+  | "delay"
+>;
 
 /**
  * Dependencies for scheduling observation evals.
