@@ -1,4 +1,6 @@
 import { z } from "zod/v4";
+import { DEFAULT_TRACE_ENVIRONMENT } from "../../server";
+import { ObservationLevel } from "../../domain";
 
 /**
  * ObservationForEval schema - fields needed for observation-level evaluations.
@@ -39,10 +41,9 @@ export const observationForEvalSchema = z.object({
   // Core properties
   type: z.string(),
   name: z.string(),
-  environment: z.string().default("default"),
+  environment: z.string().default(DEFAULT_TRACE_ENVIRONMENT),
   version: z.string().nullish(),
-  release: z.string().nullish(),
-  level: z.string(),
+  level: z.string().default(ObservationLevel.DEFAULT),
   status_message: z.string().nullish(),
 
   // Trace-level properties
@@ -50,17 +51,17 @@ export const observationForEvalSchema = z.object({
   user_id: z.string().nullish(),
   session_id: z.string().nullish(),
   tags: z.array(z.string()).default([]),
+  release: z.string().nullish(),
 
   // Model
   provided_model_name: z.string().nullish(),
-  // Accepts string, object, or any other type from ingestion
   model_parameters: z.unknown().optional(),
 
   // Prompt
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   // Accepts string, number, or any other type from ingestion
-  prompt_version: z.unknown().optional(),
+  prompt_version: z.union([z.string(), z.number()]).optional(),
 
   // Usage & Cost - accepts number values directly from ingestion
   provided_usage_details: flexibleUsageCostSchema,
@@ -69,8 +70,8 @@ export const observationForEvalSchema = z.object({
   cost_details: flexibleUsageCostSchema,
 
   // Tool calls
-  tool_definitions: z.record(z.string(), z.string()).default({}),
-  tool_calls: z.array(z.string()).default([]),
+  tool_definitions: z.record(z.string(), z.unknown()).default({}),
+  tool_calls: z.array(z.unknown()).default([]),
   tool_call_names: z.array(z.string()).default([]),
 
   // Experiment
@@ -84,7 +85,6 @@ export const observationForEvalSchema = z.object({
   // Data - accepts any type (string, array, object) from different OTEL SDKs
   input: z.unknown().optional(),
   output: z.unknown().optional(),
-  // Flexible metadata that accepts any value types
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -197,54 +197,11 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     type: "stringObject",
   },
 
-  // Tool call data
-  {
-    id: "tool_definitions",
-    name: "Tool Definitions",
-    description: "Available tool definitions",
-  },
-  {
-    id: "tool_calls",
-    name: "Tool Calls",
-    description: "Tool calls with arguments",
-  },
-
-  // Model data
-  {
-    id: "provided_model_name",
-    name: "Model",
-    description: "Model name used",
-  },
-  {
-    id: "model_parameters",
-    name: "Model Parameters",
-    description: "Model configuration parameters",
-  },
-
-  // Prompt data
-  {
-    id: "prompt_version",
-    name: "Prompt Version",
-    description: "Version of the prompt used",
-  },
-
-  // Usage data
-  {
-    id: "usage_details",
-    name: "Usage Details",
-    description: "Token usage breakdown",
-  },
-  {
-    id: "cost_details",
-    name: "Cost Details",
-    description: "Cost breakdown",
-  },
-
   // Experiment data
   {
     id: "experiment_item_expected_output",
-    name: "Expected Output",
-    description: "Expected output from dataset item",
+    name: "Experiment Item Expected Output",
+    description: "Expected output from experiment item",
   },
 ];
 
