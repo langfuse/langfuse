@@ -101,7 +101,21 @@ export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
  */
 export interface ObservationEvalFilterColumn {
   /** Column identifier (must match an ObservationForEval field name) */
-  id: keyof ObservationForEval;
+  id: keyof Pick<
+    ObservationForEval,
+    | "type"
+    | "name"
+    | "environment"
+    | "level"
+    | "version"
+    | "release"
+    | "trace_name"
+    | "user_id"
+    | "session_id"
+    | "tags"
+    | "experiment_dataset_id"
+    | "metadata"
+  >;
   /** Display name for UI */
   name: string;
   /** Filter type for UI rendering */
@@ -122,13 +136,13 @@ export const observationEvalFilterColumns: ObservationEvalFilterColumn[] = [
   { id: "environment", name: "Environment", type: "stringOptions" },
   { id: "level", name: "Level", type: "stringOptions" },
   { id: "version", name: "Version", type: "string" },
+  { id: "release", name: "Release", type: "string" },
 
   // Trace-level properties
   { id: "trace_name", name: "Trace Name", type: "string" },
   { id: "user_id", name: "User ID", type: "string" },
   { id: "session_id", name: "Session ID", type: "string" },
   { id: "tags", name: "Tags", type: "arrayOptions" },
-  { id: "release", name: "Release", type: "string" },
 
   // Experiment properties
   { id: "experiment_dataset_id", name: "Dataset", type: "stringOptions" },
@@ -136,12 +150,6 @@ export const observationEvalFilterColumns: ObservationEvalFilterColumn[] = [
   // Metadata (supports JSON path filtering)
   { id: "metadata", name: "Metadata", type: "stringObject" },
 ];
-
-/**
- * Type for valid filter column IDs.
- */
-export type ObservationEvalFilterColumnId =
-  (typeof observationEvalFilterColumns)[number]["id"];
 
 // ============================================================
 // VARIABLE COLUMN DEFINITIONS
@@ -153,7 +161,10 @@ export type ObservationEvalFilterColumnId =
  */
 export interface ObservationEvalVariableColumn {
   /** Column identifier (must match an ObservationForEval field name) */
-  id: keyof ObservationForEval;
+  id: keyof Pick<
+    ObservationForEval,
+    "input" | "output" | "metadata" | "experiment_item_expected_output"
+  >;
   /** Display name for UI */
   name: string;
   /** Description for UI tooltips */
@@ -195,33 +206,3 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     description: "Expected output from experiment item",
   },
 ];
-
-/**
- * Type for valid variable column IDs.
- */
-export type ObservationEvalVariableColumnId =
-  (typeof observationEvalVariableColumns)[number]["id"];
-
-// ============================================================
-// UI CONFIGURATION
-// ============================================================
-
-/**
- * UI-friendly representation for the evaluator form.
- * Used in inner-evaluator-form.tsx for the variable mapping UI.
- *
- * This differs from trace evals where you select from multiple objects
- * (trace, generation, span, etc.). For observation evals, there's only
- * the single observation being evaluated.
- */
-export const availableObservationEvalVariablesUI = [
-  {
-    id: "observation",
-    display: "Observation",
-    availableColumns: observationEvalVariableColumns.map((col) => ({
-      id: col.id,
-      name: col.name,
-      type: col.type,
-    })),
-  },
-] as const;
