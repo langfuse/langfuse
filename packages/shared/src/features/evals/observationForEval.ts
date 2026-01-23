@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { DEFAULT_TRACE_ENVIRONMENT } from "../../server";
+import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { ObservationLevel } from "../../domain";
 
 /**
@@ -55,13 +55,13 @@ export const observationForEvalSchema = z.object({
 
   // Model
   provided_model_name: z.string().nullish(),
-  model_parameters: z.unknown().optional(),
+  model_parameters: z.unknown().nullish(),
 
   // Prompt
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   // Accepts string, number, or any other type from ingestion
-  prompt_version: z.union([z.string(), z.number()]).optional(),
+  prompt_version: z.union([z.string().nullish(), z.number().nullish()]),
 
   // Usage & Cost - accepts number values directly from ingestion
   provided_usage_details: flexibleUsageCostSchema,
@@ -83,9 +83,9 @@ export const observationForEvalSchema = z.object({
   experiment_item_expected_output: z.string().nullish(),
 
   // Data - accepts any type (string, array, object) from different OTEL SDKs
-  input: z.unknown().optional(),
-  output: z.unknown().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  input: z.unknown().nullish(),
+  output: z.unknown().nullish(),
+  metadata: z.record(z.string(), z.unknown()).nullish(),
 });
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
