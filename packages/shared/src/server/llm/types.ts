@@ -297,6 +297,7 @@ export const ExperimentMetadataSchema = z
     experiment_name: z.string().optional(),
     experiment_run_name: z.string().optional(),
     error: z.string().optional(),
+    dataset_version: z.coerce.date().optional(),
   })
   .strict();
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;

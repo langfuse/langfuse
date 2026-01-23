@@ -82,6 +82,7 @@ export const ProjectQueueEventSchema = z.object({
 export const DatasetRunItemUpsertEventSchema = z.object({
   projectId: z.string(),
   datasetItemId: z.string(),
+  datasetItemValidFrom: z.date().optional(),
   traceId: z.string(),
   observationId: z.string().optional(),
 });

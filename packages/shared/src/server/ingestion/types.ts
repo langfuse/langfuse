@@ -570,6 +570,8 @@ const createAllIngestionSchemas = ({
     runId: z.string(),
     // Dataset item identification
     datasetItemId: z.string(),
+    // Dataset version
+    datasetVersion: stringDateTime,
   });
 
   // Event schemas

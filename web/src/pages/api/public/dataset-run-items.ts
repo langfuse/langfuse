@@ -40,6 +40,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItemId,
         status: "ACTIVE",
+        version: body.datasetVersion ?? undefined,
       });
 
       if (!datasetItem) {
@@ -98,6 +99,7 @@ export default withMiddlewares({
           datasetId: datasetItem.datasetId,
           runId: run.id,
           datasetItemId: datasetItem.id,
+          datasetVersion: datasetItem.validFrom.toISOString(),
         },
       };
       // note: currently we do not accept user defined ids for dataset run items
@@ -125,6 +127,7 @@ export default withMiddlewares({
       await addDatasetRunItemsToEvalQueue({
         projectId: auth.scope.projectId,
         datasetItemId: datasetItem.id,
+        datasetItemValidFrom: datasetItem.validFrom,
         traceId: finalTraceId,
         observationId: observationId ?? undefined,
       });

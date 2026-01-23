@@ -424,7 +424,7 @@ export const createEvalJobs = async ({
     const isDatasetConfig = config.target_object === "dataset";
     let datasetItem:
       | { id: string }
-      | { id: string; observationId: string | null }
+      | { id: string; observationId: string | null; validFrom?: Date }
       | undefined;
     if (isDatasetConfig) {
       const condition = tableColumnsToSqlFilterAndPrefix(
@@ -435,15 +435,19 @@ export const createEvalJobs = async ({
 
       // If the target object is a dataset and the event type has a datasetItemId, we try to fetch it based on our filter
       if ("datasetItemId" in event && event.datasetItemId) {
+        const versionCondition = event.datasetItemValidFrom
+          ? Prisma.sql`AND valid_from = ${event.datasetItemValidFrom}::timestamp with time zone at time zone 'UTC'`
+          : Prisma.sql`AND valid_to IS NULL`;
+
         const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string }>
+          Array<{ id: string; validFrom: Date }>
         >(Prisma.sql`
-          SELECT id
+          SELECT id, valid_from
           FROM (
-            SELECT id, is_deleted
+            SELECT id, is_deleted, valid_from
             FROM dataset_items as di
             WHERE project_id = ${event.projectId}
-              AND valid_to IS NULL 
+              ${versionCondition}
               AND id = ${event.datasetItemId}
               ${condition}
             LIMIT 1
@@ -452,7 +456,7 @@ export const createEvalJobs = async ({
         `);
         const latestDatasetItem = datasetItems.shift();
         datasetItem = latestDatasetItem
-          ? { id: latestDatasetItem.id }
+          ? { id: latestDatasetItem.id, validFrom: latestDatasetItem.validFrom }
           : undefined;
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.
@@ -582,6 +586,9 @@ export const createEvalJobs = async ({
           ...(datasetItem
             ? {
                 jobInputDatasetItemId: datasetItem.id,
+                ...("validFrom" in datasetItem && {
+                  jobInputDatasetItemValidFrom: datasetItem.validFrom,
+                }),
                 jobInputObservationId: observationId || null,
               }
             : {}),
@@ -716,6 +723,7 @@ export const evaluate = async ({
     traceId: job.jobInputTraceId,
     traceTimestamp: job.jobInputTraceTimestamp ?? undefined,
     datasetItemId: job.jobInputDatasetItemId ?? undefined,
+    datasetItemValidFrom: job.jobInputDatasetItemValidFrom ?? undefined,
     variableMapping: parsedVariableMapping,
   });
 
@@ -928,6 +936,7 @@ export async function extractVariablesFromTracingData({
   variableMapping,
   traceTimestamp,
   datasetItemId,
+  datasetItemValidFrom,
 }: {
   projectId: string;
   variables: string[];
@@ -936,6 +945,7 @@ export async function extractVariablesFromTracingData({
   variableMapping: z.infer<typeof variableMappingList>;
   traceTimestamp?: Date;
   datasetItemId?: string;
+  datasetItemValidFrom?: Date;
 }): Promise<{ var: string; value: string; environment?: string }[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
   // We do not cache dataset items as Postgres is cheaper than ClickHouse.
@@ -980,17 +990,23 @@ export async function extractVariablesFromTracingData({
         continue;
       }
 
-      const datasetItem = (await kyselyPrisma.$kysely
+      let query = kyselyPrisma.$kysely
         .selectFrom("dataset_items as d")
         .select(
           sql`${sql.raw(safeInternalColumn.internal)}`.as(
             safeInternalColumn.id,
           ),
-        ) // query the internal column name raw
+        )
         .where("id", "=", datasetItemId)
-        .where("project_id", "=", projectId)
-        .where("valid_to", "is", null)
-        .executeTakeFirst()) as DatasetItem;
+        .where("project_id", "=", projectId);
+
+      // Conditional: exact match if version known, otherwise latest
+      if (datasetItemValidFrom) {
+        query = query.where("valid_from", "=", datasetItemValidFrom);
+      } else {
+        query = query.where("valid_to", "is", null);
+      }
+      const datasetItem = (await query.executeTakeFirst()) as DatasetItem;
 
       // user facing errors
       if (!datasetItem) {

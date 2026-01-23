@@ -4,6 +4,7 @@ import {
   paginationZod,
   paginationMetaResponseZod,
   queryStringZod,
+  versionZod,
   type DatasetRuns as DbDatasetRuns,
   type Dataset as DbDataset,
   removeObjectKeys,
@@ -181,6 +182,7 @@ export const GetDatasetItemsV1Query = z.object({
   datasetName: z.string().nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
+  version: versionZod.nullish(),
   ...publicApiPaginationZod,
 });
 export const GetDatasetItemsV1Response = z
@@ -215,6 +217,7 @@ export const PostDatasetRunItemsV1Body = z
     datasetItemId: z.string(),
     observationId: z.string().nullish(),
     traceId: z.string().nullish(),
+    datasetVersion: versionZod.nullish(),
   })
   .strict()
   .refine((data) => data.observationId || data.traceId, {
