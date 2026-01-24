@@ -140,9 +140,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
     uploadScore: async (params) => {
       const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${params.projectId}/score/${params.scoreId}/${params.eventId}.json`;
 
-      await getEvalS3StorageClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      ).uploadJson(bucketPath, [
+      await getEvalS3StorageClient().uploadJson(bucketPath, [
         params.event as unknown as Record<string, unknown>,
       ]);
     },
@@ -202,11 +200,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           targetProjectId: params.traceSinkParams.targetProjectId,
           traceId: params.traceSinkParams.traceId,
           traceName: params.traceSinkParams.traceName,
-          environment:
-            LangfuseInternalTraceEnvironment[
-              params.traceSinkParams
-                .environment as keyof typeof LangfuseInternalTraceEnvironment
-            ] ?? params.traceSinkParams.environment,
+          environment: params.traceSinkParams.environment,
           metadata: params.traceSinkParams.metadata,
         },
       });

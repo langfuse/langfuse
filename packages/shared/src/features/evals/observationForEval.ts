@@ -1,34 +1,8 @@
 import { z } from "zod/v4";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
+import { type EventRecordBaseType } from "../../server/repositories/definitions";
 import { ObservationLevel } from "../../domain";
 
-/**
- * ObservationForEval schema - fields needed for observation-level evaluations.
- *
- * IMPORTANT: Why this is a custom schema instead of picking from eventRecordBaseSchema
- * =====================================================================================
- *
- * The ingestion pipeline (createEventRecord in IngestionService) intentionally uses
- * loose types that don't strictly conform to eventRecordBaseSchema. This is by design:
- *
- * 1. The ClickHouse SDK performs its own type transformations (e.g., objects to JSON strings)
- * 2. We want flexibility during ingestion to accept various OTEL SDK formats
- * 3. Strict schema validation at ingestion time would reject valid data from vendor SDKs
- *
- * As a result, eventRecordBaseSchema expects strict types (e.g., model_parameters as string)
- * but createEventRecord produces looser types (e.g., model_parameters as object).
- *
- * This schema uses relaxed types to accept data directly from the ingestion pipeline:
- * - model_parameters: accepts both string (from ClickHouse reads) and object (from ingestion)
- * - prompt_version: accepts both string and number
- * - input/output: accepts string, array, or object (different OTEL SDKs produce different formats)
- * - metadata: accepts Record<string, unknown> for flexibility
- *
- * Test coverage: worker/src/queues/__tests__/otelToObservationForEval.test.ts
- * verifies that OTEL spans from various SDKs pass this schema after ingestion.
- */
-
-// Flexible schema for usage/cost that accepts number values directly from ingestion
 const flexibleUsageCostSchema = z.record(z.string(), z.number().nullable());
 
 export const observationForEvalSchema = z.object({
@@ -91,14 +65,12 @@ export const observationForEvalSchema = z.object({
 
 export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
 
-// ============================================================
-// FILTER COLUMN DEFINITIONS
-// ============================================================
+export function convertEventRecordToObservationForEval(
+  record: EventRecordBaseType,
+): ObservationForEval {
+  return observationForEvalSchema.parse(record);
+}
 
-/**
- * Column definition for observation eval filtering.
- * The `id` is typed as `keyof ObservationForEval` to ensure compile-time safety.
- */
 export interface ObservationEvalFilterColumn {
   /** Column identifier (must match an ObservationForEval field name) */
   id: keyof Pick<
@@ -137,28 +109,14 @@ export const observationEvalFilterColumns: ObservationEvalFilterColumn[] = [
   { id: "level", name: "Level", type: "stringOptions" },
   { id: "version", name: "Version", type: "string" },
   { id: "release", name: "Release", type: "string" },
-
-  // Trace-level properties
   { id: "trace_name", name: "Trace Name", type: "string" },
   { id: "user_id", name: "User ID", type: "string" },
   { id: "session_id", name: "Session ID", type: "string" },
   { id: "tags", name: "Tags", type: "arrayOptions" },
-
-  // Experiment properties
   { id: "experiment_dataset_id", name: "Dataset", type: "stringOptions" },
-
-  // Metadata (supports JSON path filtering)
   { id: "metadata", name: "Metadata", type: "stringObject" },
 ];
 
-// ============================================================
-// VARIABLE COLUMN DEFINITIONS
-// ============================================================
-
-/**
- * Column definition for observation eval variable extraction.
- * The `id` is typed as `keyof ObservationForEval` to ensure compile-time safety.
- */
 export interface ObservationEvalVariableColumn {
   /** Column identifier (must match an ObservationForEval field name) */
   id: keyof Pick<
@@ -181,7 +139,6 @@ export interface ObservationEvalVariableColumn {
  * variables like {{input}}, {{output}}, {{expected_output}}, etc.
  */
 export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
-  // Primary data fields
   {
     id: "input",
     name: "Input",
@@ -199,7 +156,6 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     type: "stringObject",
   },
 
-  // Experiment data
   {
     id: "experiment_item_expected_output",
     name: "Experiment Item Expected Output",

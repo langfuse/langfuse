@@ -288,9 +288,8 @@ export const otelIngestionQueueProcessor: Processor = async (
 
     // Determine what processing is needed
     const shouldWriteToEventsTable =
-      useDirectEventWrite &&
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-      env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true";
+      useDirectEventWrite;
 
     const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
       (error) => {

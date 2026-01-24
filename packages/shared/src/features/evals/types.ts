@@ -1,13 +1,5 @@
 import z from "zod/v4";
 
-/**
- * Enum for eval job configuration target objects.
- * Determines what triggers the eval and what gets scored.
- *
- * - TRACE: Triggered by trace events, scores traces
- * - DATASET: Triggered by dataset run items, scores dataset items
- * - EVENT: Triggered by observation events (OTEL), scores individual observations
- */
 export const EvalTargetObject = {
   TRACE: "trace",
   DATASET: "dataset",

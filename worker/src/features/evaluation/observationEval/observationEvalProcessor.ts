@@ -32,9 +32,7 @@ export interface ObservationEvalProcessorDeps {
 export function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
   return {
     downloadObservationFromS3: async (path: string) => {
-      const s3Client = getEvalS3StorageClient(
-        env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-      );
+      const s3Client = getEvalS3StorageClient();
 
       return s3Client.download(path);
     },
