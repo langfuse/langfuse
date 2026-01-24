@@ -14,7 +14,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam } from "use-query-params";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { isEqual } from "lodash";
+import isEqual from "lodash/isEqual";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
 

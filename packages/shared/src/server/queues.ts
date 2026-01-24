@@ -220,6 +220,29 @@ export type BatchProjectCleanerJobType = z.infer<
   typeof BatchProjectCleanerJobSchema
 >;
 
+// Tables for batch data retention cleaning (ClickHouse only, no dataset_run_items)
+export const BATCH_DATA_RETENTION_TABLES = [
+  "traces",
+  "observations",
+  "scores",
+  "events",
+] as const;
+
+export type BatchDataRetentionTable =
+  (typeof BATCH_DATA_RETENTION_TABLES)[number];
+
+export const BatchDataRetentionCleanerJobSchema = z.object({
+  table: z.enum(BATCH_DATA_RETENTION_TABLES),
+});
+export type BatchDataRetentionCleanerJobType = z.infer<
+  typeof BatchDataRetentionCleanerJobSchema
+>;
+
+export const MediaRetentionCleanerJobSchema = z.object({});
+export type MediaRetentionCleanerJobType = z.infer<
+  typeof MediaRetentionCleanerJobSchema
+>;
+
 export const NotificationEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("COMMENT_MENTION"),
@@ -340,6 +363,8 @@ export enum QueueName {
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
   BatchProjectCleanerQueue = "batch-project-cleaner-queue",
+  BatchDataRetentionCleanerQueue = "batch-data-retention-cleaner-queue",
+  MediaRetentionCleanerQueue = "media-retention-cleaner-queue",
 }
 
 export enum QueueJobs {
@@ -377,6 +402,8 @@ export enum QueueJobs {
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
   BatchProjectCleanerJob = "batch-project-cleaner-job",
+  BatchDataRetentionCleanerJob = "batch-data-retention-cleaner-job",
+  MediaRetentionCleanerJob = "media-retention-cleaner-job",
 }
 
 export type TQueueJobTypes = {

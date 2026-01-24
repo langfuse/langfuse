@@ -31,6 +31,8 @@ import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
 import { BatchProjectCleanerQueue } from "./batchProjectCleanerQueue";
+import { BatchDataRetentionCleanerQueue } from "./batchDataRetentionCleanerQueue";
+import { MediaRetentionCleanerQueue } from "./mediaRetentionCleanerQueue";
 
 // IngestionQueue, OtelIngestionQueue, and TraceUpsert are sharded and require a sharding key
 // Use IngestionQueue.getInstance({ shardName: queueName }) or TraceUpsertQueue.getInstance({ shardName: queueName }) directly instead
@@ -105,6 +107,10 @@ export function getQueue(
       return NotificationQueue.getInstance();
     case QueueName.BatchProjectCleanerQueue:
       return BatchProjectCleanerQueue.getInstance();
+    case QueueName.BatchDataRetentionCleanerQueue:
+      return BatchDataRetentionCleanerQueue.getInstance();
+    case QueueName.MediaRetentionCleanerQueue:
+      return MediaRetentionCleanerQueue.getInstance();
     default: {
       const _exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

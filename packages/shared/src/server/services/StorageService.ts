@@ -332,7 +332,7 @@ class AzureBlobStorageService implements StorageService {
     try {
       await this.createContainerIfNotExists();
 
-      const result = await this.client.listBlobsFlat({ prefix });
+      const result = this.client.listBlobsFlat({ prefix });
       const files = [];
       for await (const blob of result) {
         if (blob.name.startsWith(prefix)) {
@@ -340,6 +340,9 @@ class AzureBlobStorageService implements StorageService {
             file: blob.name,
             createdAt: blob?.properties?.createdOn ?? new Date(),
           });
+          if (files.length >= env.LANGFUSE_S3_LIST_MAX_KEYS) {
+            break;
+          }
         }
       }
       return files;
@@ -826,7 +829,10 @@ class GoogleCloudStorageService implements StorageService {
     prefix: string,
   ): Promise<{ file: string; createdAt: Date }[]> {
     try {
-      const [files] = await this.bucket.getFiles({ prefix });
+      const [files] = await this.bucket.getFiles({
+        prefix,
+        maxResults: env.LANGFUSE_S3_LIST_MAX_KEYS,
+      });
 
       return files.map((file) => ({
         file: file.name,

@@ -636,6 +636,9 @@ export const createEvalJobs = async ({
         });
       }
     }
+
+    // Yield to event loop between config iterations to prevent stalls
+    await new Promise((resolve) => setImmediate(resolve));
   }
 };
 
@@ -1141,9 +1144,11 @@ export const parseDatabaseRowToString = (
   let jsonSelectedColumn;
 
   if (mapping.jsonSelector) {
-    logger.debug(
-      `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
-    );
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        `Parsing JSON for json selector ${mapping.jsonSelector} from ${JSON.stringify(selectedColumn)}`,
+      );
+    }
 
     try {
       jsonSelectedColumn = JSONPath({

@@ -1,4 +1,4 @@
-import { Pencil, Trash, FileDiff, Info } from "lucide-react";
+import { Pencil, Trash, FileDiff, Loader2, Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { type ScoreDomain } from "@langfuse/shared";
@@ -25,6 +25,7 @@ interface CorrectedOutputFieldProps {
   actualOutput?: unknown;
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
+  compact?: boolean; // Use smaller font size for JSON Beta view
 }
 
 export function CorrectedOutputField({
@@ -34,6 +35,7 @@ export function CorrectedOutputField({
   projectId,
   traceId,
   environment = "default",
+  compact = false,
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:CUD" });
 
@@ -85,20 +87,59 @@ export function CorrectedOutputField({
     ? value.trim().length > 0
     : correctionValue.trim().length > 0;
 
-  // Format JSON for display
+  // Get display value based on mode
+  // In text mode: unwrap JSON strings for easier editing
+  // In JSON mode: show raw JSON
   const displayValue = useMemo(() => {
     if (!value) return "";
-    try {
-      const parsed = JSON.parse(value);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      // If JSON parsing fails, return the raw value (don't clear it)
-      return value;
+
+    if (strictJsonMode) {
+      // JSON mode: format JSON nicely
+      try {
+        const parsed = JSON.parse(value);
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        // Not valid JSON, return as-is
+        return value;
+      }
+    } else {
+      // Text mode: unwrap if it's a JSON string
+      try {
+        const parsed = JSON.parse(value);
+        if (typeof parsed === "string") {
+          // It's a JSON-encoded string, show unwrapped
+          return parsed;
+        }
+        // It's an object/array, format nicely
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        // Not valid JSON, return as-is
+        return value;
+      }
     }
-  }, [value]);
+  }, [value, strictJsonMode]);
 
   const handleEditorChange = (newValue: string) => {
     handleChange(newValue);
+  };
+
+  const handleStrictJsonModeChange = (isStrictJsonMode: boolean) => {
+    setStrictJsonMode(isStrictJsonMode);
+
+    // Smart conversion only when toggling modes
+    if (!isEditing || !value.trim()) return;
+
+    if (isStrictJsonMode) {
+      // Switching TO JSON mode: wrap plain text, keep JSON objects/arrays
+      try {
+        JSON.parse(value);
+        // Already valid JSON, keep as-is
+      } catch {
+        // Not valid JSON, wrap as string and update
+        const wrappedValue = JSON.stringify(value);
+        handleChange(wrappedValue);
+      }
+    }
   };
 
   const handleDeleteWithExitEdit = () => {
@@ -119,8 +160,13 @@ export function CorrectedOutputField({
         <div className="group relative rounded-md">
           <div className="flex items-center justify-between py-1.5">
             <div className="flex items-center gap-1">
-              <span className="text-sm font-medium">
-                Corrected Output (Beta)
+              <span
+                className={cn(
+                  "text-sm font-medium",
+                  compact ? "text-xs" : "text-sm",
+                )}
+              >
+                {compact ? "" : "Corrected Output (Beta)"}
               </span>
               <HoverCard>
                 <HoverCardTrigger asChild>
@@ -155,12 +201,18 @@ export function CorrectedOutputField({
                   </span>
                 )}
                 {isValidJson && saveStatus === "saving" && (
-                  <span className="mr-2 w-fit text-xs text-muted-foreground">
-                    Saving...
-                  </span>
+                  <div className="mr-2 flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="text-xs text-muted-foreground">
+                      Saving
+                    </span>
+                  </div>
                 )}
                 {isValidJson && saveStatus === "saved" && (
-                  <span className="mr-2 w-fit text-xs">Saved ✓</span>
+                  <div className="mr-2 flex items-center gap-1">
+                    <Check className="h-3 w-3" />
+                    <span className="text-xs text-muted-foreground">Saved</span>
+                  </div>
                 )}
                 {hasContent && (
                   <>
@@ -201,7 +253,8 @@ export function CorrectedOutputField({
               <div className="flex items-center">
                 <Switch
                   checked={strictJsonMode}
-                  onCheckedChange={setStrictJsonMode}
+                  onCheckedChange={handleStrictJsonModeChange}
+                  disabled={!isEditing}
                   className="scale-75"
                 />
                 <span className="text-xs text-muted-foreground">JSON</span>

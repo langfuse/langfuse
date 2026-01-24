@@ -28,7 +28,7 @@ import { DialogDescription } from "@radix-ui/react-dialog";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 
 type ApiKeyScope = "project" | "organization";

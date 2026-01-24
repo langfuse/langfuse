@@ -1,4 +1,4 @@
-import lodash from "lodash";
+import isEmpty from "lodash/isEmpty";
 import { z } from "zod/v4";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
@@ -58,7 +58,7 @@ export const usage = MixedUsage.nullish()
     }
 
     // if the object is empty, we return undefined
-    if (lodash.isEmpty(v)) {
+    if (isEmpty(v)) {
       return undefined;
     }
 
