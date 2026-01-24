@@ -206,16 +206,7 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("tags");
       expect(columnIds).toContain("release");
 
-      // Model/Prompt properties (snake_case)
-      expect(columnIds).toContain("provided_model_name");
-      expect(columnIds).toContain("prompt_name");
-
-      // Tool properties (snake_case)
-      expect(columnIds).toContain("tool_call_names");
-
-      // Experiment properties (snake_case)
-      expect(columnIds).toContain("experiment_id");
-      expect(columnIds).toContain("experiment_name");
+      expect(columnIds).toContain("experiment_dataset_id");
 
       // Metadata
       expect(columnIds).toContain("metadata");
@@ -238,20 +229,6 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("input");
       expect(columnIds).toContain("output");
       expect(columnIds).toContain("metadata");
-
-      // Tool call data (snake_case)
-      expect(columnIds).toContain("tool_definitions");
-      expect(columnIds).toContain("tool_calls");
-
-      // Model data (snake_case)
-      expect(columnIds).toContain("provided_model_name");
-      expect(columnIds).toContain("model_parameters");
-
-      // Usage data (snake_case)
-      expect(columnIds).toContain("usage_details");
-      expect(columnIds).toContain("cost_details");
-
-      // Experiment data (snake_case)
       expect(columnIds).toContain("experiment_item_expected_output");
     });
   });

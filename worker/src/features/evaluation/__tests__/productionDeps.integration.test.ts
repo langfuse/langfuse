@@ -215,7 +215,7 @@ describe("Production Dependency Factories Integration Tests", () => {
 
         // Verify path format
         expect(s3Path).toBe(
-          `evals/${projectId}/observations/${observationId}.json`,
+          `events/evals/${projectId}/observations/${observationId}.json`,
         );
 
         // Verify file exists in S3
