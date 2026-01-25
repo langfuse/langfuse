@@ -11,7 +11,6 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../../../env";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { extractObservationVariables } from "./extractObservationVariables";
 import { executeLLMAsJudgeEvaluation } from "../evalService";

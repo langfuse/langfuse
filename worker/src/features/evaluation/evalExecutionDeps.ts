@@ -6,7 +6,6 @@ import {
   fetchLLMCompletion,
   IngestionQueue,
   QueueJobs,
-  LangfuseInternalTraceEnvironment,
   ScoreEventType,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";

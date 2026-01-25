@@ -269,17 +269,13 @@ export const otelIngestionQueueProcessor: Processor = async (
       }),
     ]);
 
-    // =========================================================================
-    // PHASE 3: Process events for observation evals and direct event writes
-    // =========================================================================
+    // Process events for observation evals and direct event writes
     // This phase handles two independent concerns:
     // 1. Scheduling observation-level evals (if eval configs exist)
     // 2. Writing directly to events table (if SDK version requirements are met)
     //
     // Both require enriched event records with trace-level attributes
     // (userId, sessionId, tags, release) that processToEvent provides.
-    // =========================================================================
-
     const eventInputs = processor.processToEvent(parsedSpans);
 
     if (eventInputs.length === 0) {
