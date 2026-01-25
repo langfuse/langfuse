@@ -8,6 +8,7 @@ import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * SlackOAuthHandlers
@@ -24,6 +25,21 @@ export async function handleInstallPath(
   projectId: string,
 ) {
   try {
+    const session = await getServerAuthSession({ req, res });
+    if (!session) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const hasAccess = hasProjectAccess({
+      session,
+      projectId,
+      scope: "integrations:CRUD",
+    });
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     // Use InstallProvider's handleInstallPath method to render the installation page
     // This method will:
     // 1. Generate the OAuth URL with proper state parameter
@@ -68,6 +84,28 @@ export async function handleCallback(
           );
           const projectId = metadata.projectId;
 
+          const session = await getServerAuthSession({ req, res });
+          if (!session) {
+            logger.warn("No session found in Slack OAuth callback success", {
+              projectId,
+            });
+            return res.status(401).json({ message: "Unauthorized" });
+          }
+
+          const hasAccess = hasProjectAccess({
+            session,
+            projectId,
+            scope: "integrations:CRUD",
+          });
+
+          if (!hasAccess) {
+            logger.warn("Forbidden Slack OAuth callback attempt", {
+              projectId,
+              userId: session.user.id,
+            });
+            return res.status(403).json({ message: "Forbidden" });
+          }
+
           logger.info("OAuth callback successful", {
             projectId,
             teamId: installation.team?.id,
@@ -77,7 +115,6 @@ export async function handleCallback(
           // Create audit log for the Slack integration
           // The session should still be valid from when the user initiated the install
           try {
-            const session = await getServerAuthSession({ req, res });
             if (session?.user?.id) {
               // Find the integration that was just created
               const integration = await prisma.slackIntegration.findUnique({

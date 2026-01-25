@@ -21,6 +21,7 @@ export function GitHubEnterpriseProvider<P extends GithubProfile>(
       url: `${baseUrl}/login/oauth/authorize`,
       params: { scope: "read:user user:email" },
     },
+    checks: ["state"],
     token: `${baseUrl}/login/oauth/access_token`,
     userinfo: {
       url: `${apiBaseUrl}/user`,

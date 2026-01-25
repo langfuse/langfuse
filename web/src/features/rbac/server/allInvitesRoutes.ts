@@ -26,28 +26,30 @@ async function getInvites(
     | (z.infer<typeof projectLevelInviteQuery> & { orgId: string }),
   showAllOrgMembers: boolean = true,
 ) {
+  const whereClause = {
+    orgId: query.orgId,
+    // restrict to only invites with role in a project if projectId is set
+    ...("projectId" in query && !showAllOrgMembers
+      ? {
+        OR: [
+          {
+            orgRole: {
+              not: Role.NONE,
+            },
+          },
+          {
+            projectId: query.projectId,
+            projectRole: {
+              not: Role.NONE,
+            },
+          },
+        ],
+      }
+      : {}),
+  };
+
   const invitations = await prisma.membershipInvitation.findMany({
-    where: {
-      orgId: query.orgId,
-      // restrict to only invites with role in a project if projectId is set
-      ...("projectId" in query && !showAllOrgMembers
-        ? {
-            OR: [
-              {
-                orgRole: {
-                  not: Role.NONE,
-                },
-              },
-              {
-                projectId: query.projectId,
-                projectRole: {
-                  not: Role.NONE,
-                },
-              },
-            ],
-          }
-        : {}),
-    },
+    where: whereClause,
     include: {
       invitedByUser: {
         select: {
@@ -64,9 +66,7 @@ async function getInvites(
   });
 
   const totalCount = await prisma.membershipInvitation.count({
-    where: {
-      orgId: query.orgId,
-    },
+    where: whereClause,
   });
 
   return {
