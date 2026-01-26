@@ -11,7 +11,6 @@ import useLocalStorage from "../useLocalStorage";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 type SidebarNotification = {
@@ -28,14 +27,6 @@ type SidebarNotification = {
 };
 
 const notifications: SidebarNotification[] = [
-  {
-    id: "book-a-call",
-    title: "Need help?",
-    description: "Let's chat about your project and get you set up.",
-    link: "https://cal.com/team/langfuse/welcome-to-langfuse",
-    linkTitle: "Book a call",
-    ttlMs: SEVEN_DAYS_MS,
-  },
   {
     id: "github-star",
     title: "Star Langfuse",
