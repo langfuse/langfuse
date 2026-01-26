@@ -8,7 +8,7 @@ import {
   PostDatasetRunItemsV1Body,
   PostDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
-import { JSONValue, LangfuseNotFoundError } from "@langfuse/shared";
+import { type JSONValue, LangfuseNotFoundError } from "@langfuse/shared";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
 import {
   eventTypes,
