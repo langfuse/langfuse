@@ -616,6 +616,9 @@ export default function SignIn({
         setCredentialsFormError(
           result?.error ?? "An unexpected error occurred.",
         );
+      } else {
+        // Successful sign-in, redirect to callback URL
+        await router.push(result.url ?? targetPath ?? "/");
       }
     } catch (error) {
       captureException(error);
