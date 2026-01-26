@@ -31,6 +31,7 @@ import {
   fetchLLMCompletion,
   LangfuseInternalTraceEnvironment,
   tableColumnsToSqlFilterAndPrefix,
+  DatasetRunItemUpsertEventType,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -165,7 +166,7 @@ type CreateEvalJobsParams = {
     }
   | {
       sourceEventType: "dataset-run-item-upsert";
-      event: TraceQueueEventType;
+      event: DatasetRunItemUpsertEventType;
     }
   | {
       sourceEventType: "ui-create-eval";
@@ -440,7 +441,7 @@ export const createEvalJobs = async ({
           : Prisma.sql`AND valid_to IS NULL`;
 
         const datasetItems = await prisma.$queryRaw<
-          Array<{ id: string; validFrom: Date }>
+          Array<{ id: string; valid_from: Date }>
         >(Prisma.sql`
           SELECT id, valid_from
           FROM (
@@ -456,7 +457,10 @@ export const createEvalJobs = async ({
         `);
         const latestDatasetItem = datasetItems.shift();
         datasetItem = latestDatasetItem
-          ? { id: latestDatasetItem.id, validFrom: latestDatasetItem.validFrom }
+          ? {
+              id: latestDatasetItem.id,
+              validFrom: latestDatasetItem.valid_from,
+            }
           : undefined;
       } else {
         // If the cached items are not null, we fetched all available datasetItemIds from the DB.

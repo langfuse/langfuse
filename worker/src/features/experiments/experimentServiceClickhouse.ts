@@ -85,7 +85,7 @@ async function processItem(
       datasetId: datasetItem.datasetId,
       runId: config.runId,
       datasetItemId: datasetItem.id,
-      datasetVersion: datasetItem.validFrom,
+      datasetVersion: datasetItem.validFrom.toISOString(),
     },
   };
 
