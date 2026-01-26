@@ -3,7 +3,7 @@ import { type RouterInputs, api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
-import { chunk } from "lodash";
+import chunk from "lodash/chunk";
 import {
   parseCsvClient,
   parseColumns,

@@ -165,6 +165,7 @@ export default function EnterpriseSsoRequiredPage() {
                     <FormControl>
                       <Input
                         placeholder="jsdoe@example.com"
+                        allowPasswordManager
                         autoComplete="email"
                         {...field}
                       />

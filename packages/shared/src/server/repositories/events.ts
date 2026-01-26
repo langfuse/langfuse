@@ -1374,6 +1374,45 @@ export const getEventsGroupedByName = async (
 };
 
 /**
+ * Get grouped trace names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByTraceName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.trace_name",
+    selectExpression: "e.trace_name as traceName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.trace_name IS NOT NULL AND length(e.trace_name) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ traceName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Get grouped prompt names from events table
  * Used for filter options
  */
@@ -1659,6 +1698,129 @@ export const getEventsGroupedByEnvironment = async (
 };
 
 /**
+ * Get grouped experiment dataset IDs from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentDatasetId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_dataset_id",
+    selectExpression:
+      "e.experiment_dataset_id as experimentDatasetId, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw(
+      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
+    )
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    experimentDatasetId: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped experiment IDs from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_id",
+    selectExpression: "e.experiment_id as experimentId, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.experiment_id IS NOT NULL AND length(e.experiment_id) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ experimentId: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped experiment names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_name",
+    selectExpression: "e.experiment_name as experimentName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ experimentName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */
@@ -1669,18 +1831,14 @@ export const deleteEventsByTraceIds = async (
   const query = `
     DELETE FROM events
     WHERE project_id = {projectId: String}
-    AND trace_id IN ({traceIds: Array(String)})
-    AND (project_id, start_time, xxHash32(trace_id), span_id) IN
-    (
-      SELECT project_id, start_time, xxHash32(trace_id), span_id
-      FROM events
-      WHERE project_id = {projectId: String}
-      AND trace_id IN ({traceIds: Array(String)})
-    );
+    AND trace_id IN ({traceIds: Array(String)});
   `;
   await commandClickhouse({
     query,
     params: { projectId, traceIds },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
     tags: {
       feature: "tracing",
       type: "events",
@@ -1749,6 +1907,54 @@ export const deleteEventsByProjectId = async (
 
   return true;
 };
+
+export async function getAgentGraphDataFromEventsTable(params: {
+  projectId: string;
+  traceId: string;
+  chMinStartTime: string;
+  chMaxStartTime: string;
+}) {
+  const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
+
+  const query = `
+    SELECT
+      e.span_id as id,
+      e.parent_span_id as parent_observation_id,
+      e.type as type,
+      e.name as name,
+      e.start_time as start_time,
+      e.end_time as end_time,
+      mapFromArrays(e.metadata_names, e.metadata_prefixes)['langgraph_node'] AS node,
+      mapFromArrays(e.metadata_names, e.metadata_prefixes)['langgraph_step'] AS step
+    FROM events e
+    WHERE
+      e.project_id = {projectId: String}
+      AND e.trace_id = {traceId: String}
+      AND e.start_time >= {chMinStartTime: DateTime64(3)}
+      AND e.start_time <= {chMaxStartTime: DateTime64(3)}
+  `;
+
+  return measureAndReturn({
+    operationName: "getAgentGraphDataFromEventsTable",
+    projectId,
+    input: {
+      params: { projectId, traceId, chMinStartTime, chMaxStartTime },
+      tags: {
+        feature: "tracing",
+        type: "events",
+        kind: "agentGraphData",
+        projectId,
+      },
+    },
+    fn: async (input) => {
+      return queryClickhouse({
+        query,
+        params: input.params,
+        tags: input.tags,
+      });
+    },
+  });
+}
 
 export const hasAnyEventOlderThan = async (
   projectId: string,
@@ -1825,12 +2031,15 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   }>;
   minStartTime: Date;
   maxStartTime: Date;
+  truncated?: boolean; // Default true for performance, false for full data
 }): Promise<
   Array<Pick<Observation, "id" | "input" | "output" | "metadata">>
 > => {
   if (opts.observations.length === 0) {
     return [];
   }
+
+  const truncated = opts.truncated ?? true;
 
   // Extract IDs and trace IDs for filtering
   const observationIds = opts.observations.map((o) => o.id);
@@ -1840,11 +2049,18 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
   const maxTimestamp = new Date(opts.maxStartTime.getTime() + 1000); // +1 second buffer
 
+  const inputSelect = truncated
+    ? `leftUTF8(e.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`
+    : `e.input as input`;
+  const outputSelect = truncated
+    ? `leftUTF8(e.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output`
+    : `e.output as output`;
+
   const query = `
     SELECT
       e.span_id as id,
-      leftUTF8(e.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input,
-      leftUTF8(e.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output,
+      ${inputSelect},
+      ${outputSelect},
       mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata
     FROM events e
     WHERE e.project_id = {projectId: String}

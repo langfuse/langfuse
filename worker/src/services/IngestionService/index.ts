@@ -95,6 +95,7 @@ export type EventInput = {
   endTimeISO: string;
   completionStartTime?: string;
 
+  traceName?: string;
   tags?: string[];
   bookmarked?: boolean;
   public?: boolean;
@@ -357,7 +358,8 @@ export class IngestionService {
       bookmarked: eventData.bookmarked ?? false,
       public: eventData.public ?? false,
 
-      // User/session
+      // Trace-level attributes: Name/User/session
+      trace_name: eventData.traceName,
       user_id: eventData.userId,
       session_id: eventData.sessionId,
 
@@ -1211,11 +1213,19 @@ export class IngestionService {
       "usage_details" | "provided_usage_details"
     >
   > {
-    const providedUsageDetails = Object.fromEntries(
-      Object.entries(observationRecord.provided_usage_details).filter(
-        ([_k, v]) => v != null && v >= 0,
-      ),
-    );
+    // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
+    // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+    const providedUsageDetails: Record<string, number> = {};
+    for (const [key, value] of Object.entries(
+      observationRecord.provided_usage_details,
+    )) {
+      if (value != null) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 0) {
+          providedUsageDetails[key] = numValue;
+        }
+      }
+    }
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
@@ -1761,21 +1771,26 @@ export class IngestionService {
 
   /**
    * Returns a partition-aware timestamp for staging table writes.
-   * If the createdAtTimestamp is within the last 3.5 minutes, returns it as-is.
+   * If the createdAtTimestamp is within the last 2 minutes, returns it as-is.
    * Otherwise, returns the current timestamp to prevent updates to old partitions.
    *
    * This implements the partition locking strategy where partitions are "locked"
-   * 4 minutes after creation (3.5 min + 30s buffer for writes).
+   * 4 minutes after creation (2 min + 2 min buffer for writes).
+   *
+   * Going down from 3.5min to 2min here, as we see gaps in the data that may come from deletions.
+   * This reduces that chance that updates are handled in the same batch, but should increase the chance
+   * that data is processed correctly. Worst case is slightly more duplication in the events table
+   * which should resolve automatically using the ReplacingMergeTree.
    */
   private getPartitionAwareTimestamp(createdAtTimestamp: Date): number {
     const now = Date.now();
     const createdAt = createdAtTimestamp.getTime();
     const ageInMs = now - createdAt;
-    const threeAndHalfMinutesInMs = 3.5 * 60 * 1000;
+    const twoMinutesInMs = 2 * 60 * 1000;
 
-    // If the createdAtTimestamp is within the last 3.5 minutes, use it
+    // If the createdAtTimestamp is within the last 2 minutes, use it
     // Otherwise, use the current timestamp to avoid updating old partitions
-    return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
+    return ageInMs < twoMinutesInMs ? createdAt : now;
   }
 }
 

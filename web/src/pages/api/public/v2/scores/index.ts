@@ -51,7 +51,6 @@ export default withMiddlewares({
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
         environment: query.environment ?? undefined,
-        traceEnvironment: query.environment ?? undefined,
         source: query.source ?? undefined,
         value: query.value ?? undefined,
         operator: query.operator ?? undefined,

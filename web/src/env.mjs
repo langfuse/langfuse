@@ -53,12 +53,33 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container",
     }),
-    // Add newly signed up users to default org and/or project with role
-    LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
+    // Add newly signed up users to default org(s) and/or project(s) with role
+    // Supports comma-separated IDs for multiple orgs/projects (e.g., "org1,org2,org3")
+    LANGFUSE_DEFAULT_ORG_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_ORG_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"])
       .optional(),
-    LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
+    LANGFUSE_DEFAULT_PROJECT_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
@@ -351,6 +372,22 @@ export const env = createEnv({
     LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST: z
       .enum(["true", "false"])
       .default("false"),
+
+    // Blocked users for chat completion API (userId:reason format)
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
+      .string()
+      .optional()
+      .transform((val) => {
+        if (!val) return new Map();
+        const map = new Map();
+        for (const part of val.split(",")) {
+          const [userId, ...noteParts] = part.split(":");
+          if (userId?.trim()) {
+            map.set(userId.trim(), noteParts.join(":").trim() || "blocked");
+          }
+        }
+        return map;
+      }),
   },
 
   /**
@@ -682,6 +719,8 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
     LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST:
       process.env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST,
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
+      process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

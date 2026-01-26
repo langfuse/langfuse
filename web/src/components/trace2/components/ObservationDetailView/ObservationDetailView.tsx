@@ -25,6 +25,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Switch } from "@/src/components/ui/switch";
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -72,10 +73,38 @@ export function ObservationDetailView({
   };
 
   // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
-  const { jsonViewPreference, setJsonViewPreference } = useViewPreferences();
+  const {
+    jsonViewPreference,
+    setJsonViewPreference,
+    jsonBetaEnabled,
+    setJsonBetaEnabled,
+  } = useViewPreferences();
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
+
+  const selectedViewTab =
+    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+
+  const handleViewTabChange = useCallback(
+    (tab: string) => {
+      if (tab === "pretty") {
+        setJsonViewPreference("pretty");
+      } else {
+        // When switching to JSON, use beta preference
+        setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      }
+    },
+    [jsonBetaEnabled, setJsonViewPreference],
+  );
+
+  const handleBetaToggle = useCallback(
+    (enabled: boolean) => {
+      setJsonBetaEnabled(enabled);
+      setJsonViewPreference(enabled ? "json-beta" : "json");
+    },
+    [setJsonBetaEnabled, setJsonViewPreference],
+  );
 
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
   const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
@@ -96,7 +125,14 @@ export function ObservationDetailView({
 
   // Get comments, scores, corrections, and expansion state from contexts
   const { comments, serverScores: scores, corrections } = useTraceData();
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const {
+    formattedExpansion,
+    setFormattedFieldExpansion,
+    jsonExpansion,
+    setJsonFieldExpansion,
+    advancedJsonExpansion,
+    setAdvancedJsonExpansion,
+  } = useJsonExpansion();
   const observationScores = useMemo(
     () => scores.filter((s) => s.observationId === observation.id),
     [scores, observation.id],
@@ -111,7 +147,7 @@ export function ObservationDetailView({
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
   const {
-    observation: observationWithIO,
+    observation: observationWithIORaw,
     parsedInput,
     parsedOutput,
     parsedMetadata,
@@ -122,7 +158,15 @@ export function ObservationDetailView({
     traceId: traceId,
     projectId: projectId,
     startTime: observation.startTime,
+    baseObservation: observation,
   });
+
+  // Type narrowing: when baseObservation is provided, result has full observation fields
+  // (EventBatchIOOutput case only occurs when baseObservation is missing)
+  const observationWithIO =
+    observationWithIORaw && "type" in observationWithIORaw
+      ? observationWithIORaw
+      : undefined;
 
   // For backward compatibility, create observationWithIO query-like object
   const observationWithIOCompat = {
@@ -190,27 +234,35 @@ export function ObservationDetailView({
           <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
           <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
 
-          {/* View toggle (Formatted/JSON/JSON Beta) - show for preview tab when pretty view is available */}
+          {/* View toggle (Formatted/JSON) - show for preview tab when pretty view is available */}
           {selectedTab === "preview" && isPrettyViewAvailable && (
-            <Tabs
-              className="ml-auto mr-1 h-fit px-2 py-0.5"
-              value={currentView}
-              onValueChange={(value) => {
-                setJsonViewPreference(value as "pretty" | "json" | "json-beta");
-              }}
-            >
-              <TabsList className="h-fit py-0.5">
-                <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                  Formatted
-                </TabsTrigger>
-                <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                  JSON
-                </TabsTrigger>
-                <TabsTrigger value="json-beta" className="h-fit px-1 text-xs">
-                  JSON Beta
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <>
+              <Tabs
+                className="ml-auto h-fit px-2 py-0.5"
+                value={selectedViewTab}
+                onValueChange={handleViewTabChange}
+              >
+                <TabsList className="h-fit py-0.5">
+                  <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                    Formatted
+                  </TabsTrigger>
+                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                    JSON
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              {/* Beta toggle - only show when JSON is selected */}
+              {selectedViewTab === "json" && (
+                <div className="mr-1 flex items-center gap-1.5">
+                  <Switch
+                    size="sm"
+                    checked={jsonBetaEnabled}
+                    onCheckedChange={handleBetaToggle}
+                  />
+                  <span className="text-xs text-muted-foreground">Beta</span>
+                </div>
+              )}
+            </>
           )}
         </TabsBarList>
 
@@ -241,11 +293,40 @@ export function ObservationDetailView({
               media={observationMedia.data}
               currentView={currentView}
               setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-              inputExpansionState={expansionState.input}
-              outputExpansionState={expansionState.output}
-              onInputExpansionChange={(exp) => setFieldExpansion("input", exp)}
+              inputExpansionState={formattedExpansion.input}
+              outputExpansionState={formattedExpansion.output}
+              metadataExpansionState={formattedExpansion.metadata}
+              onInputExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "input",
+                  exp as Record<string, boolean>,
+                )
+              }
               onOutputExpansionChange={(exp) =>
-                setFieldExpansion("output", exp)
+                setFormattedFieldExpansion(
+                  "output",
+                  exp as Record<string, boolean>,
+                )
+              }
+              onMetadataExpansionChange={(exp) =>
+                setFormattedFieldExpansion(
+                  "metadata",
+                  exp as Record<string, boolean>,
+                )
+              }
+              advancedJsonExpansionState={advancedJsonExpansion}
+              onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
+              jsonInputExpanded={jsonExpansion.input}
+              jsonOutputExpanded={jsonExpansion.output}
+              jsonMetadataExpanded={jsonExpansion.metadata}
+              onJsonInputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("input", expanded)
+              }
+              onJsonOutputExpandedChange={(expanded) =>
+                setJsonFieldExpansion("output", expanded)
+              }
+              onJsonMetadataExpandedChange={(expanded) =>
+                setJsonFieldExpansion("metadata", expanded)
               }
               enableInlineComments={true}
               onAddInlineComment={handleAddInlineComment}

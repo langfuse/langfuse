@@ -34,6 +34,10 @@ import {
   LevelBadge,
   StatusMessageBadge,
 } from "./ObservationMetadataBadgesSimple";
+import {
+  SessionBadge,
+  UserIdBadge,
+} from "../TraceDetailView/TraceMetadataBadges";
 import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ObservationMetadataBadgeModel";
 import { ModelParametersBadges } from "./ObservationMetadataBadgeModelParameters";
@@ -178,6 +182,14 @@ export const ObservationDetailViewHeader = memo(
             <LatencyBadge latencySeconds={latencySeconds} />
             <TimeToFirstTokenBadge
               timeToFirstToken={observation.timeToFirstToken}
+            />
+            <SessionBadge
+              sessionId={observation.sessionId ?? null}
+              projectId={projectId}
+            />
+            <UserIdBadge
+              userId={observation.userId ?? null}
+              projectId={projectId}
             />
             <EnvironmentBadge environment={observation.environment} />
             <CostBadge
