@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("should redirect to sign-in if not signed in", async ({ page }) => {
   await page.goto("/");
-  await page.waitForURL(/\/auth\/sign-in(\?.*)?$/);
+  await expect(page).toHaveURL(/\/auth\/sign-in(\?.*)?$/);
 });
 
 test("should redirect to home if signed in", async ({ page }) => {
@@ -11,7 +11,7 @@ test("should redirect to home if signed in", async ({ page }) => {
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  await page.waitForURL("/");
+  await expect(page).toHaveURL("/");
 });
 
 test("Successfully sign up & able to go to homepage", async ({ page }) => {
@@ -21,7 +21,7 @@ test("Successfully sign up & able to go to homepage", async ({ page }) => {
   await page.fill('input[type="password"]', "Password2#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   // see get started page
-  await page.waitForURL("/");
+  await expect(page).toHaveURL("/");
 });
 
 test("Successfully sign up & able to go to homepage with uppercase email", async ({
@@ -33,7 +33,7 @@ test("Successfully sign up & able to go to homepage with uppercase email", async
   await page.fill('input[type="password"]', "Password3#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   // see get started page
-  await page.waitForURL("/");
+  await expect(page).toHaveURL("/");
 });
 
 test("Signup input validation", async ({ page }) => {
@@ -64,7 +64,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  await page.waitForURL("/");
+  await expect(page).toHaveURL("/");
 
   // project id and prompt from seed.ts
   const promptUrl =
@@ -74,17 +74,17 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.getByRole("menuitem", { name: "Sign Out" }).click();
 
-  await page.waitForURL(/\/auth\/sign-in(\?.*)?$/);
+  await expect(page).toHaveURL(/\/auth\/sign-in(\?.*)?$/);
 
   await page.goto(promptUrl);
 
-  await page.waitForURL(/targetPath/);
+  await expect(page).toHaveURL(/targetPath/);
 
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  await page.waitForURL(promptUrl);
+  await expect(page).toHaveURL(promptUrl);
 });
 
 test("Unauthenticated user should not be redirected to non-relative URLs after login", async ({
@@ -100,7 +100,7 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   // Expect to be redirected to the home page, not the non-relative URL
-  await page.waitForURL("/");
+  await expect(page).toHaveURL("/");
 
   // Verify we're logged in
   await expect(page.getByRole("button", { name: /Demo User/ })).toBeVisible();
@@ -119,5 +119,5 @@ test("Unauthenticated user should be redirected to relative URL after login", as
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   // Expect to be redirected to the relative URL
-  await page.waitForURL(relativeUrl);
+  await expect(page).toHaveURL(relativeUrl);
 });

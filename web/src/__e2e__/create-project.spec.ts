@@ -44,20 +44,23 @@ test.describe("Create project", () => {
     await page.click(
       'button[data-testid="submit-email-password-sign-in-form"]',
     );
-    await page.waitForURL("/");
+    await expect(page).toHaveURL("/");
 
     // Start create org flow
     await page.isVisible('[data-testid="create-organization-btn"]');
     await page.click('[data-testid="create-organization-btn"]');
-    await page.waitForURL("/setup");
+    await expect(page).toHaveURL("/setup");
 
     // Create an organization
     await expect(page.locator("data-testid=new-org-form")).toBeVisible();
     await page.fill('[data-testid="new-org-name-input"]', "e2e test org");
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/organization\/.*\/setup\?orgstep=invite-members/, {
-      timeout: 15000,
-    });
+    await expect(page).toHaveURL(
+      /\/organization\/.*\/setup\?orgstep=invite-members/,
+      {
+        timeout: 15000,
+      },
+    );
 
     // Parse the organization ID from the URL using a simpler method
     const url = new URL(page.url());
@@ -78,14 +81,14 @@ test.describe("Create project", () => {
       "e2e test project",
     );
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/project\/.*\/traces/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/project\/.*\/traces/, { timeout: 15000 });
 
     const projectUrl = new URL(page.url());
     const projectId = projectUrl.pathname.split("/")[2];
 
     // check that the project exists by navigating to its home screen
     await page.goto("/project/" + projectId);
-    await page.waitForURL(new RegExp(`/project/${projectId}`));
+    await expect(page).toHaveURL(new RegExp(`/project/${projectId}`));
 
     const headings = await page.locator("h2").allTextContents();
     expect(headings).toContain("Home");
@@ -115,7 +118,7 @@ test.describe("Create project", () => {
 
       const projectUrl = await getProjectUrlForEmail("demo@langfuse.com");
       await page.goto(projectUrl + url, { waitUntil: "networkidle" });
-      await page.waitForURL(projectUrl + url);
+      await expect(page).toHaveURL(projectUrl + url);
       await checkPageHeaderTitle(page, title);
 
       // Check that each error contains the expected string
@@ -135,7 +138,7 @@ const signin = async (page: Page) => {
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-  await page.waitForURL("/");
+  await expect(page).toHaveURL("/");
 };
 
 const checkPageHeaderTitle = async (page: Page, title: string) => {
