@@ -174,11 +174,11 @@ CREATE TABLE IF NOT EXISTS events
       model_parameters_json JSON(
         max_dynamic_paths=0,
         max_dynamic_types=8,
-        temperature Nullable(Float32),
-        max_tokens Nullable(UInt32),
-        top_p Nullable(Float32),
-        frequency_penalty Nullable(Float32),
-        presence_penalty Nullable(Float32),
+        temperature Dynamic(max_types=4),
+        max_tokens Dynamic(max_types=4),
+        top_p Dynamic(max_types=4),
+        frequency_penalty Dynamic(max_types=4),
+        presence_penalty Dynamic(max_types=4),
       ) MATERIALIZED model_parameters::JSON,
 
       -- Usage
