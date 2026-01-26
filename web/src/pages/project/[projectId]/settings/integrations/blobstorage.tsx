@@ -585,7 +585,7 @@ const BlobStorageIntegrationSettingsForm = ({
           name="exportSource"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="flex items-center gap-1.5">
+              <FormLabel className="flex items-center gap-1.5 pt-2">
                 Export Source
                 <Tooltip>
                   <TooltipTrigger>

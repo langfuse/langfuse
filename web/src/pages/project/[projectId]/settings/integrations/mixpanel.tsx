@@ -238,30 +238,10 @@ const MixpanelIntegrationSettingsForm = ({
         />
         <FormField
           control={mixpanelForm.control}
-          name="enabled"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Enabled</FormLabel>
-              <FormControl>
-                <Switch
-                  id="mixpanel-integration-enabled"
-                  checked={field.value}
-                  onCheckedChange={() => {
-                    field.onChange(!field.value);
-                  }}
-                  className="ml-4 mt-1"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={mixpanelForm.control}
           name="exportSource"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="flex items-center gap-1.5">
+              <FormLabel className="flex items-center gap-1.5 pt-2">
                 Export Source
                 <Tooltip>
                   <TooltipTrigger>
@@ -311,6 +291,26 @@ const MixpanelIntegrationSettingsForm = ({
                 Choose which data sources to export to Mixpanel. Scores are
                 always included.
               </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={mixpanelForm.control}
+          name="enabled"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Enabled</FormLabel>
+              <FormControl>
+                <Switch
+                  id="mixpanel-integration-enabled"
+                  checked={field.value}
+                  onCheckedChange={() => {
+                    field.onChange(!field.value);
+                  }}
+                  className="ml-4 mt-1"
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

@@ -214,30 +214,10 @@ const PostHogIntegrationSettings = ({
         />
         <FormField
           control={posthogForm.control}
-          name="enabled"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Enabled</FormLabel>
-              <FormControl>
-                <Switch
-                  id="posthog-integration-enabled"
-                  checked={field.value}
-                  onCheckedChange={() => {
-                    field.onChange(!field.value);
-                  }}
-                  className="ml-4 mt-1"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={posthogForm.control}
           name="exportSource"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="flex items-center gap-1.5">
+              <FormLabel className="flex items-center gap-1.5 pt-2">
                 Export Source
                 <Tooltip>
                   <TooltipTrigger>
@@ -287,6 +267,26 @@ const PostHogIntegrationSettings = ({
                 Choose which data sources to export to PostHog. Scores are
                 always included.
               </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={posthogForm.control}
+          name="enabled"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Enabled</FormLabel>
+              <FormControl>
+                <Switch
+                  id="posthog-integration-enabled"
+                  checked={field.value}
+                  onCheckedChange={() => {
+                    field.onChange(!field.value);
+                  }}
+                  className="ml-4 mt-1"
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
