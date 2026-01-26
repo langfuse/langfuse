@@ -420,6 +420,7 @@ export function TraceDetailView({
                 traceId={trace.id}
                 hiddenColumns={["traceName", "jobConfigurationId", "userId"]}
                 localStorageSuffix="TracePreview"
+                disableUrlPersistence
               />
             </div>
           </TabsBarContent>
