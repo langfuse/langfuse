@@ -100,6 +100,7 @@ if (
     },
     autocapture: false,
     enable_heatmaps: false,
+    persistence: "cookie",
   });
 }
 
@@ -203,10 +204,6 @@ function UserTracking() {
       });
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
-      // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
-        posthog.reset();
-      }
       // Sentry
       setUser(null);
     }

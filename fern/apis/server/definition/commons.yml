@@ -1,5 +1,6 @@
 types:
   # Objects
+  # Source: web/src/features/public-api/types/traces.ts - APITrace, APIExtendedTrace, GetTraceV1Response
   Trace:
     properties:
       id:
@@ -9,7 +10,7 @@ types:
         type: datetime
         docs: The timestamp when the trace was created
       name:
-        type: optional<string>
+        type: nullable<string>
         docs: The name of the trace
       input:
         type: optional<unknown>
@@ -18,28 +19,28 @@ types:
         type: optional<unknown>
         docs: The output data of the trace. Can be any JSON.
       sessionId:
-        type: optional<string>
+        type: nullable<string>
         docs: The session identifier associated with the trace
       release:
-        type: optional<string>
+        type: nullable<string>
         docs: The release version of the application when the trace was created
       version:
-        type: optional<string>
+        type: nullable<string>
         docs: The version of the trace
       userId:
-        type: optional<string>
+        type: nullable<string>
         docs: The user identifier associated with the trace
       metadata:
         type: optional<unknown>
         docs: The metadata associated with the trace. Can be any JSON.
       tags:
-        type: optional<list<string>>
-        docs: The tags associated with the trace. Can be an array of strings or null.
+        type: list<string>
+        docs: The tags associated with the trace.
       public:
-        type: optional<boolean>
+        type: boolean
         docs: Public traces are accessible via url without login
       environment:
-        type: optional<string>
+        type: string
         docs: The environment from which this trace originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
   TraceWithDetails: # GET /traces
     extends: Trace
@@ -48,16 +49,16 @@ types:
         type: string
         docs: Path of trace in Langfuse UI
       latency:
-        type: double
+        type: optional<nullable<double>>
         docs: Latency of trace in seconds
       totalCost:
-        type: double
+        type: optional<nullable<double>>
         docs: Cost of trace in USD
       observations:
-        type: list<string>
+        type: optional<nullable<list<string>>>
         docs: List of observation ids
       scores:
-        type: list<string>
+        type: optional<nullable<list<string>>>
         docs: List of score ids
   TraceWithFullDetails: # GET traces/[traceID]
     extends: Trace
@@ -66,10 +67,10 @@ types:
         type: string
         docs: Path of trace in Langfuse UI
       latency:
-        type: double
+        type: optional<nullable<double>>
         docs: Latency of trace in seconds
       totalCost:
-        type: double
+        type: optional<nullable<double>>
         docs: Cost of trace in USD
       observations:
         type: list<ObservationsView>
@@ -77,119 +78,121 @@ types:
       scores:
         type: list<ScoreV1>
         docs: List of scores
+  # Source: web/src/features/public-api/types/sessions.ts - APISession
   Session:
     properties:
       id: string
       createdAt: datetime
       projectId: string
       environment:
-        type: optional<string>
+        type: string
         docs: The environment from which this session originated.
   SessionWithTraces:
     extends: Session
     properties:
       traces: list<Trace>
+  # Source: web/src/features/public-api/types/observations.ts - APIObservation
   Observation:
     properties:
       id:
         type: string
         docs: The unique identifier of the observation
       traceId:
-        type: optional<string>
+        type: nullable<string>
         docs: The trace ID associated with the observation
       type:
         type: string
         docs: The type of the observation
       name:
-        type: optional<string>
+        type: nullable<string>
         docs: The name of the observation
       startTime:
         type: datetime
         docs: The start time of the observation
       endTime:
-        type: optional<datetime>
+        type: nullable<datetime>
         docs: The end time of the observation.
       completionStartTime:
-        type: optional<datetime>
+        type: nullable<datetime>
         docs: The completion start time of the observation
       model:
-        type: optional<string>
+        type: nullable<string>
         docs: The model used for the observation
       modelParameters:
-        type: optional<map<string, MapValue>>
+        type: unknown
         docs: The parameters of the model used for the observation
       input:
-        type: optional<unknown>
+        type: unknown
         docs: The input data of the observation
       version:
-        type: optional<string>
+        type: nullable<string>
         docs: The version of the observation
       metadata:
-        type: optional<unknown>
+        type: unknown
         docs: Additional metadata of the observation
       output:
-        type: optional<unknown>
+        type: unknown
         docs: The output data of the observation
       usage:
-        type: optional<Usage>
+        type: Usage
         docs: (Deprecated. Use usageDetails and costDetails instead.) The usage data of the observation
       level:
         type: ObservationLevel
         docs: The level of the observation
       statusMessage:
-        type: optional<string>
+        type: nullable<string>
         docs: The status message of the observation
       parentObservationId:
-        type: optional<string>
+        type: nullable<string>
         docs: The parent observation ID
       promptId:
-        type: optional<string>
+        type: nullable<string>
         docs: The prompt ID associated with the observation
       usageDetails:
-        type: optional<map<string, integer>>
+        type: map<string, integer>
         docs: The usage details of the observation. Key is the name of the usage metric, value is the number of units consumed. The total key is the sum of all (non-total) usage metrics or the total value ingested.
       costDetails:
-        type: optional<map<string, double>>
+        type: map<string, double>
         docs: The cost details of the observation. Key is the name of the cost metric, value is the cost in USD. The total key is the sum of all (non-total) cost metrics or the total value ingested.
       environment:
-        type: optional<string>
+        type: string
         docs: The environment from which this observation originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
 
   ObservationsView:
     extends: Observation
     properties:
       promptName:
-        type: optional<string>
+        type: nullable<string>
         docs: The name of the prompt associated with the observation
       promptVersion:
-        type: optional<integer>
+        type: nullable<integer>
         docs: The version of the prompt associated with the observation
       modelId:
-        type: optional<string>
+        type: nullable<string>
         docs: The unique identifier of the model
       inputPrice:
-        type: optional<double>
+        type: nullable<double>
         docs: The price of the input in USD
       outputPrice:
-        type: optional<double>
+        type: nullable<double>
         docs: The price of the output in USD.
       totalPrice:
-        type: optional<double>
+        type: nullable<double>
         docs: The total price in USD.
       calculatedInputCost:
-        type: optional<double>
+        type: nullable<double>
         docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the input in USD
       calculatedOutputCost:
-        type: optional<double>
+        type: nullable<double>
         docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the output in USD
       calculatedTotalCost:
-        type: optional<double>
+        type: nullable<double>
         docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated total cost in USD
       latency:
-        type: optional<double>
+        type: nullable<double>
         docs: The latency in seconds.
       timeToFirstToken:
-        type: optional<double>
+        type: nullable<double>
         docs: The time to the first token in seconds
 
   Usage:
@@ -197,14 +200,16 @@ types:
     properties:
       input:
         docs: Number of input units (e.g. tokens)
-        type: optional<integer>
+        type: integer
       output:
         docs: Number of output units (e.g. tokens)
-        type: optional<integer>
+        type: integer
       total:
         docs: Defaults to input+output if not set
-        type: optional<integer>
-      unit: optional<ModelUsageUnit>
+        type: integer
+      unit:
+        docs: Unit of measurement
+        type: nullable<string>
       inputCost:
         docs: USD input cost
         type: optional<double>
@@ -214,6 +219,7 @@ types:
       totalCost:
         docs: USD total cost, defaults to input+output
         type: optional<double>
+  # Source: web/src/features/public-api/types/score-configs.ts - APIScoreConfig
   ScoreConfig:
     docs: Configuration for a score
     properties:
@@ -227,40 +233,51 @@ types:
         type: boolean
         docs: Whether the score config is archived. Defaults to false
       minValue:
-        type: optional<double>
+        type: optional<nullable<double>>
         docs: Sets minimum value for numerical scores. If not set, the minimum value defaults to -∞
       maxValue:
-        type: optional<double>
+        type: optional<nullable<double>>
         docs: Sets maximum value for numerical scores. If not set, the maximum value defaults to +∞
       categories:
         type: optional<list<ConfigCategory>>
         docs: Configures custom categories for categorical scores
-      description: optional<string>
+      description:
+        type: optional<nullable<string>>
+        docs: Description of the score config
   ConfigCategory:
     properties:
       value: double
       label: string
+  # Source: packages/shared/src/features/scores/interfaces/api/v1/schemas.ts - APIScoreSchemaV1
   BaseScoreV1:
     properties:
       id: string
       traceId: string
       name: string
       source: ScoreSource
-      observationId: optional<string>
+      observationId:
+        type: optional<nullable<string>>
+        docs: The observation ID associated with the score
       timestamp: datetime
       createdAt: datetime
       updatedAt: datetime
-      authorUserId: optional<string>
-      comment: optional<string>
-      metadata: optional<unknown>
+      authorUserId:
+        type: nullable<string>
+        docs: The user ID of the author
+      comment:
+        type: nullable<string>
+        docs: Comment on the score
+      metadata:
+        type: unknown
+        docs: Metadata associated with the score
       configId:
-        type: optional<string>
+        type: nullable<string>
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
       queueId:
-        type: optional<string>
+        type: nullable<string>
         docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
       environment:
-        type: optional<string>
+        type: string
         docs: The environment from which this score originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
   NumericScoreV1:
     extends: BaseScoreV1
@@ -299,29 +316,44 @@ types:
         type: BooleanScoreV1
         docs: "Score with BOOLEAN data type"
 
+  # Source: packages/shared/src/features/scores/interfaces/api/v2/schemas.ts - APIScoreSchemaV2
   BaseScore:
     properties:
       id: string
-      traceId: optional<string>
-      sessionId: optional<string>
-      observationId: optional<string>
-      datasetRunId: optional<string>
+      traceId:
+        type: optional<nullable<string>>
+        docs: The trace ID associated with the score
+      sessionId:
+        type: optional<nullable<string>>
+        docs: The session ID associated with the score
+      observationId:
+        type: optional<nullable<string>>
+        docs: The observation ID associated with the score
+      datasetRunId:
+        type: optional<nullable<string>>
+        docs: The dataset run ID associated with the score
       name: string
       source: ScoreSource
       timestamp: datetime
       createdAt: datetime
       updatedAt: datetime
-      authorUserId: optional<string>
-      comment: optional<string>
-      metadata: optional<unknown>
+      authorUserId:
+        type: nullable<string>
+        docs: The user ID of the author
+      comment:
+        type: nullable<string>
+        docs: Comment on the score
+      metadata:
+        type: unknown
+        docs: Metadata associated with the score
       configId:
-        type: optional<string>
+        type: nullable<string>
         docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
       queueId:
-        type: optional<string>
+        type: nullable<string>
         docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
       environment:
-        type: optional<string>
+        type: string
         docs: The environment from which this score originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
   NumericScore:
     extends: BaseScore
@@ -367,6 +399,7 @@ types:
       - string
     docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
 
+  # Source: web/src/features/public-api/types/comments.ts - APIComment
   Comment:
     properties:
       id: string
@@ -376,36 +409,55 @@ types:
       objectType: CommentObjectType
       objectId: string
       content: string
-      authorUserId: optional<string>
+      authorUserId:
+        type: optional<nullable<string>>
+        docs: The user ID of the comment author
 
+  # Source: web/src/features/public-api/types/datasets.ts - APIDataset
   Dataset:
     properties:
       id: string
       name: string
-      description: optional<string>
-      metadata: optional<unknown>
+      description:
+        type: nullable<string>
+        docs: Description of the dataset
+      metadata:
+        type: unknown
+        docs: Metadata associated with the dataset
       inputSchema:
-        type: optional<unknown>
+        type: nullable<unknown>
         docs: JSON Schema for validating dataset item inputs
       expectedOutputSchema:
-        type: optional<unknown>
+        type: nullable<unknown>
         docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime
       updatedAt: datetime
+  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetItem
   DatasetItem:
     properties:
       id: string
       status: DatasetStatus
-      input: optional<unknown>
-      expectedOutput: optional<unknown>
-      metadata: optional<unknown>
-      sourceTraceId: optional<string>
-      sourceObservationId: optional<string>
+      input:
+        type: unknown
+        docs: Input data for the dataset item
+      expectedOutput:
+        type: unknown
+        docs: Expected output for the dataset item
+      metadata:
+        type: unknown
+        docs: Metadata associated with the dataset item
+      sourceTraceId:
+        type: nullable<string>
+        docs: The trace ID that sourced this dataset item
+      sourceObservationId:
+        type: nullable<string>
+        docs: The observation ID that sourced this dataset item
       datasetId: string
       datasetName: string
       createdAt: datetime
       updatedAt: datetime
+  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetRunItem
   DatasetRunItem:
     properties:
       id: string
@@ -413,9 +465,12 @@ types:
       datasetRunName: string
       datasetItemId: string
       traceId: string
-      observationId: optional<string>
+      observationId:
+        type: nullable<string>
+        docs: The observation ID associated with this run item
       createdAt: datetime
       updatedAt: datetime
+  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetRun
   DatasetRun:
     properties:
       id:
@@ -425,10 +480,10 @@ types:
         type: string
         docs: Name of the dataset run
       description:
-        type: optional<string>
+        type: nullable<string>
         docs: Description of the run
       metadata:
-        type: optional<unknown>
+        type: unknown
         docs: Metadata of the dataset run
       datasetId:
         type: string
@@ -446,6 +501,7 @@ types:
     extends: DatasetRun
     properties:
       datasetRunItems: list<DatasetRunItem>
+  # Source: web/src/features/public-api/types/models.ts - APIModelDefinition
   Model:
     docs: |
       Model definition used for transforming usage into USD cost and/or tokenization.
@@ -467,25 +523,25 @@ types:
         type: string
       startDate:
         docs: Apply only to generations which are newer than this ISO date.
-        type: optional<datetime>
+        type: nullable<datetime>
       unit:
         docs: Unit used by this model.
-        type: optional<ModelUsageUnit>
+        type: optional<nullable<ModelUsageUnit>>
       inputPrice:
         docs: Deprecated. See 'prices' instead. Price (USD) per input unit
-        type: optional<double>
+        type: nullable<double>
       outputPrice:
         docs: Deprecated. See 'prices' instead. Price (USD) per output unit
-        type: optional<double>
+        type: nullable<double>
       totalPrice:
         docs: Deprecated. See 'prices' instead. Price (USD) per total unit. Cannot be set if input or output price is set.
-        type: optional<double>
+        type: nullable<double>
       tokenizerId:
         docs: Optional. Tokenizer to be applied to observations which match to this model. See docs for more details.
-        type: optional<string>
+        type: nullable<string>
       tokenizerConfig:
         docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
-        type: optional<unknown>
+        type: unknown
       isLangfuseManaged:
         type: boolean
       createdAt:

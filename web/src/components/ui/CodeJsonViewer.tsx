@@ -113,26 +113,35 @@ export function JSONView(props: {
             )}
           </code>
         ) : (
-          <React18JsonView
-            src={parsedJson}
-            theme="github"
-            dark={resolvedTheme === "dark"}
-            collapsed={isCollapsed ? 1 : false}
-            collapseObjectsAfterLength={isCollapsed ? 0 : 20}
-            collapseStringsAfterLength={collapseStringsAfterLength}
-            collapseStringMode="word"
-            customizeCollapseStringUI={(fullSTring, truncated) =>
-              truncated ? (
-                <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
-              ) : (
-                ""
-              )
-            }
-            displaySize={isCollapsed ? "collapsed" : "expanded"}
-            matchesURL={true}
-            customizeCopy={(node) => stringifyJsonNode(node)}
-            className="w-full"
-          />
+          <div
+            onClick={() => {
+              // If externally collapsed and user clicks to expand, sync the state
+              if (props.externalJsonCollapsed && props.onToggleCollapse) {
+                props.onToggleCollapse();
+              }
+            }}
+          >
+            <React18JsonView
+              src={parsedJson}
+              theme="github"
+              dark={resolvedTheme === "dark"}
+              collapsed={isCollapsed ? 1 : false}
+              collapseObjectsAfterLength={isCollapsed ? 0 : 20}
+              collapseStringsAfterLength={collapseStringsAfterLength}
+              collapseStringMode="word"
+              customizeCollapseStringUI={(fullSTring, truncated) =>
+                truncated ? (
+                  <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+                ) : (
+                  ""
+                )
+              }
+              displaySize={isCollapsed ? "collapsed" : "expanded"}
+              matchesURL={true}
+              customizeCopy={(node) => stringifyJsonNode(node)}
+              className="w-full"
+            />
+          </div>
         )}
       </div>
       {props.media && props.media.length > 0 && (

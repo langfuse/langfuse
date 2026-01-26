@@ -62,7 +62,7 @@ function TracePanelNavigationHeaderExpanded({
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
-  const { tree, trace, observations } = useTraceData();
+  const { roots, trace, observations } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
 
@@ -80,11 +80,12 @@ function TracePanelNavigationHeaderExpanded({
     }
   };
 
-  // Check if everything is collapsed
-  const isEverythingCollapsed = collapsedNodes.has(tree.id);
+  // Check if everything is collapsed (all roots collapsed)
+  const isEverythingCollapsed =
+    roots.length > 0 && roots.every((r) => collapsedNodes.has(r.id));
 
-  // Collect all node IDs for collapse all
-  const getAllNodeIds = useCallback((node: typeof tree): string[] => {
+  // Collect all node IDs for collapse all (from all roots)
+  const getAllNodeIds = useCallback((node: (typeof roots)[0]): string[] => {
     const ids = [node.id];
     node.children.forEach((child) => {
       ids.push(...getAllNodeIds(child));
@@ -96,10 +97,10 @@ function TracePanelNavigationHeaderExpanded({
     if (isEverythingCollapsed) {
       expandAll();
     } else {
-      const allIds = getAllNodeIds(tree);
+      const allIds = roots.flatMap((root) => getAllNodeIds(root));
       collapseAll(allIds);
     }
-  }, [isEverythingCollapsed, expandAll, collapseAll, getAllNodeIds, tree]);
+  }, [isEverythingCollapsed, expandAll, collapseAll, getAllNodeIds, roots]);
 
   const handleDownload = useCallback(() => {
     downloadTraceAsJson({

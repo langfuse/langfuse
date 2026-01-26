@@ -417,6 +417,7 @@ export class ClickhouseWriter {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 
       // Re-add the records to the queue with incremented attempts
+      let droppedCount = 0;
       queueItems.forEach((item) => {
         if (item.attempts < this.maxAttempts) {
           entityQueue.push({
@@ -426,12 +427,15 @@ export class ClickhouseWriter {
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error");
-          logger.error(
-            `Max attempts reached for ${tableName} record. Dropping record.`,
-            { item: this.truncateOversizedRecord(tableName, item.data) },
-          );
+          droppedCount++;
         }
       });
+
+      if (droppedCount > 0) {
+        logger.error(
+          `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
+        );
+      }
     }
   }
 

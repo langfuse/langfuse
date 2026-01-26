@@ -59,9 +59,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
   if (!isDesktop) {
     return (
       <>
-        <main className="h-full flex-1" style={{ overscrollBehaviorY: "none" }}>
-          {children}
-        </main>
+        <main className="h-full flex-1">{children}</main>
 
         <Drawer open={open} onOpenChange={setOpen} forceDirection="bottom">
           <DrawerContent
@@ -92,10 +90,7 @@ export function ResizableContent({ children }: PropsWithChildren) {
   return (
     <ResizablePanelGroup direction="horizontal" className="flex h-full w-full">
       <ResizablePanel ref={mainPanelRef} defaultSize={100} minSize={30}>
-        <main
-          className="relative h-full w-full overflow-scroll"
-          style={{ overscrollBehaviorY: "none" }}
-        >
+        <main className="relative h-full w-full overflow-scroll">
           {children}
         </main>
       </ResizablePanel>

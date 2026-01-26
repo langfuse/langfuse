@@ -4,9 +4,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useLocalStorage from "@/src/components/useLocalStorage";
 import usePreserveRelativeScroll from "@/src/hooks/usePreserveRelativeScroll";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
-import { IOPreviewJSON } from "./IOPreviewJSON";
+import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { Button } from "@/src/components/ui/button";
@@ -19,14 +20,32 @@ const EMPTY_IO_ALERT_ID = "empty-io";
 const STORAGE_KEY = "dismissed-trace-view-notifications";
 
 export interface ExpansionStateProps {
+  // Per-field expansion state (for formatted and json views)
   inputExpansionState?: Record<string, boolean> | boolean;
   outputExpansionState?: Record<string, boolean> | boolean;
+  metadataExpansionState?: Record<string, boolean> | boolean;
   onInputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
   onOutputExpansionChange?: (
     expansion: Record<string, boolean> | boolean,
   ) => void;
+  onMetadataExpansionChange?: (
+    expansion: Record<string, boolean> | boolean,
+  ) => void;
+  // Combined expansion state (for advanced-json view only)
+  // Paths are prefixed: "input.foo", "output.bar", "metadata.baz"
+  // Input accepts ExpansionState (boolean shorthand allowed), callback receives Record (what viewer emits)
+  advancedJsonExpansionState?: ExpansionState;
+  onAdvancedJsonExpansionChange?: (expansion: Record<string, boolean>) => void;
+  // Simple boolean expansion state (for legacy json view only)
+  // true = expanded, false = collapsed
+  jsonInputExpanded?: boolean;
+  jsonOutputExpanded?: boolean;
+  jsonMetadataExpanded?: boolean;
+  onJsonInputExpandedChange?: (expanded: boolean) => void;
+  onJsonOutputExpandedChange?: (expanded: boolean) => void;
+  onJsonMetadataExpandedChange?: (expanded: boolean) => void;
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
@@ -47,6 +66,10 @@ export interface IOPreviewProps extends ExpansionStateProps {
   hideInput?: boolean;
   currentView?: ViewMode;
   setIsPrettyViewAvailable?: (value: boolean) => void;
+  // Inline comment props (JSON Beta view only)
+  enableInlineComments?: boolean;
+  onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
+  commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
   // Whether to show metadata section in pretty view (default: false)
   // JSON view always shows metadata
   showMetadata?: boolean;
@@ -57,6 +80,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   projectId: string;
   traceId: string;
   environment?: string;
+  showCorrections?: boolean;
 }
 
 /**
@@ -90,15 +114,29 @@ export function IOPreview({
   currentView,
   inputExpansionState,
   outputExpansionState,
+  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  onMetadataExpansionChange,
+  advancedJsonExpansionState,
+  onAdvancedJsonExpansionChange,
+  jsonInputExpanded,
+  jsonOutputExpanded,
+  jsonMetadataExpanded,
+  onJsonInputExpandedChange,
+  onJsonOutputExpandedChange,
+  onJsonMetadataExpandedChange,
   setIsPrettyViewAvailable,
+  enableInlineComments,
+  onAddInlineComment,
+  commentedPathsByField,
   showMetadata = false,
   onVirtualizationChange,
   observationId,
   projectId,
   traceId,
   environment = "default",
+  showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -145,12 +183,15 @@ export function IOPreview({
     media,
     inputExpansionState,
     outputExpansionState,
+    metadataExpansionState,
     onInputExpansionChange,
     onOutputExpansionChange,
+    onMetadataExpansionChange,
     observationId,
     projectId,
     traceId,
     environment,
+    showCorrections,
   };
 
   // Only show empty state popup for traces (not observations) when there's no input/output
@@ -177,8 +218,8 @@ export function IOPreview({
 
       {/*
        * Conditional rendering based on view mode:
-       * - JSON Beta view: IOPreviewJSON (advanced viewer with virtualization, search)
-       * - JSON view: IOPreviewJSONSimple (simple react18-json-view, no virtualization)
+       * - JSON Beta view: IOPreviewJSON (advanced viewer with virtualization, search, inline comments)
+       * - JSON view: IOPreviewJSONSimple (simple react18-json-view, no virtualization, no comments)
        * - Pretty view: IOPreviewPretty (with ChatML parsing, markdown, tools)
        *
        * Only render the active view to prevent dual DOM tree construction.
@@ -196,18 +237,44 @@ export function IOPreview({
           hideInput={hideInput}
           hideOutput={hideOutput}
           media={media}
-          inputExpansionState={inputExpansionState}
-          outputExpansionState={outputExpansionState}
-          onInputExpansionChange={onInputExpansionChange}
-          onOutputExpansionChange={onOutputExpansionChange}
+          expansionState={advancedJsonExpansionState}
+          onExpansionChange={onAdvancedJsonExpansionChange}
           onVirtualizationChange={onVirtualizationChange}
+          enableInlineComments={enableInlineComments}
+          onAddInlineComment={onAddInlineComment}
+          commentedPathsByField={commentedPathsByField}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
+          showCorrections={showCorrections}
+        />
+      ) : selectedView === "json" ? (
+        <IOPreviewJSONSimple
+          input={input}
+          output={output}
+          metadata={metadata}
+          outputCorrection={outputCorrection}
+          parsedInput={parsedInput}
+          parsedOutput={parsedOutput}
+          parsedMetadata={parsedMetadata}
+          isLoading={isLoading}
+          isParsing={isParsing}
+          hideIfNull={hideIfNull}
+          hideInput={hideInput}
+          hideOutput={hideOutput}
+          media={media}
+          inputExpanded={jsonInputExpanded}
+          outputExpanded={jsonOutputExpanded}
+          metadataExpanded={jsonMetadataExpanded}
+          onInputExpandedChange={onJsonInputExpandedChange}
+          onOutputExpandedChange={onJsonOutputExpandedChange}
+          onMetadataExpandedChange={onJsonMetadataExpandedChange}
           observationId={observationId}
           projectId={projectId}
           traceId={traceId}
           environment={environment}
         />
-      ) : selectedView === "json" ? (
-        <IOPreviewJSONSimple {...sharedProps} />
       ) : (
         <IOPreviewPretty
           {...sharedProps}

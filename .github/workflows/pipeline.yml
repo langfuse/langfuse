@@ -172,7 +172,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -269,7 +269,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -396,7 +396,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -422,6 +422,18 @@ jobs:
           pnpm run db:migrate
           pnpm run db:seed
           pnpm run --filter=shared ch:up
+      - name: Download and extract ClickHouse client for dev-tables setup
+        if: matrix.deploy-mode == ''
+        run: |
+          CH_VERSION="24.9.3.128"
+          ARCH="amd64"
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+          dpkg-deb -x clickhouse-client.deb ch_client_dir
+          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
+      - name: Setup Dev Tables
+        if: matrix.deploy-mode == ''
+        run: |
+          pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run tests
@@ -456,7 +468,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -548,7 +560,7 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -604,7 +616,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -693,7 +705,7 @@ jobs:
   push-docker-image:
     needs: all-ci-passed
     # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
-    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: "protected branches"
     runs-on: ubuntu-latest
     permissions:

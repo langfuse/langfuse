@@ -11,6 +11,7 @@ import type {
   PartialJSONTheme,
   StringWrapMode,
   SectionContext,
+  ExpansionState,
 } from "./types";
 import { useMultiSectionTreeState } from "./hooks/useMultiSectionTreeState";
 import { useJsonTheme } from "./hooks/useJsonTheme";
@@ -25,6 +26,7 @@ import {
 import { SectionContextProvider } from "./contexts/SectionContext";
 import { searchInTree, getMatchCountsPerNode } from "./utils/searchJson";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { type CommentedPathsByField } from "./utils/commentRanges";
 
 export interface MultiSectionJsonViewerHandle {
   scrollToSection: (sectionKey: string) => void;
@@ -66,6 +68,14 @@ export interface MultiSectionJsonViewerProps {
 
   /** Media attachments (will be filtered by section field) */
   media?: MediaReturnType[];
+
+  /** Comment highlight ranges per field (for inline comments feature) */
+  commentedPathsByField?: CommentedPathsByField;
+
+  /** External expansion state for persistence */
+  // Input accepts ExpansionState (boolean shorthand), callback receives Record (what exportExpansionState emits)
+  externalExpansionState?: ExpansionState;
+  onExpansionChange?: (state: Record<string, boolean>) => void;
 }
 
 /**
@@ -100,6 +110,9 @@ export const MultiSectionJsonViewer = forwardRef<
     className,
     scrollContainerRef,
     media,
+    commentedPathsByField,
+    externalExpansionState,
+    onExpansionChange,
   },
   ref,
 ) {
@@ -119,6 +132,8 @@ export const MultiSectionJsonViewer = forwardRef<
         data: s.data,
         backgroundColor: s.backgroundColor,
         minHeight: s.minHeight,
+        hasFooter: !!s.renderFooter,
+        hideData: s.hideData,
       })),
     [sections],
   );
@@ -133,6 +148,8 @@ export const MultiSectionJsonViewer = forwardRef<
     sectionConfigs,
     searchQuery,
     indentSizePx: theme.indentSize,
+    externalExpansionState,
+    onExpansionChange,
   });
 
   // Compute search matches
@@ -191,6 +208,7 @@ export const MultiSectionJsonViewer = forwardRef<
       onToggleExpansion: handleToggleExpansion,
       scrollContainerRef,
       media,
+      commentedPathsByField,
     }),
     [
       tree,
@@ -208,6 +226,7 @@ export const MultiSectionJsonViewer = forwardRef<
       handleToggleExpansion,
       scrollContainerRef,
       media,
+      commentedPathsByField,
     ],
   );
 

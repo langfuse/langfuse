@@ -1,4 +1,4 @@
-import lodash from "lodash";
+import isEmpty from "lodash/isEmpty";
 import { z } from "zod/v4";
 
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
@@ -58,7 +58,7 @@ export const usage = MixedUsage.nullish()
     }
 
     // if the object is empty, we return undefined
-    if (lodash.isEmpty(v)) {
+    if (isEmpty(v)) {
       return undefined;
     }
 
@@ -93,6 +93,11 @@ const RawUsageDetails = z.record(z.string(), z.unknown()).transform((val) => {
   for (const [key, value] of Object.entries(val)) {
     if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
       result[key] = value;
+    } else if (typeof value === "string") {
+      const parsed = parseInt(value, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        result[key] = parsed;
+      }
     }
   }
 

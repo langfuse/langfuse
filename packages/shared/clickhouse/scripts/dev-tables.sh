@@ -75,6 +75,8 @@ clickhouse client \
 -- Create observations_batch_staging table for batch processing
 -- This table uses 3-minute partitions to efficiently process observations in batches
 -- and merge them with traces data into the events table.
+-- Partitions are automatically expired after 12 hours via TTL (ttl_only_drop_parts=1
+-- ensures only complete partitions are dropped, not individual rows).
 -- See LFE-7122 for implementation details.
 CREATE TABLE IF NOT EXISTS observations_batch_staging
 (
@@ -123,7 +125,9 @@ ORDER BY (
     toDate(s3_first_seen_timestamp),
     trace_id,
     id
-);
+)
+TTL s3_first_seen_timestamp + INTERVAL 12 HOUR
+SETTINGS ttl_only_drop_parts = 1;
 
 -- Create new events table for development setups.
 -- We expect this to be fully immutable and eventually replace observations.

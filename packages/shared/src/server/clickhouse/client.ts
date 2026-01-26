@@ -126,6 +126,12 @@ export class ClickHouseClientManager {
                   env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS,
               }
             : {}),
+          ...(env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS
+            ? {
+                async_insert_busy_timeout_min_ms:
+                  env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS,
+              }
+            : {}),
           ...(env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE !== "alter_update"
             ? {
                 lightweight_delete_mode: env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE,
@@ -139,7 +145,7 @@ export class ClickHouseClientManager {
           ...(opts.request_timeout && opts.request_timeout > 30000
             ? {
                 send_progress_in_http_headers: 1,
-                http_headers_progress_interval_ms: "25000", // UInt64, should be passed as a string
+                http_headers_progress_interval_ms: "10000", // UInt64, should be passed as a string
               }
             : {}),
         },

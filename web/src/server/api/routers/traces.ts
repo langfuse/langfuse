@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
+import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
@@ -61,7 +61,7 @@ import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
-import { partition } from "lodash";
+import partition from "lodash/partition";
 
 const TraceFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -79,6 +79,9 @@ export type ObservationReturnTypeWithMetadata = Omit<
 > & {
   traceId: string;
   metadata: string | null;
+  // optional, because in v4 an observation can have those properties
+  userId?: string | null;
+  sessionId?: string | null;
 };
 
 export type ObservationReturnType = Omit<

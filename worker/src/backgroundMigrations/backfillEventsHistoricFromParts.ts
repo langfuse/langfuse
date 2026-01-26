@@ -12,10 +12,13 @@ import {
   BaseChunkTodo,
   ConcurrentQueryManager,
   generateQueryId,
+} from "./backfillEventsHistoric";
+
+import {
   getQueryError,
   pollQueryStatus,
   sleep,
-} from "./backfillEventsHistoric";
+} from "@langfuse/shared/src/server";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "d08146bd-3841-4ed3-a42c-5f43ff94b14e";

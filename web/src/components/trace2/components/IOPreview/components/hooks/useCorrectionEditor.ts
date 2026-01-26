@@ -6,6 +6,7 @@ interface UseCorrectionEditorParams {
   onSave: (value: string) => void;
   setSaveStatus: (status: "idle" | "saving" | "saved") => void;
   debounceMs?: number;
+  strictJsonMode?: boolean;
 }
 
 /**
@@ -17,6 +18,7 @@ export function useCorrectionEditor({
   onSave,
   setSaveStatus,
   debounceMs = 500,
+  strictJsonMode = false,
 }: UseCorrectionEditorParams) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(correctionValue);
@@ -30,6 +32,25 @@ export function useCorrectionEditor({
     setValue(correctionValue);
   }, [correctionValue]);
 
+  useEffect(() => {
+    let valid = false;
+    if (strictJsonMode) {
+      try {
+        if (value.trim()) {
+          JSON.parse(value);
+          valid = true;
+        }
+      } catch {
+        valid = false;
+      }
+    } else {
+      valid = value.trim().length > 0;
+    }
+    setIsValidJson(valid);
+    // We only need to re-validate when strictJsonMode changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strictJsonMode]);
+
   const handleEdit = useCallback(() => {
     setIsEditing(true);
     // Prepopulate with actual output if no existing correction
@@ -41,32 +62,67 @@ export function useCorrectionEditor({
             ? actualOutput
             : JSON.stringify(actualOutput);
         setValue(jsonValue);
+
+        // Validate the prefilled value
+        let valid = false;
+        if (strictJsonMode) {
+          try {
+            if (jsonValue.trim()) {
+              JSON.parse(jsonValue);
+              valid = true;
+            }
+          } catch {
+            valid = false;
+          }
+        } else {
+          valid = jsonValue.trim().length > 0;
+        }
+        setIsValidJson(valid);
+
+        // Auto-save prefilled value if valid
+        if (valid) {
+          setSaveStatus("saving");
+          onSave(jsonValue);
+        }
       } catch {
-        setValue(String(actualOutput));
+        const stringValue = String(actualOutput);
+        setValue(stringValue);
+        const valid = stringValue.trim().length > 0;
+        setIsValidJson(valid);
+        if (valid) {
+          setSaveStatus("saving");
+          onSave(stringValue);
+        }
       }
     }
     // Focus textarea after it renders
     setTimeout(() => textareaRef.current?.focus(), 0);
-  }, [value, actualOutput]);
+  }, [value, actualOutput, strictJsonMode, onSave, setSaveStatus]);
 
   const handleChange = useCallback(
     (newValue: string) => {
       // Update local state immediately for responsive typing
       setValue(newValue);
 
-      // Validate JSON
+      // Validate based on mode
       let valid = false;
-      try {
-        if (newValue.trim()) {
-          JSON.parse(newValue);
-          valid = true;
+      if (strictJsonMode) {
+        // Strict: only valid JSON
+        try {
+          if (newValue.trim()) {
+            JSON.parse(newValue);
+            valid = true;
+          }
+        } catch {
+          valid = false;
         }
-      } catch {
-        valid = false;
+      } else {
+        // Lenient: any non-empty string
+        valid = newValue.trim().length > 0;
       }
       setIsValidJson(valid);
 
-      // Only save if valid JSON
+      // Save if valid
       if (valid) {
         setSaveStatus("saving");
 
@@ -81,17 +137,18 @@ export function useCorrectionEditor({
         }, debounceMs);
       } else {
         setSaveStatus("idle");
-        // Clear timeout if JSON becomes invalid
+        // Clear timeout if invalid
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
         }
       }
     },
-    [onSave, setSaveStatus, debounceMs],
+    [onSave, setSaveStatus, debounceMs, strictJsonMode],
   );
 
   return {
     isEditing,
+    setIsEditing,
     value,
     isValidJson,
     handleEdit,
