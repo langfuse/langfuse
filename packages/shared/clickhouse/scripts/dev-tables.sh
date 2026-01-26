@@ -171,24 +171,38 @@ CREATE TABLE IF NOT EXISTS events
       model_id String,
       provided_model_name String,
       model_parameters String,
-      model_parameters_json JSON MATERIALIZED model_parameters::JSON,
+      model_parameters_json JSON(
+        max_dynamic_paths=0,
+        max_dynamic_types=8,
+        temperature Nullable(Float32),
+        max_tokens Nullable(UInt32),
+        top_p Nullable(Float32),
+        frequency_penalty Nullable(Float32),
+        presence_penalty Nullable(Float32),
+      ) MATERIALIZED model_parameters::JSON,
 
       -- Usage
       provided_usage_details Map(LowCardinality(String), UInt64),
-      provided_usage_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_usage_details::JSON,
+      provided_usage_details_json JSON(max_dynamic_paths=0, max_dynamic_types=8) MATERIALIZED provided_usage_details::JSON,
       usage_details Map(LowCardinality(String), UInt64),
       usage_details_json JSON(
-        max_dynamic_paths=64,
+        max_dynamic_paths=0,
         max_dynamic_types=8,
         input UInt64,
         output UInt64,
         total UInt64,
+        input_cache_read UInt64,
+        output_reasoning UInt64,
+        input_audio UInt64,
+        output_audio UInt64,
+        input_cached_tokens UInt64,
+        output_reasoning_tokens UInt64
       ) MATERIALIZED usage_details::JSON,
       provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
-      provided_cost_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_cost_details::JSON,
+      provided_cost_details_json JSON(max_dynamic_paths=0, max_dynamic_types=8) MATERIALIZED provided_cost_details::JSON,
       cost_details Map(LowCardinality(String), Decimal(18,12)),
       cost_details_json JSON(
-        max_dynamic_paths=64,
+        max_dynamic_paths=0,
         max_dynamic_types=8,
         input Decimal(18,12),
         output Decimal(18,12),
@@ -298,6 +312,91 @@ CREATE TABLE IF NOT EXISTS events
     -- min_rows_for_wide_part = 0,
     -- min_bytes_for_wide_part = 0
   ;
+
+-- =============================================================================
+-- EXPERIMENTAL: Materialized view to forward events to events_blue table
+-- =============================================================================
+-- This materialized view forwards all inserts from the 'events' table to an
+-- 'events_blue' table for A/B testing different table configurations.
+--
+-- Prerequisites:
+--   1. Create the events_blue table with the same schema as events
+--   2. Uncomment the CREATE MATERIALIZED VIEW statement below
+--
+-- The view uses explicit column names to avoid column order dependence.
+-- MATERIALIZED columns (input_truncated, calculated_*, etc.) are NOT included
+-- since they are computed automatically by the target table.
+-- =============================================================================
+-- CREATE MATERIALIZED VIEW IF NOT EXISTS events_to_blue_mv
+-- TO events_blue
+-- AS SELECT
+--     project_id,
+--     trace_id,
+--     span_id,
+--     parent_span_id,
+--     start_time,
+--     end_time,
+--     name,
+--     type,
+--     environment,
+--     version,
+--     release,
+--     trace_name,
+--     user_id,
+--     session_id,
+--     tags,
+--     bookmarked,
+--     public,
+--     level,
+--     status_message,
+--     completion_start_time,
+--     prompt_id,
+--     prompt_name,
+--     prompt_version,
+--     model_id,
+--     provided_model_name,
+--     model_parameters,
+--     provided_usage_details,
+--     usage_details,
+--     provided_cost_details,
+--     cost_details,
+--     usage_pricing_tier_id,
+--     usage_pricing_tier_name,
+--     tool_definitions,
+--     tool_calls,
+--     tool_call_names,
+--     input,
+--     output,
+--     metadata,
+--     metadata_names,
+--     metadata_raw_values,
+--     experiment_id,
+--     experiment_name,
+--     experiment_metadata_names,
+--     experiment_metadata_values,
+--     experiment_description,
+--     experiment_dataset_id,
+--     experiment_item_id,
+--     experiment_item_version,
+--     experiment_item_expected_output,
+--     experiment_item_metadata_names,
+--     experiment_item_metadata_values,
+--     experiment_item_root_span_id,
+--     source,
+--     service_name,
+--     service_version,
+--     scope_name,
+--     scope_version,
+--     telemetry_sdk_language,
+--     telemetry_sdk_name,
+--     telemetry_sdk_version,
+--     blob_storage_file_path,
+--     event_bytes,
+--     created_at,
+--     updated_at,
+--     event_ts,
+--     is_deleted
+-- FROM events;
 
 EOF
 
