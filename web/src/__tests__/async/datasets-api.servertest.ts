@@ -1808,7 +1808,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(dbRun).not.toBeNull();
     expect(dbRun?.metadata).toMatchObject({
       test: "versioned experiment",
-      dataset_item_version: experimentVersion.toISOString(),
+      dataset_version: experimentVersion.toISOString(),
     });
   }, 90000);
 });
