@@ -17,6 +17,7 @@ interface ProjectWorkload {
   retentionDays: number;
   cutoffDate: Date;
   expiredMediaCount: number;
+  secondsPastCutoff: number | null;
 }
 
 /**
@@ -53,10 +54,19 @@ export class MediaRetentionCleaner {
       projectId: workload.projectId,
     });
 
+    // Record gauge for how far past cutoff the oldest expired item is
+    if (workload.secondsPastCutoff !== null) {
+      recordGauge(
+        `${METRIC_PREFIX}.seconds_past_cutoff`,
+        Math.max(workload.secondsPastCutoff, 0),
+      );
+    }
+
     logger.info(`${instanceName}: Processing project`, {
       projectId: workload.projectId,
       retentionDays: workload.retentionDays,
       expiredMediaCount: workload.expiredMediaCount,
+      secondsPastCutoff: workload.secondsPastCutoff,
     });
 
     try {
@@ -88,12 +98,16 @@ export class MediaRetentionCleaner {
         project_id: string;
         retention_days: number;
         expired_count: bigint;
+        seconds_past_cutoff: number;
       }>
     >`
       SELECT
         p.id as project_id,
         p.retention_days,
-        COUNT(m.id) as expired_count
+        COUNT(m.id) as expired_count,
+        EXTRACT(EPOCH FROM (
+          (NOW() - (p.retention_days || ' days')::interval) - MIN(m.created_at)
+        ))::int as seconds_past_cutoff
       FROM projects p
       INNER JOIN media m ON m.project_id = p.id
       WHERE p.retention_days > 0
@@ -114,6 +128,7 @@ export class MediaRetentionCleaner {
       retentionDays: row.retention_days,
       cutoffDate: getRetentionCutoffDate(row.retention_days, now),
       expiredMediaCount: Number(row.expired_count),
+      secondsPastCutoff: row.seconds_past_cutoff,
     };
   }
 
