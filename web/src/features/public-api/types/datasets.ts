@@ -103,6 +103,7 @@ export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
     "datasetItemInput",
     "datasetItemExpectedOutput",
     "datasetItemMetadata",
+    "datasetItemVersion",
     "datasetId",
     "error",
   ]);
