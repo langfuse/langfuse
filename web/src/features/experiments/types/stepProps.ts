@@ -67,6 +67,7 @@ export type DatasetState = {
   datasets: Array<{ id: string; name: string }> | undefined;
   selectedDatasetId: string | null;
   selectedDataset: { id: string; name: string } | undefined;
+  selectedDatasetVersion: Date | undefined;
   validationResult: ValidationResult;
   expectedColumnsForDataset: {
     inputVariables: string[];

@@ -83,6 +83,7 @@ export const experimentsRouter = createTRPCRouter({
         projectId: z.string(),
         datasetId: z.string(),
         promptId: z.string(),
+        datasetVersion: z.coerce.date().optional(),
       }),
     )
     .output(ConfigResponse)
@@ -147,6 +148,7 @@ export const experimentsRouter = createTRPCRouter({
           datasetIds: [input.datasetId],
           status: "ACTIVE",
         }),
+        version: input.datasetVersion,
       });
 
       if (!Boolean(items.length)) {
