@@ -4,18 +4,21 @@
 export const EXPORT_SOURCE_OPTIONS = [
   {
     value: "TRACES_OBSERVATIONS" as const,
-    label: "Traces & Observations",
-    description: "Export traces, observations, and scores",
+    label: "Traces and observations (legacy)",
+    description:
+      "Export traces, observations and scores. This is the legacy behavior prior to tracking traces and observations in separate tables. It is recommended to use the enriched observations option instead.",
   },
   {
     value: "TRACES_OBSERVATIONS_EVENTS" as const,
-    label: "Traces, Observations & Events",
-    description: "Export traces, observations, scores, and events",
+    label: "Traces and observations (legacy) and enriched observations",
+    description:
+      "Export traces, observations, scores and enriched observations. This exports both the legacy data source and the new one and essentially exports duplicate data. Therefore, it should only be used to migrate existing integrations to the new recommended data source and check validity of the data for downstream consumers of the export data.",
   },
   {
     value: "EVENTS" as const,
-    label: "Events Only",
-    description: "Export events and scores",
+    label: "Enriched observations (recommended)",
+    description:
+      "Export enriched observations and scores. This is the recommended data source for integrations and will be the default for new integrations.",
   },
 ] as const;
 
