@@ -604,6 +604,7 @@ export const ObservationPreview = ({
                     "userId",
                   ]}
                   localStorageSuffix="ObservationPreview"
+                  disableUrlPersistence
                 />
               </div>
             </TabsBarContent>
