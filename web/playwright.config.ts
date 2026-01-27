@@ -9,6 +9,8 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: "http://localhost:3000",
     actionTimeout: 10000, // 10s click/fill timeout
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
   },
   webServer: {
     command: process.env.CI ? "npm run start" : "npm run dev",

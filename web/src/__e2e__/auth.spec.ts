@@ -17,6 +17,17 @@ test("should redirect to home if signed in", async ({ page }) => {
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
+  // Wait a moment for any error to appear
+  await page.waitForTimeout(2000);
+
+  // Check if error message appeared (sign-in failed)
+  const errorElement = page.locator(".text-destructive");
+  const hasError = await errorElement.isVisible().catch(() => false);
+  if (hasError) {
+    const errorText = await errorElement.textContent();
+    throw new Error(`Sign-in failed with error: ${errorText}`);
+  }
+
   // Give router.push() time to complete - can be slow in CI
   await expect(page).toHaveURL("/", { timeout: 30000 });
 });
