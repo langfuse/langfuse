@@ -227,13 +227,7 @@ function TracesTab({ userId, projectId }: TabProps) {
   const { isBetaEnabled } = useObservationListBeta();
 
   if (isBetaEnabled) {
-    return (
-      <ObservationsEventsTable
-        projectId={projectId}
-        userId={userId}
-        omittedFilter={["User ID"]}
-      />
-    );
+    return <ObservationsEventsTable projectId={projectId} userId={userId} />;
   }
 
   return (
