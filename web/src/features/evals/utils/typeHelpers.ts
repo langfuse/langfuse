@@ -20,3 +20,13 @@ export const getMaintainer = (
   }
   return "User maintained";
 };
+
+/**
+ * Determines if an eval target object is using the legacy (deprecated) eval system.
+ * Legacy eval types (trace-level, dataset-run-level) have limited SDK compatibility.
+ * @param targetObject - The eval target object type
+ * @returns true if the target object is legacy (trace or dataset)
+ */
+export const isLegacyEvalTarget = (targetObject: string): boolean => {
+  return targetObject === "trace" || targetObject === "dataset";
+};
