@@ -25,6 +25,7 @@ type AppliedDimensionType = {
   alias?: string;
   relationTable?: string;
   aggregationFunction?: string;
+  explodeArray?: boolean;
 };
 
 type AppliedMetricType = {
@@ -100,7 +101,11 @@ export class QueryBuilder {
         );
       }
       const dim = view.dimensions[dimension.field];
-      return { ...dim, table: dim.relationTable || view.name };
+      return {
+        ...dim,
+        table: dim.relationTable || view.name,
+        explodeArray: dim.explodeArray,
+      };
     });
   }
 
@@ -588,6 +593,10 @@ export class QueryBuilder {
           if (dimension.aggregationFunction) {
             return `${dimension.aggregationFunction} as ${dimension.alias ?? dimension.sql}`;
           }
+          // Explode array dimensions using arrayJoin
+          if (dimension.explodeArray) {
+            return `arrayJoin(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
+          }
           // Default: wrap in any()
           return `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
         })
@@ -627,11 +636,20 @@ export class QueryBuilder {
     innerDimensionsPart: string,
     innerMetricsPart: string,
     fromClause: string,
+    appliedDimensions: AppliedDimensionType[],
   ) {
     const actualTableName = this.actualTableName(view);
     // Use actual SQL from view definition for id column (handles events.span_id -> id mapping)
     const idSql = view.dimensions.id?.sql || `${actualTableName}.id`;
     const projectIdSql = `${actualTableName}.project_id`;
+
+    // Build inner GROUP BY - include exploded array dimensions (they must be in GROUP BY after arrayJoin)
+    const groupByParts = [projectIdSql, idSql];
+    for (const dim of appliedDimensions) {
+      if (dim.explodeArray) {
+        groupByParts.push(dim.alias ?? dim.sql);
+      }
+    }
 
     return `
       SELECT
@@ -640,7 +658,7 @@ export class QueryBuilder {
         ${innerDimensionsPart}
         ${innerMetricsPart}
         ${fromClause}
-      GROUP BY ${projectIdSql}, ${idSql}`;
+      GROUP BY ${groupByParts.join(", ")}`;
   }
 
   private buildOuterDimensionsPart(
@@ -823,7 +841,12 @@ export class QueryBuilder {
     if (appliedDimensions.length > 0) {
       dimensionsPart =
         appliedDimensions
-          .map((d) => `${d.sql} as ${d.alias ?? d.sql}`)
+          .map((d) => {
+            if (d.explodeArray) {
+              return `arrayJoin(${d.sql}) as ${d.alias ?? d.sql}`;
+            }
+            return `${d.sql} as ${d.alias ?? d.sql}`;
+          })
           .join(",\n") + ",\n";
     }
 
@@ -1137,6 +1160,7 @@ export class QueryBuilder {
         innerDimensionsPart,
         innerMetricsPart,
         fromClause,
+        appliedDimensions,
       );
 
       // Build outer SELECT parts
