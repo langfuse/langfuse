@@ -19,6 +19,7 @@ export interface CalloutProps {
   align?: "top" | "middle";
   children: React.ReactNode;
   onDismiss?: () => void;
+  actions?: (handleDismiss: () => void) => React.ReactNode;
 }
 
 export function Callout({
@@ -28,6 +29,7 @@ export function Callout({
   align = "middle",
   children,
   onDismiss,
+  actions,
 }: CalloutProps) {
   const [dismissedCallouts, setDismissedCallouts] = useLocalStorage<Callout[]>(
     id + "-" + DEFAULT_STORAGE_KEY,
@@ -80,26 +82,34 @@ export function Callout({
       : "border-light-blue bg-light-blue dark:border-light-blue dark:bg-light-blue";
   const alignmentClass = align === "middle" ? "items-center" : "items-start";
 
+  const alignmentOverrides =
+    align === "middle"
+      ? "[&>svg]:top-1/2 [&>svg]:-translate-y-1/2 [&>svg+div]:translate-y-0"
+      : "";
+
   return (
-    <Alert className={variantClass}>
+    <Alert className={`${variantClass} ${alignmentOverrides}`}>
       <Icon
         className={`h-4 w-4 ${
           variant === "warning"
             ? "text-dark-yellow dark:text-dark-yellow"
             : "text-dark-blue dark:text-dark-blue"
-        } ${align === "top" ? "mt-0.5" : ""}`}
+        }`}
       />
       <AlertDescription className={`flex ${alignmentClass} justify-between`}>
         <div className="flex-1 text-sm text-foreground">{children}</div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDismiss}
-          className="ml-4 h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-          aria-label="Dismiss"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="ml-4 flex items-center gap-2">
+          {actions && actions(handleDismiss)}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDismiss}
+            className={`${actions ? "h-7 text-xs" : "h-6 w-6 p-0"} text-muted-foreground hover:text-foreground`}
+            aria-label="Dismiss"
+          >
+            {actions ? "Dismiss" : <X className="h-4 w-4" />}
+          </Button>
+        </div>
       </AlertDescription>
     </Alert>
   );
