@@ -34,6 +34,7 @@ import { recordDistribution } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
+import { logger } from "../logger";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -880,14 +881,48 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
       },
     },
     fn: async (input) => {
-      const query = `
-        DELETE FROM traces
-        WHERE project_id = {projectId: String}
-        AND id IN ({traceIds: Array(String)});
-      `;
-      await commandClickhouse({
-        query: query,
+      // Pre-flight query with time bounds computed
+      const preflight = await queryClickhouse<{
+        min_ts: string;
+        max_ts: string;
+        cnt: string;
+      }>({
+        query: `
+          SELECT
+            min(timestamp) - INTERVAL 1 HOUR as min_ts,
+            max(timestamp) + INTERVAL 1 HOUR as max_ts,
+            count(*) as cnt
+          FROM traces
+          WHERE project_id = {projectId: String} AND id IN ({traceIds: Array(String)})
+        `,
         params: input.params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags: { ...input.tags, kind: "delete-preflight" },
+      });
+
+      const count = Number(preflight[0]?.cnt ?? 0);
+      if (count === 0) {
+        logger.info(
+          `deleteTraces: no rows found for project ${projectId}, skipping DELETE`,
+        );
+        return;
+      }
+
+      await commandClickhouse({
+        query: `
+          DELETE FROM traces
+          WHERE project_id = {projectId: String}
+          AND id IN ({traceIds: Array(String)})
+          AND timestamp >= {minTs: String}::DateTime64(3)
+          AND timestamp <= {maxTs: String}::DateTime64(3)
+        `,
+        params: {
+          ...input.params,
+          minTs: preflight[0].min_ts,
+          maxTs: preflight[0].max_ts,
+        },
         clickhouseConfigs: {
           request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
         },
