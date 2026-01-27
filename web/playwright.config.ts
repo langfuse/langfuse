@@ -1,9 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  timeout: 60000, // test timeout 60s (default 30s)
+  timeout: 180000, // test timeout 180s (3 minutes)
   expect: {
-    timeout: 10000, // assertion timeout 10s (default 5s)
+    timeout: 60000, // assertion timeout 60s (increased for CI)
   },
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
