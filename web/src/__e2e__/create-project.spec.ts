@@ -49,6 +49,16 @@ test.describe("Create project", () => {
     await page.click(
       'button[data-testid="submit-email-password-sign-in-form"]',
     );
+
+    await page.waitForTimeout(2000);
+
+    const errorElement = page.locator(".text-destructive");
+    const hasError = await errorElement.isVisible().catch(() => false);
+    if (hasError) {
+      const errorText = await errorElement.textContent();
+      throw new Error(`Sign-in failed with error: ${errorText}`);
+    }
+
     await expect(page).toHaveURL("/");
 
     // Start create org flow
@@ -148,6 +158,16 @@ const signin = async (page: Page) => {
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  await page.waitForTimeout(2000);
+
+  const errorElement = page.locator(".text-destructive");
+  const hasError = await errorElement.isVisible().catch(() => false);
+  if (hasError) {
+    const errorText = await errorElement.textContent();
+    throw new Error(`Sign-in failed with error: ${errorText}`);
+  }
+
   await expect(page).toHaveURL("/");
 };
 

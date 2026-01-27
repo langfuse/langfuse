@@ -83,6 +83,15 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
+  await page.waitForTimeout(2000);
+
+  const errorElement = page.locator(".text-destructive");
+  const hasError = await errorElement.isVisible().catch(() => false);
+  if (hasError) {
+    const errorText = await errorElement.textContent();
+    throw new Error(`Sign-in failed with error: ${errorText}`);
+  }
+
   await expect(page).toHaveURL("/");
 
   // project id and prompt from seed.ts
@@ -108,6 +117,15 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
+  await page.waitForTimeout(2000);
+
+  const errorElement = page.locator(".text-destructive");
+  const hasError = await errorElement.isVisible().catch(() => false);
+  if (hasError) {
+    const errorText = await errorElement.textContent();
+    throw new Error(`Sign-in failed with error: ${errorText}`);
+  }
+
   await expect(page).toHaveURL(promptUrl);
 });
 
@@ -127,6 +145,15 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  await page.waitForTimeout(2000);
+
+  const errorElement = page.locator(".text-destructive");
+  const hasError = await errorElement.isVisible().catch(() => false);
+  if (hasError) {
+    const errorText = await errorElement.textContent();
+    throw new Error(`Sign-in failed with error: ${errorText}`);
+  }
 
   // Expect to be redirected to the home page, not the non-relative URL
   await expect(page).toHaveURL("/");
@@ -151,6 +178,15 @@ test("Unauthenticated user should be redirected to relative URL after login", as
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
+
+  await page.waitForTimeout(2000);
+
+  const errorElement = page.locator(".text-destructive");
+  const hasError = await errorElement.isVisible().catch(() => false);
+  if (hasError) {
+    const errorText = await errorElement.textContent();
+    throw new Error(`Sign-in failed with error: ${errorText}`);
+  }
 
   // Expect to be redirected to the relative URL
   await expect(page).toHaveURL(relativeUrl);
