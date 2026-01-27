@@ -592,6 +592,13 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
     batchDataRetentionCleanerProcessor,
     {
       concurrency: 1,
+      maxStalledCount: 1000,
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      limiter: {
+        max: 1,
+        duration: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS, // no more than 1 job at a time globally
+      },
     },
   );
 
@@ -630,6 +637,13 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
     mediaRetentionCleanerProcessor,
     {
       concurrency: 1,
+      maxStalledCount: 1000,
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      limiter: {
+        max: 1,
+        duration: env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS, // no more than 1 job at a time globally
+      },
     },
   );
 
