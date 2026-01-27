@@ -117,6 +117,20 @@ export const traceRouter = createTRPCRouter({
 
       return !!(project?.retentionDays && project.retentionDays > 0);
     }),
+  resolveSdkVersion: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      // TODO: Implement ClickHouse query to detect OTEL SDK usage
+      // For now, return mock data
+      return {
+        isOtel: true,
+        isPropagating: false,
+      };
+    }),
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
