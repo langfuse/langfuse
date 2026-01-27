@@ -5,6 +5,7 @@ export default defineConfig({
   expect: {
     timeout: 60000, // assertion timeout 60s (increased for CI)
   },
+  workers: 1, // Run tests sequentially to avoid database conflicts
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: "http://localhost:3000",
