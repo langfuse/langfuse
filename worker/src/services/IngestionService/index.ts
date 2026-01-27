@@ -470,21 +470,6 @@ export class IngestionService {
     this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
   }
 
-  /**
-   * Creates and writes an event in one call.
-   * Convenience method that combines createEventRecord() and writeEventRecord().
-   *
-   * @param eventData - The event data to write
-   * @param fileKey - The file key where the raw event data is stored
-   */
-  public async writeEvent(
-    eventData: EventInput,
-    fileKey: string,
-  ): Promise<void> {
-    const eventRecord = await this.createEventRecord(eventData, fileKey);
-    this.writeEventRecord(eventRecord);
-  }
-
   private async processDatasetRunItemEventList(params: {
     projectId: string;
     entityId: string;
