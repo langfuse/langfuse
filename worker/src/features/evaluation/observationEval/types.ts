@@ -47,13 +47,6 @@ export interface ObservationEvalSchedulerDeps {
     status: JobExecutionStatus;
   }) => Promise<{ id: string }>;
 
-  /** Check if a job execution already exists (for deduplication) */
-  findExistingJobExecution: (params: {
-    projectId: string;
-    jobConfigurationId: string;
-    jobInputObservationId: string;
-  }) => Promise<{ id: string } | null>;
-
   /** Upload observation data to S3 for later retrieval */
   uploadObservationToS3: (params: {
     projectId: string;

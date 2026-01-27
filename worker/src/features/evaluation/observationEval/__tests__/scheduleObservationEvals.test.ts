@@ -86,7 +86,6 @@ describe("scheduleObservationEvals", () => {
 
   const createMockSchedulerDeps = (): ObservationEvalSchedulerDeps => ({
     upsertJobExecution: vi.fn().mockResolvedValue({ id: "job-exec-1" }),
-    findExistingJobExecution: vi.fn().mockResolvedValue(null),
     uploadObservationToS3: vi
       .fn()
       .mockResolvedValue("observations/project-789/obs-123.json"),

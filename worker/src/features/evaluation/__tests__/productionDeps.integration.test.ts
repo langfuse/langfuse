@@ -116,80 +116,6 @@ describe("Production Dependency Factories Integration Tests", () => {
       }, 15_000);
     });
 
-    describe("findExistingJobExecution", () => {
-      it("should find an existing job execution", async () => {
-        const { projectId } = await createOrgProjectAndApiKey();
-
-        // Create required job configuration
-        const jobConfig = await prisma.jobConfiguration.create({
-          data: {
-            id: randomUUID(),
-            projectId,
-            filter: [],
-            jobType: "EVAL",
-            delay: 0,
-            sampling: new Decimal("1"),
-            targetObject: EvalTargetObject.EVENT,
-            scoreName: "test-score",
-            variableMapping: [],
-          },
-        });
-
-        const observationId = randomUUID();
-
-        // Create a job execution
-        const created = await prisma.jobExecution.create({
-          data: {
-            projectId,
-            jobConfigurationId: jobConfig.id,
-            jobInputTraceId: randomUUID(),
-            jobInputObservationId: observationId,
-            status: "PENDING",
-          },
-        });
-
-        // Execute
-        const result = await deps.findExistingJobExecution({
-          projectId,
-          jobConfigurationId: jobConfig.id,
-          jobInputObservationId: observationId,
-        });
-
-        // Verify
-        expect(result).not.toBeNull();
-        expect(result?.id).toBe(created.id);
-      });
-
-      it("should return null when no job execution exists", async () => {
-        const { projectId } = await createOrgProjectAndApiKey();
-
-        // Create required job configuration
-        const jobConfig = await prisma.jobConfiguration.create({
-          data: {
-            id: randomUUID(),
-            projectId,
-            filter: [],
-            jobType: "EVAL",
-            delay: 0,
-            sampling: new Decimal("1"),
-            targetObject: EvalTargetObject.EVENT,
-            scoreName: "test-score",
-            variableMapping: [],
-          },
-        });
-
-        // Execute - search for non-existent observation
-        const result = await deps.findExistingJobExecution({
-          projectId,
-          jobConfigurationId: jobConfig.id,
-          jobInputObservationId: randomUUID(),
-        });
-
-        // Verify
-        expect(result).toBeNull();
-      });
-    });
-
     describe("uploadObservationToS3", () => {
       it("should upload observation data to S3 and return the path", async () => {
         const { projectId } = await createOrgProjectAndApiKey();
@@ -475,14 +401,6 @@ describe("Production Dependency Factories Integration Tests", () => {
       expect(jobExecution?.status).toBe("COMPLETED");
       expect(jobExecution?.jobOutputScoreId).toBe(scoreId);
       expect(jobExecution?.executionTraceId).toBe(executionTraceId);
-
-      // Verify deduplication works
-      const existingJob = await schedulerDeps.findExistingJobExecution({
-        projectId,
-        jobConfigurationId: jobConfig.id,
-        jobInputObservationId: observationId,
-      });
-      expect(existingJob?.id).toBe(jobExecutionId);
     });
   });
 });

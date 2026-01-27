@@ -47,21 +47,6 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
       return { id: jobExecution.id };
     },
 
-    findExistingJobExecution: async (params) => {
-      const { projectId, jobConfigurationId, jobInputObservationId } = params;
-
-      const existing = await prisma.jobExecution.findFirst({
-        where: {
-          projectId,
-          jobConfigurationId,
-          jobInputObservationId,
-        },
-        select: { id: true },
-      });
-
-      return existing;
-    },
-
     uploadObservationToS3: async (params) => {
       const path = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}evals/${params.projectId}/observations/${params.observationId}.json`;
       const s3Client = getEvalS3StorageClient();

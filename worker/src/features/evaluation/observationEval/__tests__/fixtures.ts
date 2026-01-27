@@ -109,7 +109,6 @@ export function createTestEvalConfig(
 export function createMockSchedulerDeps(
   overrides: Partial<{
     createJobExecution: ReturnType<typeof vi.fn>;
-    findExistingJobExecution: ReturnType<typeof vi.fn>;
     uploadObservationToS3: ReturnType<typeof vi.fn>;
     enqueueEvalJob: ReturnType<typeof vi.fn>;
   }> = {},
@@ -118,8 +117,6 @@ export function createMockSchedulerDeps(
     upsertJobExecution:
       overrides.createJobExecution ??
       vi.fn().mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
-    findExistingJobExecution:
-      overrides.findExistingJobExecution ?? vi.fn().mockResolvedValue(null),
     uploadObservationToS3:
       overrides.uploadObservationToS3 ??
       vi.fn().mockResolvedValue(`observations/test/obs-123.json`),
@@ -299,7 +296,6 @@ export function createFullyMockedEvalPipeline(
     upsertJobExecution: vi
       .fn()
       .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
-    findExistingJobExecution: vi.fn().mockResolvedValue(null),
     uploadObservationToS3: vi.fn().mockImplementation(async (params) => {
       const path =
         config.s3UploadPath ??
