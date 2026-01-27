@@ -80,23 +80,23 @@ export async function scheduleObservationEvals(
   });
 
   // Process each matching config
-  for (const matchingConfig of matchingConfigs) {
-    try {
-      await processMatchingConfig({
+  await Promise.all(
+    matchingConfigs.map((matchingConfig) =>
+      processMatchingConfig({
         observation,
         matchingConfig,
         observationS3Path,
         schedulerDeps,
-      });
-    } catch (error) {
-      logger.error("Failed to process observation eval config", {
-        configId: matchingConfig.id,
-        observationId: observation.span_id,
-        projectId: observation.project_id,
-        error,
-      });
-    }
-  }
+      }).catch((error) => {
+        logger.error("Failed to process observation eval config", {
+          configId: matchingConfig.id,
+          observationId: observation.span_id,
+          projectId: observation.project_id,
+          error,
+        });
+      }),
+    ),
+  );
 }
 
 interface ProcessConfigParams {
