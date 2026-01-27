@@ -9,6 +9,12 @@ test("should redirect to home if signed in", async ({ page }) => {
   await page.goto("/auth/sign-in");
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
+
+  // Ensure button is enabled before clicking
+  await expect(
+    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
+  ).toBeEnabled();
+
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   await expect(page).toHaveURL("/");
@@ -62,6 +68,12 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   await page.goto("/auth/sign-in");
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
+
+  // Ensure button is enabled before clicking
+  await expect(
+    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
+  ).toBeEnabled();
+
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   await expect(page).toHaveURL("/");
@@ -82,6 +94,12 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
+
+  // Ensure button is enabled before clicking
+  await expect(
+    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
+  ).toBeEnabled();
+
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   await expect(page).toHaveURL(promptUrl);
@@ -97,6 +115,12 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
 
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
+
+  // Ensure button is enabled before clicking
+  await expect(
+    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
+  ).toBeEnabled();
+
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   // Expect to be redirected to the home page, not the non-relative URL
@@ -116,6 +140,12 @@ test("Unauthenticated user should be redirected to relative URL after login", as
 
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
+
+  // Ensure button is enabled before clicking
+  await expect(
+    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
+  ).toBeEnabled();
+
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   // Expect to be redirected to the relative URL

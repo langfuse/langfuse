@@ -41,6 +41,12 @@ test.describe("Create project", () => {
     await page.goto("/auth/sign-in");
     await page.fill('input[name="email"]', "demo@langfuse.com");
     await page.fill('input[type="password"]', "password");
+
+    // Ensure button is enabled before clicking
+    await expect(
+      page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
+    ).toBeEnabled();
+
     await page.click(
       'button[data-testid="submit-email-password-sign-in-form"]',
     );
@@ -137,6 +143,12 @@ const signin = async (page: Page) => {
   await page.goto("/auth/sign-in");
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
+
+  // Ensure button is enabled before clicking
+  await expect(
+    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
+  ).toBeEnabled();
+
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
   await expect(page).toHaveURL("/");
 };
