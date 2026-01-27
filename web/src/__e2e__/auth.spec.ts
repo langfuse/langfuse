@@ -10,17 +10,14 @@ test("should redirect to home if signed in", async ({ page }) => {
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
 
-  // Ensure button is enabled before clicking
   await expect(
     page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  // Wait a moment for any error to appear
   await page.waitForTimeout(2000);
 
-  // Check if error message appeared (sign-in failed)
   const errorElement = page.locator(".text-destructive");
   const hasError = await errorElement.isVisible().catch(() => false);
   if (hasError) {
@@ -28,7 +25,6 @@ test("should redirect to home if signed in", async ({ page }) => {
     throw new Error(`Sign-in failed with error: ${errorText}`);
   }
 
-  // Give router.push() time to complete - can be slow in CI
   await expect(page).toHaveURL("/");
 });
 
@@ -81,7 +77,6 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
 
-  // Ensure button is enabled before clicking
   await expect(
     page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
   ).toBeEnabled();
@@ -107,7 +102,6 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
 
-  // Ensure button is enabled before clicking
   await expect(
     page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
   ).toBeEnabled();
@@ -128,7 +122,6 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
 
-  // Ensure button is enabled before clicking
   await expect(
     page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
   ).toBeEnabled();
@@ -153,7 +146,6 @@ test("Unauthenticated user should be redirected to relative URL after login", as
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
 
-  // Ensure button is enabled before clicking
   await expect(
     page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
   ).toBeEnabled();

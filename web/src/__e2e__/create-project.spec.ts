@@ -42,7 +42,6 @@ test.describe("Create project", () => {
     await page.fill('input[name="email"]', "demo@langfuse.com");
     await page.fill('input[type="password"]', "password");
 
-    // Ensure button is enabled before clicking
     await expect(
       page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
     ).toBeEnabled();
@@ -144,7 +143,6 @@ const signin = async (page: Page) => {
   await page.fill('input[name="email"]', "demo@langfuse.com");
   await page.fill('input[type="password"]', "password");
 
-  // Ensure button is enabled before clicking
   await expect(
     page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
   ).toBeEnabled();
