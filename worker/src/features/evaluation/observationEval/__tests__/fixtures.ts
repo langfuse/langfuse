@@ -115,7 +115,7 @@ export function createMockSchedulerDeps(
   }> = {},
 ): ObservationEvalSchedulerDeps {
   return {
-    createJobExecution:
+    upsertJobExecution:
       overrides.createJobExecution ??
       vi.fn().mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
     findExistingJobExecution:
@@ -192,6 +192,7 @@ export function createMockJobExecution(
 
 /**
  * Creates a mock job configuration record.
+ * Use evalTemplate option to include a nested template (for Prisma include queries).
  */
 export function createMockJobConfiguration(
   overrides: Partial<{
@@ -209,13 +210,17 @@ export function createMockJobConfiguration(
     timeScope: string[];
     createdAt: Date;
     updatedAt: Date;
+    evalTemplate: ReturnType<typeof createMockEvalTemplate> | null;
   }> = {},
 ) {
+  const templateId = overrides.evalTemplateId ?? `template-${randomUUID()}`;
+  const projectId = overrides.projectId ?? "test-project-123";
+
   return {
     id: overrides.id ?? `config-${randomUUID()}`,
-    projectId: overrides.projectId ?? "test-project-123",
+    projectId,
     jobType: overrides.jobType ?? "EVAL",
-    evalTemplateId: overrides.evalTemplateId ?? `template-${randomUUID()}`,
+    evalTemplateId: templateId,
     scoreName: overrides.scoreName ?? "test-score",
     targetObject: overrides.targetObject ?? EvalTargetObject.EVENT,
     filter: overrides.filter ?? [],
@@ -228,6 +233,11 @@ export function createMockJobConfiguration(
     timeScope: overrides.timeScope ?? ["NEW"],
     createdAt: overrides.createdAt ?? new Date(),
     updatedAt: overrides.updatedAt ?? new Date(),
+    // Include evalTemplate when provided, or create default one
+    evalTemplate:
+      overrides.evalTemplate !== undefined
+        ? overrides.evalTemplate
+        : createMockEvalTemplate({ id: templateId, projectId }),
   };
 }
 
@@ -286,7 +296,7 @@ export function createFullyMockedEvalPipeline(
   const observation = config.observation ?? createTestObservation();
 
   const schedulerDeps: ObservationEvalSchedulerDeps = {
-    createJobExecution: vi
+    upsertJobExecution: vi
       .fn()
       .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
     findExistingJobExecution: vi.fn().mockResolvedValue(null),

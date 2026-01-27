@@ -15,21 +15,33 @@ import { type ObservationEvalSchedulerDeps } from "./types";
  */
 export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDeps {
   return {
-    createJobExecution: async (params) => {
+    upsertJobExecution: async (params) => {
       const {
+        id,
         projectId,
         jobConfigurationId,
         jobInputTraceId,
         jobInputObservationId,
+        jobTemplateId,
+        status,
       } = params;
 
-      const jobExecution = await prisma.jobExecution.create({
-        data: {
+      const jobExecution = await prisma.jobExecution.upsert({
+        where: {
+          id,
+          projectId,
+        },
+        create: {
+          id,
           projectId,
           jobConfigurationId,
           jobInputTraceId,
           jobInputObservationId,
-          status: params.status as "PENDING",
+          jobTemplateId,
+          status,
+        },
+        update: {
+          status,
         },
       });
 
@@ -70,7 +82,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         QueueName.LLMAsJudgeExecution,
         {
           name: QueueJobs.LLMAsJudgeExecution,
-          id: randomUUID(),
+          id: params.jobExecutionId,
           timestamp: new Date(),
           payload: {
             projectId: params.projectId,

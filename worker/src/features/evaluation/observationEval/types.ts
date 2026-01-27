@@ -1,4 +1,4 @@
-import { JobConfiguration } from "@langfuse/shared/src/db";
+import { JobConfiguration, JobExecutionStatus } from "@langfuse/shared/src/db";
 
 /**
  * Re-export ObservationForEval as the canonical observation type for eval operations.
@@ -37,12 +37,14 @@ export type ObservationEvalConfig = Pick<
  */
 export interface ObservationEvalSchedulerDeps {
   /** Create a job execution record in the database */
-  createJobExecution: (params: {
+  upsertJobExecution: (params: {
+    id: string;
     projectId: string;
     jobConfigurationId: string;
     jobInputTraceId: string;
     jobInputObservationId: string;
-    status: string;
+    jobTemplateId: string | null;
+    status: JobExecutionStatus;
   }) => Promise<{ id: string }>;
 
   /** Check if a job execution already exists (for deduplication) */

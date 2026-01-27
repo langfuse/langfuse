@@ -6,7 +6,8 @@ import {
   type ObservationEvalSchedulerDeps,
 } from "../types";
 import { type Prisma } from "@langfuse/shared/src/db";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, JobExecutionStatus } from "@langfuse/shared";
+import { createW3CTraceId } from "../../../utils";
 
 describe("scheduleObservationEvals", () => {
   const createMockObservation = (
@@ -84,7 +85,7 @@ describe("scheduleObservationEvals", () => {
   });
 
   const createMockSchedulerDeps = (): ObservationEvalSchedulerDeps => ({
-    createJobExecution: vi.fn().mockResolvedValue({ id: "job-exec-1" }),
+    upsertJobExecution: vi.fn().mockResolvedValue({ id: "job-exec-1" }),
     findExistingJobExecution: vi.fn().mockResolvedValue(null),
     uploadObservationToS3: vi
       .fn()
@@ -108,7 +109,7 @@ describe("scheduleObservationEvals", () => {
       });
 
       expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
-      expect(schedulerDeps.createJobExecution).not.toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
   });
@@ -173,7 +174,7 @@ describe("scheduleObservationEvals", () => {
       });
 
       expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
-      expect(schedulerDeps.createJobExecution).not.toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
 
@@ -198,7 +199,7 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      expect(schedulerDeps.createJobExecution).toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
 
@@ -212,7 +213,7 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      expect(schedulerDeps.createJobExecution).toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
   });
@@ -233,7 +234,7 @@ describe("scheduleObservationEvals", () => {
       });
 
       expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
-      expect(schedulerDeps.createJobExecution).not.toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
 
@@ -251,46 +252,8 @@ describe("scheduleObservationEvals", () => {
         schedulerDeps,
       });
 
-      expect(schedulerDeps.createJobExecution).toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
-    });
-  });
-
-  describe("deduplication", () => {
-    it("should skip config when job already exists for observation", async () => {
-      const schedulerDeps = createMockSchedulerDeps();
-      schedulerDeps.findExistingJobExecution = vi
-        .fn()
-        .mockResolvedValue({ id: "existing-job" });
-      const observation = createMockObservation();
-
-      await scheduleObservationEvals({
-        observation,
-        configs: [createMockConfig()],
-        schedulerDeps,
-      });
-
-      expect(schedulerDeps.findExistingJobExecution).toHaveBeenCalledWith({
-        projectId: "project-789",
-        jobConfigurationId: "config-1",
-        jobInputObservationId: "obs-123",
-      });
-      expect(schedulerDeps.createJobExecution).not.toHaveBeenCalled();
-      expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
-    });
-
-    it("should create job when no existing job found", async () => {
-      const schedulerDeps = createMockSchedulerDeps();
-      schedulerDeps.findExistingJobExecution = vi.fn().mockResolvedValue(null);
-      const observation = createMockObservation();
-
-      await scheduleObservationEvals({
-        observation,
-        configs: [createMockConfig()],
-        schedulerDeps,
-      });
-
-      expect(schedulerDeps.createJobExecution).toHaveBeenCalled();
     });
   });
 
@@ -298,43 +261,50 @@ describe("scheduleObservationEvals", () => {
     it("should create job execution with correct data", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation();
+      const config = createMockConfig();
 
       await scheduleObservationEvals({
         observation,
-        configs: [createMockConfig()],
+        configs: [config],
         schedulerDeps,
       });
 
-      expect(schedulerDeps.createJobExecution).toHaveBeenCalledWith({
+      const expectedJobExecutionId = createW3CTraceId(
+        `${config.id}:${observation.span_id}`,
+      );
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith({
+        id: expectedJobExecutionId,
         projectId: "project-789",
         jobConfigurationId: "config-1",
         jobInputTraceId: "trace-456",
         jobInputObservationId: "obs-123",
-        status: "PENDING",
+        jobTemplateId: config.evalTemplateId,
+        status: JobExecutionStatus.PENDING,
       });
     });
 
     it("should enqueue job with correct parameters", async () => {
       const schedulerDeps = createMockSchedulerDeps();
-      schedulerDeps.createJobExecution = vi
-        .fn()
-        .mockResolvedValue({ id: "job-exec-1" });
       schedulerDeps.uploadObservationToS3 = vi
         .fn()
         .mockResolvedValue("observations/project-789/obs-123.json");
       const observation = createMockObservation();
+      const config = createMockConfig();
 
       await scheduleObservationEvals({
         observation,
-        configs: [createMockConfig({ delay: 5000 })],
+        configs: [config],
         schedulerDeps,
       });
 
+      const expectedJobExecutionId = createW3CTraceId(
+        `${config.id}:${observation.span_id}`,
+      );
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith({
-        jobExecutionId: "job-exec-1",
+        jobExecutionId: expectedJobExecutionId,
         projectId: "project-789",
         observationS3Path: "observations/project-789/obs-123.json",
-        delay: 5000,
+        delay: 0,
       });
     });
   });
@@ -342,7 +312,7 @@ describe("scheduleObservationEvals", () => {
   describe("multiple configs", () => {
     it("should process multiple matching configs independently", async () => {
       const schedulerDeps = createMockSchedulerDeps();
-      schedulerDeps.createJobExecution = vi
+      schedulerDeps.upsertJobExecution = vi
         .fn()
         .mockResolvedValueOnce({ id: "job-exec-1" })
         .mockResolvedValueOnce({ id: "job-exec-2" })
@@ -363,7 +333,7 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
 
       // Job creation for each config
-      expect(schedulerDeps.createJobExecution).toHaveBeenCalledTimes(3);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(3);
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(3);
     });
 
@@ -405,7 +375,7 @@ describe("scheduleObservationEvals", () => {
       });
 
       // Should create jobs for config-1 and config-3, but not config-2
-      expect(schedulerDeps.createJobExecution).toHaveBeenCalledTimes(2);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(2);
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
     });
   });

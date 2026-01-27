@@ -30,7 +30,7 @@ export class LLMAsJudgeExecutionQueue {
             connection: newRedis,
             prefix: getQueuePrefix(QueueName.LLMAsJudgeExecution),
             defaultJobOptions: {
-              removeOnComplete: true,
+              removeOnComplete: 10_000, // important for job deduplication
               removeOnFail: 10_000,
               attempts: 10,
               backoff: {
