@@ -39,7 +39,7 @@ export default async function chatCompletionHandler(req: NextRequest) {
       projectId: body.projectId,
     });
 
-    return opentelemetry.context.with(baggageCtx, async () => {
+    return await opentelemetry.context.with(baggageCtx, async () => {
       const {
         messages,
         modelParams,
@@ -155,14 +155,16 @@ export default async function chatCompletionHandler(req: NextRequest) {
     }
 
     if (err instanceof Error) {
+      const statusCode =
+        (err as any)?.response?.status ?? (err as any)?.status ?? 500;
+      const errorMessage = err.message || "An unknown error occurred";
+
       return NextResponse.json(
         {
-          message: err.message,
-          error: err,
+          message: errorMessage,
+          error: err.name || "Error",
         },
-        {
-          status: (err as any)?.response?.status ?? (err as any)?.status ?? 500,
-        },
+        { status: statusCode },
       );
     }
 
