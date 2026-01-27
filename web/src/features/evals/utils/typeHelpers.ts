@@ -30,3 +30,14 @@ export const getMaintainer = (
 export const isLegacyEvalTarget = (targetObject: string): boolean => {
   return targetObject === "trace" || targetObject === "dataset";
 };
+
+/**
+ * Maps legacy eval target to modern eval target.
+ * @param legacyTarget - The legacy target object type ("trace" or "dataset")
+ * @returns "event" for trace, "experiment" for dataset
+ */
+export const mapLegacyToModernTarget = (legacyTarget: string): string => {
+  if (legacyTarget === "trace") return "event";
+  if (legacyTarget === "dataset") return "experiment";
+  return legacyTarget; // fallback
+};
