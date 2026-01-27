@@ -315,7 +315,7 @@ const EnvSchema = z.object({
   LANGFUSE_DELETION_MUTATIONS_MAX_COUNT: z.coerce
     .number()
     .positive()
-    .default(15),
+    .default(25),
   LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT: z.coerce
     .number()
     .positive()
@@ -336,7 +336,7 @@ const EnvSchema = z.object({
   LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS: z.coerce
     .number()
     .positive()
-    .default(5_400_000), // 1.5 hours for DELETE operations
+    .default(3_600_000), // 1 hour for DELETE operations
 
   // Batch Data Retention Cleaner configuration (ClickHouse)
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED: z
@@ -361,7 +361,7 @@ const EnvSchema = z.object({
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS: z.coerce
     .number()
     .positive()
-    .default(10_800_000), // 3 hours for DELETE operations
+    .default(3_600_000), // 1 hour for DELETE operations
 
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce

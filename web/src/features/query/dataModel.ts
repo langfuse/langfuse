@@ -434,12 +434,14 @@ export const observationsView: ViewDeclarationType = {
       alias: "toolNames",
       type: "arrayString",
       description: "Names of available tools defined for the observation.",
+      explodeArray: true,
     },
     calledToolNames: {
       sql: "observations.tool_call_names",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
+      explodeArray: true,
     },
   },
   measures: {
@@ -1089,12 +1091,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "toolNames",
       type: "arrayString",
       description: "Names of available tools defined for the observation.",
+      explodeArray: true,
     },
     calledToolNames: {
       sql: "events_observations.tool_call_names",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
+      explodeArray: true,
     },
   },
   measures: {

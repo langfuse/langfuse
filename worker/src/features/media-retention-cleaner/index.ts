@@ -44,6 +44,12 @@ export class MediaRetentionCleaner {
       return;
     }
 
+    // Record gauge for how far past cutoff the oldest expired item is
+    recordGauge(
+      `${METRIC_PREFIX}.seconds_past_cutoff`,
+      Math.max(workload?.secondsPastCutoff ?? 0, 0),
+    );
+
     if (!workload) {
       logger.info(`${instanceName}: No expired media to clean up`);
       return;
@@ -53,14 +59,6 @@ export class MediaRetentionCleaner {
     recordGauge(`${METRIC_PREFIX}.pending_items`, workload.expiredMediaCount, {
       projectId: workload.projectId,
     });
-
-    // Record gauge for how far past cutoff the oldest expired item is
-    if (workload.secondsPastCutoff !== null) {
-      recordGauge(
-        `${METRIC_PREFIX}.seconds_past_cutoff`,
-        Math.max(workload.secondsPastCutoff, 0),
-      );
-    }
 
     logger.info(`${instanceName}: Processing project`, {
       projectId: workload.projectId,

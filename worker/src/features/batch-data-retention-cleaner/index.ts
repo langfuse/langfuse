@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 
+import { percentile } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   commandClickhouse,
@@ -121,16 +122,25 @@ export class BatchDataRetentionCleaner {
       table: tableName,
     });
 
-    // Compute seconds past cutoff for each workload and find the max
+    // Compute seconds past cutoff for each workload
     const SECONDS_PER_DAY = 86400;
-    const maxSecondsPastCutoff = workloads
+    const secondsPastCutoffByProject = workloads
       .filter((w) => w.oldestAgeSeconds !== null)
-      .map((w) => w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY)
-      .reduce((max, val) => Math.max(max, val), -Infinity);
+      .map((w) => ({
+        projectId: w.projectId,
+        secondsPastCutoff:
+          w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY,
+      }));
+
+    // Compute p90 for the gauge metric (0 when no pending work)
+    const p90SecondsPastCutoff = percentile(
+      secondsPastCutoffByProject.map((p) => p.secondsPastCutoff),
+      0.9,
+    );
 
     recordGauge(
       `${METRIC_PREFIX}.seconds_past_cutoff`,
-      Math.max(maxSecondsPastCutoff, 0),
+      Math.max(p90SecondsPastCutoff, 0),
       {
         table: tableName,
       },
@@ -145,7 +155,7 @@ export class BatchDataRetentionCleaner {
 
     logger.info(`${instanceName}: Processing ${workloads.length} projects`, {
       projectIds: workloads.map((w) => w.projectId),
-      secondsPastCutoff: maxSecondsPastCutoff,
+      secondsPastCutoffByProject,
     });
 
     // Step 2: Execute single batch DELETE for all selected projects
