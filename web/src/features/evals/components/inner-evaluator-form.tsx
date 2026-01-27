@@ -232,7 +232,9 @@ export const InnerEvaluatorForm = (props: {
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target: props.existingEvaluator?.targetObject ?? (allowLegacy ? "trace" : "event"),
+      target:
+        props.existingEvaluator?.targetObject ??
+        (allowLegacy ? "trace" : "event"),
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
         : // For new trace evaluators, exclude internal environments by default
