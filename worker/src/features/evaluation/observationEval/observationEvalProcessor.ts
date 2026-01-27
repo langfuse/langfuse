@@ -74,44 +74,20 @@ export async function processObservationEval({
     return;
   }
 
-  if (job.status === JobExecutionStatus.CANCELLED) {
-    logger.debug(`Job ${job.id} was cancelled, deleting execution record.`);
-
-    await prisma.jobExecution.delete({
-      where: {
-        id: job.id,
-        projectId: event.projectId,
-      },
-    });
-
-    return;
-  }
-
   // Fetch job configuration
-  const config = await prisma.jobConfiguration.findFirst({
+  const evalJobConfig = await prisma.jobConfiguration.findFirst({
     where: {
       id: job.jobConfigurationId,
       projectId: event.projectId,
     },
-  });
-
-  if (!config || !config.evalTemplateId) {
-    throw new UnrecoverableError(
-      `Job configuration or template not found for job ${job.id}`,
-    );
-  }
-
-  // Fetch eval template
-  const template = await prisma.evalTemplate.findFirst({
-    where: {
-      id: config.evalTemplateId,
-      OR: [{ projectId: event.projectId }, { projectId: null }],
+    include: {
+      evalTemplate: true,
     },
   });
 
-  if (!template) {
+  if (!evalJobConfig || !evalJobConfig.evalTemplate) {
     throw new UnrecoverableError(
-      `Evaluation template ${config.evalTemplateId} not found`,
+      `Job configuration or template not found for job ${job.id}`,
     );
   }
 
@@ -147,7 +123,7 @@ export async function processObservationEval({
 
   // Extract variables from observation
   const parsedVariableMapping = observationVariableMappingList.parse(
-    config.variableMapping,
+    evalJobConfig.variableMapping,
   ) as ObservationVariableMapping[];
 
   const extractedVariables = extractObservationVariables({
@@ -164,8 +140,8 @@ export async function processObservationEval({
     projectId: event.projectId,
     jobExecutionId: event.jobExecutionId,
     job,
-    config,
-    template,
+    config: evalJobConfig,
+    template: evalJobConfig.evalTemplate,
     extractedVariables,
     environment: observationData.environment ?? DEFAULT_TRACE_ENVIRONMENT,
   });
