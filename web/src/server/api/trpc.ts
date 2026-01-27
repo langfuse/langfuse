@@ -158,11 +158,11 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
+      logErrorByCode("SERVICE_UNAVAILABLE", res.error);
       res.error = new TRPCError({
         code: "SERVICE_UNAVAILABLE",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
-      logErrorByCode(res.error.code, res.error);
     } else {
       // Throw a new TRPC error with:
       // - The same error code as the original error
@@ -173,6 +173,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         ? "We have been notified and are working on it."
         : "Please check error logs in your self-hosted deployment.";
 
+      logErrorByCode(code, res.error);
       res.error = new TRPCError({
         code,
         cause: null, // do not expose stack traces
@@ -180,7 +181,6 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
           ? res.error.message
           : "Internal error. " + errorMessage,
       });
-      logErrorByCode(code, res.error);
     }
   }
 

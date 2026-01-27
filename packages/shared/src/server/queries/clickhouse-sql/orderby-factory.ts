@@ -33,7 +33,7 @@ export function orderByToClickhouseSql(
     );
 
     if (!col) {
-      logger.warn("Invalid order by column", ob.column);
+      logger.warn(`Invalid order by column: ${ob.column}`);
       throw new Error("Invalid order by column: " + ob.column);
     }
 
@@ -41,7 +41,7 @@ export function orderByToClickhouseSql(
     const orderByOrder = z.enum(["ASC", "DESC"]);
     const order = orderByOrder.safeParse(ob.order);
     if (!order.success) {
-      logger.warn("Invalid order", ob.order);
+      logger.warn(`Invalid order: ${ob.order}. Expected "ASC" or "DESC"`);
       throw new Error("Invalid order: " + ob.order);
     }
 
