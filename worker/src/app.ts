@@ -587,6 +587,12 @@ if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
 
 // Batch data retention cleaners for bulk deletion of expired ClickHouse data
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  const tables = BATCH_DATA_RETENTION_TABLES.filter(
+    (t) =>
+      t !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
+  );
+
   WorkerManager.register(
     QueueName.BatchDataRetentionCleanerQueue,
     batchDataRetentionCleanerProcessor,
@@ -596,7 +602,7 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
       lockDuration: 60000, // 60 seconds
       stalledInterval: 120000, // 120 seconds
       limiter: {
-        max: 1,
+        max: tables.length, // one job per table at a time globally
         duration: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS, // no more than 1 job at a time globally
       },
     },
@@ -605,11 +611,6 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   // Schedule repeatable jobs for each table
   const dataRetentionQueue = BatchDataRetentionCleanerQueue.getInstance();
   if (dataRetentionQueue) {
-    const tables = BATCH_DATA_RETENTION_TABLES.filter(
-      (t) =>
-        t !== "events" ||
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
-    );
     for (const table of tables) {
       dataRetentionQueue
         .upsertJobScheduler(
