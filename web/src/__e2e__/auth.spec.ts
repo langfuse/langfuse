@@ -119,10 +119,10 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.waitForTimeout(2000);
 
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
+  const errorElement2 = page.locator(".text-destructive");
+  const hasError2 = await errorElement2.isVisible().catch(() => false);
+  if (hasError2) {
+    const errorText = await errorElement2.textContent();
     throw new Error(`Sign-in failed with error: ${errorText}`);
   }
 
