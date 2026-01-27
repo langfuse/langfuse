@@ -158,7 +158,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
-      logErrorByCode(res.error.code, res.error);
+      logErrorByCode("SERVICE_UNAVAILABLE", res.error);
       res.error = new TRPCError({
         code: "SERVICE_UNAVAILABLE",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
