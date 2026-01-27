@@ -49,7 +49,7 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
 
   posthog.on("error", (error) => {
     logger.error(
-      `Error sending traces to PostHog for project ${config.projectId}: ${error}`,
+      `Error sendingasds traces to PostHog for project ${config.projectId}: ${error}`,
     );
     throw new Error(
       `Error sending traces to PostHog for project ${config.projectId}: ${error}`,
