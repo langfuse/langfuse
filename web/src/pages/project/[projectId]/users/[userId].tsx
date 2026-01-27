@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -8,9 +9,19 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import SessionsTable from "@/src/components/table/use-cases/sessions";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
+import { Switch } from "@/src/components/ui/switch";
+import { Label } from "@/src/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
+import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
+import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
@@ -18,11 +29,31 @@ export default function UserPage() {
   const router = useRouter();
   const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
+  const { data: session } = useSession();
+  const { isBetaEnabled, setBetaEnabled } = useObservationListBeta();
 
-  const user = api.users.byId.useQuery({
-    projectId: projectId,
-    userId,
-  });
+  // TODO: remove for prod go-live
+  const showBetaToggle = session?.user?.email?.endsWith("@langfuse.com");
+
+  // Legacy API call (traces-based)
+  const userLegacy = api.users.byId.useQuery(
+    {
+      projectId: projectId,
+      userId,
+    },
+    { enabled: !isBetaEnabled },
+  );
+
+  // Beta API call (events-based)
+  const userBeta = api.users.byIdFromEvents.useQuery(
+    {
+      projectId: projectId,
+      userId,
+    },
+    { enabled: isBetaEnabled },
+  );
+
+  const user = isBetaEnabled ? userBeta : userLegacy;
 
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
@@ -52,13 +83,35 @@ export default function UserPage() {
     setCurrentTab(tab);
   };
 
+  const betaToggle = showBetaToggle ? (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="beta-toggle"
+              checked={isBetaEnabled}
+              onCheckedChange={setBetaEnabled}
+            />
+            <Label htmlFor="beta-toggle" className="cursor-pointer text-xs">
+              Beta
+            </Label>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Try the events-based user view with observation timestamps</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  ) : null;
+
   return (
     <Page
       headerProps={{
         title: userId,
         breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
         itemType: "USER",
-
+        actionButtonsLeft: betaToggle,
         actionButtonsRight: (
           <>
             <ActionButton
@@ -101,7 +154,9 @@ export default function UserPage() {
               Active:{" "}
               {user.data.firstTrace
                 ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : "No traces yet"}
+                : isBetaEnabled
+                  ? "No activity yet"
+                  : "No traces yet"}
             </Badge>
           </div>
         )}
@@ -169,6 +224,18 @@ function ScoresTab({ userId, projectId }: TabProps) {
 }
 
 function TracesTab({ userId, projectId }: TabProps) {
+  const { isBetaEnabled } = useObservationListBeta();
+
+  if (isBetaEnabled) {
+    return (
+      <ObservationsEventsTable
+        projectId={projectId}
+        userId={userId}
+        omittedFilter={["User ID"]}
+      />
+    );
+  }
+
   return (
     <TracesTable
       projectId={projectId}
