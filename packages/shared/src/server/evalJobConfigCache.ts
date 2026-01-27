@@ -11,11 +11,11 @@ import { redis } from "./";
  */
 
 /** Cache types for different eval job configuration targets */
-type EvalConfigCacheType = "trace" | "event";
+type EvalConfigCacheType = "traceBased" | "eventBased";
 
 const CACHE_PREFIXES: Record<EvalConfigCacheType, string> = {
-  trace: "langfuse:eval:no-job-configs",
-  event: "langfuse:eval:no-event-eval-configs",
+  traceBased: "langfuse:eval:no-trace-and-dataset-job-configs", // for target_object 'trace' | 'observation'
+  eventBased: "langfuse:eval:no-event-and-experiment-job-configs", // for target_object 'event' | 'experiment'
 };
 
 const CACHE_TTL_SECONDS = 600; // 10 minutes
@@ -24,7 +24,7 @@ const CACHE_TTL_SECONDS = 600; // 10 minutes
  * Check if a project has no eval configurations cached in Redis.
  * Returns true if the cache indicates no configs exist.
  */
-const hasNoEvalConfigsCache = async (
+export const hasNoEvalConfigsCache = async (
   projectId: string,
   cacheType: EvalConfigCacheType,
 ): Promise<boolean> => {
@@ -48,7 +48,7 @@ const hasNoEvalConfigsCache = async (
  * Cache that a project has no active eval configurations.
  * The cache expires after 10 minutes to ensure eventual consistency.
  */
-const setNoEvalConfigsCache = async (
+export const setNoEvalConfigsCache = async (
   projectId: string,
   cacheType: EvalConfigCacheType,
 ): Promise<void> => {
@@ -71,7 +71,7 @@ const setNoEvalConfigsCache = async (
  * Clear the "no eval configs" cache for a project.
  * Should be called when job configurations are created or activated.
  */
-const clearNoEvalConfigsCache = async (
+export const clearNoEvalConfigsCache = async (
   projectId: string,
   cacheType: EvalConfigCacheType,
 ): Promise<void> => {
@@ -89,19 +89,3 @@ const clearNoEvalConfigsCache = async (
     logger.error(`Failed to clear no ${cacheType} eval configs cache`, error);
   }
 };
-
-// Trace-targeted eval config cache (targetObject: "trace" or "dataset")
-export const hasNoJobConfigsCache = (projectId: string) =>
-  hasNoEvalConfigsCache(projectId, "trace");
-export const setNoJobConfigsCache = (projectId: string) =>
-  setNoEvalConfigsCache(projectId, "trace");
-export const clearNoJobConfigsCache = (projectId: string) =>
-  clearNoEvalConfigsCache(projectId, "trace");
-
-// Event-targeted eval config cache (targetObject: "event")
-export const hasNoObservationEvalConfigsCache = (projectId: string) =>
-  hasNoEvalConfigsCache(projectId, "event");
-export const setNoObservationEvalConfigsCache = (projectId: string) =>
-  setNoEvalConfigsCache(projectId, "event");
-export const clearNoObservationEvalConfigsCache = (projectId: string) =>
-  clearNoEvalConfigsCache(projectId, "event");

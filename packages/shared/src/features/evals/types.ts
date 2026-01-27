@@ -10,7 +10,7 @@ export const EvalTargetObject = {
 export type EvalTargetObject =
   (typeof EvalTargetObject)[keyof typeof EvalTargetObject];
 
-export const EvalTargetObjectSchema = z.enum(["trace", "dataset", "event"]);
+export const EvalTargetObjectSchema = z.enum(Object.values(EvalTargetObject));
 
 export const langfuseObjects = [
   "trace",

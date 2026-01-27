@@ -42,13 +42,13 @@ import {
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
-  hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
   extractToolsFromObservation,
   convertDefinitionsToMap,
   convertCallsToArrays,
+  hasNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -793,7 +793,10 @@ export class IngestionService {
 
     // Add trace into trace upsert queue for eval processing
     // First check if we already know this project has no job configurations
-    const hasNoJobConfigs = await hasNoJobConfigsCache(projectId);
+    const hasNoJobConfigs = await hasNoEvalConfigsCache(
+      projectId,
+      "traceBased",
+    );
     if (hasNoJobConfigs) {
       logger.debug(
         `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,

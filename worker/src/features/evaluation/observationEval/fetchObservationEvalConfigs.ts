@@ -1,9 +1,9 @@
 import { EvalTargetObject } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  hasNoObservationEvalConfigsCache,
-  setNoObservationEvalConfigsCache,
   logger,
+  hasNoEvalConfigsCache,
+  setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import { type ObservationEvalConfig } from "./types";
 
@@ -21,7 +21,7 @@ export async function fetchObservationEvalConfigs(
   projectId: string,
 ): Promise<ObservationEvalConfig[]> {
   // Check cache first
-  const hasNoConfigs = await hasNoObservationEvalConfigsCache(projectId);
+  const hasNoConfigs = await hasNoEvalConfigsCache(projectId, "eventBased");
   if (hasNoConfigs) {
     logger.debug(
       `Skipping observation eval config fetch - no configs cached for project ${projectId}`,
@@ -56,7 +56,7 @@ export async function fetchObservationEvalConfigs(
     logger.debug(
       `No observation eval configs found for project ${projectId}, caching`,
     );
-    await setNoObservationEvalConfigsCache(projectId);
+    await setNoEvalConfigsCache(projectId, "eventBased");
 
     return [];
   }

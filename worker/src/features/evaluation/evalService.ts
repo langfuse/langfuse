@@ -13,7 +13,6 @@ import {
   QueueName,
   EvalExecutionEvent,
   traceException,
-  setNoJobConfigsCache,
   logger,
   EvalExecutionQueue,
   checkTraceExistsAndGetTimestamp,
@@ -30,6 +29,7 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   LangfuseInternalTraceEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
+  setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -209,7 +209,7 @@ export const createEvalJobs = async ({
 
     // Cache the fact that there are no job configurations for this project
     // This helps avoid unnecessary database queries and queue processing
-    await setNoJobConfigsCache(event.projectId);
+    await setNoEvalConfigsCache(event.projectId, "traceBased");
 
     return;
   }
