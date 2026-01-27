@@ -79,6 +79,7 @@ export const PeekViewEvaluatorConfigDetail = ({
 
       {evalConfig && evalConfig.targetObject && (
         <LegacyEvalCallout
+          projectId={projectId}
           evalConfigId={evalConfig.id}
           targetObject={evalConfig.targetObject}
         />

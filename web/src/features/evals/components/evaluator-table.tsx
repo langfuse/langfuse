@@ -70,6 +70,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { RemapEvalWizard } from "@/src/features/evals/components/remap-eval-wizard";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -95,6 +96,75 @@ export type EvaluatorDataRow = {
   totalCost?: number | null;
   isLegacy?: boolean;
 };
+
+function LegacyBadgeCell({
+  projectId,
+  evalConfigId,
+}: {
+  projectId: string;
+  evalConfigId: string;
+}) {
+  const [remapModalOpen, setRemapModalOpen] = useState(false);
+  const utils = api.useUtils();
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5">
+        <Badge variant="warning">
+          Legacy
+          <Tooltip>
+            <TooltipTrigger>
+              <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[280px]">
+              <div className="space-y-1 text-sm">
+                <p className="font-medium">Action required</p>
+                <p className="text-muted-foreground">
+                  This eval is using a legacy version of the eval system. Please
+                  follow{" "}
+                  <Link
+                    href="https://langfuse.com/docs/evals/remapping"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-dark-blue hover:opacity-80"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    this guide
+                  </Link>{" "}
+                  for full compatibility.
+                </p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </Badge>
+
+        {/* <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setRemapModalOpen(true);
+          }}
+          className="h-7 text-xs"
+        >
+          Remap
+        </Button> */}
+      </div>
+
+      <RemapEvalWizard
+        projectId={projectId}
+        evalConfigId={evalConfigId}
+        open={remapModalOpen}
+        onOpenChange={setRemapModalOpen}
+        onSuccess={() => {
+          utils.evals.invalidate();
+        }}
+      />
+    </>
+  );
+}
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -291,46 +361,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("isLegacy", {
       id: "isLegacy",
       header: "Eval Version",
-      size: 140,
+      size: 180,
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.row.original.target;
-        const isDeprecated = isLegacyEvalTarget(targetObject);
+        const status = row.row.original.status;
+        const isDeprecated =
+          isLegacyEvalTarget(targetObject) && status === "ACTIVE";
 
         if (!isDeprecated) return null;
 
         return (
-          <div className="flex items-center gap-1.5">
-            <Badge variant="warning">
-              Legacy
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[280px]">
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium">Action required</p>
-                    <p className="text-muted-foreground">
-                      This eval is using a legacy version of the eval system.
-                      Please follow{" "}
-                      <Link
-                        href="https://langfuse.com/docs/evals/remapping"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-dark-blue hover:opacity-80"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        this guide
-                      </Link>{" "}
-                      for full compatibility.
-                    </p>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </Badge>
-          </div>
+          <LegacyBadgeCell
+            projectId={projectId}
+            evalConfigId={row.row.original.id}
+          />
         );
       },
     }),
