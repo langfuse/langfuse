@@ -37,6 +37,8 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
     config.maxTimestamp,
   );
 
+  logger.info(`Found  traces to send to PostHog`);
+
   logger.info(`Sending traces for project ${config.projectId} to PostHog`);
 
   // Send each via PostHog SDK
