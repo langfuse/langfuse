@@ -11,7 +11,7 @@ import {
   createTracesCh,
   getTracesByIds,
 } from "@langfuse/shared/src/server";
-import { Job } from "bullmq";
+import { DelayedError, Job } from "bullmq";
 
 describe("trace deletion queue processor", () => {
   let projectId: string;
@@ -34,6 +34,9 @@ describe("trace deletion queue processor", () => {
     });
   });
 
+  // Time older than CLAIM_THRESHOLD_MS (10 minutes) to avoid triggering "recently claimed" check
+  const OLD_UPDATED_AT = new Date(Date.now() - 15 * 60 * 1000);
+
   const createMockJob = (
     traceIds: string[],
   ): Job<TQueueJobTypes[QueueName.TraceDelete]> => {
@@ -47,7 +50,8 @@ describe("trace deletion queue processor", () => {
           traceIds,
         },
       },
-    } as Job<TQueueJobTypes[QueueName.TraceDelete]>;
+      moveToDelayed: vi.fn(),
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceDelete]>;
   };
 
   it("should process traces not in pending_deletions table", async () => {
@@ -107,12 +111,14 @@ describe("trace deletion queue processor", () => {
           object: "trace",
           objectId: alreadyDeletedTrace,
           isDeleted: true, // Already deleted
+          updatedAt: OLD_UPDATED_AT,
         },
         {
           projectId,
           object: "trace",
           objectId: notDeletedTrace,
           isDeleted: false, // Not yet deleted
+          updatedAt: OLD_UPDATED_AT,
         },
       ],
     });
@@ -181,12 +187,14 @@ describe("trace deletion queue processor", () => {
           object: "trace",
           objectId: pendingTrace1,
           isDeleted: false,
+          updatedAt: OLD_UPDATED_AT,
         },
         {
           projectId,
           object: "trace",
           objectId: pendingTrace2,
           isDeleted: false,
+          updatedAt: OLD_UPDATED_AT,
         },
       ],
     });
@@ -234,6 +242,7 @@ describe("trace deletion queue processor", () => {
         object: "trace",
         objectId: pendingTrace,
         isDeleted: false,
+        updatedAt: OLD_UPDATED_AT,
       },
     });
 
@@ -281,12 +290,14 @@ describe("trace deletion queue processor", () => {
           object: "trace",
           objectId: overlappingTrace,
           isDeleted: false,
+          updatedAt: OLD_UPDATED_AT,
         },
         {
           projectId,
           object: "trace",
           objectId: pendingOnlyTrace,
           isDeleted: false,
+          updatedAt: OLD_UPDATED_AT,
         },
       ],
     });
@@ -334,6 +345,7 @@ describe("trace deletion queue processor", () => {
         object: "trace",
         objectId: alreadyDeletedTrace,
         isDeleted: true,
+        updatedAt: OLD_UPDATED_AT,
       },
     });
 
@@ -382,6 +394,7 @@ describe("trace deletion queue processor", () => {
         object: "trace",
         objectId: alreadyDeletedTrace,
         isDeleted: true, // Already processed
+        updatedAt: OLD_UPDATED_AT,
       },
     });
 
@@ -436,18 +449,21 @@ describe("trace deletion queue processor", () => {
           object: "trace",
           objectId: alreadyDeletedTrace,
           isDeleted: true, // Already processed
+          updatedAt: OLD_UPDATED_AT,
         },
         {
           projectId,
           object: "trace",
           objectId: pendingTrace,
           isDeleted: false, // Should be processed
+          updatedAt: OLD_UPDATED_AT,
         },
         {
           projectId,
           object: "trace",
           objectId: overlappingTrace,
           isDeleted: false, // Should be processed
+          updatedAt: OLD_UPDATED_AT,
         },
       ],
     });
@@ -490,5 +506,46 @@ describe("trace deletion queue processor", () => {
     expect(alreadyDeleted?.isDeleted).toBe(true); // Unchanged
     expect(pending?.isDeleted).toBe(true); // Updated
     expect(overlapping?.isDeleted).toBe(true); // Updated
+  });
+
+  it("should delay job when pending deletions were recently claimed by another job", async () => {
+    // Setup: Create pending deletions that were "claimed" (updatedAt > createdAt and recent)
+    const pendingTrace = randomUUID();
+
+    // Create trace in ClickHouse
+    await createTracesCh([
+      createTrace({ id: pendingTrace, project_id: projectId }),
+    ]);
+
+    // Create pending deletion with old createdAt and recent updatedAt
+    // This simulates: record was created a while ago, then another job just claimed it
+    await prisma.pendingDeletion.create({
+      data: {
+        projectId,
+        object: "trace",
+        objectId: pendingTrace,
+        isDeleted: false,
+        createdAt: OLD_UPDATED_AT, // Created 15 minutes ago
+        updatedAt: new Date(), // Just claimed by another job
+      },
+    });
+
+    const job = createMockJob([]);
+
+    // When/Then: Should throw DelayedError
+    await expect(traceDeleteProcessor(job)).rejects.toThrow("Delayed");
+
+    // And moveToDelayed should have been called
+    expect(job.moveToDelayed).toHaveBeenCalled();
+
+    // And the trace should still exist in ClickHouse (not deleted)
+    const tracesAfterAttempt = await getTracesByIds([pendingTrace], projectId);
+    expect(tracesAfterAttempt).toHaveLength(1);
+
+    // And pending deletion should remain unchanged
+    const pendingDeletion = await prisma.pendingDeletion.findFirst({
+      where: { projectId },
+    });
+    expect(pendingDeletion?.isDeleted).toBe(false);
   });
 });

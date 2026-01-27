@@ -1,4 +1,4 @@
-import { Job, Processor } from "bullmq";
+import { DelayedError, Job, Processor } from "bullmq";
 import {
   getCurrentSpan,
   logger,
@@ -12,8 +12,11 @@ import { processClickhouseTraceDelete } from "../features/traces/processClickhou
 import { processPostgresTraceDelete } from "../features/traces/processPostgresTraceDelete";
 import { env } from "../env";
 
+const CLAIM_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+
 export const traceDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.TraceDelete]>,
+  token?: string,
 ): Promise<void> => {
   const projectId = job.data.payload.projectId;
   const eventTraceIds =
@@ -32,6 +35,8 @@ export const traceDeleteProcessor: Processor = async (
       },
       select: {
         objectId: true,
+        createdAt: true,
+        updatedAt: true,
       },
     }),
     prisma.pendingDeletion.findMany({
@@ -44,6 +49,23 @@ export const traceDeleteProcessor: Processor = async (
       },
     }),
   ]);
+
+  // Check if any pending records were recently claimed by another job
+  // A record is "claimed" only if: 1) it was updated after creation, AND 2) that update was recent
+  const recentlyClaimed = toBeDeletedTraces.some(
+    (t) =>
+      t.createdAt.getTime() < t.updatedAt.getTime() &&
+      t.updatedAt.getTime() > Date.now() - CLAIM_THRESHOLD_MS,
+  );
+
+  if (recentlyClaimed) {
+    // Another job is processing these records - delay this job
+    logger.debug(
+      `Pending deletions for project ${projectId} were recently claimed by another job, delaying`,
+    );
+    await job.moveToDelayed(Date.now() + CLAIM_THRESHOLD_MS, token);
+    throw new DelayedError();
+  }
 
   // TraceIds from the event body might be deleted already or do not exist in the pending_deletions table
   // as we go live with this feature with a full trace deletion queue. At the same time, we do not want to delete
@@ -73,6 +95,17 @@ export const traceDeleteProcessor: Processor = async (
   );
 
   const traceIdsToDelete = allTraceIds.slice(0, env.LANGFUSE_DELETE_BATCH_SIZE);
+
+  // Claim records by updating updatedAt before processing
+  await prisma.pendingDeletion.updateMany({
+    where: {
+      projectId,
+      object: "trace",
+      objectId: { in: traceIdsToDelete },
+      isDeleted: false,
+    },
+    data: { updatedAt: new Date() },
+  });
 
   // Add all trace IDs to span attributes for observability
   if (span) {
