@@ -2183,40 +2183,28 @@ export const getUsersFromEventsTable = async (
   );
   const appliedEventsFilter = eventsFilter.apply();
 
-  // Build search condition
-  const searchCondition = searchQuery
-    ? `AND e.user_id ILIKE {searchQuery: String}`
-    : "";
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.user_id",
+    selectExpression: "e.user_id as user, count(DISTINCT e.trace_id) as count",
+  })
+    .withFinal()
+    .where(appliedEventsFilter)
+    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
+    .whereRaw("e.is_deleted = 0")
+    .when(Boolean(searchQuery), (b) =>
+      b.whereRaw("e.user_id ILIKE {searchQuery: String}", {
+        searchQuery: `%${searchQuery}%`,
+      }),
+    )
+    .orderBy("ORDER BY count DESC")
+    .limit(limit, offset);
 
-  // Build limit/offset clause
-  const limitClause =
-    limit !== undefined && offset !== undefined
-      ? `LIMIT {limit: Int32} OFFSET {offset: Int32}`
-      : "";
-
-  // Use raw SQL with FINAL for proper ReplacingMergeTree deduplication
-  const query = `
-    SELECT e.user_id as user, count(DISTINCT e.trace_id) as count
-    FROM events e FINAL
-    WHERE e.project_id = {projectId: String}
-    AND e.user_id IS NOT NULL
-    AND length(e.user_id) > 0
-    AND e.is_deleted = 0
-    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
-    ${searchCondition}
-    GROUP BY e.user_id
-    ORDER BY count DESC
-    ${limitClause}
-  `;
+  const { query, params } = queryBuilder.buildWithParams();
 
   return queryClickhouse<{ user: string; count: string }>({
     query,
-    params: {
-      projectId,
-      ...appliedEventsFilter.params,
-      ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
-      ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
-    },
+    params,
     tags: {
       feature: "users",
       type: "events",
@@ -2294,28 +2282,33 @@ export const getUserMetricsFromEventsTable = async (
   );
   const appliedEventsFilter = eventsFilter.apply();
 
-  // Use raw SQL with FINAL for proper ReplacingMergeTree deduplication
+  // Build stats CTE using EventsAggQueryBuilder
+  const statsBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.user_id",
+    selectExpression: `
+      e.user_id as user_id,
+      anyLast(e.environment) as environment,
+      count(DISTINCT e.span_id) as obs_count,
+      count(DISTINCT e.trace_id) as trace_count,
+      sumMap(e.usage_details) as sum_usage_details,
+      sum(e.total_cost) as sum_total_cost,
+      min(e.start_time) as min_timestamp,
+      max(e.start_time) as max_timestamp
+    `,
+  })
+    .withFinal()
+    .whereRaw("e.user_id IN ({userIds: Array(String)})", { userIds })
+    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
+    .whereRaw("e.is_deleted = 0")
+    .where(appliedEventsFilter);
+
+  const { query: statsQuery, params: statsParams } =
+    statsBuilder.buildWithParams();
+
+  // Compose full query with CTE
   const query = `
-    WITH stats AS (
-      SELECT
-        e.user_id as user_id,
-        anyLast(e.environment) as environment,
-        count(DISTINCT e.span_id) as obs_count,
-        count(DISTINCT e.trace_id) as trace_count,
-        sumMap(e.usage_details) as sum_usage_details,
-        sum(e.total_cost) as sum_total_cost,
-        -- First/last event across all events (traces and observations)
-        min(e.start_time) as min_timestamp,
-        max(e.start_time) as max_timestamp
-      FROM events e FINAL
-      WHERE e.project_id = {projectId: String}
-      AND e.user_id IN ({userIds: Array(String)})
-      AND e.user_id IS NOT NULL
-      AND length(e.user_id) > 0
-      AND e.is_deleted = 0
-      ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
-      GROUP BY e.user_id
-    )
+    WITH stats AS (${statsQuery})
     SELECT
       user_id,
       environment,
@@ -2343,11 +2336,7 @@ export const getUserMetricsFromEventsTable = async (
     sum_total_cost: string;
   }>({
     query,
-    params: {
-      projectId,
-      userIds,
-      ...appliedEventsFilter.params,
-    },
+    params: statsParams,
     tags: {
       feature: "users",
       type: "events",
