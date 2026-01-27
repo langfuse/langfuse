@@ -112,7 +112,7 @@ export const plainRouter = createTRPCRouter({
     .input(PrepareAttachmentUploadsInput)
     .mutation(async ({ ctx, input }) => {
       const email = ctx.session.user.email;
-      const fullName = ctx.session.user.name ?? undefined;
+      const fullName = getFullName(ctx.session.user);
       if (!email) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -147,7 +147,7 @@ export const plainRouter = createTRPCRouter({
     .input(CreateSupportThreadInput)
     .mutation(async ({ ctx, input }) => {
       const email = ctx.session.user.email;
-      const fullName = ctx.session.user.name ?? undefined;
+      const fullName = getFullName(ctx.session.user);
       if (!email) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -322,3 +322,21 @@ export const plainRouter = createTRPCRouter({
       };
     }),
 });
+
+function getFullName(user: {
+  name?: string | null;
+  email?: string | null;
+  id: string;
+}): string {
+  const { name, email } = user ?? {};
+
+  if (name?.trim()) return name;
+
+  if (email) {
+    const emailUserName = email.split("@")[0];
+
+    if (emailUserName) return emailUserName;
+  }
+
+  return user?.id.slice(0, 8) ?? "Anonymous";
+}
