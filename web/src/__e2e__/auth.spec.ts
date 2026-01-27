@@ -29,7 +29,7 @@ test("should redirect to home if signed in", async ({ page }) => {
   }
 
   // Give router.push() time to complete - can be slow in CI
-  await expect(page).toHaveURL("/", { timeout: 30000 });
+  await expect(page).toHaveURL("/");
 });
 
 test("Successfully sign up & able to go to homepage", async ({ page }) => {
@@ -39,7 +39,7 @@ test("Successfully sign up & able to go to homepage", async ({ page }) => {
   await page.fill('input[type="password"]', "Password2#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   // see get started page
-  await expect(page).toHaveURL("/", { timeout: 30000 });
+  await expect(page).toHaveURL("/");
 });
 
 test("Successfully sign up & able to go to homepage with uppercase email", async ({
@@ -51,7 +51,7 @@ test("Successfully sign up & able to go to homepage with uppercase email", async
   await page.fill('input[type="password"]', "Password3#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   // see get started page
-  await expect(page).toHaveURL("/", { timeout: 30000 });
+  await expect(page).toHaveURL("/");
 });
 
 test("Signup input validation", async ({ page }) => {
@@ -88,7 +88,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  await expect(page).toHaveURL("/", { timeout: 30000 });
+  await expect(page).toHaveURL("/");
 
   // project id and prompt from seed.ts
   const promptUrl =
@@ -114,7 +114,7 @@ test("Unauthenticated user should be redirected to target URL after login", asyn
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
-  await expect(page).toHaveURL(promptUrl, { timeout: 30000 });
+  await expect(page).toHaveURL(promptUrl);
 });
 
 test("Unauthenticated user should not be redirected to non-relative URLs after login", async ({
@@ -136,7 +136,7 @@ test("Unauthenticated user should not be redirected to non-relative URLs after l
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   // Expect to be redirected to the home page, not the non-relative URL
-  await expect(page).toHaveURL("/", { timeout: 30000 });
+  await expect(page).toHaveURL("/");
 
   // Verify we're logged in
   await expect(page.getByRole("button", { name: /Demo User/ })).toBeVisible();
@@ -161,5 +161,5 @@ test("Unauthenticated user should be redirected to relative URL after login", as
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
 
   // Expect to be redirected to the relative URL
-  await expect(page).toHaveURL(relativeUrl, { timeout: 30000 });
+  await expect(page).toHaveURL(relativeUrl);
 });

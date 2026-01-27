@@ -50,7 +50,7 @@ test.describe("Create project", () => {
     await page.click(
       'button[data-testid="submit-email-password-sign-in-form"]',
     );
-    await expect(page).toHaveURL("/", { timeout: 30000 });
+    await expect(page).toHaveURL("/");
 
     // Start create org flow
     await page.isVisible('[data-testid="create-organization-btn"]');
@@ -150,7 +150,7 @@ const signin = async (page: Page) => {
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-  await expect(page).toHaveURL("/", { timeout: 30000 });
+  await expect(page).toHaveURL("/");
 };
 
 const checkPageHeaderTitle = async (page: Page, title: string) => {
