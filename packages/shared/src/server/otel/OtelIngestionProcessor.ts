@@ -18,6 +18,9 @@ import {
   instrumentSync,
   recordDistribution,
   UsageDetails,
+  extractToolsFromObservation,
+  convertDefinitionsToMap,
+  convertCallsToArrays,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -287,6 +290,24 @@ export class OtelIngestionProcessor {
                   );
                 }
 
+                let toolDefinitions = undefined;
+                let toolCalls = undefined;
+                let toolCallNames = undefined;
+
+                const { toolDefinitions: rawToolDefinitions, toolArguments } =
+                  extractToolsFromObservation(input, output);
+
+                if (rawToolDefinitions.length > 0) {
+                  toolDefinitions = convertDefinitionsToMap(rawToolDefinitions);
+                }
+
+                if (toolArguments.length > 0) {
+                  const { tool_calls, tool_call_names } =
+                    convertCallsToArrays(toolArguments);
+                  toolCalls = tool_calls;
+                  toolCallNames = tool_call_names;
+                }
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -365,6 +386,12 @@ export class OtelIngestionProcessor {
                     null,
                   userId: this.extractUserId(spanAttributes),
                   sessionId: this.extractSessionId(spanAttributes),
+                  release:
+                    (spanAttributes?.[
+                      LangfuseOtelSpanAttributes.RELEASE
+                    ] as string) ??
+                    resourceAttributes?.[LangfuseOtelSpanAttributes.RELEASE] ??
+                    null,
 
                   input,
                   output,
@@ -388,6 +415,11 @@ export class OtelIngestionProcessor {
 
                   // Experiment fields
                   ...experimentFields,
+
+                  // Tool calling
+                  toolDefinitions,
+                  toolCalls,
+                  toolCallNames,
                 });
               }
             }
