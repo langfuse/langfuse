@@ -456,6 +456,61 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       expect(deserialized).toEqual(filterWithEmptyString);
     });
 
+    it("should maintain consistency for values containing pipe characters", () => {
+      // Test for issue #11757: values with literal | should round-trip correctly
+      const filterWithPipe: FilterState = [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Builder | Short Research"],
+        },
+      ];
+
+      const serialized = encodeFilters(filterWithPipe);
+      const deserialized = decodeFilters(serialized);
+
+      expect(deserialized).toEqual(filterWithPipe);
+    });
+
+    it("should maintain consistency for multiple values where some contain pipes", () => {
+      // Multiple values, some with pipes, some without
+      const filterWithMixedPipes: FilterState = [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: [
+            "Builder | Short Research",
+            "Regular Value",
+            "Another | Pipe | Value",
+          ],
+        },
+      ];
+
+      const serialized = encodeFilters(filterWithMixedPipes);
+      const deserialized = decodeFilters(serialized);
+
+      expect(deserialized).toEqual(filterWithMixedPipes);
+    });
+
+    it("should maintain consistency for values containing backslashes and pipes", () => {
+      // Edge case: values with both backslashes and pipes
+      const filterWithBackslashAndPipe: FilterState = [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["path\\to\\file | description", "normal | value"],
+        },
+      ];
+
+      const serialized = encodeFilters(filterWithBackslashAndPipe);
+      const deserialized = decodeFilters(serialized);
+
+      expect(deserialized).toEqual(filterWithBackslashAndPipe);
+    });
+
     it("should maintain consistency for mixed filter types", () => {
       const mixedFilters: FilterState = [
         {
