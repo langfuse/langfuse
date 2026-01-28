@@ -35,7 +35,7 @@ export function V4BetaSidebarToggle() {
               htmlFor="v4-beta-toggle"
               className="cursor-pointer truncate text-sm font-normal"
             >
-              v4 beta
+              v4 Beta
             </Label>
           </div>
         </TooltipTrigger>

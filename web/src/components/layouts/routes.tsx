@@ -194,6 +194,13 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
+    title: "v4 beta",
+    pathname: "",
+    section: RouteSection.Secondary,
+    featureFlag: "v4Beta",
+    menuNode: <V4BetaSidebarToggle />,
+  },
+  {
     title: "Settings",
     pathname: "/project/[projectId]/settings",
     icon: Settings,
@@ -211,13 +218,6 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "", // Empty pathname since this is a dropdown
     menuNode: <SupportButton />,
-  },
-  {
-    title: "v4 beta",
-    pathname: "",
-    section: RouteSection.Secondary,
-    featureFlag: "v4Beta",
-    menuNode: <V4BetaSidebarToggle />,
   },
 ];
 
