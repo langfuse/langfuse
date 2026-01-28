@@ -184,8 +184,8 @@ export const userRouter = createTRPCRouter({
       return metrics.map((metric) => ({
         userId: metric.userId,
         environment: metric.environment,
-        firstTrace: metric.minTimestamp, // Now from observations.start_time
-        lastTrace: metric.maxTimestamp, // Now from observations.updated_at
+        firstTrace: metric.minTimestamp,
+        lastTrace: metric.maxTimestamp,
         totalPromptTokens: BigInt(metric.inputUsage),
         totalCompletionTokens: BigInt(metric.outputUsage),
         totalTokens: BigInt(metric.totalUsage),
@@ -199,7 +199,7 @@ export const userRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        userId: z.string(),
+        userId: z.string().min(1),
       }),
     )
     .query(async ({ input }) => {

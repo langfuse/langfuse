@@ -2185,7 +2185,7 @@ export const getUsersFromEventsTable = async (
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.user_id",
-    selectExpression: "e.user_id as user, count(DISTINCT e.trace_id) as count",
+    selectExpression: "e.user_id as user, uniq(e.trace_id) as count",
   })
     .where(appliedEventsFilter)
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
@@ -2225,13 +2225,12 @@ export const getUsersCountFromEventsTable = async (
   );
   const appliedEventsFilter = eventsFilter.apply();
 
-  // Build search condition
   const searchCondition = searchQuery
     ? `AND e.user_id ILIKE {searchQuery: String}`
     : "";
 
   const query = `
-    SELECT COUNT(DISTINCT e.user_id) AS totalCount
+    SELECT uniq(e.user_id) AS totalCount
     FROM events e
     WHERE e.project_id = {projectId: String}
     AND e.user_id IS NOT NULL
@@ -2277,7 +2276,6 @@ export const getUserMetricsFromEventsTable = async (
   );
   const appliedEventsFilter = eventsFilter.apply();
 
-  // Build stats CTE using EventsAggQueryBuilder
   const statsBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.user_id",
@@ -2293,6 +2291,7 @@ export const getUserMetricsFromEventsTable = async (
     `,
   })
     .whereRaw("e.user_id IN ({userIds: Array(String)})", { userIds })
+    // not required if called from tRPC (user_id is always defined), left in for safety only
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .whereRaw("e.is_deleted = 0")
     .where(appliedEventsFilter);
@@ -2300,7 +2299,6 @@ export const getUserMetricsFromEventsTable = async (
   const { query: statsQuery, params: statsParams } =
     statsBuilder.buildWithParams();
 
-  // Compose full query with CTE
   const query = `
     WITH stats AS (${statsQuery})
     SELECT
