@@ -1,10 +1,10 @@
 import { Decimal } from "decimal.js";
-import { type EvalTemplate } from "@langfuse/shared";
+import { type EvalTemplate, EvalTargetObject } from "@langfuse/shared";
 import { createDefaultVariableMappings } from "../utils/evaluatorMappingUtils";
 import { type PartialConfig } from "@/src/features/evals/types";
 
 export const CONFIG_BASE = {
-  targetObject: "dataset",
+  targetObject: EvalTargetObject.DATASET,
   sampling: new Decimal(1),
   delay: 30000,
   timeScope: ["NEW"],
