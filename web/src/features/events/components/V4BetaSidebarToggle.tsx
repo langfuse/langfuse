@@ -1,11 +1,8 @@
-"use client";
-
 import { Switch } from "@/src/components/ui/switch";
 import { Label } from "@/src/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -15,34 +12,32 @@ export function V4BetaSidebarToggle() {
   const { isBetaEnabled, setBetaEnabled } = useV4Beta();
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className={cn(
-              "flex h-8 w-full items-center gap-2 overflow-hidden p-2 text-left text-sm",
-              "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2",
-            )}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className={cn(
+            "flex h-8 w-full items-center gap-2 overflow-hidden p-2 text-left text-sm",
+            "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2",
+          )}
+        >
+          <Switch
+            id="v4-beta-toggle"
+            size="sm"
+            checked={isBetaEnabled}
+            onCheckedChange={setBetaEnabled}
+            className="shrink-0"
+          />
+          <Label
+            htmlFor="v4-beta-toggle"
+            className="cursor-pointer text-sm font-normal"
           >
-            <Switch
-              id="v4-beta-toggle"
-              size="sm"
-              checked={isBetaEnabled}
-              onCheckedChange={setBetaEnabled}
-              className="shrink-0"
-            />
-            <Label
-              htmlFor="v4-beta-toggle"
-              className="cursor-pointer truncate text-sm font-normal"
-            >
-              v4 Beta
-            </Label>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          Use the new enriched observations experience (v4).
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+            v4 Beta
+          </Label>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs">
+        Use the new enriched observations experience (v4).
+      </TooltipContent>
+    </Tooltip>
   );
 }

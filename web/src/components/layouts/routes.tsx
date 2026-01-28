@@ -194,10 +194,10 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "v4 beta",
+    title: "v4 Beta Toggle",
     pathname: "",
     section: RouteSection.Secondary,
-    featureFlag: "v4Beta",
+    featureFlag: "v4BetaToggleVisible",
     menuNode: <V4BetaSidebarToggle />,
   },
   {

@@ -1,5 +1,5 @@
 export const availableFlags = [
   "templateFlag",
   "excludeClickhouseRead",
-  "v4Beta",
+  "v4BetaToggleVisible",
 ] as const;
