@@ -954,7 +954,6 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
   private projectId: string;
   private groupByColumn: string;
   private selectExpression: string;
-  private useFinal: boolean = false;
 
   constructor(options: {
     projectId: string;
@@ -966,16 +965,6 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     this.groupByColumn = options.groupByColumn;
     this.selectExpression = options.selectExpression;
     this.params.projectId = options.projectId;
-  }
-
-  /**
-   * Enable FINAL modifier for ReplacingMergeTree deduplication.
-   * Use when querying data that may have duplicate rows.
-   * Note: FINAL has performance implications - only use when necessary.
-   */
-  withFinal(): this {
-    this.useFinal = true;
-    return this;
   }
 
   /**
@@ -993,9 +982,8 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     // SELECT
     parts.push(`SELECT ${this.selectExpression}`);
 
-    // FROM - with optional FINAL modifier for ReplacingMergeTree deduplication
-    const finalModifier = this.useFinal ? " FINAL" : "";
-    parts.push(`FROM events e${finalModifier}`);
+    // FROM
+    parts.push("FROM events e");
 
     // JOINs
     const joinSection = this.buildJoinSection();

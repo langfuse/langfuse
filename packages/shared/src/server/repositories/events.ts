@@ -2169,7 +2169,6 @@ const usersFromEventsTableColumnDefinitions: UiColumnMappings = [
 /**
  * Get users with trace counts from events table with pagination
  * Similar to getTracesGroupedByUsers but queries the events table
- * Uses FINAL modifier for proper deduplication on ReplacingMergeTree
  */
 export const getUsersFromEventsTable = async (
   projectId: string,
@@ -2188,7 +2187,6 @@ export const getUsersFromEventsTable = async (
     groupByColumn: "e.user_id",
     selectExpression: "e.user_id as user, count(DISTINCT e.trace_id) as count",
   })
-    .withFinal()
     .where(appliedEventsFilter)
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .whereRaw("e.is_deleted = 0")
@@ -2216,7 +2214,6 @@ export const getUsersFromEventsTable = async (
 
 /**
  * Get total user count from events table
- * Uses FINAL modifier for proper deduplication on ReplacingMergeTree
  */
 export const getUsersCountFromEventsTable = async (
   projectId: string,
@@ -2233,10 +2230,9 @@ export const getUsersCountFromEventsTable = async (
     ? `AND e.user_id ILIKE {searchQuery: String}`
     : "";
 
-  // Use FINAL for proper ReplacingMergeTree deduplication
   const query = `
     SELECT COUNT(DISTINCT e.user_id) AS totalCount
-    FROM events e FINAL
+    FROM events e
     WHERE e.project_id = {projectId: String}
     AND e.user_id IS NOT NULL
     AND e.user_id != ''
@@ -2266,7 +2262,6 @@ export const getUsersCountFromEventsTable = async (
  * Key difference from getUserMetrics in traces.ts:
  * - Uses min(e.start_time)/max(e.start_time) for first/last event (all observations)
  * - Legacy uses min(t.timestamp)/max(t.timestamp) (only trace timestamps)
- * Uses FINAL modifier for proper deduplication on ReplacingMergeTree
  */
 export const getUserMetricsFromEventsTable = async (
   projectId: string,
@@ -2297,7 +2292,6 @@ export const getUserMetricsFromEventsTable = async (
       max(e.start_time) as max_timestamp
     `,
   })
-    .withFinal()
     .whereRaw("e.user_id IN ({userIds: Array(String)})", { userIds })
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .whereRaw("e.is_deleted = 0")
@@ -2366,8 +2360,7 @@ export const getUserMetricsFromEventsTable = async (
 export const hasAnyUserFromEventsTable = async (
   projectId: string,
 ): Promise<boolean> => {
-  // Note: FINAL not used here for performance - duplicates don't affect existence check
-  // But we do filter out deleted rows
+  // Filter out deleted rows
   const query = `
     SELECT 1
     FROM events
