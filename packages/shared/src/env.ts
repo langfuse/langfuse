@@ -231,6 +231,11 @@ const EnvSchema = z.object({
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
+  SLACK_CHANNELS_CACHE_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(300) // 5 minutes
+    .describe("TTL in seconds for caching Slack channels in Redis"),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce

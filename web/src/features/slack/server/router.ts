@@ -3,12 +3,20 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { SlackService } from "@langfuse/shared/src/server";
+import {
+  SlackService,
+  getCachedSlackChannels,
+  cacheSlackChannels,
+  invalidateSlackChannelsCache,
+  SlackChannelFetchQueue,
+  QueueJobs,
+  logger,
+} from "@langfuse/shared/src/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
+import { v4 as uuidv4 } from "uuid";
 
 export const slackRouter = createTRPCRouter({
   /**
@@ -86,10 +94,125 @@ export const slackRouter = createTRPCRouter({
 
   /**
    * Get channels for a project's Slack integration
+   * Uses Redis cache with background refresh via BullMQ queue
    */
   getChannels: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:read",
+      });
+
+      const integration = await ctx.prisma.slackIntegration.findUnique({
+        where: { projectId: input.projectId },
+      });
+
+      if (!integration) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Slack integration not found for this project",
+        });
+      }
+
+      try {
+        // Try to get channels from cache first
+        const cachedChannels = await getCachedSlackChannels(input.projectId);
+
+        if (cachedChannels) {
+          logger.debug("Returning cached Slack channels", {
+            projectId: input.projectId,
+            channelCount: cachedChannels.length,
+          });
+
+          await auditLog({
+            session: ctx.session,
+            resourceType: "slackIntegration",
+            resourceId: integration.id,
+            action: "read",
+            after: {
+              action: "channels_fetched",
+              channelCount: cachedChannels.length,
+              fromCache: true,
+            },
+          });
+
+          return {
+            channels: cachedChannels,
+            teamId: integration.teamId,
+            teamName: integration.teamName,
+            fromCache: true,
+          };
+        }
+
+        // Cache miss - queue a background job to fetch channels
+        const queue = SlackChannelFetchQueue.getInstance();
+        if (queue) {
+          await queue.add(
+            QueueJobs.SlackChannelFetchJob,
+            {
+              timestamp: new Date(),
+              id: uuidv4(),
+              payload: { projectId: input.projectId },
+              name: QueueJobs.SlackChannelFetchJob,
+            },
+            {
+              // Deduplicate jobs for the same project
+              jobId: `slack-channel-fetch-${input.projectId}`,
+            },
+          );
+          logger.info("Queued Slack channel fetch job", {
+            projectId: input.projectId,
+          });
+        }
+
+        // Fallback: fetch directly if queue unavailable or for immediate response
+        const slackService = SlackService.getInstance();
+        const client = await slackService.getWebClientForProject(
+          input.projectId,
+        );
+        const channels = await slackService.getChannels(client);
+
+        await auditLog({
+          session: ctx.session,
+          resourceType: "slackIntegration",
+          resourceId: integration.id,
+          action: "read",
+          after: {
+            action: "channels_fetched",
+            channelCount: channels.length,
+            fromCache: false,
+          },
+        });
+
+        return {
+          channels,
+          teamId: integration.teamId,
+          teamName: integration.teamName,
+          fromCache: false,
+        };
+      } catch (error) {
+        logger.error("Failed to fetch channels", {
+          error,
+          projectId: input.projectId,
+        });
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Failed to fetch channels. Please check your Slack connection and try again.",
+        });
+      }
+    }),
+
+  /**
+   * Refresh channels for a project's Slack integration
+   * Forces a fresh fetch from Slack API and updates the cache
+   */
+  refreshChannels: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
@@ -114,12 +237,23 @@ export const slackRouter = createTRPCRouter({
         );
         const channels = await slackService.getChannels(client);
 
+        // Update the cache with fresh data
+        await cacheSlackChannels(input.projectId, channels);
+
         await auditLog({
           session: ctx.session,
           resourceType: "slackIntegration",
           resourceId: integration.id,
           action: "read",
-          after: { action: "channels_fetched", channelCount: channels.length },
+          after: {
+            action: "channels_refreshed",
+            channelCount: channels.length,
+          },
+        });
+
+        logger.info("Slack channels refreshed", {
+          projectId: input.projectId,
+          channelCount: channels.length,
         });
 
         return {
@@ -128,7 +262,7 @@ export const slackRouter = createTRPCRouter({
           teamName: integration.teamName,
         };
       } catch (error) {
-        logger.error("Failed to fetch channels", {
+        logger.error("Failed to refresh channels", {
           error,
           projectId: input.projectId,
         });
@@ -136,7 +270,7 @@ export const slackRouter = createTRPCRouter({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message:
-            "Failed to fetch channels. Please check your Slack connection and try again.",
+            "Failed to refresh channels. Please check your Slack connection and try again.",
         });
       }
     }),
@@ -166,6 +300,9 @@ export const slackRouter = createTRPCRouter({
 
       try {
         await SlackService.getInstance().deleteIntegration(input.projectId);
+
+        // Invalidate the channels cache
+        await invalidateSlackChannelsCache(input.projectId);
 
         await auditLog({
           session: ctx.session,

@@ -205,6 +205,13 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const SlackChannelFetchEventSchema = z.object({
+  projectId: z.string(),
+});
+export type SlackChannelFetchEventType = z.infer<
+  typeof SlackChannelFetchEventSchema
+>;
+
 export const NotificationEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("COMMENT_MENTION"),
@@ -324,6 +331,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  SlackChannelFetchQueue = "slack-channel-fetch-queue",
 }
 
 export enum QueueJobs {
@@ -360,6 +368,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  SlackChannelFetchJob = "slack-channel-fetch-job",
 }
 
 export type TQueueJobTypes = {
@@ -520,5 +529,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.SlackChannelFetchQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: SlackChannelFetchEventType;
+    name: QueueJobs.SlackChannelFetchJob;
   };
 };

@@ -13,6 +13,10 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import { prisma } from "../../db";
 import { encrypt, decrypt } from "../../encryption";
+import { redis } from "../redis/redis";
+
+// Cache configuration
+const SLACK_CHANNELS_CACHE_PREFIX = "langfuse:slack:channels";
 
 // Types for Slack integration
 export interface SlackChannel {
@@ -423,5 +427,96 @@ export class SlackService {
       logger.warn("Client validation failed", { error });
       return false;
     }
+  }
+}
+
+/**
+ * Get the Redis cache key for Slack channels
+ */
+function getSlackChannelsCacheKey(projectId: string): string {
+  return `${SLACK_CHANNELS_CACHE_PREFIX}:${projectId}`;
+}
+
+/**
+ * Get cached Slack channels from Redis
+ * Returns null if cache miss or Redis unavailable
+ */
+export async function getCachedSlackChannels(
+  projectId: string,
+): Promise<SlackChannel[] | null> {
+  if (!redis) {
+    logger.debug("Redis not available for Slack channels cache");
+    return null;
+  }
+
+  try {
+    const cacheKey = getSlackChannelsCacheKey(projectId);
+    const cached = await redis.get(cacheKey);
+
+    if (!cached) {
+      logger.debug("Slack channels cache miss", { projectId });
+      return null;
+    }
+
+    const channels = JSON.parse(cached) as SlackChannel[];
+    logger.debug("Slack channels cache hit", {
+      projectId,
+      channelCount: channels.length,
+    });
+    return channels;
+  } catch (error) {
+    logger.error("Error reading Slack channels from cache", {
+      error,
+      projectId,
+    });
+    return null;
+  }
+}
+
+/**
+ * Store Slack channels in Redis cache
+ */
+export async function cacheSlackChannels(
+  projectId: string,
+  channels: SlackChannel[],
+): Promise<void> {
+  if (!redis) {
+    logger.debug("Redis not available for Slack channels cache");
+    return;
+  }
+
+  try {
+    const cacheKey = getSlackChannelsCacheKey(projectId);
+    const ttlSeconds = env.SLACK_CHANNELS_CACHE_TTL_SECONDS;
+    await redis.set(cacheKey, JSON.stringify(channels), "EX", ttlSeconds);
+    logger.debug("Slack channels cached", {
+      projectId,
+      channelCount: channels.length,
+      ttlSeconds,
+    });
+  } catch (error) {
+    logger.error("Error caching Slack channels", { error, projectId });
+  }
+}
+
+/**
+ * Invalidate Slack channels cache for a project
+ */
+export async function invalidateSlackChannelsCache(
+  projectId: string,
+): Promise<void> {
+  if (!redis) {
+    return;
+  }
+
+  try {
+    const cacheKey = getSlackChannelsCacheKey(projectId);
+    await redis.del(cacheKey);
+    logger.debug("Slack channels cache invalidated", { projectId });
+  } catch (error) {
+    logger.error("Error invalidating Slack channels cache", {
+      error,
+      projectId,
+    });
   }
 }
