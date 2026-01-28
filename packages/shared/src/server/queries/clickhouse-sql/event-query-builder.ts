@@ -1,6 +1,12 @@
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 
 /**
+ * Types for structured ORDER BY API
+ */
+export type OrderByDirection = "ASC" | "DESC";
+export type OrderByEntry = { column: string; direction: OrderByDirection };
+
+/**
  * Field mapping: each field defined once with its full SELECT expression
  * All queries use `FROM events e` with alias, so all fields use `e.` prefix
  */
@@ -414,6 +420,43 @@ abstract class BaseEventsQueryBuilder<
   ) {
     super();
     this.projectId = options.projectId;
+  }
+
+  /**
+   * Set ORDER BY clause with automatic project_id prepending for optimal ClickHouse performance.
+   * The events table has ORDER BY (project_id, start_time, ...) so queries should match.
+   *
+   * @example
+   * builder.orderByColumns([
+   *   { column: "e.start_time", direction: "DESC" },
+   *   { column: "e.event_ts", direction: "DESC" },
+   * ])
+   * // Produces: ORDER BY e.project_id DESC, e.start_time DESC, e.event_ts DESC
+   */
+  orderByColumns(entries: OrderByEntry[]): this {
+    if (!entries.length) {
+      return this;
+    }
+
+    // Use the direction of the first column for project_id
+    const primaryDirection = entries[0].direction;
+
+    // Build ORDER BY clause with project_id prepended
+    const columns = [
+      `e.project_id ${primaryDirection}`,
+      ...entries.map((e) => `${e.column} ${e.direction}`),
+    ];
+
+    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
+    return this;
+  }
+
+  /**
+   * Apply default ORDER BY for events table queries.
+   * Uses start_time DESC (project_id is auto-prepended).
+   */
+  orderByDefault(): this {
+    return this.orderByColumns([{ column: "e.start_time", direction: "DESC" }]);
   }
 
   /**

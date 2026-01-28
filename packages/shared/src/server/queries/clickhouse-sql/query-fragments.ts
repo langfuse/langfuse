@@ -28,7 +28,7 @@ export const eventsTracesAggregation = (
       .selectFieldSet("all")
       .withTraceIds(params.traceIds)
       .withStartTimeFrom(params.startTimeFrom)
-      .orderBy("ORDER BY timestamp DESC")
+      .orderByColumns([{ column: "timestamp", direction: "DESC" }])
   );
 };
 
