@@ -475,7 +475,7 @@ export function enrichSpansWithExperiment(
 }
 
 /**
- * Write enriched spans to the events table using IngestionService.writeEvent().
+ * Write enriched spans to the events table using IngestionService.writeEventRecord().
  * Converts EnrichedSpan to EventInput format.
  */
 export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
@@ -574,7 +574,11 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       experimentItemMetadataValues: span.experiment_item_metadata_values,
     };
 
-    await ingestionService.writeEvent(eventInput, ""); // Empty fileKey since we're not storing raw events
+    const eventRecord = await ingestionService.createEventRecord(
+      eventInput,
+      "",
+    ); // Empty fileKey since we're not storing raw events
+    ingestionService.writeEventRecord(eventRecord);
   }
 
   logger.info(

@@ -13,6 +13,7 @@ import {
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,
+  llmAsJudgeExecutionQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -239,6 +240,18 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
       lockDuration: 60000, // 60 seconds
       stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
+    },
+  );
+
+  // LLM-as-Judge execution for observation-level evals (uses same env flag as trace evals)
+  WorkerManager.register(
+    QueueName.LLMAsJudgeExecution,
+    llmAsJudgeExecutionQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+      lockDuration: 60000,
+      stalledInterval: 120000,
       maxStalledCount: 3,
     },
   );
@@ -587,6 +600,12 @@ if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
 
 // Batch data retention cleaners for bulk deletion of expired ClickHouse data
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  const tables = BATCH_DATA_RETENTION_TABLES.filter(
+    (t) =>
+      t !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
+  );
+
   WorkerManager.register(
     QueueName.BatchDataRetentionCleanerQueue,
     batchDataRetentionCleanerProcessor,
@@ -596,7 +615,7 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
       lockDuration: 60000, // 60 seconds
       stalledInterval: 120000, // 120 seconds
       limiter: {
-        max: 1,
+        max: tables.length, // one job per table at a time globally
         duration: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS, // no more than 1 job at a time globally
       },
     },
@@ -605,11 +624,6 @@ if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   // Schedule repeatable jobs for each table
   const dataRetentionQueue = BatchDataRetentionCleanerQueue.getInstance();
   if (dataRetentionQueue) {
-    const tables = BATCH_DATA_RETENTION_TABLES.filter(
-      (t) =>
-        t !== "events" ||
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
-    );
     for (const table of tables) {
       dataRetentionQueue
         .upsertJobScheduler(

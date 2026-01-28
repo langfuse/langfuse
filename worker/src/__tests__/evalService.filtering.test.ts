@@ -1,4 +1,8 @@
-import { ObservationLevel, singleFilter } from "@langfuse/shared";
+import {
+  ObservationLevel,
+  singleFilter,
+  EvalTargetObject,
+} from "@langfuse/shared";
 import {
   JobConfiguration,
   kyselyPrisma,
@@ -140,7 +144,7 @@ const test = baseTest.extend<{
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           ...job,

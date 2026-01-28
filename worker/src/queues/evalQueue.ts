@@ -7,11 +7,13 @@ import {
   logger,
   traceException,
   EvalExecutionQueue,
+  LLMAsJudgeExecutionQueue,
   QueueJobs,
   getCurrentSpan,
   isLLMCompletionError,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
+import { processObservationEval } from "../features/evaluation/observationEval";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
@@ -216,6 +218,90 @@ export const evalJobExecutorQueueProcessor = async (
     );
 
     // Retry job by rethrowing error
+    throw e;
+  }
+};
+
+/**
+ * Processor for observation-level LLM-as-a-judge evaluation jobs.
+ * This handles evals triggered during OTEL ingestion for single observations.
+ */
+export const llmAsJudgeExecutionQueueProcessor = async (
+  job: Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>,
+) => {
+  try {
+    logger.debug("Executing LLM-as-Judge Observation Evaluation Job", job.data);
+
+    const span = getCurrentSpan();
+
+    if (span) {
+      span.setAttribute(
+        "messaging.bullmq.job.input.jobExecutionId",
+        job.data.payload.jobExecutionId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.projectId",
+        job.data.payload.projectId,
+      );
+      span.setAttribute(
+        "messaging.bullmq.job.input.retryBaggage.attempt",
+        job.data.retryBaggage?.attempt ?? 0,
+      );
+    }
+
+    await processObservationEval({ event: job.data.payload });
+    return true;
+  } catch (e) {
+    const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
+
+    if (isLLMCompletionError(e) && e.isRetryable) {
+      await retryLLMRateLimitError(job, {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: LLMAsJudgeExecutionQueue.getInstance(),
+        queueName: QueueName.LLMAsJudgeExecution,
+        jobName: QueueJobs.LLMAsJudgeExecution,
+        delayFn: delayInMs,
+      });
+
+      await prisma.jobExecution.update({
+        where: {
+          id: job.data.payload.jobExecutionId,
+          projectId: job.data.payload.projectId,
+        },
+        data: {
+          status: JobExecutionStatus.DELAYED,
+          executionTraceId,
+        },
+      });
+
+      return;
+    }
+
+    await prisma.jobExecution.update({
+      where: {
+        id: job.data.payload.jobExecutionId,
+        projectId: job.data.payload.projectId,
+      },
+      data: {
+        status: JobExecutionStatus.ERROR,
+        endTime: new Date(),
+        error:
+          isLLMCompletionError(e) || isUnrecoverableError(e)
+            ? e.message
+            : "An internal error occurred",
+        executionTraceId,
+      },
+    });
+
+    if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+
+    traceException(e);
+    logger.error(
+      `Failed LLM-as-Judge execution job for id ${job.data.payload.jobExecutionId}`,
+      e,
+    );
+
     throw e;
   }
 };
