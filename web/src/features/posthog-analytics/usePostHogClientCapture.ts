@@ -1,5 +1,5 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
-import { usePostHogContext } from "./PostHogContext";
+import { usePostHog } from "posthog-js/react";
 
 // resource:action, only use snake_case
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
@@ -212,7 +212,7 @@ type EventName = {
 }[keyof typeof events];
 
 export const usePostHogClientCapture = () => {
-  const posthog = usePostHogContext();
+  const posthog = usePostHog();
 
   // wrapped posthog.capture function that only allows events that are in the allowlist
   function capture(
@@ -220,12 +220,6 @@ export const usePostHogClientCapture = () => {
     properties?: Record<string, any> | null,
     options?: CaptureOptions,
   ): CaptureResult | void {
-    if (!posthog) {
-      console.warn(
-        `[PostHog] Capture called before PostHog initialized: ${eventName}`,
-      );
-      return;
-    }
     return posthog.capture(eventName, properties, options);
   }
 
