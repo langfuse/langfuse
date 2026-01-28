@@ -80,7 +80,7 @@ export const filters = {
 
     // For v4Beta: also show when user email ends with @langfuse.com
     const isV4BetaLangfuseEmail =
-      route.featureFlag === "v4Beta" &&
+      route.featureFlag === "v4BetaToggleVisible" &&
       ctx.session?.user?.email?.endsWith("@langfuse.com") === true;
 
     return hasFlag || isV4BetaLangfuseEmail ? route : null;
