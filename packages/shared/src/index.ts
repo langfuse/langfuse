@@ -32,6 +32,7 @@ export * from "./server/llm/types";
 // evals
 export * from "./features/evals/types";
 export * from "./features/evals/utilities";
+export * from "./features/evals/observationForEval";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
