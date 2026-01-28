@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
 interface RemapEvalWizardProps {
   projectId: string;
@@ -42,6 +43,8 @@ export function RemapEvalWizard({
   onOpenChange,
   onSuccess,
 }: RemapEvalWizardProps) {
+  const evalCapabilities = useEvalCapabilities(projectId);
+
   const [error, setError] = useState<string | null>(null);
   const [legacyAction, setLegacyAction] =
     useState<LegacyEvalAction>("mark-inactive");
@@ -105,13 +108,13 @@ export function RemapEvalWizard({
       jobType: oldConfig.jobType,
       createdAt: oldConfig.createdAt,
       updatedAt: oldConfig.updatedAt,
-      // Don't copy filter, variableMapping - let them initialize fresh
-      filter: null,
+      filter: [],
       variableMapping: [],
       sampling: oldConfig.sampling,
       delay: oldConfig.delay,
       status: oldConfig.status,
-      timeScope: oldConfig.timeScope,
+      // Always set to NEW for remapped evals - new eval types cannot run on existing data
+      timeScope: ["NEW"],
     };
   }, [oldConfig]);
 
@@ -190,13 +193,21 @@ export function RemapEvalWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[90vh] max-w-7xl flex-col">
+      <DialogContent className="flex h-[90vh] flex-col" size="xxl">
         <DialogHeader>
-          <DialogTitle>Remap Eval Configuration</DialogTitle>
+          <DialogTitle>Upgrade Evaluator</DialogTitle>
           <DialogDescription>
-            Review your legacy eval configuration on the left and configure the
-            new eval settings on the right. The new eval will be created with
-            modern compatibility.
+            Review your legacy evaluator on the left and configure the new eval
+            settings on the right.{" "}
+            <a
+              href="https://langfuse.com/docs/evals/remapping"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-dark-blue hover:opacity-80"
+            >
+              Follow our step-by-step guide
+            </a>{" "}
+            to upgrade successfully.
           </DialogDescription>
         </DialogHeader>
 
@@ -223,7 +234,10 @@ export function RemapEvalWizard({
             {/* LEFT: Read-only old config */}
             <div className="flex flex-col space-y-4 overflow-hidden p-3">
               <div className="flex items-center gap-2 bg-background pb-2">
-                <h3 className="text-lg font-semibold">Legacy Configuration</h3>
+                <h3 className="text-lg font-semibold">
+                  Legacy Configuration{" "}
+                  {oldConfig.targetObject === "trace" ? "(runs on traces)" : ""}
+                </h3>
                 <span className="text-xs text-muted-foreground">Read-only</span>
               </div>
               <div ref={leftScrollRef} className="flex-1 overflow-auto">
@@ -239,6 +253,7 @@ export function RemapEvalWizard({
                   hideAdvancedSettings={true}
                   preventRedirect={true}
                   renderFooter={() => null}
+                  evalCapabilities={evalCapabilities}
                 />
               </div>
             </div>
@@ -248,7 +263,10 @@ export function RemapEvalWizard({
             {/* RIGHT: Editable new config form */}
             <div className="flex flex-col space-y-4 overflow-hidden p-3">
               <h3 className="bg-background pb-2 text-lg font-semibold">
-                New Configuration
+                New Configuration{" "}
+                {oldConfig.targetObject === "trace"
+                  ? "(runs on observations)"
+                  : ""}
               </h3>
               <div ref={rightScrollRef} className="flex-1 overflow-auto">
                 <InnerEvaluatorForm
@@ -262,6 +280,7 @@ export function RemapEvalWizard({
                   hideTargetSelection={true}
                   preventRedirect={true}
                   hideAdvancedSettings={true}
+                  evalCapabilities={evalCapabilities}
                   renderFooter={({ isLoading, formError }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">
@@ -270,7 +289,11 @@ export function RemapEvalWizard({
                           loading={isLoading}
                           className="mt-3 rounded-l-md rounded-r-none"
                         >
-                          Save
+                          {legacyAction === "keep-active"
+                            ? "Save & keep legacy active"
+                            : legacyAction === "mark-inactive"
+                              ? "Save & mark legacy inactive"
+                              : "Save & delete legacy"}
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
