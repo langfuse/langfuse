@@ -46,7 +46,7 @@ describe("log-view-flattening", () => {
   describe("flattenChronological", () => {
     it("should return empty array for trace with no observations", () => {
       const root = createTraceRoot([]);
-      const result = flattenChronological(root);
+      const result = flattenChronological([root]);
       expect(result).toHaveLength(0);
     });
 
@@ -74,7 +74,7 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([obs1, obs2, obs3]);
 
-      const result = flattenChronological(root);
+      const result = flattenChronological([root]);
 
       expect(result).toHaveLength(3);
       expect(result[0].node.id).toBe("obs-2"); // earliest
@@ -100,7 +100,7 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([parent]);
 
-      const result = flattenChronological(root);
+      const result = flattenChronological([root]);
 
       expect(result).toHaveLength(2);
       // Child started before parent, so comes first chronologically
@@ -124,7 +124,7 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([parent]);
 
-      const result = flattenChronological(root);
+      const result = flattenChronological([root]);
 
       // All items should have empty treeLines (flat view)
       result.forEach((item) => {
@@ -136,7 +136,7 @@ describe("log-view-flattening", () => {
   describe("flattenTreeOrder", () => {
     it("should return empty array for trace with no observations", () => {
       const root = createTraceRoot([]);
-      const result = flattenTreeOrder(root);
+      const result = flattenTreeOrder([root]);
       expect(result).toHaveLength(0);
     });
 
@@ -163,7 +163,7 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([parent]);
 
-      const result = flattenTreeOrder(root);
+      const result = flattenTreeOrder([root]);
 
       expect(result).toHaveLength(3);
       expect(result[0].node.id).toBe("parent");
@@ -193,7 +193,7 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([parent]);
 
-      const result = flattenTreeOrder(root);
+      const result = flattenTreeOrder([root]);
 
       expect(result).toHaveLength(3);
       expect(result[0].node.id).toBe("parent");
@@ -223,15 +223,15 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([parent]);
 
-      const result = flattenTreeOrder(root);
+      const result = flattenTreeOrder([root]);
 
       expect(result[0].treeLines).toEqual([]); // parent - no ancestors
       expect(result[0].isLastSibling).toBe(true); // only root child
 
-      expect(result[1].treeLines).toEqual([false]); // child-1: parent is last sibling, so no line
+      expect(result[1].treeLines).toEqual([true]); // child-1: has sibling below (child-2)
       expect(result[1].isLastSibling).toBe(false); // not last child
 
-      expect(result[2].treeLines).toEqual([false]); // child-2: parent is last sibling
+      expect(result[2].treeLines).toEqual([false]); // child-2: no siblings below
       expect(result[2].isLastSibling).toBe(true); // last child
     });
 
@@ -250,7 +250,7 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([obs1, obs2]);
 
-      const result = flattenTreeOrder(root);
+      const result = flattenTreeOrder([root]);
 
       expect(result).toHaveLength(2);
       expect(result[0].node.id).toBe("obs-2"); // earlier
@@ -286,7 +286,7 @@ describe("log-view-flattening", () => {
       });
       const root = createTraceRoot([level0]);
 
-      const result = flattenTreeOrder(root);
+      const result = flattenTreeOrder([root]);
 
       expect(result).toHaveLength(4);
       expect(result.map((r) => r.node.id)).toEqual([
@@ -324,7 +324,7 @@ describe("log-view-flattening", () => {
         depth: 0,
       });
       const root = createTraceRoot([obs1, obs2, obs3]);
-      return flattenChronological(root);
+      return flattenChronological([root]);
     };
 
     it("should return all items for empty query", () => {
@@ -397,7 +397,7 @@ describe("log-view-flattening", () => {
         depth: 0,
       });
       const root = createTraceRoot([obs]);
-      const items = flattenChronological(root);
+      const items = flattenChronological([root]);
 
       // Should not throw
       const result = filterBySearch(items, "GENERATION");
@@ -422,7 +422,7 @@ describe("log-view-flattening", () => {
       const root = createTraceRoot(observations);
 
       const start = performance.now();
-      const result = flattenChronological(root);
+      const result = flattenChronological([root]);
       const duration = performance.now() - start;
 
       expect(result).toHaveLength(1000);
@@ -443,7 +443,7 @@ describe("log-view-flattening", () => {
       const root = createTraceRoot([current!]);
 
       // Should not throw (stack overflow)
-      const result = flattenTreeOrder(root);
+      const result = flattenTreeOrder([root]);
       expect(result).toHaveLength(100);
     });
   });

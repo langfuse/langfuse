@@ -75,7 +75,7 @@ export const TraceLogView = ({
   projectId,
   currentView = "pretty",
 }: TraceLogViewProps) => {
-  const { tree, observations } = useTraceData();
+  const { roots, observations } = useTraceData();
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
   const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
 
@@ -134,16 +134,20 @@ export const TraceLogView = ({
     setShowMilliseconds,
   } = useLogViewPreferences();
 
-  // Disable indent when tree is too deep
-  const indentDisabled = tree.childrenDepth > INDENT_DEPTH_THRESHOLD;
+  // Disable indent when tree is too deep (max childrenDepth across all roots)
+  const maxChildrenDepth = useMemo(() => {
+    if (roots.length === 0) return 0;
+    return Math.max(...roots.map((r) => r.childrenDepth));
+  }, [roots]);
+  const indentDisabled = maxChildrenDepth > INDENT_DEPTH_THRESHOLD;
   const indentEnabled = indentEnabledPref && !indentDisabled;
 
   // Flatten tree based on mode
   const allItems = useMemo(() => {
     return logViewMode === "chronological"
-      ? flattenChronological(tree)
-      : flattenTreeOrder(tree);
-  }, [tree, logViewMode]);
+      ? flattenChronological(roots)
+      : flattenTreeOrder(roots);
+  }, [roots, logViewMode]);
 
   // Apply search filter
   const flatItems = useMemo(() => {

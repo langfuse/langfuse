@@ -761,6 +761,8 @@ export function PrettyJsonView(props: {
   showNullValues?: boolean;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
+  /** Content to render between header and main content (e.g., thinking blocks) */
+  afterHeader?: React.ReactNode;
 }) {
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
@@ -1352,6 +1354,7 @@ export function PrettyJsonView(props: {
           }
         />
       ) : null}
+      {props.afterHeader}
       {props.scrollable ? (
         <div
           className={cn(
