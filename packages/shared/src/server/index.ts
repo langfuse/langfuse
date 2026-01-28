@@ -80,8 +80,6 @@ export * from "./redis/experimentCreateQueue";
 export * from "./redis/dlqRetryQueue";
 export * from "./redis/entityChangeQueue";
 export * from "./redis/eventPropagationQueue";
-export * from "./redis/batchDataRetentionCleanerQueue";
-export * from "./redis/mediaRetentionCleanerQueue";
 export * from "./redis/otelProjectTracking";
 export * from "./redis/s3SlowdownTracking";
 export * from "./auth/types";

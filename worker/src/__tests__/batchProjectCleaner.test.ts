@@ -41,6 +41,12 @@ describe("BatchProjectCleaner", () => {
 
   describe("processBatch", () => {
     it("should return sleep interval when no deleted projects exist", async () => {
+      // Clean up any soft-deleted projects from other tests
+      await prisma.project.updateMany({
+        where: { deletedAt: { not: null } },
+        data: { deletedAt: null },
+      });
+
       // Create an active project (not deleted)
       await createOrgProjectAndApiKey();
 
