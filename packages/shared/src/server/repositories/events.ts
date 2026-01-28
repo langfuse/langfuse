@@ -18,6 +18,7 @@ import {
   FilterList,
   FullEventsObservations,
   orderByToClickhouseSql,
+  orderByToEntries,
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
   deriveFilters,
@@ -357,7 +358,7 @@ async function getObservationsFromEventsTableInternal<T>(
   // TODO further optimize by checking if specific trace fields are filtered on.
   const needsTraceJoin = search.query;
 
-  const chOrderBy = orderByToClickhouseSql(
+  const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
   );
@@ -403,7 +404,7 @@ async function getObservationsFromEventsTableInternal<T>(
     )
     .where(appliedObservationsFilter)
     .where(search)
-    .orderBy(chOrderBy)
+    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
     .limit(limit, offset);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -527,7 +528,10 @@ async function getObservationByIdFromEventsTableInternal({
     .when(Boolean(traceId), (b) =>
       b.whereRaw("trace_id = {traceId: String}", { traceId }),
     )
-    .orderBy("ORDER BY start_time DESC, event_ts DESC")
+    .orderByColumns([
+      { column: "start_time", direction: "DESC" },
+      { column: "event_ts", direction: "DESC" },
+    ])
     .limit(1, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -762,9 +766,11 @@ function applyOrderByForObservationsQuery(
   return (
     queryBuilder
       // Order by to match table ordering
-      .orderBy(
-        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
-      )
+      .orderByColumns([
+        { column: "e.start_time", direction: "DESC" },
+        { column: "xxHash32(e.trace_id)", direction: "DESC" },
+        { column: "e.span_id", direction: "DESC" },
+      ])
   );
 }
 
@@ -826,7 +832,7 @@ async function getObservationsRowsFromBuilder<T>(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -865,7 +871,7 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -1128,7 +1134,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
       orderByToClickhouseSql(
         orderBy ? [orderBy] : [],
         TRACES_ORDER_BY_COLUMNS,
-      ) || "ORDER BY t.timestamp DESC";
+      ) || "ORDER BY t.project_id DESC, t.timestamp DESC";
 
     queryBuilder.orderBy(chOrderBy).limit(limit, (page - 1) * limit);
   }
@@ -1152,7 +1158,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -2133,7 +2139,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
       kind: "batchIO",
       projectId: opts.projectId,
     },
-    preferredClickhouseService: "ReadOnly",
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return results.map((r) => ({
