@@ -461,7 +461,7 @@ export const getObservationByIdFromEventsTable = async ({
     type,
     traceId,
     renderingProps,
-    preferredClickhouseService,
+    preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
   const mapped = records.map((record) =>
     convertObservation(record, renderingProps),
