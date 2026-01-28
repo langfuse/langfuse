@@ -21,7 +21,6 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 
-// Main Navigation Group Component
 function MainNavigationGroup({
   navItems,
   onNavigate,
@@ -56,7 +55,6 @@ function MainNavigationGroup({
   );
 }
 
-// Projects Group Component
 function ProjectsGroup({ onNavigate }: { onNavigate: () => void }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -92,7 +90,6 @@ function ProjectsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-// Dashboards Group Component
 function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -151,7 +148,6 @@ function DashboardsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-// Project Settings Group Component
 function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -195,7 +191,6 @@ function ProjectSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-// Organization Settings Group Component
 function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -239,7 +234,6 @@ function OrganizationSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-// Account Settings Group Component
 function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -280,7 +274,6 @@ function AccountSettingsGroup({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-// Main CommandMenu Component
 function CommandMenuComponent({
   mainNavigation,
 }: {
