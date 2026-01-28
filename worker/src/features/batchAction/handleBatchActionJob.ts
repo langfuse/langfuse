@@ -28,8 +28,13 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
+import { getTraceStream } from "../database-read-stream/trace-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
-import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
+import { processAddTracesToDataset } from "./processAddTracesToDataset";
+import {
+  ObservationAddToDatasetConfigSchema,
+  TraceAddToDatasetConfigSchema,
+} from "@langfuse/shared";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -350,6 +355,48 @@ export const handleBatchActionJob = async (
       batchActionId: batchActionId as string,
       config: parsedConfig,
       observations,
+    });
+  } else if (actionId === "trace-add-to-dataset") {
+    const { projectId, query, cutoffCreatedAt, config, batchActionId } =
+      batchActionEvent;
+
+    // Parse and validate config
+    const parsedConfig = TraceAddToDatasetConfigSchema.parse(config);
+
+    // Get trace stream
+    const dbReadStream = await getTraceStream({
+      projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      searchQuery: query.searchQuery ?? undefined,
+      searchType: query.searchType ?? ["id" as const],
+    });
+
+    // Collect all traces
+    const traces: Array<{
+      id: string;
+      input: unknown;
+      output: unknown;
+      metadata: unknown;
+    }> = [];
+
+    for await (const record of dbReadStream) {
+      if (record?.id) {
+        traces.push({
+          id: record.id,
+          input: record.input,
+          output: record.output,
+          metadata: record.metadata,
+        });
+      }
+    }
+
+    // Process traces and add to dataset
+    await processAddTracesToDataset({
+      projectId,
+      batchActionId: batchActionId as string,
+      config: parsedConfig,
+      traces,
     });
   }
 
