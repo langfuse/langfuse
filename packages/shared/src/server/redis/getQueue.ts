@@ -30,7 +30,6 @@ import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
-import { BatchProjectCleanerQueue } from "./batchProjectCleanerQueue";
 import { BatchDataRetentionCleanerQueue } from "./batchDataRetentionCleanerQueue";
 import { MediaRetentionCleanerQueue } from "./mediaRetentionCleanerQueue";
 
@@ -105,8 +104,6 @@ export function getQueue(
       return EventPropagationQueue.getInstance();
     case QueueName.NotificationQueue:
       return NotificationQueue.getInstance();
-    case QueueName.BatchProjectCleanerQueue:
-      return BatchProjectCleanerQueue.getInstance();
     case QueueName.BatchDataRetentionCleanerQueue:
       return BatchDataRetentionCleanerQueue.getInstance();
     case QueueName.MediaRetentionCleanerQueue:

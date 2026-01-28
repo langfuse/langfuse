@@ -38,8 +38,6 @@ import {
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   EventPropagationQueue,
-  BatchProjectCleanerQueue,
-  BATCH_DELETION_TABLES,
   BatchDataRetentionCleanerQueue,
   MediaRetentionCleanerQueue,
   BATCH_DATA_RETENTION_TABLES,
@@ -80,9 +78,12 @@ import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
 import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
-import { batchProjectCleanerProcessor } from "./queues/batchProjectCleanerQueue";
 import { batchDataRetentionCleanerProcessor } from "./queues/batchDataRetentionCleanerQueue";
 import { mediaRetentionCleanerProcessor } from "./queues/mediaRetentionCleanerQueue";
+import {
+  BatchProjectCleaner,
+  BATCH_DELETION_TABLES,
+} from "./features/batch-project-cleaner";
 
 const app = express();
 
@@ -563,37 +564,18 @@ if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
 }
 
 // Batch project cleaners for bulk deletion of ClickHouse data
-if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.BatchProjectCleanerQueue,
-    batchProjectCleanerProcessor,
-    {
-      concurrency: 1, // only 1 job at a time per process.
-      limiter: {
-        max: 1,
-        duration: env.LANGFUSE_BATCH_PROJECT_CLEANER_INTERVAL_MS, // no more than 1 job at a time globally
-      },
-    },
-  );
+export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
-  // Schedule repeatable jobs for each table
-  const queue = BatchProjectCleanerQueue.getInstance();
-  if (queue) {
-    const tables = BATCH_DELETION_TABLES.filter(
-      (t) =>
-        t !== "events" ||
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
-    );
-    for (const table of tables) {
-      queue
-        .upsertJobScheduler(
-          `batch-project-cleaner-${table}`,
-          { every: env.LANGFUSE_BATCH_PROJECT_CLEANER_INTERVAL_MS },
-          { name: QueueJobs.BatchProjectCleanerJob, data: { table } },
-        )
-        .catch((err) =>
-          logger.error(`Error scheduling batch-project-cleaner-${table}`, err),
-        );
+if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
+  for (const table of BATCH_DELETION_TABLES) {
+    // Only start the events table cleaner if the events table experiment is enabled
+    if (
+      table !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
+      const cleaner = new BatchProjectCleaner(table);
+      batchProjectCleaners.push(cleaner);
+      cleaner.start();
     }
   }
 }
