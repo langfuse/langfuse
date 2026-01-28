@@ -7,7 +7,10 @@ import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-export type PreferredClickhouseService = "ReadWrite" | "ReadOnly";
+export type PreferredClickhouseService =
+  | "ReadWrite"
+  | "ReadOnly"
+  | "EventsReadOnly";
 
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
@@ -67,9 +70,19 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    return preferredClickhouseService === "ReadWrite"
-      ? env.CLICKHOUSE_URL
-      : env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    switch (preferredClickhouseService) {
+      case "ReadWrite":
+        return env.CLICKHOUSE_URL;
+      case "EventsReadOnly":
+        return (
+          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
+          env.CLICKHOUSE_READ_ONLY_URL ||
+          env.CLICKHOUSE_URL
+        );
+      case "ReadOnly":
+      default:
+        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    }
   };
 
   /**
