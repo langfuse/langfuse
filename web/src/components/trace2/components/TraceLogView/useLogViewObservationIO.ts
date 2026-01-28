@@ -9,7 +9,7 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/utils/api";
 import { type FlatLogItem } from "./log-view-types";
-import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export interface UseLogViewObservationIOParams {
   observationId: string;
@@ -33,7 +33,7 @@ export function useLogViewObservationIO({
   startTime,
   enabled,
 }: UseLogViewObservationIOParams) {
-  const { isBetaEnabled } = useObservationListBeta();
+  const { isBetaEnabled } = useV4Beta();
 
   // Old path: fetch from observations table (beta OFF)
   const observationsQuery = api.observations.byId.useQuery(

@@ -10,7 +10,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { api } from "@/src/utils/api";
 import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
-import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const MAX_NODES_FOR_GRAPH_UI = 5000;
 
@@ -50,7 +50,7 @@ export function TraceGraphDataProvider({
   traceId,
   observations,
 }: TraceGraphDataProviderProps) {
-  const { isBetaEnabled } = useObservationListBeta();
+  const { isBetaEnabled } = useV4Beta();
 
   // Skip graph data entirely for large traces to avoid performance issues
   const exceedsThreshold = observations.length >= MAX_NODES_FOR_GRAPH_UI;

@@ -1,8 +1,8 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
 
-export function useObservationListBeta() {
+export function useV4Beta() {
   const [isBetaEnabled, setIsBetaEnabled] = useLocalStorage<boolean>(
-    "observationListBetaEnabled",
+    "v4BetaEnabled",
     false,
   );
 

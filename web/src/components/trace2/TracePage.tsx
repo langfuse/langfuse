@@ -14,7 +14,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
-import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
 
 export function TracePage({
@@ -27,7 +27,7 @@ export function TracePage({
   const router = useRouter();
   const session = useSession();
   const routeProjectId = (router.query.projectId as string) ?? "";
-  const { isBetaEnabled } = useObservationListBeta();
+  const { isBetaEnabled } = useV4Beta();
 
   // Old path: fetch from traces table (beta OFF)
   const tracesQuery = api.traces.byIdWithObservationsAndScores.useQuery(
