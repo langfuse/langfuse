@@ -289,7 +289,16 @@ export function InlineFilterBuilder({
       const validFilters = newState.filter(
         (f) => singleFilter.safeParse(f).success,
       ) as FilterState;
-      onChange(validFilters);
+
+      // Only call onChange if valid filters actually changed to avoid
+      // triggering the useEffect sync which would discard WIP filter rows
+      const prevValidFilters = prev.filter(
+        (f) => singleFilter.safeParse(f).success,
+      ) as FilterState;
+      if (JSON.stringify(validFilters) !== JSON.stringify(prevValidFilters)) {
+        onChange(validFilters);
+      }
+
       return newState;
     });
   };
