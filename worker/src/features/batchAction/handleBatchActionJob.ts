@@ -12,6 +12,7 @@ import {
   BatchActionType,
   BatchTableNames,
   FilterCondition,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import {
   getDatabaseReadStreamPaginated,
@@ -229,7 +230,7 @@ export const handleBatchActionJob = async (
     }
 
     const dbReadStream =
-      targetObject === "trace"
+      targetObject === EvalTargetObject.TRACE
         ? await getTraceIdentifierStream({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
@@ -256,7 +257,10 @@ export const handleBatchActionJob = async (
 
     let count = 0;
     for await (const record of dbReadStream) {
-      if (targetObject === "trace" && assertIsTracesTableRecord(record)) {
+      if (
+        targetObject === EvalTargetObject.TRACE &&
+        assertIsTracesTableRecord(record)
+      ) {
         const payload = {
           projectId: record.projectId,
           traceId: record.id,
@@ -273,7 +277,7 @@ export const handleBatchActionJob = async (
         });
         count++;
       } else if (
-        targetObject === "dataset" &&
+        targetObject === EvalTargetObject.DATASET &&
         assertIsDatasetRunItemTableRecord(record)
       ) {
         const payload = {

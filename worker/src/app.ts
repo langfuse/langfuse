@@ -13,6 +13,7 @@ import {
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,
+  llmAsJudgeExecutionQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -239,6 +240,18 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
       lockDuration: 60000, // 60 seconds
       stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
+    },
+  );
+
+  // LLM-as-Judge execution for observation-level evals (uses same env flag as trace evals)
+  WorkerManager.register(
+    QueueName.LLMAsJudgeExecution,
+    llmAsJudgeExecutionQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+      lockDuration: 60000,
+      stalledInterval: 120000,
       maxStalledCount: 3,
     },
   );

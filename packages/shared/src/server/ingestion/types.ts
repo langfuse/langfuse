@@ -228,18 +228,21 @@ const ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE =
   INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE +
   " and it must not start with 'langfuse'";
 
+/** Default environment name used when no environment is specified. */
+export const DEFAULT_TRACE_ENVIRONMENT = "default" as const;
+
 const PublicEnvironmentName = z
   .string()
   .toLowerCase()
   .max(40, "Maximum length is 40 characters")
   .regex(/^(?!langfuse)[a-z0-9-_]+$/, ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
-  .default("default");
+  .default(DEFAULT_TRACE_ENVIRONMENT);
 
 const InternalEnvironmentName = z
   .string()
   .max(40, "Maximum length is 40 characters")
   .regex(/^[a-z0-9-_]+$/, INTERNAL_ENVIRONMENT_NAME_REGEX_ERROR_MESSAGE)
-  .default("default");
+  .default(DEFAULT_TRACE_ENVIRONMENT);
 
 /** @deprecated Use PublicEnvironmentName or InternalEnvironmentName instead */
 export const EnvironmentName = PublicEnvironmentName;

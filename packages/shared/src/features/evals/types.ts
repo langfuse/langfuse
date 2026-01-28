@@ -1,5 +1,17 @@
 import z from "zod/v4";
 
+export const EvalTargetObject = {
+  TRACE: "trace",
+  DATASET: "dataset",
+  EVENT: "event",
+  EXPERIMENT: "experiment",
+} as const;
+
+export type EvalTargetObject =
+  (typeof EvalTargetObject)[keyof typeof EvalTargetObject];
+
+export const EvalTargetObjectSchema = z.enum(Object.values(EvalTargetObject));
+
 export const langfuseObjects = [
   "trace",
   "span",
@@ -157,3 +169,22 @@ export const JobTimeScopeZod = z.enum(["NEW", "EXISTING"]);
 export type JobTimeScope = z.infer<typeof JobTimeScopeZod>;
 
 export const TimeScopeSchema = z.array(JobTimeScopeZod).default(["NEW"]);
+
+// Simplified variable mapping for observation-based evals.
+// Unlike trace-based evals, we don't need objectName since we're directly
+// targeting a specific observation - no need to specify which observation to extract from.
+//
+// Note: selectedColumnId must be a valid column ID from observationEvalVariableColumns.
+// See packages/shared/src/features/evals/observationForEval.ts for the source of truth.
+export const observationVariableMapping = z.object({
+  templateVariable: z.string(), // variable name in the template
+  selectedColumnId: z.string(), // column to extract (must match observationEvalVariableColumns)
+  jsonSelector: z.string().nullish(), // optional JSON path selector
+});
+
+export const observationVariableMappingList = z.array(
+  observationVariableMapping,
+);
+export type ObservationVariableMapping = z.infer<
+  typeof observationVariableMapping
+>;

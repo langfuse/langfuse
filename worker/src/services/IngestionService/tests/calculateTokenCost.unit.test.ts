@@ -1296,7 +1296,11 @@ describe("Token Cost Calculation", () => {
         },
       ];
 
-      await (mockIngestionService as any).writeEvent(events[0], "testfile.txt");
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        events[0],
+        "testfile.txt",
+      );
+      (mockIngestionService as any).writeEventRecord(eventRecord);
 
       expect(mockAddToClickhouseWriter).toHaveBeenCalled();
       const args = mockAddToClickhouseWriter.mock.calls[0];
@@ -1329,7 +1333,11 @@ describe("Token Cost Calculation", () => {
         },
       ];
 
-      await (mockIngestionService as any).writeEvent(events[0], "testfile.txt");
+      const eventRecord = await (mockIngestionService as any).createEventRecord(
+        events[0],
+        "testfile.txt",
+      );
+      (mockIngestionService as any).writeEventRecord(eventRecord);
 
       // Invalid values should be ignored
       expect(mockAddToClickhouseWriter).toHaveBeenCalled();

@@ -42,13 +42,13 @@ import {
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
-  hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
   extractToolsFromObservation,
   convertDefinitionsToMap,
   convertCallsToArrays,
+  hasNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -280,19 +280,26 @@ export class IngestionService {
   }
 
   /**
-   * Writes a single event directly to the events table.
-   * Unlike other ingestion methods, this does not perform merging since
-   * events are immutable and written once.
+   * Creates an EventRecordInsertType from EventInput.
+   * Performs all necessary enrichments:
+   * - Prompt lookup (by name + version)
+   * - Model/usage enrichment (tokenization, cost calculation)
+   * - Metadata flattening
+   * - Timestamp normalization
    *
-   * @param eventData - The event data to write
+   * This is the single point of transformation from loose EventInput
+   * to strict EventRecordInsertType.
+   *
+   * @param eventData - The event data from processToEvent()
    * @param fileKey - The file key where the raw event data is stored
+   * @returns The enriched event record ready for writing or eval scheduling
    */
-  public async writeEvent(
+  public async createEventRecord(
     eventData: EventInput,
     fileKey: string,
-  ): Promise<void> {
+  ): Promise<EventRecordInsertType> {
     logger.debug(
-      `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
+      `Creating event record for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
 
     // Perform lookups for prompt and model/usage enrichment
@@ -450,7 +457,16 @@ export class IngestionService {
       is_deleted: 0,
     };
 
-    // Write directly to ClickHouse queue (no merging for immutable events)
+    return eventRecord;
+  }
+
+  /**
+   * Writes an event record directly to the events table.
+   * Use createEventRecord() first to get the record, then call this to write.
+   *
+   * @param eventRecord - The event record to write
+   */
+  public writeEventRecord(eventRecord: EventRecordInsertType): void {
     this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
   }
 
@@ -762,7 +778,10 @@ export class IngestionService {
 
     // Add trace into trace upsert queue for eval processing
     // First check if we already know this project has no job configurations
-    const hasNoJobConfigs = await hasNoJobConfigsCache(projectId);
+    const hasNoJobConfigs = await hasNoEvalConfigsCache(
+      projectId,
+      "traceBased",
+    );
     if (hasNoJobConfigs) {
       logger.debug(
         `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
