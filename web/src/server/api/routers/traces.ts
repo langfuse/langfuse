@@ -127,7 +127,7 @@ export const traceRouter = createTRPCRouter({
       // TODO: Implement ClickHouse query to detect OTEL SDK usage
       // For now, return mock data
       return {
-        isOtel: true,
+        isOtel: false,
         isPropagating: false,
       };
     }),

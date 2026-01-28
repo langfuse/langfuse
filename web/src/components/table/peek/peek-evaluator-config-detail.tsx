@@ -77,13 +77,15 @@ export const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {evalConfig && evalConfig.targetObject && (
-        <LegacyEvalCallout
-          projectId={projectId}
-          evalConfigId={evalConfig.id}
-          targetObject={evalConfig.targetObject}
-        />
-      )}
+      {evalConfig &&
+        evalConfig.targetObject &&
+        evalConfig.finalStatus === "ACTIVE" && (
+          <LegacyEvalCallout
+            projectId={projectId}
+            evalConfigId={evalConfig.id}
+            targetObject={evalConfig.targetObject}
+          />
+        )}
 
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>

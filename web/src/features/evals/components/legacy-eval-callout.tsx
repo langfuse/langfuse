@@ -25,8 +25,10 @@ export function LegacyEvalCallout({
 
   if (!isDeprecated) return null;
 
-  const targetName =
-    targetObject === "trace" ? "observation-level" : "experiment-level";
+  const text =
+    targetObject === "trace"
+      ? "Running evaluators on traces will be deprecated. Upgrade to run on observations for full compatibility."
+      : "Running evaluators on offline experiments without OpenTelemetry will be deprecated. Upgrade to run on offline experiments with OpenTelemetry for full compatibility.";
 
   return (
     <>
@@ -42,7 +44,7 @@ export function LegacyEvalCallout({
               onClick={() => setRemapModalOpen(true)}
               className="h-7 text-xs text-dark-blue hover:opacity-80"
             >
-              Remap
+              Upgrade
             </Button>
             <Button
               variant="ghost"
@@ -62,10 +64,7 @@ export function LegacyEvalCallout({
           </>
         )}
       >
-        <span>
-          This eval type is being deprecated. Remap to {targetName} for full
-          compatibility.
-        </span>
+        <span>{text}</span>
       </Callout>
 
       <RemapEvalWizard

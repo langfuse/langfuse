@@ -100,9 +100,11 @@ export type EvaluatorDataRow = {
 function LegacyBadgeCell({
   projectId,
   evalConfigId,
+  status,
 }: {
   projectId: string;
   evalConfigId: string;
+  status: string;
 }) {
   const [remapModalOpen, setRemapModalOpen] = useState(false);
   const utils = api.useUtils();
@@ -112,32 +114,34 @@ function LegacyBadgeCell({
       <div className="flex items-center gap-1.5">
         <Badge variant="warning">
           Legacy
-          <Tooltip>
-            <TooltipTrigger>
-              <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[280px]">
-              <div className="space-y-1 text-sm">
-                <p className="font-medium">Action required</p>
-                <p className="text-muted-foreground">
-                  This eval is using a legacy version of the eval system. Please
-                  follow{" "}
-                  <Link
-                    href="https://langfuse.com/docs/evals/remapping"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-dark-blue hover:opacity-80"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                  >
-                    this guide
-                  </Link>{" "}
-                  for full compatibility.
-                </p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+          {status === "ACTIVE" && (
+            <Tooltip>
+              <TooltipTrigger>
+                <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[280px]">
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium">Action required</p>
+                  <p className="text-muted-foreground">
+                    This evaluator type will be deprecated in the future. Please
+                    follow{" "}
+                    <Link
+                      href="https://langfuse.com/docs/evals/remapping"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-dark-blue hover:opacity-80"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      this guide
+                    </Link>{" "}
+                    to upgrade to the new version.
+                  </p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </Badge>
 
         {/* <Button
@@ -366,8 +370,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: (row) => {
         const targetObject = row.row.original.target;
         const status = row.row.original.status;
-        const isDeprecated =
-          isLegacyEvalTarget(targetObject) && status === "ACTIVE";
+        const isDeprecated = isLegacyEvalTarget(targetObject);
 
         if (!isDeprecated) return null;
 
@@ -375,15 +378,22 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           <LegacyBadgeCell
             projectId={projectId}
             evalConfigId={row.row.original.id}
+            status={status}
           />
         );
       },
     }),
     columnHelper.accessor("target", {
       id: "target",
-      header: "Target",
+      header: "Runs on",
       size: 150,
       enableHiding: true,
+      cell: (row) => {
+        const targetObject = row.getValue();
+        const renderText =
+          targetObject === "event" ? "observations" : targetObject;
+        return <span className="text-muted-foreground">{renderText}</span>;
+      },
     }),
     columnHelper.accessor("filter", {
       id: "filter",
@@ -531,7 +541,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               key="dismissed-eval-remapping-callouts"
             >
               <span>
-                Trace-level and dataset-run evals are being deprecated.{" "}
+                We launched observation-level evaluators with more granular
+                control and an easier workflow. Trace-level evaluators will be
+                deprecated.{" "}
               </span>
               <Link
                 href="https://langfuse.com/docs/evals/remapping"
@@ -539,7 +551,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 rel="noopener noreferrer"
                 className="font-medium text-dark-blue hover:opacity-80"
               >
-                Learn more about remapping your evals to observation-level
+                Upgrade to observation-level evaluators
               </Link>
               <span>.</span>
             </Callout>

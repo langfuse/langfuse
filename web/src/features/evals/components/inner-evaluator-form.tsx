@@ -28,13 +28,17 @@ import {
   datasetFormFilterColsWithOptions,
   availableDatasetEvalVariables,
   observationEvalVariableColumns,
+  observationEvalFilterColumns,
   type ObservationType,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
-import { useEffect, useMemo, useState, memo } from "react";
+import { useEffect, useMemo, useState, memo, useRef } from "react";
 import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import {
+  InlineFilterBuilder,
+  type ColumnDefinitionWithWarning,
+} from "@/src/features/filters/components/filter-builder";
 import { type EvalTemplate, variableMapping } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
@@ -52,10 +56,7 @@ import {
   type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
-import {
-  TimeScopeDescription,
-  VariableMappingDescription,
-} from "@/src/features/evals/components/eval-form-descriptions";
+import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
 import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
@@ -64,14 +65,22 @@ import {
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { Switch } from "@/src/components/ui/switch";
-import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   EvaluationPromptPreview,
   getVariableColor,
 } from "@/src/features/evals/components/evaluation-prompt-preview";
+import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 import {
   Tooltip,
   TooltipTrigger,
@@ -136,6 +145,69 @@ const isTracingTarget = (target: string): boolean => {
 
 const isDatasetTarget = (target: string): boolean => {
   return target === "dataset" || target === "experiment";
+};
+
+const propagationRequiredColumns = new Set([
+  "release",
+  "trace_name",
+  "user_id",
+  "session_id",
+  "tags",
+]);
+
+/**
+ * Converts observation filter columns to ColumnDefinition format and
+ * augments with alerts for propagation-requiring columns when propagation is not available
+ */
+const getObservationFilterColumnsWithWarnings = (
+  allowPropagationFilters: boolean,
+): ColumnDefinitionWithWarning[] => {
+  // Columns that require OTEL SDK with span propagation
+
+  return observationEvalFilterColumns.map((col) => {
+    // Convert to ColumnDefinition format
+    let baseColumn: ColumnDefinitionWithWarning;
+
+    if (col.type === "stringOptions" || col.type === "arrayOptions") {
+      baseColumn = {
+        ...col,
+        internal: col.id,
+        options: [], // Options will be populated at runtime if needed
+      } as ColumnDefinitionWithWarning;
+    } else {
+      baseColumn = {
+        ...col,
+        internal: col.id,
+      } as ColumnDefinitionWithWarning;
+    }
+
+    // Add alert if propagation is required but not available
+    if (!allowPropagationFilters && propagationRequiredColumns.has(col.id)) {
+      return {
+        ...baseColumn,
+        alert: {
+          severity: "warning" as const,
+          content: (
+            <>
+              This filter requires JS SDK &ge; 4.4.0 or Python SDK &ge; 3.9.0
+              with attribute propagation enabled. Please{" "}
+              <a
+                href="https://langfuse.com/integrations/native/opentelemetry"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-blue hover:opacity-80"
+              >
+                follow our docs
+              </a>{" "}
+              to configure your instrumentation to use this filter.
+            </>
+          ),
+        },
+      };
+    }
+
+    return baseColumn;
+  });
 };
 
 const getTargetDisplayName = (target: string): string => {
@@ -212,6 +284,7 @@ export const InnerEvaluatorForm = (props: {
   preprocessFormValues?: (values: any) => any;
   hideAdvancedSettings?: boolean;
   hideTargetSelection?: boolean;
+  evalCapabilities: EvalCapabilities;
   renderFooter?: (params: {
     isLoading: boolean;
     formError: string | null;
@@ -222,9 +295,20 @@ export const InnerEvaluatorForm = (props: {
   const [showPreview, setShowPreview] = useState(false);
   const router = useRouter();
   const traceId = router.query.traceId as string;
+  // Track the user-facing target selection (what they see in the UI)
+  // This can be "trace", "event", or "offline-experiment"
+  const [userFacingTarget, setUserFacingTarget] = useState<
+    "trace" | "event" | "offline-experiment"
+  >("event");
+  // Track whether offline experiment should use OTEL data (true) or non-OTEL data (false)
+  // OTEL -> "experiment" target, non-OTEL -> "dataset" target
+  const [useOtelDataForExperiment, setUseOtelDataForExperiment] =
+    useState(true);
+  // Confirmation dialog for trace-level evaluators
+  const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
 
-  // Get eval capabilities to determine which target options to show
-  const { allowLegacy } = useEvalCapabilities(props.projectId);
+  // Destructure eval capabilities passed from parent
+  const { allowLegacy, allowPropagationFilters } = props.evalCapabilities;
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
@@ -232,9 +316,7 @@ export const InnerEvaluatorForm = (props: {
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target:
-        props.existingEvaluator?.targetObject ??
-        (allowLegacy ? "trace" : "event"),
+      target: props.existingEvaluator?.targetObject ?? "event",
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
         : // For new trace evaluators, exclude internal environments by default
@@ -266,6 +348,20 @@ export const InnerEvaluatorForm = (props: {
       ),
     },
   }) as UseFormReturn<EvalFormType>;
+
+  // Initialize userFacingTarget based on the actual target
+  useEffect(() => {
+    const currentTarget = props.existingEvaluator?.targetObject ?? "event";
+    if (currentTarget === "trace") {
+      setUserFacingTarget("trace");
+    } else if (currentTarget === "event") {
+      setUserFacingTarget("event");
+    } else if (currentTarget === "experiment" || currentTarget === "dataset") {
+      setUserFacingTarget("offline-experiment");
+      setUseOtelDataForExperiment(currentTarget === "experiment");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
     { projectId: props.projectId },
@@ -568,10 +664,48 @@ export const InnerEvaluatorForm = (props: {
                     </FormLabel>
                     <FormControl>
                       <Tabs
-                        defaultValue={allowLegacy ? "trace" : "event"}
-                        value={field.value}
+                        value={userFacingTarget}
                         onValueChange={(value) => {
-                          const isTracing = isTracingTarget(value);
+                          const newUserFacingTarget = value as
+                            | "trace"
+                            | "event"
+                            | "offline-experiment";
+
+                          if (newUserFacingTarget === userFacingTarget) {
+                            return;
+                          }
+
+                          // Show dialog when clicking trace if user has no legacy evals
+                          if (
+                            newUserFacingTarget === "trace" &&
+                            !props.evalCapabilities.hasLegacyEvals &&
+                            props.mode !== "edit"
+                          ) {
+                            setShowTraceConfirmDialog(true);
+                            return;
+                          }
+
+                          // Update user-facing target
+                          setUserFacingTarget(newUserFacingTarget);
+
+                          // Determine the actual target based on selection
+                          let actualTarget:
+                            | "trace"
+                            | "event"
+                            | "experiment"
+                            | "dataset";
+                          if (newUserFacingTarget === "trace") {
+                            actualTarget = "trace";
+                          } else if (newUserFacingTarget === "event") {
+                            actualTarget = "event";
+                          } else {
+                            // offline-experiment
+                            actualTarget = useOtelDataForExperiment
+                              ? "experiment"
+                              : "dataset";
+                          }
+
+                          const isTracing = isTracingTarget(actualTarget);
                           const langfuseObject: LangfuseObject = isTracing
                             ? "trace"
                             : "dataset_item";
@@ -588,46 +722,32 @@ export const InnerEvaluatorForm = (props: {
                               ? availableTraceEvalVariables
                               : availableDatasetEvalVariables,
                           );
-                          field.onChange(value);
+                          field.onChange(actualTarget);
                         }}
                       >
-                        <TabsList
-                          className={cn(
-                            "grid w-fit max-w-fit",
-                            allowLegacy ? "grid-cols-4" : "grid-cols-2",
-                          )}
-                        >
+                        <TabsList className="grid w-fit max-w-fit grid-flow-col">
+                          <TabsTrigger
+                            value="event"
+                            disabled={props.disabled || props.mode === "edit"}
+                            className="min-w-[100px]"
+                          >
+                            Live Observations [New]
+                          </TabsTrigger>
                           {allowLegacy && (
                             <TabsTrigger
                               value="trace"
                               disabled={props.disabled || props.mode === "edit"}
                               className="min-w-[100px]"
                             >
-                              Traces [Legacy]
+                              Live Traces [Legacy]
                             </TabsTrigger>
                           )}
                           <TabsTrigger
-                            value="event"
+                            value="offline-experiment"
                             disabled={props.disabled || props.mode === "edit"}
                             className="min-w-[100px]"
                           >
-                            Observations
-                          </TabsTrigger>
-                          {allowLegacy && (
-                            <TabsTrigger
-                              value="dataset"
-                              disabled={props.disabled || props.mode === "edit"}
-                              className="min-w-[100px]"
-                            >
-                              Dataset runs [Legacy]
-                            </TabsTrigger>
-                          )}
-                          <TabsTrigger
-                            value="experiment"
-                            disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px]"
-                          >
-                            Experiments
+                            Offline Experiments
                           </TabsTrigger>
                         </TabsList>
                       </Tabs>
@@ -638,97 +758,179 @@ export const InnerEvaluatorForm = (props: {
               />
             )}
 
-            {!props.hideAdvancedSettings && (
-              <FormField
-                control={form.control}
-                name="timeScope"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormControl>
-                      <div className="flex flex-col gap-2">
-                        <div className="items-top flex space-x-2">
-                          <Checkbox
-                            id="newObjects"
-                            checked={field.value.includes("NEW")}
-                            onCheckedChange={(checked) => {
-                              const newValue = checked
-                                ? [...field.value, "NEW"]
-                                : field.value.filter((v) => v !== "NEW");
-                              field.onChange(newValue);
-                            }}
-                            disabled={props.disabled}
-                          />
-                          <div className="grid gap-1.5 leading-none">
-                            <label
-                              htmlFor="newObjects"
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              New {getTargetDisplayName(form.watch("target"))}
-                            </label>
+            {/* Second tab bar for experiment data source selection */}
+            {!props.hideTargetSelection &&
+              userFacingTarget === "offline-experiment" &&
+              props.evalCapabilities.allowLegacy && (
+                <div className="flex flex-col gap-2">
+                  <FormLabel className="text-sm">SDK Version</FormLabel>
+                  <Tabs
+                    value={useOtelDataForExperiment ? "otel" : "non-otel"}
+                    onValueChange={(value) => {
+                      // Don't allow changes in edit mode or disabled mode
+                      if (props.mode === "edit" || props.disabled) {
+                        return;
+                      }
+
+                      const useOtel = value === "otel";
+                      setUseOtelDataForExperiment(useOtel);
+
+                      // Update the actual form target
+                      const actualTarget = useOtel ? "experiment" : "dataset";
+                      form.setValue("target", actualTarget);
+
+                      // Update variable mapping
+                      const isTracing = isTracingTarget(actualTarget);
+                      const langfuseObject: LangfuseObject = isTracing
+                        ? "trace"
+                        : "dataset_item";
+                      const newMapping = form
+                        .getValues("mapping")
+                        .map((field) => ({
+                          ...field,
+                          langfuseObject,
+                        }));
+                      form.setValue("filter", []);
+                      form.setValue("mapping", newMapping);
+                      setAvailableVariables(
+                        isTracing
+                          ? availableTraceEvalVariables
+                          : availableDatasetEvalVariables,
+                      );
+                    }}
+                  >
+                    <TabsList className="grid w-fit max-w-fit grid-cols-2">
+                      <TabsTrigger
+                        value="otel"
+                        className="min-w-[150px]"
+                        disabled={props.mode === "edit" || props.disabled}
+                      >
+                        {"JS SDK >= 4.4.0, Python SDK >= 3.9.0 [Recommended]"}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="non-otel"
+                        className="min-w-[150px]"
+                        disabled={props.mode === "edit" || props.disabled}
+                      >
+                        {"JS SDK < 4.4.0, Python SDK < 3.9.0"}
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  {!props.disabled && (
+                    <FormDescription>
+                      Check with your technical team to see which version of the
+                      Langfuse SDK you are using.
+                    </FormDescription>
+                  )}
+                </div>
+              )}
+
+            {!props.hideTargetSelection &&
+              props.mode !== "edit" &&
+              !props.disabled && (
+                <EvalVersionCallout
+                  targetObject={form.watch("target")}
+                  evalCapabilities={props.evalCapabilities}
+                />
+              )}
+
+            {!props.hideAdvancedSettings &&
+              form.watch("target") !== "event" &&
+              form.watch("target") !== "experiment" && (
+                // observations: take out section for new evals, we will trigger directly from events table in the future
+                // experiments: take out section; remember to remove callout when setting up in prompt experiments
+                <FormField
+                  control={form.control}
+                  name="timeScope"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormLabel>Evaluate</FormLabel>
+                      <FormControl>
+                        <div className="flex flex-col gap-2">
+                          <div className="items-top flex space-x-2">
+                            <Checkbox
+                              id="newObjects"
+                              checked={field.value.includes("NEW")}
+                              onCheckedChange={(checked) => {
+                                const newValue = checked
+                                  ? [...field.value, "NEW"]
+                                  : field.value.filter((v) => v !== "NEW");
+                                field.onChange(newValue);
+                              }}
+                              disabled={props.disabled}
+                            />
+                            <div className="grid gap-1.5 leading-none">
+                              <label
+                                htmlFor="newObjects"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                New {getTargetDisplayName(form.watch("target"))}
+                              </label>
+                            </div>
+                          </div>
+                          <div className="items-top flex space-x-2">
+                            <Checkbox
+                              id="existingObjects"
+                              checked={field.value.includes("EXISTING")}
+                              onCheckedChange={(checked) => {
+                                const newValue = checked
+                                  ? [...field.value, "EXISTING"]
+                                  : field.value.filter((v) => v !== "EXISTING");
+                                field.onChange(newValue);
+                              }}
+                              disabled={
+                                props.disabled ||
+                                (props.mode === "edit" &&
+                                  field.value.includes("EXISTING"))
+                              }
+                            />
+                            <div className="flex items-center gap-1.5 leading-none">
+                              <label
+                                htmlFor="existingObjects"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                Existing{" "}
+                                {getTargetDisplayName(form.watch("target"))}
+                              </label>
+                              {field.value.includes("EXISTING") &&
+                                !props.disabled &&
+                                (props.mode === "edit" ? (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <InfoIcon className="size-3 text-muted-foreground" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-[300px] p-2">
+                                      <span className="leading-4">
+                                        This evaluator has already run on
+                                        existing{" "}
+                                        {getTargetDisplayName(
+                                          form.watch("target"),
+                                        )}{" "}
+                                        once. Set up a new evaluator to re-run
+                                        on existing{" "}
+                                        {getTargetDisplayName(
+                                          form.watch("target"),
+                                        )}
+                                        .
+                                      </span>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <ExecutionCountTooltip
+                                    projectId={props.projectId}
+                                    item={form.watch("target")}
+                                    filter={form.watch("filter")}
+                                  />
+                                ))}
+                            </div>
                           </div>
                         </div>
-                        <div className="items-top flex space-x-2">
-                          <Checkbox
-                            id="existingObjects"
-                            checked={field.value.includes("EXISTING")}
-                            onCheckedChange={(checked) => {
-                              const newValue = checked
-                                ? [...field.value, "EXISTING"]
-                                : field.value.filter((v) => v !== "EXISTING");
-                              field.onChange(newValue);
-                            }}
-                            disabled={
-                              props.disabled ||
-                              (props.mode === "edit" &&
-                                field.value.includes("EXISTING"))
-                            }
-                          />
-                          <div className="flex items-center gap-1.5 leading-none">
-                            <label
-                              htmlFor="existingObjects"
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              Existing{" "}
-                              {getTargetDisplayName(form.watch("target"))}
-                            </label>
-                            {field.value.includes("EXISTING") &&
-                              !props.disabled &&
-                              (props.mode === "edit" ? (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <InfoIcon className="size-3 text-muted-foreground" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-[300px] p-2">
-                                    <span className="leading-4">
-                                      This evaluator has already run on existing{" "}
-                                      {getTargetDisplayName(
-                                        form.watch("target"),
-                                      )}{" "}
-                                      once. Set up a new evaluator to re-run on
-                                      existing{" "}
-                                      {getTargetDisplayName(
-                                        form.watch("target"),
-                                      )}
-                                      .
-                                    </span>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <ExecutionCountTooltip
-                                  projectId={props.projectId}
-                                  item={form.watch("target")}
-                                  filter={form.watch("filter")}
-                                />
-                              ))}
-                          </div>
-                        </div>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
             <FormField
               control={form.control}
@@ -736,61 +938,58 @@ export const InnerEvaluatorForm = (props: {
               render={({ field }) => {
                 const target = form.watch("target");
 
+                // Get appropriate columns based on target type
+                const getFilterColumns = () => {
+                  if (target === "event") {
+                    return getObservationFilterColumnsWithWarnings(
+                      allowPropagationFilters,
+                    );
+                  } else if (target === "trace") {
+                    return tracesTableColsWithOptions(
+                      traceFilterOptions,
+                      evalTraceTableCols,
+                    );
+                  } else {
+                    // dataset or experiment
+                    return datasetFormFilterColsWithOptions(
+                      datasetFilterOptions,
+                      evalDatasetFormFilterCols,
+                    );
+                  }
+                };
+
                 return (
                   <FormItem>
                     <FormLabel>Where</FormLabel>
-                    {isTracingTarget(target) ? (
-                      <>
-                        <FormControl>
-                          <div className="max-w-[500px]">
-                            <InlineFilterBuilder
-                              columns={tracesTableColsWithOptions(
-                                traceFilterOptions,
-                                evalTraceTableCols,
-                              )}
-                              filterState={field.value ?? []}
-                              onChange={(
-                                value: z.infer<typeof singleFilter>[],
-                              ) => {
-                                field.onChange(value);
-                                if (router.query.traceId) {
-                                  const { traceId, ...otherParams } =
-                                    router.query;
-                                  router.replace(
-                                    {
-                                      pathname: router.pathname,
-                                      query: otherParams,
-                                    },
-                                    undefined,
-                                    { shallow: true },
-                                  );
-                                }
-                              }}
-                              disabled={props.disabled}
-                              columnsWithCustomSelect={["tags"]}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </>
-                    ) : (
-                      <>
-                        <FormControl>
-                          <div className="max-w-[500px]">
-                            <InlineFilterBuilder
-                              columns={datasetFormFilterColsWithOptions(
-                                datasetFilterOptions,
-                                evalDatasetFormFilterCols,
-                              )}
-                              filterState={field.value ?? []}
-                              onChange={field.onChange}
-                              disabled={props.disabled}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </>
-                    )}
+                    <FormControl>
+                      <div className="max-w-[500px]">
+                        <InlineFilterBuilder
+                          columns={getFilterColumns()}
+                          filterState={field.value ?? []}
+                          onChange={(value: z.infer<typeof singleFilter>[]) => {
+                            field.onChange(value);
+                            if (router.query.traceId) {
+                              const { traceId, ...otherParams } = router.query;
+                              router.replace(
+                                {
+                                  pathname: router.pathname,
+                                  query: otherParams,
+                                },
+                                undefined,
+                                { shallow: true },
+                              );
+                            }
+                          }}
+                          disabled={props.disabled}
+                          columnsWithCustomSelect={
+                            target === "event" || target === "trace"
+                              ? ["tags"]
+                              : undefined
+                          }
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
                   </FormItem>
                 );
               }}
@@ -825,41 +1024,30 @@ export const InnerEvaluatorForm = (props: {
                           />
                         </div>
                       </FormControl>
-                      <div className="flex flex-col">
-                        <FormDescription className="mt-1 flex flex-row gap-1">
-                          <TimeScopeDescription
-                            projectId={props.projectId}
-                            timeScope={form.watch("timeScope")}
-                            target={
-                              isTracingTarget(form.watch("target"))
-                                ? "trace"
-                                : "dataset_item"
-                            }
-                          />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {(form.watch("target") === "trace" ||
+                  form.watch("target") === "dataset") && (
+                  <FormField
+                    control={form.control}
+                    name="delay"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Delay (seconds)</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="number" min={0} />
+                        </FormControl>
+                        <FormDescription>
+                          Time between first Trace/Dataset run event and
+                          evaluation execution to ensure all data is available
                         </FormDescription>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="delay"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Delay (seconds)</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="number" min={0} />
-                      </FormControl>
-                      <FormDescription>
-                        Time between first Trace/Dataset run event and
-                        evaluation execution to ensure all data is available
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </>
             )}
           </div>
@@ -1386,28 +1574,74 @@ export const InnerEvaluatorForm = (props: {
   );
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={(e) => {
-          e.stopPropagation(); // Prevent event bubbling to parent forms
-          form.handleSubmit(onSubmit)(e);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
-            e.preventDefault();
-          }
-        }}
-        className="flex w-full flex-col gap-4"
-      >
-        {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
+    <>
+      <Form {...form}>
+        <form
+          onSubmit={(e) => {
+            e.stopPropagation(); // Prevent event bubbling to parent forms
+            form.handleSubmit(onSubmit)(e);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+              e.preventDefault();
+            }
+          }}
+          className="flex w-full flex-col gap-4"
+        >
+          {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
 
-        {formFooter &&
-          (props.useDialog ? (
-            <DialogFooter>{formFooter}</DialogFooter>
-          ) : (
-            <div className="mt-4 flex flex-row justify-end">{formFooter}</div>
-          ))}
-      </form>
-    </Form>
+          {formFooter &&
+            (props.useDialog ? (
+              <DialogFooter>{formFooter}</DialogFooter>
+            ) : (
+              <div className="mt-4 flex flex-row justify-end">{formFooter}</div>
+            ))}
+        </form>
+      </Form>
+
+      <Dialog
+        open={showTraceConfirmDialog}
+        onOpenChange={setShowTraceConfirmDialog}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>You selected a legacy evaluator</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="text-sm">
+            We strongly recommend using live observations evaluators. Trace
+            evaluators will be deprecated in the future. Only proceed if you are
+            sure you cannot upgrade your SDK version now.
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowTraceConfirmDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowTraceConfirmDialog(false);
+                setUserFacingTarget("trace");
+
+                // Update form and mapping
+                const actualTarget = "trace";
+                const langfuseObject: LangfuseObject = "trace";
+                const newMapping = form.getValues("mapping").map((field) => ({
+                  ...field,
+                  langfuseObject,
+                }));
+                form.setValue("filter", []);
+                form.setValue("mapping", newMapping);
+                setAvailableVariables(availableTraceEvalVariables);
+                form.setValue("target", actualTarget);
+              }}
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

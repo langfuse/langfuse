@@ -1,9 +1,10 @@
 import { api } from "@/src/utils/api";
-
 export interface EvalCapabilities {
+  isNewCompatible: boolean;
   allowLegacy: boolean;
   allowPropagationFilters: boolean;
   isLoading: boolean;
+  hasLegacyEvals: boolean;
 }
 
 /**
@@ -29,10 +30,12 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
   const isPropagating = otelStatus.data?.isPropagating ?? false;
 
   return {
+    isNewCompatible: isOtel,
     // Allow legacy evals if user already has them OR if not using OTEL
     allowLegacy: hasLegacyEvals || !isOtel,
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
     isLoading: otelStatus.isLoading || evalCounts.isLoading,
+    hasLegacyEvals,
   };
 }
