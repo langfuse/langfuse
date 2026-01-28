@@ -91,10 +91,16 @@ export function useAuthGuard(
       // Strip the base path if present to avoid double-prepending
       const rawPath = asPath || pathname || "/";
       const pathToStore = stripBasePath(rawPath);
-      const targetPath = encodeURIComponent(pathToStore);
+
+      // Only include targetPath if it's not the root
+      const targetPathQuery =
+        pathToStore !== "/"
+          ? `?targetPath=${encodeURIComponent(pathToStore)}`
+          : "";
+
       return {
         action: "redirect",
-        url: `/auth/sign-in?targetPath=${targetPath}`,
+        url: `/auth/sign-in${targetPathQuery}`,
         message: "Redirecting",
       };
     }

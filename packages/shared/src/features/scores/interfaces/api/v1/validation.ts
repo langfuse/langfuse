@@ -11,7 +11,7 @@ import { GetScoreResponseDataV1 } from "./endpoints";
  */
 export const filterAndValidateV1GetScoreList = (
   scores: unknown[],
-  // eslint-disable-next-line no-unused-vars
+
   onParseError?: (error: z.ZodError) => void,
 ): z.infer<typeof GetScoreResponseDataV1>[] =>
   scores.reduce(

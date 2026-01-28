@@ -42,9 +42,13 @@ import {
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
-  hasNoJobConfigsCache,
   traceException,
   flattenJsonToPathArrays,
+  getDatasetItemById,
+  extractToolsFromObservation,
+  convertDefinitionsToMap,
+  convertCallsToArrays,
+  hasNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -91,6 +95,7 @@ export type EventInput = {
   endTimeISO: string;
   completionStartTime?: string;
 
+  traceName?: string;
   tags?: string[];
   bookmarked?: boolean;
   public?: boolean;
@@ -116,6 +121,11 @@ export type EventInput = {
   usageDetails?: Record<string, number>;
   providedCostDetails?: Record<string, number>;
   costDetails?: Record<string, number>;
+
+  // Tool Calls
+  toolDefinitions?: Record<string, string>;
+  toolCalls?: string[];
+  toolCallNames?: string[];
 
   // I/O
   input?: string;
@@ -148,6 +158,7 @@ export type EventInput = {
   experimentDescription?: string;
   experimentDatasetId?: string;
   experimentItemId?: string;
+  experimentItemVersion?: string;
   experimentItemRootSpanId?: string;
   experimentItemExpectedOutput?: string;
   experimentItemMetadataNames?: string[];
@@ -214,8 +225,8 @@ export class IngestionService {
   constructor(
     private redis: Redis | Cluster,
     private prisma: PrismaClient,
-    private clickHouseWriter: ClickhouseWriter, // eslint-disable-line no-unused-vars
-    private clickhouseClient: ClickhouseClientType, // eslint-disable-line no-unused-vars
+    private clickHouseWriter: ClickhouseWriter,
+    private clickhouseClient: ClickhouseClientType,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -269,19 +280,26 @@ export class IngestionService {
   }
 
   /**
-   * Writes a single event directly to the events table.
-   * Unlike other ingestion methods, this does not perform merging since
-   * events are immutable and written once.
+   * Creates an EventRecordInsertType from EventInput.
+   * Performs all necessary enrichments:
+   * - Prompt lookup (by name + version)
+   * - Model/usage enrichment (tokenization, cost calculation)
+   * - Metadata flattening
+   * - Timestamp normalization
    *
-   * @param eventData - The event data to write
+   * This is the single point of transformation from loose EventInput
+   * to strict EventRecordInsertType.
+   *
+   * @param eventData - The event data from processToEvent()
    * @param fileKey - The file key where the raw event data is stored
+   * @returns The enriched event record ready for writing or eval scheduling
    */
-  public async writeEvent(
+  public async createEventRecord(
     eventData: EventInput,
     fileKey: string,
-  ): Promise<void> {
+  ): Promise<EventRecordInsertType> {
     logger.debug(
-      `Writing event for project ${eventData.projectId} and span ${eventData.spanId}`,
+      `Creating event record for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
 
     // Perform lookups for prompt and model/usage enrichment
@@ -347,7 +365,8 @@ export class IngestionService {
       bookmarked: eventData.bookmarked ?? false,
       public: eventData.public ?? false,
 
-      // User/session
+      // Trace-level attributes: Name/User/session
+      trace_name: eventData.traceName,
       user_id: eventData.userId,
       session_id: eventData.sessionId,
 
@@ -387,6 +406,11 @@ export class IngestionService {
       usage_pricing_tier_id: generationUsage?.usage_pricing_tier_id,
       usage_pricing_tier_name: generationUsage?.usage_pricing_tier_name,
 
+      // Tool Calls
+      tool_definitions: eventData.toolDefinitions ?? {},
+      tool_calls: eventData.toolCalls ?? [],
+      tool_call_names: eventData.toolCallNames ?? [],
+
       // I/O
       input: eventData.input,
       output: eventData.output,
@@ -418,6 +442,7 @@ export class IngestionService {
       experiment_description: eventData.experimentDescription,
       experiment_dataset_id: eventData.experimentDatasetId,
       experiment_item_id: eventData.experimentItemId,
+      experiment_item_version: eventData.experimentItemVersion,
       experiment_item_root_span_id: eventData.experimentItemRootSpanId,
       experiment_item_expected_output: eventData.experimentItemExpectedOutput,
       experiment_item_metadata_names:
@@ -432,7 +457,16 @@ export class IngestionService {
       is_deleted: 0,
     };
 
-    // Write directly to ClickHouse queue (no merging for immutable events)
+    return eventRecord;
+  }
+
+  /**
+   * Writes an event record directly to the events table.
+   * Use createEventRecord() first to get the record, then call this to write.
+   *
+   * @param eventRecord - The event record to write
+   */
+  public writeEventRecord(eventRecord: EventRecordInsertType): void {
     this.clickHouseWriter.addToQueue(TableName.Events, eventRecord);
   }
 
@@ -465,18 +499,11 @@ export class IngestionService {
                   createdAt: true,
                 },
               }),
-              this.prisma.datasetItem.findFirst({
-                where: {
-                  datasetId: event.body.datasetId,
-                  projectId,
-                  id: event.body.datasetItemId,
-                  status: "ACTIVE",
-                },
-                select: {
-                  input: true,
-                  expectedOutput: true,
-                  metadata: true,
-                },
+              await getDatasetItemById({
+                projectId,
+                datasetItemId: event.body.datasetItemId,
+                datasetId: event.body.datasetId,
+                status: "ACTIVE",
               }),
             ]);
 
@@ -485,6 +512,10 @@ export class IngestionService {
             const timestamp = event.body.createdAt
               ? new Date(event.body.createdAt).getTime()
               : new Date().getTime();
+
+            const datasetItemVersion = itemData.validFrom
+              ? itemData.validFrom.getTime()
+              : null;
 
             return [
               {
@@ -508,6 +539,7 @@ export class IngestionService {
                   : {},
                 dataset_run_created_at: runData.createdAt.getTime(),
                 // enriched with item data
+                dataset_item_version: datasetItemVersion,
                 dataset_item_input: JSON.stringify(itemData.input),
                 dataset_item_expected_output: JSON.stringify(
                   itemData.expectedOutput,
@@ -590,6 +622,7 @@ export class IngestionService {
                 ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
                 : {},
               string_value: validatedScore.stringValue,
+              long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
               created_at: Date.now(),
@@ -745,7 +778,10 @@ export class IngestionService {
 
     // Add trace into trace upsert queue for eval processing
     // First check if we already know this project has no job configurations
-    const hasNoJobConfigs = await hasNoJobConfigsCache(projectId);
+    const hasNoJobConfigs = await hasNoEvalConfigsCache(
+      projectId,
+      "traceBased",
+    );
     if (hasNoJobConfigs) {
       logger.debug(
         `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
@@ -853,6 +889,35 @@ export class IngestionService {
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
         clickhouseObservationRecord?.output,
     );
+
+    // Extract tool definitions and calls from raw input/output
+    try {
+      const rawInput = reversedRawRecords.find((record) => record?.body?.input)
+        ?.body?.input;
+      const rawOutput = reversedRawRecords.find(
+        (record) => record?.body?.output,
+      )?.body?.output;
+
+      const { toolDefinitions, toolArguments } = extractToolsFromObservation(
+        rawInput,
+        rawOutput,
+      );
+
+      if (toolDefinitions.length > 0) {
+        mergedObservationRecord.tool_definitions =
+          convertDefinitionsToMap(toolDefinitions);
+      }
+
+      if (toolArguments.length > 0) {
+        const { tool_calls, tool_call_names } =
+          convertCallsToArrays(toolArguments);
+        mergedObservationRecord.tool_calls = tool_calls;
+        mergedObservationRecord.tool_call_names = tool_call_names;
+      }
+    } catch (error) {
+      logger.error("Tool extraction failed", { error, projectId, entityId });
+      // Don't fail ingestion - just skip tool data
+    }
 
     const generationUsage = await this.getGenerationUsage({
       projectId,
@@ -1167,11 +1232,19 @@ export class IngestionService {
       "usage_details" | "provided_usage_details"
     >
   > {
-    const providedUsageDetails = Object.fromEntries(
-      Object.entries(observationRecord.provided_usage_details).filter(
-        ([k, v]) => v != null && v >= 0, // eslint-disable-line no-unused-vars
-      ),
-    );
+    // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
+    // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+    const providedUsageDetails: Record<string, number> = {};
+    for (const [key, value] of Object.entries(
+      observationRecord.provided_usage_details,
+    )) {
+      if (value != null) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 0) {
+          providedUsageDetails[key] = numValue;
+        }
+      }
+    }
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
@@ -1299,7 +1372,7 @@ export class IngestionService {
     const { provided_cost_details } = observationRecord;
 
     const providedCostKeys = Object.entries(provided_cost_details ?? {})
-      .filter(([_, value]) => value != null) // eslint-disable-line no-unused-vars
+      .filter(([_, value]) => value != null)
       .map(([key]) => key);
 
     // If user has provided any cost point, do not calculate any other cost points
@@ -1346,7 +1419,7 @@ export class IngestionService {
       finalTotalCost = finalCostDetails.total;
     } else if (finalCostEntries.length > 0) {
       finalTotalCost = finalCostEntries.reduce(
-        (acc, [_, cost]) => acc + cost, // eslint-disable-line no-unused-vars
+        (acc, [_, cost]) => acc + cost,
         0,
       );
 
@@ -1359,7 +1432,6 @@ export class IngestionService {
     };
   }
 
-  // eslint-disable-next-line no-unused-vars
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1369,7 +1441,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<TraceRecordInsertType | null>;
-  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1379,7 +1451,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ScoreRecordInsertType | null>;
-  // eslint-disable-next-line no-unused-vars, no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1389,7 +1461,7 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }): Promise<ObservationRecordInsertType | null>;
-  // eslint-disable-next-line no-dupe-class-members
+
   private async getClickhouseRecord(params: {
     projectId: string;
     entityId: string;
@@ -1616,7 +1688,7 @@ export class IngestionService {
         ...("usageDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.usageDetails ?? {}).filter(
-                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
+                ([_, val]) => val != null,
               ),
             ) as Record<string, number>)
           : {}),
@@ -1637,7 +1709,7 @@ export class IngestionService {
         ...("costDetails" in obs.body
           ? (Object.fromEntries(
               Object.entries(obs.body.costDetails ?? {}).filter(
-                ([_, val]) => val != null, // eslint-disable-line no-unused-vars
+                ([_, val]) => val != null,
               ),
             ) as Record<string, number>)
           : {}),
@@ -1718,21 +1790,26 @@ export class IngestionService {
 
   /**
    * Returns a partition-aware timestamp for staging table writes.
-   * If the createdAtTimestamp is within the last 3.5 minutes, returns it as-is.
+   * If the createdAtTimestamp is within the last 2 minutes, returns it as-is.
    * Otherwise, returns the current timestamp to prevent updates to old partitions.
    *
    * This implements the partition locking strategy where partitions are "locked"
-   * 4 minutes after creation (3.5 min + 30s buffer for writes).
+   * 4 minutes after creation (2 min + 2 min buffer for writes).
+   *
+   * Going down from 3.5min to 2min here, as we see gaps in the data that may come from deletions.
+   * This reduces that chance that updates are handled in the same batch, but should increase the chance
+   * that data is processed correctly. Worst case is slightly more duplication in the events table
+   * which should resolve automatically using the ReplacingMergeTree.
    */
   private getPartitionAwareTimestamp(createdAtTimestamp: Date): number {
     const now = Date.now();
     const createdAt = createdAtTimestamp.getTime();
     const ageInMs = now - createdAt;
-    const threeAndHalfMinutesInMs = 3.5 * 60 * 1000;
+    const twoMinutesInMs = 2 * 60 * 1000;
 
-    // If the createdAtTimestamp is within the last 3.5 minutes, use it
+    // If the createdAtTimestamp is within the last 2 minutes, use it
     // Otherwise, use the current timestamp to avoid updating old partitions
-    return ageInMs < threeAndHalfMinutesInMs ? createdAt : now;
+    return ageInMs < twoMinutesInMs ? createdAt : now;
   }
 }
 

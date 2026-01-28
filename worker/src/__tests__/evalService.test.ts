@@ -3,6 +3,7 @@ import {
   LLMAdapter,
   ObservationType,
   variableMappingList,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { kyselyPrisma, prisma } from "@langfuse/shared/src/db";
@@ -599,7 +600,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -667,7 +668,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -683,7 +683,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "dataset",
+          targetObject: EvalTargetObject.DATASET,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -744,7 +744,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -759,7 +758,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "dataset",
+          targetObject: EvalTargetObject.DATASET,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -781,7 +780,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "dataset",
+          targetObject: EvalTargetObject.DATASET,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -822,7 +821,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
         })
@@ -857,7 +855,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "dataset",
+          targetObject: EvalTargetObject.DATASET,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -951,7 +949,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "dataset",
+          targetObject: EvalTargetObject.DATASET,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -983,7 +981,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .insertInto("dataset_items")
         .values({
           id: datasetItemId,
-          sys_id: randomUUID(),
           project_id: projectId,
           dataset_id: datasetId,
           source_trace_id: traceId,
@@ -1016,6 +1013,84 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobsAfterTrace[0].start_time).not.toBeNull();
     }, 10_000);
 
+    test("does not create job for 'event' config", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.EVENT,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          status: "INACTIVE",
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(0);
+    }, 10_000);
+
+    test("does not create job for 'experiment' config", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await prisma.jobConfiguration.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.EXPERIMENT,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+          status: "INACTIVE",
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      const jobs = await kyselyPrisma.$kysely
+        .selectFrom("job_executions")
+        .selectAll()
+        .where("project_id", "=", projectId)
+        .execute();
+
+      expect(jobs.length).toBe(0);
+    }, 10_000);
+
     test("does not create job for inactive config", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -1028,7 +1103,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           status: "INACTIVE",
@@ -1088,7 +1163,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -1136,7 +1211,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           status: "INACTIVE",
@@ -1188,7 +1263,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("0"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -1274,7 +1349,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           evalTemplateId: templateId,
@@ -1344,7 +1419,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           timeScope: ["EXISTING"],
@@ -1360,7 +1435,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           timeScope: ["NEW"],
@@ -1415,7 +1490,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           timeScope: ["NEW"],
@@ -1447,66 +1522,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs.length).toBe(1);
     }, 10_000);
 
-    test("does create eval for observation which is way in the past if timestamp is provided", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      const timestamp = new Date(Date.now() - 1000 * 60 * 60 * 24 * 365 * 1);
-      const trace = createTrace({
-        project_id: projectId,
-        id: traceId,
-        timestamp: timestamp.getTime(),
-      });
-
-      const observation = createObservation({
-        project_id: projectId,
-        id: randomUUID(),
-        start_time: timestamp.getTime(),
-      });
-
-      await createObservationsCh([observation]);
-      await createTracesCh([trace]);
-
-      const jobConfiguration = await prisma.jobConfiguration.create({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: "observation",
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-          timeScope: ["EXISTING"],
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-        configId: jobConfiguration.id,
-        timestamp: timestamp,
-        observationId: observation.id,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-        enforcedJobTimeScope: "EXISTING", // the config must contain NEW
-      });
-
-      const jobs = await kyselyPrisma.$kysely
-        .selectFrom("job_executions")
-        .selectAll()
-        .where("project_id", "=", projectId)
-        .where("job_configuration_id", "in", [jobConfiguration.id])
-        .execute();
-
-      expect(jobs.length).toBe(1);
-    }, 10_000);
-
     test("create eval for trace with timestamp in the near future", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -1519,7 +1534,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           timeScope: ["NEW"],
@@ -1598,7 +1613,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           id: datasetItemId,
           project_id: projectId,
           dataset_id: datasetId2,
-          sys_id: randomUUID(),
           source_trace_id: traceId,
         })
         .execute();
@@ -1641,7 +1655,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "dataset",
+            targetObject: EvalTargetObject.DATASET,
             scoreName: "score-alpha",
             variableMapping: JSON.parse("[]"),
           },
@@ -1659,7 +1673,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "dataset",
+            targetObject: EvalTargetObject.DATASET,
             scoreName: "score-beta",
             variableMapping: JSON.parse("[]"),
           },
@@ -1677,7 +1691,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "dataset",
+            targetObject: EvalTargetObject.DATASET,
             scoreName: "score-gamma",
             variableMapping: JSON.parse("[]"),
           },
@@ -1754,7 +1768,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .values({
           id: datasetItemId,
           project_id: projectId,
-          sys_id: randomUUID(),
           dataset_id: datasetId1,
           source_trace_id: traceId,
         })
@@ -1786,7 +1799,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "dataset",
+            targetObject: EvalTargetObject.DATASET,
             scoreName: "score-alpha",
             variableMapping: JSON.parse("[]"),
           },
@@ -1804,7 +1817,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
             jobType: "EVAL",
             delay: 0,
             sampling: new Decimal("1"),
-            targetObject: "dataset",
+            targetObject: EvalTargetObject.DATASET,
             scoreName: "score-beta",
             variableMapping: JSON.parse("[]"),
           },
@@ -1882,7 +1895,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           evalTemplateId: templateId,
@@ -1976,7 +1989,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           evalTemplateId: templateId,
@@ -2073,7 +2086,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           evalTemplateId: templateId,
@@ -2174,7 +2187,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           evalTemplateId: templateId,
@@ -2250,7 +2263,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           evalTemplateId: templateId,
@@ -2361,7 +2374,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           evalTemplateId: templateId,
@@ -2447,7 +2460,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           expected_output: { expected_output: "This is a great response" },
           project_id: projectId,
           dataset_id: datasetId,
-          sys_id: randomUUID(),
         })
         .execute();
 
@@ -2935,7 +2947,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "test-score",
           variableMapping: JSON.parse(
             '[{"langfuseObject":"trace","selectedColumnId":"input","templateVariable":"input"}]',
@@ -3018,7 +3030,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -3070,7 +3082,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -3121,7 +3133,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         .values({
           id: datasetItemId,
           project_id: projectId,
-          sys_id: randomUUID(),
           dataset_id: datasetId,
         })
         .execute();
@@ -3166,7 +3177,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "dataset",
+          targetObject: EvalTargetObject.DATASET,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -3221,7 +3232,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -3273,7 +3284,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },
@@ -3326,7 +3337,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           jobType: "EVAL",
           delay: 0,
           sampling: new Decimal("1"),
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
         },

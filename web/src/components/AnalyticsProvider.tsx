@@ -62,6 +62,7 @@ function useInitializeAnalytics() {
           },
           autocapture: false,
           enable_heatmaps: false,
+          persistence: "cookie",
         });
 
         setPosthogInstance(posthog);
@@ -140,10 +141,6 @@ export const AnalyticsProvider: React.FC<AnalyticsProviderProps> = ({
       });
     } else if (session.status === "unauthenticated") {
       lastIdentifiedUser.current = null;
-      // PostHog
-      if (posthogInstance) {
-        posthogInstance.reset();
-      }
       // Sentry
       setUser(null);
     }

@@ -48,7 +48,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { scores } = useTraceData();
+  const { mergedScores, roots } = useTraceData();
   const {
     showDuration,
     showCostTokens,
@@ -78,11 +78,20 @@ export function SpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
+  const hasTraceNode = roots.some((r) => r.type === "TRACE");
+
   // Filter scores for this node
+  // - TRACE nodes: show trace-level scores (observationId === null)
+  // - Root observations in v4 mode (no TRACE node): show trace-level + observation-level scores
+  // - All other observations: show only observation-level scores
   const nodeScores =
     node.type === "TRACE"
-      ? scores.filter((s) => s.observationId === null)
-      : scores.filter((s) => s.observationId === node.id);
+      ? mergedScores.filter((s) => s.observationId === null)
+      : node.parentObservationId === null && !hasTraceNode
+        ? mergedScores.filter(
+            (s) => s.observationId === node.id || s.observationId === null,
+          )
+        : mergedScores.filter((s) => s.observationId === node.id);
 
   return (
     <button

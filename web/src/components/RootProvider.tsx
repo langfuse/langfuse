@@ -12,6 +12,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 
 interface RootProviderProps {
   children: ReactNode;
@@ -40,9 +41,11 @@ export const RootProvider: React.FC<RootProviderProps> = ({
                   disableTransitionOnChange
                 >
                   <ScoreCacheProvider>
-                    <SupportDrawerProvider defaultOpen={false}>
-                      {children}
-                    </SupportDrawerProvider>
+                    <CorrectionCacheProvider>
+                      <SupportDrawerProvider defaultOpen={false}>
+                        {children}
+                      </SupportDrawerProvider>
+                    </CorrectionCacheProvider>
                   </ScoreCacheProvider>
                 </ThemeProvider>
               </MarkdownContextProvider>

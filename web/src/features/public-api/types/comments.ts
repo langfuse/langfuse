@@ -28,10 +28,17 @@ const APIComment = z
  */
 
 // POST /comments
-// Note: Public API does not process mentions
-export const PostCommentsV1Body = CreateCommentData.extend({
-  authorUserId: z.string().nullish(),
-}).strict();
+// Note: Public API does not process mentions or inline comment positioning
+export const PostCommentsV1Body = CreateCommentData.omit({
+  dataField: true,
+  path: true,
+  rangeStart: true,
+  rangeEnd: true,
+})
+  .extend({
+    authorUserId: z.string().nullish(),
+  })
+  .strict();
 export const PostCommentsV1Response = z.object({ id: z.string() }).strict();
 
 // GET /comments

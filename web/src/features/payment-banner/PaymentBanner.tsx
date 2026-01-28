@@ -60,7 +60,6 @@ export function PaymentBanner() {
       resizeObserver.disconnect();
       setBannerHeight(0);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setBannerHeight, subscriptionStatus]);
 
   if (!organization) {

@@ -4,8 +4,10 @@ import {
   GetScoresQueryV2,
   GetScoresResponseV2,
   filterAndValidateV2GetScoreList,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -13,6 +15,26 @@ export default withMiddlewares({
     querySchema: GetScoresQueryV2,
     responseSchema: GetScoresResponseV2,
     fn: async ({ query, auth }) => {
+      // Validate that trace filters are not used when trace field is excluded
+      const requestedFields = query.fields ?? ["score", "trace"];
+
+      if (!requestedFields.includes("score")) {
+        throw new InvalidRequestError("Scores needs to be selected always.");
+      }
+
+      const includesTrace = requestedFields.includes("trace");
+      const hasTraceFilters = Boolean(query.userId || query.traceTags);
+
+      logger.info(
+        `fields: ${query.fields}, includesTrace: ${includesTrace}, hasTraceFilters: ${hasTraceFilters}`,
+      );
+
+      if (!includesTrace && hasTraceFilters) {
+        throw new InvalidRequestError(
+          "Cannot filter by trace properties (userId, traceTags) when 'trace' field is not included. Please add 'trace' to the fields parameter or remove trace filters.",
+        );
+      }
+
       const scoreParams = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -29,11 +51,11 @@ export default withMiddlewares({
         fromTimestamp: query.fromTimestamp ?? undefined,
         toTimestamp: query.toTimestamp ?? undefined,
         environment: query.environment ?? undefined,
-        traceEnvironment: query.environment ?? undefined,
         source: query.source ?? undefined,
         value: query.value ?? undefined,
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
+        fields: query.fields ?? undefined,
       };
       const scoresApiService = new ScoresApiService("v2");
       const [items, count] = await Promise.all([

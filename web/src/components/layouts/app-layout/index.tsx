@@ -12,6 +12,8 @@
 import { type PropsWithChildren, useEffect } from "react";
 import { useRouter } from "next/router";
 import { signOut } from "next-auth/react";
+import posthog from "posthog-js";
+import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { ErrorPageWithSentry } from "@/src/components/error-page";
 
@@ -28,7 +30,6 @@ import { useAuthGuard } from "./hooks/useAuthGuard";
 import { useProjectAccess } from "./hooks/useProjectAccess";
 import { useFilteredNavigation } from "./hooks/useFilteredNavigation";
 import { useLayoutMetadata } from "./hooks/useLayoutMetadata";
-import { stripBasePath } from "@/src/utils/redirect";
 
 /**
  * Main layout component
@@ -128,11 +129,10 @@ export function AppLayout(props: PropsWithChildren) {
 
   const handleSignOut = async () => {
     sessionStorage.clear();
-    // Redirect to sign-in with current path as targetPath for post-login redirect
-    const pathWithoutBase = stripBasePath(router.asPath || "/");
-    const targetPath = encodeURIComponent(pathWithoutBase);
-    // explicitly set callbackUrl to avoid error pages when the user is currently on a publishable path without a published entity
-    await signOut({ callbackUrl: `/auth/sign-in?targetPath=${targetPath}` });
+    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+      posthog.reset();
+    }
+    await signOut({ callbackUrl: `/auth/sign-in` });
   };
 
   return (

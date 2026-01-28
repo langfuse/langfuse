@@ -56,7 +56,7 @@ import { useLogViewColumns } from "./useLogViewColumns";
 export interface TraceLogViewProps {
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "json";
+  currentView?: "pretty" | "json" | "json-beta";
 }
 
 // Import configuration constants
@@ -75,9 +75,9 @@ export const TraceLogView = ({
   projectId,
   currentView = "pretty",
 }: TraceLogViewProps) => {
-  const { tree, observations } = useTraceData();
+  const { roots, observations } = useTraceData();
   const { logViewMode, logViewTreeStyle } = useViewPreferences();
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
 
   // Determine if we should virtualize based on observation count
   const isVirtualized =
@@ -92,16 +92,14 @@ export const TraceLogView = ({
   const expandedRowsKey = `logViewRows:${traceId}`;
 
   const expandedKeys = useMemo(() => {
-    const expandedRowsState = (expansionState[expandedRowsKey] ?? {}) as Record<
-      string,
-      boolean
-    >;
+    const expandedRowsState = (formattedExpansion[expandedRowsKey] ??
+      {}) as Record<string, boolean>;
     return new Set(
       Object.entries(expandedRowsState)
         .filter(([, isExpanded]) => isExpanded)
         .map(([id]) => id),
     );
-  }, [expansionState, expandedRowsKey]);
+  }, [formattedExpansion, expandedRowsKey]);
 
   // Update expanded keys in context
   const setExpandedKeys = useCallback(
@@ -117,9 +115,9 @@ export const TraceLogView = ({
         newState[id] = true;
       });
 
-      setFieldExpansion(expandedRowsKey, newState);
+      setFormattedFieldExpansion(expandedRowsKey, newState);
     },
-    [expandedKeys, setFieldExpansion, expandedRowsKey],
+    [expandedKeys, setFormattedFieldExpansion, expandedRowsKey],
   );
 
   // Local state for search
@@ -136,16 +134,20 @@ export const TraceLogView = ({
     setShowMilliseconds,
   } = useLogViewPreferences();
 
-  // Disable indent when tree is too deep
-  const indentDisabled = tree.childrenDepth > INDENT_DEPTH_THRESHOLD;
+  // Disable indent when tree is too deep (max childrenDepth across all roots)
+  const maxChildrenDepth = useMemo(() => {
+    if (roots.length === 0) return 0;
+    return Math.max(...roots.map((r) => r.childrenDepth));
+  }, [roots]);
+  const indentDisabled = maxChildrenDepth > INDENT_DEPTH_THRESHOLD;
   const indentEnabled = indentEnabledPref && !indentDisabled;
 
   // Flatten tree based on mode
   const allItems = useMemo(() => {
     return logViewMode === "chronological"
-      ? flattenChronological(tree)
-      : flattenTreeOrder(tree);
-  }, [tree, logViewMode]);
+      ? flattenChronological(roots)
+      : flattenTreeOrder(roots);
+  }, [roots, logViewMode]);
 
   // Apply search filter
   const flatItems = useMemo(() => {
@@ -191,14 +193,23 @@ export const TraceLogView = ({
           traceId={traceId}
           projectId={projectId}
           currentView={currentView}
-          externalExpansionState={expansionState[observationExpansionKey]}
+          externalExpansionState={formattedExpansion[observationExpansionKey]}
           onExternalExpansionChange={(exp) =>
-            setFieldExpansion(observationExpansionKey, exp)
+            setFormattedFieldExpansion(
+              observationExpansionKey,
+              exp as Record<string, boolean>,
+            )
           }
         />
       );
     },
-    [traceId, projectId, currentView, expansionState, setFieldExpansion],
+    [
+      traceId,
+      projectId,
+      currentView,
+      formattedExpansion,
+      setFormattedFieldExpansion,
+    ],
   );
 
   // Track if all rows are expanded (for non-virtualized mode)
@@ -307,22 +318,24 @@ export const TraceLogView = ({
       )}
 
       {/* Table view mode - render as expandable table */}
-      {flatItems.length > 0 && currentView === "pretty" && (
-        <JSONTableView
-          items={flatItems}
-          columns={columns}
-          getItemKey={(item) => item.node.id}
-          expandable
-          renderExpanded={renderExpanded}
-          expandedKeys={expandedKeys}
-          onExpandedKeysChange={setExpandedKeys}
-          virtualized={isVirtualized}
-          overscan={100}
-          collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
-          expandedRowHeight={EXPANDED_ROW_HEIGHT}
-          renderRowPrefix={renderRowPrefix}
-        />
-      )}
+      {/* "json-beta" uses table mode since advanced I/O viewer works in expandable rows */}
+      {flatItems.length > 0 &&
+        (currentView === "pretty" || currentView === "json-beta") && (
+          <JSONTableView
+            items={flatItems}
+            columns={columns}
+            getItemKey={(item) => item.node.id}
+            expandable
+            renderExpanded={renderExpanded}
+            expandedKeys={expandedKeys}
+            onExpandedKeysChange={setExpandedKeys}
+            virtualized={isVirtualized}
+            overscan={100}
+            collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
+            expandedRowHeight={EXPANDED_ROW_HEIGHT}
+            renderRowPrefix={renderRowPrefix}
+          />
+        )}
     </div>
   );
 };

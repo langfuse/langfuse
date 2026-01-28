@@ -102,7 +102,11 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type === "arrayOptions" ||
       type === "categoryOptions"
     ) {
-      parsedValue = decodedValue ? decodedValue.split("|") : [];
+      parsedValue = decodedValue
+        ? decodedValue.split("|")
+        : decodedValue === ""
+          ? [""] // allow empty strings (i.e, filter for empty trace name)
+          : [decodedValue];
     } else if (type === "boolean") {
       parsedValue = decodedValue === "true";
     } else {

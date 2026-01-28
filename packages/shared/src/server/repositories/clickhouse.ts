@@ -103,7 +103,7 @@ export async function upsertClickhouse<
 >(opts: {
   table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
-  eventBodyMapper: (body: T) => Record<string, unknown>; // eslint-disable-line no-unused-vars
+  eventBodyMapper: (body: T) => Record<string, unknown>;
   tags?: Record<string, string>;
 }): Promise<void> {
   return await instrumentAsync(
@@ -310,6 +310,10 @@ function handleExceptionRow<T>(parsedRow: T): T {
   ) {
     const potentialException = (parsedRow as { exception: string }).exception;
     if (potentialException.match(/^Code: (\d+)/)) {
+      logger.error(
+        `[clickhouse] Exception row detected: ${potentialException}`,
+        parsedRow,
+      );
       throw new Error(potentialException);
     }
   }

@@ -1957,10 +1957,314 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GetMediaUploadUrlRequest'
+  /api/public/v2/metrics:
+    get:
+      description: >-
+        Get metrics from the Langfuse project using a query object. V2 endpoint
+        with optimized performance.
+
+
+        ## V2 Differences
+
+        - Supports `observations`, `scores-numeric`, and `scores-categorical`
+        views only (traces view not supported)
+
+        - Direct access to tags and release fields on observations
+
+        - Backwards-compatible: traceName, traceRelease, traceVersion dimensions
+        are still available on observations view
+
+        - High cardinality dimensions are not supported and will return a 400
+        error (see below)
+
+
+        For more details, see the [Metrics API
+        documentation](https://langfuse.com/docs/metrics/features/metrics-api).
+
+
+        ## Available Views
+
+
+        ### observations
+
+        Query observation-level data (spans, generations, events).
+
+
+        **Dimensions:**
+
+        - `environment` - Deployment environment (e.g., production, staging)
+
+        - `type` - Type of observation (SPAN, GENERATION, EVENT)
+
+        - `name` - Name of the observation
+
+        - `level` - Logging level of the observation
+
+        - `version` - Version of the observation
+
+        - `tags` - User-defined tags
+
+        - `release` - Release version
+
+        - `traceName` - Name of the parent trace (backwards-compatible)
+
+        - `traceRelease` - Release version of the parent trace
+        (backwards-compatible, maps to release)
+
+        - `traceVersion` - Version of the parent trace (backwards-compatible,
+        maps to version)
+
+        - `providedModelName` - Name of the model used
+
+        - `promptName` - Name of the prompt used
+
+        - `promptVersion` - Version of the prompt used
+
+        - `startTimeMonth` - Month of start_time in YYYY-MM format
+
+
+        **Measures:**
+
+        - `count` - Total number of observations
+
+        - `latency` - Observation latency (milliseconds)
+
+        - `streamingLatency` - Generation latency from completion start to end
+        (milliseconds)
+
+        - `inputTokens` - Sum of input tokens consumed
+
+        - `outputTokens` - Sum of output tokens produced
+
+        - `totalTokens` - Sum of all tokens consumed
+
+        - `outputTokensPerSecond` - Output tokens per second
+
+        - `tokensPerSecond` - Total tokens per second
+
+        - `inputCost` - Input cost (USD)
+
+        - `outputCost` - Output cost (USD)
+
+        - `totalCost` - Total cost (USD)
+
+        - `timeToFirstToken` - Time to first token (milliseconds)
+
+        - `countScores` - Number of scores attached to the observation
+
+
+        ### scores-numeric
+
+        Query numeric and boolean score data.
+
+
+        **Dimensions:**
+
+        - `environment` - Deployment environment
+
+        - `name` - Name of the score (e.g., accuracy, toxicity)
+
+        - `source` - Origin of the score (API, ANNOTATION, EVAL)
+
+        - `dataType` - Data type (NUMERIC, BOOLEAN)
+
+        - `configId` - Identifier of the score config
+
+        - `timestampMonth` - Month in YYYY-MM format
+
+        - `timestampDay` - Day in YYYY-MM-DD format
+
+        - `value` - Numeric value of the score
+
+        - `traceName` - Name of the parent trace
+
+        - `tags` - Tags
+
+        - `traceRelease` - Release version
+
+        - `traceVersion` - Version
+
+        - `observationName` - Name of the associated observation
+
+        - `observationModelName` - Model name of the associated observation
+
+        - `observationPromptName` - Prompt name of the associated observation
+
+        - `observationPromptVersion` - Prompt version of the associated
+        observation
+
+
+        **Measures:**
+
+        - `count` - Total number of scores
+
+        - `value` - Score value (for aggregations)
+
+
+        ### scores-categorical
+
+        Query categorical score data. Same dimensions as scores-numeric except
+        uses `stringValue` instead of `value`.
+
+
+        **Measures:**
+
+        - `count` - Total number of scores
+
+
+        ## High Cardinality Dimensions
+
+        The following dimensions cannot be used as grouping dimensions in v2
+        metrics API as they can cause performance issues.
+
+        Use them in filters instead.
+
+
+        **observations view:**
+
+        - `id` - Use traceId filter to narrow down results
+
+        - `traceId` - Use traceId filter instead
+
+        - `userId` - Use userId filter instead
+
+        - `sessionId` - Use sessionId filter instead
+
+        - `parentObservationId` - Use parentObservationId filter instead
+
+
+        **scores-numeric / scores-categorical views:**
+
+        - `id` - Use specific filters to narrow down results
+
+        - `traceId` - Use traceId filter instead
+
+        - `userId` - Use userId filter instead
+
+        - `sessionId` - Use sessionId filter instead
+
+        - `observationId` - Use observationId filter instead
+
+
+        ## Aggregations
+
+        Available aggregation functions: `sum`, `avg`, `count`, `max`, `min`,
+        `p50`, `p75`, `p90`, `p95`, `p99`, `histogram`
+
+
+        ## Time Granularities
+
+        Available granularities for timeDimension: `auto`, `minute`, `hour`,
+        `day`, `week`, `month`
+
+        - `auto` bins the data into approximately 50 buckets based on the time
+        range
+      operationId: metricsV2_metrics
+      tags:
+        - MetricsV2
+      parameters:
+        - name: query
+          in: query
+          description: >-
+            JSON string containing the query parameters with the following
+            structure:
+
+            ```json
+
+            {
+              "view": string,           // Required. One of "observations", "scores-numeric", "scores-categorical"
+              "dimensions": [           // Optional. Default: []
+                {
+                  "field": string       // Field to group by (see available dimensions above)
+                }
+              ],
+              "metrics": [              // Required. At least one metric must be provided
+                {
+                  "measure": string,    // What to measure (see available measures above)
+                  "aggregation": string // How to aggregate: "sum", "avg", "count", "max", "min", "p50", "p75", "p90", "p95", "p99", "histogram"
+                }
+              ],
+              "filters": [              // Optional. Default: []
+                {
+                  "column": string,     // Column to filter on (any dimension field)
+                  "operator": string,   // Operator based on type:
+                                        // - datetime: ">", "<", ">=", "<="
+                                        // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                        // - stringOptions: "any of", "none of"
+                                        // - arrayOptions: "any of", "none of", "all of"
+                                        // - number: "=", ">", "<", ">=", "<="
+                                        // - stringObject/numberObject: same as string/number with required "key"
+                                        // - boolean: "=", "<>"
+                                        // - null: "is null", "is not null"
+                  "value": any,         // Value to compare against
+                  "type": string,       // Data type: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                  "key": string         // Required only for stringObject/numberObject types (e.g., metadata filtering)
+                }
+              ],
+              "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                "granularity": string   // One of "auto", "minute", "hour", "day", "week", "month"
+              },
+              "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+              "toTimestamp": string,    // Required. ISO datetime string for end of time range (must be after fromTimestamp)
+              "orderBy": [              // Optional. Default: null
+                {
+                  "field": string,      // Field to order by (dimension or metric alias)
+                  "direction": string   // "asc" or "desc"
+                }
+              ],
+              "config": {               // Optional. Query-specific configuration
+                "bins": number,         // Optional. Number of bins for histogram aggregation (1-100), default: 10
+                "row_limit": number     // Optional. Maximum number of rows to return (1-1000), default: 100
+              }
+            }
+
+            ```
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsV2Response'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/metrics:
     get:
       description: >-
         Get metrics from the Langfuse project using a query object.
+
+
+        Consider using the [v2 metrics
+        endpoint](/api-reference#tag/metricsv2/GET/api/public/v2/metrics) for
+        better performance.
 
 
         For more details, see the [Metrics API
@@ -2245,6 +2549,385 @@ paths:
               schema: {}
       security:
         - BasicAuth: []
+  /api/public/v2/observations:
+    get:
+      description: >-
+        Get a list of observations with cursor-based pagination and flexible
+        field selection.
+
+
+        ## Cursor-based Pagination
+
+        This endpoint uses cursor-based pagination for efficient traversal of
+        large datasets.
+
+        The cursor is returned in the response metadata and should be passed in
+        subsequent requests
+
+        to retrieve the next page of results.
+
+
+        ## Field Selection
+
+        Use the `fields` parameter to control which observation fields are
+        returned:
+
+        - `core` - Always included: id, traceId, startTime, endTime, projectId,
+        parentObservationId, type
+
+        - `basic` - name, level, statusMessage, version, environment,
+        bookmarked, public, userId, sessionId
+
+        - `time` - completionStartTime, createdAt, updatedAt
+
+        - `io` - input, output
+
+        - `metadata` - metadata (truncated to 200 chars by default, use
+        `expandMetadata` to get full values)
+
+        - `model` - providedModelName, internalModelId, modelParameters
+
+        - `usage` - usageDetails, costDetails, totalCost
+
+        - `prompt` - promptId, promptName, promptVersion
+
+        - `metrics` - latency, timeToFirstToken
+
+
+        If not specified, `core` and `basic` field groups are returned.
+
+
+        ## Filters
+
+        Multiple filtering options are available via query parameters or the
+        structured `filter` parameter.
+
+        When using the `filter` parameter, it takes precedence over individual
+        query parameter filters.
+      operationId: observationsV2_getMany
+      tags:
+        - ObservationsV2
+      parameters:
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated list of field groups to include in the response.
+
+            Available groups: core, basic, time, io, metadata, model, usage,
+            prompt, metrics.
+
+            If not specified, `core` and `basic` field groups are returned.
+
+            Example: "basic,usage,model"
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: expandMetadata
+          in: query
+          description: |-
+            Comma-separated list of metadata keys to return non-truncated.
+            By default, metadata values over 200 characters are truncated.
+            Use this parameter to retrieve full values for specific keys.
+            Example: "key1,key2"
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: Number of items to return per page. Maximum 1000, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: >-
+            Base64-encoded cursor for pagination. Use the cursor from the
+            previous response to get the next page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: parseIoAsJson
+          in: query
+          description: >-
+            Set to `true` to parse input/output fields as JSON, or `false` to
+            return raw strings.
+
+            Defaults to `false` if not provided.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: type
+          in: query
+          description: >-
+            Filter by observation type (e.g., "GENERATION", "SPAN", "EVENT",
+            "AGENT", "TOOL", "CHAIN", "RETRIEVER", "EVALUATOR", "EMBEDDING",
+            "GUARDRAIL")
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: traceId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: level
+          in: query
+          description: >-
+            Optional filter for observations with a specific level (e.g.
+            "DEBUG", "DEFAULT", "WARNING", "ERROR").
+          required: false
+          schema:
+            $ref: '#/components/schemas/ObservationLevel'
+            nullable: true
+        - name: parentObservationId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: environment
+          in: query
+          description: >-
+            Optional filter for observations where the environment is one of the
+            provided values.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              nullable: true
+        - name: fromStartTime
+          in: query
+          description: >-
+            Retrieve only observations with a start_time on or after this
+            datetime (ISO 8601).
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toStartTime
+          in: query
+          description: >-
+            Retrieve only observations with a start_time before this datetime
+            (ISO 8601).
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: version
+          in: query
+          description: Optional filter to only include observations with a certain version.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON string containing an array of filter conditions. When provided,
+            this takes precedence over query parameter filters (userId, name,
+            type, level, environment, fromStartTime, ...).
+
+
+            ## Filter Structure
+
+            Each filter condition has the following structure:
+
+            ```json
+
+            [
+              {
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "column": string,         // Required. Column to filter on (see available columns below)
+                "operator": string,       // Required. Operator based on type:
+                                          // - datetime: ">", "<", ">=", "<="
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringOptions: "any of", "none of"
+                                          // - categoryOptions: "any of", "none of"
+                                          // - arrayOptions: "any of", "none of", "all of"
+                                          // - number: "=", ">", "<", ">=", "<="
+                                          // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - numberObject: "=", ">", "<", ">=", "<="
+                                          // - boolean: "=", "<>"
+                                          // - null: "is null", "is not null"
+                "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
+                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+              }
+            ]
+
+            ```
+
+
+            ## Available Columns
+
+
+            ### Core Observation Fields
+
+            - `id` (string) - Observation ID
+
+            - `type` (string) - Observation type (SPAN, GENERATION, EVENT)
+
+            - `name` (string) - Observation name
+
+            - `traceId` (string) - Associated trace ID
+
+            - `startTime` (datetime) - Observation start time
+
+            - `endTime` (datetime) - Observation end time
+
+            - `environment` (string) - Environment tag
+
+            - `level` (string) - Log level (DEBUG, DEFAULT, WARNING, ERROR)
+
+            - `statusMessage` (string) - Status message
+
+            - `version` (string) - Version tag
+
+            - `userId` (string) - User ID
+
+            - `sessionId` (string) - Session ID
+
+
+            ### Trace-Related Fields
+
+            - `traceName` (string) - Name of the parent trace
+
+            - `traceTags` (arrayOptions) - Tags from the parent trace
+
+            - `tags` (arrayOptions) - Alias for traceTags
+
+
+            ### Performance Metrics
+
+            - `latency` (number) - Latency in seconds (calculated: end_time -
+            start_time)
+
+            - `timeToFirstToken` (number) - Time to first token in seconds
+
+            - `tokensPerSecond` (number) - Output tokens per second
+
+
+            ### Token Usage
+
+            - `inputTokens` (number) - Number of input tokens
+
+            - `outputTokens` (number) - Number of output tokens
+
+            - `totalTokens` (number) - Total tokens (alias: `tokens`)
+
+
+            ### Cost Metrics
+
+            - `inputCost` (number) - Input cost in USD
+
+            - `outputCost` (number) - Output cost in USD
+
+            - `totalCost` (number) - Total cost in USD
+
+
+            ### Model Information
+
+            - `model` (string) - Provided model name (alias:
+            `providedModelName`)
+
+            - `promptName` (string) - Associated prompt name
+
+            - `promptVersion` (number) - Associated prompt version
+
+
+            ### Structured Data
+
+            - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
+            key-value pairs. Use `key` parameter to filter on specific metadata
+            keys.
+
+
+            ## Filter Examples
+
+            ```json
+
+            [
+              {
+                "type": "string",
+                "column": "type",
+                "operator": "=",
+                "value": "GENERATION"
+              },
+              {
+                "type": "number",
+                "column": "latency",
+                "operator": ">=",
+                "value": 2.5
+              },
+              {
+                "type": "stringObject",
+                "column": "metadata",
+                "key": "environment",
+                "operator": "=",
+                "value": "production"
+              }
+            ]
+
+            ```
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationsV2Response'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/observations/{observationId}:
     get:
       description: Get a observation
@@ -2296,7 +2979,13 @@ paths:
         - BasicAuth: []
   /api/public/observations:
     get:
-      description: Get a list of observations
+      description: >-
+        Get a list of observations.
+
+
+        Consider using the [v2 observations
+        endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations)
+        for cursor-based pagination and field selection.
       operationId: observations_getMany
       tags:
         - Observations
@@ -3246,13 +3935,14 @@ paths:
                   description: Optional metadata for the project
                 retention:
                   type: integer
-                  description: >-
-                    Number of days to retain data. Must be 0 or at least 3 days.
+                  nullable: true
+                  description: |-
+                    Number of days to retain data.
+                    Must be 0 or at least 3 days.
                     Requires data-retention entitlement for non-zero values.
-                    Optional.
+                    Optional. Will retain existing retention setting if omitted.
               required:
                 - name
-                - retention
     delete:
       description: >-
         Delete a project by ID (requires organization-scoped API key). Project
@@ -4516,6 +5206,21 @@ paths:
             items:
               type: string
               nullable: true
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated list of field groups to include in the response.
+            Available field groups: 'score' (core score fields), 'trace' (trace
+            properties: userId, tags, environment). If not specified, both
+            'score' and 'trace' are returned by default. Example: 'score' to
+            exclude trace data, 'score,trace' to include both. Note: When
+            filtering by trace properties (using userId or traceTags
+            parameters), the 'trace' field group must be included, otherwise a
+            400 error will be returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -5741,17 +6446,12 @@ components:
           type: array
           items:
             type: string
-          nullable: true
-          description: >-
-            The tags associated with the trace. Can be an array of strings or
-            null.
+          description: The tags associated with the trace.
         public:
           type: boolean
-          nullable: true
           description: Public traces are accessible via url without login
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this trace originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -5759,6 +6459,9 @@ components:
       required:
         - id
         - timestamp
+        - tags
+        - public
+        - environment
     TraceWithDetails:
       title: TraceWithDetails
       type: object
@@ -5769,27 +6472,27 @@ components:
         latency:
           type: number
           format: double
+          nullable: true
           description: Latency of trace in seconds
         totalCost:
           type: number
           format: double
+          nullable: true
           description: Cost of trace in USD
         observations:
           type: array
           items:
             type: string
+          nullable: true
           description: List of observation ids
         scores:
           type: array
           items:
             type: string
+          nullable: true
           description: List of score ids
       required:
         - htmlPath
-        - latency
-        - totalCost
-        - observations
-        - scores
       allOf:
         - $ref: '#/components/schemas/Trace'
     TraceWithFullDetails:
@@ -5802,10 +6505,12 @@ components:
         latency:
           type: number
           format: double
+          nullable: true
           description: Latency of trace in seconds
         totalCost:
           type: number
           format: double
+          nullable: true
           description: Cost of trace in USD
         observations:
           type: array
@@ -5819,8 +6524,6 @@ components:
           description: List of scores
       required:
         - htmlPath
-        - latency
-        - totalCost
         - observations
         - scores
       allOf:
@@ -5838,12 +6541,12 @@ components:
           type: string
         environment:
           type: string
-          nullable: true
           description: The environment from which this session originated.
       required:
         - id
         - createdAt
         - projectId
+        - environment
     SessionWithTraces:
       title: SessionWithTraces
       type: object
@@ -5893,27 +6596,19 @@ components:
           nullable: true
           description: The model used for the observation
         modelParameters:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
-          nullable: true
           description: The parameters of the model used for the observation
         input:
-          nullable: true
           description: The input data of the observation
         version:
           type: string
           nullable: true
           description: The version of the observation
         metadata:
-          nullable: true
           description: Additional metadata of the observation
         output:
-          nullable: true
           description: The output data of the observation
         usage:
           $ref: '#/components/schemas/Usage'
-          nullable: true
           description: >-
             (Deprecated. Use usageDetails and costDetails instead.) The usage
             data of the observation
@@ -5936,7 +6631,6 @@ components:
           type: object
           additionalProperties:
             type: integer
-          nullable: true
           description: >-
             The usage details of the observation. Key is the name of the usage
             metric, value is the number of units consumed. The total key is the
@@ -5946,14 +6640,12 @@ components:
           additionalProperties:
             type: number
             format: double
-          nullable: true
           description: >-
             The cost details of the observation. Key is the name of the cost
             metric, value is the cost in USD. The total key is the sum of all
             (non-total) cost metrics or the total value ingested.
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this observation originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -5962,7 +6654,15 @@ components:
         - id
         - type
         - startTime
+        - modelParameters
+        - input
+        - metadata
+        - output
+        - usage
         - level
+        - usageDetails
+        - costDetails
+        - environment
     ObservationsView:
       title: ObservationsView
       type: object
@@ -6036,19 +6736,17 @@ components:
       properties:
         input:
           type: integer
-          nullable: true
           description: Number of input units (e.g. tokens)
         output:
           type: integer
-          nullable: true
           description: Number of output units (e.g. tokens)
         total:
           type: integer
-          nullable: true
           description: Defaults to input+output if not set
         unit:
-          $ref: '#/components/schemas/ModelUsageUnit'
+          type: string
           nullable: true
+          description: Unit of measurement
         inputCost:
           type: number
           format: double
@@ -6064,6 +6762,10 @@ components:
           format: double
           nullable: true
           description: USD total cost, defaults to input+output
+      required:
+        - input
+        - output
+        - total
     ScoreConfig:
       title: ScoreConfig
       type: object
@@ -6082,7 +6784,7 @@ components:
         projectId:
           type: string
         dataType:
-          $ref: '#/components/schemas/ScoreDataType'
+          $ref: '#/components/schemas/ScoreConfigDataType'
         isArchived:
           type: boolean
           description: Whether the score config is archived. Defaults to false
@@ -6109,6 +6811,7 @@ components:
         description:
           type: string
           nullable: true
+          description: Description of the score config
       required:
         - id
         - name
@@ -6144,6 +6847,7 @@ components:
         observationId:
           type: string
           nullable: true
+          description: The observation ID associated with the score
         timestamp:
           type: string
           format: date-time
@@ -6156,11 +6860,13 @@ components:
         authorUserId:
           type: string
           nullable: true
+          description: The user ID of the author
         comment:
           type: string
           nullable: true
+          description: Comment on the score
         metadata:
-          nullable: true
+          description: Metadata associated with the score
         configId:
           type: string
           nullable: true
@@ -6176,7 +6882,6 @@ components:
             initially created while processing annotation queue.
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this score originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -6189,6 +6894,8 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - metadata
+        - environment
     NumericScoreV1:
       title: NumericScoreV1
       type: object
@@ -6286,15 +6993,19 @@ components:
         traceId:
           type: string
           nullable: true
+          description: The trace ID associated with the score
         sessionId:
           type: string
           nullable: true
+          description: The session ID associated with the score
         observationId:
           type: string
           nullable: true
+          description: The observation ID associated with the score
         datasetRunId:
           type: string
           nullable: true
+          description: The dataset run ID associated with the score
         name:
           type: string
         source:
@@ -6311,11 +7022,13 @@ components:
         authorUserId:
           type: string
           nullable: true
+          description: The user ID of the author
         comment:
           type: string
           nullable: true
+          description: Comment on the score
         metadata:
-          nullable: true
+          description: Metadata associated with the score
         configId:
           type: string
           nullable: true
@@ -6331,7 +7044,6 @@ components:
             initially created while processing annotation queue.
         environment:
           type: string
-          nullable: true
           description: >-
             The environment from which this score originated. Can be any
             lowercase alphanumeric string with hyphens and underscores that does
@@ -6343,6 +7055,8 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - metadata
+        - environment
     NumericScore:
       title: NumericScore
       type: object
@@ -6463,6 +7177,7 @@ components:
         authorUserId:
           type: string
           nullable: true
+          description: The user ID of the comment author
       required:
         - id
         - projectId
@@ -6482,8 +7197,9 @@ components:
         description:
           type: string
           nullable: true
+          description: Description of the dataset
         metadata:
-          nullable: true
+          description: Metadata associated with the dataset
         inputSchema:
           nullable: true
           description: JSON Schema for validating dataset item inputs
@@ -6501,6 +7217,7 @@ components:
       required:
         - id
         - name
+        - metadata
         - projectId
         - createdAt
         - updatedAt
@@ -6513,17 +7230,19 @@ components:
         status:
           $ref: '#/components/schemas/DatasetStatus'
         input:
-          nullable: true
+          description: Input data for the dataset item
         expectedOutput:
-          nullable: true
+          description: Expected output for the dataset item
         metadata:
-          nullable: true
+          description: Metadata associated with the dataset item
         sourceTraceId:
           type: string
           nullable: true
+          description: The trace ID that sourced this dataset item
         sourceObservationId:
           type: string
           nullable: true
+          description: The observation ID that sourced this dataset item
         datasetId:
           type: string
         datasetName:
@@ -6537,6 +7256,9 @@ components:
       required:
         - id
         - status
+        - input
+        - expectedOutput
+        - metadata
         - datasetId
         - datasetName
         - createdAt
@@ -6558,6 +7280,7 @@ components:
         observationId:
           type: string
           nullable: true
+          description: The observation ID associated with this run item
         createdAt:
           type: string
           format: date-time
@@ -6587,7 +7310,6 @@ components:
           nullable: true
           description: Description of the run
         metadata:
-          nullable: true
           description: Metadata of the dataset run
         datasetId:
           type: string
@@ -6606,6 +7328,7 @@ components:
       required:
         - id
         - name
+        - metadata
         - datasetId
         - datasetName
         - createdAt
@@ -6695,7 +7418,6 @@ components:
             Optional. Tokenizer to be applied to observations which match to
             this model. See docs for more details.
         tokenizerConfig:
-          nullable: true
           description: >-
             Optional. Configuration for the selected tokenizer. Needs to be
             JSON. See docs for more details.
@@ -6748,6 +7470,7 @@ components:
         - id
         - modelName
         - matchPattern
+        - tokenizerConfig
         - isLangfuseManaged
         - createdAt
         - prices
@@ -7140,6 +7863,13 @@ components:
         - ANNOTATION
         - API
         - EVAL
+    ScoreConfigDataType:
+      title: ScoreConfigDataType
+      type: string
+      enum:
+        - NUMERIC
+        - BOOLEAN
+        - CATEGORICAL
     ScoreDataType:
       title: ScoreDataType
       type: string
@@ -7147,6 +7877,7 @@ components:
         - NUMERIC
         - BOOLEAN
         - CATEGORICAL
+        - CORRECTION
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object
@@ -7736,6 +8467,9 @@ components:
           nullable: true
         name:
           type: string
+          description: >-
+            The name of the score. Always overrides "output" for correction
+            scores.
           example: novelty
         environment:
           type: string
@@ -8292,6 +9026,24 @@ components:
         - application/x-tar
         - application/x-7z-compressed
       description: The MIME type of the media record
+    MetricsV2Response:
+      title: MetricsV2Response
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: >-
+            The metrics data. Each item in the list contains the metric values
+            and dimensions requested in the query.
+
+            Format varies based on the query parameters.
+
+            Histograms will return an array with [lower, upper, height] tuples.
+      required:
+        - data
     MetricsResponse:
       title: MetricsResponse
       type: object
@@ -8424,6 +9176,43 @@ components:
       required:
         - modelName
         - matchPattern
+    ObservationsV2Response:
+      title: ObservationsV2Response
+      type: object
+      description: >-
+        Response containing observations with field-group-based filtering and
+        cursor-based pagination.
+
+
+        The `data` array contains observation objects with only the requested
+        field groups included.
+
+        Use the `cursor` in `meta` to retrieve the next page of results.
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: >-
+            Array of observation objects. Fields included depend on the `fields`
+            parameter in the request.
+        meta:
+          $ref: '#/components/schemas/ObservationsV2Meta'
+      required:
+        - data
+        - meta
+    ObservationsV2Meta:
+      title: ObservationsV2Meta
+      type: object
+      description: Metadata for cursor-based pagination
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: >-
+            Base64-encoded cursor to use for retrieving the next page. If not
+            present, there are no more results.
     Observations:
       title: Observations
       type: object
@@ -8738,6 +9527,19 @@ components:
             $ref: '#/components/schemas/Project'
       required:
         - data
+    Organization:
+      title: Organization
+      type: object
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the organization
+        name:
+          type: string
+          description: The name of the organization
+      required:
+        - id
+        - name
     Project:
       title: Project
       type: object
@@ -8746,6 +9548,9 @@ components:
           type: string
         name:
           type: string
+        organization:
+          $ref: '#/components/schemas/Organization'
+          description: The organization this project belongs to
         metadata:
           type: object
           additionalProperties: true
@@ -8759,6 +9564,7 @@ components:
       required:
         - id
         - name
+        - organization
         - metadata
     ProjectDeletionResponse:
       title: ProjectDeletionResponse
@@ -9430,7 +10236,7 @@ components:
         name:
           type: string
         dataType:
-          $ref: '#/components/schemas/ScoreDataType'
+          $ref: '#/components/schemas/ScoreConfigDataType'
         categories:
           type: array
           items:

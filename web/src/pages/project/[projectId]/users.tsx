@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import { useEffect, useMemo } from "react";
 import {
   NumberParam,
@@ -12,8 +13,17 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { Switch } from "@/src/components/ui/switch";
+import { Label } from "@/src/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
@@ -43,12 +53,17 @@ type RowData = {
 export default function UsersPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { data: session } = useSession();
+  const { isBetaEnabled, setBetaEnabled } = useObservationListBeta();
+
+  // TODO: remove for prod go-live
+  const showBetaToggle = session?.user?.email?.endsWith("@langfuse.com");
 
   // Check if the user has any users
   const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
     { projectId },
     {
-      enabled: !!projectId,
+      enabled: !!projectId && !isBetaEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -58,7 +73,45 @@ export default function UsersPage() {
     },
   );
 
-  const showOnboarding = !isLoading && !hasAnyUser;
+  const { data: hasAnyUserFromEvents, isLoading: isLoadingFromEvents } =
+    api.users.hasAnyFromEvents.useQuery(
+      { projectId },
+      {
+        enabled: !!projectId && isBetaEnabled,
+        trpc: {
+          context: {
+            skipBatch: true,
+          },
+        },
+        refetchInterval: 10_000,
+      },
+    );
+
+  const hasUsers = isBetaEnabled ? hasAnyUserFromEvents : hasAnyUser;
+  const isLoadingUsers = isBetaEnabled ? isLoadingFromEvents : isLoading;
+  const showOnboarding = !isLoadingUsers && !hasUsers;
+
+  const betaToggle = showBetaToggle ? (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="beta-toggle"
+              checked={isBetaEnabled}
+              onCheckedChange={setBetaEnabled}
+            />
+            <Label htmlFor="beta-toggle" className="cursor-pointer text-xs">
+              Beta
+            </Label>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Try the events-based user view with observation timestamps</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  ) : null;
 
   return (
     <Page
@@ -69,16 +122,21 @@ export default function UsersPage() {
             "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
           href: "https://langfuse.com/docs/user-explorer",
         },
+        actionButtonsLeft: betaToggle,
       }}
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if user has no users */}
-      {showOnboarding ? <UsersOnboarding /> : <UsersTable />}
+      {showOnboarding ? (
+        <UsersOnboarding />
+      ) : (
+        <UsersTable isBetaEnabled={isBetaEnabled} />
+      )}
     </Page>
   );
 }
 
-const UsersTable = () => {
+const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -155,24 +213,26 @@ const UsersTable = () => {
     withDefault(StringParam, null),
   );
 
-  const users = api.users.all.useQuery({
-    filter: filterState,
-    page: paginationState.pageIndex,
-    limit: paginationState.pageSize,
-    projectId,
-    searchQuery: searchQuery ?? undefined,
-  });
+  // Legacy API calls (traces-based)
+  const usersLegacy = api.users.all.useQuery(
+    {
+      filter: filterState,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      projectId,
+      searchQuery: searchQuery ?? undefined,
+    },
+    { enabled: !isBetaEnabled },
+  );
 
-  // this API call will return an empty array if there are no users.
-  // Hence, this adds one fast unnecessary API call if there are no users.
-  const userMetrics = api.users.metrics.useQuery(
+  const userMetricsLegacy = api.users.metrics.useQuery(
     {
       projectId,
-      userIds: users.data?.users.map((u) => u.userId) ?? [],
+      userIds: usersLegacy.data?.users.map((u) => u.userId) ?? [],
       filter: filterState,
     },
     {
-      enabled: users.isSuccess,
+      enabled: usersLegacy.isSuccess && !isBetaEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -180,6 +240,38 @@ const UsersTable = () => {
       },
     },
   );
+
+  // Beta API calls (events-based)
+  const usersBeta = api.users.allFromEvents.useQuery(
+    {
+      filter: filterState,
+      page: paginationState.pageIndex,
+      limit: paginationState.pageSize,
+      projectId,
+      searchQuery: searchQuery ?? undefined,
+    },
+    { enabled: isBetaEnabled },
+  );
+
+  const userMetricsBeta = api.users.metricsFromEvents.useQuery(
+    {
+      projectId,
+      userIds: usersBeta.data?.users.map((u) => u.userId) ?? [],
+      filter: filterState,
+    },
+    {
+      enabled: usersBeta.isSuccess && isBetaEnabled,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
+  // Select the active query based on beta state
+  const users = isBetaEnabled ? usersBeta : usersLegacy;
+  const userMetrics = isBetaEnabled ? userMetricsBeta : userMetricsLegacy;
 
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
@@ -382,8 +474,10 @@ const UsersTable = () => {
                       lastEvent:
                         t.lastTrace?.toLocaleString() ?? "No event yet",
                       totalEvents: compactNumberFormatter(
-                        Number(t.totalTraces ?? 0) +
-                          Number(t.totalObservations ?? 0),
+                        isBetaEnabled
+                          ? Number(t.totalObservations ?? 0)
+                          : Number(t.totalTraces ?? 0) +
+                              Number(t.totalObservations ?? 0),
                       ),
                       totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
                       totalCost: usdFormatter(

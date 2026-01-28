@@ -29,6 +29,7 @@ export interface ChatMLParserResult {
   toolCallCounts: Map<string, number>;
   messageToToolCallNumbers: Map<number, number[]>;
   toolNameToDefinitionNumber: Map<string, number>;
+  inputMessageCount: number;
 }
 
 /**
@@ -53,22 +54,47 @@ function parseToolCallsFromMessage(
  * - Tool definition extraction from messages
  * - Tool call counting and numbering (output messages only)
  * - Additional non-message input extraction
+ *
+ * Performance optimization:
+ * - Accepts optional pre-parsed data to avoid duplicate parsing
+ * - When pre-parsed data is provided (from Web Worker), skips synchronous deepParseJson
  */
 export function useChatMLParser(
   input: Prisma.JsonValue | undefined,
   output: Prisma.JsonValue | undefined,
   metadata: Prisma.JsonValue | undefined,
   observationName: string | undefined,
+  preParsedInput?: unknown,
+  preParsedOutput?: unknown,
+  preParsedMetadata?: unknown,
 ): ChatMLParserResult {
-  const parsedInput = deepParseJson(input);
-  const parsedOutput = deepParseJson(output);
-  const parsedMetadata = deepParseJson(metadata);
+  // Use pre-parsed data if available (from Web Worker), otherwise parse synchronously
+  // This eliminates ~100ms of duplicate parsing when data comes from useParsedObservation
+  const parsedInput =
+    preParsedInput !== undefined
+      ? preParsedInput
+      : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
+  const parsedOutput =
+    preParsedOutput !== undefined
+      ? preParsedOutput
+      : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
+  const parsedMetadata =
+    preParsedMetadata !== undefined
+      ? preParsedMetadata
+      : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
 
   return useMemo(() => {
+    // Normalize input
     const ctx = { metadata: parsedMetadata, observationName };
     const inResult = normalizeInput(parsedInput, ctx);
+
+    // Normalize output
     const outResult = normalizeOutput(parsedOutput, ctx);
+
+    // Clean legacy output
     const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
+
+    // Combine messages
     const messages = combineInputOutputMessages(
       inResult,
       outResult,
@@ -156,6 +182,7 @@ export function useChatMLParser(
       toolCallCounts,
       messageToToolCallNumbers,
       toolNameToDefinitionNumber,
+      inputMessageCount,
     };
   }, [parsedInput, parsedOutput, parsedMetadata, observationName]);
 }

@@ -25,6 +25,7 @@ import GCPServiceAccountKeySchema, {
   BedrockCredentialSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  VERTEXAI_USE_DEFAULT_CREDENTIALS,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import {
   ChatMessage,
@@ -91,21 +92,18 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: true;
   },
 ): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     structuredOutputSchema: ZodSchema;
@@ -113,7 +111,6 @@ export async function fetchLLMCompletion(
 ): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     tools: LLMToolDefinition[];
@@ -352,10 +349,26 @@ export async function fetchLLMCompletion(
       additionalModelRequestFields: modelParams.providerOptions as any,
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
-    const credentials = GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
     const { location } = config
       ? VertexAIConfigSchema.parse(config)
       : { location: undefined };
+
+    // Handle both explicit credentials and default provider chain (ADC)
+    // Only allow default provider chain in self-hosted or internal AI features
+    const shouldUseDefaultCredentials =
+      apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud;
+
+    // When using ADC, authOptions must be undefined to use google-auth-library's default credential chain
+    // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
+    // Security: We intentionally ignore user-provided projectId when using ADC to prevent
+    // privilege escalation attacks where users could access other GCP projects via the server's credentials
+    const authOptions = shouldUseDefaultCredentials
+      ? undefined // Always use ADC auto-detection, never allow user-specified projectId
+      : {
+          credentials: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey)),
+          projectId: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey))
+            .project_id,
+        };
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
@@ -367,10 +380,10 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       location,
-      authOptions: {
-        projectId: credentials.project_id,
-        credentials,
-      },
+      authOptions,
+      ...(modelParams.maxReasoningTokens !== undefined && {
+        maxReasoningTokens: modelParams.maxReasoningTokens,
+      }),
       ...(modelParams.providerOptions && {
         additionalModelRequestFields: modelParams.providerOptions,
       }),
@@ -390,7 +403,6 @@ export async function fetchLLMCompletion(
       }),
     });
   } else {
-    // eslint-disable-next-line no-unused-vars
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error(
       `This model provider is not supported: ${_exhaustiveCheck}`,
@@ -443,7 +455,8 @@ export async function fetchLLMCompletion(
   } catch (e) {
     const responseStatusCode =
       (e as any)?.response?.status ?? (e as any)?.status ?? 500;
-    const message = e instanceof Error ? e.message : String(e);
+    const rawMessage = e instanceof Error ? e.message : String(e);
+    const message = extractCleanErrorMessage(rawMessage);
 
     // Check for non-retryable error patterns in message
     const nonRetryablePatterns = [
@@ -510,4 +523,35 @@ function processOpenAIBaseURL(params: {
   }
 
   return url.replace("{model}", modelName);
+}
+
+function extractCleanErrorMessage(rawMessage: string): string {
+  // Try to parse JSON error format (common in Google/Vertex AI errors)
+  // Example: '[{"error":{"code":404,"message":"Model not found..."}}]'
+  try {
+    // Check if the message starts with [ or { indicating JSON
+    const trimmed = rawMessage.trim();
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      const parsed = JSON.parse(trimmed);
+
+      // Handle array format: [{"error": {"message": "..."}}]
+      if (Array.isArray(parsed) && parsed[0]?.error?.message) {
+        return parsed[0].error.message;
+      }
+
+      // Handle object format: {"error": {"message": "..."}}
+      if (parsed?.error?.message) {
+        return parsed.error.message;
+      }
+
+      // Handle direct message format: {"message": "..."}
+      if (parsed?.message) {
+        return parsed.message;
+      }
+    }
+  } catch {
+    // Not valid JSON, return as-is
+  }
+
+  return rawMessage;
 }

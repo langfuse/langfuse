@@ -36,7 +36,7 @@ export const ensureTestDatabaseExists = async () => {
       stdio: "inherit",
     });
     console.log("Test database schema verified/updated");
-  } catch (_error) {
+  } catch {
     console.log("Test database not accessible, creating...");
 
     const url = new URL(env.DATABASE_URL);
@@ -90,7 +90,6 @@ export const pruneDatabase = async () => {
   await prisma.scoreConfig.deleteMany();
   await prisma.traceSession.deleteMany();
   await prisma.datasetItem.deleteMany();
-  await prisma.datasetItemEvent.deleteMany();
   await prisma.dataset.deleteMany();
   await prisma.datasetRuns.deleteMany();
   await prisma.prompt.deleteMany();

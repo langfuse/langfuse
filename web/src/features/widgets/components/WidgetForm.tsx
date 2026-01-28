@@ -28,7 +28,7 @@ import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod/v4";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -423,6 +423,23 @@ export function WidgetForm({
     },
   );
 
+  const generationsFilterOptions = api.generations.filterOptions.useQuery(
+    {
+      projectId,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
       {
@@ -447,6 +464,8 @@ export function WidgetForm({
     })) || [];
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
+  const modelOptions = generationsFilterOptions.data?.model || [];
+  const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
 
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -484,6 +503,13 @@ export function WidgetForm({
       internal: "internalValue",
     },
     {
+      name: "Tool Names",
+      id: "toolNames",
+      type: "arrayOptions",
+      options: toolNamesOptions,
+      internal: "internalValue",
+    },
+    {
       name: "User",
       id: "user",
       type: "string",
@@ -514,6 +540,15 @@ export function WidgetForm({
       internal: "internalValue",
     },
   ];
+  if (selectedView === "observations") {
+    filterColumns.push({
+      name: "Model",
+      id: "providedModelName",
+      type: "stringOptions",
+      options: modelOptions,
+      internal: "internalValue",
+    });
+  }
   if (selectedView === "scores-categorical") {
     filterColumns.push({
       name: "Score String Value",
@@ -1368,6 +1403,7 @@ export function WidgetForm({
                       "environment",
                       "traceName",
                       "tags",
+                      "providedModelName",
                     ]}
                   />
                 </div>

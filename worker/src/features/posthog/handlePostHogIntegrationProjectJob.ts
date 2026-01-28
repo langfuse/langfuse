@@ -8,6 +8,7 @@ import {
   getGenerationsForAnalyticsIntegrations,
   getScoresForAnalyticsIntegrations,
   getCurrentSpan,
+  validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import {
   transformTraceForPostHog,
@@ -180,6 +181,18 @@ export const handlePostHogIntegrationProjectJob = async (
       `Enabled PostHog integration not found for project ${projectId}`,
     );
     return;
+  }
+
+  // Validate PostHog hostname to prevent SSRF attacks before sending data
+  try {
+    await validateWebhookURL(postHogIntegration.posthogHostName);
+  } catch (error) {
+    logger.error(
+      `PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    throw new Error(
+      `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
   }
 
   // Fetch relevant data and send it to PostHog

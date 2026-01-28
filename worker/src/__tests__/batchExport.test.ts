@@ -8,12 +8,18 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
+  createManyDatasetItems,
+  applyCommentFilters,
 } from "@langfuse/shared/src/server";
 import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
 import { getTraceStream } from "../features/database-read-stream/trace-stream";
+// Set environment variable before any imports to ensure it's picked up by env module
+process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+  "true";
+process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 describe("batch export test suite", () => {
   it("should export observations", async () => {
@@ -1124,18 +1130,15 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is AI?" },
         expectedOutput: { answer: "Artificial Intelligence" },
         metadata: { category: "tech" },
-        sourceTraceId: null,
-        sourceObservationId: null,
+        sourceTraceId: undefined,
+        sourceObservationId: undefined,
       },
       {
         id: randomUUID(),
         datasetId,
-        projectId,
         status: DatasetStatus.ARCHIVED,
         input: { question: "What is ML?" },
         expectedOutput: { answer: "Machine Learning" },
@@ -1146,28 +1149,27 @@ describe("batch export test suite", () => {
       {
         id: randomUUID(),
         datasetId,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
         sourceTraceId: randomUUID(),
-        sourceObservationId: null,
+        sourceObservationId: undefined,
       },
       {
         id: randomUUID(),
         datasetId: datasetId2,
-        projectId,
-        status: DatasetStatus.ACTIVE,
         input: { question: "What is DL?" },
         expectedOutput: { answer: "Deep Learning" },
         metadata: { category: "advanced" },
         sourceTraceId: randomUUID(),
-        sourceObservationId: null,
+        sourceObservationId: undefined,
       },
     ];
 
-    await prisma.datasetItem.createMany({ data: datasetItems });
+    await createManyDatasetItems({
+      projectId,
+      items: datasetItems,
+    });
 
     // Export dataset items
     const stream = await getDatabaseReadStreamPaginated({
@@ -1176,10 +1178,10 @@ describe("batch export test suite", () => {
       cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
       filter: [
         {
-          type: "string",
-          operator: "=",
+          type: "stringOptions",
+          operator: "any of",
           column: "datasetId",
-          value: datasetId,
+          value: [datasetId],
         },
       ],
       orderBy: { column: "createdAt", order: "DESC" },
@@ -1293,7 +1295,7 @@ describe("batch export test suite", () => {
         projectId,
         status: DatasetStatus.ACTIVE,
         sourceTraceId: traceId2,
-        sourceObservationId: null,
+        sourceObservationId: undefined,
         input: { from: "trace_only" },
       },
       {
@@ -1301,13 +1303,16 @@ describe("batch export test suite", () => {
         datasetId,
         projectId,
         status: DatasetStatus.ACTIVE,
-        sourceTraceId: null,
-        sourceObservationId: null,
+        sourceTraceId: undefined,
+        sourceObservationId: undefined,
         input: { from: "manual" },
       },
     ];
 
-    await prisma.datasetItem.createMany({ data: datasetItems });
+    await createManyDatasetItems({
+      projectId,
+      items: datasetItems,
+    });
 
     // Export dataset items
     const stream = await getDatabaseReadStreamPaginated({
@@ -2076,5 +2081,183 @@ describe("batch export test suite", () => {
       description: "اختبار اللغة العربية",
     });
     expect(arabicTrace?.tags).toEqual(["عربي"]);
+  });
+
+  it("should export sessions filtered by comment count", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create sessions
+    const sessionWithComments = randomUUID();
+    const sessionWithoutComments = randomUUID();
+    await prisma.traceSession.createMany({
+      data: [
+        { id: sessionWithComments, projectId },
+        { id: sessionWithoutComments, projectId },
+      ],
+    });
+
+    // Create traces for sessions
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        session_id: sessionWithComments,
+        id: randomUUID(),
+      }),
+      createTrace({
+        project_id: projectId,
+        session_id: sessionWithoutComments,
+        id: randomUUID(),
+      }),
+    ];
+    await createTracesCh(traces);
+
+    // Add comment to first session only
+    await prisma.comment.create({
+      data: {
+        projectId,
+        objectId: sessionWithComments,
+        objectType: "SESSION",
+        content: "Test comment for filtering",
+      },
+    });
+
+    // Apply comment filter preprocessing (mimics what handleBatchExportJob does)
+    const { filterState: processedFilter, hasNoMatches } =
+      await applyCommentFilters({
+        filterState: [
+          {
+            type: "number",
+            operator: ">=",
+            column: "commentCount",
+            value: 1,
+          },
+        ],
+        prisma,
+        projectId,
+        objectType: "SESSION",
+      });
+
+    expect(hasNoMatches).toBe(false);
+
+    // Export with processed filter
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.Sessions,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: processedFilter,
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only return the session with comments
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(sessionWithComments);
+  });
+
+  it("should return empty results when comment filter matches nothing", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create sessions without any comments
+    const sessionId = randomUUID();
+    await prisma.traceSession.create({
+      data: { id: sessionId, projectId },
+    });
+
+    const trace = createTrace({
+      project_id: projectId,
+      session_id: sessionId,
+      id: randomUUID(),
+    });
+    await createTracesCh([trace]);
+
+    // Apply comment filter preprocessing - should match nothing
+    const { filterState: processedFilter, hasNoMatches } =
+      await applyCommentFilters({
+        filterState: [
+          {
+            type: "number",
+            operator: ">=",
+            column: "commentCount",
+            value: 1,
+          },
+        ],
+        prisma,
+        projectId,
+        objectType: "SESSION",
+      });
+
+    // Should indicate no matches
+    expect(hasNoMatches).toBe(true);
+  });
+
+  it("should export traces filtered by comment count", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create traces
+    const traceWithComments = randomUUID();
+    const traceWithoutComments = randomUUID();
+
+    const traces = [
+      createTrace({
+        project_id: projectId,
+        id: traceWithComments,
+        name: "trace-with-comments",
+      }),
+      createTrace({
+        project_id: projectId,
+        id: traceWithoutComments,
+        name: "trace-without-comments",
+      }),
+    ];
+    await createTracesCh(traces);
+
+    // Add comment to first trace only
+    await prisma.comment.create({
+      data: {
+        projectId,
+        objectId: traceWithComments,
+        objectType: "TRACE",
+        content: "Test comment for trace filtering",
+      },
+    });
+
+    // Apply comment filter preprocessing
+    const { filterState: processedFilter, hasNoMatches } =
+      await applyCommentFilters({
+        filterState: [
+          {
+            type: "number",
+            operator: ">=",
+            column: "commentCount",
+            value: 1,
+          },
+        ],
+        prisma,
+        projectId,
+        objectType: "TRACE",
+      });
+
+    expect(hasNoMatches).toBe(false);
+
+    // Export with processed filter
+    const stream = await getTraceStream({
+      projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: processedFilter,
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    // Should only return the trace with comments
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(traceWithComments);
+    expect(rows[0].name).toBe("trace-with-comments");
   });
 });

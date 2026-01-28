@@ -134,16 +134,21 @@ const matchAndVerifyTracesUiColumn = (
   uiTableDefinitions: UiColumnMappings,
 ) => {
   // tries to match the column name to the clickhouse table name
-  logger.debug(`Filter to match: ${JSON.stringify(filter)}`);
   const uiTable = uiTableDefinitions.find(
     (col) =>
       col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.
   );
 
   if (!uiTable) {
-    throw new QueryBuilderError(
-      `Column ${filter.column} does not match a UI / CH table mapping.`,
-    );
+    const errorMessage = `Column ${filter.column} does not match a UI / CH table mapping.`;
+    logger.error(errorMessage, {
+      filterColumn: filter.column,
+      filterType: filter.type,
+      availableColumns: uiTableDefinitions.map(
+        (col) => col.uiTableId ?? col.uiTableName,
+      ),
+    });
+    throw new QueryBuilderError(errorMessage);
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {

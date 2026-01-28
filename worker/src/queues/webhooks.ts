@@ -13,7 +13,11 @@ import {
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
-import { validateWebhookURL } from "@langfuse/shared/src/server";
+import {
+  validateWebhookURL,
+  whitelistFromEnv,
+  fetchWithSecureRedirects,
+} from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
   QueueName,
@@ -145,12 +149,33 @@ async function executeHttpAction({
             await validateWebhookURL(url);
           }
 
-          const res = await fetch(url, {
-            method: "POST",
-            body: payload,
-            headers,
-            signal: abortController.signal,
-          });
+          const redirectResult = await fetchWithSecureRedirects(
+            url,
+            {
+              method: "POST",
+              body: payload,
+              headers,
+              signal: abortController.signal,
+            },
+            {
+              maxRedirects: env.LANGFUSE_WEBHOOK_MAX_REDIRECTS,
+              skipValidation,
+              whitelist: whitelistFromEnv(),
+            },
+          );
+
+          const res = redirectResult.response;
+
+          // Log redirect chain if any redirects occurred (security audit trail)
+          if (redirectResult.redirectChain.length > 0) {
+            logger.info("Webhook followed redirects", {
+              actionId: automation.action.id,
+              initialUrl: url,
+              finalUrl: redirectResult.finalUrl,
+              redirectCount: redirectResult.redirectChain.length,
+              redirectChain: redirectResult.redirectChain,
+            });
+          }
 
           httpStatus = res.status;
           responseBody = await res.text();

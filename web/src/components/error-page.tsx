@@ -27,6 +27,11 @@ export const ErrorPage = ({
   const session = useSession();
   const router = useRouter();
   const newTargetPath = stripBasePath(router.asPath || "/");
+  // Only include targetPath if it's not the root (since "/" is the default anyway)
+  const targetPathQuery =
+    newTargetPath !== "/"
+      ? `?targetPath=${encodeURIComponent(newTargetPath)}`
+      : "";
 
   return (
     <div className="flex h-full flex-col items-center justify-center">
@@ -36,11 +41,7 @@ export const ErrorPage = ({
       <div className="flex gap-3">
         {session.status === "unauthenticated" ? (
           <Button
-            onClick={() =>
-              void router.push(
-                `/auth/sign-in?targetPath=${encodeURIComponent(newTargetPath)}`,
-              )
-            }
+            onClick={() => void router.push(`/auth/sign-in${targetPathQuery}`)}
           >
             Sign In
           </Button>

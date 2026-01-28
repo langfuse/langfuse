@@ -188,7 +188,7 @@ export function TableViewPresetsDrawer({
       if (fetchedViewData) {
         applyViewState(fetchedViewData);
       }
-    } catch (_error) {
+    } catch {
       showErrorToast(
         "Failed to apply view selection",
         "Please try again",
@@ -601,7 +601,6 @@ export function TableViewPresetsDrawer({
           </DialogHeader>
           <Form {...form}>
             <form
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={form.handleSubmit(onSubmit())}
               className="space-y-4"
             >

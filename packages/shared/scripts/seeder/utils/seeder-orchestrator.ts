@@ -7,8 +7,10 @@ import { DataGenerator } from "./data-generators";
 import { ClickHouseQueryBuilder } from "./clickhouse-builder";
 import { FrameworkTraceLoader } from "./framework-traces/framework-trace-loader";
 import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
+import { MEDIA_TEST_TRACE_IDS } from "../seed-media";
 import {
   clickhouseClient,
+  createTrace,
   DatasetRunItemRecordInsertType,
   logger,
   ObservationRecordInsertType,
@@ -338,6 +340,9 @@ export class SeederOrchestrator {
       // create traces from real examples for each framework source
       await this.createFrameworkTraces(projectIds);
 
+      // Create traces for media attachment testing
+      await this.createMediaTestTraces(projectIds);
+
       // Log completion statistics (commented out to reduce terminal noise)
       await this.logStatistics();
 
@@ -444,6 +449,108 @@ export class SeederOrchestrator {
         }
       } catch (error) {
         logger.error(`✗ Framework traces insert failed:`, error);
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Creates test traces for media attachment testing (JSON Beta view).
+   * Use for: Testing media rendering in the trace detail view.
+   */
+  async createMediaTestTraces(projectIds: string[]): Promise<void> {
+    logger.info(
+      `Creating media test traces for ${projectIds.length} projects.`,
+    );
+
+    const now = Date.now();
+
+    for (const projectId of projectIds) {
+      logger.info(`Processing media test traces for project ${projectId}`);
+
+      const traces: TraceRecordInsertType[] = [
+        // Trace 1: Image only (in input)
+        createTrace({
+          id: MEDIA_TEST_TRACE_IDS.imageOnly,
+          project_id: projectId,
+          name: "Media Test: Image Only",
+          timestamp: now,
+          input: JSON.stringify({
+            message: "This trace has an image attachment in input",
+            description: "Used for testing media rendering in JSON Beta view",
+          }),
+          output: JSON.stringify({ status: "success" }),
+          metadata: { test_type: "media", media_types: "image" },
+          tags: ["media-test", "image"],
+          environment: "default",
+        }),
+        // Trace 2: All media types
+        createTrace({
+          id: MEDIA_TEST_TRACE_IDS.allTypes,
+          project_id: projectId,
+          name: "Media Test: All Types",
+          timestamp: now + 1000,
+          input: JSON.stringify({
+            message: "This trace has an image in input",
+            description: "Testing image attachment",
+          }),
+          output: JSON.stringify({
+            message: "This trace has a PDF in output",
+            description: "Testing PDF attachment",
+          }),
+          metadata: {
+            message: "This trace has audio in metadata",
+            description: "Testing audio attachment",
+            test_type: "media",
+            media_types: "image,pdf,audio",
+          },
+          tags: ["media-test", "all-types"],
+          environment: "default",
+        }),
+        // Trace 3: All media types with ChatML format (pretty-rendered)
+        createTrace({
+          id: MEDIA_TEST_TRACE_IDS.allTypesChatML,
+          project_id: projectId,
+          name: "Media Test: All Types (ChatML)",
+          timestamp: now + 2000,
+          input: JSON.stringify([
+            {
+              role: "system",
+              content:
+                "You are a helpful assistant that can analyze images, documents, and audio files.",
+            },
+            {
+              role: "user",
+              content:
+                "Please analyze the attached image and describe what you see.",
+            },
+          ]),
+          output: JSON.stringify([
+            {
+              role: "assistant",
+              content:
+                "I can see the Langfuse logo in the image. It appears to be a modern, clean design with distinctive branding elements. The attached PDF contains additional documentation about the Bitcoin whitepaper.",
+            },
+          ]),
+          metadata: {
+            message: "This trace has audio in metadata",
+            description: "Testing audio attachment with ChatML format",
+            test_type: "media",
+            media_types: "image,pdf,audio",
+            format: "chatml",
+          },
+          tags: ["media-test", "all-types", "chatml"],
+          environment: "default",
+        }),
+      ];
+
+      try {
+        await this.queryBuilder.executeTracesInsert(traces);
+        logger.info(
+          `✓ Created ${traces.length} media test traces for project ${projectId}`,
+        );
+      } catch (error) {
+        logger.error(`✗ Media test traces insert failed:`, error);
         throw error;
       }
     }
