@@ -527,7 +527,7 @@ async function getObservationByIdFromEventsTableInternal({
     .when(Boolean(traceId), (b) =>
       b.whereRaw("trace_id = {traceId: String}", { traceId }),
     )
-    .orderBy("ORDER BY start_time DESC, event_ts DESC")
+    .orderBy("ORDER BY project_id DESC, start_time DESC, event_ts DESC")
     .limit(1, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -763,7 +763,7 @@ function applyOrderByForObservationsQuery(
     queryBuilder
       // Order by to match table ordering
       .orderBy(
-        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
+        "ORDER BY e.project_id DESC, e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
       )
   );
 }
@@ -1128,7 +1128,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
       orderByToClickhouseSql(
         orderBy ? [orderBy] : [],
         TRACES_ORDER_BY_COLUMNS,
-      ) || "ORDER BY t.timestamp DESC";
+      ) || "ORDER BY t.project_id DESC, t.timestamp DESC";
 
     queryBuilder.orderBy(chOrderBy).limit(limit, (page - 1) * limit);
   }
