@@ -1,6 +1,6 @@
 import { logger, traceException } from "@langfuse/shared/src/server";
 import { PeriodicRunner } from "./PeriodicRunner";
-import { RedisLock } from "./RedisLock";
+import { OnUnavailableBehavior, RedisLock } from "./RedisLock";
 
 /**
  * Abstract base class for periodic tasks that require distributed locking.
@@ -19,13 +19,14 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
     name: string;
     lockKey: string;
     lockTtlSeconds: number;
+    onUnavailable?: OnUnavailableBehavior;
   }) {
     super();
     this.instanceName = params.name;
     this.lock = new RedisLock(params.lockKey, {
       ttlSeconds: params.lockTtlSeconds,
       name: params.name,
-      onUnavailable: "proceed",
+      onUnavailable: params.onUnavailable || "proceed",
     });
   }
 

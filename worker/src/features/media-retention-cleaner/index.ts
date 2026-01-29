@@ -45,6 +45,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       name: "MediaRetentionCleaner",
       lockKey: MEDIA_RETENTION_CLEANER_LOCK_KEY,
       lockTtlSeconds,
+      onUnavailable: "fail",
     });
   }
 
