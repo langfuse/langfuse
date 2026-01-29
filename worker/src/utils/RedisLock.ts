@@ -116,6 +116,9 @@ export class RedisLock {
       return "skipped";
     }
 
+    // Random jitter (0-10ms) to prevent lock contention when multiple workers start simultaneously
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 10));
+
     try {
       const result = await redis.set(
         this.lockKey,

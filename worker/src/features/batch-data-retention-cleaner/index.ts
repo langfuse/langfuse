@@ -9,7 +9,6 @@ import {
   queryClickhouse,
   recordGauge,
   recordIncrement,
-  traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils";
@@ -146,69 +145,65 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
   /**
    * Process a batch for data retention for this table.
+   * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
     const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
 
-    // Step 1: Get project workloads (chunked CH counts + PG retention config)
-    let workloads: ProjectWorkload[];
-    try {
-      workloads = await this.getProjectWorkloads();
-    } catch (error) {
-      logger.error(`${this.instanceName}: Failed to query project workloads`, {
-        error,
-      });
-      traceException(error);
-      return;
-    }
-
-    recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
-      table: this.tableName,
-    });
-
-    // Compute seconds past cutoff for each workload
-    const SECONDS_PER_DAY = 86400;
-    const secondsPastCutoffByProject = workloads
-      .filter((w) => w.oldestAgeSeconds !== null)
-      .map((w) => ({
-        projectId: w.projectId,
-        secondsPastCutoff:
-          w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY,
-      }));
-
-    // Compute p90 for the gauge metric (0 when no pending work)
-    const p90SecondsPastCutoff = percentile(
-      secondsPastCutoffByProject.map((p) => p.secondsPastCutoff),
-      0.9,
-    );
-
-    recordGauge(
-      `${METRIC_PREFIX}.seconds_past_cutoff`,
-      Math.max(p90SecondsPastCutoff, 0),
-      {
-        table: this.tableName,
-      },
-    );
-
-    if (workloads.length === 0) {
-      logger.info(
-        `${this.instanceName}: No projects with retention and data to delete`,
-      );
-      return;
-    }
-
-    // Step 2: Execute DELETE under distributed lock
     await this.withLock(
       async () => {
-        logger.info(
-          `${this.instanceName}: Processing ${workloads.length} projects`,
+        // Step 1: Get project workloads (chunked CH counts + PG retention config)
+        const workloads = await this.getProjectWorkloads();
+
+        recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
+          table: this.tableName,
+        });
+
+        // Compute seconds past cutoff for each workload
+        const SECONDS_PER_DAY = 86400;
+        const secondsPastCutoffByProject = workloads
+          .filter((w) => w.oldestAgeSeconds !== null)
+          .map((w) => ({
+            projectId: w.projectId,
+            secondsPastCutoff:
+              w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY,
+          }));
+
+        // Compute p90 for the gauge metric (0 when no pending work)
+        const p90SecondsPastCutoff = percentile(
+          secondsPastCutoffByProject.map((p) => p.secondsPastCutoff),
+          0.9,
+        );
+
+        recordGauge(
+          `${METRIC_PREFIX}.seconds_past_cutoff`,
+          Math.max(p90SecondsPastCutoff, 0),
           {
-            projectIds: workloads.map((w) => w.projectId),
-            secondsPastCutoffByProject,
+            table: this.tableName,
           },
         );
 
-        await this.executeBatchDelete(timestampColumn, workloads);
+        // Step 2: Execute DELETE
+        if (workloads.length >= 0) {
+          logger.info(
+            `${this.instanceName}: Processing ${workloads.length} projects`,
+            {
+              projectIds: workloads.map((w) => w.projectId),
+              secondsPastCutoffByProject,
+            },
+          );
+
+          await this.executeBatchDelete(timestampColumn, workloads);
+
+          logger.info(`${this.instanceName}: Batch deletion completed`, {
+            table: this.tableName,
+            projectsProcessed: workloads.length,
+          });
+        } else {
+          logger.info(
+            `${this.instanceName}: No projects with retention and data to delete`,
+          );
+        }
 
         // Record successful deletion metrics
         recordIncrement(`${METRIC_PREFIX}.delete_successes`, 1, {
@@ -221,10 +216,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
             table: this.tableName,
           },
         );
-        logger.info(`${this.instanceName}: Batch deletion completed`, {
-          table: this.tableName,
-          projectsProcessed: workloads.length,
-        });
       },
       () => {
         recordIncrement(`${METRIC_PREFIX}.delete_failures`, 1, {
