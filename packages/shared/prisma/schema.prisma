@@ -1208,6 +1208,7 @@ model Media {
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
+  @@index([projectId, createdAt])
   @@map("media")
 }
 
