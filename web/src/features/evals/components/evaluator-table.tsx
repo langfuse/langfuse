@@ -126,8 +126,8 @@ function LegacyBadgeCell({
                 <div className="space-y-1 text-sm">
                   <p className="font-medium">Action required</p>
                   <p className="text-muted-foreground">
-                    This evaluator type will be deprecated in the future. Please
-                    follow{" "}
+                    This evaluator requires changes to benefit from new features
+                    and performance improvements. Please follow{" "}
                     <Link
                       href="https://langfuse.com/docs/evals/remapping"
                       target="_blank"
