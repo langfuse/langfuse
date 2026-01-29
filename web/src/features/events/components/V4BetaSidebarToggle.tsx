@@ -9,7 +9,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
 
 export function V4BetaSidebarToggle() {
-  const { isBetaEnabled, setBetaEnabled } = useV4Beta();
+  const { isBetaEnabled, setBetaEnabled, isLoading } = useV4Beta();
 
   return (
     <Tooltip>
@@ -25,6 +25,7 @@ export function V4BetaSidebarToggle() {
             size="sm"
             checked={isBetaEnabled}
             onCheckedChange={setBetaEnabled}
+            disabled={isLoading}
             className="shrink-0"
           />
           <Label
