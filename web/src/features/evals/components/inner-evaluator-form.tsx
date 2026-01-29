@@ -1454,7 +1454,6 @@ export const InnerEvaluatorForm = (props: {
                                         : "Experiment item"
                                     }
                                     disabled
-                                    className="bg-muted"
                                   />
                                 </div>
                               </div>
