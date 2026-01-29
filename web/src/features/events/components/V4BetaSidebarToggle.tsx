@@ -17,7 +17,7 @@ export function V4BetaSidebarToggle() {
         <div
           className={cn(
             "flex h-8 w-full items-center gap-2 overflow-hidden p-2 text-left text-sm",
-            "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2",
+            "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0",
           )}
         >
           <Switch
@@ -30,7 +30,7 @@ export function V4BetaSidebarToggle() {
           />
           <Label
             htmlFor="v4-beta-toggle"
-            className="cursor-pointer text-sm font-normal"
+            className="cursor-pointer text-sm font-normal group-data-[collapsible=icon]:hidden"
           >
             v4 Beta
           </Label>
