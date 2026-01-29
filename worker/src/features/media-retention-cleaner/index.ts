@@ -62,49 +62,51 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
   /**
    * Process expired media for the project with most work.
+   * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
-    // Get the project with most expired media (single project per iteration)
-    let workload: ProjectWorkload | null;
-    try {
-      workload = await this.getTopProjectWorkload();
-    } catch (error) {
-      logger.error(`${this.name}: Failed to query project workload`, {
-        error,
-      });
-      traceException(error);
-      recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
-      return;
-    }
-
-    // Record gauge for how far past cutoff the oldest expired item is
-    recordGauge(
-      `${METRIC_PREFIX}.seconds_past_cutoff`,
-      Math.max(workload?.secondsPastCutoff ?? 0, 0),
-    );
-
-    if (!workload) {
-      logger.info(`${this.name}: No expired media to clean up`);
-      return;
-    }
-
-    // Record gauge for observed work
-    recordGauge(`${METRIC_PREFIX}.pending_items`, workload.expiredMediaCount, {
-      projectId: workload.projectId,
-    });
-
-    // Execute under distributed lock
     await this.withLock(
       async () => {
-        logger.info(`${this.instanceName}: Processing project`, {
-          projectId: workload.projectId,
-          retentionDays: workload.retentionDays,
-          expiredMediaCount: workload.expiredMediaCount,
-          secondsPastCutoff: workload.secondsPastCutoff,
-        });
+        // Get the project with most expired media (single project per iteration)
+        let workload: ProjectWorkload | null;
+        try {
+          workload = await this.getTopProjectWorkload();
+        } catch (error) {
+          logger.error(`${this.name}: Failed to query project workload`, {
+            error,
+          });
+          traceException(error);
+          recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
+          throw error;
+        }
 
-        await this.processProject(workload);
-        recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
+        // Record gauge for how far past cutoff the oldest expired item is
+        recordGauge(
+          `${METRIC_PREFIX}.seconds_past_cutoff`,
+          Math.max(workload?.secondsPastCutoff ?? 0, 0),
+        );
+        // Record gauge for observed work
+        recordGauge(
+          `${METRIC_PREFIX}.pending_items`,
+          workload?.expiredMediaCount || 0,
+          {
+            projectId: workload?.projectId || "",
+          },
+        );
+
+        if (workload) {
+          logger.info(`${this.instanceName}: Processing project`, {
+            projectId: workload.projectId,
+            retentionDays: workload.retentionDays,
+            expiredMediaCount: workload.expiredMediaCount,
+            secondsPastCutoff: workload.secondsPastCutoff,
+          });
+
+          await this.processProject(workload);
+          recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
+        } else {
+          logger.info(`${this.name}: No expired media to clean up`);
+        }
       },
       () => {
         recordIncrement(`${METRIC_PREFIX}.project_failures`, 1);
