@@ -1003,15 +1003,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbRuns.length).toBe(3);
-    const dbRunsApiResponseFormat = dbRuns.map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ({ projectId, ...run }) => ({
-        ...run,
-        createdAt: run.createdAt.toISOString(),
-        updatedAt: run.updatedAt.toISOString(),
-        datasetName: "dataset-name",
-      }),
-    );
+    const dbRunsApiResponseFormat = dbRuns.map(({ projectId, ...run }) => ({
+      ...run,
+      createdAt: run.createdAt.toISOString(),
+      updatedAt: run.updatedAt.toISOString(),
+      datasetName: "dataset-name",
+    }));
 
     // test get runs
     const getRuns = await makeZodVerifiedAPICall(

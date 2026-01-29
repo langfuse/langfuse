@@ -9,18 +9,20 @@ import type { FlatJSONRow, JSONTheme, SearchMatch } from "../types";
 import { JsonKey } from "./JsonKey";
 import { JsonValue } from "./JsonValue";
 import { CopyButton } from "./CopyButton";
+import { type CommentRange } from "../utils/commentRanges";
 
 export interface JsonRowScrollableProps {
   row: FlatJSONRow;
   theme: JSONTheme;
   stringWrapMode?: "nowrap" | "truncate" | "wrap";
   truncateStringsAt?: number | null;
-  matchCount?: number;
-  currentMatchIndexInRow?: number;
   enableCopy?: boolean;
   searchMatch?: SearchMatch;
   isCurrentMatch?: boolean;
   className?: string;
+  jsonPath?: string;
+  commentRanges?: CommentRange[];
+  sectionKey?: string; // For inline comments - identifies which section (input/output/metadata) this row belongs to
 }
 
 export function JsonRowScrollable({
@@ -28,17 +30,26 @@ export function JsonRowScrollable({
   theme,
   stringWrapMode = "wrap",
   truncateStringsAt = null,
-  matchCount,
-  currentMatchIndexInRow,
   enableCopy = false,
   searchMatch,
   isCurrentMatch = false,
   className,
+  jsonPath,
+  commentRanges,
+  sectionKey,
 }: JsonRowScrollableProps) {
   const isKey = searchMatch?.matchType === "key";
   const isValue = searchMatch?.matchType === "value";
 
-  // Calculate background based on search match
+  // Calculate value offset within the row for adjusting comment ranges
+  // Row renders as: key:"value" for strings, key:value for others
+  // commentRanges are row-relative, need to adjust for value-only highlighting
+  const keyLength = String(row.key).length;
+  const colonLength = 1;
+  const quoteLength = row.type === "string" ? 1 : 0; // only strings have opening quote
+  const valueOffset = keyLength + colonLength + quoteLength;
+
+  // Calculate background based on search match only (comment highlighting is now character-level)
   const backgroundColor = isCurrentMatch
     ? theme.searchCurrentBackground
     : searchMatch
@@ -48,6 +59,9 @@ export function JsonRowScrollable({
   return (
     <div
       className={className}
+      data-json-path={jsonPath}
+      data-section-key={sectionKey}
+      data-json-key-value="true"
       style={{
         display: "flex",
         alignItems: "start",
@@ -68,6 +82,7 @@ export function JsonRowScrollable({
         theme={theme}
         highlightStart={isKey ? searchMatch.highlightStart : undefined}
         highlightEnd={isKey ? searchMatch.highlightEnd : undefined}
+        commentRanges={commentRanges}
       />
 
       {/* Colon separator */}
@@ -93,40 +108,9 @@ export function JsonRowScrollable({
         truncateStringsAt={truncateStringsAt}
         highlightStart={isValue ? searchMatch?.highlightStart : undefined}
         highlightEnd={isValue ? searchMatch?.highlightEnd : undefined}
+        commentRanges={commentRanges}
+        valueOffset={valueOffset}
       />
-
-      {/* Match count badge (for collapsed rows or leaf nodes with multiple matches) */}
-      {matchCount !== undefined &&
-        matchCount > 1 &&
-        ((row.isExpandable && !row.isExpanded) || !row.isExpandable) && (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginLeft: "6px",
-              padding: "0 4px",
-              minWidth: "16px",
-              height: "14px",
-              fontSize: "9px",
-              fontWeight: 600,
-              borderRadius: "7px",
-              backgroundColor: theme.searchMatchBackground,
-              color: theme.foreground,
-              border: `1px solid ${theme.searchCurrentBackground}`,
-              flexShrink: 0,
-            }}
-            title={
-              row.isExpandable
-                ? `${matchCount} match${matchCount === 1 ? "" : "es"} in this section`
-                : `${matchCount} match${matchCount === 1 ? "" : "es"} in this value`
-            }
-          >
-            {currentMatchIndexInRow !== undefined
-              ? `${currentMatchIndexInRow}/${matchCount}`
-              : matchCount}
-          </span>
-        )}
 
       {/* Copy button (optional, on hover) */}
       {enableCopy && (

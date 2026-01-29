@@ -181,7 +181,6 @@ const MixpanelIntegrationSettingsForm = ({
     <Form {...mixpanelForm}>
       <form
         className="space-y-3"
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSubmit={mixpanelForm.handleSubmit(onSubmit)}
       >
         <FormField

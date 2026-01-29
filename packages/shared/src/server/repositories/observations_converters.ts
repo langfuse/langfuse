@@ -88,16 +88,14 @@ export const enrichObservationWithModelData = (
  * - convertObservation(record, props) → Partial<Observation>
  */
 export function convertObservationPartial(
-  // eslint-disable-next-line no-unused-vars
   record: ObservationRecordReadType,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: true, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: true,
 ): Observation;
 export function convertObservationPartial(
-  // eslint-disable-next-line no-unused-vars
   record: Partial<ObservationRecordReadType>,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: false, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: false,
 ): PartialObservation;
 export function convertObservationPartial(
   record: Partial<ObservationRecordReadType>,
@@ -245,6 +243,17 @@ export function convertObservationPartial(
       usagePricingTierName: record.usage_pricing_tier_name ?? null,
     }),
 
+    // Tool fields
+    ...(record.tool_definitions !== undefined && {
+      toolDefinitions: record.tool_definitions ?? null,
+    }),
+    ...(record.tool_calls !== undefined && {
+      toolCalls: record.tool_calls ?? null,
+    }),
+    ...(record.tool_call_names !== undefined && {
+      toolCallNames: record.tool_call_names ?? null,
+    }),
+
     // Metrics (calculated fields)
     ...((record.end_time !== undefined || record.start_time !== undefined) && {
       latency:
@@ -310,6 +319,9 @@ export function convertObservationPartial(
     totalUsage: partial.totalUsage ?? 0,
     usagePricingTierId: partial.usagePricingTierId ?? null,
     usagePricingTierName: partial.usagePricingTierName ?? null,
+    toolDefinitions: partial.toolDefinitions ?? null,
+    toolCalls: partial.toolCalls ?? null,
+    toolCallNames: partial.toolCallNames ?? null,
   };
 }
 
@@ -325,16 +337,14 @@ export function convertObservation(
  * Use this for observations from the events table which contain user context.
  */
 export function convertEventsObservation(
-  // eslint-disable-next-line no-unused-vars
   record: EventsObservationRecordReadType,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: true, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: true,
 ): EventsObservation;
 export function convertEventsObservation(
-  // eslint-disable-next-line no-unused-vars
   record: Partial<EventsObservationRecordReadType>,
-  renderingProps: RenderingProps, // eslint-disable-line no-unused-vars
-  complete: false, // eslint-disable-line no-unused-vars
+  renderingProps: RenderingProps,
+  complete: false,
 ): PartialEventsObservation;
 export function convertEventsObservation(
   record: Partial<EventsObservationRecordReadType>,

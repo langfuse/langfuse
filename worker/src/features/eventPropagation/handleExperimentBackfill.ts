@@ -63,6 +63,9 @@ export interface SpanRecord {
   provided_cost_details: Record<string, number> | null;
   cost_details: Record<string, number> | null;
   total_cost: number;
+  tool_definitions: Record<string, string>;
+  tool_calls: string[];
+  tool_call_names: string[];
   usage_pricing_tier_id: string | null;
   usage_pricing_tier_name: string | null;
   metadata: Record<string, unknown>;
@@ -209,6 +212,9 @@ export async function getRelevantObservations(
       o.provided_cost_details AS provided_cost_details,
       o.cost_details AS cost_details,
       coalesce(o.total_cost, 0) AS total_cost,
+      o.tool_definitions,
+      o.tool_calls,
+      o.tool_call_names,
       o.usage_pricing_tier_id,
       o.usage_pricing_tier_name,
       o.metadata,
@@ -282,6 +288,9 @@ export async function getRelevantTraces(
       map() AS provided_cost_details,
       map() AS cost_details,
       0 AS total_cost,
+      map() AS tool_definitions,
+      [] AS tool_calls,
+      [] AS tool_call_names,
       t.metadata,
       multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write-experiments', 'ingestion-api-dual-write-experiments') AS source,
       t.tags,
@@ -466,7 +475,7 @@ export function enrichSpansWithExperiment(
 }
 
 /**
- * Write enriched spans to the events table using IngestionService.writeEvent().
+ * Write enriched spans to the events table using IngestionService.writeEventRecord().
  * Converts EnrichedSpan to EventInput format.
  */
 export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
@@ -532,6 +541,11 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       costDetails: span.cost_details || undefined,
       totalCost: span.total_cost || undefined,
 
+      // Tool calls
+      toolDefinitions: span.tool_definitions || {},
+      toolCalls: span.tool_calls || [],
+      toolCallNames: span.tool_call_names || [],
+
       usagePricingTierId: span.usage_pricing_tier_id || undefined,
       usagePricingTierName: span.usage_pricing_tier_name || undefined,
 
@@ -560,7 +574,11 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
       experimentItemMetadataValues: span.experiment_item_metadata_values,
     };
 
-    await ingestionService.writeEvent(eventInput, ""); // Empty fileKey since we're not storing raw events
+    const eventRecord = await ingestionService.createEventRecord(
+      eventInput,
+      "",
+    ); // Empty fileKey since we're not storing raw events
+    ingestionService.writeEventRecord(eventRecord);
   }
 
   logger.info(

@@ -13,7 +13,7 @@ import {
  */
 export const filterAndValidateDbScoreConfigList = (
   scoreConfigs: ScoreConfigDbType[],
-  onParseError?: (error: z.ZodError) => void, // eslint-disable-line no-unused-vars
+  onParseError?: (error: z.ZodError) => void,
 ): ScoreConfigDomain[] =>
   scoreConfigs.reduce((acc, ts) => {
     const result = ScoreConfigSchema.safeParse(ts);

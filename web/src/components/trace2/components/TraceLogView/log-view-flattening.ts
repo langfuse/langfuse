@@ -12,12 +12,14 @@ import { type TreeNode } from "@/src/components/trace2/lib/types";
 import { type FlatLogItem } from "./log-view-types";
 
 /**
- * Collects all observation nodes from a tree (excludes TRACE root).
+ * Collects all observation nodes from roots (excludes TRACE root if present).
  * Used internally by both flattening functions.
  */
-function collectObservations(root: TreeNode): TreeNode[] {
+function collectObservations(roots: TreeNode[]): TreeNode[] {
+  if (roots.length === 0) return [];
+
   const observations: TreeNode[] = [];
-  const stack: TreeNode[] = [root];
+  const stack: TreeNode[] = [...roots];
 
   while (stack.length > 0) {
     const node = stack.pop()!;
@@ -40,11 +42,11 @@ function collectObservations(root: TreeNode): TreeNode[] {
  * Flattens tree into chronological order (sorted by startTime).
  * All observations are at the same visual level (no indentation).
  *
- * @param root - Root TreeNode (typically the TRACE node)
+ * @param roots - Root TreeNodes (supports multiple roots)
  * @returns Flat list of observations sorted by startTime
  */
-export function flattenChronological(root: TreeNode): FlatLogItem[] {
-  const observations = collectObservations(root);
+export function flattenChronological(roots: TreeNode[]): FlatLogItem[] {
+  const observations = collectObservations(roots);
 
   // Sort by startTime
   observations.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
@@ -63,10 +65,12 @@ export function flattenChronological(root: TreeNode): FlatLogItem[] {
  *
  * Uses iterative approach to avoid stack overflow with deep trees.
  *
- * @param root - Root TreeNode (typically the TRACE node)
+ * @param roots - Root TreeNodes (supports multiple roots)
  * @returns Flat list of observations in DFS order with tree metadata
  */
-export function flattenTreeOrder(root: TreeNode): FlatLogItem[] {
+export function flattenTreeOrder(roots: TreeNode[]): FlatLogItem[] {
+  if (roots.length === 0) return [];
+
   const flatList: FlatLogItem[] = [];
 
   // Stack entry type for iterative DFS
@@ -77,21 +81,40 @@ export function flattenTreeOrder(root: TreeNode): FlatLogItem[] {
     isLastSibling: boolean;
   }
 
-  // Start with root's children (skip TRACE node itself)
   const stack: StackEntry[] = [];
 
-  // Sort root children by startTime and push in reverse order
-  const sortedRootChildren = [...root.children].sort(
-    (a, b) => a.startTime.getTime() - b.startTime.getTime(),
-  );
+  // For TRACE-rooted trees, start with root's children (skip TRACE node itself)
+  // For multiple observation roots (events-based), use roots directly
+  const isTraceRooted = roots.length === 1 && roots[0].type === "TRACE";
 
-  for (let i = sortedRootChildren.length - 1; i >= 0; i--) {
-    stack.push({
-      node: sortedRootChildren[i],
-      depth: 0,
-      treeLines: [],
-      isLastSibling: i === sortedRootChildren.length - 1,
-    });
+  if (isTraceRooted) {
+    // Sort root children by startTime and push in reverse order
+    const sortedRootChildren = [...roots[0].children].sort(
+      (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+    );
+
+    for (let i = sortedRootChildren.length - 1; i >= 0; i--) {
+      stack.push({
+        node: sortedRootChildren[i],
+        depth: 0,
+        treeLines: [],
+        isLastSibling: i === sortedRootChildren.length - 1,
+      });
+    }
+  } else {
+    // Multiple observation roots - sort and push in reverse order
+    const sortedRoots = [...roots].sort(
+      (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+    );
+
+    for (let i = sortedRoots.length - 1; i >= 0; i--) {
+      stack.push({
+        node: sortedRoots[i],
+        depth: 0,
+        treeLines: [],
+        isLastSibling: i === sortedRoots.length - 1,
+      });
+    }
   }
 
   // Process stack (LIFO - depth-first traversal)
@@ -120,7 +143,7 @@ export function flattenTreeOrder(root: TreeNode): FlatLogItem[] {
         stack.push({
           node: child,
           depth: current.depth + 1,
-          treeLines: [...current.treeLines, !current.isLastSibling],
+          treeLines: [...current.treeLines, !isChildLast],
           isLastSibling: isChildLast,
         });
       }

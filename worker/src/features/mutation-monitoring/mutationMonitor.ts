@@ -5,6 +5,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { WorkerManager } from "../../queues/workerManager";
+import { PeriodicRunner } from "../../utils/PeriodicRunner";
 
 interface MutationCount {
   database: string;
@@ -18,6 +19,23 @@ interface QueueDecision {
   queueName: QueueName;
   action: QueueAction;
   reason: string;
+}
+
+/**
+ * Internal runner class that extends PeriodicRunner and delegates to MutationMonitor
+ */
+class MutationMonitorRunner extends PeriodicRunner {
+  protected get name(): string {
+    return "MutationMonitor";
+  }
+
+  protected get defaultIntervalMs(): number {
+    return env.LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS;
+  }
+
+  protected async execute(): Promise<void> {
+    await MutationMonitor.checkMutations();
+  }
 }
 
 /**
@@ -38,9 +56,8 @@ interface QueueDecision {
  * `- LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT` once all tables for a queue are below this threshold, that queue is RESUMED.
  */
 export class MutationMonitor {
-  private static timeoutId: NodeJS.Timeout | null = null;
+  private static runner = new MutationMonitorRunner();
   private static pausedQueues: Set<QueueName> = new Set();
-  private static isRunning = false;
 
   // Mapping of which ClickHouse tables each deletion queue affects
   private static readonly QUEUE_TABLE_MAPPING: Partial<
@@ -49,13 +66,7 @@ export class MutationMonitor {
     [QueueName.TraceDelete]: ["traces", "observations", "scores", "events"],
     [QueueName.ScoreDelete]: ["scores"],
     [QueueName.DatasetDelete]: ["dataset_run_items_rmt"],
-    [QueueName.ProjectDelete]: [
-      "traces",
-      "observations",
-      "scores",
-      "dataset_run_items_rmt",
-      "events",
-    ],
+    [QueueName.ProjectDelete]: ["scores", "dataset_run_items_rmt"],
     [QueueName.DataRetentionProcessingQueue]: [
       "traces",
       "observations",
@@ -72,68 +83,25 @@ export class MutationMonitor {
    * Start the mutation monitoring service
    */
   public static start(): void {
-    if (this.isRunning) {
-      logger.warn("Mutation monitor is already running");
-      return;
-    }
-
     if (env.LANGFUSE_MUTATION_MONITOR_ENABLED !== "true") {
       logger.info("Mutation monitor is disabled");
       return;
     }
 
-    this.isRunning = true;
     logger.info("Starting mutation monitor", {
       checkIntervalMs: env.LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS,
       maxCount: env.LANGFUSE_DELETION_MUTATIONS_MAX_COUNT,
       safeCount: env.LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT,
     });
-
-    // Start the monitoring loop
-    void this.checkMutationsAndScheduleNext();
+    this.runner.start();
   }
 
   /**
    * Stop the mutation monitoring service
    */
   public static stop(): void {
-    if (!this.isRunning) {
-      return;
-    }
-
-    this.isRunning = false;
-    if (this.timeoutId !== null) {
-      clearTimeout(this.timeoutId);
-      this.timeoutId = null;
-    }
+    this.runner.stop();
     logger.info("Mutation monitor stopped");
-  }
-
-  /**
-   * Schedule the next mutation check after the specified interval
-   */
-  private static scheduleNextCheck(): void {
-    if (!this.isRunning) {
-      return;
-    }
-
-    this.timeoutId = setTimeout(() => {
-      void this.checkMutationsAndScheduleNext();
-    }, env.LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS);
-  }
-
-  /**
-   * Check mutations and schedule the next check (ensures sequential execution)
-   */
-  private static async checkMutationsAndScheduleNext(): Promise<void> {
-    try {
-      await this.checkMutations();
-    } catch (error) {
-      logger.error("Unexpected error in mutation monitoring loop", error);
-    } finally {
-      // Always schedule next check, even if current check failed
-      this.scheduleNextCheck();
-    }
   }
 
   /**
@@ -207,7 +175,7 @@ export class MutationMonitor {
   /**
    * Check ClickHouse mutations and pause/resume workers as needed
    */
-  private static async checkMutations(): Promise<void> {
+  public static async checkMutations(): Promise<void> {
     try {
       const query = `
         SELECT
@@ -360,10 +328,6 @@ export class MutationMonitor {
    */
   public static resetState(): void {
     this.pausedQueues.clear();
-    this.isRunning = false;
-    if (this.timeoutId !== null) {
-      clearTimeout(this.timeoutId);
-      this.timeoutId = null;
-    }
+    this.runner.stop();
   }
 }

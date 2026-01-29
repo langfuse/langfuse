@@ -6,6 +6,7 @@ import {
   getEventsGroupedByModel,
   getEventsGroupedByModelId,
   getEventsGroupedByName,
+  getEventsGroupedByTraceName,
   getEventsGroupedByPromptName,
   getEventsGroupedByType,
   getEventsGroupedByUserId,
@@ -13,10 +14,15 @@ import {
   getEventsGroupedBySessionId,
   getEventsGroupedByLevel,
   getEventsGroupedByEnvironment,
+  getEventsGroupedByExperimentDatasetId,
+  getEventsGroupedByExperimentId,
+  getEventsGroupedByExperimentName,
   getNumericScoresGroupedByName,
   getTracesGroupedByTags,
+  getObservationsBatchIOFromEventsTable,
 } from "@langfuse/shared/src/server";
-import { type timeFilter } from "@langfuse/shared";
+import { type timeFilter, type FilterState } from "@langfuse/shared";
+import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 
@@ -41,6 +47,7 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
+  hasParentObservation?: boolean;
 }
 
 /**
@@ -54,8 +61,8 @@ export async function getEventList(params: GetObservationsListParams) {
     searchType: params.searchType,
     orderBy: params.orderBy,
     limit: params.limit,
-    offset: params.page * params.limit,
-    selectIOAndMetadata: true, // Include input/output truncated fields
+    offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
+    selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
@@ -90,7 +97,22 @@ export async function getEventCount(params: GetObservationsCountParams) {
 export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
-  const { projectId, startTimeFilter } = params;
+  const { projectId, startTimeFilter, hasParentObservation } = params;
+
+  // Build filter with optional hasParentObservation for scoping filter options
+  const eventsFilter: FilterState = [
+    ...(startTimeFilter ?? []),
+    ...(hasParentObservation !== undefined
+      ? [
+          {
+            column: "hasParentObservation" as const,
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: hasParentObservation,
+          },
+        ]
+      : []),
+  ];
 
   // Map startTimeFilter to Timestamp column for trace queries
   const traceTimestampFilters =
@@ -118,6 +140,7 @@ export async function getEventFilterOptions(
     name,
     promptNames,
     traceTags,
+    traceNames,
     modelId,
     types,
     userIds,
@@ -125,20 +148,27 @@ export async function getEventFilterOptions(
     sessionIds,
     levels,
     environments,
+    experimentDatasetIds,
+    experimentIds,
+    experimentNames,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
-    getEventsGroupedByModel(projectId, startTimeFilter ?? []),
-    getEventsGroupedByName(projectId, startTimeFilter ?? []),
-    getEventsGroupedByPromptName(projectId, startTimeFilter ?? []),
+    getEventsGroupedByModel(projectId, eventsFilter),
+    getEventsGroupedByName(projectId, eventsFilter),
+    getEventsGroupedByPromptName(projectId, eventsFilter),
     getClickhouseTraceTags(),
-    getEventsGroupedByModelId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByType(projectId, startTimeFilter ?? []),
-    getEventsGroupedByUserId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByVersion(projectId, startTimeFilter ?? []),
-    getEventsGroupedBySessionId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByLevel(projectId, startTimeFilter ?? []),
-    getEventsGroupedByEnvironment(projectId, startTimeFilter ?? []),
+    getEventsGroupedByTraceName(projectId, eventsFilter),
+    getEventsGroupedByModelId(projectId, eventsFilter),
+    getEventsGroupedByType(projectId, eventsFilter),
+    getEventsGroupedByUserId(projectId, eventsFilter),
+    getEventsGroupedByVersion(projectId, eventsFilter),
+    getEventsGroupedBySessionId(projectId, eventsFilter),
+    getEventsGroupedByLevel(projectId, eventsFilter),
+    getEventsGroupedByEnvironment(projectId, eventsFilter),
+    getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
+    getEventsGroupedByExperimentId(projectId, eventsFilter),
+    getEventsGroupedByExperimentName(projectId, eventsFilter),
   ]);
 
   return {
@@ -166,6 +196,12 @@ export async function getEventFilterOptions(
       .filter((i) => i.tag !== null)
       .map((i) => ({
         value: i.tag as string,
+      })),
+    traceName: traceNames
+      .filter((i) => i.traceName !== null)
+      .map((i) => ({
+        value: i.traceName as string,
+        count: i.count,
       })),
     type: types
       .filter((i) => i.type !== null)
@@ -203,5 +239,49 @@ export async function getEventFilterOptions(
         value: i.environment as string,
         count: i.count,
       })),
+    experimentDatasetId: experimentDatasetIds
+      .filter((i) => i.experimentDatasetId !== null)
+      .map((i) => ({
+        value: i.experimentDatasetId as string,
+        count: i.count,
+      })),
+    experimentId: experimentIds
+      .filter((i) => i.experimentId !== null)
+      .map((i) => ({
+        value: i.experimentId as string,
+        count: i.count,
+      })),
+    experimentName: experimentNames
+      .filter((i) => i.experimentName !== null)
+      .map((i) => ({
+        value: i.experimentName as string,
+        count: i.count,
+      })),
   };
+}
+
+interface GetEventBatchIOParams {
+  projectId: string;
+  observations: Array<{
+    id: string;
+    traceId: string;
+  }>;
+  minStartTime: Date;
+  maxStartTime: Date;
+  truncated?: boolean;
+}
+
+/**
+ * Batch fetch input/output and metadata for multiple observations
+ */
+export async function getEventBatchIO(
+  params: GetEventBatchIOParams,
+): Promise<Array<EventBatchIOOutput>> {
+  return getObservationsBatchIOFromEventsTable({
+    projectId: params.projectId,
+    observations: params.observations,
+    minStartTime: params.minStartTime,
+    maxStartTime: params.maxStartTime,
+    truncated: params.truncated,
+  });
 }

@@ -31,7 +31,7 @@ const defaultLightTheme: JSONTheme = {
   searchCurrentBackground: "rgba(255, 255, 0, 0.4)", // Brighter yellow
   fontSize: "0.75rem",
   lineHeight: 24,
-  indentSize: 20,
+  indentSize: 12,
 };
 
 /**

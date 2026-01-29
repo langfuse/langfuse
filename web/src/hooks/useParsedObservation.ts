@@ -12,11 +12,40 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useEffect } from "react";
 import { api } from "@/src/utils/api";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  type ObservationReturnTypeWithMetadata,
+  type ObservationReturnType,
+} from "@/src/server/api/routers/traces";
+import { stringifyMetadata } from "@/src/utils/clientSideDomainTypes";
 import type {
   ParseRequest,
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
+
+/**
+ * Threshold for using Web Worker vs sync parsing (in characters).
+ * Below this: sync parse (faster, no message-passing overhead)
+ * Above this: Web Worker (non-blocking, prevents UI freeze)
+ */
+const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
+
+/**
+ * Estimate the size of a value in characters (for threshold check)
+ */
+function estimateSize(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "string") return value.length;
+  // For objects/arrays, estimate via JSON stringification length
+  // This is approximate but good enough for threshold decisions
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return 0;
+  }
+}
 
 // Singleton worker instance shared across all hook calls
 let workerInstance: Worker | null = null;
@@ -62,6 +91,8 @@ interface UseParsedObservationParams {
   traceId: string;
   projectId: string;
   startTime?: Date;
+  // Base observation to merge IO data into (for events path when beta ON)
+  baseObservation?: ObservationReturnType | ObservationReturnTypeWithMetadata;
 }
 
 interface ParsedData {
@@ -72,7 +103,35 @@ interface ParsedData {
 }
 
 /**
- * Parse observation data in Web Worker (or fallback to sync)
+ * Sync parse helper - used for small payloads or when Web Worker unavailable
+ */
+async function syncParseObservationData(
+  input: unknown,
+  output: unknown,
+  metadata: unknown,
+): Promise<ParsedData> {
+  const { deepParseJsonIterative } = await import("@langfuse/shared");
+  const startTime = performance.now();
+
+  return {
+    input: deepParseJsonIterative(input, {
+      maxDepth: 50,
+      maxSize: 500_000,
+    }),
+    output: deepParseJsonIterative(output, {
+      maxDepth: 50,
+      maxSize: 500_000,
+    }),
+    metadata: deepParseJsonIterative(metadata, {
+      maxDepth: 50,
+      maxSize: 500_000,
+    }),
+    parseTime: performance.now() - startTime,
+  };
+}
+
+/**
+ * Parse observation data in Web Worker (or sync for small payloads)
  * Returns a promise that resolves with parsed data
  */
 async function parseObservationData(
@@ -80,31 +139,23 @@ async function parseObservationData(
   output: unknown,
   metadata: unknown,
 ): Promise<ParsedData> {
+  // Estimate total size to decide sync vs worker
+  const totalSize =
+    estimateSize(input) + estimateSize(output) + estimateSize(metadata);
+
+  // Small payloads: sync parse (faster, no message-passing overhead)
+  if (totalSize < PARSE_IN_WEBWORKER_THRESHOLD) {
+    return syncParseObservationData(input, output, metadata);
+  }
+
   const worker = getOrCreateWorker();
 
   // Fallback to sync parsing if no worker support
   if (!worker) {
-    const { deepParseJsonIterative } = await import("@langfuse/shared");
-    const startTime = performance.now();
-
-    return {
-      input: deepParseJsonIterative(input, {
-        maxDepth: 50,
-        maxSize: 500_000,
-      }),
-      output: deepParseJsonIterative(output, {
-        maxDepth: 50,
-        maxSize: 500_000,
-      }),
-      metadata: deepParseJsonIterative(metadata, {
-        maxDepth: 50,
-        maxSize: 500_000,
-      }),
-      parseTime: performance.now() - startTime,
-    };
+    return syncParseObservationData(input, output, metadata);
   }
 
-  // Parse in Web Worker (non-blocking)
+  // Large payloads: parse in Web Worker (non-blocking)
   return new Promise<ParsedData>((resolve, reject) => {
     const parseId = `${Date.now()}-${Math.random()}`;
 
@@ -141,8 +192,11 @@ export function useParsedObservation({
   traceId,
   projectId,
   startTime,
+  baseObservation,
 }: UseParsedObservationParams) {
-  // Step 1: Fetch raw observation data via tRPC (React Query caches this)
+  const { isBetaEnabled } = useV4Beta();
+
+  // Step 1a: Fetch raw observation data from observations table (beta OFF)
   const observationQuery = api.observations.byId.useQuery(
     {
       observationId,
@@ -151,9 +205,59 @@ export function useParsedObservation({
       startTime,
     },
     {
+      enabled: !isBetaEnabled,
       staleTime: 5 * 60 * 1000, // 5 minutes
     },
   );
+
+  // Step 1b: Fetch raw observation data from events table (beta ON)
+  const eventsQuery = api.events.batchIO.useQuery(
+    {
+      projectId,
+      observations: [{ id: observationId, traceId }],
+      minStartTime: startTime ?? new Date(0),
+      maxStartTime: startTime ?? new Date(),
+      truncated: false,
+    },
+    {
+      enabled: isBetaEnabled,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      select: (data) => data[0], // Extract single result from batch
+    },
+  );
+
+  const mergedObservation = useMemo(() => {
+    if (isBetaEnabled) {
+      if (baseObservation && eventsQuery.data) {
+        return {
+          ...baseObservation,
+          input: eventsQuery.data.input as string,
+          output: eventsQuery.data.output as string,
+          // Stringify metadata to match ObservationReturnTypeWithMetadata format
+          metadata: stringifyMetadata(eventsQuery.data.metadata),
+        };
+      }
+      // No base observation provided: return events data as-is (incomplete type)
+      return eventsQuery.data;
+    }
+    // Beta OFF: return full observation from observations table
+    return observationQuery.data;
+  }, [isBetaEnabled, baseObservation, eventsQuery.data, observationQuery.data]);
+
+  // TODO: remove when going into prod
+  // Log warning if baseObservation missing when beta ON (helps catch issues in testing)
+  useEffect(() => {
+    if (isBetaEnabled && eventsQuery.data && !baseObservation) {
+      console.warn(
+        "[useParsedObservation] baseObservation missing - JumpToPlaygroundButton may not work correctly",
+        { observationId },
+      );
+    }
+  }, [isBetaEnabled, eventsQuery.data, baseObservation, observationId]);
+
+  const isLoadingRaw = isBetaEnabled
+    ? eventsQuery.isLoading
+    : observationQuery.isLoading;
 
   // Step 2: Parse the data in Web Worker (React Query caches THIS too!)
   const parseQuery = useQuery({
@@ -161,29 +265,29 @@ export function useParsedObservation({
       "parsed-observation",
       observationId,
       // Include data hash to detect changes
-      observationQuery.data?.input,
-      observationQuery.data?.output,
-      observationQuery.data?.metadata,
+      mergedObservation?.input,
+      mergedObservation?.output,
+      mergedObservation?.metadata,
     ],
     queryFn: async () => {
-      if (!observationQuery.data) {
+      if (!mergedObservation) {
         throw new Error("No observation data to parse");
       }
 
       return parseObservationData(
-        observationQuery.data.input,
-        observationQuery.data.output,
-        observationQuery.data.metadata,
+        mergedObservation.input,
+        mergedObservation.output,
+        mergedObservation.metadata,
       );
     },
-    enabled: !!observationQuery.data, // Only run when we have data
+    enabled: !!mergedObservation, // Only run when we have data
     staleTime: Infinity, // Parsed data never goes stale (input data is the source of truth)
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes after unmount
   });
 
   return {
-    // Original observation data (cached by tRPC/React Query)
-    observation: observationQuery.data,
+    // Observation data (merged with base when beta ON, or from observations table when beta OFF)
+    observation: mergedObservation,
 
     // Parsed data (cached by React Query)
     parsedInput: parseQuery.data?.input,
@@ -191,12 +295,14 @@ export function useParsedObservation({
     parsedMetadata: parseQuery.data?.metadata,
 
     // Loading states
-    isLoadingObservation: observationQuery.isLoading,
+    isLoadingObservation: isLoadingRaw,
     isParsing: parseQuery.isLoading,
     isReady:
-      !observationQuery.isLoading &&
-      !parseQuery.isLoading &&
-      parseQuery.data !== undefined,
+      !isLoadingRaw && !parseQuery.isLoading && parseQuery.data !== undefined,
+    // True when we have observation data but parsing hasn't completed yet
+    isWaitingForParsing:
+      !!mergedObservation &&
+      (parseQuery.isLoading || parseQuery.data === undefined),
 
     // Debug info
     parseTime: parseQuery.data?.parseTime,

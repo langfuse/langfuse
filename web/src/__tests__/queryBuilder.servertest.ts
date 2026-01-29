@@ -1,6 +1,9 @@
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
 import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import {
+  executeQuery,
+  validateQuery,
+} from "@/src/features/query/server/queryExecutor";
 import {
   createTrace,
   createObservation,
@@ -3667,5 +3670,220 @@ describe("queryBuilder", () => {
       expect(resultWithOpt).toHaveLength(1);
       expect(resultWithOpt[0].startTimeMonth).toBe("2024-03");
     });
+
+    it("should produce correct results with sum aggregation on count measure", async () => {
+      const projectId = randomUUID();
+
+      // Create traces
+      const traces = Array.from({ length: 2 }, (_, i) =>
+        createTrace({
+          project_id: projectId,
+          name: `trace-${i}`,
+          timestamp: new Date().getTime(),
+        }),
+      );
+      await createTracesCh(traces);
+
+      // Create 5 observations: 3 for trace-0, 2 for trace-1
+      const observationsPerTrace = [3, 2];
+      const observations = traces.flatMap((trace, traceIdx) =>
+        Array.from({ length: observationsPerTrace[traceIdx] }, (_, obsIdx) =>
+          createObservation({
+            project_id: projectId,
+            trace_id: trace.id,
+            name: `obs-${traceIdx}-${obsIdx}`,
+            start_time: new Date().getTime(),
+          }),
+        ),
+      );
+      await createObservationsCh(observations);
+
+      // Query with sum on count measure (this was producing incorrect results)
+      const query: QueryType = {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "sum" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      };
+
+      // Execute without optimization (two-level query)
+      const resultWithoutOpt = await executeQuery(
+        projectId,
+        query,
+        "v1",
+        false,
+      );
+
+      // Execute with optimization (single-level query)
+      const resultWithOpt = await executeQuery(projectId, query, "v1", true);
+
+      // Both should return sum of counts = 5 (total observations)
+      expect(resultWithoutOpt).toHaveLength(1);
+      expect(resultWithOpt).toHaveLength(1);
+      expect(resultWithoutOpt[0].sum_count).toBe(5);
+      expect(resultWithOpt[0].sum_count).toBe(5);
+      expect(resultWithOpt).toEqual(resultWithoutOpt);
+    });
+  });
+});
+
+describe("validateQuery", () => {
+  const baseQuery = {
+    view: "observations",
+    dimensions: [],
+    metrics: [{ measure: "totalCost", aggregation: "sum" }],
+    filters: [],
+    timeDimension: null,
+    fromTimestamp: "2025-01-01T00:00:00.000Z",
+    toTimestamp: "2025-03-01T00:00:00.000Z",
+    orderBy: null,
+  } as QueryType;
+
+  it("should return valid for queries without high cardinality dimensions", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "name" }], // name is not high cardinality
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("should return invalid when high cardinality dimension is used without row_limit", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+      // no chartConfig.row_limit
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return invalid when high cardinality dimension is used without ORDER DESC", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "userId" }], // high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_totalCost", direction: "asc" }], // asc, not desc
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'userId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return invalid when ORDER BY desc field is not a measure in the query", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }], // high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_latency", direction: "desc" }], // latency is not in metrics
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "'sum_latency'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "not a measure in this query",
+    );
+  });
+
+  it("should return invalid when ORDER BY desc field is a dimension (not a measure)", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }, { field: "name" }], // traceId is high cardinality
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "name", direction: "desc" }], // name is a dimension, not a measure
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "'name'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "not a measure in this query",
+    );
+  });
+
+  it("should return invalid for multiple high cardinality dimensions without required config", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }, { field: "sessionId" }], // both high cardinality
+      // missing row_limit and orderBy desc
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "traceId",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "sessionId",
+    );
+  });
+
+  it("should support public API 'config' field name for row_limit", () => {
+    // Test that "config" field works (used by public API) vs "chartConfig" (used internally)
+    const query = {
+      view: "observations",
+      dimensions: [{ field: "traceId" }], // high cardinality
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: [{ field: "totalCost", direction: "desc" }],
+      config: { type: "table", row_limit: 10 }, // Public API uses "config"
+    } as unknown as QueryType;
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("should return valid for count-only metrics with high cardinality", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }],
+      metrics: [{ measure: "count", aggregation: "count" }], // count-only
+      orderBy: [{ field: "count", direction: "desc" }],
+      chartConfig: { type: "table", row_limit: 10 },
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
   });
 });

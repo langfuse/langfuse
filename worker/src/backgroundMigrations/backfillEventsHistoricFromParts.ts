@@ -12,10 +12,13 @@ import {
   BaseChunkTodo,
   ConcurrentQueryManager,
   generateQueryId,
+} from "./backfillEventsHistoric";
+
+import {
   getQueryError,
   pollQueryStatus,
   sleep,
-} from "./backfillEventsHistoric";
+} from "@langfuse/shared/src/server";
 
 // This is hard-coded in our migrations and uniquely identifies the row in background_migrations table
 const backgroundMigrationId = "d08146bd-3841-4ed3-a42c-5f43ff94b14e";
@@ -289,7 +292,8 @@ export default class BackfillEventsHistoricFromParts
         trace_name, user_id, session_id, level, status_message, completion_start_time,
         prompt_id, prompt_name, prompt_version, model_id, provided_model_name,
         model_parameters, provided_usage_details, usage_details,
-        provided_cost_details, cost_details, input, output, metadata,
+        provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names,
+        input, output, metadata,
         metadata_names, metadata_raw_values, source,
         blob_storage_file_path, event_bytes, created_at, updated_at, event_ts, is_deleted
       )
@@ -324,6 +328,9 @@ export default class BackfillEventsHistoricFromParts
         o.usage_details,
         o.provided_cost_details,
         o.cost_details,
+        o.tool_definitions,
+        o.tool_calls,
+        o.tool_call_names,
         coalesce(o.input, '') AS input,
         coalesce(o.output, '') AS output,
         CAST(mapApply((k, v) -> (k, if(isValidUTF8(v), v, toValidUTF8(v))), o.metadata), 'JSON(max_dynamic_paths=0)') AS metadata,

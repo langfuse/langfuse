@@ -92,21 +92,18 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
 };
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: true;
   },
 ): Promise<IterableReadableStream<Uint8Array>>;
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
   },
 ): Promise<string>;
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     structuredOutputSchema: ZodSchema;
@@ -114,7 +111,6 @@ export async function fetchLLMCompletion(
 ): Promise<Record<string, unknown>>;
 
 export async function fetchLLMCompletion(
-  // eslint-disable-next-line no-unused-vars
   params: LLMCompletionParams & {
     streaming: false;
     tools: LLMToolDefinition[];
@@ -385,6 +381,9 @@ export async function fetchLLMCompletion(
       maxRetries,
       location,
       authOptions,
+      ...(modelParams.maxReasoningTokens !== undefined && {
+        maxReasoningTokens: modelParams.maxReasoningTokens,
+      }),
       ...(modelParams.providerOptions && {
         additionalModelRequestFields: modelParams.providerOptions,
       }),
@@ -404,7 +403,6 @@ export async function fetchLLMCompletion(
       }),
     });
   } else {
-    // eslint-disable-next-line no-unused-vars
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error(
       `This model provider is not supported: ${_exhaustiveCheck}`,
@@ -457,7 +455,8 @@ export async function fetchLLMCompletion(
   } catch (e) {
     const responseStatusCode =
       (e as any)?.response?.status ?? (e as any)?.status ?? 500;
-    const message = e instanceof Error ? e.message : String(e);
+    const rawMessage = e instanceof Error ? e.message : String(e);
+    const message = extractCleanErrorMessage(rawMessage);
 
     // Check for non-retryable error patterns in message
     const nonRetryablePatterns = [
@@ -524,4 +523,35 @@ function processOpenAIBaseURL(params: {
   }
 
   return url.replace("{model}", modelName);
+}
+
+function extractCleanErrorMessage(rawMessage: string): string {
+  // Try to parse JSON error format (common in Google/Vertex AI errors)
+  // Example: '[{"error":{"code":404,"message":"Model not found..."}}]'
+  try {
+    // Check if the message starts with [ or { indicating JSON
+    const trimmed = rawMessage.trim();
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      const parsed = JSON.parse(trimmed);
+
+      // Handle array format: [{"error": {"message": "..."}}]
+      if (Array.isArray(parsed) && parsed[0]?.error?.message) {
+        return parsed[0].error.message;
+      }
+
+      // Handle object format: {"error": {"message": "..."}}
+      if (parsed?.error?.message) {
+        return parsed.error.message;
+      }
+
+      // Handle direct message format: {"message": "..."}
+      if (parsed?.message) {
+        return parsed.message;
+      }
+    }
+  } catch {
+    // Not valid JSON, return as-is
+  }
+
+  return rawMessage;
 }

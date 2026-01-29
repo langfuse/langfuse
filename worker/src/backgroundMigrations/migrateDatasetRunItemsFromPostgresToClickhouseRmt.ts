@@ -114,7 +114,8 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
             valid_from,
             is_deleted
           FROM dataset_items
-          ORDER BY id, project_id, valid_from DESC
+          WHERE valid_to IS NULL 
+          ORDER BY id, project_id, valid_from DESC  -- Pick the most recent version
         )
         SELECT
           dri.id as id,

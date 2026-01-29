@@ -40,16 +40,21 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Switch } from "@/src/components/ui/switch";
 import { useRouter } from "next/router";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { useJsonExpansion } from "@/src/components/trace2/contexts/JsonExpansionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { useParsedObservation } from "@/src/hooks/useParsedObservation";
 import { PromptBadge } from "@/src/components/trace2/components/_shared/PromptBadge";
+import { useJsonBetaToggle } from "@/src/components/trace2/hooks/useJsonBetaToggle";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export const ObservationPreview = ({
   observations,
   projectId,
   serverScores: scores,
+  corrections,
   currentObservationId,
   traceId,
   commentCounts,
@@ -61,6 +66,7 @@ export const ObservationPreview = ({
   observations: Array<ObservationReturnType>;
   projectId: string;
   serverScores: WithStringifiedMetadata<ScoreDomain>[];
+  corrections: ScoreDomain[];
   currentObservationId: string;
   traceId: string;
   commentCounts?: Map<string, number>;
@@ -76,6 +82,13 @@ export const ObservationPreview = ({
   const [currentView, setCurrentView] = useLocalStorage<
     "pretty" | "json" | "json-beta"
   >("jsonViewPreference", "pretty");
+  const {
+    jsonBetaEnabled,
+    selectedViewTab,
+    handleViewTabChange,
+    handleBetaToggle,
+  } = useJsonBetaToggle(currentView, setCurrentView);
+
   const capture = usePostHogClientCapture();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(false);
 
@@ -84,7 +97,14 @@ export const ObservationPreview = ({
   const router = useRouter();
   const { peek } = router.query;
   const showScoresTab = isAuthenticatedAndProjectMember && peek === undefined;
-  const { expansionState, setFieldExpansion } = useJsonExpansion();
+  const {
+    formattedExpansion,
+    setFormattedFieldExpansion,
+    jsonExpansion,
+    setJsonFieldExpansion,
+    advancedJsonExpansion,
+    setAdvancedJsonExpansion,
+  } = useJsonExpansion();
 
   const currentObservation = observations.find(
     (o) => o.id === currentObservationId,
@@ -94,17 +114,32 @@ export const ObservationPreview = ({
     (s) => s.observationId === currentObservationId,
   );
 
-  const observationWithInputAndOutput = api.observations.byId.useQuery(
-    {
-      observationId: currentObservationId,
-      startTime: currentObservation?.startTime,
-      traceId: traceId,
-      projectId: projectId,
-    },
-    {
-      staleTime: 5 * 60 * 1000, // 5 minutes - matches prefetch staleTime
-    },
+  const currentObservationCorrections = corrections.filter(
+    (c) => c.observationId === currentObservationId,
   );
+
+  // Fetch and parse observation input/output in background (Web Worker)
+  const {
+    observation: observationWithIORaw,
+    parsedInput,
+    parsedOutput,
+    parsedMetadata,
+    isLoadingObservation,
+    isWaitingForParsing,
+  } = useParsedObservation({
+    observationId: currentObservationId,
+    traceId: traceId,
+    projectId: projectId,
+    startTime: currentObservation?.startTime,
+    baseObservation: currentObservation,
+  });
+
+  // Type narrowing: when baseObservation is provided, result has full observation fields
+  // (EventBatchIOOutput case only occurs when baseObservation is missing)
+  const observationWithIO =
+    observationWithIORaw && "type" in observationWithIORaw
+      ? observationWithIORaw
+      : undefined;
 
   const observationMedia = api.media.getByTraceOrObservationId.useQuery(
     {
@@ -154,14 +189,14 @@ export const ObservationPreview = ({
             />
           </div>
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            {observationWithInputAndOutput.data && (
+            {observationWithIO && (
               <NewDatasetItemFromExistingObject
                 traceId={preloadedObservation.traceId}
                 observationId={preloadedObservation.id}
                 projectId={projectId}
-                input={observationWithInputAndOutput.data.input}
-                output={observationWithInputAndOutput.data.output}
-                metadata={observationWithInputAndOutput.data.metadata}
+                input={observationWithIO.input}
+                output={observationWithIO.output}
+                metadata={observationWithIO.metadata}
                 key={preloadedObservation.id}
                 size="sm"
               />
@@ -192,11 +227,11 @@ export const ObservationPreview = ({
                     size="sm"
                   />
                 </div>
-                {observationWithInputAndOutput.data &&
-                  isGenerationLike(observationWithInputAndOutput.data.type) && (
+                {observationWithIO &&
+                  isGenerationLike(observationWithIO.type) && (
                     <JumpToPlaygroundButton
                       source="generation"
-                      generation={observationWithInputAndOutput.data}
+                      generation={observationWithIO}
                       analyticsEventName="trace_detail:test_in_playground_button_click"
                       className={cn(isTimeline ? "!hidden" : "")}
                       size="sm"
@@ -420,29 +455,40 @@ export const ObservationPreview = ({
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
               )}
               {selectedTab.includes("preview") && isPrettyViewAvailable && (
-                <Tabs
-                  className="ml-auto mr-1 h-fit px-2 py-0.5"
-                  value={currentView}
-                  onValueChange={(value) => {
-                    capture("trace_detail:io_mode_switch", { view: value });
-                    setCurrentView(value as "pretty" | "json" | "json-beta");
-                  }}
-                >
-                  <TabsList className="h-fit py-0.5">
-                    <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                      Formatted
-                    </TabsTrigger>
-                    <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                      JSON
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="json-beta"
-                      className="h-fit px-1 text-xs"
-                    >
-                      JSON Beta
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                <>
+                  <Tabs
+                    className="ml-auto h-fit px-2 py-0.5"
+                    value={selectedViewTab}
+                    onValueChange={(value) => {
+                      capture("trace_detail:io_mode_switch", { view: value });
+                      handleViewTabChange(value);
+                    }}
+                  >
+                    <TabsList className="h-fit py-0.5">
+                      <TabsTrigger
+                        value="pretty"
+                        className="h-fit px-1 text-xs"
+                      >
+                        Formatted
+                      </TabsTrigger>
+                      <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                        JSON
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  {selectedViewTab === "json" && (
+                    <div className="mr-1 flex items-center gap-1.5">
+                      <Switch
+                        size="sm"
+                        checked={jsonBetaEnabled}
+                        onCheckedChange={handleBetaToggle}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        Beta
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </TabsBarList>
           )}
@@ -459,25 +505,48 @@ export const ObservationPreview = ({
                 <IOPreview
                   key={preloadedObservation.id + "-input"}
                   observationName={preloadedObservation.name ?? undefined}
-                  input={observationWithInputAndOutput.data?.input ?? undefined}
-                  output={
-                    observationWithInputAndOutput.data?.output ?? undefined
-                  }
-                  metadata={
-                    observationWithInputAndOutput.data?.metadata ?? undefined
-                  }
-                  isLoading={observationWithInputAndOutput.isLoading}
+                  input={observationWithIO?.input ?? undefined}
+                  output={observationWithIO?.output ?? undefined}
+                  metadata={observationWithIO?.metadata ?? undefined}
+                  parsedInput={parsedInput}
+                  parsedOutput={parsedOutput}
+                  parsedMetadata={parsedMetadata}
+                  outputCorrection={getMostRecentCorrection(
+                    currentObservationCorrections,
+                  )}
+                  observationId={currentObservationId}
+                  isLoading={isLoadingObservation}
+                  isParsing={isWaitingForParsing}
                   media={observationMedia.data}
                   currentView={currentView}
                   setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-                  inputExpansionState={expansionState.input}
-                  outputExpansionState={expansionState.output}
+                  inputExpansionState={formattedExpansion.input}
+                  outputExpansionState={formattedExpansion.output}
                   onInputExpansionChange={(expansion) =>
-                    setFieldExpansion("input", expansion)
+                    setFormattedFieldExpansion(
+                      "input",
+                      expansion as Record<string, boolean>,
+                    )
                   }
                   onOutputExpansionChange={(expansion) =>
-                    setFieldExpansion("output", expansion)
+                    setFormattedFieldExpansion(
+                      "output",
+                      expansion as Record<string, boolean>,
+                    )
                   }
+                  jsonInputExpanded={jsonExpansion.input}
+                  jsonOutputExpanded={jsonExpansion.output}
+                  onJsonInputExpandedChange={(expanded) =>
+                    setJsonFieldExpansion("input", expanded)
+                  }
+                  onJsonOutputExpandedChange={(expanded) =>
+                    setJsonFieldExpansion("output", expanded)
+                  }
+                  advancedJsonExpansionState={advancedJsonExpansion}
+                  onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
+                  projectId={projectId}
+                  traceId={traceId}
+                  environment={preloadedObservation.environment}
                 />
               </div>
               <div>
@@ -493,20 +562,23 @@ export const ObservationPreview = ({
                 )}
               </div>
               <div className="px-2">
-                {observationWithInputAndOutput.data?.metadata && (
+                {observationWithIO?.metadata && (
                   <PrettyJsonView
-                    key={observationWithInputAndOutput.data.id + "-metadata"}
+                    key={observationWithIO.id + "-metadata"}
                     title="Metadata"
-                    json={observationWithInputAndOutput.data.metadata}
+                    json={observationWithIO.metadata}
                     media={observationMedia.data?.filter(
                       (m) => m.field === "metadata",
                     )}
                     currentView={
                       currentView === "json-beta" ? "pretty" : currentView
                     }
-                    externalExpansionState={expansionState.metadata}
+                    externalExpansionState={formattedExpansion.metadata}
                     onExternalExpansionChange={(expansion) =>
-                      setFieldExpansion("metadata", expansion)
+                      setFormattedFieldExpansion(
+                        "metadata",
+                        expansion as Record<string, boolean>,
+                      )
                     }
                   />
                 )}
@@ -532,6 +604,7 @@ export const ObservationPreview = ({
                     "userId",
                   ]}
                   localStorageSuffix="ObservationPreview"
+                  disableUrlPersistence
                 />
               </div>
             </TabsBarContent>

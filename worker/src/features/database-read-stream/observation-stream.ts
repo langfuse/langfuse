@@ -1,6 +1,7 @@
 import {
   FilterCondition,
-  ScoreDataType,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
 } from "@langfuse/shared";
@@ -260,7 +261,7 @@ export const getObservationStream = async (props: {
         | {
             name: string;
             value: number;
-            dataType: ScoreDataType;
+            dataType: ScoreDataTypeType;
             stringValue: string;
           }[]
         | undefined;
@@ -301,7 +302,7 @@ export const getObservationStream = async (props: {
       | {
           name: string;
           value: number;
-          dataType: ScoreDataType;
+          dataType: ScoreDataTypeType;
           stringValue: string;
         }[]
       | undefined;
@@ -336,7 +337,7 @@ export const getObservationStream = async (props: {
         return {
           name,
           value: null,
-          dataType: "CATEGORICAL" as ScoreDataType,
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
           stringValue: valueParts.join(":"),
         };
       },
@@ -359,6 +360,8 @@ export const getObservationStream = async (props: {
           traceTags: bufferedRow.traceTags,
           traceTimestamp: bufferedRow.traceTimestamp,
           userId: bufferedRow.userId,
+          toolDefinitionsCount: null,
+          toolCallsCount: null,
           ...modelData,
           scores: outputScores,
           comments: observationComments,
@@ -369,7 +372,8 @@ export const getObservationStream = async (props: {
   };
 
   // Convert async generator to Node.js Readable stream
-  // eslint-disable-next-line no-unused-vars
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Counter for potential future instrumentation
   let recordsProcessed = 0;
 
   return Readable.from(

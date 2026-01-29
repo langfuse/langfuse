@@ -13,14 +13,6 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-generator erd {
-  provider     = "prisma-erd-generator"
-  ignoreTables = ["_prisma_migrations", "Session", "Account", "Example"]
-  disabled     = true
-  ignoreEnums  = true
-  output       = "database.svg"
-}
-
 generator kysely {
   provider = "prisma-kysely"
 
@@ -457,7 +449,7 @@ model LegacyPrismaScore {
   queueId       String?                 @map("queue_id")
   createdAt     DateTime                @default(now()) @map("created_at")
   updatedAt     DateTime                @default(now()) @updatedAt @map("updated_at")
-  dataType      ScoreDataType           @default(NUMERIC) @map("data_type")
+  dataType      ScoreConfigDataType     @default(NUMERIC) @map("data_type")
   scoreConfig   ScoreConfig?            @relation(fields: [configId], references: [id], onDelete: SetNull)
 
   @@unique([id, projectId]) // used for upserts via prisma
@@ -488,7 +480,7 @@ model ScoreConfig {
   projectId   String              @map("project_id")
   project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
-  dataType    ScoreDataType       @map("data_type")
+  dataType    ScoreConfigDataType @map("data_type")
   isArchived  Boolean             @default(false) @map("is_archived")
   minValue    Float?              @map("min_value")
   maxValue    Float?              @map("max_value")
@@ -506,7 +498,7 @@ model ScoreConfig {
   @@map("score_configs")
 }
 
-enum ScoreDataType {
+enum ScoreConfigDataType {
   CATEGORICAL
   NUMERIC
   BOOLEAN
@@ -592,21 +584,20 @@ model CronJobs {
 }
 
 model Dataset {
-  id                      String             @default(cuid())
-  projectId               String             @map("project_id")
+  id                      String        @default(cuid())
+  projectId               String        @map("project_id")
   name                    String
   description             String?
   metadata                Json?
-  remoteExperimentUrl     String?            @map("remote_experiment_url")
-  remoteExperimentPayload Json?              @map("remote_experiment_payload")
-  inputSchema             Json?              @map("input_schema") @db.Json
-  expectedOutputSchema    Json?              @map("expected_output_schema") @db.Json
-  project                 Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt               DateTime           @default(now()) @map("created_at")
-  updatedAt               DateTime           @default(now()) @updatedAt @map("updated_at")
+  remoteExperimentUrl     String?       @map("remote_experiment_url")
+  remoteExperimentPayload Json?         @map("remote_experiment_payload")
+  inputSchema             Json?         @map("input_schema") @db.Json
+  expectedOutputSchema    Json?         @map("expected_output_schema") @db.Json
+  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @default(now()) @updatedAt @map("updated_at")
   datasetItems            DatasetItem[]
   datasetRuns             DatasetRuns[]
-  datasetItemEvents       DatasetItemEvent[]
 
   @@id([id, projectId])
   @@unique([projectId, name])
@@ -629,7 +620,6 @@ model DatasetItem {
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at")
   // dataset version cols
-  sysId               String?        @default(dbgenerated()) @map("sys_id")
   validFrom           DateTime       @default(now()) @map("valid_from")
   validTo             DateTime?      @map("valid_to")
   isDeleted           Boolean        @default(false) @map("is_deleted")
@@ -643,25 +633,6 @@ model DatasetItem {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_items")
-}
-
-model DatasetItemEvent {
-  id                  String         @id @default(cuid())
-  itemId              String         @map("item_id")
-  projectId           String         @map("project_id")
-  datasetId           String         @map("dataset_id")
-  dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
-  status              DatasetStatus?
-  input               Json?
-  expectedOutput      Json?          @map("expected_output")
-  metadata            Json?
-  sourceTraceId       String?        @map("source_trace_id")
-  sourceObservationId String?        @map("source_observation_id")
-  createdAt           DateTime?      @map("created_at")
-  deletedAt           DateTime?      @map("deleted_at")
-
-  @@index([projectId, datasetId, itemId, createdAt])
-  @@map("dataset_item_events")
 }
 
 enum DatasetStatus {
@@ -721,6 +692,15 @@ model Comment {
   content      String
   authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
   reactions    CommentReaction[]
+
+  // Inline comment positioning (all must be set together or all null/empty)
+  // dataField: which IO field the comment is on ('input' | 'output' | 'metadata')
+  // path: Array of JSON Path expressions, e.g., ["$.messages[1].text"]
+  // rangeStart/rangeEnd: parallel arrays for start/end offsets per path (exclusive end, UTF-16 code units)
+  dataField  String?  @map("data_field")
+  path       String[] @default([]) @map("path")
+  rangeStart Int[]    @default([]) @map("range_start")
+  rangeEnd   Int[]    @default([]) @map("range_end")
 
   @@index([projectId, objectType, objectId])
   @@map("comments")

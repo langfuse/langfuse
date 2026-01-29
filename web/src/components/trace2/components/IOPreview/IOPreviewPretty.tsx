@@ -1,13 +1,13 @@
 import { useMemo } from "react";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import { type MediaReturnType } from "@/src/features/media/validation";
-
 import { useChatMLParser } from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import { type ExpansionStateProps } from "./IOPreview";
+import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -79,6 +79,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -92,6 +93,11 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   hideInput?: boolean;
   // Whether to show metadata section (default: false)
   showMetadata?: boolean;
+  observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
+  showCorrections?: boolean;
 }
 
 /**
@@ -110,6 +116,7 @@ export function IOPreviewPretty({
   input,
   output,
   metadata,
+  outputCorrection,
   parsedInput: preParsedInput,
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
@@ -122,19 +129,32 @@ export function IOPreviewPretty({
   media,
   inputExpansionState,
   outputExpansionState,
+  metadataExpansionState,
   onInputExpansionChange,
   onOutputExpansionChange,
+  onMetadataExpansionChange,
   showMetadata = false,
+  observationId,
+  projectId,
+  traceId,
+  environment = "default",
+  showCorrections = true,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
-  const parsedInput =
-    preParsedInput ?? deepParseJson(input, { maxSize: 300_000, maxDepth: 2 });
-  const parsedOutput =
-    preParsedOutput ?? deepParseJson(output, { maxSize: 300_000, maxDepth: 2 });
-  const parsedMetadata =
-    preParsedMetadata ??
-    deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 });
+  // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
+  const parsedInput = isParsing
+    ? undefined // Wait for Web Worker to finish
+    : (preParsedInput ??
+      deepParseJson(input, { maxSize: 300_000, maxDepth: 2 }));
+  const parsedOutput = isParsing
+    ? undefined
+    : (preParsedOutput ??
+      deepParseJson(output, { maxSize: 300_000, maxDepth: 2 }));
+  const parsedMetadata = isParsing
+    ? undefined
+    : (preParsedMetadata ??
+      deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 }));
 
   // Parse ChatML format
   const {
@@ -238,9 +258,33 @@ export function IOPreviewPretty({
             messageToToolCallNumbers={messageToToolCallNumbers}
             inputMessageCount={inputMessageCount}
           />
+          {showCorrections && (
+            <CorrectedOutputField
+              actualOutput={parsedOutput}
+              existingCorrection={outputCorrection}
+              observationId={observationId}
+              projectId={projectId}
+              traceId={traceId}
+              environment={environment}
+            />
+          )}
         </div>
       ) : (
-        <JsonInputOutputView {...jsonViewProps} />
+        <>
+          <JsonInputOutputView {...jsonViewProps} />
+          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+            {showCorrections && (
+              <CorrectedOutputField
+                actualOutput={parsedOutput}
+                existingCorrection={outputCorrection}
+                observationId={observationId}
+                projectId={projectId}
+                traceId={traceId}
+                environment={environment}
+              />
+            )}
+          </div>
+        </>
       )}
 
       {/* Metadata Section */}
@@ -253,6 +297,8 @@ export function IOPreviewPretty({
             isParsing={isParsing}
             media={media?.filter((m) => m.field === "metadata") ?? []}
             currentView="pretty"
+            externalExpansionState={metadataExpansionState}
+            onExternalExpansionChange={onMetadataExpansionChange}
           />
         </div>
       )}

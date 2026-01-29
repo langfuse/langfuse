@@ -2549,7 +2549,7 @@
   {
     "id": "c5qmrqolku82tra3vgdixmys",
     "modelName": "claude-sonnet-4-5-20250929",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5-20250929|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5-20250929|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-5-20250929-v1:0|claude-sonnet-4-5-V1@20250929|claude-sonnet-4-5@20250929)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -2600,7 +2600,7 @@
   {
     "id": "cmazmkzlm00000djp1e1qe4k4",
     "modelName": "claude-sonnet-4-20250514",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-20250514|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-20250514|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-sonnet-4-20250514-v1:0|claude-sonnet-4-V1@20250514|claude-sonnet-4@20250514)$",
     "createdAt": "2025-05-22T17:09:02.131Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -3126,7 +3126,7 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -3470,6 +3470,37 @@
           "output": 168e-6,
           "output_reasoning_tokens": 168e-6,
           "output_reasoning": 168e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "cmjfoeykl000004l8ffzra8c7",
+    "modelName": "gemini-3-flash-preview",
+    "matchPattern": "(?i)^(google\/)?(gemini-3-flash-preview)$",
+    "createdAt": "2025-12-21T12:01:42.282Z",
+    "updatedAt": "2025-12-21T12:01:42.282Z",
+    "pricingTiers": [
+      {
+        "id": "cmjfoeykl000004l8ffzra8c7_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.5e-6,
+          "input_modality_1": 0.5e-6,
+          "prompt_token_count": 0.5e-6,
+          "promptTokenCount": 0.5e-6,
+          "input_cached_tokens": 0.05e-6,
+          "cached_content_token_count": 0.05e-6,
+          "output": 3e-6,
+          "output_modality_1": 3e-6,
+          "candidates_token_count": 3e-6,
+          "candidatesTokenCount": 3e-6,
+          "thoughtsTokenCount": 3e-6,
+          "thoughts_token_count": 3e-6,
+          "output_reasoning": 3e-6
         }
       }
     ]

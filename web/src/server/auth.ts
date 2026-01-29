@@ -511,6 +511,16 @@ const extendedPrismaAdapter: Adapter = {
     }
 
     await prismaAdapter.linkAccount(data);
+
+    // Assign default memberships for existing users logging in via SSO
+    // This is idempotent - won't duplicate or overwrite existing memberships
+    const user = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { id: true, email: true },
+    });
+    if (user) {
+      await createProjectMembershipsOnSignup(user);
+    }
   },
 
   // Make email-OTP login that is used for password reset safer
@@ -601,10 +611,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     },
     callbacks: {
       async session({ session, token }): Promise<Session> {
-        return instrumentAsync({ name: "next-auth-session" }, async () => {
+        return instrumentAsync({ name: "next-auth-session" }, async (span) => {
           const dbUser = await prisma.user.findUnique({
             where: {
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
               email: token.email!.toLowerCase(),
             },
             select: {
@@ -637,6 +646,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               },
             },
           });
+
+          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
+          span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
 
           return {
             ...session,

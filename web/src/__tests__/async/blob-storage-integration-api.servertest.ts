@@ -11,6 +11,7 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import { decrypt } from "@langfuse/shared/encryption";
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -463,6 +464,38 @@ describe("Blob Storage Integrations API", () => {
       expect(response.status).toBe(200);
       expect(response.body.exportMode).toBe("FROM_CUSTOM_DATE");
       expect(response.body.exportStartDate).toBeDefined();
+    });
+
+    it("should store secretAccessKey encrypted in database", async () => {
+      const testSecretKey = "my-super-secret-key-12345";
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        secretAccessKey: testSecretKey,
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(response.status).toBe(200);
+
+      // Query database directly to check how secretAccessKey is stored
+      const savedIntegration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+
+      expect(savedIntegration).toBeDefined();
+
+      // Verify secretAccessKey is NOT stored in plaintext
+      expect(savedIntegration?.secretAccessKey).not.toBe(testSecretKey);
+
+      // Verify the encrypted value can be decrypted back to the original
+      expect(decrypt(savedIntegration!.secretAccessKey!)).toBe(testSecretKey);
     });
   });
 

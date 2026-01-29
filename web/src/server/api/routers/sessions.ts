@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
+import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedGetSessionProcedure,
@@ -16,6 +16,8 @@ import {
   singleFilter,
   timeFilter,
   type SessionOptions,
+  type ScoreDomain,
+  AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
@@ -38,7 +40,7 @@ import {
   getCategoricalScoresGroupedByName,
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
-import { chunk } from "lodash";
+import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
@@ -108,6 +110,7 @@ const handleGetSessionById = async (input: {
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
     onParseError: traceException,
   });
 
@@ -272,6 +275,7 @@ export const sessionRouter = createTRPCRouter({
 
       const validatedScores = filterAndValidateDbScoreList({
         scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 
@@ -392,8 +396,9 @@ export const sessionRouter = createTRPCRouter({
         }),
       ]);
 
-      const validatedScores = filterAndValidateDbScoreList({
+      const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
         onParseError: traceException,
       });
 

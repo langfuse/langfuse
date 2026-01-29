@@ -28,7 +28,7 @@ import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod/v4";
 import { views } from "@/src/features/query/types";
 import { Input } from "@/src/components/ui/input";
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -465,6 +465,7 @@ export function WidgetForm({
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
   const modelOptions = generationsFilterOptions.data?.model || [];
+  const toolNamesOptions = generationsFilterOptions.data?.toolNames || [];
 
   // Filter columns for PopoverFilterBuilder
   const filterColumns: ColumnDefinition[] = [
@@ -499,6 +500,13 @@ export function WidgetForm({
       id: "tags",
       type: "arrayOptions",
       options: tagsOptions,
+      internal: "internalValue",
+    },
+    {
+      name: "Tool Names",
+      id: "toolNames",
+      type: "arrayOptions",
+      options: toolNamesOptions,
       internal: "internalValue",
     },
     {
