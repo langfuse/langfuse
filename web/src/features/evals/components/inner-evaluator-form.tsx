@@ -33,7 +33,7 @@ import {
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
-import { useEffect, useMemo, useState, memo, useRef } from "react";
+import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
 import {
   InlineFilterBuilder,
@@ -55,6 +55,7 @@ import {
   type LangfuseObject,
   type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
+import { EvalTargetObject } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
 import { Suspense, lazy } from "react";
@@ -140,11 +141,14 @@ const fieldHasJsonSelectorOption = (
 
 // Helper functions to categorize target types
 const isTracingTarget = (target: string): boolean => {
-  return target === "trace" || target === "event";
+  return target === EvalTargetObject.TRACE || target === EvalTargetObject.EVENT;
 };
 
-const isDatasetTarget = (target: string): boolean => {
-  return target === "dataset" || target === "experiment";
+const isDatasetOrExperimentTarget = (target: string): boolean => {
+  return (
+    target === EvalTargetObject.DATASET ||
+    target === EvalTargetObject.EXPERIMENT
+  );
 };
 
 const propagationRequiredColumns = new Set([
@@ -316,11 +320,12 @@ export const InnerEvaluatorForm = (props: {
     defaultValues: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
-      target: props.existingEvaluator?.targetObject ?? "event",
+      target: props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
         : // For new trace evaluators, exclude internal environments by default
-          (props.existingEvaluator?.targetObject ?? "trace") === "trace"
+          (props.existingEvaluator?.targetObject ?? EvalTargetObject.TRACE) ===
+            EvalTargetObject.TRACE
           ? DEFAULT_TRACE_FILTER
           : [],
       mapping: props.existingEvaluator?.variableMapping
@@ -351,14 +356,20 @@ export const InnerEvaluatorForm = (props: {
 
   // Initialize userFacingTarget based on the actual target
   useEffect(() => {
-    const currentTarget = props.existingEvaluator?.targetObject ?? "event";
-    if (currentTarget === "trace") {
+    const currentTarget =
+      props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT;
+    if (currentTarget === EvalTargetObject.TRACE) {
       setUserFacingTarget("trace");
-    } else if (currentTarget === "event") {
+    } else if (currentTarget === EvalTargetObject.EVENT) {
       setUserFacingTarget("event");
-    } else if (currentTarget === "experiment" || currentTarget === "dataset") {
+    } else if (
+      currentTarget === EvalTargetObject.EXPERIMENT ||
+      currentTarget === EvalTargetObject.DATASET
+    ) {
       setUserFacingTarget("offline-experiment");
-      setUseOtelDataForExperiment(currentTarget === "experiment");
+      setUseOtelDataForExperiment(
+        currentTarget === EvalTargetObject.EXPERIMENT,
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -429,7 +440,8 @@ export const InnerEvaluatorForm = (props: {
     },
   );
 
-  const shouldFetch = !props.disabled && form.watch("target") === "trace";
+  const shouldFetch =
+    !props.disabled && form.watch("target") === EvalTargetObject.TRACE;
   const { observationTypeToNames, traceWithObservations, isLoading } =
     useEvalConfigMappingData(props.projectId, form, traceId, shouldFetch);
 
@@ -444,7 +456,10 @@ export const InnerEvaluatorForm = (props: {
   }, [datasets.data]);
 
   useEffect(() => {
-    if (form.getValues("target") === "trace" && !props.disabled) {
+    if (
+      form.getValues("target") === EvalTargetObject.TRACE &&
+      !props.disabled
+    ) {
       setShowPreview(true);
     } else {
       // For dataset, event, experiment targets, disable preview
@@ -594,7 +609,7 @@ export const InnerEvaluatorForm = (props: {
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
-      {form.watch("target") === "trace" && !props.disabled && (
+      {form.watch("target") === EvalTargetObject.TRACE && !props.disabled && (
         <>
           <span className="text-xs text-muted-foreground">Show Preview</span>
           <Switch
@@ -689,20 +704,16 @@ export const InnerEvaluatorForm = (props: {
                           setUserFacingTarget(newUserFacingTarget);
 
                           // Determine the actual target based on selection
-                          let actualTarget:
-                            | "trace"
-                            | "event"
-                            | "experiment"
-                            | "dataset";
+                          let actualTarget: EvalTargetObject;
                           if (newUserFacingTarget === "trace") {
-                            actualTarget = "trace";
+                            actualTarget = EvalTargetObject.TRACE;
                           } else if (newUserFacingTarget === "event") {
-                            actualTarget = "event";
+                            actualTarget = EvalTargetObject.EVENT;
                           } else {
                             // offline-experiment
                             actualTarget = useOtelDataForExperiment
-                              ? "experiment"
-                              : "dataset";
+                              ? EvalTargetObject.EXPERIMENT
+                              : EvalTargetObject.DATASET;
                           }
 
                           const isTracing = isTracingTarget(actualTarget);
@@ -940,11 +951,11 @@ export const InnerEvaluatorForm = (props: {
 
                 // Get appropriate columns based on target type
                 const getFilterColumns = () => {
-                  if (target === "event") {
+                  if (target === EvalTargetObject.EVENT) {
                     return getObservationFilterColumnsWithWarnings(
                       allowPropagationFilters,
                     );
-                  } else if (target === "trace") {
+                  } else if (target === EvalTargetObject.TRACE) {
                     return tracesTableColsWithOptions(
                       traceFilterOptions,
                       evalTraceTableCols,
@@ -982,7 +993,8 @@ export const InnerEvaluatorForm = (props: {
                           }}
                           disabled={props.disabled}
                           columnsWithCustomSelect={
-                            target === "event" || target === "trace"
+                            target === EvalTargetObject.EVENT ||
+                            target === EvalTargetObject.TRACE
                               ? ["tags"]
                               : undefined
                           }
@@ -995,12 +1007,13 @@ export const InnerEvaluatorForm = (props: {
               }}
             />
 
-            {form.watch("target") === "trace" && !props.disabled && (
-              <TracesPreview
-                projectId={props.projectId}
-                filterState={form.watch("filter") ?? []}
-              />
-            )}
+            {form.watch("target") === EvalTargetObject.TRACE &&
+              !props.disabled && (
+                <TracesPreview
+                  projectId={props.projectId}
+                  filterState={form.watch("filter") ?? []}
+                />
+              )}
 
             {!props.hideAdvancedSettings && (
               <>
@@ -1028,8 +1041,8 @@ export const InnerEvaluatorForm = (props: {
                     </FormItem>
                   )}
                 />
-                {(form.watch("target") === "trace" ||
-                  form.watch("target") === "dataset") && (
+                {(form.watch("target") === EvalTargetObject.TRACE ||
+                  form.watch("target") === EvalTargetObject.DATASET) && (
                   <FormField
                     control={form.control}
                     name="delay"
@@ -1057,7 +1070,7 @@ export const InnerEvaluatorForm = (props: {
         <div className="mb-2 flex items-center justify-between">
           <span className="text-lg font-medium">Variable mapping</span>
         </div>
-        {form.watch("target") === "trace" && !props.disabled && (
+        {form.watch("target") === EvalTargetObject.TRACE && !props.disabled && (
           <FormDescription>
             Preview of the evaluation prompt with the variables replaced with
             the first matched trace data subject to the filters.
@@ -1126,8 +1139,8 @@ export const InnerEvaluatorForm = (props: {
                       !props.shouldWrapVariables && "lg:w-1/3",
                     )}
                   >
-                    {form.watch("target") === "trace" ||
-                    form.watch("target") === "dataset"
+                    {form.watch("target") === EvalTargetObject.TRACE ||
+                    form.watch("target") === EvalTargetObject.DATASET
                       ? // Complex variable mapping for trace/dataset targets (legacy)
                         fields.map((mappingField, index) => (
                           <Card className="flex flex-col gap-2 p-4" key={index}>
@@ -1445,7 +1458,8 @@ export const InnerEvaluatorForm = (props: {
                                 // Filter columns based on target
                                 // For observations (event), exclude experiment-specific fields
                                 const availableColumns =
-                                  form.watch("target") === "event"
+                                  form.watch("target") ===
+                                  EvalTargetObject.EVENT
                                     ? observationEvalVariableColumns.filter(
                                         (col) =>
                                           col.id !==

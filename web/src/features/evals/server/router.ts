@@ -242,7 +242,7 @@ export const evalRouter = createTRPCRouter({
               projectId: input.projectId,
               jobType: "EVAL",
               targetObject: {
-                in: ["trace", "dataset"],
+                in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
               },
             },
           }),
