@@ -7,6 +7,11 @@ export interface EvalCapabilities {
   hasLegacyEvals: boolean;
 }
 
+const mockOtelStatus = {
+  isOtel: false,
+  isPropagating: false,
+};
+
 /**
  * Hook to determine which eval configuration features are available
  * @param projectId - The project ID to check
@@ -14,14 +19,11 @@ export interface EvalCapabilities {
  */
 export function useEvalCapabilities(projectId: string): EvalCapabilities {
   // Query OTEL SDK status
-  const otelStatus = api.traces.hasOtelSdkConfigured.useQuery({ projectId });
+  const { isOtel, isPropagating } = mockOtelStatus;
 
   // Get eval counts including legacy eval count
   const evalCounts = api.evals.counts.useQuery({ projectId });
-
   const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
-  const isOtel = otelStatus.data?.isOtel ?? false;
-  const isPropagating = otelStatus.data?.isPropagating ?? false;
 
   return {
     isNewCompatible: isOtel,
@@ -29,7 +31,7 @@ export function useEvalCapabilities(projectId: string): EvalCapabilities {
     allowLegacy: hasLegacyEvals || !isOtel,
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
-    isLoading: otelStatus.isLoading || evalCounts.isLoading,
+    isLoading: evalCounts.isLoading,
     hasLegacyEvals,
   };
 }
