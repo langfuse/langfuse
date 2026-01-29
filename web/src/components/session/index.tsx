@@ -63,6 +63,8 @@ export function SessionUsers({
         <Link
           key={userId}
           href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
+          target="_blank"
+          rel="noopener noreferrer"
         >
           <Badge className="max-w-[300px]">
             <span className="truncate">User ID: {userId}</span>
@@ -92,6 +94,8 @@ export function SessionUsers({
                       key={userId}
                       href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
                       className="block hover:bg-accent"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       <Badge className="max-w-[260px]">
                         <span className="truncate">User ID: {userId}</span>
