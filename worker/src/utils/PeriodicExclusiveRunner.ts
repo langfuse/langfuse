@@ -1,4 +1,4 @@
-import { logger, traceException } from "@langfuse/shared/src/server";
+import { logger, getCurrentSpan } from "@langfuse/shared/src/server";
 import { PeriodicRunner } from "./PeriodicRunner";
 import { OnUnavailableBehavior, RedisLock } from "./RedisLock";
 
@@ -59,10 +59,15 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
         return await operation();
       } catch (error) {
         logger.error(`${this.instanceName}: Operation failed`, { error });
-        traceException(error);
+        // Error will be traced by parent instrumentAsync in PeriodicRunner
         return await onFailure?.(error);
       }
     });
+
+    // Add lock status to current span
+    const span = getCurrentSpan();
+    span?.setAttribute("lock.acquired", result !== null);
+    span?.setAttribute("lock.key", this.lock.key);
 
     if (result === null) {
       logger.debug(

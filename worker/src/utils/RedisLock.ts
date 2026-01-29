@@ -59,6 +59,10 @@ export class RedisLock {
     end
   `;
 
+  public get key(): string {
+    return this.lockKey;
+  }
+
   constructor(
     lockKey: string,
     options: {
