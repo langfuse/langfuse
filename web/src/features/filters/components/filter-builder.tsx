@@ -335,6 +335,28 @@ const getOperator = (
     : undefined;
 };
 
+/**
+ * Returns severity-based styling classes for alert icons and tooltips
+ */
+const getSeverityStyles = (severity: "info" | "warning" | "error") => {
+  const styles = {
+    error: {
+      iconColor: "text-red-600",
+      tooltipBg: "bg-red-50 dark:bg-red-950",
+    },
+    info: {
+      iconColor: "text-blue-600",
+      tooltipBg: "bg-blue-50 dark:bg-blue-950",
+    },
+    warning: {
+      iconColor: "text-amber-600",
+      tooltipBg: "bg-amber-50 dark:bg-amber-950",
+    },
+  };
+
+  return styles[severity];
+};
+
 function FilterBuilderForm({
   columns,
   filterState,
@@ -566,22 +588,8 @@ function FilterBuilderForm({
                                   const hasAlert = !!option.alert;
                                   const severity =
                                     option.alert?.severity ?? "warning";
-
-                                  // Determine icon color based on severity
-                                  const alertIconColor =
-                                    severity === "error"
-                                      ? "text-red-600"
-                                      : severity === "info"
-                                        ? "text-blue-600"
-                                        : "text-amber-600";
-
-                                  // Determine tooltip background based on severity
-                                  const tooltipBg =
-                                    severity === "error"
-                                      ? "bg-red-50 dark:bg-red-950"
-                                      : severity === "info"
-                                        ? "bg-blue-50 dark:bg-blue-950"
-                                        : "bg-amber-50 dark:bg-amber-950";
+                                  const severityStyles =
+                                    getSeverityStyles(severity);
 
                                   return (
                                     <InputCommandItem
@@ -624,14 +632,14 @@ function FilterBuilderForm({
                                             <Info
                                               className={cn(
                                                 "ml-2 h-4 w-4",
-                                                alertIconColor,
+                                                severityStyles.iconColor,
                                               )}
                                             />
                                           </TooltipTrigger>
                                           <TooltipContent
                                             className={cn(
                                               "max-w-xs",
-                                              tooltipBg,
+                                              severityStyles.tooltipBg,
                                             )}
                                           >
                                             {option.alert?.content}
