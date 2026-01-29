@@ -25,6 +25,7 @@ import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { V4BetaSidebarToggle } from "@/src/features/events/components/V4BetaSidebarToggle";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -192,6 +193,13 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "",
     menuNode: <CloudStatusMenu />,
+  },
+  {
+    title: "v4 Beta Toggle",
+    pathname: "",
+    section: RouteSection.Secondary,
+    featureFlag: "v4BetaToggleVisible",
+    menuNode: <V4BetaSidebarToggle />,
   },
   {
     title: "Settings",

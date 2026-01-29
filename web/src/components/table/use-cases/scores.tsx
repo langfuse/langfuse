@@ -99,6 +99,7 @@ export default function ScoresTable({
   observationId,
   hiddenColumns = [],
   localStorageSuffix = "",
+  disableUrlPersistence = false,
 }: {
   projectId: string;
   userId?: string;
@@ -107,6 +108,7 @@ export default function ScoresTable({
   omittedFilter?: string[];
   hiddenColumns?: string[];
   localStorageSuffix?: string;
+  disableUrlPersistence?: boolean;
 }) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -261,6 +263,7 @@ export default function ScoresTable({
     newFilterOptions,
     projectId,
     filterOptions.isPending || environmentFilterOptions.isPending,
+    disableUrlPersistence,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
