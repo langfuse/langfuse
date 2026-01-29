@@ -159,7 +159,7 @@ export const getProjectSettingsPages = ({
   },
   {
     title: "Model Definitions",
-    slug: "model-definitions",
+    slug: "models",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
   },
