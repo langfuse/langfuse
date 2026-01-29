@@ -1,4 +1,6 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect } from "react";
+
+type ScrollableRef = { current: HTMLElement | null };
 
 /**
  * Synchronizes vertical scrolling between two scrollable elements.
@@ -15,12 +17,9 @@ import { useEffect, type RefObject } from "react";
  * useSynchronizedScroll(leftScrollRef, rightScrollRef);
  * ```
  */
-export function useSynchronizedScroll<
-  TLeft extends HTMLElement = HTMLElement,
-  TRight extends HTMLElement = HTMLElement,
->(
-  leftRef: RefObject<TLeft>,
-  rightRef: RefObject<TRight>,
+export function useSynchronizedScroll(
+  leftRef: ScrollableRef,
+  rightRef: ScrollableRef,
   deps: unknown[] = [],
 ) {
   useEffect(() => {
