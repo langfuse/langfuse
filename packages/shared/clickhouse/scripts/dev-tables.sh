@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS events
       tool_call_names Array(String),
 
       -- I/O
+      -- Try to move large columns into a dedicated table to increase number of rows per part.
       input String CODEC(ZSTD(3)),
       input_truncated String MATERIALIZED leftUTF8(input, 1024),
       input_length UInt64 MATERIALIZED lengthUTF8(input),
@@ -282,8 +283,12 @@ CREATE TABLE IF NOT EXISTS events
   ENGINE = ReplacingMergeTree(event_ts, is_deleted)
   -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
   PARTITION BY toYYYYMM(start_time)
-  PRIMARY KEY (project_id, start_time, xxHash32(trace_id))
-  ORDER BY (project_id, start_time, xxHash32(trace_id), span_id)
+  -- PRIMARY KEY (project_id, start_time, xxHash32(trace_id))
+  -- ORDER BY (project_id, start_time, xxHash32(trace_id), span_id)
+  PRIMARY KEY (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
+  -- We can add low-cardinality columns for more effective filtering, but may impact sampling
+  -- ORDER BY (project_id, toStartOfMinute(start_time), environment, name, xxHash32(trace_id), span_id, start_time)
+  ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, start_time)
   SAMPLE BY xxHash32(trace_id)
   SETTINGS
     index_granularity = 8192,
@@ -295,8 +300,17 @@ CREATE TABLE IF NOT EXISTS events
     object_shared_data_serialization_version='advanced',
     object_shared_data_serialization_version_for_zero_level_parts='map_with_buckets'
     -- Try without, but re-enable if recent row performance is bad
+    -- Part storage type (packed - columns are separated but single file or full - dedicated file per column) vs compact/wide.
     -- min_rows_for_wide_part = 0,
-    -- min_bytes_for_wide_part = 0
+    -- min_bytes_for_wide_part = 0,
+    -- min_bytes_for_full_part_storage = More than default, but less than 2GiB -- check default. When should we convert from packed to full storage
+    -- min_level_for_full_part_storage = 2 -- Keep inserts small, but separate out on first merge
+
+    -- read_in_order_use_buffering <- Review
+    ORDER BY project_id, toStartOfMinute(start_time) DESC, start_time DESC
+    -- read_in_order_use_virtual_row <- Review
+
+    -- Review how that changes with 25.12
   ;
 
 EOF
