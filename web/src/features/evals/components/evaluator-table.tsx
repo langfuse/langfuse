@@ -532,7 +532,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             >
               <span>New LLM-as-a-Judge functionality has landed. </span>
               <span className="font-semibold">
-                Some of your evaluators (marked "Legacy") require changes{" "}
+                Some of your evaluators (marked &quot;Legacy&quot;) require
+                changes{" "}
               </span>
               <span>for new features and improvements. </span>
               <Link
@@ -541,7 +542,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 rel="noopener noreferrer"
                 className="font-medium text-dark-blue hover:opacity-80"
               >
-                Learn what's changing and how to upgrade
+                Learn what is changing and how to upgrade
               </Link>
               <span>.</span>
             </Callout>
