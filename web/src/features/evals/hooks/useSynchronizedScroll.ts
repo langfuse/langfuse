@@ -15,9 +15,12 @@ import { useEffect, type RefObject } from "react";
  * useSynchronizedScroll(leftScrollRef, rightScrollRef);
  * ```
  */
-export function useSynchronizedScroll(
-  leftRef: RefObject<HTMLElement>,
-  rightRef: RefObject<HTMLElement>,
+export function useSynchronizedScroll<
+  TLeft extends HTMLElement = HTMLElement,
+  TRight extends HTMLElement = HTMLElement,
+>(
+  leftRef: RefObject<TLeft>,
+  rightRef: RefObject<TRight>,
   deps: unknown[] = [],
 ) {
   useEffect(() => {
