@@ -14,7 +14,7 @@ export interface EvalCapabilities {
  */
 export function useEvalCapabilities(projectId: string): EvalCapabilities {
   // Query OTEL SDK status
-  const otelStatus = api.traces.resolveSdkVersion.useQuery(
+  const otelStatus = api.traces.hasOtelSdkConfigured.useQuery(
     { projectId },
     { enabled: !!projectId },
   );

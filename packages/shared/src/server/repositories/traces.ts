@@ -1541,3 +1541,183 @@ export const getTraceCountsByProjectAndDay = async ({
     date: row.date,
   }));
 };
+
+/**
+ * Trace-level attributes that should propagate to all child observations
+ * when using OpenTelemetry with proper context propagation
+ *
+ * These attributes are extracted in OtelIngestionProcessor and stored at the observation level
+ * Proper propagation indicates that the user is using OpenTelemetry Baggage with BaggageSpanProcessor
+ * or the Langfuse SDK's propagate_attributes() helper
+ */
+const PROPAGATING_TRACE_ATTRIBUTES = {
+  events: {
+    userId: "user_id",
+    sessionId: "session_id",
+    traceName: "trace_name",
+    tags: "tags",
+    release: "release",
+    // Note: 'public' is stored as 'public' column
+  },
+  observations: {
+    userId: "langfuse_user_id",
+    sessionId: "langfuse_session_id",
+    // Note: traceName, tags, release are typically NOT in metadata for observations
+    // The main indicators are user_id and session_id
+  },
+} as const;
+
+function buildPropagationCheckForEvents(): string {
+  const attrs = PROPAGATING_TRACE_ATTRIBUTES.events;
+  // Check if any of the key propagating attributes are populated
+  // We check user_id, session_id, trace_name, or tags (array length > 0)
+  return `(
+    ${attrs.userId} != ''
+    OR ${attrs.sessionId} != ''
+    OR ${attrs.traceName} != ''
+    OR length(${attrs.tags}) > 0
+    OR ${attrs.release} != ''
+  )`;
+}
+
+function buildPropagationCheckForObservations(): string {
+  const attrs = PROPAGATING_TRACE_ATTRIBUTES.observations;
+  // Check if any of the key propagating metadata keys exist
+  return `(
+    has(mapKeys(metadata), '${attrs.userId}')
+    OR has(mapKeys(metadata), '${attrs.sessionId}')
+  )`;
+}
+
+/**
+ * Detection logic for events table:
+ * - isOtel: true if any observations have source='otel' AND scope_name LIKE 'langfuse-sdk%'
+ * - isPropagating: true if any OTEL observation has propagating trace attributes
+ *   (user_id, session_id, trace_name, tags, or release)
+ *
+ * @param projectId - Project ID to check
+ * @param sampleSize - Number of recent observations to sample (default: 1000)
+ * @returns Detection result with isOtel, isPropagating
+ */
+export async function detectSdkVersionFromEventsTable(params: {
+  projectId: string;
+  sampleSize?: number;
+}): Promise<{ isOtel: boolean; isPropagating: boolean }> {
+  const { projectId, sampleSize = 1000 } = params;
+
+  const propagationCheck = buildPropagationCheckForEvents();
+
+  const query = `
+    SELECT
+      countIf(source = 'otel' AND scope_name LIKE 'langfuse-sdk%') as otel_observations,
+      countIf(
+        source = 'otel'
+        AND scope_name LIKE 'langfuse-sdk%'
+        AND ${propagationCheck}
+      ) as otel_with_propagated_attrs
+    FROM events
+    WHERE
+      project_id = {projectId: String}
+      AND is_deleted = 0
+      AND event_ts >= now() - INTERVAL 7 DAY
+    LIMIT {sampleSize: UInt32}
+  `;
+
+  const result = await queryClickhouse<{
+    otel_observations: string;
+    otel_with_propagated_attrs: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      sampleSize,
+    },
+    tags: {
+      feature: "sdk-version-detection",
+      type: "events",
+      projectId,
+    },
+  });
+
+  if (result.length === 0) {
+    return {
+      isOtel: false,
+      isPropagating: false,
+    };
+  }
+
+  const isOtel = Number(result[0].otel_observations) > 0;
+  const isPropagating =
+    isOtel && Number(result[0].otel_with_propagated_attrs) > 0;
+
+  return {
+    isOtel,
+    isPropagating,
+  };
+}
+
+/**
+ * Detection logic for observations table:
+ * - isOtel: true if observations have 'resourceAttributes' in metadata (OTEL-specific)
+ * - isPropagating: true if any OTEL observation has propagating trace attributes in metadata
+ *   (langfuse_user_id or langfuse_session_id)
+ *
+ * @param projectId - Project ID to check
+ * @param sampleSize - Number of recent observations to sample (default: 1000)
+ * @returns Detection result with isOtel, isPropagating
+ */
+export async function detectSdkVersionFromObservationsTable(params: {
+  projectId: string;
+  sampleSize?: number;
+}): Promise<{ isOtel: boolean; isPropagating: boolean }> {
+  const { projectId, sampleSize = 1000 } = params;
+
+  const propagationCheck = buildPropagationCheckForObservations();
+
+  const query = `
+    SELECT
+      countIf(has(mapKeys(metadata), 'resourceAttributes')) as otel_observations,
+      countIf(
+        has(mapKeys(metadata), 'resourceAttributes')
+        AND ${propagationCheck}
+      ) as otel_with_propagated_attrs
+    FROM observations
+    WHERE
+      project_id = {projectId: String}
+      AND is_deleted = 0
+      AND start_time >= now() - INTERVAL 7 DAY
+    LIMIT {sampleSize: UInt32}
+  `;
+
+  const result = await queryClickhouse<{
+    otel_observations: string;
+    otel_with_propagated_attrs: string;
+  }>({
+    query,
+    params: {
+      projectId,
+      sampleSize,
+    },
+    tags: {
+      feature: "sdk-version-detection",
+      type: "observations",
+      projectId,
+    },
+  });
+
+  if (result.length === 0) {
+    return {
+      isOtel: false,
+      isPropagating: false,
+    };
+  }
+
+  const isOtel = Number(result[0].otel_observations) > 0;
+  const isPropagating =
+    isOtel && Number(result[0].otel_with_propagated_attrs) > 0;
+
+  return {
+    isOtel,
+    isPropagating,
+  };
+}
