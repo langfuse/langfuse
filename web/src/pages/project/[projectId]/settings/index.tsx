@@ -158,8 +158,8 @@ export const getProjectSettingsPages = ({
     show: showLLMConnectionsSettings,
   },
   {
-    title: "Models",
-    slug: "models",
+    title: "Model Definitions",
+    slug: "model-definitions",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
   },
