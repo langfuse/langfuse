@@ -60,7 +60,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
  * Extended ColumnDefinition with optional alert for UI display.
  * Alerts are added dynamically in the web layer based on feature availability.
  */
-export type ColumnDefinitionWithWarning = ColumnDefinition & {
+export type ColumnDefinitionWithAlert = ColumnDefinition & {
   alert?: {
     severity: "info" | "warning" | "error";
     content: React.ReactNode;
@@ -76,7 +76,7 @@ export function PopoverFilterBuilder({
   filterWithAI = false,
   buttonType = "default",
 }: {
-  columns: ColumnDefinitionWithWarning[];
+  columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
   onChange:
     | Dispatch<SetStateAction<FilterState>>
@@ -275,7 +275,7 @@ export function InlineFilterBuilder({
   columnsWithCustomSelect,
   filterWithAI = false,
 }: {
-  columns: ColumnDefinitionWithWarning[];
+  columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
   onChange:
     | Dispatch<SetStateAction<FilterState>>
@@ -343,7 +343,7 @@ function FilterBuilderForm({
   columnsWithCustomSelect = [],
   filterWithAI = false,
 }: {
-  columns: ColumnDefinitionWithWarning[];
+  columns: ColumnDefinitionWithAlert[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;

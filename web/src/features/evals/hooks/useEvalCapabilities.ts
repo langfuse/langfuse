@@ -14,16 +14,10 @@ export interface EvalCapabilities {
  */
 export function useEvalCapabilities(projectId: string): EvalCapabilities {
   // Query OTEL SDK status
-  const otelStatus = api.traces.hasOtelSdkConfigured.useQuery(
-    { projectId },
-    { enabled: !!projectId },
-  );
+  const otelStatus = api.traces.hasOtelSdkConfigured.useQuery({ projectId });
 
   // Get eval counts including legacy eval count
-  const evalCounts = api.evals.counts.useQuery(
-    { projectId },
-    { enabled: !!projectId },
-  );
+  const evalCounts = api.evals.counts.useQuery({ projectId });
 
   const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
   const isOtel = otelStatus.data?.isOtel ?? false;
