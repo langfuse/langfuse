@@ -156,7 +156,7 @@ const processBlobStorageExport = async (config: {
   prefix?: string;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
-  table: "traces" | "observations" | "scores" | "events";
+  table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
 }) => {
   logger.info(
@@ -212,7 +212,7 @@ const processBlobStorageExport = async (config: {
           config.maxTimestamp,
         );
         break;
-      case "events":
+      case "observations_v2": // observations_v2 is the events table
         dataStream = getEventsForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
@@ -391,12 +391,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
       }
 
       // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+      // events are stored in the observations_v2 directory in blob storage
       if (
         blobStorageIntegration.exportSource === "EVENTS" ||
         blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
       ) {
         processPromises.push(
-          processBlobStorageExport({ ...executionConfig, table: "events" }),
+          processBlobStorageExport({
+            ...executionConfig,
+            table: "observations_v2",
+          }),
         );
       }
 
