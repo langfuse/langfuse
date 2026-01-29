@@ -4,12 +4,10 @@ import { useCallback } from "react";
 
 export function useV4Beta() {
   const { data: session, update: updateSession } = useSession();
-  const utils = api.useUtils();
 
   const mutation = api.userAccount.setV4BetaEnabled.useMutation({
     onSuccess: async () => {
       await updateSession();
-      await utils.invalidate();
     },
   });
 

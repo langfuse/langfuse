@@ -37,7 +37,7 @@ export function V4BetaSidebarToggle() {
         </div>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
-        Use the new enriched observations experience (v4).
+        Toggle to use new events based v4 architecture.
       </TooltipContent>
     </Tooltip>
   );
