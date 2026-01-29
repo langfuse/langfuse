@@ -197,17 +197,17 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       return;
     }
 
-    logger.info(
-      `${this.instanceName}: Processing ${workloads.length} projects`,
-      {
-        projectIds: workloads.map((w) => w.projectId),
-        secondsPastCutoffByProject,
-      },
-    );
-
     // Step 2: Execute DELETE under distributed lock
     await this.withLock(
       async () => {
+        logger.info(
+          `${this.instanceName}: Processing ${workloads.length} projects`,
+          {
+            projectIds: workloads.map((w) => w.projectId),
+            secondsPastCutoffByProject,
+          },
+        );
+
         await this.executeBatchDelete(timestampColumn, workloads);
 
         // Record successful deletion metrics

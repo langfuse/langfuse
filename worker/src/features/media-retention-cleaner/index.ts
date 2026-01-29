@@ -92,16 +92,16 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       projectId: workload.projectId,
     });
 
-    logger.info(`${this.name}: Processing project`, {
-      projectId: workload.projectId,
-      retentionDays: workload.retentionDays,
-      expiredMediaCount: workload.expiredMediaCount,
-      secondsPastCutoff: workload.secondsPastCutoff,
-    });
-
     // Execute under distributed lock
     await this.withLock(
       async () => {
+        logger.info(`${this.instanceName}: Processing project`, {
+          projectId: workload.projectId,
+          retentionDays: workload.retentionDays,
+          expiredMediaCount: workload.expiredMediaCount,
+          secondsPastCutoff: workload.secondsPastCutoff,
+        });
+
         await this.processProject(workload);
         recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
       },

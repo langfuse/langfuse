@@ -64,7 +64,7 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
     });
 
     if (result === null) {
-      logger.info(
+      logger.debug(
         `${this.instanceName}: Lock not acquired, another worker is processing`,
       );
     }
