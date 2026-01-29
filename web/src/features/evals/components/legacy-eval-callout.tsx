@@ -2,11 +2,7 @@ import { useState } from "react";
 import { Callout } from "@/src/components/ui/callout";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
-import {
-  isLegacyEvalTarget,
-  isTraceTarget,
-} from "@/src/features/evals/utils/typeHelpers";
+import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { RemapEvalWizard } from "@/src/features/evals/components/remap-eval-wizard";
 import { api } from "@/src/utils/api";
 
@@ -28,10 +24,6 @@ export function LegacyEvalCallout({
 
   if (!isDeprecated) return null;
 
-  const text = isTraceTarget(targetObject)
-    ? "Running evaluators on traces will be deprecated. Upgrade to run on observations for full compatibility."
-    : "Running evaluators on offline experiments without OpenTelemetry will be deprecated. Upgrade to run on offline experiments with OpenTelemetry for full compatibility.";
-
   return (
     <>
       <Callout
@@ -46,27 +38,25 @@ export function LegacyEvalCallout({
               onClick={() => setRemapModalOpen(true)}
               className="h-7 text-xs text-dark-blue hover:opacity-80"
             >
-              Upgrade
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="h-7 gap-1 text-xs text-dark-blue hover:opacity-80"
-            >
-              <Link
-                href="https://langfuse.com/docs/evals/remapping"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Learn more
-                <ExternalLink className="h-3 w-3" />
-              </Link>
+              Upgrade this evaluator
             </Button>
           </>
         )}
       >
-        <span>{text}</span>
+        <span>This evaluator </span>
+        <span className="text-dark-blue hover:opacity-80">
+          <Link
+            href="https://langfuse.com/docs/evals/remapping"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            requires changes{" "}
+          </Link>
+        </span>
+        <span>
+          to benefit from new features and performance improvements. Upgrade for
+          full compatibility.
+        </span>
       </Callout>
 
       <RemapEvalWizard

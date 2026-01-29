@@ -530,18 +530,18 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               variant="info"
               key="dismissed-eval-remapping-callouts"
             >
-              <span>
-                We launched observation-level evaluators with more granular
-                control and an easier workflow. Trace-level evaluators will be
-                deprecated.{" "}
+              <span>New LLM-as-a-Judge functionality has landed. </span>
+              <span className="font-semibold">
+                Some of your evaluators (marked "Legacy") require changes{" "}
               </span>
+              <span>for new features and improvements. </span>
               <Link
                 href="https://langfuse.com/docs/evals/remapping"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-dark-blue hover:opacity-80"
               >
-                Upgrade to observation-level evaluators
+                Learn what's changing and how to upgrade
               </Link>
               <span>.</span>
             </Callout>
