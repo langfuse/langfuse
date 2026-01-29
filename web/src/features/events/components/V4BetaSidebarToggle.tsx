@@ -9,7 +9,7 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
 
 export function V4BetaSidebarToggle() {
-  const { isBetaEnabled, setBetaEnabled } = useV4Beta();
+  const { isBetaEnabled, setBetaEnabled, isLoading } = useV4Beta();
 
   return (
     <Tooltip>
@@ -17,7 +17,7 @@ export function V4BetaSidebarToggle() {
         <div
           className={cn(
             "flex h-8 w-full items-center gap-2 overflow-hidden p-2 text-left text-sm",
-            "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2",
+            "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0",
           )}
         >
           <Switch
@@ -25,18 +25,19 @@ export function V4BetaSidebarToggle() {
             size="sm"
             checked={isBetaEnabled}
             onCheckedChange={setBetaEnabled}
+            disabled={isLoading}
             className="shrink-0"
           />
           <Label
             htmlFor="v4-beta-toggle"
-            className="cursor-pointer text-sm font-normal"
+            className="cursor-pointer text-sm font-normal group-data-[collapsible=icon]:hidden"
           >
             v4 Beta
           </Label>
         </div>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
-        Use the new enriched observations experience (v4).
+        Toggle to use new events based v4 architecture.
       </TooltipContent>
     </Tooltip>
   );

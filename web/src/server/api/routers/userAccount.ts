@@ -125,4 +125,14 @@ export const userAccountRouter = createTRPCRouter({
       success: true,
     };
   }),
+
+  setV4BetaEnabled: authenticatedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      await ctx.prisma.user.update({
+        where: { id: ctx.session.user.id },
+        data: { v4BetaEnabled: input.enabled },
+      });
+      return { success: true, v4BetaEnabled: input.enabled };
+    }),
 });
