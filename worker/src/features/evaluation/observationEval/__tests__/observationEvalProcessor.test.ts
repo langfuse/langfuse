@@ -18,13 +18,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     jobExecution: {
       findFirst: vi.fn(),
-      delete: vi.fn(),
       update: vi.fn(),
     },
     jobConfiguration: {
-      findFirst: vi.fn(),
-    },
-    evalTemplate: {
       findFirst: vi.fn(),
     },
   },
@@ -85,28 +81,6 @@ describe("processObservationEval", () => {
       expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
       expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
     });
-
-    it("should delete job execution and return when job is cancelled", async () => {
-      const cancelledJob = createMockJobExecution({
-        id: jobExecutionId,
-        projectId,
-        status: "CANCELLED",
-      });
-      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(cancelledJob);
-
-      const deps = createMockProcessorDeps();
-
-      await processObservationEval({ event: baseEvent, deps });
-
-      expect(prisma.jobExecution.delete).toHaveBeenCalledWith({
-        where: {
-          id: jobExecutionId,
-          projectId,
-        },
-      });
-      expect(deps.downloadObservationFromS3).not.toHaveBeenCalled();
-      expect(executeLLMAsJudgeEvaluation).not.toHaveBeenCalled();
-    });
   });
 
   describe("job configuration lookup", () => {
@@ -130,7 +104,7 @@ describe("processObservationEval", () => {
       ).rejects.toThrow("Job configuration or template not found");
     });
 
-    it("should throw UnrecoverableError when evalTemplateId is null", async () => {
+    it("should throw UnrecoverableError when evalTemplate is null", async () => {
       const job = createMockJobExecution({
         id: jobExecutionId,
         projectId,
@@ -140,7 +114,7 @@ describe("processObservationEval", () => {
       const configWithoutTemplate = createMockJobConfiguration({
         id: "config-123",
         projectId,
-        evalTemplateId: null,
+        evalTemplate: null,
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
@@ -156,73 +130,6 @@ describe("processObservationEval", () => {
     });
   });
 
-  describe("eval template lookup", () => {
-    it("should throw UnrecoverableError when eval template is not found", async () => {
-      const job = createMockJobExecution({
-        id: jobExecutionId,
-        projectId,
-        status: JobExecutionStatus.PENDING,
-        jobConfigurationId: "config-123",
-      });
-      const config = createMockJobConfiguration({
-        id: "config-123",
-        projectId,
-        evalTemplateId: "template-456",
-      });
-
-      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(null);
-
-      const deps = createMockProcessorDeps();
-
-      await expect(
-        processObservationEval({ event: baseEvent, deps }),
-      ).rejects.toThrow(UnrecoverableError);
-      await expect(
-        processObservationEval({ event: baseEvent, deps }),
-      ).rejects.toThrow("Evaluation template template-456 not found");
-    });
-
-    it("should find template when it belongs to project", async () => {
-      const job = createMockJobExecution({
-        id: jobExecutionId,
-        projectId,
-        status: JobExecutionStatus.PENDING,
-        jobConfigurationId: "config-123",
-      });
-      const config = createMockJobConfiguration({
-        id: "config-123",
-        projectId,
-        evalTemplateId: "template-456",
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
-      });
-      const observation = createTestObservation({ project_id: projectId });
-
-      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
-      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
-
-      const deps = createMockProcessorDeps({
-        downloadObservationFromS3: vi
-          .fn()
-          .mockResolvedValue(JSON.stringify(observation)),
-      });
-
-      await processObservationEval({ event: baseEvent, deps });
-
-      expect(prisma.evalTemplate.findFirst).toHaveBeenCalledWith({
-        where: {
-          id: "template-456",
-          OR: [{ projectId }, { projectId: null }],
-        },
-      });
-    });
-  });
-
   describe("S3 download", () => {
     it("should throw error when S3 download fails (retryable)", async () => {
       const job = createMockJobExecution({
@@ -234,16 +141,10 @@ describe("processObservationEval", () => {
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
-        evalTemplateId: "template-456",
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
 
       const deps: ObservationEvalProcessorDeps = {
         downloadObservationFromS3: vi
@@ -267,16 +168,10 @@ describe("processObservationEval", () => {
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
-        evalTemplateId: "template-456",
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
 
       const deps: ObservationEvalProcessorDeps = {
         downloadObservationFromS3: vi
@@ -300,16 +195,10 @@ describe("processObservationEval", () => {
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
-        evalTemplateId: "template-456",
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
 
       // Missing required fields - valid JSON but invalid schema
       const invalidObservation = { id: "obs-123", someField: "value" };
@@ -336,6 +225,11 @@ describe("processObservationEval", () => {
         jobInputTraceId: "trace-abc",
         jobInputObservationId: "obs-xyz",
       });
+      const template = createMockEvalTemplate({
+        id: "template-456",
+        projectId,
+        prompt: "Evaluate: {{output}}",
+      });
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
@@ -343,11 +237,7 @@ describe("processObservationEval", () => {
         variableMapping: [
           { templateVariable: "output", selectedColumnId: "output" },
         ],
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
-        prompt: "Evaluate: {{output}}",
+        evalTemplate: template,
       });
       const observation = createTestObservation({
         id: "obs-xyz",
@@ -359,7 +249,6 @@ describe("processObservationEval", () => {
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
 
       const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
@@ -397,12 +286,7 @@ describe("processObservationEval", () => {
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
-        evalTemplateId: "template-456",
         variableMapping: [],
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
       });
       const observation = createTestObservation({
         projectId,
@@ -411,7 +295,6 @@ describe("processObservationEval", () => {
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
 
       const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
@@ -438,7 +321,6 @@ describe("processObservationEval", () => {
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
-        evalTemplateId: "template-456",
         variableMapping: [
           { templateVariable: "input", selectedColumnId: "input" },
           { templateVariable: "output", selectedColumnId: "output" },
@@ -447,10 +329,6 @@ describe("processObservationEval", () => {
             selectedColumnId: "provided_model_name",
           },
         ],
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
       });
       const observation = createTestObservation({
         project_id: projectId,
@@ -461,7 +339,6 @@ describe("processObservationEval", () => {
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
 
       const deps = createMockProcessorDeps({
         downloadObservationFromS3: vi
@@ -502,16 +379,10 @@ describe("processObservationEval", () => {
       const config = createMockJobConfiguration({
         id: "config-123",
         projectId,
-        evalTemplateId: "template-456",
-      });
-      const template = createMockEvalTemplate({
-        id: "template-456",
-        projectId,
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(template);
 
       // Without injected deps, it will try to use real S3 which should fail
       await expect(

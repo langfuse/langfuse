@@ -310,59 +310,61 @@ export const otelIngestionQueueProcessor: Processor = async (
       ? createObservationEvalSchedulerDeps()
       : null;
 
-    // Process each event independently
-    for (const eventInput of eventInputs) {
-      // Step 1: Create enriched event record (required for both evals and writes)
-      let eventRecord;
-      try {
-        eventRecord = await ingestionService.createEventRecord(
-          eventInput,
-          fileKey,
-        );
-      } catch (error) {
-        traceException(error);
-        logger.error(
-          `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-          error,
-        );
-
-        continue;
-      }
-
-      // Step 2: Schedule observation evals (independent of event writes)
-      if (hasEvalConfigs && evalSchedulerDeps) {
+    await Promise.all(
+      // Process each event independently
+      eventInputs.map(async (eventInput) => {
+        // Step 1: Create enriched event record (required for both evals and writes)
+        let eventRecord;
         try {
-          const observation =
-            convertEventRecordToObservationForEval(eventRecord);
-
-          await scheduleObservationEvals({
-            observation,
-            configs: evalConfigs,
-            schedulerDeps: evalSchedulerDeps,
-          });
-        } catch (error) {
-          traceException(error);
-
-          logger.error(
-            `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-            error,
+          eventRecord = await ingestionService.createEventRecord(
+            eventInput,
+            fileKey,
           );
-        }
-      }
-
-      // Step 3: Write to events table (independent of eval scheduling)
-      if (shouldWriteToEventsTable) {
-        try {
-          ingestionService.writeEventRecord(eventRecord);
         } catch (error) {
           traceException(error);
           logger.error(
-            `Failed to write event record for ${eventInput.spanId}`,
+            `Failed to create event record for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
             error,
           );
+
+          return;
         }
-      }
-    }
+
+        // Step 2: Schedule observation evals (independent of event writes)
+        if (hasEvalConfigs && evalSchedulerDeps) {
+          try {
+            const observation =
+              convertEventRecordToObservationForEval(eventRecord);
+
+            await scheduleObservationEvals({
+              observation,
+              configs: evalConfigs,
+              schedulerDeps: evalSchedulerDeps,
+            });
+          } catch (error) {
+            traceException(error);
+
+            logger.error(
+              `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+              error,
+            );
+          }
+        }
+
+        // Step 3: Write to events table (independent of eval scheduling)
+        if (shouldWriteToEventsTable) {
+          try {
+            ingestionService.writeEventRecord(eventRecord);
+          } catch (error) {
+            traceException(error);
+            logger.error(
+              `Failed to write event record for ${eventInput.spanId}`,
+              error,
+            );
+          }
+        }
+      }),
+    );
   } catch (e) {
     if (e instanceof ForbiddenError) {
       traceException(e);

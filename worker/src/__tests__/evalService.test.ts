@@ -1522,66 +1522,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs.length).toBe(1);
     }, 10_000);
 
-    test("does create eval for observation which is way in the past if timestamp is provided", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      const timestamp = new Date(Date.now() - 1000 * 60 * 60 * 24 * 365 * 1);
-      const trace = createTrace({
-        project_id: projectId,
-        id: traceId,
-        timestamp: timestamp.getTime(),
-      });
-
-      const observation = createObservation({
-        project_id: projectId,
-        id: randomUUID(),
-        start_time: timestamp.getTime(),
-      });
-
-      await createObservationsCh([observation]);
-      await createTracesCh([trace]);
-
-      const jobConfiguration = await prisma.jobConfiguration.create({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: "observation",
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-          timeScope: ["EXISTING"],
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-        configId: jobConfiguration.id,
-        timestamp: timestamp,
-        observationId: observation.id,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-        enforcedJobTimeScope: "EXISTING", // the config must contain NEW
-      });
-
-      const jobs = await kyselyPrisma.$kysely
-        .selectFrom("job_executions")
-        .selectAll()
-        .where("project_id", "=", projectId)
-        .where("job_configuration_id", "in", [jobConfiguration.id])
-        .execute();
-
-      expect(jobs.length).toBe(1);
-    }, 10_000);
-
     test("create eval for trace with timestamp in the near future", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();

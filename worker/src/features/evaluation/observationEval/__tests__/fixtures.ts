@@ -109,17 +109,14 @@ export function createTestEvalConfig(
 export function createMockSchedulerDeps(
   overrides: Partial<{
     createJobExecution: ReturnType<typeof vi.fn>;
-    findExistingJobExecution: ReturnType<typeof vi.fn>;
     uploadObservationToS3: ReturnType<typeof vi.fn>;
     enqueueEvalJob: ReturnType<typeof vi.fn>;
   }> = {},
 ): ObservationEvalSchedulerDeps {
   return {
-    createJobExecution:
+    upsertJobExecution:
       overrides.createJobExecution ??
       vi.fn().mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
-    findExistingJobExecution:
-      overrides.findExistingJobExecution ?? vi.fn().mockResolvedValue(null),
     uploadObservationToS3:
       overrides.uploadObservationToS3 ??
       vi.fn().mockResolvedValue(`observations/test/obs-123.json`),
@@ -192,6 +189,7 @@ export function createMockJobExecution(
 
 /**
  * Creates a mock job configuration record.
+ * Use evalTemplate option to include a nested template (for Prisma include queries).
  */
 export function createMockJobConfiguration(
   overrides: Partial<{
@@ -209,13 +207,17 @@ export function createMockJobConfiguration(
     timeScope: string[];
     createdAt: Date;
     updatedAt: Date;
+    evalTemplate: ReturnType<typeof createMockEvalTemplate> | null;
   }> = {},
 ) {
+  const templateId = overrides.evalTemplateId ?? `template-${randomUUID()}`;
+  const projectId = overrides.projectId ?? "test-project-123";
+
   return {
     id: overrides.id ?? `config-${randomUUID()}`,
-    projectId: overrides.projectId ?? "test-project-123",
+    projectId,
     jobType: overrides.jobType ?? "EVAL",
-    evalTemplateId: overrides.evalTemplateId ?? `template-${randomUUID()}`,
+    evalTemplateId: templateId,
     scoreName: overrides.scoreName ?? "test-score",
     targetObject: overrides.targetObject ?? EvalTargetObject.EVENT,
     filter: overrides.filter ?? [],
@@ -228,6 +230,11 @@ export function createMockJobConfiguration(
     timeScope: overrides.timeScope ?? ["NEW"],
     createdAt: overrides.createdAt ?? new Date(),
     updatedAt: overrides.updatedAt ?? new Date(),
+    // Include evalTemplate when provided, or create default one
+    evalTemplate:
+      overrides.evalTemplate !== undefined
+        ? overrides.evalTemplate
+        : createMockEvalTemplate({ id: templateId, projectId }),
   };
 }
 
@@ -286,10 +293,9 @@ export function createFullyMockedEvalPipeline(
   const observation = config.observation ?? createTestObservation();
 
   const schedulerDeps: ObservationEvalSchedulerDeps = {
-    createJobExecution: vi
+    upsertJobExecution: vi
       .fn()
       .mockResolvedValue({ id: `job-exec-${randomUUID()}` }),
-    findExistingJobExecution: vi.fn().mockResolvedValue(null),
     uploadObservationToS3: vi.fn().mockImplementation(async (params) => {
       const path =
         config.s3UploadPath ??

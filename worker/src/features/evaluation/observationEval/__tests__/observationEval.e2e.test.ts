@@ -15,13 +15,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     jobExecution: {
       findFirst: vi.fn(),
-      delete: vi.fn(),
       update: vi.fn(),
     },
     jobConfiguration: {
-      findFirst: vi.fn(),
-    },
-    evalTemplate: {
       findFirst: vi.fn(),
     },
   },
@@ -104,7 +100,7 @@ describe("Observation Eval E2E Pipeline", () => {
           capturedJobExecutionId = `job-exec-${randomUUID()}`;
           return { id: capturedJobExecutionId };
         });
-      pipeline.schedulerDeps.createJobExecution = mockCreateJobExecution;
+      pipeline.schedulerDeps.upsertJobExecution = mockCreateJobExecution;
 
       // ACT: Schedule the observation eval
       await scheduleObservationEvals({
@@ -157,23 +153,6 @@ describe("Observation Eval E2E Pipeline", () => {
         jobInputTraceTimestamp: null,
       };
 
-      const mockConfig = {
-        id: config.id,
-        projectId,
-        jobType: "EVAL",
-        evalTemplateId: config.evalTemplateId,
-        scoreName: config.scoreName,
-        targetObject: EvalTargetObject.EVENT,
-        filter: config.filter,
-        variableMapping: config.variableMapping,
-        sampling: "1.0",
-        delay: 0,
-        status: "ACTIVE",
-        timeScope: ["NEW"],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
       const mockTemplate = {
         id: config.evalTemplateId,
         projectId,
@@ -192,9 +171,26 @@ describe("Observation Eval E2E Pipeline", () => {
         updatedAt: new Date(),
       };
 
+      const mockConfig = {
+        id: config.id,
+        projectId,
+        jobType: "EVAL",
+        evalTemplateId: config.evalTemplateId,
+        scoreName: config.scoreName,
+        targetObject: EvalTargetObject.EVENT,
+        filter: config.filter,
+        variableMapping: config.variableMapping,
+        sampling: "1.0",
+        delay: 0,
+        status: "ACTIVE",
+        timeScope: ["NEW"],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        evalTemplate: mockTemplate,
+      };
+
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(mockTemplate);
 
       // ACT: Process the observation eval job
       await processObservationEval({
@@ -251,10 +247,11 @@ describe("Observation Eval E2E Pipeline", () => {
         schedulerDeps: pipeline.schedulerDeps,
       });
 
-      // Should upload to S3 (done before filter check for all configs)
-      expect(pipeline.schedulerDeps.uploadObservationToS3).toHaveBeenCalled();
-      // But should NOT create job execution
-      expect(pipeline.schedulerDeps.createJobExecution).not.toHaveBeenCalled();
+      // S3 upload only happens if there are matching configs
+      expect(
+        pipeline.schedulerDeps.uploadObservationToS3,
+      ).not.toHaveBeenCalled();
+      expect(pipeline.schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
       expect(pipeline.schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
 
@@ -275,7 +272,7 @@ describe("Observation Eval E2E Pipeline", () => {
         schedulerDeps: pipeline.schedulerDeps,
       });
 
-      expect(pipeline.schedulerDeps.createJobExecution).not.toHaveBeenCalled();
+      expect(pipeline.schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
     });
 
     it("should schedule multiple evals for multiple matching configs", async () => {
@@ -321,7 +318,7 @@ describe("Observation Eval E2E Pipeline", () => {
       });
 
       const pipeline = createFullyMockedEvalPipeline({ observation });
-      pipeline.schedulerDeps.createJobExecution = vi
+      pipeline.schedulerDeps.upsertJobExecution = vi
         .fn()
         .mockResolvedValueOnce({ id: "job-1" })
         .mockResolvedValueOnce({ id: "job-2" })
@@ -334,7 +331,7 @@ describe("Observation Eval E2E Pipeline", () => {
       });
 
       // All three configs should match
-      expect(pipeline.schedulerDeps.createJobExecution).toHaveBeenCalledTimes(
+      expect(pipeline.schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(
         3,
       );
       expect(pipeline.schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(3);
@@ -343,31 +340,6 @@ describe("Observation Eval E2E Pipeline", () => {
       expect(
         pipeline.schedulerDeps.uploadObservationToS3,
       ).toHaveBeenCalledTimes(1);
-    });
-
-    it("should skip scheduling when job already exists (deduplication)", async () => {
-      const observation = createTestObservation({ project_id: projectId });
-      const config = createTestEvalConfig({ projectId });
-
-      const pipeline = createFullyMockedEvalPipeline({ observation });
-      pipeline.schedulerDeps.findExistingJobExecution = vi
-        .fn()
-        .mockResolvedValue({ id: "existing-job" });
-
-      await scheduleObservationEvals({
-        observation,
-        configs: [config],
-        schedulerDeps: pipeline.schedulerDeps,
-      });
-
-      expect(
-        pipeline.schedulerDeps.findExistingJobExecution,
-      ).toHaveBeenCalledWith({
-        projectId,
-        jobConfigurationId: config.id,
-        jobInputObservationId: observation.span_id,
-      });
-      expect(pipeline.schedulerDeps.createJobExecution).not.toHaveBeenCalled();
     });
   });
 
@@ -409,23 +381,6 @@ describe("Observation Eval E2E Pipeline", () => {
         jobInputTraceTimestamp: null,
       };
 
-      const mockConfig = {
-        id: config.id,
-        projectId,
-        jobType: "EVAL",
-        evalTemplateId: config.evalTemplateId,
-        scoreName: config.scoreName,
-        targetObject: EvalTargetObject.EVENT,
-        filter: [],
-        variableMapping: config.variableMapping,
-        sampling: "1.0",
-        delay: 0,
-        status: "ACTIVE",
-        timeScope: ["NEW"],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
       const mockTemplate = {
         id: config.evalTemplateId,
         projectId,
@@ -441,9 +396,26 @@ describe("Observation Eval E2E Pipeline", () => {
         updatedAt: new Date(),
       };
 
+      const mockConfig = {
+        id: config.id,
+        projectId,
+        jobType: "EVAL",
+        evalTemplateId: config.evalTemplateId,
+        scoreName: config.scoreName,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        variableMapping: config.variableMapping,
+        sampling: "1.0",
+        delay: 0,
+        status: "ACTIVE",
+        timeScope: ["NEW"],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        evalTemplate: mockTemplate,
+      };
+
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(mockTemplate);
 
       await processObservationEval({
         event: {
@@ -509,23 +481,6 @@ describe("Observation Eval E2E Pipeline", () => {
         jobInputTraceTimestamp: null,
       };
 
-      const mockConfig = {
-        id: config.id,
-        projectId,
-        jobType: "EVAL",
-        evalTemplateId: config.evalTemplateId,
-        scoreName: config.scoreName,
-        targetObject: EvalTargetObject.EVENT,
-        filter: [],
-        variableMapping: config.variableMapping,
-        sampling: "1.0",
-        delay: 0,
-        status: "ACTIVE",
-        timeScope: ["NEW"],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
       const mockTemplate = {
         id: config.evalTemplateId,
         projectId,
@@ -541,9 +496,26 @@ describe("Observation Eval E2E Pipeline", () => {
         updatedAt: new Date(),
       };
 
+      const mockConfig = {
+        id: config.id,
+        projectId,
+        jobType: "EVAL",
+        evalTemplateId: config.evalTemplateId,
+        scoreName: config.scoreName,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        variableMapping: config.variableMapping,
+        sampling: "1.0",
+        delay: 0,
+        status: "ACTIVE",
+        timeScope: ["NEW"],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        evalTemplate: mockTemplate,
+      };
+
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(mockJob);
       (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(mockConfig);
-      (prisma.evalTemplate.findFirst as Mock).mockResolvedValue(mockTemplate);
 
       await processObservationEval({
         event: {
@@ -611,9 +583,9 @@ describe("Observation Eval E2E Pipeline", () => {
       });
 
       // Production should match
-      expect(pipeline1.schedulerDeps.createJobExecution).toHaveBeenCalled();
+      expect(pipeline1.schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       // Staging should not match
-      expect(pipeline2.schedulerDeps.createJobExecution).not.toHaveBeenCalled();
+      expect(pipeline2.schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
     });
 
     it("should filter by tags", async () => {
@@ -658,8 +630,8 @@ describe("Observation Eval E2E Pipeline", () => {
         schedulerDeps: pipeline2.schedulerDeps,
       });
 
-      expect(pipeline1.schedulerDeps.createJobExecution).toHaveBeenCalled();
-      expect(pipeline2.schedulerDeps.createJobExecution).not.toHaveBeenCalled();
+      expect(pipeline1.schedulerDeps.upsertJobExecution).toHaveBeenCalled();
+      expect(pipeline2.schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
     });
   });
 });

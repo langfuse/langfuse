@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   LLMAsJudgeExecutionQueue,
@@ -15,40 +14,37 @@ import { type ObservationEvalSchedulerDeps } from "./types";
  */
 export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDeps {
   return {
-    createJobExecution: async (params) => {
+    upsertJobExecution: async (params) => {
       const {
+        id,
         projectId,
         jobConfigurationId,
         jobInputTraceId,
         jobInputObservationId,
+        jobTemplateId,
+        status,
       } = params;
 
-      const jobExecution = await prisma.jobExecution.create({
-        data: {
+      const jobExecution = await prisma.jobExecution.upsert({
+        where: {
+          id,
+          projectId,
+        },
+        create: {
+          id,
           projectId,
           jobConfigurationId,
           jobInputTraceId,
           jobInputObservationId,
-          status: params.status as "PENDING",
+          jobTemplateId,
+          status,
+        },
+        update: {
+          status,
         },
       });
 
       return { id: jobExecution.id };
-    },
-
-    findExistingJobExecution: async (params) => {
-      const { projectId, jobConfigurationId, jobInputObservationId } = params;
-
-      const existing = await prisma.jobExecution.findFirst({
-        where: {
-          projectId,
-          jobConfigurationId,
-          jobInputObservationId,
-        },
-        select: { id: true },
-      });
-
-      return existing;
     },
 
     uploadObservationToS3: async (params) => {
@@ -70,7 +66,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         QueueName.LLMAsJudgeExecution,
         {
           name: QueueJobs.LLMAsJudgeExecution,
-          id: randomUUID(),
+          id: params.jobExecutionId,
           timestamp: new Date(),
           payload: {
             projectId: params.projectId,

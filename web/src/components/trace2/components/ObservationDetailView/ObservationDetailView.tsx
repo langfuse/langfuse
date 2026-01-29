@@ -362,6 +362,7 @@ export function ObservationDetailView({
                 "userId",
               ]}
               localStorageSuffix="ObservationPreview"
+              disableUrlPersistence
             />
           </div>
         </TabsBarContent>

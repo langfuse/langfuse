@@ -10,6 +10,7 @@ import {
   JobExecutionStatus,
   type FilterState,
 } from "@langfuse/shared";
+import { createW3CTraceId } from "../../utils";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
@@ -112,44 +113,33 @@ async function processMatchingConfig(
   const { observation, matchingConfig, observationS3Path, schedulerDeps } =
     params;
 
-  // Check deduplication (job already exists?)
-  const existingJob = await schedulerDeps.findExistingJobExecution({
-    projectId: observation.project_id,
-    jobConfigurationId: matchingConfig.id,
-    jobInputObservationId: observation.span_id,
-  });
-
-  if (existingJob) {
-    logger.debug("Job already exists for observation and config", {
-      configId: matchingConfig.id,
-      observationId: observation.span_id,
-      existingJobId: existingJob.id,
-    });
-
-    return;
-  }
+  const jobExecutionId = createW3CTraceId(
+    `${matchingConfig.id}:${observation.span_id}`,
+  );
 
   // Create job execution
-  const jobExecution = await schedulerDeps.createJobExecution({
+  await schedulerDeps.upsertJobExecution({
+    id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
     jobInputTraceId: observation.trace_id,
     jobInputObservationId: observation.span_id,
+    jobTemplateId: matchingConfig.evalTemplateId,
     status: JobExecutionStatus.PENDING,
   });
 
   // Enqueue eval job
   await schedulerDeps.enqueueEvalJob({
-    jobExecutionId: jobExecution.id,
+    jobExecutionId,
     projectId: observation.project_id,
     observationS3Path,
-    delay: matchingConfig.delay,
+    delay: 0,
   });
 
   logger.debug("Scheduled observation eval job", {
     configId: matchingConfig.id,
     observationId: observation.span_id,
-    jobExecutionId: jobExecution.id,
+    jobExecutionId,
   });
 }
 

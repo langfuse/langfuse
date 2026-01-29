@@ -5,7 +5,6 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import {
-  JobExecutionStatus,
   observationForEvalSchema,
   observationVariableMappingList,
   type ObservationVariableMapping,

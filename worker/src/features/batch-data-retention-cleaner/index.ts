@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 
+import { percentile } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   commandClickhouse,
@@ -8,13 +9,26 @@ import {
   queryClickhouse,
   recordGauge,
   recordIncrement,
-  traceException,
-  type BatchDataRetentionTable,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils";
+import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+
+// Tables for batch data retention cleaning (ClickHouse only; also no dataset_run_items)
+export const BATCH_DATA_RETENTION_TABLES = [
+  "traces",
+  "observations",
+  "scores",
+  "events",
+] as const;
+
+export type BatchDataRetentionTable =
+  (typeof BATCH_DATA_RETENTION_TABLES)[number];
 
 const METRIC_PREFIX = "langfuse.batch_data_retention_cleaner";
+
+export const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
+  "langfuse:batch-data-retention-cleaner";
 
 export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   traces: "timestamp",
@@ -83,9 +97,9 @@ function buildRetentionConditions(
  * BatchDataRetentionCleaner handles bulk deletion of ClickHouse data based on
  * project retention settings.
  *
- * Each invocation processes one table (traces, observations, scores, events).
- * BullMQ handles scheduling. Normally, there shouldn't be more than one job
- * for a given table at a time.
+ * Each instance processes one table (traces, observations, scores, events).
+ * Multiple workers coordinate via Redis distributed locking to ensure only one
+ * worker deletes from a given table at a time.
  *
  * Flow:
  * 1. Query PG for all projects with retentionDays > 0
@@ -94,90 +108,121 @@ function buildRetentionConditions(
  * 4. Sort by expired count DESC, select top N projects with expired data
  * 5. Execute single batch DELETE with OR conditions
  */
-export class BatchDataRetentionCleaner {
-  /**
-   * Process a batch for data retention for a specific table.
-   */
-  public static async processBatch(
-    tableName: BatchDataRetentionTable,
-  ): Promise<void> {
-    const instanceName = `BatchDataRetentionCleaner(${tableName})`;
-    const timestampColumn = TIMESTAMP_COLUMN_MAP[tableName];
+export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
+  private readonly tableName: BatchDataRetentionTable;
 
-    // Step 1: Get project workloads (chunked CH counts + PG retention config)
-    let workloads: ProjectWorkload[];
-    try {
-      workloads =
-        await BatchDataRetentionCleaner.getProjectWorkloads(tableName);
-    } catch (error) {
-      logger.error(`${instanceName}: Failed to query project workloads`, {
-        error,
-      });
-      traceException(error);
-      return;
-    }
+  protected get defaultIntervalMs(): number {
+    return env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS;
+  }
 
-    recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
-      table: tableName,
+  constructor(tableName: BatchDataRetentionTable) {
+    // TTL = DELETE timeout + 5 minutes buffer
+    const lockTtlSeconds =
+      Math.ceil(
+        env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS / 1000,
+      ) + 300;
+
+    super({
+      name: `BatchDataRetentionCleaner(${tableName})`,
+      lockKey: `${BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX}:${tableName}`,
+      lockTtlSeconds,
     });
+    this.tableName = tableName;
+  }
 
-    // Compute seconds past cutoff for each workload and find the max
-    const SECONDS_PER_DAY = 86400;
-    const maxSecondsPastCutoff = workloads
-      .filter((w) => w.oldestAgeSeconds !== null)
-      .map((w) => w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY)
-      .reduce((max, val) => Math.max(max, val), -Infinity);
+  /**
+   * Start the batch cleaner service
+   */
+  public override start(): void {
+    logger.info(`Starting ${this.instanceName}`, {
+      intervalMs: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS,
+      projectLimit: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
+      deleteTimeoutMs:
+        env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS,
+    });
+    super.start();
+  }
 
-    recordGauge(
-      `${METRIC_PREFIX}.seconds_past_cutoff`,
-      Math.max(maxSecondsPastCutoff, 0),
-      {
-        table: tableName,
+  /**
+   * Process a batch for data retention for this table.
+   * Preflight and deletion are both under lock to avoid redundant expensive queries.
+   */
+  protected async execute(): Promise<void> {
+    const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
+
+    await this.withLock(
+      async () => {
+        // Step 1: Get project workloads (chunked CH counts + PG retention config)
+        const workloads = await this.getProjectWorkloads();
+
+        recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
+          table: this.tableName,
+        });
+
+        // Compute seconds past cutoff for each workload
+        const SECONDS_PER_DAY = 86400;
+        const secondsPastCutoffByProject = workloads
+          .filter((w) => w.oldestAgeSeconds !== null)
+          .map((w) => ({
+            projectId: w.projectId,
+            secondsPastCutoff:
+              w.oldestAgeSeconds! - w.retentionDays * SECONDS_PER_DAY,
+          }));
+
+        // Compute p90 for the gauge metric (0 when no pending work)
+        const p90SecondsPastCutoff = percentile(
+          secondsPastCutoffByProject.map((p) => p.secondsPastCutoff),
+          0.9,
+        );
+
+        recordGauge(
+          `${METRIC_PREFIX}.seconds_past_cutoff`,
+          Math.max(p90SecondsPastCutoff, 0),
+          {
+            table: this.tableName,
+          },
+        );
+
+        // Step 2: Execute DELETE
+        if (workloads.length >= 0) {
+          logger.info(
+            `${this.instanceName}: Processing ${workloads.length} projects`,
+            {
+              projectIds: workloads.map((w) => w.projectId),
+              secondsPastCutoffByProject,
+            },
+          );
+
+          await this.executeBatchDelete(timestampColumn, workloads);
+
+          logger.info(`${this.instanceName}: Batch deletion completed`, {
+            table: this.tableName,
+            projectsProcessed: workloads.length,
+          });
+        } else {
+          logger.info(
+            `${this.instanceName}: No projects with retention and data to delete`,
+          );
+        }
+
+        // Record successful deletion metrics
+        recordIncrement(`${METRIC_PREFIX}.delete_successes`, 1, {
+          table: this.tableName,
+        });
+        recordIncrement(
+          `${METRIC_PREFIX}.projects_processed`,
+          workloads.length,
+          {
+            table: this.tableName,
+          },
+        );
+      },
+      () => {
+        recordIncrement(`${METRIC_PREFIX}.delete_failures`, 1, {
+          table: this.tableName,
+        });
       },
     );
-
-    if (workloads.length === 0) {
-      logger.info(
-        `${instanceName}: No projects with retention and data to delete`,
-      );
-      return;
-    }
-
-    logger.info(`${instanceName}: Processing ${workloads.length} projects`, {
-      projectIds: workloads.map((w) => w.projectId),
-      secondsPastCutoff: maxSecondsPastCutoff,
-    });
-
-    // Step 2: Execute single batch DELETE for all selected projects
-    try {
-      await BatchDataRetentionCleaner.executeBatchDelete(
-        tableName,
-        timestampColumn,
-        workloads,
-      );
-
-      // Record successful deletion metrics
-      recordIncrement(`${METRIC_PREFIX}.delete_successes`, 1, {
-        table: tableName,
-      });
-      recordIncrement(`${METRIC_PREFIX}.projects_processed`, workloads.length, {
-        table: tableName,
-      });
-      logger.info(`${instanceName}: Batch deletion completed`, {
-        table: tableName,
-        projectsProcessed: workloads.length,
-      });
-    } catch (error) {
-      logger.error(`${instanceName}: Batch DELETE failed`, { error });
-      traceException(error);
-
-      recordIncrement(`${METRIC_PREFIX}.delete_failures`, 1, {
-        table: tableName,
-      });
-
-      // Re-throw so BullMQ marks job as failed
-      throw error;
-    }
   }
 
   /**
@@ -189,10 +234,8 @@ export class BatchDataRetentionCleaner {
    *
    * Chunking prevents running into CH query and param size limits.
    */
-  private static async getProjectWorkloads(
-    tableName: BatchDataRetentionTable,
-  ): Promise<ProjectWorkload[]> {
-    const timestampColumn = TIMESTAMP_COLUMN_MAP[tableName];
+  private async getProjectWorkloads(): Promise<ProjectWorkload[]> {
+    const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
 
     // Step 1: Get all projects with retention from PostgreSQL
     const projectsWithRetention = await prisma.project.findMany({
@@ -229,11 +272,7 @@ export class BatchDataRetentionCleaner {
     // Query each chunk in parallel (counts only expired rows)
     const chunkResults = await Promise.all(
       chunks.map((chunk) =>
-        BatchDataRetentionCleaner.countExpiredRowsInChunk(
-          tableName,
-          timestampColumn,
-          chunk,
-        ),
+        this.countExpiredRowsInChunk(timestampColumn, chunk),
       ),
     );
 
@@ -254,8 +293,7 @@ export class BatchDataRetentionCleaner {
    * Count expired rows for a chunk of projects in ClickHouse.
    * Uses the same retention conditions as delete to count only rows that will be deleted.
    */
-  private static async countExpiredRowsInChunk(
-    tableName: BatchDataRetentionTable,
+  private async countExpiredRowsInChunk(
     timestampColumn: string,
     projects: ProjectWorkload[],
   ): Promise<ProjectWorkload[]> {
@@ -273,7 +311,7 @@ export class BatchDataRetentionCleaner {
         project_id,
         count() as count,
         dateDiff('second', min(event_ts), now()) as oldest_age_seconds
-      FROM ${tableName}
+      FROM ${this.tableName}
       WHERE ${conditions}
       GROUP BY project_id
       HAVING count > 0
@@ -288,7 +326,7 @@ export class BatchDataRetentionCleaner {
       params,
       tags: {
         feature: "batch-data-retention-cleaner",
-        table: tableName,
+        table: this.tableName,
         operation: "count-chunk",
       },
     });
@@ -319,8 +357,7 @@ export class BatchDataRetentionCleaner {
    * Execute batch DELETE with OR conditions for selected projects.
    * Single query deletes data for all selected projects at once.
    */
-  private static async executeBatchDelete(
-    tableName: BatchDataRetentionTable,
+  private async executeBatchDelete(
     timestampColumn: string,
     workloads: ProjectWorkload[],
   ): Promise<void> {
@@ -333,7 +370,7 @@ export class BatchDataRetentionCleaner {
       workloads,
     );
 
-    const query = `DELETE FROM ${tableName} WHERE ${conditions}`;
+    const query = `DELETE FROM ${this.tableName} WHERE ${conditions}`;
 
     await commandClickhouse({
       query,
@@ -344,7 +381,7 @@ export class BatchDataRetentionCleaner {
       },
       tags: {
         feature: "batch-data-retention-cleaner",
-        table: tableName,
+        table: this.tableName,
         operation: "delete",
       },
     });

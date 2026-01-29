@@ -48,7 +48,7 @@ describe("Filter Evaluation for Observation Evals", () => {
     });
 
     return (
-      (deps.createJobExecution as ReturnType<typeof vi.fn>).mock.calls.length >
+      (deps.upsertJobExecution as ReturnType<typeof vi.fn>).mock.calls.length >
       0
     );
   }
@@ -750,7 +750,7 @@ describe("Filter Evaluation for Observation Evals", () => {
         schedulerDeps: deps,
       });
 
-      expect(deps.createJobExecution).toHaveBeenCalled();
+      expect(deps.upsertJobExecution).toHaveBeenCalled();
     });
   });
 
@@ -853,7 +853,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       });
 
       return (
-        (deps.createJobExecution as ReturnType<typeof vi.fn>).mock.calls
+        (deps.upsertJobExecution as ReturnType<typeof vi.fn>).mock.calls
           .length > 0
       );
     }

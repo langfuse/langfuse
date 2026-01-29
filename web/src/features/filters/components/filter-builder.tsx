@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import {
@@ -286,6 +286,19 @@ export function InlineFilterBuilder({
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
+
+  // sync filter state, e.g. when we exclude default LF filters on score creation to reflect in UI
+  // Only sync if we don't have any WIP (invalid) filters, to avoid overwriting user's work-in-progress
+  useEffect(() => {
+    const hasWipFilters = wipFilterState.some(
+      (f) => !singleFilter.safeParse(f).success,
+    );
+
+    // Don't sync if we have WIP filters - user is actively editing
+    if (!hasWipFilters) {
+      _setWipFilterState(filterState);
+    }
+  }, [filterState, wipFilterState]);
 
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
