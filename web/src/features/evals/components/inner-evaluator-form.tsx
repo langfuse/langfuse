@@ -144,13 +144,6 @@ const isTracingTarget = (target: string): boolean => {
   return target === EvalTargetObject.TRACE || target === EvalTargetObject.EVENT;
 };
 
-const isDatasetOrExperimentTarget = (target: string): boolean => {
-  return (
-    target === EvalTargetObject.DATASET ||
-    target === EvalTargetObject.EXPERIMENT
-  );
-};
-
 const propagationRequiredColumns = new Set([
   "release",
   "trace_name",
