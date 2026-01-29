@@ -143,18 +143,6 @@ function LegacyBadgeCell({
             </Tooltip>
           )}
         </Badge>
-
-        {/* <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            setRemapModalOpen(true);
-          }}
-          className="h-7 text-xs"
-        >
-          Remap
-        </Button> */}
       </div>
 
       <RemapEvalWizard
@@ -521,9 +509,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             : "Langfuse maintained"
         : "Not available",
       totalCost: costData,
-      isLegacy:
-        jobConfig.targetObject === "trace" ||
-        jobConfig.targetObject === "dataset",
+      isLegacy: isLegacyEvalTarget(jobConfig.targetObject),
     };
   };
 

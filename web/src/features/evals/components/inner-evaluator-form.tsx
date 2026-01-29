@@ -37,7 +37,7 @@ import { useEffect, useMemo, useState, memo, useRef } from "react";
 import { api } from "@/src/utils/api";
 import {
   InlineFilterBuilder,
-  type ColumnDefinitionWithWarning,
+  type ColumnDefinitionWithAlert,
 } from "@/src/features/filters/components/filter-builder";
 import { type EvalTemplate, variableMapping } from "@langfuse/shared";
 import { useRouter } from "next/router";
@@ -161,24 +161,24 @@ const propagationRequiredColumns = new Set([
  */
 const getObservationFilterColumnsWithWarnings = (
   allowPropagationFilters: boolean,
-): ColumnDefinitionWithWarning[] => {
+): ColumnDefinitionWithAlert[] => {
   // Columns that require OTEL SDK with span propagation
 
   return observationEvalFilterColumns.map((col) => {
     // Convert to ColumnDefinition format
-    let baseColumn: ColumnDefinitionWithWarning;
+    let baseColumn: ColumnDefinitionWithAlert;
 
     if (col.type === "stringOptions" || col.type === "arrayOptions") {
       baseColumn = {
         ...col,
         internal: col.id,
         options: [], // Options will be populated at runtime if needed
-      } as ColumnDefinitionWithWarning;
+      } as ColumnDefinitionWithAlert;
     } else {
       baseColumn = {
         ...col,
         internal: col.id,
-      } as ColumnDefinitionWithWarning;
+      } as ColumnDefinitionWithAlert;
     }
 
     // Add alert if propagation is required but not available

@@ -104,10 +104,10 @@ export function Callout({
             variant="ghost"
             size="sm"
             onClick={handleDismiss}
-            className={`${actions ? "h-7 text-xs" : "h-6 w-6 p-0"} text-muted-foreground hover:text-foreground`}
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
             aria-label="Dismiss"
           >
-            {actions ? "Dismiss" : <X className="h-4 w-4" />}
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </AlertDescription>
