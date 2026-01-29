@@ -1,8 +1,15 @@
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
-import { useSession } from "next-auth/react";
+import { SessionProvider } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
+import { useSession } from "next-auth/react";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
+
 import { api } from "@/src/utils/api";
+
+import NextAdapterPages from "next-query-params/pages";
+import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
 import { AppLayout } from "@/src/components/layouts/app-layout";
@@ -62,10 +69,14 @@ if (typeof window !== "undefined") {
   };
 }
 
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
+import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { RootProvider } from "@/src/components/RootProvider";
-import { BetterStackUptimeStatusMessage } from "@/src/components/BetterStackUptimeStatusMessage";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -115,15 +126,41 @@ const MyApp: AppType<{ session: Session | null }> = ({
   }, []);
 
   return (
-    <PostHogProvider client={posthog}>
-      <RootProvider session={session}>
-        <AppLayout>
-          <Component {...pageProps} />
-          <UserTracking />
-        </AppLayout>
-        <BetterStackUptimeStatusMessage />
-      </RootProvider>
-    </PostHogProvider>
+    <QueryParamProvider adapter={NextAdapterPages}>
+      <TooltipProvider>
+        <CommandMenuProvider>
+          <PostHogProvider client={posthog}>
+            <SessionProvider
+              session={session}
+              refetchOnWindowFocus={true}
+              refetchInterval={5 * 60} // 5 minutes
+              basePath={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth`}
+            >
+              <DetailPageListsProvider>
+                <MarkdownContextProvider>
+                  <ThemeProvider
+                    attribute="class"
+                    enableSystem
+                    disableTransitionOnChange
+                  >
+                    <ScoreCacheProvider>
+                      <CorrectionCacheProvider>
+                        <SupportDrawerProvider defaultOpen={false}>
+                          <AppLayout>
+                            <Component {...pageProps} />
+                            <UserTracking />
+                          </AppLayout>
+                        </SupportDrawerProvider>
+                      </CorrectionCacheProvider>
+                    </ScoreCacheProvider>
+                  </ThemeProvider>
+                </MarkdownContextProvider>
+              </DetailPageListsProvider>
+            </SessionProvider>
+          </PostHogProvider>
+        </CommandMenuProvider>
+      </TooltipProvider>
+    </QueryParamProvider>
   );
 };
 
@@ -171,6 +208,20 @@ function UserTracking() {
       setUser(null);
     }
   }, [sessionUser, session.status, region]);
+
+  // add stripe link to chat
+  // const orgStripeLink = organization?.cloudConfig?.stripe?.customerId
+  //   ? `https://dashboard.stripe.com/customers/${organization.cloudConfig.stripe.customerId}`
+  //   : undefined;
+  // useEffect(() => {
+  //   if (orgStripeLink) {
+  //     chatSetUser({
+  //       data: {
+  //         stripe: orgStripeLink,
+  //       },
+  //     });
+  //   }
+  // }, [orgStripeLink]);
 
   return null;
 }
