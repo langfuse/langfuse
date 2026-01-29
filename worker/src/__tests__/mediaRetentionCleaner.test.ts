@@ -72,7 +72,8 @@ async function processUntilProjectComplete(
   maxIterations = 10,
 ): Promise<void> {
   for (let i = 0; i < maxIterations; i++) {
-    await MediaRetentionCleaner.processBatch();
+    const cleaner = new MediaRetentionCleaner();
+    await cleaner.processBatch();
     const count = await getMediaCount(projectId);
     if (count === 0) return;
   }
@@ -85,7 +86,8 @@ async function processUntilProjectComplete(
 async function drainExpiredMedia(maxIterations = 20): Promise<void> {
   for (let i = 0; i < maxIterations; i++) {
     const countBefore = mockDeleteFiles.mock.calls.length;
-    await MediaRetentionCleaner.processBatch();
+    const cleaner = new MediaRetentionCleaner();
+    await cleaner.processBatch();
     const countAfter = mockDeleteFiles.mock.calls.length;
     // No new deletions means no more work
     if (countAfter === countBefore) return;
@@ -155,7 +157,8 @@ describe("MediaRetentionCleaner", () => {
       expect(await getMediaCount(projectId)).toBe(1);
 
       // Run processBatch - should find no work for this project
-      await MediaRetentionCleaner.processBatch();
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
 
       // Verify media was NOT deleted (5 days < 7 days retention)
       expect(await getMediaCount(projectId)).toBe(1);
@@ -219,7 +222,8 @@ describe("MediaRetentionCleaner", () => {
       expect(await getMediaCount(projectId)).toBe(1);
 
       // Run processBatch
-      await MediaRetentionCleaner.processBatch();
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
 
       // Verify media was NOT deleted (no retention policy)
       expect(await getMediaCount(projectId)).toBe(1);
@@ -246,7 +250,8 @@ describe("MediaRetentionCleaner", () => {
       expect(await getMediaCount(projectId)).toBe(1);
 
       // Run processBatch
-      await MediaRetentionCleaner.processBatch();
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
 
       // Verify media was NOT deleted (retention disabled)
       expect(await getMediaCount(projectId)).toBe(1);
@@ -275,7 +280,8 @@ describe("MediaRetentionCleaner", () => {
       await processUntilProjectComplete(projectId, 20);
       // Note: Project won't reach count=0 since new media remains
       // Let's just run once and check the result
-      await MediaRetentionCleaner.processBatch();
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
 
       // Verify only old media was deleted (count should be 1)
       expect(await getMediaCount(projectId)).toBe(1);
@@ -302,7 +308,8 @@ describe("MediaRetentionCleaner", () => {
       await createTestMedia(projectId, tenDaysAgo);
 
       // Run processBatch
-      await MediaRetentionCleaner.processBatch();
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
 
       // Verify media was NOT deleted (project is soft-deleted, handled by BatchProjectCleaner)
       expect(await getMediaCount(projectId)).toBe(1);
@@ -363,7 +370,8 @@ describe("MediaRetentionCleaner", () => {
       await createTestMedia(projectId, twoDaysAgo);
 
       // Run processBatch - should complete without error
-      await MediaRetentionCleaner.processBatch();
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
 
       // Verify nothing was deleted
       expect(await getMediaCount(projectId)).toBe(1);
@@ -409,14 +417,16 @@ describe("MediaRetentionCleaner", () => {
       });
 
       // Run first processBatch - should process projectMany (most work) OR any other pending project
-      await MediaRetentionCleaner.processBatch();
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
 
       // Keep running until both our projects are processed
       while (
         !processedProjects.includes(projectMany) ||
         !processedProjects.includes(projectFew)
       ) {
-        await MediaRetentionCleaner.processBatch();
+        const cleaner = new MediaRetentionCleaner();
+        await cleaner.processBatch();
         if (processedProjects.length > 10) break; // Safety limit
       }
 

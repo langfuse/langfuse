@@ -1,5 +1,4 @@
 import { useRouter } from "next/router";
-import { useSession } from "next-auth/react";
 import { useEffect, useMemo } from "react";
 import {
   NumberParam,
@@ -13,17 +12,9 @@ import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { Switch } from "@/src/components/ui/switch";
-import { Label } from "@/src/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useObservationListBeta } from "@/src/features/events/hooks/useObservationListBeta";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
@@ -53,11 +44,7 @@ type RowData = {
 export default function UsersPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const { data: session } = useSession();
-  const { isBetaEnabled, setBetaEnabled } = useObservationListBeta();
-
-  // TODO: remove for prod go-live
-  const showBetaToggle = session?.user?.email?.endsWith("@langfuse.com");
+  const { isBetaEnabled } = useV4Beta();
 
   // Check if the user has any users
   const { data: hasAnyUser, isLoading } = api.users.hasAny.useQuery(
@@ -91,28 +78,6 @@ export default function UsersPage() {
   const isLoadingUsers = isBetaEnabled ? isLoadingFromEvents : isLoading;
   const showOnboarding = !isLoadingUsers && !hasUsers;
 
-  const betaToggle = showBetaToggle ? (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="beta-toggle"
-              checked={isBetaEnabled}
-              onCheckedChange={setBetaEnabled}
-            />
-            <Label htmlFor="beta-toggle" className="cursor-pointer text-xs">
-              Beta
-            </Label>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Try the events-based user view with observation timestamps</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : null;
-
   return (
     <Page
       headerProps={{
@@ -122,7 +87,6 @@ export default function UsersPage() {
             "Attribute data in Langfuse to a user by adding a userId to your traces. See [docs](https://langfuse.com/docs/observability/features/users) to learn more.",
           href: "https://langfuse.com/docs/observability/features/users",
         },
-        actionButtonsLeft: betaToggle,
       }}
       scrollable={showOnboarding}
     >

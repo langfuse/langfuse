@@ -461,7 +461,7 @@ export const getObservationByIdFromEventsTable = async ({
     type,
     traceId,
     renderingProps,
-    preferredClickhouseService,
+    preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
   const mapped = records.map((record) =>
     convertObservation(record, renderingProps),
@@ -832,7 +832,7 @@ async function getObservationsRowsFromBuilder<T>(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -871,7 +871,7 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -1158,7 +1158,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -2139,7 +2139,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
       kind: "batchIO",
       projectId: opts.projectId,
     },
-    preferredClickhouseService: "ReadOnly",
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return results.map((r) => ({
