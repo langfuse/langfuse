@@ -96,7 +96,9 @@ export function Callout({
             : "text-dark-blue dark:text-dark-blue"
         }`}
       />
-      <AlertDescription className={`flex ${alignmentClass} justify-between`}>
+      <AlertDescription
+        className={`flex ${alignmentClass} ml-1 justify-between`}
+      >
         <div className="flex-1 text-sm text-foreground">{children}</div>
         <div className="ml-4 flex items-center gap-2">
           {actions && actions()}

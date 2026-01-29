@@ -952,35 +952,46 @@ export const InnerEvaluatorForm = (props: {
                   }
                 };
 
+                const hasFilters = field.value && field.value.length > 0;
+
                 return (
                   <FormItem>
                     <FormLabel>Where</FormLabel>
                     <FormControl>
                       <div className="max-w-[500px]">
-                        <InlineFilterBuilder
-                          columns={getFilterColumns()}
-                          filterState={field.value ?? []}
-                          onChange={(value: z.infer<typeof singleFilter>[]) => {
-                            field.onChange(value);
-                            if (router.query.traceId) {
-                              const { traceId, ...otherParams } = router.query;
-                              router.replace(
-                                {
-                                  pathname: router.pathname,
-                                  query: otherParams,
-                                },
-                                undefined,
-                                { shallow: true },
-                              );
+                        {props.disabled && !hasFilters ? (
+                          <p className="text-xs text-muted-foreground">
+                            All {getTargetDisplayName(target)} will be evaluated
+                          </p>
+                        ) : (
+                          <InlineFilterBuilder
+                            columns={getFilterColumns()}
+                            filterState={field.value ?? []}
+                            onChange={(
+                              value: z.infer<typeof singleFilter>[],
+                            ) => {
+                              field.onChange(value);
+                              if (router.query.traceId) {
+                                const { traceId, ...otherParams } =
+                                  router.query;
+                                router.replace(
+                                  {
+                                    pathname: router.pathname,
+                                    query: otherParams,
+                                  },
+                                  undefined,
+                                  { shallow: true },
+                                );
+                              }
+                            }}
+                            disabled={props.disabled}
+                            columnsWithCustomSelect={
+                              isEventTarget(target) || isTraceTarget(target)
+                                ? ["tags"]
+                                : undefined
                             }
-                          }}
-                          disabled={props.disabled}
-                          columnsWithCustomSelect={
-                            isEventTarget(target) || isTraceTarget(target)
-                              ? ["tags"]
-                              : undefined
-                          }
-                        />
+                          />
+                        )}
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -1076,13 +1087,13 @@ export const InnerEvaluatorForm = (props: {
                         variableMapping={form.watch("mapping")}
                         isLoading={isLoading}
                         className={cn(
-                          "min-h-48",
+                          "min-h-48 bg-muted/50",
                           !props.shouldWrapVariables && "lg:w-2/3",
                         )}
                         controlButtons={mappingControlButtons}
                       />
                     ) : (
-                      <div className="flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
+                      <div className="flex max-h-full min-h-48 w-full flex-col gap-1 bg-muted/50 lg:w-2/3">
                         <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
                           <div className="flex flex-row items-center gap-2">
                             Evaluation Prompt Preview
@@ -1105,7 +1116,7 @@ export const InnerEvaluatorForm = (props: {
                       title={"Evaluation Prompt"}
                       json={props.evalTemplate.prompt ?? null}
                       className={cn(
-                        "min-h-48",
+                        "min-h-48 bg-muted/50",
                         !props.shouldWrapVariables && "lg:w-2/3",
                       )}
                       codeClassName="flex-1"
@@ -1314,9 +1325,9 @@ export const InnerEvaluatorForm = (props: {
                               render={({ field }) => (
                                 <div className="flex items-center gap-2">
                                   <VariableMappingDescription
-                                    title={"Object Variable"}
+                                    title={"Object Field"}
                                     description={
-                                      "Variable on the Langfuse object to insert into the template."
+                                      "Field on the Langfuse object to insert into the template."
                                     }
                                     href={
                                       "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
@@ -1428,6 +1439,26 @@ export const InnerEvaluatorForm = (props: {
                                 }
                               />
                             </div>
+                            {props.hideAdvancedSettings && (
+                              <div className="flex items-center gap-2">
+                                <VariableMappingDescription
+                                  title="Object"
+                                  description="Type of object to retrieve the data from."
+                                  href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+                                />
+                                <div className="w-2/3">
+                                  <Input
+                                    value={
+                                      isEventTarget(form.watch("target"))
+                                        ? "Observation"
+                                        : "Experiment item"
+                                    }
+                                    disabled
+                                    className="bg-muted"
+                                  />
+                                </div>
+                              </div>
+                            )}
                             <FormField
                               control={form.control}
                               key={`${mappingField.id}-selectedColumnId`}
@@ -1448,7 +1479,7 @@ export const InnerEvaluatorForm = (props: {
                                 return (
                                   <div className="flex items-center gap-2">
                                     <VariableMappingDescription
-                                      title={"Data Field"}
+                                      title={"Object Field"}
                                       description={
                                         "Observation field to insert into the template."
                                       }
