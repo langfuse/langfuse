@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useSynchronizedScroll } from "@/src/features/evals/hooks/useSynchronizedScroll";
 
 interface RemapEvalWizardProps {
   projectId: string;
@@ -101,19 +102,16 @@ export function RemapEvalWizard({
     if (!oldConfig) return null;
 
     return {
-      id: oldConfig.id,
       projectId: oldConfig.projectId,
       evalTemplateId: oldConfig.evalTemplateId,
       scoreName: oldConfig.scoreName,
       targetObject: mapLegacyToModernTarget(oldConfig.targetObject),
       jobType: oldConfig.jobType,
-      createdAt: oldConfig.createdAt,
-      updatedAt: oldConfig.updatedAt,
       filter: [],
       variableMapping: [],
       sampling: oldConfig.sampling,
       delay: oldConfig.delay,
-      status: oldConfig.status,
+      status: "ACTIVE",
       // Always set to NEW for remapped evals - new eval types cannot run on existing data
       timeScope: ["NEW"],
     };
@@ -162,33 +160,12 @@ export function RemapEvalWizard({
 
   const isLoading = isLoadingConfig || isLoadingTemplate;
 
-  // Synchronized scrolling
-  useEffect(() => {
-    const leftDiv = leftScrollRef.current;
-    const rightDiv = rightScrollRef.current;
-
-    if (!leftDiv || !rightDiv) return;
-
-    const handleLeftScroll = () => {
-      if (rightDiv) {
-        rightDiv.scrollTop = leftDiv.scrollTop;
-      }
-    };
-
-    const handleRightScroll = () => {
-      if (leftDiv) {
-        leftDiv.scrollTop = rightDiv.scrollTop;
-      }
-    };
-
-    leftDiv.addEventListener("scroll", handleLeftScroll);
-    rightDiv.addEventListener("scroll", handleRightScroll);
-
-    return () => {
-      leftDiv.removeEventListener("scroll", handleLeftScroll);
-      rightDiv.removeEventListener("scroll", handleRightScroll);
-    };
-  }, [isLoading, oldConfig, evalTemplate]);
+  // Synchronized scrolling between left (legacy) and right (new) config panels
+  useSynchronizedScroll(leftScrollRef, rightScrollRef, [
+    isLoading,
+    oldConfig,
+    evalTemplate,
+  ]);
 
   if (!open) return null;
 
