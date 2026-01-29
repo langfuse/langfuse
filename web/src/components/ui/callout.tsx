@@ -19,7 +19,7 @@ export interface CalloutProps {
   align?: "top" | "middle";
   children: React.ReactNode;
   onDismiss?: () => void;
-  actions?: (handleDismiss: () => void) => React.ReactNode;
+  actions?: () => React.ReactNode;
 }
 
 export function Callout({
@@ -99,7 +99,7 @@ export function Callout({
       <AlertDescription className={`flex ${alignmentClass} justify-between`}>
         <div className="flex-1 text-sm text-foreground">{children}</div>
         <div className="ml-4 flex items-center gap-2">
-          {actions && actions(handleDismiss)}
+          {actions && actions()}
           <Button
             variant="ghost"
             size="sm"
