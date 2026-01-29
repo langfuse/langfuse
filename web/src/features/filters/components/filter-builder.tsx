@@ -338,7 +338,7 @@ const getOperator = (
 /**
  * Returns severity-based styling classes for alert icons and tooltips
  */
-const getSeverityStyles = (severity: "info" | "warning" | "error") => {
+const getAlertStyles = (severity: "info" | "warning" | "error") => {
   const styles = {
     error: {
       iconColor: "text-red-600",
@@ -588,8 +588,7 @@ function FilterBuilderForm({
                                   const hasAlert = !!option.alert;
                                   const severity =
                                     option.alert?.severity ?? "warning";
-                                  const severityStyles =
-                                    getSeverityStyles(severity);
+                                  const alertStyles = getAlertStyles(severity);
 
                                   return (
                                     <InputCommandItem
@@ -632,14 +631,14 @@ function FilterBuilderForm({
                                             <Info
                                               className={cn(
                                                 "ml-2 h-4 w-4",
-                                                severityStyles.iconColor,
+                                                alertStyles.iconColor,
                                               )}
                                             />
                                           </TooltipTrigger>
                                           <TooltipContent
                                             className={cn(
                                               "max-w-xs",
-                                              severityStyles.tooltipBg,
+                                              alertStyles.tooltipBg,
                                             )}
                                           >
                                             {option.alert?.content}
