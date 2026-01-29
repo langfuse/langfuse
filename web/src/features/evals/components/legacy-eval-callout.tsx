@@ -3,7 +3,10 @@ import { Callout } from "@/src/components/ui/callout";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import {
+  isLegacyEvalTarget,
+  isTraceTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 import { RemapEvalWizard } from "@/src/features/evals/components/remap-eval-wizard";
 import { api } from "@/src/utils/api";
 
@@ -25,10 +28,9 @@ export function LegacyEvalCallout({
 
   if (!isDeprecated) return null;
 
-  const text =
-    targetObject === "trace"
-      ? "Running evaluators on traces will be deprecated. Upgrade to run on observations for full compatibility."
-      : "Running evaluators on offline experiments without OpenTelemetry will be deprecated. Upgrade to run on offline experiments with OpenTelemetry for full compatibility.";
+  const text = isTraceTarget(targetObject)
+    ? "Running evaluators on traces will be deprecated. Upgrade to run on observations for full compatibility."
+    : "Running evaluators on offline experiments without OpenTelemetry will be deprecated. Upgrade to run on offline experiments with OpenTelemetry for full compatibility.";
 
   return (
     <>

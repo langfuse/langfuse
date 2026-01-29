@@ -1,6 +1,12 @@
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Info, AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import {
+  isTraceTarget,
+  isEventTarget,
+  isExperimentTarget,
+  isDatasetTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 
 interface EvalVersionCalloutProps {
   targetObject: string;
@@ -20,7 +26,7 @@ const getCalloutContent = (
   evalCapabilities: EvalCapabilities,
 ): CalloutContent => {
   // For event/observation target
-  if (targetObject === "event") {
+  if (isEventTarget(targetObject)) {
     // If user IS compatible with OTEL, don't show callout
     if (evalCapabilities.isNewCompatible) {
       return {
@@ -54,7 +60,7 @@ const getCalloutContent = (
   }
 
   // For experiment target (OTEL-based experiments)
-  if (targetObject === "experiment") {
+  if (isExperimentTarget(targetObject)) {
     // If user is NOT compatible with OTEL, show warning
     if (!evalCapabilities.isNewCompatible) {
       return {
@@ -80,7 +86,7 @@ const getCalloutContent = (
   }
 
   // For dataset target (now represents non-OTEL experiments when selected via second tab)
-  if (targetObject === "dataset") {
+  if (isDatasetTarget(targetObject)) {
     return {
       variant: "info",
       title: "You selected an old SDK version",
@@ -90,7 +96,7 @@ const getCalloutContent = (
   }
 
   // For trace target - always show deprecation info
-  if (targetObject === "trace") {
+  if (isTraceTarget(targetObject)) {
     return {
       variant: "info",
       title: "Consider upgrading to live observations evaluators",

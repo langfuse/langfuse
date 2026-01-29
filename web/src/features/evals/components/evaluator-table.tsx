@@ -27,7 +27,10 @@ import {
 } from "use-query-params";
 import { z } from "zod/v4";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import {
+  isLegacyEvalTarget,
+  isEventTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import {
@@ -378,8 +381,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.getValue();
-        const renderText =
-          targetObject === "event" ? "observations" : targetObject;
+        const renderText = isEventTarget(targetObject)
+          ? "observations"
+          : targetObject;
         return <span className="text-muted-foreground">{renderText}</span>;
       },
     }),

@@ -11,6 +11,7 @@ import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evalua
 import {
   mapLegacyToModernTarget,
   isLegacyEvalTarget,
+  isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
@@ -236,7 +237,9 @@ export function RemapEvalWizard({
               <div className="flex items-center gap-2 bg-background pb-2">
                 <h3 className="text-lg font-semibold">
                   Legacy Configuration{" "}
-                  {oldConfig.targetObject === "trace" ? "(runs on traces)" : ""}
+                  {isTraceTarget(oldConfig.targetObject)
+                    ? "(runs on traces)"
+                    : ""}
                 </h3>
                 <span className="text-xs text-muted-foreground">Read-only</span>
               </div>
@@ -264,7 +267,7 @@ export function RemapEvalWizard({
             <div className="flex flex-col space-y-4 overflow-hidden p-3">
               <h3 className="bg-background pb-2 text-lg font-semibold">
                 New Configuration{" "}
-                {oldConfig.targetObject === "trace"
+                {isTraceTarget(oldConfig.targetObject)
                   ? "(runs on observations)"
                   : ""}
               </h3>

@@ -1,4 +1,8 @@
-import { type EvalTemplate } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  EvalTargetObject,
+  type EvalTargetObject as EvalTargetObjectType,
+} from "@langfuse/shared";
 
 export const partnerIdentifierToName = new Map([["ragas", "Ragas"]]);
 
@@ -28,16 +32,40 @@ export const getMaintainer = (
  * @returns true if the target object is legacy (trace or dataset)
  */
 export const isLegacyEvalTarget = (targetObject: string): boolean => {
-  return targetObject === "trace" || targetObject === "dataset";
+  return (
+    targetObject === EvalTargetObject.TRACE ||
+    targetObject === EvalTargetObject.DATASET
+  );
 };
 
-/**
- * Maps legacy eval target to modern eval target.
- * @param legacyTarget - The legacy target object type ("trace" or "dataset")
- * @returns "event" for trace, "experiment" for dataset
- */
-export const mapLegacyToModernTarget = (legacyTarget: string): string => {
-  if (legacyTarget === "trace") return "event";
-  if (legacyTarget === "dataset") return "experiment";
-  return legacyTarget; // fallback
+export const isTraceTarget = (targetObject: string): boolean => {
+  return targetObject === EvalTargetObject.TRACE;
+};
+
+export const isEventTarget = (targetObject: string): boolean => {
+  return targetObject === EvalTargetObject.EVENT;
+};
+
+export const isDatasetTarget = (targetObject: string): boolean => {
+  return targetObject === EvalTargetObject.DATASET;
+};
+
+export const isExperimentTarget = (targetObject: string): boolean => {
+  return targetObject === EvalTargetObject.EXPERIMENT;
+};
+
+export const isTraceOrEventTarget = (targetObject: string): boolean => {
+  return (
+    targetObject === EvalTargetObject.TRACE ||
+    targetObject === EvalTargetObject.EVENT
+  );
+};
+
+export const mapLegacyToModernTarget = (
+  legacyTarget: string,
+): EvalTargetObjectType => {
+  if (legacyTarget === EvalTargetObject.TRACE) return EvalTargetObject.EVENT;
+  if (legacyTarget === EvalTargetObject.DATASET)
+    return EvalTargetObject.EXPERIMENT;
+  return legacyTarget as EvalTargetObjectType;
 };
