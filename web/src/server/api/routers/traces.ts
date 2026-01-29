@@ -2,11 +2,7 @@ import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import {
-  applyCommentFilters,
-  detectSdkVersionFromEventsTable,
-  detectSdkVersionFromObservationsTable,
-} from "@langfuse/shared/src/server";
+import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
@@ -121,25 +117,18 @@ export const traceRouter = createTRPCRouter({
 
       return !!(project?.retentionDays && project.retentionDays > 0);
     }),
-  hasOtelSdkConfigured: protectedProjectProcedure
+  resolveSdkVersion: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
       }),
     )
-    .query(async ({ input }) => {
-      const result =
-        env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
-          ? await detectSdkVersionFromEventsTable({
-              projectId: input.projectId,
-            })
-          : await detectSdkVersionFromObservationsTable({
-              projectId: input.projectId,
-            });
-
+    .query(async ({ input, ctx }) => {
+      // TODO: Implement ClickHouse query to detect OTEL SDK usage
+      // For now, return mock data
       return {
-        isOtel: result.isOtel,
-        isPropagating: result.isPropagating,
+        isOtel: false,
+        isPropagating: false,
       };
     }),
   all: protectedProjectProcedure
