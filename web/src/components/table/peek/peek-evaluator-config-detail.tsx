@@ -19,6 +19,7 @@ import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
+import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -75,6 +76,17 @@ export const PeekViewEvaluatorConfigDetail = ({
           />
         </div>
       </div>
+
+      {evalConfig &&
+        evalConfig.targetObject &&
+        evalConfig.finalStatus === "ACTIVE" && (
+          <LegacyEvalCallout
+            projectId={projectId}
+            evalConfigId={evalConfig.id}
+            targetObject={evalConfig.targetObject}
+          />
+        )}
+
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
