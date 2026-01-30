@@ -379,30 +379,31 @@ describe("MediaRetentionCleaner", () => {
   });
 
   describe("work-based prioritization", () => {
-    it("should process project with most expired items first", async () => {
+    it("should process project with oldest expired item first", async () => {
       const now = Date.now();
+      const fifteenDaysAgo = new Date(now - 15 * 24 * 60 * 60 * 1000);
       const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000);
 
       // Create two projects, both with 7-day retention
-      const { projectId: projectFew } = await createOrgProjectAndApiKey();
-      const { projectId: projectMany } = await createOrgProjectAndApiKey();
+      const { projectId: projectOlder } = await createOrgProjectAndApiKey();
+      const { projectId: projectNewer } = await createOrgProjectAndApiKey();
 
       await prisma.project.update({
-        where: { id: projectFew },
+        where: { id: projectOlder },
         data: { retentionDays: 7 },
       });
       await prisma.project.update({
-        where: { id: projectMany },
+        where: { id: projectNewer },
         data: { retentionDays: 7 },
       });
 
-      // Project with fewer items: 1 media
-      await createTestMedia(projectFew, tenDaysAgo);
+      // Project with older item: 1 media from 15 days ago
+      await createTestMedia(projectOlder, fifteenDaysAgo);
 
-      // Project with more items: 3 media
-      await createTestMedia(projectMany, tenDaysAgo);
-      await createTestMedia(projectMany, tenDaysAgo);
-      await createTestMedia(projectMany, tenDaysAgo);
+      // Project with newer items: 3 media from 10 days ago (more items but newer)
+      await createTestMedia(projectNewer, tenDaysAgo);
+      await createTestMedia(projectNewer, tenDaysAgo);
+      await createTestMedia(projectNewer, tenDaysAgo);
 
       // Track which projects are processed
       const processedProjects: string[] = [];
@@ -416,25 +417,25 @@ describe("MediaRetentionCleaner", () => {
         }
       });
 
-      // Run first processBatch - should process projectMany (most work) OR any other pending project
+      // Run first processBatch - should process projectOlder (oldest item) OR any other pending project
       const cleaner = new MediaRetentionCleaner();
       await cleaner.processBatch();
 
       // Keep running until both our projects are processed
       while (
-        !processedProjects.includes(projectMany) ||
-        !processedProjects.includes(projectFew)
+        !processedProjects.includes(projectOlder) ||
+        !processedProjects.includes(projectNewer)
       ) {
         const cleaner = new MediaRetentionCleaner();
         await cleaner.processBatch();
         if (processedProjects.length > 10) break; // Safety limit
       }
 
-      // Verify projectMany was processed before projectFew
-      // (it has more expired items so should have higher priority)
-      const manyIndex = processedProjects.indexOf(projectMany);
-      const fewIndex = processedProjects.indexOf(projectFew);
-      expect(manyIndex).toBeLessThan(fewIndex);
+      // Verify projectOlder was processed before projectNewer
+      // (it has the oldest expired item so should have higher priority)
+      const olderIndex = processedProjects.indexOf(projectOlder);
+      const newerIndex = processedProjects.indexOf(projectNewer);
+      expect(olderIndex).toBeLessThan(newerIndex);
     });
   });
 });
