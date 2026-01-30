@@ -5,6 +5,42 @@ import {
 } from "@langfuse/shared";
 import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 
+// Escape pipe characters in values to avoid conflicts with the delimiter
+// Uses backslash escaping: | → \|, and \ → \\
+export function escapePipeInValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
+export function unescapePipeInValue(value: string): string {
+  return value.replace(/\\\|/g, "|").replace(/\\\\/g, "\\");
+}
+
+// Split on unescaped pipe characters only (pipes not preceded by backslash)
+export function splitOnUnescapedPipe(str: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let i = 0;
+
+  while (i < str.length) {
+    if (str[i] === "\\" && i + 1 < str.length) {
+      // Escaped character - include both backslash and next char
+      current += str[i] + str[i + 1];
+      i += 2;
+    } else if (str[i] === "|") {
+      // Unescaped pipe - split here
+      result.push(current);
+      current = "";
+      i++;
+    } else {
+      current += str[i];
+      i++;
+    }
+  }
+  result.push(current);
+
+  return result;
+}
+
 // Generic helpers for reusable encoding/decoding across feature areas
 export type GenericFilterOptions = Record<
   string,
@@ -53,7 +89,9 @@ export function encodeFiltersGeneric(filters: FilterState): string {
             f.type === "arrayOptions" ||
             f.type === "categoryOptions"
           ) {
-            encodedValue = encodeURIComponent((f.value as string[]).join("|"));
+            // Escape pipe characters in individual values before joining with pipe delimiter
+            const escapedValues = (f.value as string[]).map(escapePipeInValue);
+            encodedValue = encodeURIComponent(escapedValues.join("|"));
           } else {
             encodedValue = encodeURIComponent(String(f.value));
           }
@@ -102,8 +140,9 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type === "arrayOptions" ||
       type === "categoryOptions"
     ) {
+      // Split on unescaped pipe characters only, then unescape each value
       parsedValue = decodedValue
-        ? decodedValue.split("|")
+        ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
         : decodedValue === ""
           ? [""] // allow empty strings (i.e, filter for empty trace name)
           : [decodedValue];

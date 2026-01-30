@@ -21,6 +21,11 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import {
+  escapePipeInValue,
+  splitOnUnescapedPipe,
+  unescapePipeInValue,
+} from "../lib/filter-query-encoding";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -50,7 +55,7 @@ const getCommaArrayParam = (table: TableName) => ({
               : f.type === "stringOptions" ||
                   f.type === "arrayOptions" ||
                   f.type === "categoryOptions"
-                ? f.value.join("|")
+                ? (f.value as string[]).map(escapePipeInValue).join("|")
                 : f.value,
           )}`;
 
@@ -80,7 +85,7 @@ const getCommaArrayParam = (table: TableName) => ({
                 : type === "stringOptions" ||
                     type === "arrayOptions" ||
                     type === "categoryOptions"
-                  ? decodedValue.split("|")
+                  ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
                   : type === "boolean"
                     ? decodedValue === "true"
                     : decodedValue;
