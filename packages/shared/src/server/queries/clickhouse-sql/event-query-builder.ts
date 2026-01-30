@@ -567,7 +567,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
 
   /**
    * Select metadata with expanded values for specified keys.
-   * Expands truncated metadata values by coalescing with metadata_long_values.
+   * Uses metadata_raw_values for expanded keys, metadata_prefixes (truncated) for others.
    *
    * @param keys - Keys to expand. Only the specified keys will have their full values returned.
    *
@@ -651,19 +651,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       // Add keys to params for safe parameterized query
       this.params.expandMetadataKeys = this.metadataExpansionKeys;
 
-      fieldExpressions.push(`mapFromArrays(
-        e.metadata_names,
-        arrayMap(
-          (name, prefix, hash) -> if(
-            has({expandMetadataKeys: Array(String)}, name) AND isNotNull(hash) AND mapContains(e.metadata_long_values, hash),
-            e.metadata_long_values[hash],
-            prefix
-          ),
-          e.metadata_names,
-          e.metadata_prefixes,
-          e.metadata_hashes
-        )
-      ) as metadata`);
+      // Use index lookup on metadata_raw_values for expanded keys, metadata_prefixes for others
+      fieldExpressions.push(
+        `mapFromArrays(e.metadata_names, e.metadata_raw_values) as metadata`,
+      );
     }
 
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;

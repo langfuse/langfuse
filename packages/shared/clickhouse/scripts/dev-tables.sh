@@ -222,13 +222,13 @@ CREATE TABLE IF NOT EXISTS events
       -- For now, store things as "German Strings" with fast prefix matches based on https://www.uber.com/en-DE/blog/logging/.
       -- metadata JSON(max_dynamic_paths=0),
       metadata_names Array(String),
-      metadata_raw_values Array(String), -- should not be used on retrieval, only for materializing other columns
+      metadata_raw_values Array(String),
       metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_raw_values),
-      metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_raw_values),
-      metadata_long_values Map(UInt32, String) MATERIALIZED mapFromArrays(
-        arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values)),
-        arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values))
-      ),
+      -- metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_raw_values),
+      -- metadata_long_values Map(UInt32, String) MATERIALIZED mapFromArrays(
+      --   arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values)),
+      --   arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values))
+      -- ),
 
       -- Experiment properties
       experiment_id String,
