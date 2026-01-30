@@ -171,34 +171,34 @@ CREATE TABLE IF NOT EXISTS events
       model_id String,
       provided_model_name String,
       model_parameters String,
-      model_parameters_json JSON MATERIALIZED model_parameters::JSON,
+      -- model_parameters_json JSON MATERIALIZED model_parameters::JSON,
 
       -- Usage
       provided_usage_details Map(LowCardinality(String), UInt64),
-      provided_usage_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_usage_details::JSON,
+      -- provided_usage_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_usage_details::JSON,
       usage_details Map(LowCardinality(String), UInt64),
-      usage_details_json JSON(
-        max_dynamic_paths=64,
-        max_dynamic_types=8,
-        input UInt64,
-        output UInt64,
-        total UInt64,
-      ) MATERIALIZED usage_details::JSON,
+      -- usage_details_json JSON(
+      --   max_dynamic_paths=64,
+      --   max_dynamic_types=8,
+      --   input UInt64,
+      --   output UInt64,
+      --   total UInt64,
+      -- ) MATERIALIZED usage_details::JSON,
       provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
-      provided_cost_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_cost_details::JSON,
+      -- provided_cost_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_cost_details::JSON,
       cost_details Map(LowCardinality(String), Decimal(18,12)),
-      cost_details_json JSON(
-        max_dynamic_paths=64,
-        max_dynamic_types=8,
-        input Decimal(18,12),
-        output Decimal(18,12),
-        total Decimal(18,12),
-      ) MATERIALIZED cost_details::JSON,
+      -- cost_details_json JSON(
+      --   max_dynamic_paths=64,
+      --   max_dynamic_types=8,
+      --   input Decimal(18,12),
+      --   output Decimal(18,12),
+      --   total Decimal(18,12),
+      -- ) MATERIALIZED cost_details::JSON,
 
       calculated_input_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
       calculated_output_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
       calculated_total_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
-      total_cost Decimal(18, 12) ALIAS cost_details_json.total,
+      total_cost Decimal(18, 12) ALIAS cost_details['total'],
       usage_pricing_tier_id Nullable(String),
       usage_pricing_tier_name Nullable(String),
 
@@ -209,16 +209,16 @@ CREATE TABLE IF NOT EXISTS events
 
       -- I/O
       input String CODEC(ZSTD(3)),
-      input_truncated String MATERIALIZED leftUTF8(input, 1024),
-      input_length UInt64 MATERIALIZED lengthUTF8(input),
+      -- input_truncated String MATERIALIZED leftUTF8(input, 1024),
+      -- input_length UInt64 MATERIALIZED lengthUTF8(input),
       output String CODEC(ZSTD(3)),
-      output_truncated String MATERIALIZED leftUTF8(output, 1024),
-      output_length UInt64 MATERIALIZED lengthUTF8(output),
+      -- output_truncated String MATERIALIZED leftUTF8(output, 1024),
+      -- output_length UInt64 MATERIALIZED lengthUTF8(output),
 
       -- Metadata
       -- Keep raw JSON to benefit from future ClickHouse improvements.
       -- For now, store things as "German Strings" with fast prefix matches based on https://www.uber.com/en-DE/blog/logging/.
-      metadata JSON(max_dynamic_paths=0),
+      -- metadata JSON(max_dynamic_paths=0),
       metadata_names Array(String),
       metadata_raw_values Array(String), -- should not be used on retrieval, only for materializing other columns
       metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_raw_values),
@@ -287,7 +287,7 @@ CREATE TABLE IF NOT EXISTS events
   SAMPLE BY xxHash32(trace_id)
   SETTINGS
     index_granularity = 8192,
-    index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
+    -- index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
     enable_block_number_column = 1,
     enable_block_offset_column = 1,
     dynamic_serialization_version='v3',
