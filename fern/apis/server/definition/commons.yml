@@ -379,6 +379,15 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  CorrectionScore:
+    extends: BaseScore
+    properties:
+      value:
+        type: double
+        docs: The numeric value of the score. Always 0 for correction scores.
+      stringValue:
+        type: string
+        docs: The string representation of the correction content
   Score:
     discriminant: "dataType"
     union:
@@ -391,6 +400,9 @@ types:
       BOOLEAN:
         type: BooleanScore
         docs: "Score with BOOLEAN data type"
+      CORRECTION:
+        type: CorrectionScore
+        docs: "Score with CORRECTION data type"
 
   CreateScoreValue:
     discriminated: false

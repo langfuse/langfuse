@@ -64,6 +64,7 @@ model User {
   password                  String?
   image                     String?
   admin                     Boolean                     @default(false)
+  v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
   accounts                  Account[]
   sessions                  Session[]
   organizationMemberships   OrganizationMembership[]
@@ -1207,6 +1208,7 @@ model Media {
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
+  @@index([projectId, createdAt])
   @@map("media")
 }
 

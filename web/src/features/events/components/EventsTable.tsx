@@ -1145,11 +1145,12 @@ export default function ObservationsEventsTable({
             pageSize: paginationState.limit,
             pageIndex: paginationState.page - 1,
           }}
+          filterWithAI
         />
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls queryFilter={queryFilter} filterWithAI />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
