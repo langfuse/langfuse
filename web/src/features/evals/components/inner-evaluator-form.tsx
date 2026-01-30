@@ -34,9 +34,9 @@ import {
   type ObservationEvalOptions,
   type ObservationType,
   LangfuseInternalTraceEnvironment,
-  ExperimentEvalOptions,
+  type ExperimentEvalOptions,
   experimentEvalFilterColsWithOptions,
-  ColumnDefinition,
+  type ColumnDefinition,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
