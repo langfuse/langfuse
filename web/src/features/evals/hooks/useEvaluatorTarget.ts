@@ -57,7 +57,7 @@ export const useUserFacingTarget = (targetObject?: string) => {
  * Custom hook to manage evaluator target-dependent state.
  * Handles available variables and variable mapping transformations.
  */
-export const useEvaluatorTargetState = (initialTarget: string) => {
+export const useEvaluatorTargetState = () => {
   const getAvailableVariables = (targetObject: string) => {
     if (isEventTarget(targetObject) || isExperimentTarget(targetObject)) {
       return OBSERVATION_VARIABLES;
