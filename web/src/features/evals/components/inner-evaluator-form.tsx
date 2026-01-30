@@ -28,9 +28,15 @@ import {
   datasetFormFilterColsWithOptions,
   type availableDatasetEvalVariables,
   observationEvalVariableColumns,
-  observationEvalFilterColumns,
+  evalEventFilterCols,
+  evalExperimentFilterCols,
+  observationEvalFilterColsWithOptions,
+  type ObservationEvalOptions,
   type ObservationType,
   LangfuseInternalTraceEnvironment,
+  ExperimentEvalOptions,
+  experimentEvalFilterColsWithOptions,
+  ColumnDefinition,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -163,35 +169,17 @@ const propagationRequiredColumns = new Set([
 ]);
 
 /**
- * Converts observation filter columns to ColumnDefinition format and
- * augments with alerts for propagation-requiring columns when propagation is not available
+ * Adds propagation warnings to columns that require OTEL SDK with span propagation
  */
-const getObservationFilterColumnsWithWarnings = (
+const addPropagationWarnings = (
+  columns: ColumnDefinition[],
   allowPropagationFilters: boolean,
 ): ColumnDefinitionWithAlert[] => {
-  // Columns that require OTEL SDK with span propagation
-
-  return observationEvalFilterColumns.map((col) => {
-    // Convert to ColumnDefinition format
-    let baseColumn: ColumnDefinitionWithAlert;
-
-    if (col.type === "stringOptions" || col.type === "arrayOptions") {
-      baseColumn = {
-        ...col,
-        internal: col.id,
-        options: [], // Options will be populated at runtime if needed
-      } as ColumnDefinitionWithAlert;
-    } else {
-      baseColumn = {
-        ...col,
-        internal: col.id,
-      } as ColumnDefinitionWithAlert;
-    }
-
+  return columns.map((col) => {
     // Add alert if propagation is required but not available
     if (!allowPropagationFilters && propagationRequiredColumns.has(col.id)) {
       return {
-        ...baseColumn,
+        ...col,
         alert: {
           severity: "warning" as const,
           content: (
@@ -213,7 +201,7 @@ const getObservationFilterColumnsWithWarnings = (
       };
     }
 
-    return baseColumn;
+    return col;
   });
 };
 
@@ -443,6 +431,24 @@ export const InnerEvaluatorForm = (props: {
       })),
     };
   }, [datasets.data]);
+
+  const observationEvalFilterOptions: ObservationEvalOptions = useMemo(() => {
+    return {
+      environment: environmentFilterOptionsResponse.data?.map((e) => ({
+        value: e.environment,
+      })),
+      tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
+        value: t.value,
+      })),
+    };
+  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
+
+  const experimentEvalFilterOptions: ExperimentEvalOptions = useMemo(() => {
+    return {
+      // Reuse trace filter options (observations share type, tags with traces)
+      experiment_dataset_id: datasetFilterOptions?.datasetId,
+    };
+  }, [datasetFilterOptions]);
 
   useEffect(() => {
     if (isTraceTarget(form.getValues("target")) && !props.disabled) {
@@ -928,7 +934,13 @@ export const InnerEvaluatorForm = (props: {
                 // Get appropriate columns based on target type
                 const getFilterColumns = () => {
                   if (isEventTarget(target)) {
-                    return getObservationFilterColumnsWithWarnings(
+                    // Event evaluators - use observation columns with propagation warnings
+                    const baseColumns = observationEvalFilterColsWithOptions(
+                      observationEvalFilterOptions,
+                      evalEventFilterCols,
+                    );
+                    return addPropagationWarnings(
+                      baseColumns,
                       allowPropagationFilters,
                     );
                   } else if (isTraceTarget(target)) {
@@ -936,8 +948,14 @@ export const InnerEvaluatorForm = (props: {
                       traceFilterOptions,
                       evalTraceTableCols,
                     );
+                  } else if (isExperimentTarget(target)) {
+                    // Experiment evaluators - only dataset filter
+                    return experimentEvalFilterColsWithOptions(
+                      experimentEvalFilterOptions,
+                      evalExperimentFilterCols,
+                    );
                   } else {
-                    // dataset or experiment
+                    // dataset (legacy non-OTEL experiments)
                     return datasetFormFilterColsWithOptions(
                       datasetFilterOptions,
                       evalDatasetFormFilterCols,
