@@ -39,7 +39,11 @@ import {
   InlineFilterBuilder,
   type ColumnDefinitionWithAlert,
 } from "@/src/features/filters/components/filter-builder";
-import { type EvalTemplate, variableMapping } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  variableMapping,
+  observationVariableMapping,
+} from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
@@ -56,6 +60,7 @@ import {
   type LangfuseObject,
   type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
+import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { EvalTargetObject } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
 import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
@@ -95,6 +100,10 @@ import {
   isLegacyEvalTarget,
   isTraceOrEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
+import {
+  useUserFacingTarget,
+  useEvaluatorTargetState,
+} from "@/src/features/evals/hooks/useEvaluatorTarget";
 
 // Lazy load TracesTable
 const TracesTable = lazy(
@@ -294,20 +303,22 @@ export const InnerEvaluatorForm = (props: {
   const [showPreview, setShowPreview] = useState(false);
   const router = useRouter();
   const traceId = router.query.traceId as string;
-  // Track the user-facing target selection (what they see in the UI)
-  // This can be "trace", "event", or "offline-experiment"
-  const [userFacingTarget, setUserFacingTarget] = useState<
-    "trace" | "event" | "offline-experiment"
-  >("event");
-  // Track whether offline experiment should use OTEL data (true) or non-OTEL data (false)
-  // OTEL -> "experiment" target, non-OTEL -> "dataset" target
-  const [useOtelDataForExperiment, setUseOtelDataForExperiment] =
-    useState(true);
-  // Confirmation dialog for trace-level evaluators
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
 
   // Destructure eval capabilities passed from parent
   const { allowLegacy, allowPropagationFilters } = props.evalCapabilities;
+
+  // Custom hooks for managing evaluator state
+  const {
+    userFacingTarget,
+    setUserFacingTarget,
+    useOtelDataForExperiment,
+    setUseOtelDataForExperiment,
+  } = useUserFacingTarget(props.existingEvaluator?.targetObject);
+
+  const targetState = useEvaluatorTargetState(
+    props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
+  );
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
@@ -324,15 +335,22 @@ export const InnerEvaluatorForm = (props: {
           ? DEFAULT_TRACE_FILTER
           : [],
       mapping: props.existingEvaluator?.variableMapping
-        ? z
-            .array(variableMapping)
-            .parse(props.existingEvaluator.variableMapping)
+        ? isEventTarget(props.existingEvaluator.targetObject) ||
+          isExperimentTarget(props.existingEvaluator.targetObject)
+          ? z
+              .array(observationVariableMapping)
+              .parse(props.existingEvaluator.variableMapping)
+          : z
+              .array(variableMapping)
+              .parse(props.existingEvaluator.variableMapping)
         : z.array(variableMapping).parse(
             props.evalTemplate
               ? props.evalTemplate.vars.map((v) => ({
                   templateVariable: v,
                   langfuseObject: "trace" as const,
+                  objectName: null,
                   selectedColumnId: "input",
+                  jsonSelector: null,
                 }))
               : [],
           ),
@@ -348,21 +366,6 @@ export const InnerEvaluatorForm = (props: {
       ),
     },
   }) as UseFormReturn<EvalFormType>;
-
-  // Initialize userFacingTarget based on the actual target
-  useEffect(() => {
-    const currentTarget =
-      props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT;
-    if (isTraceTarget(currentTarget)) {
-      setUserFacingTarget("trace");
-    } else if (isEventTarget(currentTarget)) {
-      setUserFacingTarget("event");
-    } else if (isLegacyEvalTarget(currentTarget)) {
-      setUserFacingTarget("offline-experiment");
-      setUseOtelDataForExperiment(isExperimentTarget(currentTarget));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
     { projectId: props.projectId },
@@ -483,10 +486,10 @@ export const InnerEvaluatorForm = (props: {
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
-  >(
-    isTraceOrEventTarget(props.existingEvaluator?.targetObject ?? "trace")
-      ? availableTraceEvalVariables
-      : availableDatasetEvalVariables,
+  >(() =>
+    targetState.getAvailableVariables(
+      props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
+    ),
   );
 
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
@@ -531,14 +534,15 @@ export const InnerEvaluatorForm = (props: {
       return;
     }
 
-    const validatedVarMapping = z
-      .array(variableMapping)
-      .safeParse(values.mapping);
+    const validatedVarMapping = validateAndTransformVariableMapping(
+      values.mapping,
+      values.target as EvalTargetObject,
+    );
 
-    if (validatedVarMapping.success === false) {
+    if (!validatedVarMapping.success) {
       form.setError("mapping", {
         type: "manual",
-        message: "Please fill out all variable mappings",
+        message: validatedVarMapping.error,
       });
       return;
     }
@@ -588,7 +592,6 @@ export const InnerEvaluatorForm = (props: {
           return;
         } else {
           setFormError(JSON.stringify(error));
-          console.error(error);
         }
       });
   }
@@ -702,22 +705,18 @@ export const InnerEvaluatorForm = (props: {
                               : EvalTargetObject.DATASET;
                           }
 
-                          const isTracing = isTraceOrEventTarget(actualTarget);
-                          const langfuseObject: LangfuseObject = isTracing
-                            ? "trace"
-                            : "dataset_item";
-                          const newMapping = form
-                            .getValues("mapping")
-                            .map((field) => ({
-                              ...field,
-                              langfuseObject,
-                            }));
+                          // Transform variable mapping for new target type
+                          const currentMapping = form.getValues("mapping");
+                          const newMapping = targetState.transformMapping(
+                            currentMapping,
+                            actualTarget,
+                          );
+
+                          // Update form state
                           form.setValue("filter", []);
                           form.setValue("mapping", newMapping);
                           setAvailableVariables(
-                            isTracing
-                              ? availableTraceEvalVariables
-                              : availableDatasetEvalVariables,
+                            targetState.getAvailableVariables(actualTarget),
                           );
                           field.onChange(actualTarget);
                         }}
@@ -773,26 +772,23 @@ export const InnerEvaluatorForm = (props: {
                       setUseOtelDataForExperiment(useOtel);
 
                       // Update the actual form target
-                      const actualTarget = useOtel ? "experiment" : "dataset";
+                      const actualTarget = useOtel
+                        ? EvalTargetObject.EXPERIMENT
+                        : EvalTargetObject.DATASET;
                       form.setValue("target", actualTarget);
 
-                      // Update variable mapping
-                      const isTracing = isTraceOrEventTarget(actualTarget);
-                      const langfuseObject: LangfuseObject = isTracing
-                        ? "trace"
-                        : "dataset_item";
-                      const newMapping = form
-                        .getValues("mapping")
-                        .map((field) => ({
-                          ...field,
-                          langfuseObject,
-                        }));
+                      // Transform variable mapping for new target type
+                      const currentMapping = form.getValues("mapping");
+                      const newMapping = targetState.transformMapping(
+                        currentMapping,
+                        actualTarget,
+                      );
+
+                      // Update form state
                       form.setValue("filter", []);
                       form.setValue("mapping", newMapping);
                       setAvailableVariables(
-                        isTracing
-                          ? availableTraceEvalVariables
-                          : availableDatasetEvalVariables,
+                        targetState.getAvailableVariables(actualTarget),
                       );
                     }}
                   >
