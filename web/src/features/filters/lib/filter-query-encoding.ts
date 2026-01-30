@@ -11,7 +11,6 @@ function escapePipeInValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
-// Unescape pipe characters after splitting
 function unescapePipeInValue(value: string): string {
   return value.replace(/\\\|/g, "|").replace(/\\\\/g, "\\");
 }
