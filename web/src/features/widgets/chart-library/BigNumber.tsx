@@ -72,7 +72,9 @@ const formatBigNumber = (
         )
       : 2;
     return {
-      formatted: stripTrailingDecimalZeros(value.toFixed(Math.max(0, Math.min(3, decimals)))),
+      formatted: stripTrailingDecimalZeros(
+        value.toFixed(Math.max(0, Math.min(3, decimals))),
+      ),
       unit: "",
     };
   } else if (absValue > 0) {
@@ -89,7 +91,9 @@ const formatBigNumber = (
     const decimals = Math.min(neededDecimals, maxAllowedDecimals, 8); // Max 8 decimal places
 
     return {
-      formatted: stripTrailingDecimalZeros(value.toFixed(Math.max(0, Math.min(3, decimals)))),
+      formatted: stripTrailingDecimalZeros(
+        value.toFixed(Math.max(0, Math.min(3, decimals))),
+      ),
       unit: "",
     };
   } else {
@@ -244,6 +248,3 @@ export const BigNumber: React.FC<ChartProps> = ({
     </div>
   );
 };
-
-
-
