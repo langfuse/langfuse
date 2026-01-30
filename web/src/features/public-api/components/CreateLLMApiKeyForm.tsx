@@ -263,7 +263,7 @@ export function CreateLLMApiKeyForm({
             withDefaultModels: true,
             customModels: [],
             extraHeaders: [],
-            vertexAILocation: "",
+            vertexAILocation: "global",
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -1012,13 +1012,13 @@ export function CreateLLMApiKeyForm({
                     <FormItem>
                       <FormLabel>Location (Optional)</FormLabel>
                       <FormDescription>
-                        Specify the Google Cloud location for Vertex AI. If not
-                        specified, the default location will be used
-                        (us-central1). Examples: us-central1, europe-west4,
-                        asia-northeast1
+                        Google Cloud region (e.g., global, us-central1,
+                        europe-west4). Defaults to{" "}
+                        <span className="font-medium">global</span> as required
+                        for Gemini 3 models.
                       </FormDescription>
                       <FormControl>
-                        <Input {...field} placeholder="e.g., us-central1" />
+                        <Input {...field} placeholder="global" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

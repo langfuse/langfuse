@@ -6,6 +6,7 @@ import { CloudSpendAlertQueue } from "./cloudSpendAlertQueue";
 import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQueue";
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { EvalExecutionQueue } from "./evalExecutionQueue";
+import { LLMAsJudgeExecutionQueue } from "./llmAsJudgeExecutionQueue";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { SecondaryIngestionQueue } from "./ingestionQueue";
 import { TraceDeleteQueue } from "./traceDelete";
@@ -55,6 +56,8 @@ export function getQueue(
       return DatasetDeleteQueue.getInstance();
     case QueueName.EvaluationExecution:
       return EvalExecutionQueue.getInstance();
+    case QueueName.LLMAsJudgeExecution:
+      return LLMAsJudgeExecutionQueue.getInstance();
     case QueueName.ExperimentCreate:
       return ExperimentCreateQueue.getInstance();
     case QueueName.TraceDelete:
@@ -100,8 +103,7 @@ export function getQueue(
     case QueueName.NotificationQueue:
       return NotificationQueue.getInstance();
     default: {
-      // eslint-disable-next-line no-case-declarations, no-unused-vars
-      const exhaustiveCheckDefault: never = queueName;
+      const _exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);
     }
   }

@@ -14,8 +14,8 @@ import {
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
-const hasEvents = env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
-const maybe = hasEvents ? describe : describe.skip;
+const hasV2Apis = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
+const maybe = hasV2Apis ? describe : describe.skip;
 
 describe("/api/public/v2/metrics API Endpoint", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -28,7 +28,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   const testMetadataValue = randomUUID();
 
   beforeAll(async () => {
-    if (!hasEvents) {
+    if (!hasV2Apis) {
       // don't attempt data setup if events table is disabled
       return;
     }
@@ -411,7 +411,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       ["sessionId", "scores-numeric"],
       ["observationId", "scores-numeric"],
     ])(
-      "should reject high cardinality dimension %s in %s view",
+      "should reject high cardinality dimension %s in %s view without LIMIT and ORDER DESC",
       async (dimensionField, viewName) => {
         const query = {
           view: viewName,
@@ -430,11 +430,36 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         expect(response.body).toMatchObject({
           error: "InvalidRequestError",
           message: expect.stringContaining(
-            `Dimension '${dimensionField}' has high cardinality`,
+            `require both 'config.row_limit' and 'orderBy' with direction 'desc'`,
           ),
         });
       },
     );
+
+    it("should reject high cardinality dimension without LIMIT", async () => {
+      const query = {
+        view: "observations",
+        dimensions: [{ field: "traceId" }],
+        metrics: [{ measure: "latency", aggregation: "sum" }],
+        orderBy: [{ field: "sum_latency", direction: "desc" }],
+        // Missing config.row_limit
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: "InvalidRequestError",
+        message: expect.stringContaining(
+          `require both 'config.row_limit' and 'orderBy' with direction 'desc'`,
+        ),
+      });
+    });
 
     it("should allow high cardinality fields in filters", async () => {
       const query = {
@@ -745,7 +770,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     const scoreSessionId = randomUUID();
 
     beforeAll(async () => {
-      if (!hasEvents) return;
+      if (!hasV2Apis) return;
 
       // Create observation in events table for scores to reference
       await createEventsCh([
@@ -902,7 +927,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     const eventsScoreVersion = "events-v1.2.3";
 
     beforeAll(async () => {
-      if (!hasEvents) return;
+      if (!hasV2Apis) return;
 
       eventsScoreTraceId = randomUUID();
       eventsObservationId = randomUUID();
@@ -1016,7 +1041,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
     let obsEventsScoreId: string;
 
     beforeAll(async () => {
-      if (!hasEvents) return;
+      if (!hasV2Apis) return;
 
       obsEventsTraceId = randomUUID();
       obsEventsObservationId = randomUUID();

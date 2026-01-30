@@ -28,6 +28,7 @@ export const PeekViewTraceDetail = ({ projectId }: { projectId: string }) => {
       key={trace.data.id}
       trace={trace.data}
       scores={trace.data.scores}
+      corrections={trace.data.corrections}
       projectId={trace.data.projectId}
       observations={trace.data.observations}
       selectedTab={selectedTab}

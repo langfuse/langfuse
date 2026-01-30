@@ -1,13 +1,14 @@
 import { useMemo } from "react";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { type ExpansionStateProps } from "./IOPreview";
+import { CorrectedOutputField } from "./components/CorrectedOutputField";
 
-export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
+export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   metadata?: Prisma.JsonValue;
+  outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -18,6 +19,18 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  observationId?: string;
+  projectId: string;
+  traceId: string;
+  environment?: string;
+  // Simple boolean expansion state (true = expanded, false = collapsed)
+  inputExpanded?: boolean;
+  outputExpanded?: boolean;
+  metadataExpanded?: boolean;
+  onInputExpandedChange?: (expanded: boolean) => void;
+  onOutputExpandedChange?: (expanded: boolean) => void;
+  onMetadataExpandedChange?: (expanded: boolean) => void;
+  showCorrections?: boolean;
 }
 
 /**
@@ -28,11 +41,18 @@ export interface IOPreviewJSONSimpleProps extends ExpansionStateProps {
  *
  * This is the "stable" JSON view that was used before the AdvancedJsonViewer
  * was introduced.
+ *
+ * LIMITATION: The react18-json-view library does NOT expose callbacks for
+ * individual node expansion. Only global collapse/expand state (via the
+ * fold/unfold button in the header) can be persisted. Per-node expansion
+ * state is NOT saved when navigating between traces/observations.
+ * Use Pretty view for full per-node expansion persistence.
  */
 export function IOPreviewJSONSimple({
   input,
   output,
   metadata,
+  outputCorrection,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -42,24 +62,34 @@ export function IOPreviewJSONSimple({
   hideOutput = false,
   hideInput = false,
   media,
-  inputExpansionState,
-  outputExpansionState,
-  onInputExpansionChange,
-  onOutputExpansionChange,
+  inputExpanded,
+  outputExpanded,
+  metadataExpanded,
+  onInputExpandedChange,
+  onOutputExpandedChange,
+  onMetadataExpandedChange,
+  observationId,
+  projectId,
+  traceId,
+  environment = "default",
+  showCorrections = true,
 }: IOPreviewJSONSimpleProps) {
   // Parse data if not pre-parsed
-  const effectiveInput = useMemo(
-    () => parsedInput ?? deepParseJson(input),
-    [parsedInput, input],
-  );
-  const effectiveOutput = useMemo(
-    () => parsedOutput ?? deepParseJson(output),
-    [parsedOutput, output],
-  );
-  const effectiveMetadata = useMemo(
-    () => parsedMetadata ?? deepParseJson(metadata),
-    [parsedMetadata, metadata],
-  );
+  // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
+  const effectiveInput = useMemo(() => {
+    if (isParsing) return undefined; // Wait for Web Worker to finish
+    return parsedInput ?? deepParseJson(input);
+  }, [parsedInput, input, isParsing]);
+
+  const effectiveOutput = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedOutput ?? deepParseJson(output);
+  }, [parsedOutput, output, isParsing]);
+
+  const effectiveMetadata = useMemo(() => {
+    if (isParsing) return undefined;
+    return parsedMetadata ?? deepParseJson(metadata);
+  }, [parsedMetadata, metadata, isParsing]);
 
   const showInput = !hideInput && !(hideIfNull && !effectiveInput);
   const showOutput = !hideOutput && !(hideIfNull && !effectiveOutput);
@@ -76,8 +106,13 @@ export function IOPreviewJSONSimple({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "input") ?? []}
           currentView="json"
-          externalExpansionState={inputExpansionState}
-          onExternalExpansionChange={onInputExpansionChange}
+          externalExpansionState={inputExpanded}
+          // Cast: PrettyJsonView accepts union type, but JSON view only uses boolean
+          onExternalExpansionChange={
+            onInputExpandedChange as (
+              expansion: boolean | Record<string, boolean>,
+            ) => void
+          }
         />
       )}
       {showOutput && (
@@ -89,8 +124,22 @@ export function IOPreviewJSONSimple({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
           currentView="json"
-          externalExpansionState={outputExpansionState}
-          onExternalExpansionChange={onOutputExpansionChange}
+          externalExpansionState={outputExpanded}
+          onExternalExpansionChange={
+            onOutputExpandedChange as (
+              expansion: boolean | Record<string, boolean>,
+            ) => void
+          }
+        />
+      )}
+      {showCorrections && (
+        <CorrectedOutputField
+          actualOutput={effectiveOutput}
+          existingCorrection={outputCorrection}
+          observationId={observationId}
+          projectId={projectId}
+          traceId={traceId}
+          environment={environment}
         />
       )}
       {showMetadata && (
@@ -102,6 +151,12 @@ export function IOPreviewJSONSimple({
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "metadata") ?? []}
           currentView="json"
+          externalExpansionState={metadataExpanded}
+          onExternalExpansionChange={
+            onMetadataExpandedChange as (
+              expansion: boolean | Record<string, boolean>,
+            ) => void
+          }
         />
       )}
     </div>

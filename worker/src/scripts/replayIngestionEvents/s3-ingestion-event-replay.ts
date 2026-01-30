@@ -29,7 +29,7 @@ const JSONL_OUTPUT_FILE = "events_filtered.jsonl";
 const OTEL_JSONL_OUTPUT_FILE = "otel_events_filtered.jsonl";
 
 // Redis configuration
-// eslint-disable-next-line turbo/no-undeclared-env-vars
+
 const QUEUE_NAME = QueueName.IngestionSecondaryQueue;
 const JOB_NAME = QueueJobs.IngestionJob;
 

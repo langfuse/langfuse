@@ -98,6 +98,9 @@ export const createObservation = (
     prompt_version: 1,
     end_time: Date.now(),
     completion_start_time: Date.now(),
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
     ...observation,
   };
 };
@@ -115,6 +118,7 @@ export const createTraceScore = (
     timestamp: Date.now(),
     value: 100.5,
     string_value: null,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -140,6 +144,7 @@ export const createSessionScore = (
     name: "test-session-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -166,6 +171,7 @@ export const createDatasetRunScore = (
     name: "test-run-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },

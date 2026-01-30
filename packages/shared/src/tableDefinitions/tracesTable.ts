@@ -211,6 +211,7 @@ export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
+
 export type TraceOptions = {
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;

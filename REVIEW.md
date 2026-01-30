@@ -10,6 +10,7 @@
 - Migrations in `packages/shared/clickhouse/migrations/clustered` should match their counterparts in `packages/shared/clickhouse/migrations/unclustered` aside from the restrictions listed above.
 - When adding new indexes on ClickHouse, ensure that there is a corresponding `MATERIALIZE INDEX` statement in the same migration. The materialization can use `SETTINGS mutations_sync = 2` if they operate on smaller tables, but may timeout otherwise.
 - All ClickHouse queries on project-scoped tables (traces, observations, scores, events, sessions, etc.) must include `WHERE project_id = {projectId: String}` filter to ensure proper tenant isolation and that queries only access data from the intended project.
+- For operations on the `events` table, you must never use the `FINAL` keyword as it kills performance. `events` is built so that `FINAL` is never required.
 
 ### Postgres
 
@@ -45,3 +46,10 @@
 ## Seeder
 
 - make sure that for new features with data model changes, the database seeder is adjusted.
+
+## API Documentation
+
+- Whenever a file in `web/src/features/public-api/types` changes, the `fern/apis` definition probably needs to be adjusted, too.
+- `nullish` types should map to `optional<nullable<T>>` in fern.
+- `nullable` types should map to `nullable<T>` in fern.
+- `optional` types should map to `optional<T>` in fern.

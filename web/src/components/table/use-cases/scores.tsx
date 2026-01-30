@@ -27,7 +27,7 @@ import type { RouterOutput } from "@/src/utils/types";
 import {
   isPresent,
   type FilterState,
-  type ScoreDataType,
+  type ScoreDataTypeType,
   BatchExportTableName,
   BatchActionType,
   TableViewPresetTableName,
@@ -58,7 +58,7 @@ export type ScoresTableRow = {
   timestamp: Date;
   source: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   value: string;
   author: {
     userId?: string;
@@ -99,6 +99,7 @@ export default function ScoresTable({
   observationId,
   hiddenColumns = [],
   localStorageSuffix = "",
+  disableUrlPersistence = false,
 }: {
   projectId: string;
   userId?: string;
@@ -107,6 +108,7 @@ export default function ScoresTable({
   omittedFilter?: string[];
   hiddenColumns?: string[];
   localStorageSuffix?: string;
+  disableUrlPersistence?: boolean;
 }) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -261,6 +263,7 @@ export default function ScoresTable({
     newFilterOptions,
     projectId,
     filterOptions.isPending || environmentFilterOptions.isPending,
+    disableUrlPersistence,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

@@ -74,6 +74,14 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Trace Name",
+    id: "traceName",
+    type: "stringOptions",
+    internal: "e.trace_name",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
     name: "Level",
     id: "level",
     type: "stringOptions",
@@ -234,5 +242,35 @@ export const eventsTableCols: ColumnDefinition[] = [
     id: "commentContent",
     type: "string",
     internal: "", // handled by comment filter helpers
+  },
+  {
+    name: "Has Parent Observation",
+    id: "hasParentObservation",
+    type: "boolean",
+    internal: "e.parent_span_id != ''",
+  },
+  {
+    name: "Experiment Dataset ID",
+    id: "experimentDatasetId",
+    type: "stringOptions",
+    internal: "e.experiment_dataset_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment ID",
+    id: "experimentId",
+    type: "stringOptions",
+    internal: "e.experiment_id",
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment Name",
+    id: "experimentName",
+    type: "stringOptions",
+    internal: "e.experiment_name",
+    options: [], // to be added at runtime
+    nullable: true,
   },
 ];

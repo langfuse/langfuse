@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { LangfuseOtelSpanAttributes } from "./attributes";
 import { type ObservationType, ObservationTypeDomain } from "../../";
 
@@ -414,7 +413,7 @@ export class ObservationTypeMapperRegistry {
     attributes: Record<string, unknown>,
     resourceAttributes?: Record<string, unknown>,
     scopeData?: Record<string, unknown>,
-  ): LangfuseObservationType | null {
+  ): LangfuseObservationType {
     const sortedMappers = this.getSortedMappers();
     for (const mapper of sortedMappers) {
       if (mapper.canMap(attributes, resourceAttributes, scopeData)) {
@@ -429,7 +428,7 @@ export class ObservationTypeMapperRegistry {
       }
     }
 
-    return null;
+    return "SPAN";
   }
 
   getMappersForDebugging(): ReadonlyArray<ObservationTypeMapper> {

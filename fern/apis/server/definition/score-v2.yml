@@ -69,6 +69,9 @@ service:
             type: optional<string>
             allow-multiple: true
             docs: Only scores linked to traces that include all of these tags will be returned.
+          fields:
+            type: optional<string>
+            docs: "Comma-separated list of field groups to include in the response. Available field groups: 'score' (core score fields), 'trace' (trace properties: userId, tags, environment). If not specified, both 'score' and 'trace' are returned by default. Example: 'score' to exclude trace data, 'score,trace' to include both. Note: When filtering by trace properties (using userId or traceTags parameters), the 'trace' field group must be included, otherwise a 400 error will be returned."
       response: GetScoresResponse
     get-by-id:
       docs: Get a score (supports both trace and session scores)
@@ -108,12 +111,18 @@ types:
     properties:
       trace: optional<GetScoresResponseTraceData>
 
+  GetScoresResponseDataCorrection:
+    extends: commons.CorrectionScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
   GetScoresResponseData:
     discriminant: dataType
     union:
       NUMERIC: GetScoresResponseDataNumeric
       CATEGORICAL: GetScoresResponseDataCategorical
       BOOLEAN: GetScoresResponseDataBoolean
+      CORRECTION: GetScoresResponseDataCorrection
 
   GetScoresResponse:
     properties:

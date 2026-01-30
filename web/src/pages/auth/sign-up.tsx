@@ -181,7 +181,7 @@ export default function SignIn({
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
       });
-    } catch (_err) {
+    } catch {
       setFormError("An error occurred. Please try again.");
     }
   }
@@ -215,7 +215,6 @@ export default function SignIn({
           <Form {...form}>
             <form
               className="space-y-6"
-              // eslint-disable-next-line @typescript-eslint/no-misused-promises
               onSubmit={
                 showPasswordStep
                   ? form.handleSubmit(onSubmit)
@@ -247,7 +246,12 @@ export default function SignIn({
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="jsdoe@example.com" {...field} />
+                      <Input
+                        placeholder="jsdoe@example.com"
+                        allowPasswordManager
+                        autoComplete="email"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

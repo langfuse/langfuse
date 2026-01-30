@@ -5,8 +5,8 @@ import {
   BatchExportQueryType,
   OrderByState,
   TracingSearchType,
-  ScoreDataType,
   isPresent,
+  type ScoreDataTypeType,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -588,7 +588,7 @@ export function prepareScoresForOutput(
   scores: {
     name: string;
     stringValue?: string | null;
-    dataType: ScoreDataType;
+    dataType: ScoreDataTypeType;
     value: number;
   }[],
 ): Record<string, string[] | number[]> {

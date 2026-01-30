@@ -79,6 +79,11 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import {
+  type RefreshInterval,
+  REFRESH_INTERVALS,
+} from "@/src/components/table/data-table-refresh-button";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
@@ -146,14 +151,57 @@ export default function TracesTable({
 }: TracesTableProps) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
+  const [rawRefreshInterval, setRawRefreshInterval] =
+    useSessionStorage<RefreshInterval>(
+      `tableRefreshInterval-${projectId}`,
+      null,
+    );
+
+  // Validate session storage value against allowed intervals to prevent too small intervals
+  const allowedValues = REFRESH_INTERVALS.map((i) => i.value);
+  const refreshInterval = allowedValues.includes(rawRefreshInterval)
+    ? rawRefreshInterval
+    : null;
+  const setRefreshInterval = useCallback(
+    (value: RefreshInterval) => {
+      if (allowedValues.includes(value)) {
+        setRawRefreshInterval(value);
+      }
+    },
+    [allowedValues, setRawRefreshInterval],
+  );
+
+  const [refreshTick, setRefreshTick] = useState(0);
   const { setDetailPageList } = useDetailPageLists();
+
+  // Auto-increment refresh tick to force date range recalculation
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+    void Promise.all([
+      utils.traces.all.invalidate(),
+      utils.traces.metrics.invalidate(),
+      utils.traces.countAll.invalidate(),
+      utils.traces.filterOptions.invalidate(),
+      utils.projects.environmentFilterOptions.invalidate(),
+    ]);
+  }, [utils]);
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
+  // refreshTick forces recalculation on each refresh cycle
   const tableDateRange = useMemo(() => {
     return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, refreshTick]);
 
   const dateRange = externalDateRange ?? tableDateRange;
 
@@ -1217,6 +1265,15 @@ export default function TracesTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
+            refreshConfig={{
+              onRefresh: handleRefresh,
+              isRefreshing:
+                traces.isFetching ||
+                traceMetrics.isFetching ||
+                totalCountQuery.isFetching,
+              interval: refreshInterval,
+              setInterval: setRefreshInterval,
+            }}
             multiSelect={{
               selectAll,
               setSelectAll,

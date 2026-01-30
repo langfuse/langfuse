@@ -4,7 +4,6 @@ import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
 import { TracingSearchType } from "../../interfaces/search";
 
-/* eslint-disable no-unused-vars */
 export enum BatchActionType {
   Create = "create",
   Delete = "delete",

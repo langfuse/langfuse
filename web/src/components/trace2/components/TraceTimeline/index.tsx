@@ -15,7 +15,7 @@ import { TimelineScale } from "./TimelineScale";
 import { TimelineRow } from "./TimelineRow";
 
 export function TraceTimeline() {
-  const { tree, scores, comments } = useTraceData();
+  const { roots, serverScores: scores, comments } = useTraceData();
   const { collapsedNodes, toggleCollapsed, selectedNodeId, setSelectedNodeId } =
     useSelection();
   const {
@@ -30,15 +30,18 @@ export function TraceTimeline() {
   const timeIndexRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Calculate trace duration from tree root
+  // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTree.tsx
+  // Calculate trace duration from roots (max latency across all roots)
   const traceDuration = useMemo(() => {
-    // Use tree's latency (already calculated in buildTraceUiData)
-    return tree.latency ?? 0;
-  }, [tree.latency]);
+    if (roots.length === 0) return 0;
+    return Math.max(...roots.map((r) => r.latency ?? 0));
+  }, [roots]);
 
   const traceStartTime = useMemo(() => {
-    return tree.startTime;
-  }, [tree.startTime]);
+    if (roots.length === 0) return new Date();
+    // Use earliest start time among roots
+    return new Date(Math.min(...roots.map((r) => r.startTime.getTime())));
+  }, [roots]);
 
   // Calculate step size for time axis
   const stepSize = useMemo(() => {
@@ -48,13 +51,13 @@ export function TraceTimeline() {
   // Flatten tree with pre-computed timeline metrics
   const flattenedItems = useMemo(() => {
     return flattenTreeWithTimelineMetrics(
-      tree,
+      roots,
       collapsedNodes,
       traceStartTime,
       traceDuration,
       SCALE_WIDTH,
     );
-  }, [tree, collapsedNodes, traceStartTime, traceDuration]);
+  }, [roots, collapsedNodes, traceStartTime, traceDuration]);
 
   // Calculate content width (max offset + max width)
   const contentWidth = useMemo(() => {
@@ -117,8 +120,17 @@ export function TraceTimeline() {
     }
   };
 
-  // Get parent totals for heatmap coloring
-  const parentTotalCost = tree.totalCost;
+  // Get parent totals for heatmap coloring (aggregate across all roots)
+  const parentTotalCost = useMemo(() => {
+    return roots.reduce(
+      (acc, r) => {
+        if (!r.totalCost) return acc;
+        return acc ? acc.plus(r.totalCost) : r.totalCost;
+      },
+      // TODO: make it nice
+      undefined as (typeof roots)[0]["totalCost"],
+    );
+  }, [roots]);
   const parentTotalDuration = traceDuration;
 
   return (

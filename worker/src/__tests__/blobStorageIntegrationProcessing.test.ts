@@ -1,4 +1,4 @@
-import { expect, it, describe, beforeAll } from "vitest";
+import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -30,6 +30,7 @@ const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
 describe("BlobStorageIntegrationProcessingJob", () => {
   let storageService: StorageService;
   let s3StorageService: StorageService;
+  let s3Prefix: string | null = null;
   const bucketName = env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || "";
   const accessKeyId = env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID || "";
   const secretAccessKey = env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY || "";
@@ -59,8 +60,21 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
+  afterEach(async () => {
+    // Clean up all files created during this test
+    if (!s3Prefix) return;
+
+    const files = await s3StorageService.listFiles(s3Prefix);
+
+    if (files.length == 0) return;
+
+    await s3StorageService.deleteFiles(files.map((f) => f.file));
+    s3Prefix = null;
+  });
+
   it("should not process when blob storage integration is disabled", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
+    s3Prefix = projectId;
 
     // Setup an integration but disabled
     await prisma.blobStorageIntegration.create({
@@ -68,7 +82,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         projectId,
         type: BlobStorageIntegrationType.S3,
         bucketName,
-        prefix: "",
+        prefix: s3Prefix,
         accessKeyId,
         secretAccessKey: encrypt(secretAccessKey),
         region: region ? region : "auto",
@@ -86,13 +100,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await storageService.listFiles(s3Prefix);
     expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
   });
 
   it("should export traces, generations, and scores to S3", async () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
+    s3Prefix = projectId;
     const now = new Date();
     // Set lastSyncAt to 2 hours ago so the chunked export (1 hour window) covers recent data
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
@@ -103,7 +118,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         projectId,
         type: BlobStorageIntegrationType.S3,
         bucketName,
-        prefix: "",
+        prefix: s3Prefix,
         accessKeyId: minioAccessKeyId,
         secretAccessKey: encrypt(minioAccessKeySecret),
         region: region ? region : "auto",
@@ -161,7 +176,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await s3StorageService.listFiles("");
+    const files = await s3StorageService.listFiles(s3Prefix);
     const projectFiles = files.filter((f) => f.file.includes(projectId));
 
     // Should have 3 files (traces, observations, scores)
@@ -281,7 +296,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   it("should use prefix in file path when specified", async () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
-    const prefix = "test-prefix";
+    s3Prefix = "test-prefix";
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
@@ -290,7 +305,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         projectId,
         type: BlobStorageIntegrationType.S3,
         bucketName,
-        prefix,
+        prefix: s3Prefix,
         accessKeyId: minioAccessKeyId,
         secretAccessKey: encrypt(minioAccessKeySecret),
         region: region ? region : "auto",
@@ -319,16 +334,17 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     } as Job);
 
     // Then
-    const files = await storageService.listFiles("");
+    const files = await storageService.listFiles(s3Prefix);
     const projectFiles = files.filter((f) => f.file.includes(projectId));
 
     // All files should have the prefix
-    expect(projectFiles.every((f) => f.file.startsWith(prefix))).toBe(true);
+    expect(projectFiles.every((f) => f.file.startsWith(s3Prefix))).toBe(true);
   });
 
   it("should handle CSV, JSON, and JSONL file types correctly", async () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
+    s3Prefix = `${projectId}/`;
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
@@ -373,11 +389,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       BlobStorageIntegrationFileType.JSON,
       BlobStorageIntegrationFileType.JSONL,
     ]) {
+      const fileTypePrefix = `${fileType.toLowerCase()}-test/`;
+      const prefix = `${s3Prefix}${fileTypePrefix}`;
+
       // Create integration with specific file type
       await prisma.blobStorageIntegration.upsert({
         where: { projectId },
         update: {
-          prefix: `${fileType.toLowerCase()}-test/`,
+          prefix,
           fileType,
           lastSyncAt: oneHourAgo,
         },
@@ -385,7 +404,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: `${fileType.toLowerCase()}-test/`,
+          prefix,
           accessKeyId: minioAccessKeyId,
           secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
@@ -405,11 +424,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } as Job);
 
       // Get files for this file type
-      const files = await s3StorageService.listFiles("");
+      const files = await s3StorageService.listFiles(prefix);
       const projectFiles = files.filter(
-        (f) =>
-          f.file.includes(projectId) &&
-          f.file.includes(`${fileType.toLowerCase()}-test/`),
+        (f) => f.file.includes(projectId) && f.file.includes(fileTypePrefix),
       );
 
       // Should have 3 files (traces, observations, scores)
@@ -467,6 +484,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       "should export old data for FULL_HISTORY mode when data exists",
       async () => {
         const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
 
         // Create trace with old timestamp that's far enough in the past
         // but not so old that it might not be found by ClickHouse
@@ -485,7 +503,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             projectId,
             type: BlobStorageIntegrationType.S3,
             bucketName,
-            prefix: `${projectId}/test-full-history/`,
+            prefix: s3Prefix,
             accessKeyId,
             secretAccessKey: encrypt(secretAccessKey),
             region: region ? region : "auto",
@@ -505,9 +523,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         // If data was found and exported, check the files
-        const files = await storageService.listFiles(
-          `${projectId}/test-full-history/`,
-        );
+        const files = await storageService.listFiles(s3Prefix);
         const projectFiles = files.filter((f) => f.file.includes(projectId));
 
         // With FULL_HISTORY mode, if the ClickHouse query finds the old data,
@@ -539,6 +555,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     it("should use current date for FROM_TODAY mode on first export", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
       const now = new Date();
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const veryOldTrace = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
@@ -562,7 +579,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: `${projectId}/test-today/`,
+          prefix: s3Prefix,
           accessKeyId,
           secretAccessKey: encrypt(secretAccessKey),
           region: region ? region : "auto",
@@ -581,7 +598,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         data: { payload: { projectId } },
       } as Job);
 
-      const files = await storageService.listFiles(`${projectId}/test-today/`);
+      const files = await storageService.listFiles(s3Prefix);
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
@@ -598,6 +615,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     it("should use custom date for FROM_CUSTOM_DATE mode on first export", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
       const now = new Date();
       const customDate = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12 hours ago
       const beforeCustomDate = new Date(customDate.getTime() - 60 * 60 * 1000); // 13 hours ago
@@ -624,7 +642,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: `${projectId}/test-custom/`,
+          prefix: s3Prefix,
           accessKeyId: minioAccessKeyId,
           secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
@@ -643,9 +661,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         data: { payload: { projectId } },
       } as Job);
 
-      const files = await s3StorageService.listFiles(
-        `${projectId}/test-custom/`,
-      );
+      const files = await s3StorageService.listFiles(s3Prefix);
       const projectFiles = files.filter((f) => f.file.includes(projectId));
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
 
@@ -665,6 +681,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       "should cap maxTimestamp to one frequency period ahead for FULL_HISTORY mode",
       async () => {
         const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
         const now = new Date();
         const veryOldTimestamp = new Date(
           now.getTime() - 7 * 24 * 60 * 60 * 1000,
@@ -684,7 +701,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             projectId,
             type: BlobStorageIntegrationType.S3,
             bucketName,
-            prefix: `${projectId}/test-chunking/`,
+            prefix: s3Prefix,
             accessKeyId,
             secretAccessKey: encrypt(secretAccessKey),
             region: region ? region : "auto",
@@ -713,9 +730,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(updatedIntegration).toBeDefined();
 
         // Check if files were exported (meaning data was found)
-        const files = await storageService.listFiles(
-          `${projectId}/test-chunking/`,
-        );
+        const files = await storageService.listFiles(s3Prefix);
         const projectFiles = files.filter((f) => f.file.includes(projectId));
 
         // If data was found and exported, verify chunking behavior
@@ -741,6 +756,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     it("should immediately schedule next chunk when in catch-up mode", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
       const now = new Date();
       const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
@@ -763,7 +779,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: `${projectId}/test-catchup/`,
+          prefix: s3Prefix,
           accessKeyId: minioAccessKeyId,
           secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",
@@ -802,6 +818,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     it("should schedule normally when caught up", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
       const now = new Date();
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
@@ -819,7 +836,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           projectId,
           type: BlobStorageIntegrationType.S3,
           bucketName,
-          prefix: `${projectId}/test-caught-up/`,
+          prefix: s3Prefix,
           accessKeyId: minioAccessKeyId,
           secretAccessKey: encrypt(minioAccessKeySecret),
           region: region ? region : "auto",

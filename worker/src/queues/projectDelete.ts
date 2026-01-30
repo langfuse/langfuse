@@ -99,7 +99,7 @@ export const projectDeleteProcessor: Processor = async (
   ]);
 
   // Trigger async delete of dataset run items
-  await deleteDatasetRunItemsByProjectId({ projectId });
+  await deleteDatasetRunItemsByProjectId(projectId);
 
   logger.info(`Deleting PG data for project ${projectId} in org ${orgId}`);
 

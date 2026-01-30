@@ -10,15 +10,19 @@ export const ScoreSourceEnum = {
 export const ScoreSourceDomain = z.enum(ScoreSourceArray);
 export type ScoreSourceType = z.infer<typeof ScoreSourceDomain>;
 
+export const CORRECTION_NAME = "output" as const;
+
 export const ScoreDataTypeArray = [
   "NUMERIC",
   "CATEGORICAL",
   "BOOLEAN",
+  "CORRECTION",
 ] as const;
 export const ScoreDataTypeEnum = {
   NUMERIC: "NUMERIC",
   CATEGORICAL: "CATEGORICAL",
   BOOLEAN: "BOOLEAN",
+  CORRECTION: "CORRECTION",
 } as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
@@ -36,6 +40,11 @@ export const CategoricalData = z.object({
 export const BooleanData = z.object({
   stringValue: z.string(),
   dataType: z.literal("BOOLEAN"),
+});
+
+const CorrectionData = z.object({
+  stringValue: z.null(),
+  dataType: z.literal("CORRECTION"),
 });
 
 // Only used for backwards compatibility with old score API schemas
@@ -70,11 +79,43 @@ const ScoreFoundationSchema = ScoreSchemaExclReferencesAndDates.and(
     sessionId: z.string().nullable(),
     datasetRunId: z.string().nullable(),
     observationId: z.string().nullable(),
+    longStringValue: z.string().default(""),
   }),
 );
 
 export const ScoreSchema = ScoreFoundationSchema.and(
-  z.discriminatedUnion("dataType", [NumericData, CategoricalData, BooleanData]),
+  z.discriminatedUnion("dataType", [
+    NumericData,
+    CategoricalData,
+    BooleanData,
+    CorrectionData,
+  ]),
 );
 
 export type ScoreDomain = z.infer<typeof ScoreSchema>;
+
+export type ScoreByDataType<T extends ScoreDataTypeType> = ScoreDomain & {
+  dataType: T;
+};
+
+export type ScoresByDataTypes<T extends readonly ScoreDataTypeType[]> =
+  T extends readonly (infer U)[]
+    ? U extends ScoreDataTypeType
+      ? ScoreByDataType<U>
+      : never
+    : never;
+
+// Aggregatable score types - used in most read queries to exclude CORRECTION scores
+export const AGGREGATABLE_SCORE_TYPES = [
+  "NUMERIC",
+  "BOOLEAN",
+  "CATEGORICAL",
+] as const satisfies readonly ScoreDataTypeType[];
+
+export type AggregatableScoreDataType =
+  (typeof AGGREGATABLE_SCORE_TYPES)[number];
+
+// Type helper for functions that return only aggregatable scores
+export type AggregatableScore = ScoresByDataTypes<
+  typeof AGGREGATABLE_SCORE_TYPES
+>;

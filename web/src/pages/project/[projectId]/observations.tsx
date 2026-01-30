@@ -8,10 +8,13 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { isBetaEnabled } = useV4Beta();
 
   // Check if the user has tracing configured
   const { data: hasTracingConfigured, isLoading } =
@@ -39,16 +42,20 @@ export default function Generations() {
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        tabsProps: {
-          tabs: getTracingTabs(projectId),
-          activeTab: TRACING_TABS.OBSERVATIONS,
-        },
+        tabsProps: isBetaEnabled
+          ? undefined
+          : {
+              tabs: getTracingTabs(projectId),
+              activeTab: TRACING_TABS.OBSERVATIONS,
+            },
       }}
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if user has no traces */}
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
+      ) : isBetaEnabled ? (
+        <ObservationsEventsTable projectId={projectId} />
       ) : (
         <ObservationsTable projectId={projectId} />
       )}

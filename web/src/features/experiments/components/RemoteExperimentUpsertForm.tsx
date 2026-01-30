@@ -113,7 +113,7 @@ export const RemoteExperimentUpsertForm = ({
     if (data.defaultPayload.trim()) {
       try {
         JSON.parse(data.defaultPayload);
-      } catch (_error) {
+      } catch {
         form.setError("defaultPayload", {
           message: "Invalid JSON format",
         });

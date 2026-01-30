@@ -3,10 +3,14 @@ import { env } from "../../env";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
+import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-export type PreferredClickhouseService = "ReadWrite" | "ReadOnly";
+export type PreferredClickhouseService =
+  | "ReadWrite"
+  | "ReadOnly"
+  | "EventsReadOnly";
 
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
@@ -66,9 +70,19 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    return preferredClickhouseService === "ReadWrite"
-      ? env.CLICKHOUSE_URL
-      : env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    switch (preferredClickhouseService) {
+      case "ReadWrite":
+        return env.CLICKHOUSE_URL;
+      case "EventsReadOnly":
+        return (
+          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
+          env.CLICKHOUSE_READ_ONLY_URL ||
+          env.CLICKHOUSE_URL
+        );
+      case "ReadOnly":
+      default:
+        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    }
   };
 
   /**
@@ -107,6 +121,10 @@ export class ClickHouseClientManager {
           idle_socket_ttl: env.CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL,
         },
         max_open_connections: env.CLICKHOUSE_MAX_OPEN_CONNECTIONS,
+        log: {
+          LoggerClass: ClickHouseLogger,
+          level: mapLogLevel(env.LANGFUSE_LOG_LEVEL ?? "info"),
+        },
         clickhouse_settings: {
           // Overwrite async insert settings to tune throughput
           ...(env.CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE
@@ -119,6 +137,12 @@ export class ClickHouseClientManager {
             ? {
                 async_insert_busy_timeout_ms:
                   env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS,
+              }
+            : {}),
+          ...(env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS
+            ? {
+                async_insert_busy_timeout_min_ms:
+                  env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS,
               }
             : {}),
           ...(env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE !== "alter_update"
@@ -134,7 +158,7 @@ export class ClickHouseClientManager {
           ...(opts.request_timeout && opts.request_timeout > 30000
             ? {
                 send_progress_in_http_headers: 1,
-                http_headers_progress_interval_ms: "25000", // UInt64, should be passed as a string
+                http_headers_progress_interval_ms: "10000", // UInt64, should be passed as a string
               }
             : {}),
         },

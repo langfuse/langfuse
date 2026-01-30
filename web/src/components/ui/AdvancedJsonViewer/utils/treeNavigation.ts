@@ -184,6 +184,52 @@ export function findNodeIndex(rootNode: TreeNode, targetId: string): number {
 }
 
 /**
+ * Find index of section header node by sectionKey
+ *
+ * Searches for a node with nodeType === "section-header" and matching sectionKey.
+ * Used for scroll-to-section functionality in multi-section viewers.
+ *
+ * @param rootNode - Root of the tree (typically meta-root)
+ * @param sectionKey - Section key to find (e.g., "input", "output")
+ * @returns 0-based index in visible rows, or -1 if not found/not visible
+ */
+export function findSectionHeaderIndex(
+  rootNode: TreeNode,
+  sectionKey: string,
+): number {
+  // Iterative pre-order traversal
+  const stack: Array<{ node: TreeNode; index: number }> = [
+    { node: rootNode, index: 0 },
+  ];
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const { node, index } = current;
+
+    // Check if this is a section header with matching key
+    if (node.nodeType === "section-header" && node.sectionKey === sectionKey) {
+      return index;
+    }
+
+    // If expanded, traverse children
+    if (node.isExpanded && node.children.length > 0) {
+      // Push children in REVERSE order (LIFO stack)
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        const child = node.children[i]!;
+        const previousChildOffset = i > 0 ? node.childOffsets[i - 1]! : 0;
+
+        stack.push({
+          node: child,
+          index: index + (i === 0 ? 1 : previousChildOffset + 1),
+        });
+      }
+    }
+  }
+
+  return -1; // Not found
+}
+
+/**
  * Get all visible nodes in tree (for debugging/testing)
  *
  * This is what the virtualizer would call getNodeByIndex for.

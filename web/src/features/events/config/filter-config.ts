@@ -39,6 +39,11 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
+      column: "traceName",
+      label: getEventsColumnName("traceName"),
+    },
+    {
+      type: "categorical" as const,
       column: "name",
       label: getEventsColumnName("name"),
     },
@@ -83,14 +88,34 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("statusMessage"),
     },
     {
+      type: "string" as const,
+      column: "traceId",
+      label: getEventsColumnName("traceId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "sessionId",
+      label: getEventsColumnName("sessionId"),
+    },
+    {
       type: "categorical" as const,
       column: "userId",
       label: getEventsColumnName("userId"),
     },
     {
       type: "categorical" as const,
-      column: "sessionId",
-      label: getEventsColumnName("sessionId"),
+      column: "experimentDatasetId",
+      label: getEventsColumnName("experimentDatasetId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "experimentId",
+      label: getEventsColumnName("experimentId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "experimentName",
+      label: getEventsColumnName("experimentName"),
     },
     {
       type: "numeric" as const,

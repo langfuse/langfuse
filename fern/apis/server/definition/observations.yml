@@ -16,7 +16,10 @@ service:
           docs: The unique langfuse identifier of an observation, can be an event, span or generation
       response: commons.ObservationsView
     getMany:
-      docs: Get a list of observations
+      docs: |
+        Get a list of observations.
+
+        Consider using the [v2 observations endpoint](/api-reference#tag/observationsv2/GET/api/public/v2/observations) for cursor-based pagination and field selection.
       method: GET
       path: /observations
       request:

@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/router";
+import { useQueryParams, StringParam } from "use-query-params";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -8,10 +9,21 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { isBetaEnabled } = useV4Beta();
+  const [, setQueryParams] = useQueryParams({ viewMode: StringParam });
+
+  // Clear viewMode query when beta is turned off (e.g. from sidebar)
+  useEffect(() => {
+    if (!isBetaEnabled) {
+      setQueryParams({ viewMode: undefined });
+    }
+  }, [isBetaEnabled, setQueryParams]);
 
   // Check if the user has tracing configured
   const { data: hasTracingConfigured, isLoading } =
@@ -57,13 +69,19 @@ export default function Traces() {
             "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        tabsProps: {
-          tabs: getTracingTabs(projectId),
-          activeTab: TRACING_TABS.TRACES,
-        },
+        tabsProps: isBetaEnabled
+          ? undefined
+          : {
+              tabs: getTracingTabs(projectId),
+              activeTab: TRACING_TABS.TRACES,
+            },
       }}
     >
-      <TracesTable projectId={projectId} />
+      {isBetaEnabled ? (
+        <ObservationsEventsTable projectId={projectId} />
+      ) : (
+        <TracesTable projectId={projectId} />
+      )}
     </Page>
   );
 }
