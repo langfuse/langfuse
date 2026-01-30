@@ -26,7 +26,7 @@ import {
   singleFilter,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
-  availableDatasetEvalVariables,
+  type availableDatasetEvalVariables,
   observationEvalVariableColumns,
   observationEvalFilterColumns,
   type ObservationType,
@@ -98,7 +98,6 @@ import {
   isEventTarget,
   isExperimentTarget,
   isLegacyEvalTarget,
-  isTraceOrEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
@@ -316,9 +315,7 @@ export const InnerEvaluatorForm = (props: {
     setUseOtelDataForExperiment,
   } = useUserFacingTarget(props.existingEvaluator?.targetObject);
 
-  const targetState = useEvaluatorTargetState(
-    props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
-  );
+  const targetState = useEvaluatorTargetState();
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
