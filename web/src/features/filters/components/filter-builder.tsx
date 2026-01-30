@@ -56,6 +56,17 @@ import {
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
+/**
+ * Extended ColumnDefinition with optional alert for UI display.
+ * Alerts are added dynamically in the web layer based on feature availability.
+ */
+export type ColumnDefinitionWithAlert = ColumnDefinition & {
+  alert?: {
+    severity: "info" | "warning" | "error";
+    content: React.ReactNode;
+  };
+};
+
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
   columns,
@@ -65,7 +76,7 @@ export function PopoverFilterBuilder({
   filterWithAI = false,
   buttonType = "default",
 }: {
-  columns: ColumnDefinition[];
+  columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
   onChange:
     | Dispatch<SetStateAction<FilterState>>
@@ -264,7 +275,7 @@ export function InlineFilterBuilder({
   columnsWithCustomSelect,
   filterWithAI = false,
 }: {
-  columns: ColumnDefinition[];
+  columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
   onChange:
     | Dispatch<SetStateAction<FilterState>>
@@ -324,6 +335,28 @@ const getOperator = (
     : undefined;
 };
 
+/**
+ * Returns severity-based styling classes for alert icons and tooltips
+ */
+const getAlertStyles = (severity: "info" | "warning" | "error") => {
+  const styles = {
+    error: {
+      iconColor: "text-red-600",
+      tooltipBg: "bg-red-50 dark:bg-red-950",
+    },
+    info: {
+      iconColor: "text-blue-600",
+      tooltipBg: "bg-blue-50 dark:bg-blue-950",
+    },
+    warning: {
+      iconColor: "text-amber-600",
+      tooltipBg: "bg-amber-50 dark:bg-amber-950",
+    },
+  };
+
+  return styles[severity];
+};
+
 function FilterBuilderForm({
   columns,
   filterState,
@@ -332,7 +365,7 @@ function FilterBuilderForm({
   columnsWithCustomSelect = [],
   filterWithAI = false,
 }: {
-  columns: ColumnDefinition[];
+  columns: ColumnDefinitionWithAlert[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
@@ -551,41 +584,70 @@ function FilterBuilderForm({
                                 No options found.
                               </InputCommandEmpty>
                               <InputCommandGroup>
-                                {columns.map((option) => (
-                                  <InputCommandItem
-                                    key={option.id}
-                                    value={option.id}
-                                    onSelect={(value) => {
-                                      const col = columns.find(
-                                        (c) => c.id === value,
-                                      );
-                                      const defaultOperator = col?.type
-                                        ? getOperator(col.type)
-                                        : undefined;
+                                {columns.map((option) => {
+                                  const hasAlert = !!option.alert;
+                                  const severity =
+                                    option.alert?.severity ?? "warning";
+                                  const alertStyles = getAlertStyles(severity);
 
-                                      handleFilterChange(
-                                        {
-                                          column: col?.name,
-                                          type: col?.type,
-                                          operator: defaultOperator,
-                                          value: undefined,
-                                          key: undefined,
-                                        } as WipFilterCondition,
-                                        i,
-                                      );
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        option.id === column?.id
-                                          ? "visible"
-                                          : "invisible",
+                                  return (
+                                    <InputCommandItem
+                                      key={option.id}
+                                      value={option.id}
+                                      onSelect={(value) => {
+                                        const col = columns.find(
+                                          (c) => c.id === value,
+                                        );
+                                        const defaultOperator = col?.type
+                                          ? getOperator(col.type)
+                                          : undefined;
+
+                                        handleFilterChange(
+                                          {
+                                            column: col?.name,
+                                            type: col?.type,
+                                            operator: defaultOperator,
+                                            value: undefined,
+                                            key: undefined,
+                                          } as WipFilterCondition,
+                                          i,
+                                        );
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          option.id === column?.id
+                                            ? "visible"
+                                            : "invisible",
+                                        )}
+                                      />
+                                      <span className="flex-1">
+                                        {option.name}
+                                      </span>
+                                      {hasAlert && (
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Info
+                                              className={cn(
+                                                "ml-2 h-4 w-4",
+                                                alertStyles.iconColor,
+                                              )}
+                                            />
+                                          </TooltipTrigger>
+                                          <TooltipContent
+                                            className={cn(
+                                              "max-w-xs",
+                                              alertStyles.tooltipBg,
+                                            )}
+                                          >
+                                            {option.alert?.content}
+                                          </TooltipContent>
+                                        </Tooltip>
                                       )}
-                                    />
-                                    {option.name}
-                                  </InputCommandItem>
-                                ))}
+                                    </InputCommandItem>
+                                  );
+                                })}
                               </InputCommandGroup>
                             </InputCommandList>
                           </InputCommand>

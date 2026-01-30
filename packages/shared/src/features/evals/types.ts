@@ -35,16 +35,20 @@ export const variableMapping = z
   .object({
     templateVariable: z.string(), // variable name in the template
     // name of the observation to extract the variable from
-    // not required for trace, as we only have one.
+    // not required for trace or dataset_item, as we only have one of each.
     objectName: z.string().nullish(),
     langfuseObject: langfuseObject,
     selectedColumnId: z.string(),
     jsonSelector: z.string().nullish(),
   })
   .refine(
-    (value) => value.langfuseObject === "trace" || value.objectName !== null,
+    (value) =>
+      value.langfuseObject === "trace" ||
+      value.langfuseObject === "dataset_item" ||
+      value.objectName !== null,
     {
-      message: "objectName is required for langfuseObjects other than trace",
+      message:
+        "objectName is required for observation objects (generation, span, score)",
     },
   );
 
