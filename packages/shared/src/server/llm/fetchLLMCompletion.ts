@@ -420,6 +420,7 @@ export async function fetchLLMCompletion(
       const structuredOutput = await chatModel
         .withStructuredOutput(params.structuredOutputSchema)
         .invoke(finalMessages, runConfig);
+
       return structuredOutput;
     }
 
