@@ -3,14 +3,12 @@ import {
   singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
-  EvalTargetObject,
 } from "@langfuse/shared";
 import { wipVariableMapping } from "@langfuse/shared";
 
-export const isTraceTarget = (target: string): boolean =>
-  target === EvalTargetObject.TRACE;
+export const isTraceTarget = (target: string): boolean => target === "trace";
 export const isTraceOrDatasetObject = (object: string): boolean =>
-  object === EvalTargetObject.TRACE || object === "dataset_item";
+  object === "trace" || object === "dataset_item";
 
 export const evalConfigFormSchema = z.object({
   scoreName: z.string(),

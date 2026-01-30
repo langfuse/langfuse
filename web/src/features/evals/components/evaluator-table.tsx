@@ -17,7 +17,7 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   useQueryParams,
   withDefault,
@@ -27,19 +27,9 @@ import {
 } from "use-query-params";
 import { z } from "zod/v4";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
-import {
-  isLegacyEvalTarget,
-  isEventTarget,
-} from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import {
-  MoreVertical,
-  Loader2,
-  ExternalLinkIcon,
-  Edit,
-  Info,
-} from "lucide-react";
+import { MoreVertical, Loader2, ExternalLinkIcon, Edit } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import {
@@ -65,15 +55,6 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
-import { Callout } from "@/src/components/ui/callout";
-import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { RemapEvalWizard } from "@/src/features/evals/components/remap-eval-wizard";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -97,69 +78,7 @@ export type EvaluatorDataRow = {
   logs?: string;
   actions?: string;
   totalCost?: number | null;
-  isLegacy?: boolean;
 };
-
-function LegacyBadgeCell({
-  projectId,
-  evalConfigId,
-  status,
-}: {
-  projectId: string;
-  evalConfigId: string;
-  status: string;
-}) {
-  const [remapModalOpen, setRemapModalOpen] = useState(false);
-  const utils = api.useUtils();
-
-  return (
-    <>
-      <div className="flex items-center gap-1.5">
-        <Badge variant="warning">
-          Legacy
-          {status === "ACTIVE" && (
-            <Tooltip>
-              <TooltipTrigger>
-                <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[280px]">
-                <div className="space-y-1 text-sm">
-                  <p className="font-medium">Action required</p>
-                  <p className="text-muted-foreground">
-                    This evaluator requires changes to benefit from new features
-                    and performance improvements. Please follow{" "}
-                    <Link
-                      href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-dark-blue hover:opacity-80"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      this guide
-                    </Link>{" "}
-                    to upgrade to the new version.
-                  </p>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
-        </Badge>
-      </div>
-
-      <RemapEvalWizard
-        projectId={projectId}
-        evalConfigId={evalConfigId}
-        open={remapModalOpen}
-        onOpenChange={setRemapModalOpen}
-        onSuccess={() => {
-          utils.evals.invalidate();
-        }}
-      />
-    </>
-  );
-}
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -231,15 +150,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       },
     },
   );
-
-  const hasLegacyEvals = useMemo(() => {
-    if (!evaluators.data?.configs) return false;
-    return evaluators.data.configs.some(
-      (config) =>
-        config.finalStatus === "ACTIVE" &&
-        isLegacyEvalTarget(config.targetObject),
-    );
-  }, [evaluators.data?.configs]);
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -353,39 +263,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.accessor("isLegacy", {
-      id: "isLegacy",
-      header: "Eval Version",
-      size: 180,
-      enableHiding: true,
-      cell: (row) => {
-        const targetObject = row.row.original.target;
-        const status = row.row.original.status;
-        const isDeprecated = isLegacyEvalTarget(targetObject);
-
-        if (!isDeprecated) return null;
-
-        return (
-          <LegacyBadgeCell
-            projectId={projectId}
-            evalConfigId={row.row.original.id}
-            status={status}
-          />
-        );
-      },
-    }),
     columnHelper.accessor("target", {
       id: "target",
-      header: "Runs on",
+      header: "Target",
       size: 150,
       enableHiding: true,
-      cell: (row) => {
-        const targetObject = row.getValue();
-        const renderText = isEventTarget(targetObject)
-          ? "observations"
-          : targetObject;
-        return <span className="text-muted-foreground">{renderText}</span>;
-      },
     }),
     columnHelper.accessor("filter", {
       id: "filter",
@@ -513,7 +395,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             : "Langfuse maintained"
         : "Not available",
       totalCost: costData,
-      isLegacy: isLegacyEvalTarget(jobConfig.targetObject),
     };
   };
 
@@ -523,32 +404,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        {hasLegacyEvals && (
-          <div className="p-2 pb-0">
-            <Callout
-              id="eval-remapping-table"
-              variant="info"
-              key="dismissed-eval-remapping-callouts"
-            >
-              <span>New LLM-as-a-Judge functionality has landed. </span>
-              <span className="font-semibold">
-                Some of your evaluators (marked &quot;Legacy&quot;) require
-                changes{" "}
-              </span>
-              <span>for new features and improvements. </span>
-              <Link
-                href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-dark-blue hover:opacity-80"
-              >
-                Learn what is changing and how to upgrade
-              </Link>
-              <span>.</span>
-            </Callout>
-          </div>
-        )}
-
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}

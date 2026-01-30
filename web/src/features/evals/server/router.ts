@@ -10,7 +10,6 @@ import {
   ZodModelConfig,
   singleFilter,
   variableMapping,
-  observationVariableMapping,
   paginationZod,
   type JobConfiguration,
   JobType,
@@ -56,11 +55,7 @@ const ConfigWithTemplateSchema = z.object({
   scoreName: z.string(),
   targetObject: z.string(),
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
-  // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
-  variableMapping: z.union([
-    z.array(variableMapping),
-    z.array(observationVariableMapping),
-  ]),
+  variableMapping: z.array(variableMapping),
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
   status: z.enum(JobConfigState),
@@ -135,11 +130,7 @@ const CreateEvalJobSchema = z.object({
   scoreName: z.string().min(1),
   target: z.string(), // should be z.enum(["trace", "dataset-run-item"])
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
-  // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
-  mapping: z.union([
-    z.array(variableMapping),
-    z.array(observationVariableMapping),
-  ]),
+  mapping: z.array(variableMapping),
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
   timeScope: TimeScopeSchema,
@@ -148,10 +139,7 @@ const CreateEvalJobSchema = z.object({
 const UpdateEvalJobSchema = z.object({
   scoreName: z.string().min(1).optional(),
   filter: z.array(singleFilter).optional(),
-  // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
-  variableMapping: z
-    .union([z.array(variableMapping), z.array(observationVariableMapping)])
-    .optional(),
+  variableMapping: z.array(variableMapping).optional(),
   sampling: z.number().gt(0).lte(1).optional(),
   delay: z.number().gte(0).optional(),
   status: z.enum(EvaluatorStatus).optional(),
@@ -229,8 +217,8 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const [configCount, configActiveCount, templateCount, legacyConfigCount] =
-        await Promise.all([
+      const [configCount, configActiveCount, templateCount] = await Promise.all(
+        [
           ctx.prisma.jobConfiguration.count({
             where: {
               projectId: input.projectId,
@@ -249,22 +237,13 @@ export const evalRouter = createTRPCRouter({
               projectId: input.projectId,
             },
           }),
-          ctx.prisma.jobConfiguration.count({
-            where: {
-              projectId: input.projectId,
-              jobType: "EVAL",
-              targetObject: {
-                in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
-              },
-            },
-          }),
-        ]);
+        ],
+      );
 
       return {
         configCount,
         configActiveCount,
         templateCount,
-        legacyConfigCount,
       };
     }),
   allConfigs: protectedProjectProcedure
@@ -647,12 +626,7 @@ export const evalRouter = createTRPCRouter({
     }),
 
   jobConfigsByTarget: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        targetObject: z.string(),
-      }),
-    )
+    .input(z.object({ projectId: z.string(), targetObject: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
