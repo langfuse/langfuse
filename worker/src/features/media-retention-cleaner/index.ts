@@ -9,14 +9,19 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils";
+import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const METRIC_PREFIX = "langfuse.media_retention_cleaner";
+
+export const MEDIA_RETENTION_CLEANER_LOCK_KEY =
+  "langfuse:media-retention-cleaner";
 
 interface ProjectWorkload {
   projectId: string;
   retentionDays: number;
   cutoffDate: Date;
   expiredMediaCount: number;
+  secondsPastCutoff: number | null;
 }
 
 /**
@@ -26,59 +31,94 @@ interface ProjectWorkload {
  * Processes one project per iteration (most work first) for simplicity.
  * Run frequently to process all projects over time.
  */
-export class MediaRetentionCleaner {
-  public static async processBatch(): Promise<void> {
-    const instanceName = "MediaRetentionCleaner";
+export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
+  protected get defaultIntervalMs(): number {
+    return env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS;
+  }
 
-    // Get the project with most expired media (single project per iteration)
-    let workload: ProjectWorkload | null;
-    try {
-      workload = await MediaRetentionCleaner.getTopProjectWorkload();
-    } catch (error) {
-      logger.error(`${instanceName}: Failed to query project workload`, {
-        error,
-      });
-      traceException(error);
-      recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
-      return;
-    }
+  constructor() {
+    // TTL = interval + 5 minutes buffer (media deletion can be slow)
+    const lockTtlSeconds =
+      Math.ceil(env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS / 1000) + 300;
 
-    if (!workload) {
-      logger.info(`${instanceName}: No expired media to clean up`);
-      return;
-    }
-
-    // Record gauge for observed work
-    recordGauge(`${METRIC_PREFIX}.pending_items`, workload.expiredMediaCount, {
-      projectId: workload.projectId,
+    super({
+      name: "MediaRetentionCleaner",
+      lockKey: MEDIA_RETENTION_CLEANER_LOCK_KEY,
+      lockTtlSeconds,
+      onUnavailable: "fail",
     });
+  }
 
-    logger.info(`${instanceName}: Processing project`, {
-      projectId: workload.projectId,
-      retentionDays: workload.retentionDays,
-      expiredMediaCount: workload.expiredMediaCount,
+  /**
+   * Start the media retention cleaner service
+   */
+  public override start(): void {
+    logger.info(`Starting ${this.instanceName}`, {
+      intervalMs: env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS,
+      itemLimit: env.LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT,
     });
+    super.start();
+  }
 
-    try {
-      await MediaRetentionCleaner.processProject(workload);
-      recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
-    } catch (error) {
-      logger.error(`${instanceName}: Failed to process project`, {
-        projectId: workload.projectId,
-        retentionDays: workload.retentionDays,
-        error,
-      });
-      traceException(error);
-      recordIncrement(`${METRIC_PREFIX}.project_failures`, 1);
-      throw error;
-    }
+  /**
+   * Process expired media for the project with most work.
+   * Preflight and deletion are both under lock to avoid redundant expensive queries.
+   */
+  protected async execute(): Promise<void> {
+    await this.withLock(
+      async () => {
+        // Get the project with most expired media (single project per iteration)
+        let workload: ProjectWorkload | null;
+        try {
+          workload = await this.getTopProjectWorkload();
+        } catch (error) {
+          logger.error(`${this.name}: Failed to query project workload`, {
+            error,
+          });
+          traceException(error);
+          recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
+          throw error;
+        }
+
+        // Record gauge for how far past cutoff the oldest expired item is
+        recordGauge(
+          `${METRIC_PREFIX}.seconds_past_cutoff`,
+          Math.max(workload?.secondsPastCutoff ?? 0, 0),
+        );
+        // Record gauge for observed work
+        recordGauge(
+          `${METRIC_PREFIX}.pending_items`,
+          workload?.expiredMediaCount || 0,
+          {
+            projectId: workload?.projectId || "",
+          },
+        );
+
+        if (workload) {
+          logger.info(`${this.instanceName}: Processing project`, {
+            projectId: workload.projectId,
+            retentionDays: workload.retentionDays,
+            expiredMediaCount: workload.expiredMediaCount,
+            secondsPastCutoff: workload.secondsPastCutoff,
+          });
+
+          await this.processProject(workload);
+          recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
+        } else {
+          logger.info(`${this.name}: No expired media to clean up`);
+        }
+      },
+      () => {
+        recordIncrement(`${METRIC_PREFIX}.project_failures`, 1);
+      },
+    );
   }
 
   /**
    * Get the project with the most expired media (single query via Prisma).
    * Returns null if no projects have expired media.
    */
-  private static async getTopProjectWorkload(): Promise<ProjectWorkload | null> {
+  private async getTopProjectWorkload(): Promise<ProjectWorkload | null> {
     const now = new Date();
 
     // Single query: join projects with media, filter by retention cutoff, order by count, limit 1
@@ -88,12 +128,16 @@ export class MediaRetentionCleaner {
         project_id: string;
         retention_days: number;
         expired_count: bigint;
+        seconds_past_cutoff: number;
       }>
     >`
       SELECT
         p.id as project_id,
         p.retention_days,
-        COUNT(m.id) as expired_count
+        COUNT(m.id) as expired_count,
+        EXTRACT(EPOCH FROM (
+          (NOW() - (p.retention_days || ' days')::interval) - MIN(m.created_at)
+        ))::int as seconds_past_cutoff
       FROM projects p
       INNER JOIN media m ON m.project_id = p.id
       WHERE p.retention_days > 0
@@ -114,15 +158,14 @@ export class MediaRetentionCleaner {
       retentionDays: row.retention_days,
       cutoffDate: getRetentionCutoffDate(row.retention_days, now),
       expiredMediaCount: Number(row.expired_count),
+      secondsPastCutoff: row.seconds_past_cutoff,
     };
   }
 
-  private static async processProject(
-    workload: ProjectWorkload,
-  ): Promise<void> {
+  private async processProject(workload: ProjectWorkload): Promise<void> {
     // Delete media files (S3 + PostgreSQL)
     if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-      await MediaRetentionCleaner.deleteExpiredMedia(
+      await this.deleteExpiredMedia(
         workload,
         env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
       );
@@ -136,14 +179,14 @@ export class MediaRetentionCleaner {
       );
     }
 
-    logger.info("MediaRetentionCleaner: Project processed", {
+    logger.info(`${this.name}: Project processed`, {
       projectId: workload.projectId,
       retentionDays: workload.retentionDays,
       expiredMediaCount: workload.expiredMediaCount,
     });
   }
 
-  private static async deleteExpiredMedia(
+  private async deleteExpiredMedia(
     workload: ProjectWorkload,
     bucket: string,
   ): Promise<void> {
@@ -176,7 +219,7 @@ export class MediaRetentionCleaner {
       projectId: workload.projectId,
     });
 
-    logger.info("MediaRetentionCleaner: Media files deleted", {
+    logger.info(`${this.name}: Media files deleted`, {
       projectId: workload.projectId,
       count: mediaFiles.length,
     });

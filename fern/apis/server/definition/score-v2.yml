@@ -111,12 +111,18 @@ types:
     properties:
       trace: optional<GetScoresResponseTraceData>
 
+  GetScoresResponseDataCorrection:
+    extends: commons.CorrectionScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+
   GetScoresResponseData:
     discriminant: dataType
     union:
       NUMERIC: GetScoresResponseDataNumeric
       CATEGORICAL: GetScoresResponseDataCategorical
       BOOLEAN: GetScoresResponseDataBoolean
+      CORRECTION: GetScoresResponseDataCorrection
 
   GetScoresResponse:
     properties:

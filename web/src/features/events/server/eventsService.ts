@@ -21,7 +21,7 @@ import {
   getTracesGroupedByTags,
   getObservationsBatchIOFromEventsTable,
 } from "@langfuse/shared/src/server";
-import { type timeFilter } from "@langfuse/shared";
+import { type timeFilter, type FilterState } from "@langfuse/shared";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 
 type TimeFilter = z.infer<typeof timeFilter>;
@@ -47,6 +47,7 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
+  hasParentObservation?: boolean;
 }
 
 /**
@@ -96,7 +97,22 @@ export async function getEventCount(params: GetObservationsCountParams) {
 export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
-  const { projectId, startTimeFilter } = params;
+  const { projectId, startTimeFilter, hasParentObservation } = params;
+
+  // Build filter with optional hasParentObservation for scoping filter options
+  const eventsFilter: FilterState = [
+    ...(startTimeFilter ?? []),
+    ...(hasParentObservation !== undefined
+      ? [
+          {
+            column: "hasParentObservation" as const,
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: hasParentObservation,
+          },
+        ]
+      : []),
+  ];
 
   // Map startTimeFilter to Timestamp column for trace queries
   const traceTimestampFilters =
@@ -138,21 +154,21 @@ export async function getEventFilterOptions(
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
-    getEventsGroupedByModel(projectId, startTimeFilter ?? []),
-    getEventsGroupedByName(projectId, startTimeFilter ?? []),
-    getEventsGroupedByPromptName(projectId, startTimeFilter ?? []),
+    getEventsGroupedByModel(projectId, eventsFilter),
+    getEventsGroupedByName(projectId, eventsFilter),
+    getEventsGroupedByPromptName(projectId, eventsFilter),
     getClickhouseTraceTags(),
-    getEventsGroupedByTraceName(projectId, startTimeFilter ?? []),
-    getEventsGroupedByModelId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByType(projectId, startTimeFilter ?? []),
-    getEventsGroupedByUserId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByVersion(projectId, startTimeFilter ?? []),
-    getEventsGroupedBySessionId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByLevel(projectId, startTimeFilter ?? []),
-    getEventsGroupedByEnvironment(projectId, startTimeFilter ?? []),
-    getEventsGroupedByExperimentDatasetId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByExperimentId(projectId, startTimeFilter ?? []),
-    getEventsGroupedByExperimentName(projectId, startTimeFilter ?? []),
+    getEventsGroupedByTraceName(projectId, eventsFilter),
+    getEventsGroupedByModelId(projectId, eventsFilter),
+    getEventsGroupedByType(projectId, eventsFilter),
+    getEventsGroupedByUserId(projectId, eventsFilter),
+    getEventsGroupedByVersion(projectId, eventsFilter),
+    getEventsGroupedBySessionId(projectId, eventsFilter),
+    getEventsGroupedByLevel(projectId, eventsFilter),
+    getEventsGroupedByEnvironment(projectId, eventsFilter),
+    getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
+    getEventsGroupedByExperimentId(projectId, eventsFilter),
+    getEventsGroupedByExperimentName(projectId, eventsFilter),
   ]);
 
   return {

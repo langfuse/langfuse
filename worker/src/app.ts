@@ -13,6 +13,7 @@ import {
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,
+  llmAsJudgeExecutionQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -28,7 +29,6 @@ import {
   PostHogIntegrationQueue,
   MixpanelIntegrationQueue,
   QueueName,
-  QueueJobs,
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
@@ -37,11 +37,6 @@ import {
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   EventPropagationQueue,
-  BatchProjectCleanerQueue,
-  BATCH_DELETION_TABLES,
-  BatchDataRetentionCleanerQueue,
-  MediaRetentionCleanerQueue,
-  BATCH_DATA_RETENTION_TABLES,
 } from "@langfuse/shared/src/server";
 import { env } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
@@ -79,9 +74,15 @@ import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
 import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
-import { batchProjectCleanerProcessor } from "./queues/batchProjectCleanerQueue";
-import { batchDataRetentionCleanerProcessor } from "./queues/batchDataRetentionCleanerQueue";
-import { mediaRetentionCleanerProcessor } from "./queues/mediaRetentionCleanerQueue";
+import {
+  BatchProjectCleaner,
+  BATCH_DELETION_TABLES,
+} from "./features/batch-project-cleaner";
+import {
+  BatchDataRetentionCleaner,
+  BATCH_DATA_RETENTION_TABLES,
+} from "./features/batch-data-retention-cleaner";
+import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
 
 const app = express();
 
@@ -239,6 +240,18 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
       lockDuration: 60000, // 60 seconds
       stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
+    },
+  );
+
+  // LLM-as-Judge execution for observation-level evals (uses same env flag as trace evals)
+  WorkerManager.register(
+    QueueName.LLMAsJudgeExecution,
+    llmAsJudgeExecutionQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+      lockDuration: 60000,
+      stalledInterval: 120000,
       maxStalledCount: 3,
     },
   );
@@ -550,101 +563,45 @@ if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
 }
 
 // Batch project cleaners for bulk deletion of ClickHouse data
-if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.BatchProjectCleanerQueue,
-    batchProjectCleanerProcessor,
-    {
-      concurrency: 1, // only 1 job at a time per process.
-      limiter: {
-        max: 1,
-        duration: env.LANGFUSE_BATCH_PROJECT_CLEANER_INTERVAL_MS, // no more than 1 job at a time globally
-      },
-    },
-  );
+export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
-  // Schedule repeatable jobs for each table
-  const queue = BatchProjectCleanerQueue.getInstance();
-  if (queue) {
-    const tables = BATCH_DELETION_TABLES.filter(
-      (t) =>
-        t !== "events" ||
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
-    );
-    for (const table of tables) {
-      queue
-        .upsertJobScheduler(
-          `batch-project-cleaner-${table}`,
-          { every: env.LANGFUSE_BATCH_PROJECT_CLEANER_INTERVAL_MS },
-          { name: QueueJobs.BatchProjectCleanerJob, data: { table } },
-        )
-        .catch((err) =>
-          logger.error(`Error scheduling batch-project-cleaner-${table}`, err),
-        );
+if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
+  for (const table of BATCH_DELETION_TABLES) {
+    // Only start the events table cleaner if the events table experiment is enabled
+    if (
+      table !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
+      const cleaner = new BatchProjectCleaner(table);
+      batchProjectCleaners.push(cleaner);
+      cleaner.start();
     }
   }
 }
 
 // Batch data retention cleaners for bulk deletion of expired ClickHouse data
-if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
-  WorkerManager.register(
-    QueueName.BatchDataRetentionCleanerQueue,
-    batchDataRetentionCleanerProcessor,
-    {
-      concurrency: 1,
-    },
-  );
+export const batchDataRetentionCleaners: BatchDataRetentionCleaner[] = [];
 
-  // Schedule repeatable jobs for each table
-  const dataRetentionQueue = BatchDataRetentionCleanerQueue.getInstance();
-  if (dataRetentionQueue) {
-    const tables = BATCH_DATA_RETENTION_TABLES.filter(
-      (t) =>
-        t !== "events" ||
-        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true",
-    );
-    for (const table of tables) {
-      dataRetentionQueue
-        .upsertJobScheduler(
-          `batch-data-retention-cleaner-${table}`,
-          {
-            every: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS,
-          },
-          {
-            name: QueueJobs.BatchDataRetentionCleanerJob,
-            data: { table },
-          },
-        )
-        .catch((err) =>
-          logger.error(
-            `Error scheduling batch-data-retention-cleaner-${table}`,
-            err,
-          ),
-        );
+if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  for (const table of BATCH_DATA_RETENTION_TABLES) {
+    // Only start the events table cleaner if the events table experiment is enabled
+    if (
+      table !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
+      const cleaner = new BatchDataRetentionCleaner(table);
+      batchDataRetentionCleaners.push(cleaner);
+      cleaner.start();
     }
   }
+}
 
-  // Media retention cleaner for media files and blob storage
-  WorkerManager.register(
-    QueueName.MediaRetentionCleanerQueue,
-    mediaRetentionCleanerProcessor,
-    {
-      concurrency: 1,
-    },
-  );
+// Media retention cleaner for media files and blob storage
+export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 
-  const mediaQueue = MediaRetentionCleanerQueue.getInstance();
-  if (mediaQueue) {
-    mediaQueue
-      .upsertJobScheduler(
-        "media-retention-cleaner",
-        { every: env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS },
-        { name: QueueJobs.MediaRetentionCleanerJob, data: {} },
-      )
-      .catch((err) =>
-        logger.error("Error scheduling media-retention-cleaner", err),
-      );
-  }
+if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  mediaRetentionCleaner = new MediaRetentionCleaner();
+  mediaRetentionCleaner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

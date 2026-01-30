@@ -11,6 +11,8 @@ import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
@@ -18,11 +20,27 @@ export default function UserPage() {
   const router = useRouter();
   const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
+  const { isBetaEnabled } = useV4Beta();
 
-  const user = api.users.byId.useQuery({
-    projectId: projectId,
-    userId,
-  });
+  // Legacy API call (traces-based)
+  const userLegacy = api.users.byId.useQuery(
+    {
+      projectId: projectId,
+      userId,
+    },
+    { enabled: !isBetaEnabled },
+  );
+
+  // Beta API call (events-based)
+  const userBeta = api.users.byIdFromEvents.useQuery(
+    {
+      projectId: projectId,
+      userId,
+    },
+    { enabled: isBetaEnabled },
+  );
+
+  const user = isBetaEnabled ? userBeta : userLegacy;
 
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
@@ -58,7 +76,6 @@ export default function UserPage() {
         title: userId,
         breadcrumb: [{ name: "Users", href: `/project/${projectId}/users` }],
         itemType: "USER",
-
         actionButtonsRight: (
           <>
             <ActionButton
@@ -101,7 +118,9 @@ export default function UserPage() {
               Active:{" "}
               {user.data.firstTrace
                 ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : "No traces yet"}
+                : isBetaEnabled
+                  ? "No activity yet"
+                  : "No traces yet"}
             </Badge>
           </div>
         )}
@@ -169,6 +188,12 @@ function ScoresTab({ userId, projectId }: TabProps) {
 }
 
 function TracesTab({ userId, projectId }: TabProps) {
+  const { isBetaEnabled } = useV4Beta();
+
+  if (isBetaEnabled) {
+    return <ObservationsEventsTable projectId={projectId} userId={userId} />;
+  }
+
   return (
     <TracesTable
       projectId={projectId}

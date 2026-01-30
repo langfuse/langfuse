@@ -914,6 +914,7 @@ export type User = {
   password: string | null;
   image: string | null;
   admin: Generated<boolean>;
+  v4_beta_enabled: Generated<boolean>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   feature_flags: Generated<string[]>;

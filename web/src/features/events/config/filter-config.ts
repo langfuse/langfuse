@@ -28,11 +28,6 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   facets: [
     {
-      type: "boolean" as const,
-      column: "hasParentObservation",
-      label: "Has Parent Observation",
-    },
-    {
       type: "categorical" as const,
       column: "environment",
       label: getEventsColumnName("environment"),
@@ -93,14 +88,19 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("statusMessage"),
     },
     {
-      type: "categorical" as const,
-      column: "userId",
-      label: getEventsColumnName("userId"),
+      type: "string" as const,
+      column: "traceId",
+      label: getEventsColumnName("traceId"),
     },
     {
       type: "categorical" as const,
       column: "sessionId",
       label: getEventsColumnName("sessionId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "userId",
+      label: getEventsColumnName("userId"),
     },
     {
       type: "categorical" as const,
