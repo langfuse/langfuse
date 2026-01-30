@@ -176,11 +176,22 @@ types:
         type: string
       content:
         type: string
+      type:
+        type: optional<ChatMessageType>
+
+  ChatMessageType:
+    enum:
+      - chatmessage
 
   PlaceholderMessage:
     properties:
       name:
         type: string
+      type: optional<PlaceholderMessageType>
+
+  PlaceholderMessageType:
+    enum:
+      - placeholder
 
   TextPrompt:
     extends: BasePrompt

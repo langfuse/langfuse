@@ -9884,17 +9884,33 @@ components:
           type: string
         content:
           type: string
+        type:
+          $ref: '#/components/schemas/ChatMessageType'
+          nullable: true
       required:
         - role
         - content
+    ChatMessageType:
+      title: ChatMessageType
+      type: string
+      enum:
+        - chatmessage
     PlaceholderMessage:
       title: PlaceholderMessage
       type: object
       properties:
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/PlaceholderMessageType'
+          nullable: true
       required:
         - name
+    PlaceholderMessageType:
+      title: PlaceholderMessageType
+      type: string
+      enum:
+        - placeholder
     TextPrompt:
       title: TextPrompt
       type: object
