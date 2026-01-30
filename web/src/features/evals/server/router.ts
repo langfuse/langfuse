@@ -217,8 +217,8 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const [configCount, configActiveCount, templateCount, legacyConfigCount] =
-        await Promise.all([
+      const [configCount, configActiveCount, templateCount] = await Promise.all(
+        [
           ctx.prisma.jobConfiguration.count({
             where: {
               projectId: input.projectId,
@@ -237,22 +237,13 @@ export const evalRouter = createTRPCRouter({
               projectId: input.projectId,
             },
           }),
-          ctx.prisma.jobConfiguration.count({
-            where: {
-              projectId: input.projectId,
-              jobType: "EVAL",
-              targetObject: {
-                in: [EvalTargetObject.TRACE, EvalTargetObject.DATASET],
-              },
-            },
-          }),
-        ]);
+        ],
+      );
 
       return {
         configCount,
         configActiveCount,
         templateCount,
-        legacyConfigCount,
       };
     }),
   allConfigs: protectedProjectProcedure
