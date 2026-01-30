@@ -93,6 +93,31 @@ const OpenAIInputAudioContentPart = z.object({
 });
 
 /**
+ * Thinking content part schema.
+ * Used to represent model reasoning/thinking output from various providers.
+ * Normalized format across the different adapters by the providers
+ */
+export const ThinkingContentPartSchema = z.object({
+  type: z.literal("thinking"),
+  content: z.string(),
+  signature: z.string().optional(), // Anthropic's cryptographic signature
+  summary: z.string().optional(), // OpenAI provides summaries
+});
+export type ThinkingContentPart = z.infer<typeof ThinkingContentPartSchema>;
+
+/**
+ * Redacted thinking content part.
+ * Anthropic sometimes encrypts thinking content for safety reasons.
+ */
+export const RedactedThinkingContentPartSchema = z.object({
+  type: z.literal("redacted_thinking"),
+  data: z.string(), // Encrypted blob
+});
+export type RedactedThinkingContentPart = z.infer<
+  typeof RedactedThinkingContentPartSchema
+>;
+
+/**
  * OpenAI text content part.
  * Used in content arrays for text portions of messages.
  * Defined as per https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages
@@ -211,6 +236,9 @@ export const BaseChatMlMessageSchema = z
     tools: z.array(ToolDefinitionSchema).optional(),
     tool_calls: z.array(ToolCallSchema).optional(),
     tool_call_id: z.string().optional(),
+    // Thinking/reasoning content from models
+    thinking: z.array(ThinkingContentPartSchema).optional(),
+    redacted_thinking: z.array(RedactedThinkingContentPartSchema).optional(),
   })
   .passthrough();
 
@@ -277,6 +305,8 @@ export const ChatMlMessageSchema = BaseChatMlMessageSchema.refine(
       tools,
       tool_calls,
       tool_call_id,
+      thinking,
+      redacted_thinking,
       ...other
     }) => ({
       role,
@@ -287,6 +317,8 @@ export const ChatMlMessageSchema = BaseChatMlMessageSchema.refine(
       tools,
       tool_calls,
       tool_call_id,
+      thinking,
+      redacted_thinking,
       ...(Object.keys(other).length === 0 ? {} : { json: other }),
     }),
   );

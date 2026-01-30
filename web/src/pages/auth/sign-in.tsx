@@ -750,7 +750,12 @@ export default function SignIn({
                         <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="jsdoe@example.com" {...field} />
+                            <Input
+                              placeholder="jsdoe@example.com"
+                              allowPasswordManager
+                              autoComplete="email"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

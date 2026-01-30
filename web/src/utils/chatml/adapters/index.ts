@@ -7,6 +7,7 @@ export {
   geminiAdapter,
   microsoftAgentAdapter,
   pydanticAIAdapter,
+  semanticKernelAdapter,
   genericAdapter,
   normalizeInput,
   normalizeOutput,

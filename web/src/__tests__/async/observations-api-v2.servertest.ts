@@ -504,6 +504,189 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
   });
 
+  maybe("Metadata expansion with expandMetadata parameter", () => {
+    // Cutoff is 200 chars - values longer than 200 chars are truncated by default
+    const METADATA_CUTOFF = 200;
+
+    it("should selectively expand only specified metadata keys", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create two long metadata values
+      const longValue1 = "a".repeat(300);
+      const longValue2 = "b".repeat(300);
+
+      const observation = createEvent({
+        id: observationId,
+        span_id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "selective-expansion-test",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        metadata: {
+          expandMe: longValue1,
+          keepTruncated: longValue2,
+          shortKey: "shortValue",
+        },
+        metadata_names: ["expandMe", "keepTruncated", "shortKey"],
+        metadata_raw_values: [longValue1, longValue2, "shortValue"],
+      });
+
+      await createEventsCh([observation]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            params: { projectId, id: observationId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
+
+      // Request metadata with expansion for only 'expandMe' key
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=expandMe`,
+      );
+
+      expect(response.status).toBe(200);
+      const obs = response.body.data.find((o: any) => o.id === observationId);
+      expect(obs).toBeDefined();
+
+      // 'expandMe' should be full (300 chars)
+      expect(obs?.metadata?.expandMe?.length).toBe(300);
+      expect(obs?.metadata?.expandMe).toBe(longValue1);
+
+      // 'keepTruncated' should still be truncated (200 chars)
+      expect(obs?.metadata?.keepTruncated?.length).toBe(METADATA_CUTOFF);
+      expect(obs?.metadata?.keepTruncated).toBe(
+        longValue2.substring(0, METADATA_CUTOFF),
+      );
+
+      // 'shortValue' should be present as is
+      expect(obs?.metadata?.shortKey).toBe("shortValue");
+    });
+
+    it("should handle expansion of non-existent metadata key gracefully", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      const observation = createEvent({
+        id: observationId,
+        span_id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "non-existent-key-test",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        metadata: { existingKey: "value" },
+        metadata_names: ["existingKey"],
+        metadata_raw_values: ["value"],
+      });
+
+      await createEventsCh([observation]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            params: { projectId, id: observationId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
+
+      // Request expansion for a key that doesn't exist
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=nonExistentKey`,
+      );
+
+      // Should not error, just return metadata without the non-existent key
+      expect(response.status).toBe(200);
+      const obs = response.body.data.find((o: any) => o.id === observationId);
+      expect(obs).toBeDefined();
+
+      // Existing key should still be present
+      expect(obs?.metadata?.existingKey).toBe("value");
+      // Non-existent key should not be in metadata
+      expect(obs?.metadata?.nonExistentKey).toBeUndefined();
+    });
+
+    it("should return truncated metadata when expandMetadata is empty string", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create a long metadata value (> 200 chars)
+      const longValue = "z".repeat(300);
+
+      const observation = createEvent({
+        id: observationId,
+        span_id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "empty-expansion-test",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        metadata: { longKey: longValue },
+        metadata_names: ["longKey"],
+        metadata_raw_values: [longValue],
+      });
+
+      await createEventsCh([observation]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            params: { projectId, id: observationId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
+
+      // Request metadata with empty expandMetadata - should use truncated
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=`,
+      );
+
+      expect(response.status).toBe(200);
+      const obs = response.body.data.find((o: any) => o.id === observationId);
+      expect(obs).toBeDefined();
+
+      // Metadata should still be present but truncated (empty expandMetadata means no expansion)
+      expect(obs?.metadata?.longKey).toBeDefined();
+      expect(obs?.metadata?.longKey?.length).toBe(METADATA_CUTOFF);
+      expect(obs?.metadata?.longKey).toBe(
+        longValue.substring(0, METADATA_CUTOFF),
+      );
+    });
+  });
+
   maybe("Cursor-based pagination", () => {
     it("should return cursor when results equal limit", async () => {
       const traceId = randomUUID();

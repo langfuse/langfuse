@@ -1,6 +1,12 @@
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 
 /**
+ * Types for structured ORDER BY API
+ */
+export type OrderByDirection = "ASC" | "DESC";
+export type OrderByEntry = { column: string; direction: OrderByDirection };
+
+/**
  * Field mapping: each field defined once with its full SELECT expression
  * All queries use `FROM events e` with alias, so all fields use `e.` prefix
  */
@@ -417,6 +423,43 @@ abstract class BaseEventsQueryBuilder<
   }
 
   /**
+   * Set ORDER BY clause with automatic project_id prepending for optimal ClickHouse performance.
+   * The events table has ORDER BY (project_id, start_time, ...) so queries should match.
+   *
+   * @example
+   * builder.orderByColumns([
+   *   { column: "e.start_time", direction: "DESC" },
+   *   { column: "e.event_ts", direction: "DESC" },
+   * ])
+   * // Produces: ORDER BY e.project_id DESC, e.start_time DESC, e.event_ts DESC
+   */
+  orderByColumns(entries: OrderByEntry[]): this {
+    if (!entries.length) {
+      return this;
+    }
+
+    // Use the direction of the first column for project_id
+    const primaryDirection = entries[0].direction;
+
+    // Build ORDER BY clause with project_id prepended
+    const columns = [
+      `e.project_id ${primaryDirection}`,
+      ...entries.map((e) => `${e.column} ${e.direction}`),
+    ];
+
+    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
+    return this;
+  }
+
+  /**
+   * Apply default ORDER BY for events table queries.
+   * Uses start_time DESC (project_id is auto-prepended).
+   */
+  orderByDefault(): this {
+    return this.orderByColumns([{ column: "e.start_time", direction: "DESC" }]);
+  }
+
+  /**
    * Build the SELECT clause - implemented by subclasses
    */
   protected abstract buildSelectClause(): string;
@@ -504,6 +547,8 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_FIELDS
 > {
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
+  // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
+  private metadataExpansionKeys: string[] | null = null;
 
   /**
    * Constructor
@@ -518,6 +563,23 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   constructor(options: { projectId: string | NoProjectIdType }) {
     super(EVENTS_FIELDS, options);
+  }
+
+  /**
+   * Select metadata with expanded values for specified keys.
+   * Expands truncated metadata values by coalescing with metadata_long_values.
+   *
+   * @param keys - Keys to expand. Only the specified keys will have their full values returned.
+   *
+   * @example
+   * // Expand specific keys only
+   * builder.selectMetadataExpanded(['transcript', 'transitions'])
+   */
+  selectMetadataExpanded(keys: string[]): this {
+    this.metadataExpansionKeys = keys;
+    // Also ensure metadata is in the select fields (will be replaced in buildSelectClause)
+    this.selectFields.add("metadata");
+    return this;
   }
 
   /**
@@ -547,10 +609,22 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   protected buildSelectClause(): string {
     // Build field expressions from field keys
-    // If ioFields are configured, exclude regular input/output from selectFields
-    const fieldsToProcess = this.ioFields
-      ? [...this.selectFields].filter((f) => f !== "input" && f !== "output")
-      : [...this.selectFields];
+    // Exclude fields that have custom handling (IO, metadata)
+    let fieldsToExclude: string[] = [];
+    if (this.ioFields) {
+      fieldsToExclude.push("input", "output");
+    }
+    // Only exclude metadata if we have actual keys to expand
+    if (
+      this.metadataExpansionKeys !== null &&
+      this.metadataExpansionKeys.length > 0
+    ) {
+      fieldsToExclude.push("metadata");
+    }
+
+    const fieldsToProcess = [...this.selectFields].filter(
+      (f) => !fieldsToExclude.includes(f),
+    );
 
     const fieldExpressions: string[] = fieldsToProcess.flatMap((fieldKey) => {
       const fieldExpr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
@@ -566,6 +640,30 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       } else {
         fieldExpressions.push("input, output");
       }
+    }
+
+    // Add metadata field with expansion if configured
+    if (
+      this.metadataExpansionKeys !== null &&
+      this.metadataExpansionKeys.length > 0 &&
+      this.selectFields.has("metadata")
+    ) {
+      // Add keys to params for safe parameterized query
+      this.params.expandMetadataKeys = this.metadataExpansionKeys;
+
+      fieldExpressions.push(`mapFromArrays(
+        e.metadata_names,
+        arrayMap(
+          (name, prefix, hash) -> if(
+            has({expandMetadataKeys: Array(String)}, name) AND isNotNull(hash) AND mapContains(e.metadata_long_values, hash),
+            e.metadata_long_values[hash],
+            prefix
+          ),
+          e.metadata_names,
+          e.metadata_prefixes,
+          e.metadata_hashes
+        )
+      ) as metadata`);
     }
 
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;

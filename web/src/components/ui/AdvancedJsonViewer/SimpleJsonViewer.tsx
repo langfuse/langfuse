@@ -13,6 +13,7 @@ import { JsonRowFixed } from "./components/JsonRowFixed";
 import { JsonRowScrollable } from "./components/JsonRowScrollable";
 import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
+import { pathArrayToJsonPath } from "./utils/pathUtils";
 import { debugLog } from "./utils/debug";
 
 interface SimpleJsonViewerProps {
@@ -31,6 +32,7 @@ interface SimpleJsonViewerProps {
   scrollToIndex?: number; // For search navigation
   scrollContainerRef?: RefObject<HTMLDivElement | null>; // Parent scroll container
   totalLineCount?: number; // Total number of lines when fully expanded (for line number width calculation)
+  commentedPaths?: Map<string, Array<{ start: number; end: number }>>;
 }
 
 export const SimpleJsonViewer = memo(function SimpleJsonViewer({
@@ -49,6 +51,7 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
   scrollToIndex,
   scrollContainerRef: _scrollContainerRef,
   totalLineCount,
+  commentedPaths,
 }: SimpleJsonViewerProps) {
   debugLog("[SimpleJsonViewer] RENDER");
 
@@ -125,6 +128,8 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
           const searchMatch = matchMap.get(row.id);
           const isCurrentMatch = currentMatch?.rowId === row.id;
           const matchCount = matchCounts?.get(row.id);
+          const rowJsonPath = pathArrayToJsonPath(row.pathArray);
+          const commentRanges = commentedPaths?.get(rowJsonPath);
 
           return (
             <div
@@ -189,6 +194,8 @@ export const SimpleJsonViewer = memo(function SimpleJsonViewer({
                   enableCopy={enableCopy}
                   searchMatch={searchMatch}
                   isCurrentMatch={isCurrentMatch}
+                  jsonPath={rowJsonPath}
+                  commentRanges={commentRanges}
                 />
               </div>
             </div>

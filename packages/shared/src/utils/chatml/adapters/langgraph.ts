@@ -275,9 +275,9 @@ export const langgraphAdapter: ProviderAdapter = {
     // EXPLICIT: Framework hint
     if (ctx.framework === "langgraph") return true;
 
-    // REJECTIONS: Reject AI SDK v5 and OpenAI Agents SDK formats
+    // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, and Semantic Kernel formats
     if (meta && typeof meta === "object") {
-      // Check scope.name for AI SDK or OpenAI Agents
+      // Check scope.name for AI SDK, OpenAI Agents, or Semantic Kernel
       if ("scope" in meta && typeof meta.scope === "object") {
         const scope = meta.scope as Record<string, unknown>;
 
@@ -289,6 +289,13 @@ export const langgraphAdapter: ProviderAdapter = {
           scope.name === "openinference.instrumentation.openai_agents" ||
           (typeof scope.name === "string" &&
             scope.name.includes("openai_agents"))
+        ) {
+          return false;
+        }
+
+        if (
+          typeof scope.name === "string" &&
+          scope.name.startsWith("Microsoft.SemanticKernel")
         ) {
           return false;
         }

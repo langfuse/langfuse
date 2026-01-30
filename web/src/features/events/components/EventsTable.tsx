@@ -61,7 +61,15 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { useEventsViewMode } from "@/src/features/events/hooks/useEventsViewMode";
+import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
+import {
+  type RefreshInterval,
+  REFRESH_INTERVALS,
+} from "@/src/components/table/data-table-refresh-button";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { api } from "@/src/utils/api";
 
 export type EventsTableRow = {
   // Identity fields
@@ -130,10 +138,12 @@ export type EventsTableRow = {
 
 export type EventsTableProps = {
   projectId: string;
+  userId?: string;
 };
 
 export default function ObservationsEventsTable({
   projectId,
+  userId,
 }: EventsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
@@ -187,10 +197,71 @@ export default function ObservationsEventsTable({
 
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
+  // View mode toggle (Trace vs Observation)
+  const { viewMode, setViewMode: setViewModeRaw } =
+    useEventsViewMode(projectId);
+
+  // For filter options: trace mode filters to root items, observation mode shows all
+  const hasParentObservation = viewMode === "observation" ? undefined : false;
+
+  // Wrap setViewMode to reset pagination when view mode changes
+  const setViewMode = useCallback(
+    (mode: typeof viewMode) => {
+      setViewModeRaw(mode);
+      setPaginationState({ page: 1 });
+    },
+    [setViewModeRaw, setPaginationState],
+  );
+
+  // for auto data refresh
+  const utils = api.useUtils();
+  const [rawRefreshInterval, setRawRefreshInterval] =
+    useSessionStorage<RefreshInterval>(
+      `tableRefreshInterval-events-${projectId}`,
+      null,
+    );
+
+  // Validate session storage value against allowed intervals
+  const allowedValues = REFRESH_INTERVALS.map((i) => i.value);
+  const refreshInterval = allowedValues.includes(rawRefreshInterval)
+    ? rawRefreshInterval
+    : null;
+  const setRefreshInterval = useCallback(
+    (value: RefreshInterval) => {
+      if (allowedValues.includes(value)) {
+        setRawRefreshInterval(value);
+      }
+    },
+    [allowedValues, setRawRefreshInterval],
+  );
+
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Auto-increment refresh tick to force date range recalculation
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      setRefreshTick((t) => t + 1);
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+    void Promise.all([
+      utils.events.all.invalidate(),
+      utils.events.countAll.invalidate(),
+      utils.events.filterOptions.invalidate(),
+    ]);
+  }, [utils]);
+
   // Convert timeRange to absolute date range for compatibility
+  // Include refreshTick to force recalculation on refresh
   const dateRange = useMemo(() => {
+    // refreshTick forces recalculation but isn't used in computation
+    void refreshTick;
     return toAbsoluteTimeRange(timeRange) ?? undefined;
-  }, [timeRange]);
+  }, [timeRange, refreshTick]);
 
   const dateRangeFilter: FilterState = dateRange
     ? [
@@ -215,10 +286,11 @@ export default function ObservationsEventsTable({
 
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
-  // Fetch filter options
+  // Fetch filter options (scoped to current view mode)
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
     oldFilterState,
+    hasParentObservation,
   });
 
   const queryFilter = useSidebarFilterState(
@@ -237,7 +309,35 @@ export default function ObservationsEventsTable({
     [],
   );
 
-  const filterState = queryFilter.filterState.concat(dateRangeFilter);
+  // Create view mode filter (not shown in sidebar)
+  const viewModeFilter: FilterState =
+    viewMode === "trace"
+      ? [
+          {
+            column: "hasParentObservation",
+            type: "boolean",
+            operator: "=",
+            value: false, // Only root-level items (no parent)
+          },
+        ]
+      : [];
+
+  // Create user ID filter if userId is provided
+  const userIdFilter: FilterState = userId
+    ? [
+        {
+          column: "User ID",
+          type: "string",
+          operator: "=",
+          value: userId,
+        },
+      ]
+    : [];
+
+  const filterState = queryFilter.filterState
+    .concat(dateRangeFilter)
+    .concat(viewModeFilter)
+    .concat(userIdFilter);
 
   // Use the custom hook for observations data fetching
   const {
@@ -998,6 +1098,18 @@ export default function ObservationsEventsTable({
           setRowHeight={setRowHeight}
           timeRange={timeRange}
           setTimeRange={setTimeRange}
+          viewModeToggle={
+            <EventsViewModeToggle
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          }
+          refreshConfig={{
+            onRefresh: handleRefresh,
+            isRefreshing: observations.status === "loading",
+            interval: refreshInterval,
+            setInterval: setRefreshInterval,
+          }}
           actionButtons={[
             <BatchExportTableButton
               {...{
@@ -1033,11 +1145,12 @@ export default function ObservationsEventsTable({
             pageSize: paginationState.limit,
             pageIndex: paginationState.page - 1,
           }}
+          filterWithAI
         />
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls queryFilter={queryFilter} filterWithAI />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable

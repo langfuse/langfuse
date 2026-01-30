@@ -7,7 +7,10 @@ import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
-export type PreferredClickhouseService = "ReadWrite" | "ReadOnly";
+export type PreferredClickhouseService =
+  | "ReadWrite"
+  | "ReadOnly"
+  | "EventsReadOnly";
 
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
@@ -67,9 +70,19 @@ export class ClickHouseClientManager {
   private getClickhouseUrl = (
     preferredClickhouseService: PreferredClickhouseService,
   ) => {
-    return preferredClickhouseService === "ReadWrite"
-      ? env.CLICKHOUSE_URL
-      : env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    switch (preferredClickhouseService) {
+      case "ReadWrite":
+        return env.CLICKHOUSE_URL;
+      case "EventsReadOnly":
+        return (
+          env.CLICKHOUSE_EVENTS_READ_ONLY_URL ||
+          env.CLICKHOUSE_READ_ONLY_URL ||
+          env.CLICKHOUSE_URL
+        );
+      case "ReadOnly":
+      default:
+        return env.CLICKHOUSE_READ_ONLY_URL || env.CLICKHOUSE_URL;
+    }
   };
 
   /**
@@ -126,6 +139,12 @@ export class ClickHouseClientManager {
                   env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS,
               }
             : {}),
+          ...(env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS
+            ? {
+                async_insert_busy_timeout_min_ms:
+                  env.CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS,
+              }
+            : {}),
           ...(env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE !== "alter_update"
             ? {
                 lightweight_delete_mode: env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE,
@@ -139,7 +158,7 @@ export class ClickHouseClientManager {
           ...(opts.request_timeout && opts.request_timeout > 30000
             ? {
                 send_progress_in_http_headers: 1,
-                http_headers_progress_interval_ms: "25000", // UInt64, should be passed as a string
+                http_headers_progress_interval_ms: "10000", // UInt64, should be passed as a string
               }
             : {}),
         },

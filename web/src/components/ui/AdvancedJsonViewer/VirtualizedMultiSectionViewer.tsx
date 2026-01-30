@@ -30,6 +30,12 @@ import { useJsonSearch } from "./hooks/useJsonSearch";
 import { useJsonViewerLayout } from "./hooks/useJsonViewerLayout";
 import { searchInTree } from "./utils/searchJson";
 import { useMonospaceCharWidth } from "./hooks/useMonospaceCharWidth";
+import {
+  getCommentRangesForRow,
+  getCommentCountForSection,
+  type CommentedPathsByField,
+} from "./utils/commentRanges";
+import { pathArrayToJsonPath } from "./utils/pathUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
 
 export interface VirtualizedMultiSectionViewerHandle {
@@ -54,6 +60,7 @@ export interface VirtualizedMultiSectionViewerProps {
   onToggleExpansion?: (nodeId: string) => void;
   scrollContainerRef?: RefObject<HTMLDivElement>;
   media?: MediaReturnType[];
+  commentedPathsByField?: CommentedPathsByField;
 }
 
 export const VirtualizedMultiSectionViewer = memo(
@@ -77,6 +84,7 @@ export const VirtualizedMultiSectionViewer = memo(
       onToggleExpansion,
       scrollContainerRef,
       media,
+      commentedPathsByField,
     },
     ref,
   ) {
@@ -300,6 +308,12 @@ export const VirtualizedMultiSectionViewer = memo(
                 (m) => m.field === node.sectionKey,
               );
 
+              // Get comment count for this section
+              const sectionCommentCount = getCommentCountForSection(
+                node.sectionKey,
+                commentedPathsByField,
+              );
+
               // Render header with fallback chain
               let headerContent;
               if (jsonSection?.renderHeader) {
@@ -315,6 +329,7 @@ export const VirtualizedMultiSectionViewer = memo(
                     title={title}
                     context={sectionContext}
                     media={sectionMedia}
+                    commentCount={sectionCommentCount}
                   />
                 );
               }
@@ -354,6 +369,9 @@ export const VirtualizedMultiSectionViewer = memo(
             }
 
             if (node.nodeType === "section-footer") {
+              // Skip footer if section is collapsed
+              if (!node.isExpanded) return null;
+
               const jsonSection = node.sectionKey
                 ? sectionsMap.get(node.sectionKey)
                 : null;
@@ -373,12 +391,10 @@ export const VirtualizedMultiSectionViewer = memo(
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    minWidth: effectiveRowWidth
-                      ? `${effectiveRowWidth}px`
-                      : "100%",
-                    width: "max-content",
+                    width: containerWidth ? `${containerWidth}px` : "100%",
                     transform: `translateY(${virtualRow.start}px)`,
                     backgroundColor: node.backgroundColor || theme.background,
+                    paddingBottom: "0.5rem",
                   }}
                 >
                   {jsonSection?.renderFooter?.(sectionContext)}
@@ -411,6 +427,14 @@ export const VirtualizedMultiSectionViewer = memo(
             // Regular JSON row
             const row = treeNodeToFlatRow(node, virtualRow.index);
             const matchCount = matchCounts?.get(row.id);
+
+            // Get comment ranges for this row
+            const commentRanges = getCommentRangesForRow(
+              row,
+              node.sectionKey,
+              commentedPathsByField,
+            );
+            const rowJsonPath = pathArrayToJsonPath(row.pathArray);
 
             return (
               <div
@@ -480,6 +504,9 @@ export const VirtualizedMultiSectionViewer = memo(
                     enableCopy={enableCopy}
                     stringWrapMode={stringWrapMode}
                     truncateStringsAt={truncateStringsAt}
+                    jsonPath={rowJsonPath}
+                    commentRanges={commentRanges}
+                    sectionKey={node.sectionKey}
                   />
                 </div>
               </div>

@@ -13,6 +13,7 @@ import {
   evalJobDatasetCreatorQueueProcessor,
   evalJobExecutorQueueProcessor,
   evalJobTraceCreatorQueueProcessor,
+  llmAsJudgeExecutionQueueProcessor,
 } from "./queues/evalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
@@ -73,6 +74,15 @@ import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
 import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
+import {
+  BatchProjectCleaner,
+  BATCH_DELETION_TABLES,
+} from "./features/batch-project-cleaner";
+import {
+  BatchDataRetentionCleaner,
+  BATCH_DATA_RETENTION_TABLES,
+} from "./features/batch-data-retention-cleaner";
+import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
 
 const app = express();
 
@@ -230,6 +240,18 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
       lockDuration: 60000, // 60 seconds
       stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
+    },
+  );
+
+  // LLM-as-Judge execution for observation-level evals (uses same env flag as trace evals)
+  WorkerManager.register(
+    QueueName.LLMAsJudgeExecution,
+    llmAsJudgeExecutionQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+      lockDuration: 60000,
+      stalledInterval: 120000,
       maxStalledCount: 3,
     },
   );
@@ -538,6 +560,48 @@ if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
 if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
   // Start the ClickHouse mutation monitor after all workers are registered
   MutationMonitor.start();
+}
+
+// Batch project cleaners for bulk deletion of ClickHouse data
+export const batchProjectCleaners: BatchProjectCleaner[] = [];
+
+if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
+  for (const table of BATCH_DELETION_TABLES) {
+    // Only start the events table cleaner if the events table experiment is enabled
+    if (
+      table !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
+      const cleaner = new BatchProjectCleaner(table);
+      batchProjectCleaners.push(cleaner);
+      cleaner.start();
+    }
+  }
+}
+
+// Batch data retention cleaners for bulk deletion of expired ClickHouse data
+export const batchDataRetentionCleaners: BatchDataRetentionCleaner[] = [];
+
+if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  for (const table of BATCH_DATA_RETENTION_TABLES) {
+    // Only start the events table cleaner if the events table experiment is enabled
+    if (
+      table !== "events" ||
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
+      const cleaner = new BatchDataRetentionCleaner(table);
+      batchDataRetentionCleaners.push(cleaner);
+      cleaner.start();
+    }
+  }
+}
+
+// Media retention cleaner for media files and blob storage
+export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
+
+if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
+  mediaRetentionCleaner = new MediaRetentionCleaner();
+  mediaRetentionCleaner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

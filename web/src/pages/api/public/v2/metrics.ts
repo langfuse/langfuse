@@ -6,36 +6,13 @@ import {
   GetMetricsV2Query,
   GetMetricsV2Response,
 } from "@/src/features/public-api/types/metrics";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
-import { getViewDeclaration } from "@/src/features/query/dataModel";
 import { InvalidRequestError, NotImplementedError } from "@langfuse/shared";
+import {
+  executeQuery,
+  validateQuery,
+} from "@/src/features/query/server/queryExecutor";
 
 const DEFAULT_ROW_LIMIT = 100;
-
-/**
- * Validates that no high cardinality dimensions are used in the query.
- * High cardinality dimensions (id, traceId, userId, sessionId, etc.) are not
- * supported in the v2 metrics API as they can cause performance issues.
- */
-function validateNoHighCardinalityDimensions(queryParams: {
-  view: string;
-  dimensions?: Array<{ field: string }>;
-}): void {
-  if (!queryParams.dimensions || queryParams.dimensions.length === 0) {
-    return;
-  }
-
-  const view = getViewDeclaration(queryParams.view as any, "v2");
-
-  for (const dimension of queryParams.dimensions) {
-    const dim = view.dimensions[dimension.field];
-    if (dim?.highCardinality) {
-      throw new InvalidRequestError(
-        `Dimension '${dimension.field}' has high cardinality and is not supported in v2 metrics API. Use filters instead.`,
-      );
-    }
-  }
-}
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -51,17 +28,22 @@ export default withMiddlewares({
       }
 
       try {
+        // Validate query (high cardinality checks) BEFORE applying defaults
+        // This ensures users must explicitly opt-in with row_limit for high cardinality queries
+        const validation = validateQuery(query.query as any, "v2");
+
+        if (!validation.valid) {
+          throw new InvalidRequestError(validation.reason);
+        }
+
+        // Apply default row_limit AFTER validation
         const queryParams = {
           ...query.query,
-          // Apply default row_limit if not specified
           config: {
             ...query.query.config,
             row_limit: query.query.config?.row_limit ?? DEFAULT_ROW_LIMIT,
           },
         };
-
-        // Validate no high cardinality dimensions are used
-        validateNoHighCardinalityDimensions(queryParams);
 
         logger.info("Received v2 metrics query", {
           query: queryParams,

@@ -53,6 +53,7 @@ export type ScoreQueryType = {
   operator?: string;
   scoreIds?: string[];
   dataType?: string;
+  environment?: string | string[];
   fields?: string[] | null;
 };
 
@@ -391,13 +392,6 @@ const secureTraceFilterOptions = [
     filterType: "StringFilter",
     clickhousePrefix: "t",
   },
-  {
-    id: "traceEnvironment",
-    clickhouseSelect: "environment",
-    clickhouseTable: "traces",
-    filterType: "StringOptionsFilter",
-    clickhousePrefix: "t",
-  },
 ];
 
 /**
@@ -449,6 +443,26 @@ const generateScoreFilter = (
     filter,
     secureTraceFilterOptions,
   );
+
+  // If environment is specified AND there are other trace filters (userId, traceTags),
+  // also apply the environment filter to traces. This ensures that when filtering by
+  // trace properties, the trace's environment matches the requested environment.
+  // Without other trace filters, we only filter by the score's own environment,
+  // which allows session scores (that have no trace) to be returned correctly.
+  if (filter.environment && tracesFilter.length() > 0) {
+    const envValues = Array.isArray(filter.environment)
+      ? filter.environment
+      : [filter.environment];
+    tracesFilter.push(
+      new StringOptionsFilter({
+        clickhouseTable: "traces",
+        field: "environment",
+        operator: "any of",
+        values: envValues,
+        tablePrefix: "t",
+      }),
+    );
+  }
 
   return { scoresFilter, tracesFilter };
 };
