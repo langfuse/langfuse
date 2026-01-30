@@ -42,8 +42,8 @@ const getCalloutContent = (
       title: "Newer version of the Langfuse SDK required",
       description: (
         <>
-          Running evaluators on live observations require JS SDK &ge; 4.4.0 or
-          Python SDK &ge; 3.9.0. You can still set up this evaluator now—it will
+          Running evaluators on live observations require JS SDK &ge; 4.0.0 or
+          Python SDK &ge; 3.0.0. You can still set up this evaluator now—it will
           start running once you upgrade your SDK to latest.{" "}
           <a
             href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
@@ -68,8 +68,9 @@ const getCalloutContent = (
         title: "Are you sure you are already on the recommended SDK version?",
         description: (
           <>
-            You can still set your evaluator up now—it will start running once
-            you upgrade to the latest SDK version.{" "}
+            Running evaluators requires JS SDK &ge; 4.4.0 or Python SDK &ge;
+            3.9.0. You can still set your evaluator up now—it will start running
+            once you upgrade to the latest SDK version.{" "}
             <a
               href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
               target="_blank"

@@ -12,6 +12,7 @@ import {
   mapLegacyToModernTarget,
   isLegacyEvalTarget,
   isTraceTarget,
+  isEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
@@ -187,6 +188,20 @@ export function RemapEvalWizard({
             </a>{" "}
             to upgrade successfully.
           </DialogDescription>
+          {mappedConfig ? (
+            <Alert
+              variant="default"
+              className="mt-2 border-light-yellow bg-light-yellow"
+            >
+              <AlertDescription>
+                <div className="flex flex-col gap-2">
+                  {isEventTarget(mappedConfig.targetObject ?? "event")
+                    ? "Running evaluators requires JS SDK ≥ 4.0.0 or Python SDK ≥ 3.0.0."
+                    : "Running evaluators requires JS SDK ≥ 4.4.0 or Python SDK ≥ 3.9.0."}
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : null}
         </DialogHeader>
 
         {isLoading ? (
