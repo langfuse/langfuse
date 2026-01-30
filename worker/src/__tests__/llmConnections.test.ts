@@ -159,7 +159,8 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("Anthropic", () => {
-    const MODEL = "claude-3-5-haiku-20241022";
+    // claude-3-5-haiku-20241022 deprecated 2025-12-19: https://platform.claude.com/docs/en/about-claude/model-deprecations#2025-12-19-claude-haiku-3-5-model
+    const MODEL = "claude-haiku-4-5-20251001";
 
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY) {
