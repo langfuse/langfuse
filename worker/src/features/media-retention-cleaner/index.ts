@@ -64,6 +64,10 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
+    // Reset gauge before attempting lock - ensures it doesn't appear stuck
+    // if another worker holds the lock
+    recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0);
+
     await this.withLock(
       async () => {
         // Get the project with most expired media (single project per iteration)
