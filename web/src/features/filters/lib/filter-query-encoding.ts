@@ -7,16 +7,16 @@ import { encodeDelimitedArray, decodeDelimitedArray } from "use-query-params";
 
 // Escape pipe characters in values to avoid conflicts with the delimiter
 // Uses backslash escaping: | → \|, and \ → \\
-function escapePipeInValue(value: string): string {
+export function escapePipeInValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
-function unescapePipeInValue(value: string): string {
+export function unescapePipeInValue(value: string): string {
   return value.replace(/\\\|/g, "|").replace(/\\\\/g, "\\");
 }
 
 // Split on unescaped pipe characters only (pipes not preceded by backslash)
-function splitOnUnescapedPipe(str: string): string[] {
+export function splitOnUnescapedPipe(str: string): string[] {
   const result: string[] = [];
   let current = "";
   let i = 0;
