@@ -178,7 +178,7 @@ export function RemapEvalWizard({
             Review your legacy evaluator on the left and configure the new eval
             settings on the right.{" "}
             <a
-              href="https://langfuse.com/docs/evals/remapping"
+              href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-dark-blue hover:opacity-80"
