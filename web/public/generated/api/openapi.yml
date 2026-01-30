@@ -7109,6 +7109,22 @@ components:
         - stringValue
       allOf:
         - $ref: '#/components/schemas/BaseScore'
+    CorrectionScore:
+      title: CorrectionScore
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: The numeric value of the score. Always 0 for correction scores.
+        stringValue:
+          type: string
+          description: The string representation of the correction content
+      required:
+        - value
+        - stringValue
+      allOf:
+        - $ref: '#/components/schemas/BaseScore'
     Score:
       title: Score
       oneOf:
@@ -7143,6 +7159,17 @@ components:
                   enum:
                     - BOOLEAN
             - $ref: '#/components/schemas/BooleanScore'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CORRECTION
+            - $ref: '#/components/schemas/CorrectionScore'
           required:
             - dataType
     CreateScoreValue:
@@ -10357,6 +10384,15 @@ components:
           nullable: true
       allOf:
         - $ref: '#/components/schemas/BooleanScore'
+    GetScoresResponseDataCorrection:
+      title: GetScoresResponseDataCorrection
+      type: object
+      properties:
+        trace:
+          $ref: '#/components/schemas/GetScoresResponseTraceData'
+          nullable: true
+      allOf:
+        - $ref: '#/components/schemas/CorrectionScore'
     GetScoresResponseData:
       title: GetScoresResponseData
       oneOf:
@@ -10391,6 +10427,17 @@ components:
                   enum:
                     - BOOLEAN
             - $ref: '#/components/schemas/GetScoresResponseDataBoolean'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CORRECTION
+            - $ref: '#/components/schemas/GetScoresResponseDataCorrection'
           required:
             - dataType
     GetScoresResponse:
