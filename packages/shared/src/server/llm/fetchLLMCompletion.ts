@@ -49,6 +49,7 @@ import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import { isValidImageUrl } from "./multimodalValidation";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
@@ -146,6 +147,7 @@ export async function fetchLLMCompletion(
 
   let finalCallbacks: BaseCallbackHandler[] | undefined = callbacks ?? [];
   let processTracedEvents: ProcessTracedEvents = () => Promise.resolve();
+  const isImageUrlValid = imageUrl ? await isValidImageUrl(imageUrl) : false;
 
   if (traceSinkParams) {
     // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
@@ -200,7 +202,7 @@ export async function fetchLLMCompletion(
           { type: "text", text: safeContent },
         ];
 
-        if (imageUrl && !imageAdded) {
+        if (imageUrl && !imageAdded && isImageUrlValid) {
           userContent.push({
             type: "image_url",
             image_url: { url: imageUrl },
