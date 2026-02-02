@@ -399,7 +399,7 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("Bedrock", () => {
-    const MODEL = "eu.anthropic.claude-sonnet-4-20250514-v1:0";
+    const MODEL = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
     const checkEnvVars = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID) {
@@ -470,7 +470,7 @@ describe("LLM Connection Tests", () => {
     }, 30_000);
 
     // Flaky
-    test.skip("structured output - eval schema", async () => {
+    test("structured output - eval schema", async () => {
       checkEnvVars();
 
       const completion = await fetchLLMCompletion({
