@@ -9,7 +9,6 @@ import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage
 import { WorkerManager } from "../queues/workerManager";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
-import { MutationMonitor } from "../features/mutation-monitoring/mutationMonitor";
 import {
   batchProjectCleaners,
   batchDataRetentionCleaners,
@@ -23,9 +22,6 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   // Stop accepting new connections
   server.close();
   logger.info("Server has been closed.");
-
-  // Stop mutation monitor
-  MutationMonitor.stop();
 
   // Stop batch project cleaners
   for (const cleaner of batchProjectCleaners) {
