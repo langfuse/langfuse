@@ -31,7 +31,7 @@ export function useEvaluatorDefaults() {
       ...CONFIG_BASE,
       evalTemplate: template,
       scoreName: scoreName || template.name,
-      variableMapping: alternatingMappings,
+      variableMapping: variableMappings,
       filter: [
         {
           type: "stringOptions",

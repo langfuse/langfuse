@@ -33,11 +33,12 @@ import {
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
-  InlineFilterBuilder,
-  type ColumnDefinitionWithAlert,
-} from "@/src/features/filters/components/filter-builder";
-import { type EvalTemplate, wipVariableMapping } from "@langfuse/shared";
+  type EvalTemplate,
+  wipVariableMapping,
+  variableMapping,
+} from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
