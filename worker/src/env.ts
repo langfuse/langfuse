@@ -358,6 +358,19 @@ const EnvSchema = z.object({
     .positive()
     .default(10_000), // Max items (media files) to process per batch
 
+  // Batch Trace Deletion Cleaner configuration
+  LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_BATCH_TRACE_DELETION_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000), // 10 minutes between runs
+  LANGFUSE_BATCH_TRACE_DELETION_CLEANER_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(7200), // 2 hours to handle worst-case deletions
+
   LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
     .enum(["true", "false"])
     .default("false"),
