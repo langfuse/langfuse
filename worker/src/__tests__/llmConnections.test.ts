@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { fetchLLMCompletion } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import { ChatMessageType, LLMAdapter } from "@langfuse/shared";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
 
 /**
  * LLM Connection Integration Tests
