@@ -10,6 +10,11 @@ export const isTraceTarget = (target: string): boolean => target === "trace";
 export const isTraceOrDatasetObject = (object: string): boolean =>
   object === "trace" || object === "dataset_item";
 
+// Legacy eval targets (TRACE, DATASET) use full variable mapping UI with object selector
+// Modern eval targets (EVENT, EXPERIMENT) use simplified UI with just column selection
+export const isLegacyEvalTarget = (target: string): boolean =>
+  target === "trace" || target === "dataset";
+
 export const evalConfigFormSchema = z.object({
   scoreName: z.string(),
   target: z.string(),

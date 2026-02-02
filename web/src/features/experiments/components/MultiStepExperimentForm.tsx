@@ -132,7 +132,7 @@ export const MultiStepExperimentForm = ({
   const datasetId = form.watch("datasetId");
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject: "dataset" },
+    { projectId, targetObject: ["dataset", "experiment"] },
     {
       enabled: hasEvalReadAccess && !!datasetId,
     },
@@ -150,6 +150,7 @@ export const MultiStepExperimentForm = ({
   const {
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -241,17 +242,8 @@ export const MultiStepExperimentForm = ({
   );
 
   // Callback for preprocessing evaluator form values
-  const preprocessFormValues = (values: any) => {
-    const shouldRunOnHistoric = confirm(
-      "Do you also want to execute this evaluator on historic data? If not, click cancel.",
-    );
-
-    if (shouldRunOnHistoric && !values.timeScope.includes("EXISTING")) {
-      values.timeScope = [...values.timeScope, "EXISTING"];
-    }
-
-    return values;
-  };
+  // For experiment evaluators, we only run on new data (not historic)
+  const preprocessFormValues = (values: any) => values;
 
   const onSubmit = async (data: CreateExperiment) => {
     capture("dataset_run:new_form_submit");
@@ -392,6 +384,7 @@ export const MultiStepExperimentForm = ({
   const evaluatorState = {
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     evalTemplates: evalTemplates.data?.templates ?? [],
     activeEvaluatorNames,
     selectedEvaluatorData,
