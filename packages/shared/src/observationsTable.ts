@@ -432,6 +432,7 @@ export const evalExperimentFilterCols: ColumnDefinition[] = [
 export type ObservationEvalOptions = {
   environment?: Array<SingleValueOption>;
   tags?: Array<SingleValueOption>;
+  trace_name?: Array<SingleValueOption>;
 };
 
 export type ExperimentEvalOptions = {
@@ -448,6 +449,9 @@ export function observationEvalFilterColsWithOptions(
     }
     if (col.id === "tags") {
       return formatColumnOptions(col, options?.tags ?? []);
+    }
+    if (col.id === "trace_name") {
+      return formatColumnOptions(col, options?.trace_name ?? []);
     }
     return col;
   });

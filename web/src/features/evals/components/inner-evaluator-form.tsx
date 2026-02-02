@@ -440,6 +440,9 @@ export const InnerEvaluatorForm = (props: {
       tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
         value: t.value,
       })),
+      trace_name: traceFilterOptionsResponse.data?.name?.map((n) => ({
+        value: n.value,
+      })),
     };
   }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
 
