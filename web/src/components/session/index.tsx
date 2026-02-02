@@ -48,7 +48,11 @@ import { observationEventsFilterConfig } from "@/src/features/events/config/filt
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { type EventsViewMode } from "@/src/features/events/hooks/useEventsViewMode";
 import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  decodeAndNormalizeFilters,
+  useSidebarFilterState,
+} from "@/src/features/filters/hooks/useSidebarFilterState";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
@@ -568,14 +572,28 @@ export const SessionEventsPage: React.FC<{
         })),
       );
     }
-  }, [tracesQuery.isSuccess, tracesQuery.data]);
+  }, [tracesQuery.isSuccess, tracesQuery.data, setDetailPageList]);
 
   const [viewMode, setViewMode] = React.useState<EventsViewMode>("observation");
   const hasParentObservation = viewMode === "observation" ? undefined : false;
 
+  // Decode time filters from URL for scoping filter options
+  const [filtersQuery] = useQueryParam("filter", withDefault(StringParam, ""));
+  const timeFiltersForOptions = React.useMemo(() => {
+    const allFilters = decodeAndNormalizeFilters(
+      filtersQuery,
+      observationEventsFilterConfig.columnDefinitions,
+    );
+    return allFilters.filter(
+      (f) =>
+        (f.column === "Start Time" || f.column === "startTime") &&
+        f.type === "datetime",
+    );
+  }, [filtersQuery]);
+
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
-    oldFilterState: [],
+    oldFilterState: timeFiltersForOptions,
     hasParentObservation,
   });
 
@@ -671,7 +689,12 @@ export const SessionEventsPage: React.FC<{
           filter.column !== "Session ID" &&
           filter.column !== "sessionId" &&
           filter.column !== "Has Parent Observation" &&
-          filter.column !== "hasParentObservation",
+          filter.column !== "hasParentObservation" &&
+          filter.column !== "environment" &&
+          filter.column !== "traceId" &&
+          filter.column !== "traceName" &&
+          filter.column !== "traceTags" &&
+          filter.column !== "userId",
       ),
     [queryFilter.filterState],
   );
