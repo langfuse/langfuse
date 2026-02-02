@@ -109,7 +109,7 @@ export const observationEvalFilterColumns: ObservationEvalFilterColumn[] = [
   { id: "level", name: "Level", type: "stringOptions" },
   { id: "version", name: "Version", type: "string" },
   { id: "release", name: "Release", type: "string" },
-  { id: "trace_name", name: "Trace Name", type: "string" },
+  { id: "trace_name", name: "Trace Name", type: "stringOptions" },
   { id: "user_id", name: "User ID", type: "string" },
   { id: "session_id", name: "Session ID", type: "string" },
   { id: "tags", name: "Tags", type: "arrayOptions" },
