@@ -28,7 +28,12 @@ import {
 } from "@/src/components/ui/popover";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { Label } from "@/src/components/ui/label";
-import { AnnotationQueueObjectType, type ScoreDomain } from "@langfuse/shared";
+import {
+  AnnotationQueueObjectType,
+  type ColumnDefinition,
+  type FilterState,
+  type ScoreDomain,
+} from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { TablePeekView } from "@/src/components/table/peek";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
@@ -38,6 +43,13 @@ import { LazyTraceRow } from "@/src/components/session/TraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/ui/switch";
+import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
+import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { type EventsViewMode } from "@/src/features/events/hooks/useEventsViewMode";
+import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
@@ -466,6 +478,414 @@ export const SessionPage: React.FC<{
           resolveDetailNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
           tableDataUpdatedAt: session.dataUpdatedAt,
+        }}
+      />
+    </Page>
+  );
+};
+
+export const SessionEventsPage: React.FC<{
+  sessionId: string;
+  projectId: string;
+}> = ({ sessionId, projectId }) => {
+  const router = useRouter();
+  const { setDetailPageList } = useDetailPageLists();
+  const userSession = useSession();
+  const parentRef = useRef<HTMLDivElement>(null);
+  const session = api.sessions.byIdWithScoresFromEvents.useQuery(
+    {
+      sessionId,
+      projectId: projectId,
+    },
+    {
+      retry(failureCount, error) {
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
+        return failureCount < 3;
+      },
+    },
+  );
+
+  const [showCorrections, setShowCorrections] = useLocalStorage(
+    "showCorrections",
+    false,
+  );
+
+  const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
+    {
+      projectId,
+      objectId: sessionId,
+      objectType: "SESSION",
+    },
+    { enabled: session.isSuccess && userSession.status === "authenticated" },
+  );
+
+  const traceCommentCounts =
+    api.comments.getTraceCommentCountsBySessionId.useQuery(
+      {
+        projectId,
+        sessionId,
+      },
+      { enabled: session.isSuccess && userSession.status === "authenticated" },
+    );
+
+  const tracesQuery = api.sessions.tracesFromEvents.useQuery(
+    { projectId, sessionId },
+    {
+      enabled: !!projectId && !!sessionId,
+      retry(failureCount, error) {
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
+        return failureCount < 3;
+      },
+    },
+  );
+
+  const { openPeek, closePeek, resolveDetailNavigationPath, expandPeek } =
+    usePeekNavigation({
+      expandConfig: {
+        basePath: `/project/${projectId}/traces`,
+      },
+      queryParams: ["observation", "display", "timestamp"],
+      extractParamsValuesFromRow: (row: any) => ({
+        timestamp: row.timestamp.toISOString(),
+      }),
+    });
+
+  useEffect(() => {
+    if (tracesQuery.isSuccess) {
+      setDetailPageList(
+        "traces",
+        tracesQuery.data.map((t) => ({
+          id: t.id,
+          params: { timestamp: t.timestamp.toISOString() },
+        })),
+      );
+    }
+  }, [tracesQuery.isSuccess, tracesQuery.data]);
+
+  const [viewMode, setViewMode] = React.useState<EventsViewMode>("observation");
+  const hasParentObservation = viewMode === "observation" ? undefined : false;
+
+  const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
+    projectId,
+    oldFilterState: [],
+    hasParentObservation,
+  });
+
+  const sessionEventsFilterConfig = React.useMemo(() => {
+    return {
+      ...observationEventsFilterConfig,
+      tableName: "session-events",
+      facets: observationEventsFilterConfig.facets.filter(
+        (facet) => facet.column !== "sessionId",
+      ),
+    };
+  }, []);
+
+  const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
+    const scoreCategoryOptions = filterOptions.score_categories
+      ? Object.entries(filterOptions.score_categories).map(
+          ([label, values]) => ({
+            label,
+            values,
+          }),
+        )
+      : [];
+
+    return sessionEventsFilterConfig.columnDefinitions
+      .filter(
+        (column) =>
+          column.id !== "sessionId" &&
+          column.id !== "hasParentObservation" &&
+          column.id !== "environment" &&
+          column.id !== "traceId" &&
+          column.id !== "traceName" &&
+          column.id !== "traceTags" &&
+          column.id !== "userId",
+      )
+      .map((column) => {
+        if (column.type === "stringOptions" || column.type === "arrayOptions") {
+          const optionMap: Record<string, typeof column.options | undefined> = {
+            type: filterOptions.type,
+            name: filterOptions.name,
+            level: filterOptions.level,
+            providedModelName: filterOptions.providedModelName,
+            modelId: filterOptions.modelId,
+            promptName: filterOptions.promptName,
+            version: filterOptions.version,
+            experimentDatasetId: filterOptions.experimentDatasetId,
+            experimentId: filterOptions.experimentId,
+            experimentName: filterOptions.experimentName,
+          };
+
+          const options = optionMap[column.id];
+          return options ? { ...column, options } : column;
+        }
+
+        if (
+          column.type === "categoryOptions" &&
+          column.id === "score_categories"
+        ) {
+          return { ...column, options: scoreCategoryOptions };
+        }
+
+        if (column.type === "numberObject" && column.id === "scores_avg") {
+          return filterOptions.scores_avg
+            ? { ...column, keyOptions: filterOptions.scores_avg }
+            : column;
+        }
+
+        return column;
+      });
+  }, [filterOptions, sessionEventsFilterConfig.columnDefinitions]);
+
+  const filterColumnsWithCustomSelect = React.useMemo(
+    () =>
+      filterColumns
+        .filter(
+          (column) =>
+            column.type === "stringOptions" || column.type === "arrayOptions",
+        )
+        .map((column) => column.id),
+    [filterColumns],
+  );
+
+  const queryFilter = useSidebarFilterState(
+    sessionEventsFilterConfig,
+    filterOptions,
+    projectId,
+    isFilterOptionsPending,
+  );
+
+  const visibleFilterState = React.useMemo(
+    () =>
+      queryFilter.filterState.filter(
+        (filter) =>
+          filter.column !== "Session ID" &&
+          filter.column !== "sessionId" &&
+          filter.column !== "Has Parent Observation" &&
+          filter.column !== "hasParentObservation",
+      ),
+    [queryFilter.filterState],
+  );
+
+  const viewModeFilter: FilterState =
+    viewMode === "trace"
+      ? [
+          {
+            column: "hasParentObservation",
+            type: "boolean",
+            operator: "=",
+            value: false,
+          },
+        ]
+      : [];
+
+  const observationFilterState = visibleFilterState.concat(viewModeFilter);
+
+  const virtualizer = useVirtualizer({
+    count: tracesQuery.data?.length ?? 0,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 320,
+    overscan: 1,
+    getItemKey: (index) => tracesQuery.data?.[index]?.id ?? index,
+    measureElement:
+      typeof window !== "undefined"
+        ? (element) => element.getBoundingClientRect().height
+        : undefined,
+  });
+
+  if (session.error?.data?.code === "UNAUTHORIZED")
+    return <ErrorPage message="You do not have access to this session." />;
+
+  if (session.error?.data?.code === "NOT_FOUND")
+    return (
+      <ErrorPage
+        title="Session not found"
+        message="The session is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => void window.location.reload(),
+        }}
+      />
+    );
+
+  return (
+    <Page
+      headerProps={{
+        title: sessionId,
+        itemType: "SESSION",
+        breadcrumb: [
+          {
+            name: "Sessions",
+            href: `/project/${projectId}/sessions`,
+          },
+        ],
+        actionButtonsLeft: (
+          <div className="flex items-center gap-0">
+            <StarSessionToggle
+              key="star"
+              projectId={projectId}
+              sessionId={sessionId}
+              value={session.data?.bookmarked ?? false}
+              size="icon-xs"
+            />
+            <PublishSessionSwitch
+              projectId={projectId}
+              sessionId={sessionId}
+              isPublic={session.data?.public ?? false}
+              key="publish"
+              size="icon-xs"
+            />
+          </div>
+        ),
+        actionButtonsRight: (
+          <>
+            {!router.query.peek && (
+              <DetailPageNav
+                key="nav"
+                currentId={encodeURIComponent(sessionId)}
+                path={(entry) =>
+                  `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                }
+                listKey="sessions"
+              />
+            )}
+            <CommentDrawerButton
+              key="comment"
+              variant="outline"
+              projectId={projectId}
+              objectId={sessionId}
+              objectType="SESSION"
+              count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+            />
+            <div className="flex items-start">
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.data?.scores ?? []}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.data?.environment,
+                }}
+                buttonVariant="outline"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType={AnnotationQueueObjectType.SESSION}
+                variant="outline"
+              />
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={showCorrections}
+                onCheckedChange={setShowCorrections}
+                className="scale-75"
+              />
+              <span className="text-xs text-muted-foreground">
+                Show corrections
+              </span>
+            </div>
+          </>
+        ),
+      }}
+    >
+      <div className="flex h-full flex-col overflow-auto">
+        <div className="sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b bg-background p-4">
+          {session.data?.users?.length ? (
+            <SessionUsers projectId={projectId} users={session.data.users} />
+          ) : null}
+          <SessionScores scores={session.data?.scores ?? []} />
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">
+              Total traces: {session.data?.countTraces ?? 0}
+            </Badge>
+            {session.data && (
+              <Badge variant="outline">
+                Total cost: {usdFormatter(session.data.totalCost ?? 0, 2)}
+              </Badge>
+            )}
+            <PopoverFilterBuilder
+              columns={filterColumns}
+              filterState={visibleFilterState}
+              onChange={queryFilter.setFilterState}
+              columnsWithCustomSelect={filterColumnsWithCustomSelect}
+            />
+            <EventsViewModeToggle
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          </div>
+        </div>
+        <div ref={parentRef} className="flex-1 overflow-auto p-4">
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const trace = tracesQuery.data?.[virtualItem.index];
+              if (!trace) return null;
+
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <LazyTraceEventsRow
+                    ref={virtualizer.measureElement}
+                    trace={trace}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    openPeek={openPeek}
+                    traceCommentCounts={traceCommentCounts.data}
+                    index={virtualItem.index}
+                    showCorrections={showCorrections}
+                    filterState={observationFilterState}
+                    onLoad={() => {
+                      virtualizer.measureElement(
+                        document.querySelector(
+                          `[data-index="${virtualItem.index}"]`,
+                        ) as HTMLElement,
+                      );
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      <TablePeekView
+        peekView={{
+          itemType: "TRACE",
+          detailNavigationKey: "traces",
+          openPeek,
+          closePeek,
+          expandPeek,
+          resolveDetailNavigationPath,
+          children: <PeekViewTraceDetail projectId={projectId} />,
+          tableDataUpdatedAt: tracesQuery.dataUpdatedAt,
         }}
       />
     </Page>
