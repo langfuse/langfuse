@@ -1,10 +1,10 @@
 import { Decimal } from "decimal.js";
 import { type EvalTemplate, EvalTargetObject } from "@langfuse/shared";
-import { createDefaultObservationVariableMappings } from "../utils/evaluatorMappingUtils";
+import { createDefaultVariableMappings } from "../utils/evaluatorMappingUtils";
 import { type PartialConfig } from "@/src/features/evals/types";
 
 export const CONFIG_BASE = {
-  targetObject: EvalTargetObject.EXPERIMENT,
+  targetObject: EvalTargetObject.DATASET,
   sampling: new Decimal(1),
   delay: 30000,
   timeScope: ["NEW"],
@@ -23,22 +23,20 @@ export function useEvaluatorDefaults() {
     datasetId: string,
     scoreName?: string,
   ): PartialConfig & { evalTemplate: EvalTemplate } => {
-    // Create variable mappings for experiment target (observation-based)
-    const variableMappings = createDefaultObservationVariableMappings(template);
+    // Create variable mappings that alternate between dataset_item and trace
+    const alternatingMappings = createDefaultVariableMappings(template);
 
-    // Return the configured evaluator for experiment target
+    // Return the configured evaluator
     return {
       ...CONFIG_BASE,
       evalTemplate: template,
       scoreName: scoreName || template.name,
-      variableMapping: variableMappings,
+      variableMapping: alternatingMappings,
       filter: [
         {
           type: "stringOptions",
           value: [datasetId],
-          // Use the column id (not display name) for EXPERIMENT target
-          // This maps to observation.experiment_dataset_id in the filter service
-          column: "experiment_dataset_id",
+          column: "Dataset",
           operator: "any of",
         },
       ],
