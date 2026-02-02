@@ -110,7 +110,7 @@ export default function Dataset() {
   });
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject: "dataset" },
+    { projectId, targetObject: ["dataset", "experiment"] },
     {
       enabled: hasEvalReadAccess && !!datasetId,
     },
@@ -121,6 +121,7 @@ export default function Dataset() {
   const {
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -215,6 +216,7 @@ export default function Dataset() {
                   onSelectEvaluator={handleSelectEvaluator}
                   activeTemplateIds={activeEvaluators}
                   inactiveTemplateIds={pausedEvaluators}
+                  evaluatorTargetObjects={evaluatorTargetObjects}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>

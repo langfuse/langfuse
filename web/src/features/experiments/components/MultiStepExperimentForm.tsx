@@ -132,7 +132,7 @@ export const MultiStepExperimentForm = ({
   const datasetId = form.watch("datasetId");
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject: "dataset" },
+    { projectId, targetObject: ["dataset", "experiment"] },
     {
       enabled: hasEvalReadAccess && !!datasetId,
     },
@@ -150,6 +150,7 @@ export const MultiStepExperimentForm = ({
   const {
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -392,6 +393,7 @@ export const MultiStepExperimentForm = ({
   const evaluatorState = {
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     evalTemplates: evalTemplates.data?.templates ?? [],
     activeEvaluatorNames,
     selectedEvaluatorData,
