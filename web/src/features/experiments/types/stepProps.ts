@@ -78,6 +78,7 @@ export type DatasetState = {
 export type EvaluatorState = {
   activeEvaluators: string[];
   pausedEvaluators: string[];
+  evaluatorTargetObjects: Record<string, string>;
   evalTemplates: EvalTemplate[];
   activeEvaluatorNames: string[];
   selectedEvaluatorData: EvaluatorData | null;
