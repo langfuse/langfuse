@@ -101,6 +101,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
 import {
+  isDatasetTarget,
   isEventTarget,
   isExperimentTarget,
   isLegacyEvalTarget,
@@ -979,6 +980,11 @@ export const InnerEvaluatorForm = (props: {
                           </p>
                         ) : (
                           <InlineFilterBuilder
+                            columnIdentifier={
+                              isDatasetTarget(target) || isTraceTarget(target)
+                                ? "name"
+                                : "id"
+                            }
                             columns={getFilterColumns()}
                             filterState={field.value ?? []}
                             onChange={(

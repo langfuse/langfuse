@@ -72,15 +72,18 @@ export function PopoverFilterBuilder({
   columns,
   filterState,
   onChange,
+  columnIdentifier = "name",
   columnsWithCustomSelect = [],
   filterWithAI = false,
   buttonType = "default",
 }: {
+  /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
   onChange:
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
+  columnIdentifier?: ColumnIdentifier;
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
   buttonType?: "default" | "icon";
@@ -185,6 +188,7 @@ export function PopoverFilterBuilder({
           align="start"
         >
           <FilterBuilderForm
+            columnIdentifier={columnIdentifier}
             columns={columns}
             filterState={wipFilterState}
             onChange={setWipFilterState}
@@ -267,10 +271,13 @@ export function InlineFilterState({
   });
 }
 
+type ColumnIdentifier = "id" | "name";
+
 export function InlineFilterBuilder({
   columns,
   filterState,
   onChange,
+  columnIdentifier = "name",
   disabled,
   columnsWithCustomSelect,
   filterWithAI = false,
@@ -280,6 +287,8 @@ export function InlineFilterBuilder({
   onChange:
     | Dispatch<SetStateAction<FilterState>>
     | ((newState: FilterState) => void);
+  /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
+  columnIdentifier?: ColumnIdentifier;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
@@ -316,6 +325,7 @@ export function InlineFilterBuilder({
   return (
     <div className="flex flex-col">
       <FilterBuilderForm
+        columnIdentifier={columnIdentifier}
         columns={columns}
         filterState={wipFilterState}
         onChange={setWipFilterState}
@@ -358,6 +368,7 @@ const getAlertStyles = (severity: "info" | "warning" | "error") => {
 };
 
 function FilterBuilderForm({
+  columnIdentifier,
   columns,
   filterState,
   onChange,
@@ -365,6 +376,7 @@ function FilterBuilderForm({
   columnsWithCustomSelect = [],
   filterWithAI = false,
 }: {
+  columnIdentifier: ColumnIdentifier;
   columns: ColumnDefinitionWithAlert[];
   filterState: WipFilterState;
   onChange: Dispatch<SetStateAction<WipFilterState>>;
@@ -604,7 +616,7 @@ function FilterBuilderForm({
 
                                         handleFilterChange(
                                           {
-                                            column: col?.name,
+                                            column: col?.[columnIdentifier],
                                             type: col?.type,
                                             operator: defaultOperator,
                                             value: undefined,
