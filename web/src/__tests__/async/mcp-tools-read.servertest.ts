@@ -516,6 +516,22 @@ describe("MCP Read Tools", () => {
       expect(names).not.toContain(newPrompt);
     });
 
+    it("should return error when fromUpdatedAt is after toUpdatedAt", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListPrompts(
+          {
+            fromUpdatedAt: "2026-02-02T00:00:00.000Z",
+            toUpdatedAt: "2026-02-01T00:00:00.000Z",
+            page: 1,
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/fromUpdatedAt.*<=.*toUpdatedAt/i);
+    });
+
     it("should handle pagination with page and limit", async () => {
       const { context, projectId } = await createMcpTestSetup();
 

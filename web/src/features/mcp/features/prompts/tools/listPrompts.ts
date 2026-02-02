@@ -49,6 +49,26 @@ const ListPromptsBaseSchema = z.object({
 });
 
 /**
+ * Full input schema with runtime validations
+ */
+const ListPromptsInputSchema = ListPromptsBaseSchema.superRefine(
+  (data, ctx) => {
+    if (data.fromUpdatedAt && data.toUpdatedAt) {
+      const fromMs = Date.parse(data.fromUpdatedAt);
+      const toMs = Date.parse(data.toUpdatedAt);
+
+      if (Number.isFinite(fromMs) && Number.isFinite(toMs) && fromMs > toMs) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["fromUpdatedAt"],
+          message: "fromUpdatedAt must be <= toUpdatedAt",
+        });
+      }
+    }
+  },
+);
+
+/**
  * listPrompts tool definition and handler
  */
 export const [listPromptsTool, handleListPrompts] = defineTool({
@@ -66,7 +86,7 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
     "Pagination: page (default: 1), limit (default: 50, max: 100)",
   ].join("\n"),
   baseSchema: ListPromptsBaseSchema,
-  inputSchema: ListPromptsBaseSchema, // No refinements, same as base
+  inputSchema: ListPromptsInputSchema,
   handler: async (input, context) => {
     return await instrumentAsync(
       { name: "mcp.prompts.list", spanKind: SpanKind.INTERNAL },
