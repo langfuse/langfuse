@@ -20,7 +20,6 @@ interface ProjectWorkload {
   projectId: string;
   retentionDays: number;
   cutoffDate: Date;
-  expiredMediaCount: number;
   secondsPastCutoff: number | null;
 }
 
@@ -65,6 +64,10 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
+    // Reset gauge before attempting lock - ensures it doesn't appear stuck
+    // if another worker holds the lock
+    recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0);
+
     await this.withLock(
       async () => {
         // Get the project with most expired media (single project per iteration)
@@ -85,20 +88,10 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
           `${METRIC_PREFIX}.seconds_past_cutoff`,
           Math.max(workload?.secondsPastCutoff ?? 0, 0),
         );
-        // Record gauge for observed work
-        recordGauge(
-          `${METRIC_PREFIX}.pending_items`,
-          workload?.expiredMediaCount || 0,
-          {
-            projectId: workload?.projectId || "",
-          },
-        );
-
         if (workload) {
           logger.info(`${this.instanceName}: Processing project`, {
             projectId: workload.projectId,
             retentionDays: workload.retentionDays,
-            expiredMediaCount: workload.expiredMediaCount,
             secondsPastCutoff: workload.secondsPastCutoff,
           });
 
@@ -127,14 +120,12 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       Array<{
         project_id: string;
         retention_days: number;
-        expired_count: bigint;
         seconds_past_cutoff: number;
       }>
     >`
       SELECT
         p.id as project_id,
         p.retention_days,
-        COUNT(m.id) as expired_count,
         EXTRACT(EPOCH FROM (
           (NOW() - (p.retention_days || ' days')::interval) - MIN(m.created_at)
         ))::int as seconds_past_cutoff
@@ -144,7 +135,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
         AND p.deleted_at IS NULL
         AND m.created_at <= NOW() - (p.retention_days || ' days')::interval
       GROUP BY p.id, p.retention_days
-      ORDER BY expired_count DESC
+      ORDER BY seconds_past_cutoff DESC
       LIMIT 1
     `;
 
@@ -157,7 +148,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       projectId: row.project_id,
       retentionDays: row.retention_days,
       cutoffDate: getRetentionCutoffDate(row.retention_days, now),
-      expiredMediaCount: Number(row.expired_count),
       secondsPastCutoff: row.seconds_past_cutoff,
     };
   }
@@ -182,7 +172,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
     logger.info(`${this.name}: Project processed`, {
       projectId: workload.projectId,
       retentionDays: workload.retentionDays,
-      expiredMediaCount: workload.expiredMediaCount,
     });
   }
 
@@ -196,6 +185,11 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
         projectId: workload.projectId,
         createdAt: { lte: workload.cutoffDate },
       },
+    });
+
+    // Record gauge for observed work
+    recordGauge(`${METRIC_PREFIX}.pending_items`, mediaFiles.length, {
+      projectId: workload.projectId,
     });
 
     if (mediaFiles.length === 0) {

@@ -10,98 +10,30 @@ type VariableMapping = {
 };
 
 const defaultMappings = new Map<string, Partial<VariableMapping>>([
-  // Common input variables (trace doesn't need objectName)
-  [
-    "input",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "input",
-      objectName: undefined,
-    },
-  ],
-  [
-    "query",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "input",
-      objectName: undefined,
-    },
-  ],
-  [
-    "question",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "input",
-      objectName: undefined,
-    },
-  ],
-  [
-    "prompt",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "input",
-      objectName: undefined,
-    },
-  ],
+  // Common input variables
+  ["input", { langfuseObject: "trace", selectedColumnId: "input" }],
+  ["query", { langfuseObject: "trace", selectedColumnId: "input" }],
+  ["question", { langfuseObject: "trace", selectedColumnId: "input" }],
+  ["prompt", { langfuseObject: "trace", selectedColumnId: "input" }],
 
-  // Common output variables (trace doesn't need objectName)
-  [
-    "output",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "output",
-      objectName: undefined,
-    },
-  ],
-  [
-    "response",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "output",
-      objectName: undefined,
-    },
-  ],
-  [
-    "answer",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "output",
-      objectName: undefined,
-    },
-  ],
-  [
-    "completion",
-    {
-      langfuseObject: "trace",
-      selectedColumnId: "output",
-      objectName: undefined,
-    },
-  ],
+  // Common output variables
+  ["output", { langfuseObject: "trace", selectedColumnId: "output" }],
+  ["response", { langfuseObject: "trace", selectedColumnId: "output" }],
+  ["answer", { langfuseObject: "trace", selectedColumnId: "output" }],
+  ["completion", { langfuseObject: "trace", selectedColumnId: "output" }],
 
-  // Common ground truth variables (dataset_item doesn't need objectName)
+  // Common ground truth variables
   [
     "expected_output",
-    {
-      langfuseObject: "dataset_item",
-      selectedColumnId: "expected_output",
-      objectName: undefined,
-    },
+    { langfuseObject: "dataset_item", selectedColumnId: "expected_output" },
   ],
   [
     "ground_truth",
-    {
-      langfuseObject: "dataset_item",
-      selectedColumnId: "expected_output",
-      objectName: undefined,
-    },
+    { langfuseObject: "dataset_item", selectedColumnId: "expected_output" },
   ],
   [
     "reference",
-    {
-      langfuseObject: "dataset_item",
-      selectedColumnId: "expected_output",
-      objectName: undefined,
-    },
+    { langfuseObject: "dataset_item", selectedColumnId: "expected_output" },
   ],
 ]);
 
@@ -130,7 +62,6 @@ const observationDefaultMappings = new Map<
 
 /**
  * Creates default variable mappings for an evaluator template.
- * Used for trace/dataset evaluators (legacy).
  *
  * @param template - The evaluation template containing variables
  * @returns Array of variable mappings
