@@ -21,6 +21,7 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
     evalTemplates,
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -50,6 +51,7 @@ export const EvaluatorsStep: React.FC<EvaluatorsStepProps> = ({
             onEvaluatorToggled={handleEvaluatorToggled}
             activeTemplateIds={activeEvaluators}
             inactiveTemplateIds={pausedEvaluators}
+            evaluatorTargetObjects={evaluatorTargetObjects}
             disabled={!hasEvalWriteAccess}
           />
         ) : (
