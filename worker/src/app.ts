@@ -82,6 +82,7 @@ import {
   BATCH_DATA_RETENTION_TABLES,
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 
 const app = express();
 
@@ -596,6 +597,14 @@ export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   mediaRetentionCleaner = new MediaRetentionCleaner();
   mediaRetentionCleaner.start();
+}
+
+// Batch trace deletion cleaner for supplementary trace deletion
+export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
+
+if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
+  batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
+  batchTraceDeletionCleaner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));
