@@ -1,4 +1,7 @@
-import { type EvalTemplate } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 
 // Define the type locally to match what's in @langfuse/shared
 type VariableMapping = {
@@ -99,15 +102,15 @@ export function createDefaultVariableMappings(
 
 /**
  * Creates default variable mappings for observation-based evaluators (event/experiment).
- * Note: Even though these evaluators don't use langfuseObject in the UI, we must include
- * it because the form schema (wipVariableMapping) requires it for validation.
+ * Unlike trace/dataset evals, these don't need langfuseObject or objectName since
+ * the observation is already selected - we only need to specify which column to use.
  *
  * @param template - The evaluation template containing variables
- * @returns Array of variable mappings compatible with the form schema
+ * @returns Array of observation variable mappings (simplified, no langfuseObject/objectName)
  */
 export function createDefaultObservationVariableMappings(
   template: EvalTemplate,
-): VariableMapping[] {
+): ObservationVariableMapping[] {
   if (!template.vars || template.vars.length === 0) {
     return [];
   }
@@ -118,21 +121,11 @@ export function createDefaultObservationVariableMappings(
       variable.toLowerCase(),
     );
 
-    if (defaultMapping) {
-      return {
-        templateVariable: variable,
-        // langfuseObject is required by form schema but not used for event/experiment targets
-        langfuseObject: "generation" as const,
-        selectedColumnId:
-          defaultMapping.selectedColumnId || "experiment_item_expected_output",
-        jsonSelector: defaultMapping.jsonSelector,
-      };
-    }
-
     return {
       templateVariable: variable,
-      langfuseObject: "generation" as const,
-      selectedColumnId: "experiment_item_expected_output",
+      selectedColumnId:
+        defaultMapping?.selectedColumnId || "experiment_item_expected_output",
+      jsonSelector: defaultMapping?.jsonSelector,
     };
   });
 }
