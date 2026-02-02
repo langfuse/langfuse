@@ -36,7 +36,9 @@ export function useEvaluatorDefaults() {
         {
           type: "stringOptions",
           value: [datasetId],
-          column: "Dataset",
+          // Use the column id (not display name) for EXPERIMENT target
+          // This maps to observation.experiment_dataset_id in the filter service
+          column: "experiment_dataset_id",
           operator: "any of",
         },
       ],

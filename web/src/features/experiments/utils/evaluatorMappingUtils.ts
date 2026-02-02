@@ -9,13 +9,6 @@ type VariableMapping = {
   jsonSelector?: string;
 };
 
-// Observation variable mapping (for event/experiment evaluators)
-type ObservationVariableMapping = {
-  templateVariable: string;
-  selectedColumnId: string;
-  jsonSelector?: string;
-};
-
 const defaultMappings = new Map<string, Partial<VariableMapping>>([
   // Common input variables (trace doesn't need objectName)
   [
@@ -115,7 +108,7 @@ const defaultMappings = new Map<string, Partial<VariableMapping>>([
 // Default mappings for observation-based evaluators (event/experiment)
 const observationDefaultMappings = new Map<
   string,
-  Partial<ObservationVariableMapping>
+  { selectedColumnId: string; jsonSelector?: string }
 >([
   // Common input variables
   ["input", { selectedColumnId: "input" }],
@@ -175,14 +168,15 @@ export function createDefaultVariableMappings(
 
 /**
  * Creates default variable mappings for observation-based evaluators (event/experiment).
- * Uses simplified schema without langfuseObject.
+ * Note: Even though these evaluators don't use langfuseObject in the UI, we must include
+ * it because the form schema (wipVariableMapping) requires it for validation.
  *
  * @param template - The evaluation template containing variables
- * @returns Array of observation variable mappings
+ * @returns Array of variable mappings compatible with the form schema
  */
 export function createDefaultObservationVariableMappings(
   template: EvalTemplate,
-): ObservationVariableMapping[] {
+): VariableMapping[] {
   if (!template.vars || template.vars.length === 0) {
     return [];
   }
@@ -196,6 +190,8 @@ export function createDefaultObservationVariableMappings(
     if (defaultMapping) {
       return {
         templateVariable: variable,
+        // langfuseObject is required by form schema but not used for event/experiment targets
+        langfuseObject: "generation" as const,
         selectedColumnId:
           defaultMapping.selectedColumnId || "experiment_item_expected_output",
         jsonSelector: defaultMapping.jsonSelector,
@@ -204,6 +200,7 @@ export function createDefaultObservationVariableMappings(
 
     return {
       templateVariable: variable,
+      langfuseObject: "generation" as const,
       selectedColumnId: "experiment_item_expected_output",
     };
   });

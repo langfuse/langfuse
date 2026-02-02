@@ -39,11 +39,7 @@ import {
   InlineFilterBuilder,
   type ColumnDefinitionWithAlert,
 } from "@/src/features/filters/components/filter-builder";
-import {
-  type EvalTemplate,
-  variableMapping,
-  observationVariableMapping,
-} from "@langfuse/shared";
+import { type EvalTemplate, wipVariableMapping } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
@@ -332,15 +328,10 @@ export const InnerEvaluatorForm = (props: {
           ? DEFAULT_TRACE_FILTER
           : [],
       mapping: props.existingEvaluator?.variableMapping
-        ? isEventTarget(props.existingEvaluator.targetObject) ||
-          isExperimentTarget(props.existingEvaluator.targetObject)
-          ? z
-              .array(observationVariableMapping)
-              .parse(props.existingEvaluator.variableMapping)
-          : z
-              .array(variableMapping)
-              .parse(props.existingEvaluator.variableMapping)
-        : z.array(variableMapping).parse(
+        ? z
+            .array(wipVariableMapping)
+            .parse(props.existingEvaluator.variableMapping)
+        : z.array(wipVariableMapping).parse(
             props.evalTemplate
               ? props.evalTemplate.vars.map((v) => ({
                   templateVariable: v,
