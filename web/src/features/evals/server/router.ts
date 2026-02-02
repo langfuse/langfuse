@@ -626,12 +626,7 @@ export const evalRouter = createTRPCRouter({
     }),
 
   jobConfigsByTarget: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        targetObject: z.array(z.string()),
-      }),
-    )
+    .input(z.object({ projectId: z.string(), targetObject: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -642,7 +637,7 @@ export const evalRouter = createTRPCRouter({
       const evaluators = await ctx.prisma.jobConfiguration.findMany({
         where: {
           projectId: input.projectId,
-          targetObject: { in: input.targetObject },
+          targetObject: input.targetObject,
         },
         include: {
           evalTemplate: true,

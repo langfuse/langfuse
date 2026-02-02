@@ -1074,10 +1074,7 @@ export async function extractVariablesFromTracingData({
       .filter((obj) => obj.id !== "trace") // trace is handled separately above
       .map((obj) => obj.id);
 
-    if (
-      mapping.langfuseObject &&
-      observationTypes.includes(mapping.langfuseObject)
-    ) {
+    if (observationTypes.includes(mapping.langfuseObject)) {
       const safeInternalColumn = availableTraceEvalVariables
         .find((o) => o.id === mapping.langfuseObject)
         ?.availableColumns.find((col) => col.id === mapping.selectedColumnId);

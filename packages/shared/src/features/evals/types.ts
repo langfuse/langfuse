@@ -31,40 +31,29 @@ const langfuseObject = z.enum(langfuseObjects);
 export type LangfuseEvaluationObject = z.infer<typeof langfuseObject>;
 
 // variable mapping stored in the db for eval templates
-// langfuseObject is optional - it's only needed for trace/dataset targets
-// For observation-based evals (EVENT, EXPERIMENT), the observation is already selected
 export const variableMapping = z
   .object({
     templateVariable: z.string(), // variable name in the template
     // name of the observation to extract the variable from
     // not required for trace, as we only have one.
     objectName: z.string().nullish(),
-    langfuseObject: langfuseObject.optional(),
+    langfuseObject: langfuseObject,
     selectedColumnId: z.string(),
     jsonSelector: z.string().nullish(),
   })
   .refine(
-    (value) =>
-      // Only validate objectName if langfuseObject is provided and requires it
-      !value.langfuseObject ||
-      value.langfuseObject === "trace" ||
-      value.langfuseObject === "dataset_item" ||
-      value.objectName !== null,
+    (value) => value.langfuseObject === "trace" || value.objectName !== null,
     {
-      message:
-        "objectName is required when langfuseObject is an observation type",
+      message: "objectName is required for langfuseObjects other than trace",
     },
   );
 
 export const variableMappingList = z.array(variableMapping);
 
-// WIP version for forms - langfuseObject optional to support both:
-// - Trace/Dataset evals: Include langfuseObject and objectName to specify which observation
-// - Event/Experiment evals: Omit them since the observation is already selected
 export const wipVariableMapping = z.object({
   templateVariable: z.string(),
   objectName: z.string().nullish(),
-  langfuseObject: langfuseObject.optional(),
+  langfuseObject: langfuseObject,
   selectedColumnId: z.string().nullish(),
   jsonSelector: z.string().nullish(),
 });

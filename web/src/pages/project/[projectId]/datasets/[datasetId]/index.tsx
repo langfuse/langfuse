@@ -110,7 +110,7 @@ export default function Dataset() {
   });
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject: ["dataset", "experiment"] },
+    { projectId, targetObject: "dataset" },
     {
       enabled: hasEvalReadAccess && !!datasetId,
     },
@@ -121,7 +121,6 @@ export default function Dataset() {
   const {
     activeEvaluators,
     pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -136,9 +135,20 @@ export default function Dataset() {
     refetchEvaluators: evaluators.refetch,
   });
 
-  // Callback for preprocessing evaluator form values
-  // For experiment evaluators, we only run on new data (not historic)
-  const preprocessFormValues = useCallback((values: any) => values, []);
+  // This function will be passed to the EvaluatorForm to modify form values before submission
+  const preprocessFormValues = useCallback((values: any) => {
+    // Ask the user if they want to run on historic data
+    const shouldRunOnHistoric = confirm(
+      "Do you also want to execute this evaluator on historic data? If not, click cancel.",
+    );
+
+    // If the user confirms, include EXISTING in the timeScope
+    if (shouldRunOnHistoric && !values.timeScope.includes("EXISTING")) {
+      values.timeScope = [...values.timeScope, "EXISTING"];
+    }
+
+    return values;
+  }, []);
 
   const datasetName = dataset.data?.name ?? "";
   const segments = datasetName.split("/").filter((s) => s.trim());
@@ -205,7 +215,6 @@ export default function Dataset() {
                   onSelectEvaluator={handleSelectEvaluator}
                   activeTemplateIds={activeEvaluators}
                   inactiveTemplateIds={pausedEvaluators}
-                  evaluatorTargetObjects={evaluatorTargetObjects}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>

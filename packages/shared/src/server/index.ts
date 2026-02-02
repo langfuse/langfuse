@@ -27,7 +27,6 @@ export * from "./llm/utils";
 export * from "./llm/types";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";
-export * from "./llm/getInternalTracingHandler";
 export * from "./utils/DatabaseReadStream";
 export * from "./utils/transforms";
 export * from "./utils/billingCycleHelpers";
