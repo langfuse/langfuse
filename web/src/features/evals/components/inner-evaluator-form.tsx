@@ -111,9 +111,12 @@ import {
   useEvaluatorTargetState,
 } from "@/src/features/evals/hooks/useEvaluatorTarget";
 
-// Lazy load TracesTable
+// Lazy load tables
 const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
+);
+const ObservationsTable = lazy(
+  () => import("@/src/components/table/use-cases/observations"),
 );
 
 const OUTPUT_MAPPING = [
@@ -265,6 +268,51 @@ const TracesPreview = memo(
 );
 
 TracesPreview.displayName = "TracesPreview";
+
+const ObservationsPreview = memo(
+  ({
+    projectId,
+    filterState,
+  }: {
+    projectId: string;
+    filterState: z.infer<typeof singleFilter>[];
+  }) => {
+    const dateRange = useMemo(() => {
+      return {
+        from: getDateFromOption({
+          filterSource: "TABLE",
+          option: "last1Day",
+        }),
+      } as TableDateRange;
+    }, []);
+
+    return (
+      <>
+        <div className="flex flex-col items-start gap-1">
+          <span className="text-sm font-medium leading-none">
+            Preview sample matched observations
+          </span>
+          <FormDescription>
+            Sample over the last 24 hours that match these filters
+          </FormDescription>
+        </div>
+        <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
+          <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
+            <ObservationsTable
+              projectId={projectId}
+              hideControls
+              externalFilterState={filterState}
+              externalDateRange={dateRange}
+              limitRows={10}
+            />
+          </Suspense>
+        </div>
+      </>
+    );
+  },
+);
+
+ObservationsPreview.displayName = "ObservationsPreview";
 
 export const InnerEvaluatorForm = (props: {
   projectId: string;
@@ -441,7 +489,7 @@ export const InnerEvaluatorForm = (props: {
       tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
         value: t.value,
       })),
-      trace_name: traceFilterOptionsResponse.data?.name?.map((n) => ({
+      traceName: traceFilterOptionsResponse.data?.name?.map((n) => ({
         value: n.value,
       })),
     };
@@ -450,7 +498,7 @@ export const InnerEvaluatorForm = (props: {
   const experimentEvalFilterOptions: ExperimentEvalOptions = useMemo(() => {
     return {
       // Reuse trace filter options (observations share type, tags with traces)
-      experiment_dataset_id: datasetFilterOptions?.datasetId,
+      experimentDatasetId: datasetFilterOptions?.datasetId,
     };
   }, [datasetFilterOptions]);
 
@@ -1020,11 +1068,23 @@ export const InnerEvaluatorForm = (props: {
               }}
             />
 
-            {isTraceTarget(form.watch("target")) && !props.disabled && (
-              <TracesPreview
-                projectId={props.projectId}
-                filterState={form.watch("filter") ?? []}
-              />
+            {/* Preview based on target type */}
+            {!props.disabled && (
+              <>
+                {isTraceTarget(form.watch("target")) && (
+                  <TracesPreview
+                    projectId={props.projectId}
+                    filterState={form.watch("filter") ?? []}
+                  />
+                )}
+
+                {isEventTarget(form.watch("target")) && (
+                  <ObservationsPreview
+                    projectId={props.projectId}
+                    filterState={form.watch("filter") ?? []}
+                  />
+                )}
+              </>
             )}
 
             {!props.hideAdvancedSettings && (
