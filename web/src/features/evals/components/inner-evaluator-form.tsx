@@ -28,8 +28,6 @@ import {
   datasetFormFilterColsWithOptions,
   type availableDatasetEvalVariables,
   observationEvalVariableColumns,
-  evalEventFilterCols,
-  evalExperimentFilterCols,
   observationEvalFilterColsWithOptions,
   type ObservationEvalOptions,
   type ObservationType,
@@ -989,7 +987,6 @@ export const InnerEvaluatorForm = (props: {
                     // Event evaluators - use observation columns with propagation warnings
                     const baseColumns = observationEvalFilterColsWithOptions(
                       observationEvalFilterOptions,
-                      evalEventFilterCols,
                     );
                     return addPropagationWarnings(
                       baseColumns,
@@ -1004,7 +1001,6 @@ export const InnerEvaluatorForm = (props: {
                     // Experiment evaluators - only dataset filter
                     return experimentEvalFilterColsWithOptions(
                       experimentEvalFilterOptions,
-                      evalExperimentFilterCols,
                     );
                   } else {
                     // dataset (legacy non-OTEL experiments)

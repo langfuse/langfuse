@@ -138,16 +138,12 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
   },
 ];
 
-// Eval-specific observation filter columns
-// These columns map to fields in ObservationForEval (event records)
-// and are used for filtering in observation-based evaluators
 type ObservationEvalColumnDef = ColumnDefinition & {
   internal: ObservationEvalFilterColumnIdentifiers;
 };
 
 /**
  * Columns available for filtering in observation-based evals.
- * Maps to InMemoryFilterService column mapper.
  *
  * These columns can be used in filter conditions to determine
  * which observations should be evaluated.
@@ -231,22 +227,19 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
   },
 ];
 
-// Dataset column for experiment evaluators
-export const datasetColForExperiment: ColumnDefinition = {
-  name: "Dataset",
-  id: "experimentDatasetId",
-  type: "stringOptions",
-  internal: "experiment_dataset_id",
-  options: [], // to be filled at runtime
-};
+export const experimentEvalFilterColumns: ObservationEvalColumnDef[] = [
+  {
+    name: "Dataset",
+    id: "experimentDatasetId",
+    type: "stringOptions",
+    internal: "experiment_dataset_id",
+    options: [], // to be filled at runtime
+  },
+];
 
-// For event evaluators - all observation columns except dataset
-export const evalEventFilterCols: ColumnDefinition[] =
-  observationEvalFilterColumns;
-
-// For experiment evaluators - just dataset column
-export const evalExperimentFilterCols: ColumnDefinition[] = [
-  datasetColForExperiment,
+const eventsEvalFilterColumns: ObservationEvalColumnDef[] = [
+  ...observationEvalFilterColumns,
+  ...experimentEvalFilterColumns,
 ];
 
 // Options type for observation eval filters
@@ -262,7 +255,7 @@ export type ExperimentEvalOptions = {
 
 export function observationEvalFilterColsWithOptions(
   options?: ObservationEvalOptions,
-  cols: ColumnDefinition[] = evalEventFilterCols,
+  cols: ColumnDefinition[] = observationEvalFilterColumns,
 ): ColumnDefinition[] {
   return cols.map((col) => {
     if (col.id === "environment") {
@@ -280,7 +273,7 @@ export function observationEvalFilterColsWithOptions(
 
 export function experimentEvalFilterColsWithOptions(
   options?: ExperimentEvalOptions,
-  cols: ColumnDefinition[] = evalEventFilterCols,
+  cols: ColumnDefinition[] = experimentEvalFilterColumns,
 ): ColumnDefinition[] {
   return cols.map((col) => {
     if (col.id === "experimentDatasetId") {
@@ -303,9 +296,7 @@ export function createObservationEvalFieldMapper(
   observation: ObservationForEval,
   column: string,
 ) {
-  const columnMapping = observationEvalFilterColumns.find(
-    (c) => c.id === column,
-  );
+  const columnMapping = eventsEvalFilterColumns.find((c) => c.id === column);
   if (!columnMapping) {
     return undefined;
   }
