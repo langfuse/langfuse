@@ -91,6 +91,10 @@ export function CategoricalScoreChart(props: {
     return adapter.toChartData();
   }, [scores.data, props.agg]);
 
+  if (scores.error) {
+    return <DashboardChartError error={scores.error} />;
+  }
+
   return (
     <CategoricalChart
       chartData={chartData}

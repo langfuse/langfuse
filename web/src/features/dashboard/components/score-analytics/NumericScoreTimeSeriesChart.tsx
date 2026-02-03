@@ -103,6 +103,10 @@ export function NumericScoreTimeSeriesChart(props: {
       : [];
   }, [scores.data]);
 
+  if (scores.error) {
+    return <DashboardChartError error={scores.error} />;
+  }
+
   return !isEmptyTimeSeries({
     data: extractedScores,
     isNullValueAllowed: true,

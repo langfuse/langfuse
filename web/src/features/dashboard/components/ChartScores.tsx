@@ -19,6 +19,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 export function ChartScores(props: {
   className?: string;
@@ -90,7 +91,9 @@ export function ChartScores(props: {
       description="Moving average per score"
       isLoading={props.isLoading || scores.isPending}
     >
-      {!isEmptyTimeSeries({ data: extractedScores }) ? (
+      {scores.error ? (
+        <DashboardChartError error={scores.error} />
+      ) : !isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
           className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
           agg={props.agg}
