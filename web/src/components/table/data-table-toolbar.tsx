@@ -124,6 +124,7 @@ interface DataTableToolbarProps<TData, TValue> {
   viewConfig?: TableViewConfig;
   filterWithAI?: boolean;
   className?: string;
+  viewModeToggle?: React.ReactNode;
 }
 
 export function DataTableToolbar<TData, TValue>({
@@ -149,6 +150,7 @@ export function DataTableToolbar<TData, TValue>({
   orderByState,
   viewConfig,
   filterWithAI = false,
+  viewModeToggle,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -307,6 +309,7 @@ export function DataTableToolbar<TData, TValue>({
             )}
           </div>
         )}
+        {viewModeToggle}
         {timeRange && setTimeRange && (
           <TimeRangePicker
             timeRange={timeRange}

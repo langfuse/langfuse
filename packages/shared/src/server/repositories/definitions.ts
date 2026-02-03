@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 
 export const clickhouseStringDateSchema = z
   .string()
@@ -638,7 +639,7 @@ export const eventRecordBaseSchema = z.object({
   // Core properties
   name: z.string(),
   type: z.string(),
-  environment: z.string().default("default"),
+  environment: z.string().default(DEFAULT_TRACE_ENVIRONMENT),
   version: z.string().nullish(),
   release: z.string().nullish(),
 
@@ -715,6 +716,9 @@ export const eventRecordBaseSchema = z.object({
   event_bytes: z.number(),
   is_deleted: z.number(),
 });
+
+// Base type for event records - used by converters that work with both Insert and Read types
+export type EventRecordBaseType = z.infer<typeof eventRecordBaseSchema>;
 
 export const eventRecordReadSchema = eventRecordBaseSchema.extend({
   metadata_prefixes: z.array(z.string()).default([]),

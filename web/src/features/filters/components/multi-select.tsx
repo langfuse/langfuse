@@ -63,9 +63,19 @@ export function MultiSelect({
   );
   const [freeText, setFreeText] = useState(freeTextInput || "");
 
+  // Merge options with selected values that might not be in options
+  // This ensures selected values are always visible and removable
+  const mergedOptions = useMemo(() => {
+    const optionSet = new Set(options.map((o) => o.value));
+    const missingSelectedOptions: FilterOption[] = values
+      .filter((v) => !optionSet.has(v) && v.length > 0)
+      .map((v) => ({ value: v }));
+    return [...options, ...missingSelectedOptions];
+  }, [options, values]);
+
   const selectableOptions = useMemo(
-    () => options.filter((option) => option.value.length > 0),
-    [options],
+    () => mergedOptions.filter((option) => option.value.length > 0),
+    [mergedOptions],
   );
 
   const allSelectedState = useMemo(() => {
@@ -207,7 +217,7 @@ export function MultiSelect({
                   <InputCommandSeparator />
                 </>
               )}
-              {options.map((option) => {
+              {mergedOptions.map((option) => {
                 if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
                 const displayValue =

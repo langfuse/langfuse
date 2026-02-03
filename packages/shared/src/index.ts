@@ -17,6 +17,7 @@ export * from "./utils/typeChecks";
 export * from "./utils/prompts";
 export * from "./utils/jsonSchemaValidation";
 export * from "./utils/chatml";
+export * from "./utils/math";
 export * from "./features/entitlements/plans";
 export * from "./interfaces/rate-limits";
 export * from "./tableDefinitions/typeHelpers";
@@ -31,6 +32,7 @@ export * from "./server/llm/types";
 // evals
 export * from "./features/evals/types";
 export * from "./features/evals/utilities";
+export * from "./features/evals/observationForEval";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";

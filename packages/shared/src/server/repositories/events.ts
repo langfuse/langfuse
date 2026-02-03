@@ -18,6 +18,7 @@ import {
   FilterList,
   FullEventsObservations,
   orderByToClickhouseSql,
+  orderByToEntries,
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
   deriveFilters,
@@ -42,7 +43,11 @@ import {
   DEFAULT_RENDERING_PROPS,
   RenderingProps,
 } from "../utils/rendering";
-import { commandClickhouse, queryClickhouse } from "./clickhouse";
+import {
+  commandClickhouse,
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "./clickhouse";
 import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
 import {
   ObservationsTableQueryResult,
@@ -353,7 +358,7 @@ async function getObservationsFromEventsTableInternal<T>(
   // TODO further optimize by checking if specific trace fields are filtered on.
   const needsTraceJoin = search.query;
 
-  const chOrderBy = orderByToClickhouseSql(
+  const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
   );
@@ -399,7 +404,7 @@ async function getObservationsFromEventsTableInternal<T>(
     )
     .where(appliedObservationsFilter)
     .where(search)
-    .orderBy(chOrderBy)
+    .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
     .limit(limit, offset);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -456,7 +461,7 @@ export const getObservationByIdFromEventsTable = async ({
     type,
     traceId,
     renderingProps,
-    preferredClickhouseService,
+    preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
   const mapped = records.map((record) =>
     convertObservation(record, renderingProps),
@@ -523,7 +528,10 @@ async function getObservationByIdFromEventsTableInternal({
     .when(Boolean(traceId), (b) =>
       b.whereRaw("trace_id = {traceId: String}", { traceId }),
     )
-    .orderBy("ORDER BY start_time DESC, event_ts DESC")
+    .orderByColumns([
+      { column: "start_time", direction: "DESC" },
+      { column: "event_ts", direction: "DESC" },
+    ])
     .limit(1, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -758,9 +766,11 @@ function applyOrderByForObservationsQuery(
   return (
     queryBuilder
       // Order by to match table ordering
-      .orderBy(
-        "ORDER BY e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC",
-      )
+      .orderByColumns([
+        { column: "e.start_time", direction: "DESC" },
+        { column: "xxHash32(e.trace_id)", direction: "DESC" },
+        { column: "e.span_id", direction: "DESC" },
+      ])
   );
 }
 
@@ -822,7 +832,7 @@ async function getObservationsRowsFromBuilder<T>(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -861,7 +871,7 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -1124,7 +1134,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
       orderByToClickhouseSql(
         orderBy ? [orderBy] : [],
         TRACES_ORDER_BY_COLUMNS,
-      ) || "ORDER BY t.timestamp DESC";
+      ) || "ORDER BY t.project_id DESC, t.timestamp DESC";
 
     queryBuilder.orderBy(chOrderBy).limit(limit, (page - 1) * limit);
   }
@@ -1148,7 +1158,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
         query,
         params: input.params,
         tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -1698,6 +1708,129 @@ export const getEventsGroupedByEnvironment = async (
 };
 
 /**
+ * Get grouped experiment dataset IDs from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentDatasetId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_dataset_id",
+    selectExpression:
+      "e.experiment_dataset_id as experimentDatasetId, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw(
+      "e.experiment_dataset_id IS NOT NULL AND length(e.experiment_dataset_id) > 0",
+    )
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    experimentDatasetId: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped experiment IDs from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentId = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_id",
+    selectExpression: "e.experiment_id as experimentId, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.experiment_id IS NOT NULL AND length(e.experiment_id) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ experimentId: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped experiment names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByExperimentName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.experiment_name",
+    selectExpression: "e.experiment_name as experimentName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ experimentName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */
@@ -1705,21 +1838,53 @@ export const deleteEventsByTraceIds = async (
   projectId: string,
   traceIds: string[],
 ) => {
-  const query = `
-    DELETE FROM events
-    WHERE project_id = {projectId: String}
-    AND trace_id IN ({traceIds: Array(String)})
-    AND (project_id, start_time, xxHash32(trace_id), span_id) IN
-    (
-      SELECT project_id, start_time, xxHash32(trace_id), span_id
+  const preflight = await queryClickhouse<{
+    min_ts: string;
+    max_ts: string;
+    cnt: string;
+  }>({
+    query: `
+      SELECT
+        min(start_time) - INTERVAL 1 HOUR as min_ts,
+        max(start_time) + INTERVAL 1 HOUR as max_ts,
+        count(*) as cnt
       FROM events
+      WHERE project_id = {projectId: String} AND trace_id IN ({traceIds: Array(String)})
+    `,
+    params: { projectId, traceIds },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "delete-preflight",
+      projectId,
+    },
+  });
+
+  const count = Number(preflight[0]?.cnt ?? 0);
+  if (count === 0) {
+    logger.info(
+      `deleteEventsByTraceIds: no rows found for project ${projectId}, skipping DELETE`,
+    );
+    return;
+  }
+
+  await commandClickhouse({
+    query: `
+      DELETE FROM events
       WHERE project_id = {projectId: String}
       AND trace_id IN ({traceIds: Array(String)})
-    );
-  `;
-  await commandClickhouse({
-    query,
-    params: { projectId, traceIds },
+      AND start_time >= {minTs: String}::DateTime64(3)
+      AND start_time <= {maxTs: String}::DateTime64(3)
+    `,
+    params: {
+      projectId,
+      traceIds,
+      minTs: preflight[0].min_ts,
+      maxTs: preflight[0].max_ts,
+    },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
@@ -1974,7 +2139,7 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
       kind: "batchIO",
       projectId: opts.projectId,
     },
-    preferredClickhouseService: "ReadOnly",
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return results.map((r) => ({
@@ -1990,4 +2155,236 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
     metadata:
       r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
   }));
+};
+
+/**
+ * Column mappings for user queries from events table.
+ * Includes a "Timestamp" mapping that points to start_time for compatibility
+ * with the Users page filter state (which uses "Timestamp" from traces table).
+ */
+const usersFromEventsTableColumnDefinitions: UiColumnMappings = [
+  ...eventsTableUiColumnDefinitions,
+  {
+    uiTableName: "Timestamp",
+    uiTableId: "timestamp",
+    clickhouseTableName: "events",
+    clickhouseSelect: 'e."start_time"',
+  },
+];
+
+/**
+ * Get users with trace counts from events table with pagination
+ * Similar to getTracesGroupedByUsers but queries the events table
+ */
+export const getUsersFromEventsTable = async (
+  projectId: string,
+  filter: FilterState,
+  searchQuery?: string,
+  limit?: number,
+  offset?: number,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
+  );
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.user_id",
+    selectExpression: "e.user_id as user, uniq(e.trace_id) as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
+    .whereRaw("e.is_deleted = 0")
+    .when(Boolean(searchQuery), (b) =>
+      b.whereRaw("e.user_id ILIKE {searchQuery: String}", {
+        searchQuery: `%${searchQuery}%`,
+      }),
+    )
+    .orderBy("ORDER BY count DESC")
+    .limit(limit, offset);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  return queryClickhouse<{ user: string; count: string }>({
+    query,
+    params,
+    tags: {
+      feature: "users",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+};
+
+/**
+ * Get total user count from events table
+ */
+export const getUsersCountFromEventsTable = async (
+  projectId: string,
+  filter: FilterState,
+  searchQuery?: string,
+): Promise<{ totalCount: string }[]> => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
+  );
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const searchCondition = searchQuery
+    ? `AND e.user_id ILIKE {searchQuery: String}`
+    : "";
+
+  const query = `
+    SELECT uniq(e.user_id) AS totalCount
+    FROM events e
+    WHERE e.project_id = {projectId: String}
+    AND e.user_id IS NOT NULL
+    AND e.user_id != ''
+    AND e.is_deleted = 0
+    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
+    ${searchCondition}
+  `;
+
+  return queryClickhouse<{ totalCount: string }>({
+    query,
+    params: {
+      projectId,
+      ...appliedEventsFilter.params,
+      ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
+    },
+    tags: {
+      feature: "users",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+};
+
+/**
+ * Get user metrics from events table
+ * Key difference from getUserMetrics in traces.ts:
+ * - Uses min(e.start_time)/max(e.start_time) for first/last event (all observations)
+ * - Legacy uses min(t.timestamp)/max(t.timestamp) (only trace timestamps)
+ */
+export const getUserMetricsFromEventsTable = async (
+  projectId: string,
+  userIds: string[],
+  filter: FilterState,
+) => {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
+  );
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const statsBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.user_id",
+    selectExpression: `
+      e.user_id as user_id,
+      anyLast(e.environment) as environment,
+      count(DISTINCT e.span_id) as obs_count,
+      count(DISTINCT e.trace_id) as trace_count,
+      sumMap(e.usage_details) as sum_usage_details,
+      sum(e.total_cost) as sum_total_cost,
+      min(e.start_time) as min_timestamp,
+      max(e.start_time) as max_timestamp
+    `,
+  })
+    .whereRaw("e.user_id IN ({userIds: Array(String)})", { userIds })
+    // not required if called from tRPC (user_id is always defined), left in for safety only
+    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
+    .whereRaw("e.is_deleted = 0")
+    .where(appliedEventsFilter);
+
+  const { query: statsQuery, params: statsParams } =
+    statsBuilder.buildWithParams();
+
+  const query = `
+    WITH stats AS (${statsQuery})
+    SELECT
+      user_id,
+      environment,
+      obs_count,
+      trace_count,
+      sum_total_cost,
+      min_timestamp,
+      max_timestamp,
+      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
+      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
+      sum_usage_details['total'] as total_usage
+    FROM stats
+  `;
+
+  const rows = await queryClickhouse<{
+    user_id: string;
+    environment: string;
+    max_timestamp: string;
+    min_timestamp: string;
+    input_usage: string;
+    output_usage: string;
+    total_usage: string;
+    obs_count: string;
+    trace_count: string;
+    sum_total_cost: string;
+  }>({
+    query,
+    params: statsParams,
+    tags: {
+      feature: "users",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    userId: row.user_id,
+    environment: row.environment,
+    maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
+    minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
+    inputUsage: Number(row.input_usage),
+    outputUsage: Number(row.output_usage),
+    totalUsage: Number(row.total_usage),
+    observationCount: Number(row.obs_count),
+    traceCount: Number(row.trace_count),
+    totalCost: Number(row.sum_total_cost),
+  }));
+};
+
+/**
+ * Check if any user exists in events table
+ * Uses hasAnyEvent pattern but filters for user_id
+ */
+export const hasAnyUserFromEventsTable = async (
+  projectId: string,
+): Promise<boolean> => {
+  // Filter out deleted rows
+  const query = `
+    SELECT 1
+    FROM events
+    WHERE project_id = {projectId: String}
+    AND user_id IS NOT NULL
+    AND user_id != ''
+    AND is_deleted = 0
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: {
+      feature: "users",
+      type: "events",
+      kind: "hasAny",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
 };

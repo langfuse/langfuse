@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "v4_beta_enabled" BOOLEAN NOT NULL DEFAULT false;

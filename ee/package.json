@@ -19,6 +19,8 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:check": "tsc",
+    "typecheck": "dotenv -e ../../.env -- tsgo --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
     "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix"
@@ -27,7 +29,7 @@
     "@langfuse/shared": "workspace:*",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "https-proxy-agent": "^7.0.6",
-    "next": "15.5.9",
+    "next": "15.5.10",
     "next-auth": "^4.24.13",
     "zod": "^3.25.62"
   },
@@ -36,6 +38,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
     "@typescript-eslint/parser": "^8.50.1",
+    "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-standard": "^17.1.0",

@@ -8,6 +8,7 @@ import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
+import { EvalTargetObjectSchema } from "../features/evals/types";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -90,6 +91,13 @@ export const EvalExecutionEvent = z.object({
   jobExecutionId: z.string(),
   delay: z.number().nullish(),
 });
+
+// LLM-as-a-Judge execution for observation-based evals
+export const LLMAsJudgeExecutionEventSchema = z.object({
+  projectId: z.string(),
+  jobExecutionId: z.string(),
+  observationS3Path: z.string(),
+});
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
 });
@@ -159,7 +167,7 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
     }),
     z.object({
       actionId: z.literal("eval-create"),
-      targetObject: z.enum(["trace", "dataset"]),
+      targetObject: EvalTargetObjectSchema,
       configId: z.string(),
       projectId: z.string(),
       cutoffCreatedAt: z.date(),
@@ -196,44 +204,6 @@ export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
 export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
-
-export const BATCH_DELETION_TABLES = [
-  "traces",
-  "observations",
-  "scores",
-  "events",
-  "dataset_run_items_rmt",
-] as const;
-
-export const BatchProjectCleanerJobSchema = z.object({
-  table: z.enum(BATCH_DELETION_TABLES),
-});
-export type BatchProjectCleanerJobType = z.infer<
-  typeof BatchProjectCleanerJobSchema
->;
-
-// Tables for batch data retention cleaning (ClickHouse only, no dataset_run_items)
-export const BATCH_DATA_RETENTION_TABLES = [
-  "traces",
-  "observations",
-  "scores",
-  "events",
-] as const;
-
-export type BatchDataRetentionTable =
-  (typeof BATCH_DATA_RETENTION_TABLES)[number];
-
-export const BatchDataRetentionCleanerJobSchema = z.object({
-  table: z.enum(BATCH_DATA_RETENTION_TABLES),
-});
-export type BatchDataRetentionCleanerJobType = z.infer<
-  typeof BatchDataRetentionCleanerJobSchema
->;
-
-export const MediaRetentionCleanerJobSchema = z.object({});
-export type MediaRetentionCleanerJobType = z.infer<
-  typeof MediaRetentionCleanerJobSchema
->;
 
 export const NotificationEventSchema = z.discriminatedUnion("type", [
   z.object({
@@ -285,6 +255,9 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
+export type LLMAsJudgeExecutionEventType = z.infer<
+  typeof LLMAsJudgeExecutionEventSchema
+>;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
 export type ExperimentCreateEventType = z.infer<
@@ -322,6 +295,7 @@ export enum QueueName {
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
+  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based eval execution
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   OtelIngestionQueue = "otel-ingestion-queue",
@@ -350,9 +324,6 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
-  BatchProjectCleanerQueue = "batch-project-cleaner-queue",
-  BatchDataRetentionCleanerQueue = "batch-data-retention-cleaner-queue",
-  MediaRetentionCleanerQueue = "media-retention-cleaner-queue",
 }
 
 export enum QueueJobs {
@@ -361,6 +332,7 @@ export enum QueueJobs {
   ProjectDelete = "project-delete",
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
+  LLMAsJudgeExecution = "llm-as-a-judge-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
@@ -388,9 +360,6 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
-  BatchProjectCleanerJob = "batch-project-cleaner-job",
-  BatchDataRetentionCleanerJob = "batch-data-retention-cleaner-job",
-  MediaRetentionCleanerJob = "media-retention-cleaner-job",
 }
 
 export type TQueueJobTypes = {
@@ -436,6 +405,13 @@ export type TQueueJobTypes = {
     id: string;
     payload: EvalExecutionEventType;
     name: QueueJobs.EvaluationExecution;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.LLMAsJudgeExecution]: {
+    timestamp: Date;
+    id: string;
+    payload: LLMAsJudgeExecutionEventType;
+    name: QueueJobs.LLMAsJudgeExecution;
     retryBaggage?: RetryBaggage;
   };
   [QueueName.BatchExport]: {

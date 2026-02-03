@@ -32,7 +32,9 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
       traceScope: "model-match",
     },
     async (span) => {
-      logger.debug(`Finding model for ${JSON.stringify(p)}`);
+      if (logger.isLevelEnabled("debug")) {
+        logger.debug(`Finding model for ${JSON.stringify(p)}`);
+      }
       const cachedResult = await getModelWithPricesFromRedis(p);
       if (cachedResult) {
         span.setAttribute("model_match_source", "redis");
