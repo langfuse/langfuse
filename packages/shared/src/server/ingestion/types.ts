@@ -574,7 +574,7 @@ const createAllIngestionSchemas = ({
     // Dataset item identification
     datasetItemId: z.string(),
     // Dataset version: User-provided timestamp for temporal queries (can be any version)
-    datasetVersion: stringDateTime,
+    datasetVersion: stringDateTime.optional(),
   });
 
   // Event schemas

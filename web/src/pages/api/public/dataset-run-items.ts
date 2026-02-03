@@ -25,7 +25,10 @@ import {
 } from "@/src/features/public-api/server/dataset-run-items";
 
 const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
-  if (typeof metadata === "object") {
+  if (Array.isArray(metadata)) {
+    return { metadata: metadata };
+  }
+  if (typeof metadata === "object" && metadata !== null) {
     return metadata as Record<string, unknown>;
   }
   return { metadata: metadata };
