@@ -64,6 +64,7 @@ import {
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
   getDatasetItemsCountGrouped,
+  getDatasetVersionForRun,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -460,7 +461,7 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      return ctx.prisma.datasetRuns.findUnique({
+      const run = await ctx.prisma.datasetRuns.findUnique({
         where: {
           id_projectId: {
             id: input.runId,
@@ -469,6 +470,20 @@ export const datasetRouter = createTRPCRouter({
           datasetId: input.datasetId,
         },
       });
+
+      if (!run) return null;
+
+      // Resolve dataset version from run items
+      const datasetVersion = await getDatasetVersionForRun({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        runId: input.runId,
+      });
+
+      return {
+        ...run,
+        datasetVersion,
+      };
     }),
   baseRunDataByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
