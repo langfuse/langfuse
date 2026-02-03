@@ -399,6 +399,24 @@ export async function fetchLLMCompletion(
         additionalModelRequestFields: modelParams.providerOptions,
       }),
     });
+  } else if (modelParams.adapter === LLMAdapter.DeepSeek) {
+    chatModel = new ChatOpenAI({
+      openAIApiKey: apiKey,
+      modelName: modelParams.model,
+      temperature: modelParams.temperature,
+      maxTokens: modelParams.max_tokens,
+      topP: modelParams.top_p,
+      streamUsage: false,
+      callbacks: finalCallbacks,
+      maxRetries,
+      configuration: {
+        baseURL: baseURL ?? "https://api.deepseek.com",
+        defaultHeaders: extraHeaders,
+        ...(proxyAgent && { httpAgent: proxyAgent }),
+      },
+      modelKwargs: modelParams.providerOptions,
+      timeout: timeoutMs,
+    });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
     throw new Error(
@@ -414,13 +432,65 @@ export async function fetchLLMCompletion(
   };
 
   try {
+    const supportsStructuredOutput =
+      modelParams.adapter !== LLMAdapter.DeepSeek;
+
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
-    if (params.structuredOutputSchema) {
+    if (params.structuredOutputSchema && supportsStructuredOutput) {
       const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
         .withStructuredOutput(params.structuredOutputSchema)
         .invoke(finalMessages, runConfig);
 
       return structuredOutput;
+    }
+
+    // Fallback for providers (e.g. DeepSeek) without json_schema / structured output support
+    if (params.structuredOutputSchema && !supportsStructuredOutput) {
+      const schemaKeys =
+        (params.structuredOutputSchema as any)?._def?.shape &&
+        typeof (params.structuredOutputSchema as any)._def.shape === "function"
+          ? Object.keys((params.structuredOutputSchema as any)._def.shape())
+          : [];
+
+      const formatInstruction =
+        schemaKeys.length > 0
+          ? `Return JSON only with keys: ${schemaKeys.join(", ")}, matching the required types. Do not include extra text or code fences.`
+          : "Return only a JSON object that matches the requested schema. Do not include extra text or code fences.";
+
+      const messagesWithFormatHint = [
+        new SystemMessage(formatInstruction),
+        ...finalMessages,
+      ];
+
+      const completion = await chatModel
+        .pipe(new StringOutputParser())
+        .invoke(messagesWithFormatHint, runConfig);
+
+      let parsedOutput: unknown;
+      try {
+        parsedOutput = JSON.parse(completion);
+      } catch {
+        throw new LLMCompletionError({
+          message: `Failed to parse DeepSeek response as JSON: ${completion}`,
+          responseStatusCode: 400,
+          isRetryable: false,
+        });
+      }
+
+      const validator: any = params.structuredOutputSchema;
+      if (validator?.safeParse) {
+        const result = validator.safeParse(parsedOutput);
+        if (!result.success) {
+          throw new LLMCompletionError({
+            message: `DeepSeek response does not match schema: ${result.error}`,
+            responseStatusCode: 400,
+            isRetryable: false,
+          });
+        }
+        return result.data;
+      }
+
+      return parsedOutput as Record<string, unknown>;
     }
 
     if (tools && tools.length > 0) {
