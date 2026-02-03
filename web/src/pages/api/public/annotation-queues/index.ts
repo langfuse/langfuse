@@ -7,7 +7,7 @@ import {
   GetAnnotationQueuesQuery,
   GetAnnotationQueuesResponse,
 } from "@/src/features/public-api/types/annotation-queues";
-import { InvalidRequestError, MethodNotAllowedError } from "@langfuse/shared";
+import { InvalidRequestError, LangfuseConflictError, MethodNotAllowedError } from "@langfuse/shared";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -85,7 +85,7 @@ export default withMiddlewares({
       });
 
       if (existingQueue) {
-        throw new InvalidRequestError("A queue with this name already exists.");
+        throw new LangfuseConflictError("A queue with this name already exists.");
       }
 
       // verify the score configs exist
