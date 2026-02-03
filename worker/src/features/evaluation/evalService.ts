@@ -30,6 +30,7 @@ import {
   LangfuseInternalTraceEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
   setNoEvalConfigsCache,
+  DatasetRunItemUpsertEventType,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -924,6 +925,7 @@ export const evaluate = async ({
     traceId: job.jobInputTraceId,
     traceTimestamp: job.jobInputTraceTimestamp ?? undefined,
     datasetItemId: job.jobInputDatasetItemId ?? undefined,
+    datasetItemValidFrom: job.jobInputDatasetItemValidFrom ?? undefined,
     variableMapping: parsedVariableMapping,
   });
 
