@@ -1,5 +1,8 @@
-import { BatchExportTableName } from "@langfuse/shared";
-import { BatchActionType } from "@langfuse/shared";
+import {
+  BatchExportTableName,
+  BatchActionType,
+  EvalTargetObject,
+} from "@langfuse/shared";
 import { expect, describe, it, vi } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
@@ -270,7 +273,7 @@ describe("select all test suite", () => {
         jobType: "EVAL",
         delay: 0,
         sampling: new Decimal("1"),
-        targetObject: "trace",
+        targetObject: EvalTargetObject.TRACE,
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
         evalTemplateId: templateId,
@@ -284,7 +287,7 @@ describe("select all test suite", () => {
       payload: {
         projectId,
         actionId: "eval-create" as const,
-        targetObject: "trace" as const,
+        targetObject: EvalTargetObject.TRACE,
         configId,
         cutoffCreatedAt: new Date(),
         query: {
@@ -465,7 +468,7 @@ describe("select all test suite", () => {
         jobType: "EVAL",
         delay: 0,
         sampling: new Decimal("1"),
-        targetObject: "dataset",
+        targetObject: EvalTargetObject.DATASET,
         scoreName: "score",
         variableMapping: JSON.parse("[]"),
         evalTemplateId: templateId,
@@ -482,7 +485,7 @@ describe("select all test suite", () => {
       payload: {
         projectId,
         actionId: "eval-create" as const,
-        targetObject: "dataset" as const,
+        targetObject: EvalTargetObject.DATASET,
         configId,
         cutoffCreatedAt: new Date(),
         query: {
@@ -553,7 +556,7 @@ describe("select all test suite", () => {
       payload: {
         projectId,
         actionId: "eval-create" as const,
-        targetObject: "trace" as const,
+        targetObject: EvalTargetObject.TRACE,
         configId: nonExistentConfigId,
         cutoffCreatedAt: new Date(),
         query: {

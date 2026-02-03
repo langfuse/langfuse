@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.148.0",
+  "version": "3.150.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
+    "typecheck": "dotenv -e ../.env -- tsgo -p tsconfig.build.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev --turbopack",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
     "lint": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --max-warnings 0",
@@ -129,7 +131,7 @@
     "lodash": "^4.17.23",
     "lucide-react": "^0.552.0",
     "nanoid": "^3.3.8",
-    "next": "15.5.9",
+    "next": "15.5.10",
     "next-auth": "^4.24.13",
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",
@@ -171,7 +173,7 @@
   },
   "devDependencies": {
     "@jedmao/location": "^3.0.0",
-    "@next/bundle-analyzer": "15.5.9",
+    "@next/bundle-analyzer": "15.5.10",
     "@playwright/test": "^1.57.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
@@ -192,11 +194,12 @@
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^8.50.1",
     "@typescript-eslint/parser": "^8.50.1",
+    "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "autoprefixer": "^10.4.19",
     "cross-env": "^7.0.3",
     "dotenv-cli": "^7.4.2",
     "eslint": "^9.39.2",
-    "eslint-config-next": "15.5.9",
+    "eslint-config-next": "15.5.10",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "node-mocks-http": "^1.14.1",

@@ -48,6 +48,8 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // Allow building to alternate directory for parallel build checks while dev server runs
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
   transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
   reactStrictMode: true,

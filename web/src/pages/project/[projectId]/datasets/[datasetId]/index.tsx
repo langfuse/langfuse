@@ -38,6 +38,7 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { createBreadcrumbItems } from "@/src/features/folders/utils";
 
 export default function Dataset() {
   const router = useRouter();
@@ -149,6 +150,11 @@ export default function Dataset() {
     return values;
   }, []);
 
+  const datasetName = dataset.data?.name ?? "";
+  const segments = datasetName.split("/").filter((s) => s.trim());
+  const folderPath = segments.length > 1 ? segments.slice(0, -1).join("/") : "";
+  const breadcrumbItems = folderPath ? createBreadcrumbItems(folderPath) : [];
+
   return (
     <Page
       headerProps={{
@@ -156,6 +162,10 @@ export default function Dataset() {
         itemType: "DATASET",
         breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
+          ...breadcrumbItems.map((item) => ({
+            name: item.name,
+            href: `/project/${projectId}/datasets?folder=${encodeURIComponent(item.folderPath)}`,
+          })),
         ],
         help: dataset.data?.description
           ? {

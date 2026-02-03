@@ -140,9 +140,15 @@ const matchAndVerifyTracesUiColumn = (
   );
 
   if (!uiTable) {
-    throw new QueryBuilderError(
-      `Column ${filter.column} does not match a UI / CH table mapping.`,
-    );
+    const errorMessage = `Column ${filter.column} does not match a UI / CH table mapping.`;
+    logger.error(errorMessage, {
+      filterColumn: filter.column,
+      filterType: filter.type,
+      availableColumns: uiTableDefinitions.map(
+        (col) => col.uiTableId ?? col.uiTableName,
+      ),
+    });
+    throw new QueryBuilderError(errorMessage);
   }
 
   if (!isValidTableName(uiTable.clickhouseTableName)) {
