@@ -503,6 +503,9 @@ export class IngestionService {
                 projectId,
                 datasetItemId: event.body.datasetItemId,
                 datasetId: event.body.datasetId,
+                version: event.body.datasetVersion
+                  ? new Date(event.body.datasetVersion)
+                  : undefined,
                 status: "ACTIVE",
               }),
             ]);

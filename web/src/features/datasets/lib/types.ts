@@ -23,6 +23,7 @@ export type DatasetRunItemByRunRowData = {
   id: string;
   runAt: Date;
   datasetItemId: string;
+  datasetItemVersion?: Date;
   trace?: {
     traceId: string;
     observationId?: string;
