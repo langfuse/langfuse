@@ -4,12 +4,23 @@ import {
   commandClickhouse,
   traceException,
   recordIncrement,
-  BATCH_DELETION_TABLES,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+
+export const BATCH_DELETION_TABLES = [
+  "traces",
+  "observations",
+  "scores",
+  "events",
+  "dataset_run_items_rmt",
+] as const;
 import { env } from "../../env";
+import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 export type BatchDeletionTable = (typeof BATCH_DELETION_TABLES)[number];
+
+export const BATCH_PROJECT_CLEANER_LOCK_PREFIX =
+  "langfuse:batch-project-cleaner";
 
 interface ProjectCount {
   project_id: string;
@@ -19,48 +30,87 @@ interface ProjectCount {
 /**
  * BatchProjectCleaner handles bulk deletion of ClickHouse data for soft-deleted projects.
  *
- * Each invocation processes one table (traces, observations, scores, events).
- * BullMQ handles distributed locking to ensure only one worker processes
- * a given table's job at a time.
+ * Each instance processes one table (traces, observations, scores, events).
+ * Multiple workers coordinate via Redis distributed locking to ensure only one
+ * worker deletes from a given table at a time.
  *
  * Flow:
- * 1. Query PG for projects with deleted_at set
- * 2. Query ClickHouse for counts per project
- * 3. Execute DELETE
- * 4. On failure: re-run count query to determine partial success
+ * 1. Query PG for projects with deleted_at set (no lock needed)
+ * 2. Query ClickHouse for counts per project (no lock needed)
+ * 3. Acquire Redis lock for DELETE only
+ * 4. Execute DELETE
+ * 5. On failure: re-run count query to determine partial success
  */
-export class BatchProjectCleaner {
-  /**
-   * Process a batch of deleted projects for a specific table.
-   */
-  public static async processBatch(
-    tableName: BatchDeletionTable,
-  ): Promise<void> {
-    const instanceName = `BatchProjectCleaner(${tableName})`;
+export class BatchProjectCleaner extends PeriodicExclusiveRunner {
+  private readonly tableName: BatchDeletionTable;
 
-    // Step 1: Query PG for deleted projects
+  protected get defaultIntervalMs(): number {
+    return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
+  }
+
+  constructor(tableName: BatchDeletionTable) {
+    // TTL = DELETE timeout + 5 minutes buffer
+    const lockTtlSeconds =
+      Math.ceil(env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS / 1000) +
+      300;
+
+    super({
+      name: `BatchProjectCleaner(${tableName})`,
+      lockKey: `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:${tableName}`,
+      lockTtlSeconds,
+    });
+    this.tableName = tableName;
+  }
+
+  /**
+   * Start the batch cleaner service
+   */
+  public override start(): void {
+    logger.info(`Starting ${this.instanceName}`, {
+      checkIntervalMs: env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS,
+      sleepOnEmptyMs: env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS,
+      projectLimit: env.LANGFUSE_BATCH_PROJECT_CLEANER_PROJECT_LIMIT,
+      deleteTimeoutMs: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
+    });
+    super.start();
+  }
+
+  /**
+   * Process a batch of deleted projects. Returns the delay until next run.
+   */
+  public override async processBatch(): Promise<number> {
+    return this.execute();
+  }
+
+  /**
+   * Process a batch of deleted projects. Returns the delay until next run.
+   */
+  protected async execute(): Promise<number> {
+    // Step 1: Query PG for deleted projects (no lock needed)
     let deletedProjects: Array<{ id: string }>;
     try {
-      deletedProjects = await BatchProjectCleaner.getDeletedProjects();
+      deletedProjects = await this.getDeletedProjects();
     } catch (error) {
-      logger.error(`${instanceName}: Failed to query deleted projects`, {
+      logger.error(`${this.instanceName}: Failed to query deleted projects`, {
         error,
       });
       traceException(error);
-      return;
+      return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
     }
 
-    // Step 2: Query ClickHouse for counts per project
+    // Step 2: Query ClickHouse for counts per project (no lock needed)
     let initialCounts: Map<string, number>;
     try {
-      initialCounts = await BatchProjectCleaner.getProjectCounts(
-        tableName,
+      initialCounts = await this.getProjectCounts(
         deletedProjects.map((p) => p.id),
       );
     } catch (error) {
-      logger.error(`${instanceName}: Failed to query ClickHouse counts`, error);
+      logger.error(
+        `${this.instanceName}: Failed to query ClickHouse counts`,
+        error,
+      );
       traceException(error);
-      return;
+      return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
     }
 
     // Filter to only projects that have data
@@ -70,83 +120,79 @@ export class BatchProjectCleaner {
 
     if (projectIdsWithData.length === 0) {
       logger.info(
-        `${instanceName}: No data found for deleted projects in ${tableName}`,
+        `${this.instanceName}: No data found for deleted projects in ${this.tableName}`,
       );
-      return;
+      return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
     }
 
-    // Step 3: Execute DELETE
-    try {
-      await BatchProjectCleaner.executeDelete(tableName, projectIdsWithData);
+    // Step 3 & 4: Execute DELETE under distributed lock
+    return (
+      (await this.withLock(
+        async () => {
+          await this.executeDelete(projectIdsWithData);
 
-      const totalRows = Array.from(initialCounts.values()).reduce(
-        (sum, count) => sum + count,
-        0,
-      );
-      logger.info(`${instanceName}: Batch deletion completed`, {
-        table: tableName,
-        projectsProcessed: projectIdsWithData.length,
-        totalRowsTargeted: totalRows,
-      });
-    } catch (deleteError) {
-      // Step 4: On failure, re-run count query to determine partial success
-      logger.warn(
-        `${instanceName}: DELETE failed, checking for partial success`,
-        deleteError,
-      );
-      traceException(deleteError);
+          const totalRows = Array.from(initialCounts.values()).reduce(
+            (sum, count) => sum + count,
+            0,
+          );
+          logger.info(`${this.instanceName}: Batch deletion completed`, {
+            table: this.tableName,
+            projectsProcessed: projectIdsWithData.length,
+            totalRowsTargeted: totalRows,
+          });
 
-      // Record DELETE failure metric
-      recordIncrement("langfuse.batch_project_cleaner.delete_failures", 1, {
-        table: tableName,
-      });
+          return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
+        },
+        async (error) => {
+          // Step 5: On failure, re-run count query to determine partial success
+          recordIncrement("langfuse.batch_project_cleaner.delete_failures", 1, {
+            table: this.tableName,
+          });
 
-      let finalCounts: Map<string, number> | undefined;
-      try {
-        finalCounts = await BatchProjectCleaner.getProjectCounts(
-          tableName,
-          projectIdsWithData,
-        );
-      } catch (countError) {
-        // Can't determine partial success
-        logger.error(
-          `${instanceName}: Failed to re-query counts after DELETE failure`,
-          countError,
-        );
-      }
+          let finalCounts: Map<string, number> | undefined;
+          try {
+            finalCounts = await this.getProjectCounts(projectIdsWithData);
+          } catch (countError) {
+            // Can't determine partial success
+            logger.error(
+              `${this.instanceName}: Failed to re-query counts after DELETE failure`,
+              countError,
+            );
+          }
 
-      // Calculate projects that couldn't be fully cleaned
-      const incompleteProjects = finalCounts
-        ? projectIdsWithData.filter((projectId) => {
-            const finalCount = finalCounts.get(projectId) ?? 0;
-            return finalCount > 0;
-          })
-        : projectIdsWithData;
+          // Calculate projects that couldn't be fully cleaned
+          const incompleteProjects = finalCounts
+            ? projectIdsWithData.filter((projectId) => {
+                const finalCount = finalCounts.get(projectId) ?? 0;
+                return finalCount > 0;
+              })
+            : projectIdsWithData;
 
-      if (incompleteProjects.length > 0) {
-        recordIncrement(
-          "langfuse.batch_project_cleaner.incomplete_cleanups",
-          incompleteProjects.length,
-          { table: tableName },
-        );
-        logger.warn(`${instanceName}: Partial deletion completed`, {
-          table: tableName,
-          incompleteProjectCount: incompleteProjects.length,
-          incompleteProjects: incompleteProjects.slice(0, 10), // Log first 10
-          error: (deleteError as Error).message,
-        });
-      } else {
-        logger.info(
-          `${instanceName}: All projects cleaned successfully on re-check`,
-        );
-      }
+          if (incompleteProjects.length > 0) {
+            recordIncrement(
+              "langfuse.batch_project_cleaner.incomplete_cleanups",
+              incompleteProjects.length,
+              { table: this.tableName },
+            );
+            logger.warn(`${this.instanceName}: Partial deletion completed`, {
+              table: this.tableName,
+              incompleteProjectCount: incompleteProjects.length,
+              incompleteProjects: incompleteProjects.slice(0, 10),
+              error: (error as Error).message,
+            });
+          } else {
+            logger.info(
+              `${this.instanceName}: All projects cleaned successfully on re-check`,
+            );
+          }
 
-      // Re-throw so BullMQ marks job as failed
-      throw deleteError;
-    }
+          return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
+        },
+      )) ?? env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS
+    );
   }
 
-  private static async getDeletedProjects(): Promise<Array<{ id: string }>> {
+  private async getDeletedProjects(): Promise<Array<{ id: string }>> {
     return prisma.project.findMany({
       select: { id: true },
       where: {
@@ -156,8 +202,7 @@ export class BatchProjectCleaner {
     });
   }
 
-  private static async getProjectCounts(
-    tableName: BatchDeletionTable,
+  private async getProjectCounts(
     projectIds: string[],
   ): Promise<Map<string, number>> {
     if (projectIds.length === 0) {
@@ -166,7 +211,7 @@ export class BatchProjectCleaner {
 
     const query = `
       SELECT project_id, count() as count
-      FROM ${tableName}
+      FROM ${this.tableName}
       WHERE project_id IN ({projectIds: Array(String)})
       GROUP BY project_id
       ORDER BY count DESC
@@ -177,7 +222,7 @@ export class BatchProjectCleaner {
       params: { projectIds },
       tags: {
         feature: "batch-project-cleaner",
-        table: tableName,
+        table: this.tableName,
         operation: "count",
       },
     });
@@ -190,16 +235,13 @@ export class BatchProjectCleaner {
     return counts;
   }
 
-  private static async executeDelete(
-    tableName: BatchDeletionTable,
-    projectIds: string[],
-  ): Promise<void> {
+  private async executeDelete(projectIds: string[]): Promise<void> {
     if (projectIds.length === 0) {
       return;
     }
 
     const query = `
-      DELETE FROM ${tableName}
+      DELETE FROM ${this.tableName}
       WHERE project_id IN ({projectIds: Array(String)})
     `;
 
@@ -211,7 +253,7 @@ export class BatchProjectCleaner {
       },
       tags: {
         feature: "batch-project-cleaner",
-        table: tableName,
+        table: this.tableName,
         operation: "delete",
       },
     });

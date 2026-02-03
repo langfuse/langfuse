@@ -74,6 +74,11 @@ describe("applyFieldMapping", () => {
   });
 
   describe("evaluateJsonPath", () => {
+    it("should return the full object if on root '$' and object is string", () => {
+      const result = evaluateJsonPath("Hello", "$");
+      expect(result).toBe("Hello");
+    });
+
     it("should extract nested values using JSON path", () => {
       expect(
         evaluateJsonPath(sampleObservation.input, "$.messages[0].content"),

@@ -1,13 +1,12 @@
-import type { PrismaClient } from "@langfuse/shared/src/db";
-import { type singleFilter } from "@langfuse/shared";
+import type { PrismaClient } from "../../db";
+import { type singleFilter } from "../../interfaces/filters";
 import {
   type CommentObjectType,
   type CommentCountOperator,
   type CommentContentOperator,
   getObjectIdsByCommentCount,
   getObjectIdsByCommentContent,
-} from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
+} from "../repositories/comments";
 import type { z } from "zod/v4";
 
 /**
@@ -27,10 +26,9 @@ export function validateObjectIdCount(
 ): void {
   if (objectIds.length > COMMENT_FILTER_THRESHOLD) {
     const objectTypePlural = objectType.toLowerCase() + "s";
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Comment filter matches ${objectIds.length.toLocaleString()} ${objectTypePlural} (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString()}). Please add additional filters to narrow your search.`,
-    });
+    throw new Error(
+      `Comment filter matches ${objectIds.length.toLocaleString()} ${objectTypePlural} (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString()}). Please add additional filters to narrow your search.`,
+    );
   }
 }
 

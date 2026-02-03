@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { applyCommentFilters } from "@/src/features/comments/server/commentFilterHelpers";
+import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedGetSessionProcedure,
@@ -40,7 +40,7 @@ import {
   getCategoricalScoresGroupedByName,
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
-import { chunk } from "lodash";
+import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 

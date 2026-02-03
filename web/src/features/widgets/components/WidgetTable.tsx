@@ -9,7 +9,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Trash } from "lucide-react";

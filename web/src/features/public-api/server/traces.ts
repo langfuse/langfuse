@@ -20,7 +20,7 @@ import {
 import { env } from "@/src/env.mjs";
 
 import type { FilterState } from "@langfuse/shared";
-import { snakeCase } from "lodash";
+import snakeCase from "lodash/snakeCase";
 
 export type TraceQueryType = {
   page: number;

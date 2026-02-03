@@ -53,12 +53,33 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container",
     }),
-    // Add newly signed up users to default org and/or project with role
-    LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
+    // Add newly signed up users to default org(s) and/or project(s) with role
+    // Supports comma-separated IDs for multiple orgs/projects (e.g., "org1,org2,org3")
+    LANGFUSE_DEFAULT_ORG_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_ORG_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"])
       .optional(),
-    LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
+    LANGFUSE_DEFAULT_PROJECT_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),

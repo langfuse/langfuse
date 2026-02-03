@@ -186,6 +186,11 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html,
+  body {
+    /* Prevent pull-to-refresh and rubber-banding on the page level only */
     overscroll-behavior-y: none;
   }
 
