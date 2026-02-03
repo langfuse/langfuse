@@ -2,11 +2,7 @@
 
 import { type PropsWithChildren, Children } from "react";
 import { useMediaQuery } from "react-responsive";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/src/components/ui/resizable";
+import { ResizableDesktopLayout } from "@/src/components/layouts/ResizableDesktopLayout";
 import { useDataTableControls } from "./data-table-controls";
 
 /** Resizable layout for filter sidebar and table content.
@@ -16,11 +12,6 @@ import { useDataTableControls } from "./data-table-controls";
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
   const { open, tableName } = useDataTableControls();
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
-
-  // On mobile, render children as-is (stacked layout)
-  if (!isDesktop) {
-    return <div className="flex flex-1 overflow-hidden">{children}</div>;
-  }
 
   // Extract filter sidebar and table content from children
   const childrenArray = Children.toArray(children).filter(Boolean);
@@ -32,11 +23,16 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     ? childrenArray.slice(1)
     : childrenArray;
 
+  // On mobile, render children as-is (stacked layout)
+  if (!isDesktop) {
+    return <div className="flex flex-1 overflow-hidden">{children}</div>;
+  }
+
   const filterDefault = 15;
   const tableDefault = 85;
 
-  // If sidebar is collapsed or doesn't exist, render only the table content
-  if (!open || !filterSidebar) {
+  // If sidebar doesn't exist, render only the table content
+  if (!filterSidebar) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">{tableContent}</div>
     );
@@ -45,21 +41,20 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
   const autoSaveId = tableName ? `filter-layout-${tableName}` : "filter-layout";
 
   return (
-    <ResizablePanelGroup
-      direction="horizontal"
-      className="flex h-full w-full"
-      autoSaveId={autoSaveId}
-      storage={sessionStorage}
-    >
-      <ResizablePanel defaultSize={filterDefault} minSize={12} maxSize={50}>
-        {filterSidebar}
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel defaultSize={tableDefault} minSize={50}>
+    <ResizableDesktopLayout
+      mainContent={
         <div className="flex h-full flex-col overflow-hidden">
           {tableContent}
         </div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      }
+      sidebarContent={filterSidebar}
+      open={open}
+      defaultMainSize={tableDefault}
+      defaultSidebarSize={filterDefault}
+      minMainSize={50}
+      maxSidebarSize={50}
+      autoSaveId={autoSaveId}
+      sidebarPosition="left"
+    />
   );
 }

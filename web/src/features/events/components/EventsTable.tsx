@@ -138,10 +138,12 @@ export type EventsTableRow = {
 
 export type EventsTableProps = {
   projectId: string;
+  userId?: string;
 };
 
 export default function ObservationsEventsTable({
   projectId,
+  userId,
 }: EventsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
@@ -199,9 +201,8 @@ export default function ObservationsEventsTable({
   const { viewMode, setViewMode: setViewModeRaw } =
     useEventsViewMode(projectId);
 
-  // Convert view mode to hasParentObservation filter value
-  // trace = false (no parent), observation = true (has parent)
-  const hasParentObservation = viewMode === "observation";
+  // For filter options: trace mode filters to root items, observation mode shows all
+  const hasParentObservation = viewMode === "observation" ? undefined : false;
 
   // Wrap setViewMode to reset pagination when view mode changes
   const setViewMode = useCallback(
@@ -309,18 +310,34 @@ export default function ObservationsEventsTable({
   );
 
   // Create view mode filter (not shown in sidebar)
-  const viewModeFilter: FilterState = [
-    {
-      column: "hasParentObservation",
-      type: "boolean",
-      operator: "=",
-      value: hasParentObservation,
-    },
-  ];
+  const viewModeFilter: FilterState =
+    viewMode === "trace"
+      ? [
+          {
+            column: "hasParentObservation",
+            type: "boolean",
+            operator: "=",
+            value: false, // Only root-level items (no parent)
+          },
+        ]
+      : [];
+
+  // Create user ID filter if userId is provided
+  const userIdFilter: FilterState = userId
+    ? [
+        {
+          column: "User ID",
+          type: "string",
+          operator: "=",
+          value: userId,
+        },
+      ]
+    : [];
 
   const filterState = queryFilter.filterState
     .concat(dateRangeFilter)
-    .concat(viewModeFilter);
+    .concat(viewModeFilter)
+    .concat(userIdFilter);
 
   // Use the custom hook for observations data fetching
   const {
@@ -1128,11 +1145,12 @@ export default function ObservationsEventsTable({
             pageSize: paginationState.limit,
             pageIndex: paginationState.page - 1,
           }}
+          filterWithAI
         />
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls queryFilter={queryFilter} filterWithAI />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
