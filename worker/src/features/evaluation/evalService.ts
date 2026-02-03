@@ -326,6 +326,46 @@ export const createEvalJobs = async ({
     }
   }
 
+  // Optimization: Batch query for existing job executions
+  // Instead of querying once per config (N queries), fetch all at once and filter in-memory
+  const configIds = configs
+    .filter((c) => c.status !== JobConfigState.INACTIVE)
+    .map((c) => c.id);
+
+  const allExistingJobs =
+    configIds.length > 0
+      ? await kyselyPrisma.$kysely
+          .selectFrom("job_executions")
+          .select([
+            "id",
+            "job_configuration_id",
+            "job_input_dataset_item_id",
+            "job_input_observation_id",
+          ])
+          .where("project_id", "=", event.projectId)
+          .where("job_input_trace_id", "=", event.traceId)
+          .where("job_configuration_id", "in", configIds)
+          .execute()
+      : [];
+
+  logger.debug(
+    `Batched query for ${configIds.length} configs, found ${allExistingJobs.length} existing jobs`,
+  );
+
+  // Helper function to find matching job for a config
+  const findMatchingJob = (
+    configId: string,
+    datasetItemId: string | null,
+    observationId: string | null,
+  ) => {
+    return allExistingJobs.find(
+      (job) =>
+        job.job_configuration_id === configId &&
+        job.job_input_dataset_item_id === datasetItemId &&
+        job.job_input_observation_id === observationId,
+    );
+  };
+
   for (const config of configs) {
     if (config.status === JobConfigState.INACTIVE) {
       logger.debug(`Skipping inactive config ${config.id}`);
@@ -530,25 +570,14 @@ export const createEvalJobs = async ({
       }
     }
 
-    // Fetch the existing job for the given configuration.
+    // Find the existing job for the given configuration from the batched results.
     // We either use it for deduplication or we cancel it in case it became "deselected".
-    const existingJob = await kyselyPrisma.$kysely
-      .selectFrom("job_executions")
-      .select("id")
-      .where("project_id", "=", event.projectId)
-      .where("job_configuration_id", "=", config.id)
-      .where("job_input_trace_id", "=", event.traceId)
-      .where(
-        "job_input_dataset_item_id",
-        datasetItem ? "=" : "is",
-        datasetItem ? datasetItem.id : null,
-      )
-      .where(
-        "job_input_observation_id",
-        observationId ? "=" : "is",
-        observationId || null,
-      )
-      .execute();
+    const matchingJob = findMatchingJob(
+      config.id,
+      datasetItem?.id ?? null,
+      observationId ?? null,
+    );
+    const existingJob = matchingJob ? [matchingJob] : [];
 
     // If we matched a trace for a trace event, we create a job or
     // if we have both trace and datasetItem.
