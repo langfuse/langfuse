@@ -99,8 +99,14 @@ export default withMiddlewares({
     responseSchema: GetDatasetItemsV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const { datasetName, sourceTraceId, sourceObservationId, page, limit } =
-        query;
+      const {
+        datasetName,
+        sourceTraceId,
+        sourceObservationId,
+        version,
+        page,
+        limit,
+      } = query;
 
       let datasetId: string | undefined = undefined;
       if (datasetName) {
@@ -124,6 +130,7 @@ export default withMiddlewares({
       const items = await getDatasetItems({
         projectId: auth.scope.projectId,
         filterState,
+        version: version ?? undefined,
         includeDatasetName: true,
         limit: limit,
         page: page - 1,
@@ -132,10 +139,13 @@ export default withMiddlewares({
       const totalItems = await getDatasetItemsCount({
         projectId: auth.scope.projectId,
         filterState,
+        version: version ?? undefined,
       });
 
       return {
-        data: items.map(transformDbDatasetItemDomainToAPIDatasetItem),
+        data: items.map((item) =>
+          transformDbDatasetItemDomainToAPIDatasetItem(item),
+        ),
         meta: {
           page,
           limit,

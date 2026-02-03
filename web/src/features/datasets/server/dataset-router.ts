@@ -658,6 +658,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         datasetId: z.string(),
         datasetItemId: z.string(),
+        version: z.date().optional(),
       }),
     )
     .query(async ({ input }) => {
@@ -665,6 +666,7 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         datasetItemId: input.datasetItemId,
         datasetId: input.datasetId,
+        version: input.version,
       });
       if (!item) {
         throw new LangfuseNotFoundError("Dataset item not found");

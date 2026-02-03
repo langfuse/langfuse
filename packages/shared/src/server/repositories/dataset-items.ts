@@ -1012,6 +1012,7 @@ function buildStatefulDatasetItemsQuery(
     SELECT
       di.id,
       di.project_id,
+      di.valid_from,
       di.dataset_id,
       ${ioFields}
       di.source_trace_id,

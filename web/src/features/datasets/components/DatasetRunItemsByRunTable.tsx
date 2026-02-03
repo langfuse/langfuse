@@ -239,6 +239,7 @@ export function DatasetRunItemsByRunTable(props: {
             projectId={props.projectId}
             datasetId={props.datasetId}
             datasetItemId={datasetItemId}
+            datasetItemVersion={row.original.datasetItemVersion}
             io="expectedOutput"
             singleLine={rowHeight === "s"}
           />

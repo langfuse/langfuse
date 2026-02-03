@@ -136,6 +136,7 @@ export type EnrichedDatasetRunItem = {
   id: string;
   createdAt: Date;
   datasetItemId: string;
+  datasetItemVersion: Date | undefined;
   datasetRunId: string;
   datasetRunName: string;
   observation:
@@ -749,6 +750,7 @@ const getDatasetRunItemsTableInternal = async <
       dri.dataset_run_name as dataset_run_name,
       dri.dataset_run_description as dataset_run_description,
       dri.dataset_run_created_at as dataset_run_created_at,
+      dri.dataset_item_version as dataset_item_version,
       ${includeIO ? "dri.dataset_run_metadata as dataset_run_metadata, " : ""}
       ${includeIO ? "dri.dataset_item_input as dataset_item_input, " : ""}
       ${includeIO ? "dri.dataset_item_expected_output as dataset_item_expected_output, " : ""}
