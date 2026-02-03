@@ -29,6 +29,7 @@ export const usePeekData = ({
         return failureCount < 3;
       },
       staleTime: 60 * 1000, // 1 minute
+      meta: { silentHttpCodes: [404] },
     },
   );
 
