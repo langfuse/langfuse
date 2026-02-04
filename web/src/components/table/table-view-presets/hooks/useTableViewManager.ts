@@ -17,6 +17,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
+import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
@@ -116,10 +117,6 @@ export function useTableViewManager({
       setIsInitialized(true);
     }
   }, [storedViewId, setStoredViewId, setSelectedViewId]);
-
-  // System preset IDs start with __langfuse_ and are not stored in DB
-  const isSystemPresetId = (id: string | undefined) =>
-    id?.startsWith("__langfuse_");
 
   // Fetch view data if viewId is provided (skip for system presets)
   const {

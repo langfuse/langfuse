@@ -80,6 +80,17 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import isEqual from "lodash/isEqual";
 
+/**
+ * Prefix for system preset IDs. These are page-specific presets defined in code
+ * (not stored in DB). Using this prefix prevents DB lookups and allows special handling.
+ * Convention: `__langfuse_{preset_name}__`
+ */
+export const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
+
+/** Check if a view ID is a system preset (defined in code, not stored in DB) */
+export const isSystemPresetId = (id: string | undefined | null): boolean =>
+  !!id?.startsWith(SYSTEM_PRESET_ID_PREFIX);
+
 /** Recursively remove undefined values for consistent comparison */
 function normalizeForComparison<T>(obj: T): T {
   if (Array.isArray(obj)) {

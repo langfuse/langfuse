@@ -60,6 +60,7 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import {
   TableViewPresetsDrawer,
   type SystemFilterPreset,
+  SYSTEM_PRESET_ID_PREFIX,
 } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { Separator } from "@/src/components/ui/separator";
 import {
@@ -73,7 +74,7 @@ const USERS_PER_PAGE_IN_POPOVER = 50;
 
 const SESSION_DETAIL_SYSTEM_PRESETS: SystemFilterPreset[] = [
   {
-    id: "__langfuse_last_generation__",
+    id: `${SYSTEM_PRESET_ID_PREFIX}last_generation__`,
     name: "Last Generation in Trace",
     description: "Shows only the last generation in each trace",
     filters: [
@@ -89,10 +90,10 @@ const SESSION_DETAIL_SYSTEM_PRESETS: SystemFilterPreset[] = [
         operator: "=",
         key: "last",
       },
-    ],
+    ] satisfies FilterState,
   },
   {
-    id: "__langfuse_root_observation__",
+    id: `${SYSTEM_PRESET_ID_PREFIX}root_observation__`,
     name: "Root Observation",
     description: "Shows only the root observation of each trace",
     filters: [
@@ -102,7 +103,7 @@ const SESSION_DETAIL_SYSTEM_PRESETS: SystemFilterPreset[] = [
         operator: "=",
         key: "root",
       },
-    ],
+    ] satisfies FilterState,
   },
 ];
 
@@ -556,6 +557,13 @@ export const SessionEventsPage: React.FC<{
   const userSession = useSession();
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
+
+  // TODO: introduce saved default views
+  // Reset default preset flag when session changes (e.g., navigating between sessions)
+  useEffect(() => {
+    defaultPresetAppliedRef.current = false;
+  }, [sessionId]);
+
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,

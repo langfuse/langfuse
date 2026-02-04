@@ -9,7 +9,13 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
-import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import {
@@ -80,15 +86,22 @@ export function PopoverFilterBuilder({
 
   // Sync wipFilterState when filterState prop changes externally
   // (e.g., when a saved view preset is applied)
+  // We use a ref to track previous filterState to avoid re-running when wipFilterState changes
+  const prevFilterStateRef = useRef(filterState);
   useEffect(() => {
-    const hasWipFilters = wipFilterState.some(
-      (f) => !singleFilter.safeParse(f).success,
-    );
-    // Don't sync if user is actively editing (has invalid WIP filters)
-    if (!hasWipFilters) {
-      _setWipFilterState(filterState);
-    }
-  }, [filterState]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Only sync if filterState actually changed (reference comparison is fine here
+    // since filterState comes from URL parsing which creates new arrays)
+    if (prevFilterStateRef.current === filterState) return;
+    prevFilterStateRef.current = filterState;
+
+    _setWipFilterState((currentWip) => {
+      const hasWipFilters = currentWip.some(
+        (f) => !singleFilter.safeParse(f).success,
+      );
+      // Don't sync if user is actively editing (has invalid WIP filters)
+      return hasWipFilters ? currentWip : filterState;
+    });
+  }, [filterState]);
 
   const addNewFilter = () => {
     setWipFilterState((prev) => [
@@ -702,7 +715,7 @@ function FilterBuilderForm({
                                     ? filter.value
                                     : 1
                                   : undefined,
-                              },
+                              } as WipFilterCondition,
                               i,
                             );
                           }}
@@ -891,7 +904,7 @@ function FilterBuilderForm({
                                   value: isNaN(Number(e.target.value))
                                     ? undefined
                                     : Math.max(1, Number(e.target.value)),
-                                },
+                                } as WipFilterCondition,
                                 i,
                               )
                             }
