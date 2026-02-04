@@ -24,6 +24,25 @@ import type { Model, Price } from "@prisma/client";
 type ModelWithPrice = Model & { Price: Price[] };
 
 /**
+ * Converts a Record<string, number> to ensure all values are numbers.
+ * Avoids Object.entries/fromEntries chain for better performance.
+ * @param record - The record to convert (can be null/undefined)
+ * @returns A new object with all values converted to numbers, or empty object if input is null/undefined
+ */
+function convertNumericRecord(
+  record: Record<string, number> | null | undefined,
+): Record<string, number> {
+  if (!record) return {};
+  const result: Record<string, number> = {};
+  for (const key in record) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      result[key] = Number(record[key]);
+    }
+  }
+  return result;
+}
+
+/**
  * Validates that all ObservationCoreFields are present and not undefined in a ClickHouse record.
  * Throws an error if any required core field is missing.
  *
@@ -193,33 +212,19 @@ export function convertObservationPartial(
 
     // Usage fields
     ...(record.usage_details !== undefined && {
-      usageDetails: Object.fromEntries(
-        Object.entries(record.usage_details ?? {}).map(([key, value]) => [
-          key,
-          Number(value),
-        ]),
-      ),
+      usageDetails: convertNumericRecord(record.usage_details),
       inputUsage: reducedUsageDetails.input ?? 0,
       outputUsage: reducedUsageDetails.output ?? 0,
       totalUsage: reducedUsageDetails.total ?? 0,
     }),
     ...(record.cost_details !== undefined && {
-      costDetails: Object.fromEntries(
-        Object.entries(record.cost_details ?? {}).map(([key, value]) => [
-          key,
-          Number(value),
-        ]),
-      ),
+      costDetails: convertNumericRecord(record.cost_details),
       inputCost: reducedCostDetails.input,
       outputCost: reducedCostDetails.output,
       totalCost: reducedCostDetails.total,
     }),
     ...(record.provided_cost_details !== undefined && {
-      providedCostDetails: Object.fromEntries(
-        Object.entries(record.provided_cost_details ?? {}).map(
-          ([key, value]) => [key, Number(value)],
-        ),
-      ),
+      providedCostDetails: convertNumericRecord(record.provided_cost_details),
     }),
 
     // Prompt fields
