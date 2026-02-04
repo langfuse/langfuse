@@ -57,7 +57,10 @@ import {
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
+  TableViewPresetsDrawer,
+  type SystemFilterPreset,
+} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { Separator } from "@/src/components/ui/separator";
 import {
   type VisibilityState,
@@ -68,22 +71,40 @@ import {
 const INITIAL_USERS_DISPLAY_COUNT = 10;
 const USERS_PER_PAGE_IN_POPOVER = 50;
 
-const buildDefaultLastGenerationFilters = (): FilterState => {
-  return [
-    {
-      column: "type",
-      type: "stringOptions",
-      operator: "any of",
-      value: ["GENERATION"],
-    },
-    {
-      column: "positionInTrace",
-      type: "positionInTrace",
-      operator: "=",
-      key: "last",
-    },
-  ];
-};
+const SESSION_DETAIL_SYSTEM_PRESETS: SystemFilterPreset[] = [
+  {
+    id: "__langfuse_last_generation__",
+    name: "Last Generation in Trace",
+    description: "Shows only the last generation in each trace",
+    filters: [
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "last",
+      },
+    ],
+  },
+  {
+    id: "__langfuse_root_observation__",
+    name: "Root Observation",
+    description: "Shows only the root observation of each trace",
+    filters: [
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "root",
+      },
+    ],
+  },
+];
 
 const areDetailPageListsEqual = (
   left: ListEntry[] | undefined,
@@ -776,20 +797,36 @@ export const SessionEventsPage: React.FC<{
     currentFilterState: queryFilter.filterState,
   });
 
-  const applyDefaultFilter = useCallback(() => {
-    const nextFilters = buildDefaultLastGenerationFilters();
-    queryFilter.setFilterState(nextFilters);
-  }, [queryFilter.setFilterState]);
+  const applySystemPreset = useCallback(
+    (preset: SystemFilterPreset) => {
+      viewControllers.handleSetViewId(preset.id);
+      queryFilter.setFilterState(preset.filters);
+    },
+    [queryFilter.setFilterState, viewControllers.handleSetViewId],
+  );
 
   useEffect(() => {
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
-    if (viewControllers.selectedViewId) return; // A saved view is being applied
-    if (queryFilter.filterState.length > 0) return; // Already has filters
+
+    // Check if selectedViewId is a system preset
+    const systemPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (p) => p.id === viewControllers.selectedViewId,
+    );
+
+    // If it's a non-system saved view, let the view manager handle it
+    if (viewControllers.selectedViewId && !systemPreset) return;
+
+    // If filters already match a system preset, we're done
+    if (queryFilter.filterState.length > 0) return;
+
     defaultPresetAppliedRef.current = true;
-    applyDefaultFilter();
+
+    // Apply the stored system preset or default to first one
+    const presetToApply = systemPreset ?? SESSION_DETAIL_SYSTEM_PRESETS[0];
+    applySystemPreset(presetToApply);
   }, [
-    applyDefaultFilter,
+    applySystemPreset,
     queryFilter.filterState.length,
     isViewLoading,
     viewControllers.selectedViewId,
@@ -922,6 +959,7 @@ export const SessionEventsPage: React.FC<{
               columnVisibility,
               searchQuery: "",
             }}
+            systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
           />
 
           {/* Filter Builder */}

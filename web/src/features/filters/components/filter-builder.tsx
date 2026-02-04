@@ -77,6 +77,19 @@ export function PopoverFilterBuilder({
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
+
+  // Sync wipFilterState when filterState prop changes externally
+  // (e.g., when a saved view preset is applied)
+  useEffect(() => {
+    const hasWipFilters = wipFilterState.some(
+      (f) => !singleFilter.safeParse(f).success,
+    );
+    // Don't sync if user is actively editing (has invalid WIP filters)
+    if (!hasWipFilters) {
+      _setWipFilterState(filterState);
+    }
+  }, [filterState]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addNewFilter = () => {
     setWipFilterState((prev) => [
       ...prev,
