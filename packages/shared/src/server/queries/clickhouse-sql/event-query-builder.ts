@@ -8,7 +8,7 @@ export type OrderByEntry = { column: string; direction: OrderByDirection };
 
 /**
  * Field mapping: each field defined once with its full SELECT expression
- * All queries use `FROM events e` with alias, so all fields use `e.` prefix
+ * All queries use `FROM events_core e` with alias, so all fields use `e.` prefix
  */
 const EVENTS_FIELDS = {
   // Aggregates
@@ -63,7 +63,7 @@ const EVENTS_FIELDS = {
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
-  metadata: "mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata",
+  metadata: "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
 
   // Calculated fields
   latency:
@@ -120,7 +120,7 @@ const FIELD_SETS = {
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
   eventTs: ["eventTs"],
 
-  // getById field sets (reuse the same fields - all queries use `FROM events e`)
+  // getById field sets (reuse the same fields - all queries use `FROM events_core e`)
   byIdBase: [
     "id",
     "traceId",
@@ -202,12 +202,10 @@ const EVENTS_AGGREGATION_FIELDS = {
   user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
   input: "argMaxIf(input, event_ts, parent_span_id = '') AS input",
   output: "argMaxIf(output, event_ts, parent_span_id = '') AS output",
-  input_truncated:
-    "argMaxIf(input_truncated, event_ts, parent_span_id = '') AS input_truncated",
-  output_truncated:
-    "argMaxIf(output_truncated, event_ts, parent_span_id = '') AS output_truncated",
+  // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
+  // Truncation is handled by the materialized view for events_core, or by leftUTF8() at query time.
   metadata:
-    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_prefixes), event_ts, parent_span_id = '') AS metadata",
+    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_values), event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
@@ -485,8 +483,8 @@ abstract class BaseEventsQueryBuilder<
     // SELECT
     parts.push(this.buildSelectClause());
 
-    // FROM
-    parts.push("FROM events e");
+    // FROM - use events_core for reads (lightweight table with truncated I/O)
+    parts.push("FROM events_core e");
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -632,10 +630,12 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     });
 
     // Add I/O fields if configured
+    // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
+    // Use leftUTF8() on input/output directly for truncation.
     if (this.ioFields) {
       if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
         fieldExpressions.push(
-          `leftUTF8(input_truncated, ${this.ioFields.charLimit}) as input, leftUTF8(output_truncated, ${this.ioFields.charLimit}) as output`,
+          `leftUTF8(input, ${this.ioFields.charLimit}) as input, leftUTF8(output, ${this.ioFields.charLimit}) as output`,
         );
       } else {
         fieldExpressions.push("input, output");
@@ -643,27 +643,18 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     }
 
     // Add metadata field with expansion if configured
+    // Note: events_core/events_full tables don't have metadata_hashes/metadata_long_values columns.
+    // Metadata expansion is handled by querying events_full directly for full values.
     if (
       this.metadataExpansionKeys !== null &&
       this.metadataExpansionKeys.length > 0 &&
       this.selectFields.has("metadata")
     ) {
-      // Add keys to params for safe parameterized query
-      this.params.expandMetadataKeys = this.metadataExpansionKeys;
-
-      fieldExpressions.push(`mapFromArrays(
-        e.metadata_names,
-        arrayMap(
-          (name, prefix, hash) -> if(
-            has({expandMetadataKeys: Array(String)}, name) AND isNotNull(hash) AND mapContains(e.metadata_long_values, hash),
-            e.metadata_long_values[hash],
-            prefix
-          ),
-          e.metadata_names,
-          e.metadata_prefixes,
-          e.metadata_hashes
-        )
-      ) as metadata`);
+      // For events_core/events_full, just use mapFromArrays with metadata_values directly
+      // The caller should use events_full table if full metadata is needed
+      fieldExpressions.push(
+        `mapFromArrays(e.metadata_names, e.metadata_values) as metadata`,
+      );
     }
 
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
@@ -1025,8 +1016,8 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     // SELECT
     parts.push(`SELECT ${this.selectExpression}`);
 
-    // FROM
-    parts.push("FROM events e");
+    // FROM - use events_core for reads (lightweight table with truncated I/O)
+    parts.push("FROM events_core e");
 
     // JOINs
     const joinSection = this.buildJoinSection();

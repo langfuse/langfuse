@@ -261,7 +261,7 @@ export const createEvent = (
     // Metadata - populate both JSON and array columns
     metadata: finalMetadata,
     metadata_names: metadataNames,
-    metadata_raw_values: metadataValues,
+    metadata_values: metadataValues,
 
     // Experiment properties
     experiment_id: null,

@@ -46,7 +46,8 @@ export class ClickhouseWriter {
       [TableName.ObservationsBatchStaging]: [],
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
-      [TableName.Events]: [],
+      [TableName.Events]: [], // Kept for backwards compatibility with type
+      [TableName.EventsFull]: [],
     };
 
     this.start();
@@ -114,7 +115,7 @@ export class ClickhouseWriter {
           this.flush(TableName.ObservationsBatchStaging, fullQueue),
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
-          this.flush(TableName.Events, fullQueue),
+          this.flush(TableName.EventsFull, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -504,7 +505,8 @@ export enum TableName {
   ObservationsBatchStaging = "observations_batch_staging",
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
-  Events = "events",
+  Events = "events", // Keep for backwards compat (reads use events_core via query builder)
+  EventsFull = "events_full", // Primary write target - MV auto-populates events_core
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -523,7 +525,9 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
               ? DatasetRunItemRecordInsertType
               : T extends TableName.Events
                 ? EventRecordInsertType
-                : never;
+                : T extends TableName.EventsFull
+                  ? EventRecordInsertType
+                  : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];

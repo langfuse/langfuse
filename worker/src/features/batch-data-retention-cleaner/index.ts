@@ -19,7 +19,8 @@ export const BATCH_DATA_RETENTION_TABLES = [
   "traces",
   "observations",
   "scores",
-  "events",
+  "events_full",
+  "events_core",
 ] as const;
 
 export type BatchDataRetentionTable =
@@ -34,7 +35,8 @@ export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   traces: "timestamp",
   observations: "start_time",
   scores: "timestamp",
-  events: "start_time",
+  events_full: "start_time",
+  events_core: "start_time",
 };
 
 interface ProjectWorkload {

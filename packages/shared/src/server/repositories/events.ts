@@ -612,13 +612,15 @@ export const getTraceByIdFromEventsTable = async ({
   }
 
   // Handle input/output with truncation
+  // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
+  // Use leftUTF8() on input/output directly for truncation.
   if (renderingProps.truncated) {
     queryBuilder
       .select(
-        `leftUTF8(t.input_truncated, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`,
+        `leftUTF8(t.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`,
       )
       .select(
-        `leftUTF8(t.output_truncated, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output`,
+        `leftUTF8(t.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output`,
       );
   } else {
     queryBuilder.selectColumns("t.input", "t.output");
@@ -1225,6 +1227,8 @@ type UpdateableEventFields = {
  * Both spanIds / traceIds are used only when defined and non-empty.
  * E.g. `{ traceIds: [...] }` will only filter by traceIds, while
  * `{ spanIds: [...], traceIds: [...] }` will filter by both.
+ *
+ * Updates both events_full and events_core tables.
  */
 export const updateEvents = async (
   projectId: string,
@@ -1241,27 +1245,42 @@ export const updateEvents = async (
     // Nothing to update
     return;
   }
-  const query = `
-  	UPDATE events SET ${setClauses.join(", ")}
+
+  const whereClause = `
     WHERE project_id = {projectId: String}
     ${selector.spanIds ? "AND span_id IN ({spanIds: Array(String)})" : ""}
-		${selector.traceIds ? "AND trace_id IN ({traceIds: Array(String)})" : ""}
-		${selector.rootOnly === true ? "AND parent_span_id = ''" : ""}
-	`;
-  return await commandClickhouse({
-    query: query,
-    params: {
-      projectId,
-      spanIds: selector.spanIds ?? [],
-      traceIds: selector.traceIds ?? [],
-      ...updates,
-    },
-    tags: {
-      type: "event",
-      kind: "update",
-      projectId,
-    },
-  });
+    ${selector.traceIds ? "AND trace_id IN ({traceIds: Array(String)})" : ""}
+    ${selector.rootOnly === true ? "AND parent_span_id = ''" : ""}
+  `;
+
+  const params = {
+    projectId,
+    spanIds: selector.spanIds ?? [],
+    traceIds: selector.traceIds ?? [],
+    ...updates,
+  };
+
+  // Update both tables in parallel
+  await Promise.all([
+    commandClickhouse({
+      query: `ALTER TABLE events_full UPDATE ${setClauses.join(", ")} ${whereClause}`,
+      params,
+      tags: {
+        type: "events_full",
+        kind: "update",
+        projectId,
+      },
+    }),
+    commandClickhouse({
+      query: `ALTER TABLE events_core UPDATE ${setClauses.join(", ")} ${whereClause}`,
+      params,
+      tags: {
+        type: "events_core",
+        kind: "update",
+        projectId,
+      },
+    }),
+  ]);
 };
 
 /**
@@ -1838,6 +1857,7 @@ export const deleteEventsByTraceIds = async (
   projectId: string,
   traceIds: string[],
 ) => {
+  // Preflight query uses events_core (faster)
   const preflight = await queryClickhouse<{
     min_ts: string;
     max_ts: string;
@@ -1848,7 +1868,7 @@ export const deleteEventsByTraceIds = async (
         min(start_time) - INTERVAL 1 HOUR as min_ts,
         max(start_time) + INTERVAL 1 HOUR as max_ts,
         count(*) as cnt
-      FROM events
+      FROM events_core
       WHERE project_id = {projectId: String} AND trace_id IN ({traceIds: Array(String)})
     `,
     params: { projectId, traceIds },
@@ -1871,36 +1891,63 @@ export const deleteEventsByTraceIds = async (
     return;
   }
 
-  await commandClickhouse({
-    query: `
-      DELETE FROM events
-      WHERE project_id = {projectId: String}
-      AND trace_id IN ({traceIds: Array(String)})
-      AND start_time >= {minTs: String}::DateTime64(3)
-      AND start_time <= {maxTs: String}::DateTime64(3)
-    `,
-    params: {
-      projectId,
-      traceIds,
-      minTs: preflight[0].min_ts,
-      maxTs: preflight[0].max_ts,
-    },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    },
-    tags: {
-      feature: "tracing",
-      type: "events",
-      kind: "delete",
-      projectId,
-    },
-  });
+  // Delete from both tables in parallel
+  await Promise.all([
+    commandClickhouse({
+      query: `
+        DELETE FROM events_full
+        WHERE project_id = {projectId: String}
+        AND trace_id IN ({traceIds: Array(String)})
+        AND start_time >= {minTs: String}::DateTime64(3)
+        AND start_time <= {maxTs: String}::DateTime64(3)
+      `,
+      params: {
+        projectId,
+        traceIds,
+        minTs: preflight[0].min_ts,
+        maxTs: preflight[0].max_ts,
+      },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags: {
+        feature: "tracing",
+        type: "events_full",
+        kind: "delete",
+        projectId,
+      },
+    }),
+    commandClickhouse({
+      query: `
+        DELETE FROM events_core
+        WHERE project_id = {projectId: String}
+        AND trace_id IN ({traceIds: Array(String)})
+        AND start_time >= {minTs: String}::DateTime64(3)
+        AND start_time <= {maxTs: String}::DateTime64(3)
+      `,
+      params: {
+        projectId,
+        traceIds,
+        minTs: preflight[0].min_ts,
+        maxTs: preflight[0].max_ts,
+      },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags: {
+        feature: "tracing",
+        type: "events_core",
+        kind: "delete",
+        projectId,
+      },
+    }),
+  ]);
 };
 
 export const hasAnyEvent = async (projectId: string) => {
   const query = `
     SELECT 1
-    FROM events
+    FROM events_core
     WHERE project_id = {projectId: String}
     LIMIT 1
   `;
@@ -1931,28 +1978,41 @@ export const deleteEventsByProjectId = async (
     return false;
   }
 
-  const query = `
-    DELETE FROM events
-    WHERE project_id = {projectId: String};
-  `;
-  const tags = {
-    feature: "tracing",
-    type: "events",
-    kind: "delete",
-    projectId,
-  };
-
-  await commandClickhouse({
-    query,
-    params: { projectId },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    },
-    tags,
-    clickhouseSettings: {
-      send_logs_level: "trace",
-    },
-  });
+  // Delete from both tables in parallel
+  await Promise.all([
+    commandClickhouse({
+      query: `DELETE FROM events_full WHERE project_id = {projectId: String}`,
+      params: { projectId },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags: {
+        feature: "tracing",
+        type: "events_full",
+        kind: "delete",
+        projectId,
+      },
+      clickhouseSettings: {
+        send_logs_level: "trace",
+      },
+    }),
+    commandClickhouse({
+      query: `DELETE FROM events_core WHERE project_id = {projectId: String}`,
+      params: { projectId },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags: {
+        feature: "tracing",
+        type: "events_core",
+        kind: "delete",
+        projectId,
+      },
+      clickhouseSettings: {
+        send_logs_level: "trace",
+      },
+    }),
+  ]);
 
   return true;
 };
@@ -1973,9 +2033,9 @@ export async function getAgentGraphDataFromEventsTable(params: {
       e.name as name,
       e.start_time as start_time,
       e.end_time as end_time,
-      mapFromArrays(e.metadata_names, e.metadata_prefixes)['langgraph_node'] AS node,
-      mapFromArrays(e.metadata_names, e.metadata_prefixes)['langgraph_step'] AS step
-    FROM events e
+      mapFromArrays(e.metadata_names, e.metadata_values)['langgraph_node'] AS node,
+      mapFromArrays(e.metadata_names, e.metadata_values)['langgraph_step'] AS step
+    FROM events_core e
     WHERE
       e.project_id = {projectId: String}
       AND e.trace_id = {traceId: String}
@@ -2011,7 +2071,7 @@ export const hasAnyEventOlderThan = async (
 ) => {
   const query = `
     SELECT 1
-    FROM events
+    FROM events_core
     WHERE project_id = {projectId: String}
     AND start_time < {cutoffDate: DateTime64(3)}
     LIMIT 1
@@ -2047,27 +2107,49 @@ export const deleteEventsOlderThanDays = async (
     return false;
   }
 
-  const query = `
-    DELETE FROM events
-    WHERE project_id = {projectId: String}
-    AND start_time < {cutoffDate: DateTime64(3)};
-  `;
-  await commandClickhouse({
-    query,
-    params: {
-      projectId,
-      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
-    },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    },
-    tags: {
-      feature: "tracing",
-      type: "events",
-      kind: "delete",
-      projectId,
-    },
-  });
+  // Delete from both tables in parallel
+  await Promise.all([
+    commandClickhouse({
+      query: `
+        DELETE FROM events_full
+        WHERE project_id = {projectId: String}
+        AND start_time < {cutoffDate: DateTime64(3)}
+      `,
+      params: {
+        projectId,
+        cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+      },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags: {
+        feature: "tracing",
+        type: "events_full",
+        kind: "delete",
+        projectId,
+      },
+    }),
+    commandClickhouse({
+      query: `
+        DELETE FROM events_core
+        WHERE project_id = {projectId: String}
+        AND start_time < {cutoffDate: DateTime64(3)}
+      `,
+      params: {
+        projectId,
+        cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+      },
+      clickhouseConfigs: {
+        request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+      },
+      tags: {
+        feature: "tracing",
+        type: "events_core",
+        kind: "delete",
+        projectId,
+      },
+    }),
+  ]);
 
   return true;
 };
@@ -2098,6 +2180,8 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
   const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
   const maxTimestamp = new Date(opts.maxStartTime.getTime() + 1000); // +1 second buffer
 
+  // Use events_core for truncated reads (lightweight), events_full for full I/O
+  const tableName = truncated ? "events_core" : "events_full";
   const inputSelect = truncated
     ? `leftUTF8(e.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`
     : `e.input as input`;
@@ -2110,8 +2194,8 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
       e.span_id as id,
       ${inputSelect},
       ${outputSelect},
-      mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata
-    FROM events e
+      mapFromArrays(e.metadata_names, e.metadata_values) as metadata
+    FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
       AND e.span_id IN {observationIds: Array(String)}
       AND e.trace_id IN {traceIds: Array(String)}
@@ -2237,7 +2321,7 @@ export const getUsersCountFromEventsTable = async (
 
   const query = `
     SELECT uniq(e.user_id) AS totalCount
-    FROM events e
+    FROM events_core e
     WHERE e.project_id = {projectId: String}
     AND e.user_id IS NOT NULL
     AND e.user_id != ''

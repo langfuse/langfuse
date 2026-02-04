@@ -432,7 +432,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         : `o.metadata`;
 
     return `
-      INSERT INTO events (
+      INSERT INTO events_full (
         project_id, trace_id, span_id, parent_span_id, start_time, end_time,
         name, type, environment, version, release, tags, public, bookmarked,
         trace_name, user_id, session_id, level, status_message, completion_start_time,
@@ -441,7 +441,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         provided_cost_details, cost_details, tool_definitions, tool_calls, tool_call_names,
         input, output, metadata,
 
-        metadata_names, metadata_raw_values, source,
+        metadata_names, metadata_values, source,
         blob_storage_file_path, event_bytes, created_at, updated_at, event_ts, is_deleted
       )
       SELECT
@@ -483,7 +483,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
         coalesce(o.output, '') AS output,
         CAST(${metadataExpr}, 'JSON(max_dynamic_paths=0)') AS metadata,
         mapKeys(${metadataExpr}) AS metadata_names,
-        mapValues(${metadataExpr}) AS metadata_raw_values,
+        mapValues(${metadataExpr}) AS metadata_values,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
         '' AS blob_storage_file_path,
         0 AS event_bytes,
