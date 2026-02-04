@@ -31,6 +31,7 @@ import {
   isLegacyEvalTarget,
   isTraceTarget,
   isTraceOrDatasetObject,
+  isTraceOrEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   FormControl,
@@ -79,10 +80,10 @@ export const VariableMappingCard = ({
   );
 
   useEffect(() => {
-    if (isTraceTarget(form.getValues("target")) && !disabled) {
+    if (isTraceOrEventTarget(form.getValues("target")) && !disabled) {
       setShowPreview(true);
     } else {
-      // For dataset, event, experiment targets, disable preview
+      // For dataset and experiment targets, disable preview
       setShowPreview(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,7 +91,7 @@ export const VariableMappingCard = ({
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
-      {isTraceTarget(form.watch("target")) && !disabled && (
+      {isTraceOrEventTarget(form.watch("target")) && !disabled && (
         <>
           <span className="text-xs text-muted-foreground">Show Preview</span>
           <Switch

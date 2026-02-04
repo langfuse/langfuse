@@ -89,6 +89,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -135,6 +136,10 @@ const TracesTable = lazy(
 );
 const ObservationsTable = lazy(
   () => import("@/src/components/table/use-cases/observations"),
+);
+
+const EventsTable = lazy(
+  () => import("@/src/features/events/components/EventsTable"),
 );
 
 const TracesPreview = memo(
@@ -190,6 +195,8 @@ const ObservationsPreview = memo(
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
   }) => {
+    const { isBetaEnabled } = useV4Beta();
+
     const dateRange = useMemo(() => {
       return {
         from: getDateFromOption({
@@ -211,13 +218,23 @@ const ObservationsPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            <ObservationsTable
-              projectId={projectId}
-              hideControls
-              externalFilterState={filterState}
-              externalDateRange={dateRange}
-              limitRows={10}
-            />
+            {isBetaEnabled ? (
+              <EventsTable
+                projectId={projectId}
+                hideControls
+                externalFilterState={filterState}
+                externalDateRange={dateRange}
+                limitRows={10}
+              />
+            ) : (
+              <ObservationsTable
+                projectId={projectId}
+                hideControls
+                externalFilterState={filterState}
+                externalDateRange={dateRange}
+                limitRows={10}
+              />
+            )}
           </Suspense>
         </div>
       </>

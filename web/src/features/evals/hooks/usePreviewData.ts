@@ -3,6 +3,9 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { EvalTargetObject } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useEffect } from "react";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 
 export type PreviewData =
   | {
@@ -24,8 +27,17 @@ export function usePreviewData(
   traceId: string | undefined,
   observationId: string | undefined,
 ): { previewData: PreviewData | null; isLoading: boolean } {
+  const { isBetaEnabled } = useV4Beta();
+  const [, setOrderByState] = useOrderByState();
+
+  // Clear orderBy from URL when target changes (embedded preview tables)
+  const target = form.watch("target");
+  useEffect(() => {
+    setOrderByState(null);
+  }, [target, setOrderByState]);
+
   // For trace evals without traceId: fetch latest trace matching filter
-  const isEventEval = isEventTarget(form.watch("target"));
+  const isEventEval = isEventTarget(target);
   const latestTrace = api.traces.all.useQuery(
     {
       projectId,
@@ -54,25 +66,78 @@ export function usePreviewData(
     },
   );
 
+  const latestObservation = api.generations.all.useQuery(
+    {
+      projectId,
+      filter: form.watch("filter") ?? [],
+      searchQuery: "",
+      searchType: [],
+      limit: 1,
+      page: 0,
+      orderBy: {
+        column: "startTime",
+        order: "DESC",
+      },
+    },
+    {
+      enabled: enabled && !observationId && isEventEval && !isBetaEnabled,
+    },
+  );
+
+  const latestObservationBeta = api.events.all.useQuery(
+    {
+      projectId,
+      filter: form.watch("filter") ?? [],
+      searchQuery: "",
+      searchType: [],
+      limit: 1,
+      page: 0,
+      orderBy: {
+        column: "startTime",
+        order: "DESC",
+      },
+    },
+    {
+      enabled: enabled && !observationId && isEventEval && isBetaEnabled,
+    },
+  );
+
+  const latestObservationTraceId = !!observationId
+    ? traceId
+    : isBetaEnabled
+      ? latestObservationBeta.data?.observations[0]?.traceId
+      : latestObservation.data?.generations[0]?.traceId;
+  const latestObservationObservationId = !!observationId
+    ? observationId
+    : isBetaEnabled
+      ? latestObservationBeta.data?.observations[0]?.id
+      : latestObservation.data?.generations[0]?.id;
+
   // For event evals: fetch only the single observation
   const observationDetails = api.observations.byId.useQuery(
     {
       projectId,
-      traceId: actualTraceId as string,
-      observationId: observationId as string,
+      traceId: latestObservationTraceId as string,
+      observationId: latestObservationObservationId as string,
       startTime: null,
     },
     {
-      enabled: enabled && !!actualTraceId && !!observationId && isEventEval,
+      enabled:
+        enabled &&
+        !!latestObservationTraceId &&
+        !!latestObservationObservationId &&
+        isEventEval,
     },
   );
 
   const previewData: PreviewData | null = isEventEval
-    ? observationDetails.data && actualTraceId && observationId
+    ? observationDetails.data &&
+      latestObservationTraceId &&
+      latestObservationObservationId
       ? {
           type: EvalTargetObject.EVENT,
-          traceId: actualTraceId,
-          observationId: observationId,
+          traceId: latestObservationTraceId,
+          observationId: latestObservationObservationId,
           data: observationDetails.data,
         }
       : null

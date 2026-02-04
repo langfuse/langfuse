@@ -580,15 +580,17 @@ export default function ObservationsTable({
     },
   ];
 
+  const enableSorting = !hideControls;
+
   const columns: LangfuseColumnDef<ObservationsTableRow>[] = [
-    selectActionColumn,
+    ...(hideControls ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
       id: "startTime",
       header: "Start Time",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
         return <LocalIsoDate date={value} />;
@@ -599,7 +601,7 @@ export default function ObservationsTable({
       id: "type",
       header: "Type",
       size: 50,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
         return value ? (
@@ -614,7 +616,7 @@ export default function ObservationsTable({
       id: "name",
       header: "Name",
       size: 150,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: ObservationsTableRow["name"] = row.getValue("name");
         return value ?? undefined;
@@ -687,7 +689,7 @@ export default function ObservationsTable({
           </span>
         ) : undefined;
       },
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "statusMessage",
@@ -714,7 +716,7 @@ export default function ObservationsTable({
         ) : undefined;
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "totalCost",
@@ -738,7 +740,7 @@ export default function ObservationsTable({
         ) : undefined;
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "toolDefinitions",
@@ -746,7 +748,7 @@ export default function ObservationsTable({
       header: "Available Tools",
       size: 120,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("toolDefinitions");
@@ -761,7 +763,7 @@ export default function ObservationsTable({
       header: "Tool Calls",
       size: 100,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("toolCalls");
@@ -776,7 +778,7 @@ export default function ObservationsTable({
       header: "Time to First Token",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const timeToFirstToken: number | undefined =
           row.getValue("timeToFirstToken");
@@ -815,7 +817,7 @@ export default function ObservationsTable({
         );
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "model",
@@ -823,7 +825,7 @@ export default function ObservationsTable({
       header: "Model",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const model = row.getValue("model") as string;
         const modelId = row.getValue("modelId") as string | undefined;
@@ -871,7 +873,7 @@ export default function ObservationsTable({
       },
       size: 200,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
@@ -961,7 +963,7 @@ export default function ObservationsTable({
       header: "End Time",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("endTime");
@@ -974,7 +976,7 @@ export default function ObservationsTable({
       header: "ObservationID",
       size: 100,
       defaultHidden: true,
-      enableSorting: true,
+      enableSorting,
       enableHiding: true,
       cell: ({ row }) => {
         const observationId = row.getValue("id");
@@ -991,7 +993,7 @@ export default function ObservationsTable({
       header: "Trace Name",
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
     },
     {
@@ -1005,7 +1007,7 @@ export default function ObservationsTable({
           <TableIdOrName value={value} />
         ) : undefined;
       },
-      enableSorting: true,
+      enableSorting,
       enableHiding: true,
       defaultHidden: true,
     },
@@ -1027,7 +1029,7 @@ export default function ObservationsTable({
         href: "https://langfuse.com/docs/experimentation",
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
     },
     {
@@ -1065,7 +1067,7 @@ export default function ObservationsTable({
           },
           defaultHidden: true,
           enableHiding: true,
-          enableSorting: true,
+          enableSorting,
         },
         {
           accessorKey: "inputTokens",
@@ -1074,7 +1076,7 @@ export default function ObservationsTable({
           size: 100,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
               inputUsage: number;
@@ -1091,7 +1093,7 @@ export default function ObservationsTable({
           size: 100,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
               inputUsage: number;
@@ -1108,7 +1110,7 @@ export default function ObservationsTable({
           size: 100,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
           cell: ({ row }: { row: Row<ObservationsTableRow> }) => {
             const value: {
               inputUsage: number;
@@ -1149,7 +1151,7 @@ export default function ObservationsTable({
           },
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
         },
         {
           accessorKey: "outputCost",
@@ -1168,7 +1170,7 @@ export default function ObservationsTable({
           },
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
         },
       ],
     },
