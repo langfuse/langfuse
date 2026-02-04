@@ -199,6 +199,9 @@ export const TraceGraphCanvas: React.FC<TraceGraphCanvasProps> = (props) => {
           size: 14,
           color: "#000000",
         },
+        chosen: {
+          label: false,
+        },
         shadow: {
           enabled: true,
           color: "rgba(0,0,0,0.2)",
