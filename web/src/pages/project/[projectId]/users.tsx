@@ -191,8 +191,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     withDefault(StringParam, null),
   );
 
-  // Legacy API calls (traces-based)
-  const usersLegacy = api.users.all.useQuery(
+  const usersV3 = api.users.all.useQuery(
     {
       filter: filterState,
       page: paginationState.pageIndex,
@@ -203,14 +202,14 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     { enabled: !isBetaEnabled },
   );
 
-  const userMetricsLegacy = api.users.metrics.useQuery(
+  const userMetricsV3 = api.users.metrics.useQuery(
     {
       projectId,
-      userIds: usersLegacy.data?.users.map((u) => u.userId) ?? [],
+      userIds: usersV3.data?.users.map((u) => u.userId) ?? [],
       filter: filterState,
     },
     {
-      enabled: usersLegacy.isSuccess && !isBetaEnabled,
+      enabled: usersV3.isSuccess && !isBetaEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -219,8 +218,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     },
   );
 
-  // Beta API calls (events-based)
-  const usersBeta = api.users.allFromEvents.useQuery(
+  const usersV4 = api.users.allFromEvents.useQuery(
     {
       filter: filterState,
       page: paginationState.pageIndex,
@@ -231,14 +229,14 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     { enabled: isBetaEnabled },
   );
 
-  const userMetricsBeta = api.users.metricsFromEvents.useQuery(
+  const userMetricsV4 = api.users.metricsFromEvents.useQuery(
     {
       projectId,
-      userIds: usersBeta.data?.users.map((u) => u.userId) ?? [],
+      userIds: usersV4.data?.users.map((u) => u.userId) ?? [],
       filter: filterState,
     },
     {
-      enabled: usersBeta.isSuccess && isBetaEnabled,
+      enabled: usersV4.isSuccess && isBetaEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -248,8 +246,8 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
   );
 
   // Select the active query based on beta state
-  const users = isBetaEnabled ? usersBeta : usersLegacy;
-  const userMetrics = isBetaEnabled ? userMetricsBeta : userMetricsLegacy;
+  const users = isBetaEnabled ? usersV4 : usersV3;
+  const userMetrics = isBetaEnabled ? userMetricsV4 : userMetricsV3;
 
   type UserCoreOutput = RouterOutput["users"]["all"]["users"][number];
   type UserMetricsOutput = RouterOutput["users"]["metrics"][number];
