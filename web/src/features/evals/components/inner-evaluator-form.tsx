@@ -29,13 +29,9 @@ import {
   type availableDatasetEvalVariables,
   observationEvalVariableColumns,
   observationEvalFilterColsWithOptions,
-  type ObservationEvalOptions,
-  type ObservationType,
-  LangfuseInternalTraceEnvironment,
-  type ExperimentEvalOptions,
   experimentEvalFilterColsWithOptions,
-  type ColumnDefinition,
-  type ObservationEvalFilterColumnIdentifiers,
+  ColumnDefinition,
+  ObservationType,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -78,7 +74,10 @@ import {
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
-import { type PartialConfig } from "@/src/features/evals/types";
+import {
+  type PartialConfig,
+  type EvalTarget,
+} from "@/src/features/evals/types";
 import { Switch } from "@/src/components/ui/switch";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
@@ -116,6 +115,7 @@ import {
   COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
   DEFAULT_TRACE_FILTER,
 } from "@/src/features/evals/utils/evaluator-constants";
+import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -292,6 +292,13 @@ export const InnerEvaluatorForm = (props: {
     setUseOtelDataForExperiment,
   } = useUserFacingTarget(props.existingEvaluator?.targetObject);
 
+  const {
+    traceFilterOptions,
+    observationEvalFilterOptions,
+    experimentEvalFilterOptions,
+    datasetFilterOptions,
+  } = useEvalConfigFilterOptions({ projectId: props.projectId });
+
   const targetState = useEvaluatorTargetState();
 
   const form = useForm({
@@ -341,105 +348,20 @@ export const InnerEvaluatorForm = (props: {
     },
   }) as UseFormReturn<EvalFormType>;
 
-  const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId: props.projectId },
-    {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
-  const environmentFilterOptionsResponse =
-    api.projects.environmentFilterOptions.useQuery(
-      {
-        projectId: props.projectId,
-      },
-      {
-        trpc: { context: { skipBatch: true } },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
-    );
-
-  const traceFilterOptions = useMemo(() => {
-    // Normalize API response to match TraceOptions type (count should be number, not string)
-    const normalized = traceFilterOptionsResponse.data
-      ? {
-          name: traceFilterOptionsResponse.data.name?.map((n) => ({
-            value: n.value,
-            count: Number(n.count),
-          })),
-          scores_avg: traceFilterOptionsResponse.data.scores_avg,
-          score_categories: traceFilterOptionsResponse.data.score_categories,
-          tags: traceFilterOptionsResponse.data.tags?.map((t) => ({
-            value: t.value,
-          })),
-        }
-      : {};
-
-    return {
-      ...normalized,
-      environment: environmentFilterOptionsResponse.data?.map((e) => ({
-        value: e.environment,
-      })),
-    };
-  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
-
-  const datasets = api.datasets.allDatasetMeta.useQuery(
-    {
-      projectId: props.projectId,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
-  );
-
   const shouldFetch = !props.disabled && isTraceTarget(form.watch("target"));
+
+  // Keep legacy hook for now - provides observationTypeToNames needed for form dropdowns
   const { observationTypeToNames, traceWithObservations, isLoading } =
     useEvalConfigMappingData(props.projectId, form, traceId, shouldFetch);
 
-  const datasetFilterOptions = useMemo(() => {
-    if (!datasets.data) return undefined;
-    return {
-      datasetId: datasets.data?.map((d) => ({
-        value: d.id,
-        displayValue: d.name,
-      })),
-    };
-  }, [datasets.data]);
-
-  const observationEvalFilterOptions: ObservationEvalOptions = useMemo(() => {
-    return {
-      environment: environmentFilterOptionsResponse.data?.map((e) => ({
-        value: e.environment,
-      })),
-      tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
-        value: t.value,
-      })),
-      traceName: traceFilterOptionsResponse.data?.name?.map((n) => ({
-        value: n.value,
-      })),
-    };
-  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
-
-  const experimentEvalFilterOptions: ExperimentEvalOptions = useMemo(() => {
-    return {
-      experimentDatasetId: datasetFilterOptions?.datasetId,
-    };
-  }, [datasetFilterOptions]);
+  // Convert to EvalTarget format for preview component
+  const target: EvalTarget | null = traceWithObservations
+    ? {
+        type: "trace" as const,
+        id: traceWithObservations.id,
+        data: traceWithObservations,
+      }
+    : null;
 
   useEffect(() => {
     if (isTraceTarget(form.getValues("target")) && !props.disabled) {
@@ -601,9 +523,9 @@ export const InnerEvaluatorForm = (props: {
             disabled={props.disabled}
           />
           {showPreview &&
-            (traceWithObservations ? (
+            (target ? (
               <DetailPageNav
-                currentId={traceWithObservations.id}
+                currentId={target.id}
                 listKey="traces"
                 path={(entry) =>
                   `/project/${props.projectId}/evals/new?evaluator=${props.evalTemplate.id}&traceId=${entry.id}`
@@ -934,10 +856,7 @@ export const InnerEvaluatorForm = (props: {
                       allowPropagationFilters,
                     );
                   } else if (isTraceTarget(target)) {
-                    return tracesTableColsWithOptions(
-                      traceFilterOptions,
-                      evalTraceTableCols,
-                    );
+                    return tracesTableColsWithOptions(traceFilterOptions);
                   } else if (isExperimentTarget(target)) {
                     // Experiment evaluators - only dataset filter
                     return experimentEvalFilterColsWithOptions(
@@ -947,7 +866,6 @@ export const InnerEvaluatorForm = (props: {
                     // dataset (legacy non-OTEL experiments)
                     return datasetFormFilterColsWithOptions(
                       datasetFilterOptions,
-                      evalDatasetFormFilterCols,
                     );
                   }
                 };
@@ -1097,10 +1015,10 @@ export const InnerEvaluatorForm = (props: {
                   )}
                 >
                   {showPreview ? (
-                    traceWithObservations ? (
+                    target ? (
                       <EvaluationPromptPreview
                         evalTemplate={props.evalTemplate}
-                        trace={traceWithObservations}
+                        target={target}
                         variableMapping={form.watch("mapping")}
                         isLoading={isLoading}
                         className={cn(
