@@ -4,8 +4,15 @@ import {
   type langfuseObjects,
   TimeScopeSchema,
   EvalTargetObject,
+  LangfuseInternalTraceEnvironment,
+  ColumnDefinition,
 } from "@langfuse/shared";
 import { wipVariableMapping } from "@langfuse/shared";
+import { ColumnDefinitionWithAlert } from "@/src/features/filters/components/filter-builder";
+import {
+  COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
+  OUTPUT_MAPPING,
+} from "@/src/features/evals/utils/evaluator-constants";
 
 export const isTraceTarget = (target: string): boolean =>
   target === EvalTargetObject.TRACE;
@@ -27,3 +34,37 @@ export type EvalFormType = z.infer<typeof evalConfigFormSchema>;
 export type LangfuseObject = (typeof langfuseObjects)[number];
 
 export type VariableMapping = z.infer<typeof wipVariableMapping>;
+
+export const inferDefaultMapping = (
+  variable: string,
+): Pick<VariableMapping, "langfuseObject" | "selectedColumnId"> => {
+  return {
+    langfuseObject: "trace" as const,
+    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
+      ? "output"
+      : "input",
+  };
+};
+
+export const fieldHasJsonSelectorOption = (
+  selectedColumnId: string | undefined | null,
+): boolean =>
+  selectedColumnId === "input" ||
+  selectedColumnId === "output" ||
+  selectedColumnId === "metadata" ||
+  selectedColumnId === "expected_output";
+
+export const getTargetDisplayName = (target: string): string => {
+  switch (target) {
+    case "trace":
+      return "traces";
+    case "event":
+      return "observations";
+    case "dataset":
+      return "dataset run items";
+    case "experiment":
+      return "experiments";
+    default:
+      return target;
+  }
+};

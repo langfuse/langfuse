@@ -1,4 +1,7 @@
-import { observationEvalVariableColumns } from "@langfuse/shared";
+import {
+  LangfuseInternalTraceEnvironment,
+  observationEvalVariableColumns,
+} from "@langfuse/shared";
 
 /**
  * Constant for observation-based evaluators (event/experiment).
@@ -14,5 +17,39 @@ export const OBSERVATION_VARIABLES = [
       ...(col.type ? { type: col.type } : {}),
       internal: `o."${col.id}"`,
     })),
+  },
+];
+
+export const COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION = new Set([
+  "release",
+  "traceName",
+  "userId",
+  "sessionId",
+  "tags",
+]);
+
+export const OUTPUT_MAPPING = [
+  "generation",
+  "output",
+  "response",
+  "answer",
+  "completion",
+];
+
+export const INTERNAL_ENVIRONMENTS = [
+  LangfuseInternalTraceEnvironment.LLMJudge,
+  "langfuse-prompt-experiments",
+  "langfuse-evaluation",
+  "sdk-experiment",
+] as const;
+
+// Default filter for new trace evaluators - excludes internal Langfuse environments
+// to prevent evaluators from running on their own traces
+export const DEFAULT_TRACE_FILTER = [
+  {
+    column: "environment",
+    operator: "none of" as const,
+    value: [...INTERNAL_ENVIRONMENTS],
+    type: "stringOptions" as const,
   },
 ];

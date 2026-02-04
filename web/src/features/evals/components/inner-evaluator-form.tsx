@@ -60,6 +60,9 @@ import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   evalConfigFormSchema,
   type EvalFormType,
+  fieldHasJsonSelectorOption,
+  getTargetDisplayName,
+  inferDefaultMapping,
   isTraceOrDatasetObject,
   isTraceTarget,
   type LangfuseObject,
@@ -109,67 +112,10 @@ import {
   useUserFacingTarget,
   useEvaluatorTargetState,
 } from "@/src/features/evals/hooks/useEvaluatorTarget";
-
-// Lazy load tables
-const TracesTable = lazy(
-  () => import("@/src/components/table/use-cases/traces"),
-);
-const ObservationsTable = lazy(
-  () => import("@/src/components/table/use-cases/observations"),
-);
-
-const OUTPUT_MAPPING = [
-  "generation",
-  "output",
-  "response",
-  "answer",
-  "completion",
-];
-
-const INTERNAL_ENVIRONMENTS = [
-  LangfuseInternalTraceEnvironment.LLMJudge,
-  "langfuse-prompt-experiments",
-  "langfuse-evaluation",
-  "sdk-experiment",
-] as const;
-
-// Default filter for new trace evaluators - excludes internal Langfuse environments
-// to prevent evaluators from running on their own traces
-const DEFAULT_TRACE_FILTER = [
-  {
-    column: "environment",
-    operator: "none of" as const,
-    value: [...INTERNAL_ENVIRONMENTS],
-    type: "stringOptions" as const,
-  },
-];
-
-const inferDefaultMapping = (
-  variable: string,
-): Pick<VariableMapping, "langfuseObject" | "selectedColumnId"> => {
-  return {
-    langfuseObject: "trace" as const,
-    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
-      ? "output"
-      : "input",
-  };
-};
-
-const fieldHasJsonSelectorOption = (
-  selectedColumnId: string | undefined | null,
-): boolean =>
-  selectedColumnId === "input" ||
-  selectedColumnId === "output" ||
-  selectedColumnId === "metadata" ||
-  selectedColumnId === "expected_output";
-
-const propagationRequiredColumns = new Set([
-  "release",
-  "traceName",
-  "userId",
-  "sessionId",
-  "tags",
-]);
+import {
+  COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
+  DEFAULT_TRACE_FILTER,
+} from "@/src/features/evals/utils/evaluator-constants";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -179,8 +125,10 @@ const addPropagationWarnings = (
   allowPropagationFilters: boolean,
 ): ColumnDefinitionWithAlert[] => {
   return columns.map((col) => {
-    // Add alert if propagation is required but not available
-    if (!allowPropagationFilters && propagationRequiredColumns.has(col.id)) {
+    if (
+      !allowPropagationFilters &&
+      COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION.has(col.id)
+    ) {
       return {
         ...col,
         alert: {
@@ -208,20 +156,13 @@ const addPropagationWarnings = (
   });
 };
 
-const getTargetDisplayName = (target: string): string => {
-  switch (target) {
-    case "trace":
-      return "traces";
-    case "event":
-      return "observations";
-    case "dataset":
-      return "dataset run items";
-    case "experiment":
-      return "experiments";
-    default:
-      return target;
-  }
-};
+// Lazy load tables
+const TracesTable = lazy(
+  () => import("@/src/components/table/use-cases/traces"),
+);
+const ObservationsTable = lazy(
+  () => import("@/src/components/table/use-cases/observations"),
+);
 
 const TracesPreview = memo(
   ({
