@@ -9,6 +9,8 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
+  createEvent,
+  createEventsCh,
   StorageService,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
@@ -138,7 +140,16 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     const observationId = randomUUID();
     const scoreId = randomUUID();
 
-    // Create trace, observation, and score in Clickhouse
+    // Create event data for events table export
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "Test Event",
+      start_time: (now.getTime() - 90 * 60 * 1000) * 1000, // 90 minutes before now (microseconds)
+    });
+
+    // Create trace, observation, score, and event in Clickhouse
     // Data is at 90 minutes ago, which falls within the chunked export window
     await Promise.all([
       createTracesCh([
@@ -168,6 +179,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           value: 0.95,
         }),
       ]),
+      createEventsCh([event]),
     ]);
 
     // When
@@ -179,8 +191,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     const files = await s3StorageService.listFiles(s3Prefix);
     const projectFiles = files.filter((f) => f.file.includes(projectId));
 
-    // Should have 3 files (traces, observations, scores)
-    expect(projectFiles).toHaveLength(3);
+    // Should have 4 files (traces, observations, scores, events)
+    expect(projectFiles).toHaveLength(4);
 
     // Check file paths follow the expected pattern
     const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
@@ -188,10 +200,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       f.file.includes("/observations/"),
     );
     const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
+    const eventFile = projectFiles.find((f) => f.file.includes("/events/"));
 
     expect(traceFile).toBeDefined();
     expect(observationFile).toBeDefined();
     expect(scoreFile).toBeDefined();
+    expect(eventFile).toBeDefined();
 
     // Check file contents
     if (traceFile) {
@@ -211,6 +225,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(content).toContain(scoreId);
       expect(content).toContain("Test Score");
       expect(content).toContain("0.95");
+    }
+
+    if (eventFile) {
+      const content = await s3StorageService.download(eventFile.file);
+      expect(content).toContain(event.span_id);
+      expect(content).toContain("Test Event");
     }
 
     // Check integration lastSyncAt and nextSyncAt are updated
@@ -353,6 +373,15 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     const observationId = randomUUID();
     const scoreId = randomUUID();
 
+    // Create event data for events table export
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      type: "GENERATION",
+      name: "Test Event",
+      start_time: (now.getTime() - 35 * 60 * 1000) * 1000, // 35 minutes before now (microseconds)
+    });
+
     await Promise.all([
       createTracesCh([
         createTrace({
@@ -381,6 +410,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           value: 0.95,
         }),
       ]),
+      createEventsCh([event]),
     ]);
 
     // Test each file type
@@ -429,8 +459,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         (f) => f.file.includes(projectId) && f.file.includes(fileTypePrefix),
       );
 
-      // Should have 3 files (traces, observations, scores)
-      expect(projectFiles).toHaveLength(3);
+      // Should have 4 files (traces, observations, scores, events)
+      expect(projectFiles).toHaveLength(4);
 
       // Check file extensions
       const expectedExtension = fileType.toLowerCase();
@@ -453,6 +483,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           expect(content).toContain(scoreId);
           expect(content).toContain("Test Score");
           expect(content).toContain("0.95");
+        } else if (file.file.includes("/events/")) {
+          expect(content).toContain(event.span_id);
+          expect(content).toContain("Test Event");
         }
 
         // Verify format based on file type

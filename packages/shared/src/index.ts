@@ -93,3 +93,6 @@ export * from "./domain";
 
 // io representation
 export * from "./utils/IORepresentation";
+
+// analytics integrations (client-safe)
+export * from "./features/analytics-integrations";

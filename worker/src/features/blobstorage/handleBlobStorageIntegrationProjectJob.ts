@@ -11,6 +11,7 @@ import {
   getObservationsForBlobStorageExport,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
+  getEventsForBlobStorageExport,
   getCurrentSpan,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -155,7 +156,7 @@ const processBlobStorageExport = async (config: {
   prefix?: string;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
-  table: "traces" | "observations" | "scores";
+  table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
 }) => {
   logger.info(
@@ -206,6 +207,13 @@ const processBlobStorageExport = async (config: {
         break;
       case "scores":
         dataStream = getScoresForBlobStorageExport(
+          config.projectId,
+          config.minTimestamp,
+          config.maxTimestamp,
+        );
+        break;
+      case "observations_v2": // observations_v2 is the events table
+        dataStream = getEventsForBlobStorageExport(
           config.projectId,
           config.minTimestamp,
           config.maxTimestamp,
@@ -347,25 +355,56 @@ export const handleBlobStorageIntegrationProjectJob = async (
       fileType: blobStorageIntegration.fileType,
     };
 
-    // Check if this project should only export traces
+    // Check if this project should only export traces (legacy behavior via env var)
     const isTraceOnlyProject =
       env.LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS.includes(
         projectId,
       );
 
     if (isTraceOnlyProject) {
-      // Only process traces table for projects in the trace-only list
+      // Only process traces table for projects in the trace-only list (legacy behavior)
       logger.info(
-        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export, skipping observations and scores`,
+        `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
       );
       await processBlobStorageExport({ ...executionConfig, table: "traces" });
     } else {
-      // Process all tables for projects not in the trace-only list
-      await Promise.all([
-        processBlobStorageExport({ ...executionConfig, table: "traces" }),
-        processBlobStorageExport({ ...executionConfig, table: "observations" }),
+      // Process tables based on exportSource setting
+      const processPromises: Promise<void>[] = [];
+
+      // Always include scores
+      processPromises.push(
         processBlobStorageExport({ ...executionConfig, table: "scores" }),
-      ]);
+      );
+
+      // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+      if (
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+      ) {
+        processPromises.push(
+          processBlobStorageExport({ ...executionConfig, table: "traces" }),
+          processBlobStorageExport({
+            ...executionConfig,
+            table: "observations",
+          }),
+        );
+      }
+
+      // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+      // events are stored in the observations_v2 directory in blob storage
+      if (
+        blobStorageIntegration.exportSource === "EVENTS" ||
+        blobStorageIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+      ) {
+        processPromises.push(
+          processBlobStorageExport({
+            ...executionConfig,
+            table: "observations_v2",
+          }),
+        );
+      }
+
+      await Promise.all(processPromises);
     }
 
     // Determine if we've caught up with present-day data
