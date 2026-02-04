@@ -49,6 +49,7 @@ export const events = {
     "permalink_visit",
     "update_name",
     "search_views",
+    "system_preset_selected",
   ],
   score: [
     "create",
