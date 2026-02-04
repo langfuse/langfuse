@@ -1423,6 +1423,55 @@ export const getEventsGroupedByTraceName = async (
 };
 
 /**
+ * Get grouped trace tags from events table
+ * Used for filter options
+ *
+ * NOTE: Uses raw SQL instead of EventsAggQueryBuilder because:
+ * - arrayJoin() explodes arrays into rows, requiring DISTINCT (not GROUP BY)
+ * - EventsAggQueryBuilder always emits GROUP BY, which changes semantics
+ * - We want unique tag values, not tag occurrence counts
+ */
+export const getEventsGroupedByTraceTags = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const query = `
+    SELECT DISTINCT arrayJoin(e.tags) as tag
+    FROM events e
+    WHERE e.project_id = {projectId: String}
+    AND e.is_deleted = 0
+    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
+    AND notEmpty(e.tags)
+    ORDER BY tag ASC
+    LIMIT 1000
+  `;
+
+  return measureAndReturn({
+    operationName: "getEventsGroupedByTraceTags",
+    projectId,
+    input: { params: { projectId, ...appliedEventsFilter.params } },
+    fn: async (input) => {
+      return queryClickhouse<{ tag: string }>({
+        query,
+        params: input.params,
+        tags: {
+          feature: "tracing",
+          type: "events",
+          kind: "analytic",
+          projectId,
+        },
+      });
+    },
+  });
+};
+
+/**
  * Get grouped prompt names from events table
  * Used for filter options
  */
@@ -2383,6 +2432,44 @@ export const hasAnyUserFromEventsTable = async (
       type: "events",
       kind: "hasAny",
       projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+/**
+ * Check if any session exists in events table
+ * Filters for non-empty session_id
+ */
+export const hasAnySessionFromEventsTable = async (
+  projectId: string,
+): Promise<boolean> => {
+  const query = `
+    SELECT 1
+    FROM events
+    WHERE project_id = {projectId: String}
+    AND session_id IS NOT NULL
+    AND session_id != ''
+    AND is_deleted = 0
+    LIMIT 1
+  `;
+
+  const rows = await measureAndReturn({
+    operationName: "hasAnySessionFromEventsTable",
+    projectId,
+    input: { params: { projectId } },
+    fn: async (input) => {
+      return queryClickhouse<{ 1: number }>({
+        query,
+        params: input.params,
+        tags: {
+          feature: "sessions",
+          type: "events",
+          kind: "hasAny",
+          projectId,
+        },
+      });
     },
   });
 

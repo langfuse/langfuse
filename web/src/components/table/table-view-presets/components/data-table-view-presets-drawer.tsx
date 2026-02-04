@@ -52,7 +52,7 @@ import {
   type TableViewPresetTableName,
   type TableViewPresetDomain,
 } from "@langfuse/shared";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -78,6 +78,33 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import isEqual from "lodash/isEqual";
+
+/**
+ * Prefix for system preset IDs. These are page-specific presets defined in code
+ * (not stored in DB). Using this prefix prevents DB lookups and allows special handling.
+ * Convention: `__langfuse_{preset_name}__`
+ */
+export const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
+
+/** Check if a view ID is a system preset (defined in code, not stored in DB) */
+export const isSystemPresetId = (id: string | undefined | null): boolean =>
+  !!id?.startsWith(SYSTEM_PRESET_ID_PREFIX);
+
+/** Recursively remove undefined values for consistent comparison */
+function normalizeForComparison<T>(obj: T): T {
+  if (Array.isArray(obj)) {
+    return obj.map(normalizeForComparison) as T;
+  }
+  if (obj !== null && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, normalizeForComparison(v)]),
+    ) as T;
+  }
+  return obj;
+}
 
 interface SystemPreset {
   id: string;
@@ -92,6 +119,13 @@ const SYSTEM_PRESETS: { DEFAULT: SystemPreset } = {
     isSystem: true,
   },
 };
+
+export interface SystemFilterPreset {
+  id: string;
+  name: string;
+  description?: string;
+  filters: FilterState;
+}
 
 interface TableViewPresetsDrawerProps {
   viewConfig: {
@@ -110,6 +144,8 @@ interface TableViewPresetsDrawerProps {
     columnVisibility: VisibilityState;
     searchQuery: string;
   };
+  /** Page-specific system filter presets (e.g. "Last Generation in Trace") */
+  systemFilterPresets?: SystemFilterPreset[];
 }
 
 function formatOrderBy(orderBy?: OrderByState) {
@@ -119,6 +155,7 @@ function formatOrderBy(orderBy?: OrderByState) {
 export function TableViewPresetsDrawer({
   viewConfig,
   currentState,
+  systemFilterPresets,
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
@@ -150,9 +187,29 @@ export function TableViewPresetsDrawer({
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
-  const selectedViewName = TableViewPresetsList?.find(
-    (view) => view.id === selectedViewId,
-  )?.name;
+  const selectedViewName = useMemo(() => {
+    // Check system filter presets first
+    const systemPreset = systemFilterPresets?.find(
+      (p) => p.id === selectedViewId,
+    );
+    if (systemPreset) {
+      // Normalize both to handle missing vs undefined property mismatch
+      const normalizedCurrent = normalizeForComparison(currentState.filters);
+      const normalizedPreset = normalizeForComparison(systemPreset.filters);
+      // If filters have been modified from the preset, show "Saved Views" instead
+      if (!isEqual(normalizedCurrent, normalizedPreset)) {
+        return undefined;
+      }
+      return systemPreset.name;
+    }
+    // Then check user presets
+    return TableViewPresetsList?.find((v) => v.id === selectedViewId)?.name;
+  }, [
+    selectedViewId,
+    systemFilterPresets,
+    TableViewPresetsList,
+    currentState.filters,
+  ]);
 
   const allViewNames = useMemo(
     () => TableViewPresetsList?.map((view) => ({ value: view.name })) ?? [],
@@ -196,6 +253,32 @@ export function TableViewPresetsDrawer({
       );
     }
   };
+
+  const handleSelectSystemFilterPreset = useCallback(
+    (preset: SystemFilterPreset) => {
+      capture("saved_views:system_preset_selected", {
+        tableName,
+        presetId: preset.id,
+      });
+      handleSetViewId(preset.id);
+      applyViewState({
+        id: preset.id,
+        name: preset.name,
+        filters: preset.filters,
+        columnOrder: [],
+        columnVisibility: {},
+        orderBy: null,
+        searchQuery: "",
+        tableName,
+        projectId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: "",
+        createdByUser: null,
+      } as TableViewPresetDomain);
+    },
+    [capture, tableName, handleSetViewId, applyViewState, projectId],
+  );
 
   const handleCreateView = (createdView: { name: string }) => {
     capture("saved_views:create", {
@@ -352,25 +435,63 @@ export function TableViewPresetsDrawer({
               <CommandList className="max-h-[calc(100vh-150px)]">
                 <CommandEmpty>No saved table views found</CommandEmpty>
                 <CommandGroup className="pb-0">
-                  {/* System Preset: Langfuse Default */}
-                  <CommandItem
-                    key={SYSTEM_PRESETS.DEFAULT.id}
-                    onSelect={() => handleSelectView(SYSTEM_PRESETS.DEFAULT.id)}
-                    className={cn(
-                      "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
-                      selectedViewId === null && "bg-muted font-medium",
-                    )}
-                    title="Reflects your current table settings without applying any saved custom table views"
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {SYSTEM_PRESETS.DEFAULT.name}
-                      </span>
-                      <span className="w-fit pl-0 text-xs text-muted-foreground">
-                        Your working view
-                      </span>
-                    </div>
-                  </CommandItem>
+                  {/* System Preset: Langfuse Default - hidden when page-specific presets exist */}
+                  {!systemFilterPresets?.length && (
+                    <CommandItem
+                      key={SYSTEM_PRESETS.DEFAULT.id}
+                      onSelect={() =>
+                        handleSelectView(SYSTEM_PRESETS.DEFAULT.id)
+                      }
+                      className={cn(
+                        "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                        selectedViewId === null && "bg-muted font-medium",
+                      )}
+                      title="Reflects your current table settings without applying any saved custom table views"
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {SYSTEM_PRESETS.DEFAULT.name}
+                        </span>
+                        <span className="w-fit pl-0 text-xs text-muted-foreground">
+                          Your working view
+                        </span>
+                      </div>
+                    </CommandItem>
+                  )}
+
+                  {/* Page-specific System Filter Presets */}
+                  {systemFilterPresets?.map((preset) => (
+                    <CommandItem
+                      key={preset.id}
+                      onSelect={() => handleSelectSystemFilterPreset(preset)}
+                      className={cn(
+                        "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
+                        selectedViewId === preset.id &&
+                          isEqual(
+                            normalizeForComparison(currentState.filters),
+                            normalizeForComparison(preset.filters),
+                          ) &&
+                          "bg-muted font-medium",
+                      )}
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">
+                          {preset.name}
+                        </span>
+                        {preset.description && (
+                          <span className="w-fit pl-0 text-xs text-muted-foreground">
+                            {preset.description}
+                          </span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+
+                  {/* Separator between system and user presets */}
+                  {systemFilterPresets?.length &&
+                  TableViewPresetsList?.length ? (
+                    <Separator className="my-2" />
+                  ) : null}
 
                   {/* User Presets */}
                   {TableViewPresetsList?.map((view) => (
