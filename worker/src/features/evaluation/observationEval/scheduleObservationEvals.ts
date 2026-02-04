@@ -9,7 +9,7 @@ import {
   EvalTargetObject,
   JobExecutionStatus,
   type FilterState,
-  createObservationEvalFieldMapper,
+  mapEventEvalFilterColumnIdToField,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 
@@ -164,8 +164,9 @@ function evaluateFilter(
     !Array.isArray(filterConditions) ||
     filterConditions.length === 0;
 
+  // Map filter column IDs to observation field values for in-memory filtering
   const fieldMapper = (obs: ObservationForEval, column: string) =>
-    createObservationEvalFieldMapper(obs, column);
+    mapEventEvalFilterColumnIdToField(obs, column);
 
   // Use InMemoryFilterService to evaluate filter if there are conditions
   const isFilterMatch = isEmptyFilter

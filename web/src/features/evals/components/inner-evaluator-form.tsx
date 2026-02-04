@@ -35,6 +35,7 @@ import {
   type ExperimentEvalOptions,
   experimentEvalFilterColsWithOptions,
   type ColumnDefinition,
+  type ObservationEvalFilterColumnIdentifiers,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -164,9 +165,9 @@ const fieldHasJsonSelectorOption = (
 
 const propagationRequiredColumns = new Set([
   "release",
-  "trace_name",
-  "user_id",
-  "session_id",
+  "traceName",
+  "userId",
+  "sessionId",
   "tags",
 ]);
 
@@ -495,7 +496,6 @@ export const InnerEvaluatorForm = (props: {
 
   const experimentEvalFilterOptions: ExperimentEvalOptions = useMemo(() => {
     return {
-      // Reuse trace filter options (observations share type, tags with traces)
       experimentDatasetId: datasetFilterOptions?.datasetId,
     };
   }, [datasetFilterOptions]);

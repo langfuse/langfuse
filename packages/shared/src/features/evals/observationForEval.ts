@@ -74,7 +74,7 @@ export function convertEventRecordToObservationForEval(
   return observationForEvalSchema.parse(record);
 }
 
-type ObservationEvalFilterColumnIdentifiers =
+export type ObservationEvalFilterColumnIdentifiers =
   /** Column identifier (must match an ObservationForEval field name) */
   keyof Pick<
     ObservationForEval,
@@ -292,7 +292,7 @@ export function experimentEvalFilterColsWithOptions(
  * @param column - The camelCase column ID from filter definitions
  * @returns The value from the observation object
  */
-export function createObservationEvalFieldMapper(
+export function mapEventEvalFilterColumnIdToField(
   observation: ObservationForEval,
   column: string,
 ) {
