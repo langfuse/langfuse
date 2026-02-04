@@ -5,6 +5,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/src/components/ui/form";
 import {
   Select,
@@ -28,8 +29,11 @@ import { Button } from "@/src/components/ui/button";
 import { Info, CircleCheck } from "lucide-react";
 import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { api } from "@/src/utils/api";
+import { format } from "date-fns";
 
 export const DatasetStep: React.FC<DatasetStepProps> = ({
+  projectId,
   formState,
   datasetState,
   promptInfo,
@@ -42,6 +46,17 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
     validationResult,
   } = datasetState;
   const { selectedPromptName, selectedPromptVersion } = promptInfo;
+
+  // Fetch dataset versions when a dataset is selected
+  const { data: datasetVersions } = api.datasets.listDatasetVersions.useQuery(
+    {
+      projectId,
+      datasetId: selectedDatasetId || "",
+    },
+    {
+      enabled: !!selectedDatasetId,
+    },
+  );
 
   return (
     <div className="space-y-6">
@@ -116,6 +131,52 @@ export const DatasetStep: React.FC<DatasetStepProps> = ({
           </FormItem>
         )}
       />
+
+      {selectedDatasetId && datasetVersions && datasetVersions.length > 0 && (
+        <FormField
+          control={form.control}
+          name="datasetVersion"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Dataset Version (Optional)</FormLabel>
+              <Select
+                onValueChange={(value) => {
+                  if (value === "latest") {
+                    field.onChange(undefined);
+                  } else {
+                    field.onChange(new Date(value));
+                  }
+                }}
+                value={field.value ? field.value.toISOString() : "latest"}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Latest version" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="latest">
+                    Latest version (default)
+                  </SelectItem>
+                  {datasetVersions.map((version) => (
+                    <SelectItem
+                      key={version.toISOString()}
+                      value={version.toISOString()}
+                    >
+                      {format(version, "MMM d, yyyy 'at' h:mm a")} (UTC)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Run the experiment using the dataset state at a specific point
+                in time. Defaults to the latest version.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
 
       {selectedDatasetId && (
         <>
