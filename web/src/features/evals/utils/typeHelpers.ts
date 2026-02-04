@@ -61,6 +61,10 @@ export const isTraceOrEventTarget = (targetObject: string): boolean => {
   );
 };
 
+export const isTraceOrDatasetObject = (object: string): boolean => {
+  return object === "trace" || object === "dataset_item";
+};
+
 export const mapLegacyToModernTarget = (
   legacyTarget: string,
 ): EvalTargetObjectType => {

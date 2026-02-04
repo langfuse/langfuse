@@ -1,4 +1,4 @@
-import { type UseFormReturn, useFieldArray, useForm } from "react-hook-form";
+import { type UseFormReturn, useForm } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -10,28 +10,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import {
   tracesTableColsWithOptions,
-  evalTraceTableCols,
-  evalDatasetFormFilterCols,
   singleFilter,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
   type availableDatasetEvalVariables,
-  observationEvalVariableColumns,
   observationEvalFilterColsWithOptions,
   experimentEvalFilterColsWithOptions,
   ColumnDefinition,
-  ObservationType,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -48,44 +37,26 @@ import {
 import { useRouter } from "next/router";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { cn } from "@/src/utils/tailwind";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   evalConfigFormSchema,
   type EvalFormType,
-  fieldHasJsonSelectorOption,
   getTargetDisplayName,
   inferDefaultMapping,
-  isTraceOrDatasetObject,
-  isTraceTarget,
   type LangfuseObject,
-  type VariableMapping,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { EvalTargetObject } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
-import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
 import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
-import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
-import {
-  type PartialConfig,
-  type EvalTarget,
-} from "@/src/features/evals/types";
-import { Switch } from "@/src/components/ui/switch";
+import { type PartialConfig } from "@/src/features/evals/types";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import {
-  EvaluationPromptPreview,
-  getVariableColor,
-} from "@/src/features/evals/components/evaluation-prompt-preview";
 import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
@@ -106,6 +77,7 @@ import {
   isEventTarget,
   isExperimentTarget,
   isLegacyEvalTarget,
+  isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   useUserFacingTarget,
@@ -116,6 +88,7 @@ import {
   DEFAULT_TRACE_FILTER,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
+import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -276,9 +249,7 @@ export const InnerEvaluatorForm = (props: {
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
-  const [showPreview, setShowPreview] = useState(false);
   const router = useRouter();
-  const traceId = router.query.traceId as string;
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
 
   // Destructure eval capabilities passed from parent
@@ -348,31 +319,6 @@ export const InnerEvaluatorForm = (props: {
     },
   }) as UseFormReturn<EvalFormType>;
 
-  const shouldFetch = !props.disabled && isTraceTarget(form.watch("target"));
-
-  // Keep legacy hook for now - provides observationTypeToNames needed for form dropdowns
-  const { observationTypeToNames, traceWithObservations, isLoading } =
-    useEvalConfigMappingData(props.projectId, form, traceId, shouldFetch);
-
-  // Convert to EvalTarget format for preview component
-  const target: EvalTarget | null = traceWithObservations
-    ? {
-        type: "trace" as const,
-        id: traceWithObservations.id,
-        data: traceWithObservations,
-      }
-    : null;
-
-  useEffect(() => {
-    if (isTraceTarget(form.getValues("target")) && !props.disabled) {
-      setShowPreview(true);
-    } else {
-      // For dataset, event, experiment targets, disable preview
-      setShowPreview(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("target"), props.disabled]);
-
   useEffect(() => {
     if (props.evalTemplate && form.getValues("mapping").length === 0) {
       form.setValue(
@@ -385,11 +331,6 @@ export const InnerEvaluatorForm = (props: {
       form.setValue("scoreName", `${props.evalTemplate.name}`);
     }
   }, [form, props.evalTemplate]);
-
-  const { fields } = useFieldArray({
-    control: form.control,
-    name: "mapping",
-  });
 
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
@@ -512,35 +453,55 @@ export const InnerEvaluatorForm = (props: {
       });
   }
 
-  const mappingControlButtons = (
-    <div className="flex items-center gap-2">
-      {isTraceTarget(form.watch("target")) && !props.disabled && (
-        <>
-          <span className="text-xs text-muted-foreground">Show Preview</span>
-          <Switch
-            checked={showPreview}
-            onCheckedChange={setShowPreview}
-            disabled={props.disabled}
-          />
-          {showPreview &&
-            (target ? (
-              <DetailPageNav
-                currentId={target.id}
-                listKey="traces"
-                path={(entry) =>
-                  `/project/${props.projectId}/evals/new?evaluator=${props.evalTemplate.id}&traceId=${entry.id}`
-                }
-              />
-            ) : (
-              <div className="flex flex-row gap-1">
-                <Skeleton className="h-8 w-[54px]" />
-                <Skeleton className="h-8 w-[54px]" />
-              </div>
-            ))}
-        </>
-      )}
-    </div>
-  );
+  function handleAndResolveTarget(value: string) {
+    const newUserFacingTarget = value as
+      | "trace"
+      | "event"
+      | "offline-experiment";
+
+    if (newUserFacingTarget === userFacingTarget) {
+      return;
+    }
+
+    // Show dialog when clicking trace if user has no legacy evals
+    if (
+      newUserFacingTarget === "trace" &&
+      !props.evalCapabilities.hasLegacyEvals &&
+      props.mode !== "edit"
+    ) {
+      setShowTraceConfirmDialog(true);
+      return;
+    }
+
+    // Update user-facing target
+    setUserFacingTarget(newUserFacingTarget);
+
+    // Determine the actual target based on selection
+    let actualTarget: EvalTargetObject;
+    if (newUserFacingTarget === "trace") {
+      actualTarget = EvalTargetObject.TRACE;
+    } else if (newUserFacingTarget === "event") {
+      actualTarget = EvalTargetObject.EVENT;
+    } else {
+      // offline-experiment
+      actualTarget = useOtelDataForExperiment
+        ? EvalTargetObject.EXPERIMENT
+        : EvalTargetObject.DATASET;
+    }
+
+    // Transform variable mapping for new target type
+    const currentMapping = form.getValues("mapping");
+    const newMapping = targetState.transformMapping(
+      currentMapping,
+      actualTarget,
+    );
+
+    // Update form state
+    form.setValue("filter", []);
+    form.setValue("mapping", newMapping);
+    setAvailableVariables(targetState.getAvailableVariables(actualTarget));
+    return actualTarget;
+  }
 
   const formBody = (
     <div className="grid gap-4">
@@ -586,54 +547,7 @@ export const InnerEvaluatorForm = (props: {
                       <Tabs
                         value={userFacingTarget}
                         onValueChange={(value) => {
-                          const newUserFacingTarget = value as
-                            | "trace"
-                            | "event"
-                            | "offline-experiment";
-
-                          if (newUserFacingTarget === userFacingTarget) {
-                            return;
-                          }
-
-                          // Show dialog when clicking trace if user has no legacy evals
-                          if (
-                            newUserFacingTarget === "trace" &&
-                            !props.evalCapabilities.hasLegacyEvals &&
-                            props.mode !== "edit"
-                          ) {
-                            setShowTraceConfirmDialog(true);
-                            return;
-                          }
-
-                          // Update user-facing target
-                          setUserFacingTarget(newUserFacingTarget);
-
-                          // Determine the actual target based on selection
-                          let actualTarget: EvalTargetObject;
-                          if (newUserFacingTarget === "trace") {
-                            actualTarget = EvalTargetObject.TRACE;
-                          } else if (newUserFacingTarget === "event") {
-                            actualTarget = EvalTargetObject.EVENT;
-                          } else {
-                            // offline-experiment
-                            actualTarget = useOtelDataForExperiment
-                              ? EvalTargetObject.EXPERIMENT
-                              : EvalTargetObject.DATASET;
-                          }
-
-                          // Transform variable mapping for new target type
-                          const currentMapping = form.getValues("mapping");
-                          const newMapping = targetState.transformMapping(
-                            currentMapping,
-                            actualTarget,
-                          );
-
-                          // Update form state
-                          form.setValue("filter", []);
-                          form.setValue("mapping", newMapping);
-                          setAvailableVariables(
-                            targetState.getAvailableVariables(actualTarget),
-                          );
+                          const actualTarget = handleAndResolveTarget(value);
                           field.onChange(actualTarget);
                         }}
                       >
@@ -992,517 +906,15 @@ export const InnerEvaluatorForm = (props: {
           </div>
         </Card>
       )}
-      <Card className="min-w-0 max-w-full p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-lg font-medium">Variable mapping</span>
-        </div>
-        {isTraceTarget(form.watch("target")) && !props.disabled && (
-          <FormDescription>
-            Preview of the evaluation prompt with the variables replaced with
-            the first matched trace data subject to the filters.
-          </FormDescription>
-        )}
-        <div className="flex max-w-full flex-col gap-4">
-          <FormField
-            control={form.control}
-            name="mapping"
-            render={() => (
-              <>
-                <div
-                  className={cn(
-                    "my-2 flex max-w-full flex-col gap-2",
-                    !props.shouldWrapVariables && "lg:flex-row",
-                  )}
-                >
-                  {showPreview ? (
-                    target ? (
-                      <EvaluationPromptPreview
-                        evalTemplate={props.evalTemplate}
-                        target={target}
-                        variableMapping={form.watch("mapping")}
-                        isLoading={isLoading}
-                        className={cn(
-                          "min-h-48 bg-muted/50",
-                          !props.shouldWrapVariables && "lg:w-2/3",
-                        )}
-                        controlButtons={mappingControlButtons}
-                      />
-                    ) : (
-                      <div className="flex max-h-full min-h-48 w-full flex-col gap-1 bg-muted/50 lg:w-2/3">
-                        <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
-                          <div className="flex flex-row items-center gap-2">
-                            Evaluation Prompt Preview
-                            <Skeleton className="h-[25px] w-[63px]" />
-                          </div>
-                          <div className="flex justify-end">
-                            {mappingControlButtons}
-                          </div>
-                        </div>
-                        <div className="flex h-full w-full flex-1 items-center justify-center rounded border">
-                          <p className="text-center text-sm text-muted-foreground">
-                            No trace data found, please adjust filters or switch
-                            to not show preview.
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <JSONView
-                      title={"Evaluation Prompt"}
-                      json={props.evalTemplate.prompt ?? null}
-                      className={cn(
-                        "min-h-48 bg-muted/50",
-                        !props.shouldWrapVariables && "lg:w-2/3",
-                      )}
-                      codeClassName="flex-1"
-                      collapseStringsAfterLength={null}
-                      controlButtons={mappingControlButtons}
-                    />
-                  )}
-                  <div
-                    className={cn(
-                      "flex flex-col gap-2",
-                      !props.shouldWrapVariables && "lg:w-1/3",
-                    )}
-                  >
-                    {isLegacyEvalTarget(form.watch("target")) // Complex variable mapping for trace/dataset targets (legacy)
-                      ? fields.map((mappingField, index) => (
-                          <Card className="flex flex-col gap-2 p-4" key={index}>
-                            <div
-                              className={cn(
-                                "text-sm font-semibold",
-                                getVariableColor(index),
-                              )}
-                            >
-                              {"{{"}
-                              {mappingField.templateVariable}
-                              {"}}"}
-                              <DocPopup
-                                description={
-                                  "Variable in the template to be replaced with the mapped data."
-                                }
-                                href={
-                                  "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                }
-                              />
-                            </div>
-                            <FormField
-                              control={form.control}
-                              key={`${mappingField.id}-langfuseObject`}
-                              name={`mapping.${index}.langfuseObject`}
-                              render={({ field }) => (
-                                <div className="flex items-center gap-2">
-                                  <VariableMappingDescription
-                                    title="Object"
-                                    description={
-                                      "Langfuse object to retrieve the data from."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
-                                  />
-                                  <FormItem className="w-2/3">
-                                    <FormControl>
-                                      <Select
-                                        disabled={props.disabled}
-                                        defaultValue={field.value}
-                                        onValueChange={(value) => {
-                                          field.onChange(value);
-                                          form.setValue(
-                                            `mapping.${index}.objectName`,
-                                            undefined,
-                                          );
-                                        }}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {availableVariables.map(
-                                            (evalObject) => (
-                                              <SelectItem
-                                                value={evalObject.id}
-                                                key={evalObject.id}
-                                              >
-                                                {evalObject.display}
-                                              </SelectItem>
-                                            ),
-                                          )}
-                                        </SelectContent>
-                                      </Select>
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                </div>
-                              )}
-                            />
-
-                            {!isTraceOrDatasetObject(
-                              form.watch(`mapping.${index}.langfuseObject`),
-                            ) ? (
-                              <FormField
-                                control={form.control}
-                                key={`${mappingField.id}-objectName`}
-                                name={`mapping.${index}.objectName`}
-                                render={({ field }) => {
-                                  const type = String(
-                                    form.watch(
-                                      `mapping.${index}.langfuseObject`,
-                                    ),
-                                  ).toUpperCase() as ObservationType;
-                                  const nameOptions = Array.from(
-                                    observationTypeToNames.get(type) ?? [],
-                                  );
-                                  const isCustomOption =
-                                    field.value === "custom" ||
-                                    (field.value &&
-                                      !nameOptions.includes(field.value));
-                                  return (
-                                    <div className="flex items-center gap-2">
-                                      <VariableMappingDescription
-                                        title={"Object Name"}
-                                        description={
-                                          "Name of the Langfuse object to retrieve the data from."
-                                        }
-                                        href={
-                                          "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                        }
-                                      />
-                                      <FormItem className="w-2/3">
-                                        <FormControl>
-                                          {isCustomOption ? (
-                                            <div className="flex flex-col gap-2">
-                                              <Select
-                                                onValueChange={(value) => {
-                                                  if (value !== "custom") {
-                                                    field.onChange(value);
-                                                  }
-                                                }}
-                                                value="custom"
-                                                disabled={props.disabled}
-                                              >
-                                                <SelectTrigger>
-                                                  <SelectValue>
-                                                    Enter name...
-                                                  </SelectValue>
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  {nameOptions?.map((name) => (
-                                                    <SelectItem
-                                                      key={name}
-                                                      value={name}
-                                                    >
-                                                      {name}
-                                                    </SelectItem>
-                                                  ))}
-                                                  <SelectItem
-                                                    key="custom"
-                                                    value="custom"
-                                                  >
-                                                    Enter name...
-                                                  </SelectItem>
-                                                </SelectContent>
-                                              </Select>
-                                              <Input
-                                                value={
-                                                  field.value === "custom"
-                                                    ? ""
-                                                    : field.value || ""
-                                                }
-                                                onChange={(e) =>
-                                                  field.onChange(e.target.value)
-                                                }
-                                                placeholder="Enter langfuse object name"
-                                                disabled={props.disabled}
-                                              />
-                                            </div>
-                                          ) : (
-                                            <Select
-                                              {...field}
-                                              value={field.value ?? ""}
-                                              onValueChange={field.onChange}
-                                              disabled={props.disabled}
-                                            >
-                                              <SelectTrigger>
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                {nameOptions?.map((name) => (
-                                                  <SelectItem
-                                                    key={name}
-                                                    value={name}
-                                                  >
-                                                    {name}
-                                                  </SelectItem>
-                                                ))}
-                                                <SelectItem
-                                                  key="custom"
-                                                  value="custom"
-                                                >
-                                                  Enter name...
-                                                </SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          )}
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    </div>
-                                  );
-                                }}
-                              />
-                            ) : undefined}
-
-                            <FormField
-                              control={form.control}
-                              key={`${mappingField.id}-selectedColumnId`}
-                              name={`mapping.${index}.selectedColumnId`}
-                              render={({ field }) => (
-                                <div className="flex items-center gap-2">
-                                  <VariableMappingDescription
-                                    title={"Object Field"}
-                                    description={
-                                      "Field on the Langfuse object to insert into the template."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
-                                  />
-                                  <FormItem className="w-2/3">
-                                    <FormControl>
-                                      <Select
-                                        disabled={props.disabled}
-                                        defaultValue={field.value ?? undefined}
-                                        onValueChange={(value) => {
-                                          const availableColumns =
-                                            availableVariables.find(
-                                              (evalObject) =>
-                                                evalObject.id ===
-                                                form.watch(
-                                                  `mapping.${index}.langfuseObject`,
-                                                ),
-                                            )?.availableColumns;
-
-                                          const column = availableColumns?.find(
-                                            (column) => column.id === value,
-                                          );
-
-                                          field.onChange(column?.id);
-                                        }}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Object type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {availableVariables
-                                            .find(
-                                              (evalObject) =>
-                                                evalObject.id ===
-                                                form.watch(
-                                                  `mapping.${index}.langfuseObject`,
-                                                ),
-                                            )
-                                            ?.availableColumns.map((column) => (
-                                              <SelectItem
-                                                value={column.id}
-                                                key={column.id}
-                                              >
-                                                {column.name}
-                                              </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                      </Select>
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                </div>
-                              )}
-                            />
-                            {fieldHasJsonSelectorOption(
-                              form.watch(`mapping.${index}.selectedColumnId`),
-                            ) ? (
-                              <FormField
-                                control={form.control}
-                                key={`${mappingField.id}-jsonSelector`}
-                                name={`mapping.${index}.jsonSelector`}
-                                render={({ field }) => (
-                                  <div className="flex items-center gap-2">
-                                    <VariableMappingDescription
-                                      title={"JsonPath"}
-                                      description={
-                                        "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
-                                      }
-                                      href={
-                                        "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                      }
-                                    />
-                                    <FormItem className="w-2/3">
-                                      <FormControl>
-                                        <Input
-                                          {...field}
-                                          value={field.value ?? ""}
-                                          disabled={props.disabled}
-                                          placeholder="Optional"
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  </div>
-                                )}
-                              />
-                            ) : undefined}
-                          </Card>
-                        ))
-                      : // Simplified variable mapping for event/experiment targets
-                        fields.map((mappingField, index) => (
-                          <Card className="flex flex-col gap-2 p-4" key={index}>
-                            <div
-                              className={cn(
-                                "text-sm font-semibold",
-                                getVariableColor(index),
-                              )}
-                            >
-                              {"{{"}
-                              {mappingField.templateVariable}
-                              {"}}"}
-                              <DocPopup
-                                description={
-                                  "Variable in the template to be replaced with the mapped data."
-                                }
-                                href={
-                                  "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                }
-                              />
-                            </div>
-                            {props.hideAdvancedSettings && (
-                              <div className="flex items-center gap-2">
-                                <VariableMappingDescription
-                                  title="Object"
-                                  description="Type of object to retrieve the data from."
-                                  href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                />
-                                <div className="w-2/3">
-                                  <Input
-                                    value={
-                                      isEventTarget(form.watch("target"))
-                                        ? "Observation"
-                                        : "Experiment item"
-                                    }
-                                    disabled
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            <FormField
-                              control={form.control}
-                              key={`${mappingField.id}-selectedColumnId`}
-                              name={`mapping.${index}.selectedColumnId`}
-                              render={({ field }) => {
-                                // Filter columns based on target
-                                // For observations (event), exclude experiment-specific fields
-                                const availableColumns =
-                                  form.watch("target") ===
-                                  EvalTargetObject.EVENT
-                                    ? observationEvalVariableColumns.filter(
-                                        (col) =>
-                                          col.id !==
-                                          "experiment_item_expected_output",
-                                      )
-                                    : observationEvalVariableColumns;
-
-                                return (
-                                  <div className="flex items-center gap-2">
-                                    <VariableMappingDescription
-                                      title={"Object Field"}
-                                      description={
-                                        "Observation field to insert into the template."
-                                      }
-                                      href={
-                                        "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                      }
-                                    />
-                                    <FormItem className="w-2/3">
-                                      <FormControl>
-                                        <Select
-                                          disabled={props.disabled}
-                                          defaultValue={
-                                            field.value ?? undefined
-                                          }
-                                          onValueChange={field.onChange}
-                                        >
-                                          <SelectTrigger>
-                                            <SelectValue placeholder="Select field" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {availableColumns.map((column) => (
-                                              <SelectItem
-                                                value={column.id}
-                                                key={column.id}
-                                              >
-                                                {column.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  </div>
-                                );
-                              }}
-                            />
-                            {(form.watch(
-                              `mapping.${index}.selectedColumnId`,
-                            ) === "metadata" ||
-                              form.watch(
-                                `mapping.${index}.selectedColumnId`,
-                              ) === "input" ||
-                              form.watch(
-                                `mapping.${index}.selectedColumnId`,
-                              ) === "output" ||
-                              form.watch(
-                                `mapping.${index}.selectedColumnId`,
-                              ) === "experiment_item_expected_output") && (
-                              <FormField
-                                control={form.control}
-                                key={`${mappingField.id}-jsonSelector`}
-                                name={`mapping.${index}.jsonSelector`}
-                                render={({ field }) => (
-                                  <div className="flex items-center gap-2">
-                                    <VariableMappingDescription
-                                      title={"JsonPath"}
-                                      description={
-                                        "Optional selection: Use JsonPath syntax to select from a JSON object. If not selected, we will pass the entire object into the prompt."
-                                      }
-                                      href={
-                                        "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                      }
-                                    />
-                                    <FormItem className="w-2/3">
-                                      <FormControl>
-                                        <Input
-                                          {...field}
-                                          value={field.value ?? ""}
-                                          disabled={props.disabled}
-                                          placeholder="Optional"
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  </div>
-                                )}
-                              />
-                            )}
-                          </Card>
-                        ))}
-                  </div>
-                </div>
-                <FormMessage />
-              </>
-            )}
-          />
-        </div>
-      </Card>
+      <VariableMappingCard
+        projectId={props.projectId}
+        availableVariables={availableVariables}
+        evalTemplate={props.evalTemplate}
+        form={form}
+        disabled={props.disabled}
+        shouldWrapVariables={props.shouldWrapVariables}
+        hideAdvancedSettings={props.hideAdvancedSettings}
+      />
     </div>
   );
 

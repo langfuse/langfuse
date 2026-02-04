@@ -3,21 +3,9 @@ import {
   singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
-  EvalTargetObject,
-  LangfuseInternalTraceEnvironment,
-  ColumnDefinition,
 } from "@langfuse/shared";
 import { wipVariableMapping } from "@langfuse/shared";
-import { ColumnDefinitionWithAlert } from "@/src/features/filters/components/filter-builder";
-import {
-  COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
-  OUTPUT_MAPPING,
-} from "@/src/features/evals/utils/evaluator-constants";
-
-export const isTraceTarget = (target: string): boolean =>
-  target === EvalTargetObject.TRACE;
-export const isTraceOrDatasetObject = (object: string): boolean =>
-  object === EvalTargetObject.TRACE || object === "dataset_item";
+import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
 
 export const evalConfigFormSchema = z.object({
   scoreName: z.string(),
