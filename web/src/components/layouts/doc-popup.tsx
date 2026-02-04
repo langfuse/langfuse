@@ -7,43 +7,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 import { Portal } from "@radix-ui/react-hover-card";
 import { Info } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-
-const MarkdownContent = ({ children }: { children: string }) => (
-  <ReactMarkdown
-    remarkPlugins={[remarkGfm]}
-    components={{
-      a: ({ node: _node, ...props }) => {
-        const safeHref =
-          props.href && typeof props.href === "string"
-            ? props.href.match(/^(https?|mailto|tel):/)
-              ? props.href
-              : "#"
-            : "#";
-        return (
-          <a
-            {...props}
-            href={safeHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline decoration-primary/30 hover:decoration-primary"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {props.children}
-          </a>
-        );
-      },
-      p: ({ node: _node, ...props }) => (
-        <p {...props} className="mb-2 last:mb-0">
-          {props.children}
-        </p>
-      ),
-    }}
-  >
-    {children}
-  </ReactMarkdown>
-);
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -92,18 +55,14 @@ export default function DocPopup({
       </HoverCardTrigger>
       <Portal>
         <HoverCardContent>
-          {typeof description === "string" ? (
-            <div
-              className={cn(
-                "whitespace-break-spaces text-xs font-normal text-primary sm:pl-0",
-                className,
-              )}
-            >
-              <MarkdownContent>{description}</MarkdownContent>
-            </div>
-          ) : (
-            description
-          )}
+          <div
+            className={cn(
+              "whitespace-break-spaces text-xs font-normal text-primary sm:pl-0",
+              className,
+            )}
+          >
+            {description}
+          </div>
         </HoverCardContent>
       </Portal>
     </HoverCard>
@@ -122,13 +81,9 @@ export function Popup({ triggerContent, description }: PopupProps) {
         <div>{triggerContent}</div>
       </HoverCardTrigger>
       <HoverCardContent>
-        {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
-            <MarkdownContent>{description}</MarkdownContent>
-          </div>
-        ) : (
-          description
-        )}
+        <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
+          {description}
+        </div>
       </HoverCardContent>
     </HoverCard>
   );
