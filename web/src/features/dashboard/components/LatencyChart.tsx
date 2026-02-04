@@ -14,6 +14,9 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import {
   ModelSelectorPopover,
   useModelSelection,
@@ -101,6 +104,7 @@ export const GenerationLatencyChart = ({
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
     },
   );
 
@@ -172,7 +176,11 @@ export const GenerationLatencyChart = ({
             tabTitle: item.tabTitle,
             content: (
               <>
-                {!isEmptyTimeSeries({ data: item.data }) ? (
+                {latencies.isError ? (
+                  <ChartErrorView error={latencies.error} />
+                ) : isLoading || latencies.isPending ? (
+                  <ChartLoadingView />
+                ) : !isEmptyTimeSeries({ data: item.data }) ? (
                   <BaseTimeSeriesChart
                     className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
                     agg={agg}
@@ -181,9 +189,7 @@ export const GenerationLatencyChart = ({
                     valueFormatter={latencyFormatter}
                   />
                 ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || latencies.isPending}
-                  />
+                  <NoDataOrLoading isLoading={false} />
                 )}
               </>
             ),

@@ -6,6 +6,7 @@ import {
   CardTitle,
   CardFooter,
 } from "@/src/components/ui/card";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { api } from "@/src/utils/api";
 import {
   metricAggregations,
@@ -881,6 +882,7 @@ export function WidgetForm({
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
     },
   );
 

@@ -7,6 +7,8 @@ import {
 } from "@/src/features/query";
 import { type z } from "zod/v4";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
@@ -17,6 +19,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useRouter } from "next/router";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
@@ -134,6 +137,7 @@ export function DashboardWidget({
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
       enabled: !widget.isPending && Boolean(widget.data),
     },
   );
@@ -290,11 +294,12 @@ export function DashboardWidget({
           {/* Download button or loading indicator - always available */}
           {queryResult.isPending ? (
             <div
-              className="text-muted-foreground"
+              className="flex items-center gap-2 text-muted-foreground"
               aria-label="Loading chart data"
               title="Loading..."
             >
               <Loader2 size={16} className="animate-spin" />
+              <span className="text-sm">Loading</span>
             </div>
           ) : (
             <DownloadButton
@@ -312,33 +317,39 @@ export function DashboardWidget({
         {widget.data.description}
       </div>
       <div className="min-h-0 flex-1">
-        <Chart
-          chartType={widget.data.chartType}
-          data={transformedData}
-          rowLimit={
-            widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
-            widget.data.chartConfig.type === "BAR_TIME_SERIES"
-              ? 100
-              : (widget.data.chartConfig.row_limit ?? 100)
-          }
-          chartConfig={{
-            ...widget.data.chartConfig,
-            // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-            ...(widget.data.chartType === "PIVOT_TABLE" && {
-              dimensions: widget.data.dimensions.map((dim) => dim.field),
-              metrics: widget.data.metrics.map(
-                (metric) => `${metric.agg}_${metric.measure}`,
-              ),
-            }),
-          }}
-          sortState={
-            widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
-          }
-          onSortChange={
-            widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
-          }
-          isLoading={queryResult.isPending}
-        />
+        {queryResult.isPending ? (
+          <ChartLoadingView />
+        ) : queryResult.isError ? (
+          <ChartErrorView error={queryResult.error} />
+        ) : (
+          <Chart
+            chartType={widget.data.chartType}
+            data={transformedData}
+            rowLimit={
+              widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
+              widget.data.chartConfig.type === "BAR_TIME_SERIES"
+                ? 100
+                : (widget.data.chartConfig.row_limit ?? 100)
+            }
+            chartConfig={{
+              ...widget.data.chartConfig,
+              // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+              ...(widget.data.chartType === "PIVOT_TABLE" && {
+                dimensions: widget.data.dimensions.map((dim) => dim.field),
+                metrics: widget.data.metrics.map(
+                  (metric) => `${metric.agg}_${metric.measure}`,
+                ),
+              }),
+            }}
+            sortState={
+              widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
+            }
+            onSortChange={
+              widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
+            }
+            isLoading={false}
+          />
+        )}
       </div>
     </div>
   );

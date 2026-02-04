@@ -1,5 +1,6 @@
 import { api } from "@/src/utils/api";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
@@ -9,6 +10,8 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { useState } from "react";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
@@ -63,11 +66,8 @@ export const UserChart = ({
       query: userCostQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -89,11 +89,8 @@ export const UserChart = ({
       query: traceCountQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -157,55 +154,66 @@ export const UserChart = ({
     },
   ];
 
+  const hasError = user.isError || traces.isError;
+  const isPending = user.isPending || traces.isPending;
+
   return (
     <DashboardCard
       className={className}
       title="User consumption"
-      isLoading={isLoading || user.isPending}
+      isLoading={isLoading || isPending}
     >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                {item.data.length > 0 ? (
+      {hasError ? (
+        <ChartErrorView error={user.isError ? user.error : traces.error} />
+      ) : isPending ? (
+        <ChartLoadingView />
+      ) : (
+        <>
+          <TabComponent
+            tabs={data.map((item) => {
+              return {
+                tabTitle: item.tabTitle,
+                content: (
                   <>
-                    <TotalMetric
-                      metric={item.totalMetric}
-                      description={item.metricDescription}
-                    />
-                    <BarList
-                      data={item.data}
-                      valueFormatter={item.formatter}
-                      className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                      showAnimation={true}
-                      color={"indigo"}
-                    />
+                    {item.data.length > 0 ? (
+                      <>
+                        <TotalMetric
+                          metric={item.totalMetric}
+                          description={item.metricDescription}
+                        />
+                        <BarList
+                          data={item.data}
+                          valueFormatter={item.formatter}
+                          className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
+                          showAnimation={true}
+                          color={"indigo"}
+                        />
+                      </>
+                    ) : (
+                      <NoDataOrLoading
+                        isLoading={false}
+                        description="Consumption per user is tracked by passing their ids on traces."
+                        href="https://langfuse.com/docs/observability/features/users"
+                      />
+                    )}
                   </>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
-                    description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/observability/features/users"
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
-      />
-      <ExpandListButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={transformedCost.length}
-        maxLength={maxNumberOfEntries.collapsed}
-        expandText={
-          transformedCost.length > maxNumberOfEntries.expanded
-            ? `Show top ${maxNumberOfEntries.expanded}`
-            : "Show all"
-        }
-      />
+                ),
+              };
+            })}
+          />
+          <ExpandListButton
+            isExpanded={isExpanded}
+            setExpanded={setIsExpanded}
+            totalLength={transformedCost.length}
+            maxLength={maxNumberOfEntries.collapsed}
+            expandText={
+              transformedCost.length > maxNumberOfEntries.expanded
+                ? `Show top ${maxNumberOfEntries.expanded}`
+                : "Show all"
+            }
+          />
+        </>
+      )}
     </DashboardCard>
   );
 };

@@ -1,5 +1,6 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
@@ -7,6 +8,8 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
@@ -47,11 +50,8 @@ export const TracesBarListChart = ({
       query: totalTracesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -74,11 +74,8 @@ export const TracesBarListChart = ({
       query: tracesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -98,52 +95,65 @@ export const TracesBarListChart = ({
     ? transformedTraces.slice(0, maxNumberOfEntries.expanded)
     : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
 
+  const hasError = totalTraces.isError || traces.isError;
+  const isPending = totalTraces.isPending || traces.isPending;
+
   return (
     <DashboardCard
       className={className}
       title={"Traces"}
       description={null}
-      isLoading={isLoading || traces.isPending || totalTraces.isPending}
+      isLoading={isLoading || isPending}
     >
       <>
-        <TotalMetric
-          metric={compactNumberFormatter(
-            totalTraces.data?.[0]?.count_count
-              ? Number(totalTraces.data[0].count_count)
-              : 0,
-          )}
-          description={"Total traces tracked"}
-        />
-        {adjustedData.length > 0 ? (
+        {hasError ? (
+          <ChartErrorView
+            error={traces.isError ? traces.error : totalTraces.error}
+          />
+        ) : isPending ? (
+          <ChartLoadingView />
+        ) : (
           <>
-            <BarList
-              data={adjustedData}
-              valueFormatter={(number: number) =>
-                Intl.NumberFormat("en-US").format(number).toString()
+            <TotalMetric
+              metric={compactNumberFormatter(
+                totalTraces.data?.[0]?.count_count
+                  ? Number(totalTraces.data[0].count_count)
+                  : 0,
+              )}
+              description={"Total traces tracked"}
+            />
+            {adjustedData.length > 0 ? (
+              <>
+                <BarList
+                  data={adjustedData}
+                  valueFormatter={(number: number) =>
+                    Intl.NumberFormat("en-US").format(number).toString()
+                  }
+                  className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
+                  showAnimation={true}
+                  color={"indigo"}
+                />
+              </>
+            ) : (
+              <NoDataOrLoading
+                isLoading={false}
+                description="Traces contain details about LLM applications and can be created using the SDK."
+                href="https://langfuse.com/docs/get-started"
+              />
+            )}
+            <ExpandListButton
+              isExpanded={isExpanded}
+              setExpanded={setIsExpanded}
+              totalLength={transformedTraces.length}
+              maxLength={maxNumberOfEntries.collapsed}
+              expandText={
+                transformedTraces.length > maxNumberOfEntries.expanded
+                  ? `Show top ${maxNumberOfEntries.expanded}`
+                  : "Show all"
               }
-              className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-              showAnimation={true}
-              color={"indigo"}
             />
           </>
-        ) : (
-          <NoDataOrLoading
-            isLoading={isLoading || traces.isPending || totalTraces.isPending}
-            description="Traces contain details about LLM applications and can be created using the SDK."
-            href="https://langfuse.com/docs/get-started"
-          />
         )}
-        <ExpandListButton
-          isExpanded={isExpanded}
-          setExpanded={setIsExpanded}
-          totalLength={transformedTraces.length}
-          maxLength={maxNumberOfEntries.collapsed}
-          expandText={
-            transformedTraces.length > maxNumberOfEntries.expanded
-              ? `Show top ${maxNumberOfEntries.expanded}`
-              : "Show all"
-          }
-        />
       </>
     </DashboardCard>
   );

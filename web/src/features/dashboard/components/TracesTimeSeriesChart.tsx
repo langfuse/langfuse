@@ -1,5 +1,6 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
@@ -10,6 +11,8 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import {
   type QueryType,
@@ -53,11 +56,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
       query: tracesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -100,11 +100,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
       query: observationsQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -156,47 +153,58 @@ export const TracesAndObservationsTimeSeriesChart = ({
     },
   ];
 
+  const hasError = traces.isError || observations.isError;
+  const isPending = traces.isPending || observations.isPending;
+
   return (
     <DashboardCard
       className={className}
       title="Traces by time"
-      isLoading={isLoading || traces.isPending}
+      isLoading={isLoading || isPending}
       cardContentClassName="flex flex-col content-end "
     >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                <TotalMetric
-                  description={item.metricDescription}
-                  metric={
-                    item.totalMetric
-                      ? compactNumberFormatter(item.totalMetric)
-                      : compactNumberFormatter(0)
-                  }
-                />
-                {!isEmptyTimeSeries({ data: item.data }) ? (
-                  <BaseTimeSeriesChart
-                    className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                    agg={agg}
-                    data={item.data}
-                    connectNulls={true}
-                    chartType="area"
+      {hasError ? (
+        <ChartErrorView
+          error={traces.isError ? traces.error : observations.error}
+        />
+      ) : isPending ? (
+        <ChartLoadingView />
+      ) : (
+        <TabComponent
+          tabs={data.map((item) => {
+            return {
+              tabTitle: item.tabTitle,
+              content: (
+                <>
+                  <TotalMetric
+                    description={item.metricDescription}
+                    metric={
+                      item.totalMetric
+                        ? compactNumberFormatter(item.totalMetric)
+                        : compactNumberFormatter(0)
+                    }
                   />
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || traces.isPending}
-                    description="Traces contain details about LLM applications and can be created using the SDK."
-                    href="https://langfuse.com/docs/observability/overview"
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
-      />
+                  {!isEmptyTimeSeries({ data: item.data }) ? (
+                    <BaseTimeSeriesChart
+                      className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
+                      agg={agg}
+                      data={item.data}
+                      connectNulls={true}
+                      chartType="area"
+                    />
+                  ) : (
+                    <NoDataOrLoading
+                      isLoading={false}
+                      description="Traces contain details about LLM applications and can be created using the SDK."
+                      href="https://langfuse.com/docs/observability/overview"
+                    />
+                  )}
+                </>
+              ),
+            };
+          })}
+        />
+      )}
     </DashboardCard>
   );
 };
