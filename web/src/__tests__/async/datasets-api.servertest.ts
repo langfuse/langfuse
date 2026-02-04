@@ -1619,4 +1619,196 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     expect(deleteRes.status).toBe(200);
   }, 90000);
+
+  it("should support dataset versioning via version query parameter", async () => {
+    const datasetName = `versioned-dataset-${v4()}`;
+
+    // Create dataset
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+        description: "Dataset for version testing",
+      },
+      auth,
+    );
+    expect(dataset.status).toBe(200);
+
+    // Create initial dataset item
+    const item1 = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "versioned-item-1",
+        input: { value: "version 1" },
+        expectedOutput: { result: "v1" },
+      },
+      auth,
+    );
+    expect(item1.status).toBe(200);
+
+    // Capture timestamp after first item
+    const version1Timestamp = new Date();
+    await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+
+    // Update the item to create a new version
+    const item1Updated = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "versioned-item-1",
+        input: { value: "version 2" },
+        expectedOutput: { result: "v2" },
+      },
+      auth,
+    );
+    expect(item1Updated.status).toBe(200);
+
+    // Create second item after update
+    const item2 = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "versioned-item-2",
+        input: { value: "only in v2+" },
+      },
+      auth,
+    );
+    expect(item2.status).toBe(200);
+
+    // Test 1: Get dataset (version not included in Dataset object)
+    const latestDataset = await makeZodVerifiedAPICall(
+      GetDatasetV2Response,
+      "GET",
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+    expect(latestDataset.status).toBe(200);
+    expect(latestDataset.body.name).toBe(datasetName);
+
+    // Test 2: Get dataset items at version 1 (should have 1 item with v1 data)
+    const itemsV1 = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
+      "GET",
+      `/api/public/dataset-items?datasetName=${encodeURIComponent(datasetName)}&version=${version1Timestamp.toISOString()}`,
+      undefined,
+      auth,
+    );
+    expect(itemsV1.status).toBe(200);
+    expect(itemsV1.body.data).toHaveLength(1);
+    expect(itemsV1.body.data[0].id).toBe("versioned-item-1");
+    expect(itemsV1.body.data[0].input).toEqual({ value: "version 1" });
+    expect(itemsV1.body.data[0].expectedOutput).toEqual({ result: "v1" });
+
+    // Test 3: Get dataset items without version (should have 2 items, one updated)
+    const itemsLatest = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
+      "GET",
+      `/api/public/dataset-items?datasetName=${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+    expect(itemsLatest.status).toBe(200);
+    expect(itemsLatest.body.data).toHaveLength(2);
+    const updatedItem = itemsLatest.body.data.find(
+      (i) => i.id === "versioned-item-1",
+    );
+    expect(updatedItem?.input).toEqual({ value: "version 2" });
+    expect(updatedItem?.expectedOutput).toEqual({ result: "v2" });
+
+    // Test 4: Verify version parameter requires datasetName
+    const invalidVersion = await makeAPICall(
+      "GET",
+      `/api/public/dataset-items?version=${version1Timestamp.toISOString()}`,
+      undefined,
+      auth,
+    );
+    expect(invalidVersion.status).toBe(400); // Should fail validation
+  }, 90000);
+
+  it("should support creating experiment runs at specific dataset version", async () => {
+    const datasetName = `experiment-version-dataset-${v4()}`;
+    const runName = `experiment-run-${v4()}`;
+
+    // Create dataset
+    await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+        description: "Dataset for experiment version testing",
+      },
+      auth,
+    );
+
+    // Create initial dataset item
+    const item = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "experiment-item",
+        input: { text: "original" },
+      },
+      auth,
+    );
+    expect(item.status).toBe(200);
+
+    // Capture version timestamp
+    const experimentVersion = new Date();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Update item (creating new version)
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "experiment-item",
+        input: { text: "updated" },
+      },
+      auth,
+    );
+
+    // Create dataset run item with version
+    const runItem = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: item.body.id,
+        traceId: traceId,
+        datasetVersion: experimentVersion,
+        metadata: { test: "versioned experiment" },
+      },
+      auth,
+    );
+    expect(runItem.status).toBe(200);
+
+    // Verify the run was created with version in metadata
+    const dbRun = await prisma.datasetRuns.findFirst({
+      where: {
+        name: runName,
+        projectId: projectId,
+      },
+    });
+    expect(dbRun).not.toBeNull();
+    expect(dbRun?.metadata).toMatchObject({
+      test: "versioned experiment",
+      dataset_version: experimentVersion.toISOString(),
+    });
+  }, 90000);
 });

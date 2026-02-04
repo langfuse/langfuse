@@ -10,12 +10,14 @@ export const DatasetItemIOCell = ({
   datasetId,
   datasetItemId,
   io,
+  datasetItemVersion,
   singleLine = false,
 }: {
   projectId: string;
   datasetId: string;
   datasetItemId: string;
   io: "expectedOutput" | "input";
+  datasetItemVersion?: Date;
   singleLine?: boolean;
 }) => {
   const datasetItem = api.datasets.itemById.useQuery(
@@ -23,6 +25,7 @@ export const DatasetItemIOCell = ({
       projectId: projectId,
       datasetId: datasetId,
       datasetItemId: datasetItemId,
+      version: datasetItemVersion,
     },
     {
       trpc: {

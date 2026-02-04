@@ -23,6 +23,7 @@ export const DatasetRunItemSchema = z.object({
   datasetItemInput: jsonSchema,
   datasetItemExpectedOutput: jsonSchema,
   datasetItemMetadata: MetadataDomain,
+  datasetItemVersion: z.date().nullable(),
 });
 
 // Conditional type for dataset run item domain with optional IO
