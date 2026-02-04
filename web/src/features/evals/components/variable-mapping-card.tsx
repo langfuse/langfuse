@@ -6,9 +6,9 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import {
-  availableDatasetEvalVariables,
-  availableTraceEvalVariables,
-  EvalTemplate,
+  type availableDatasetEvalVariables,
+  type availableTraceEvalVariables,
+  type EvalTemplate,
   observationEvalVariableColumns,
 } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
@@ -16,7 +16,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { cn } from "@/src/utils/tailwind";
 import {
-  EvalFormType,
+  type EvalFormType,
   fieldHasJsonSelectorOption,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { EvalTargetObject } from "@langfuse/shared";
@@ -39,7 +39,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/src/components/ui/form";
-import { useFieldArray, UseFormReturn } from "react-hook-form";
+import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/ui/switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -101,14 +101,18 @@ export const VariableMappingCard = ({
           {showPreview &&
             (previewData ? (
               <DetailPageNav
-                currentId={previewData.observationId ?? previewData.traceId}
+                currentId={
+                  previewData.type === EvalTargetObject.EVENT
+                    ? previewData.observationId
+                    : previewData.traceId
+                }
                 listKey={
                   isEventTarget(form.watch("target"))
                     ? "observations"
                     : "traces"
                 }
                 path={() =>
-                  `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}&traceId=${previewData.traceId}${previewData.observationId ? `&observationId=${previewData.observationId}` : ""}`
+                  `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}&traceId=${previewData.traceId}${previewData.type === EvalTargetObject.EVENT ? `&observationId=${previewData.observationId}` : ""}`
                 }
               />
             ) : (

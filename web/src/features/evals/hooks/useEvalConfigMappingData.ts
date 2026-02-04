@@ -3,7 +3,7 @@ import { EvalTargetObject, type ObservationType } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
 import { useRouter } from "next/router";
 import {
-  PreviewData,
+  type PreviewData,
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 

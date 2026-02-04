@@ -1,4 +1,4 @@
-import { ItemBadge, LangfuseItemType } from "@/src/components/ItemBadge";
+import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
@@ -6,11 +6,8 @@ import { cn } from "@/src/utils/tailwind";
 import { EvalTargetObject, type EvalTemplate } from "@langfuse/shared";
 import Link from "next/link";
 import { Fragment, useMemo } from "react";
-import {
-  isEventTarget,
-  isTraceTarget,
-} from "@/src/features/evals/utils/typeHelpers";
-import { PreviewData } from "@/src/features/evals/hooks/usePreviewData";
+import { isTraceTarget } from "@/src/features/evals/utils/typeHelpers";
+import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 
 const VARIABLE_COLORS = [
   "text-primary-accent",

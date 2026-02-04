@@ -1,5 +1,5 @@
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
-import { api, RouterOutputs } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { EvalTargetObject } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
