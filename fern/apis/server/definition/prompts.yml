@@ -99,15 +99,17 @@ types:
         docs: Config object of the most recent prompt version that matches the filters (if any are provided)
 
   CreatePromptRequest:
+    discriminated: false
     union:
-      chat: CreateChatPromptRequest
-      text: CreateTextPromptRequest
+      - CreateChatPromptRequest
+      - CreateTextPromptRequest
 
   CreateChatPromptRequest:
     properties:
       name: string
       prompt: list<ChatMessageWithPlaceholders>
       config: optional<unknown>
+      type: CreateChatPromptType
       labels:
         type: optional<list<string>>
         docs: List of deployment labels of this prompt version.
@@ -123,6 +125,7 @@ types:
       name: string
       prompt: string
       config: optional<unknown>
+      type: optional<CreateTextPromptType>
       labels:
         type: optional<list<string>>
         docs: List of deployment labels of this prompt version.
@@ -162,9 +165,10 @@ types:
         docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
 
   ChatMessageWithPlaceholders:
+    discriminated: false
     union:
-      chatmessage: ChatMessage
-      placeholder: PlaceholderMessage
+      - ChatMessage
+      - PlaceholderMessage
 
   ChatMessage:
     properties:
@@ -172,11 +176,22 @@ types:
         type: string
       content:
         type: string
+      type:
+        type: optional<ChatMessageType>
+
+  ChatMessageType:
+    enum:
+      - chatmessage
 
   PlaceholderMessage:
     properties:
       name:
         type: string
+      type: optional<PlaceholderMessageType>
+
+  PlaceholderMessageType:
+    enum:
+      - placeholder
 
   TextPrompt:
     extends: BasePrompt
@@ -187,3 +202,11 @@ types:
     extends: BasePrompt
     properties:
       prompt: list<ChatMessageWithPlaceholders>
+
+  CreateChatPromptType:
+    enum:
+      - chat
+
+  CreateTextPromptType:
+    enum:
+      - text
