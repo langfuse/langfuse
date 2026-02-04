@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import {
   type ScoreSourceType,
   type FilterState,
@@ -83,6 +83,7 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
     },
   );
 

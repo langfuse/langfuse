@@ -227,7 +227,8 @@ export const api = createTRPCNext<AppRouter>({
         },
         queryCache: new QueryCache({
           onError: (error, query) => {
-            handleTrpcError(error, shouldSilenceError(query.meta ?? {}, error));
+            const shouldSilence = shouldSilenceError(query.meta ?? {}, error);
+            handleTrpcError(error, shouldSilence);
           },
         }),
       },

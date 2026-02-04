@@ -1,5 +1,6 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
   type DashboardDateRangeAggregationOption,
@@ -76,6 +77,7 @@ export function CategoricalScoreChart(props: {
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
     },
   );
 

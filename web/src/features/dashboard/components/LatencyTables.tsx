@@ -7,6 +7,9 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { truncate } from "@/src/utils/string";
 import { Popup } from "@/src/components/layouts/doc-popup";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
@@ -55,11 +58,8 @@ export const LatencyTables = ({
       query: generationsLatenciesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -94,11 +94,8 @@ export const LatencyTables = ({
       query: spansLatenciesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -125,11 +122,8 @@ export const LatencyTables = ({
       query: tracesLatenciesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -176,60 +170,78 @@ export const LatencyTables = ({
         title="Trace latency percentiles"
         isLoading={isLoading || tracesLatencies.isPending}
       >
-        <DashboardTable
-          headers={[
-            "Trace Name",
-            <RightAlignedCell key="p50">p50</RightAlignedCell>,
-            <RightAlignedCell key="p90">p90</RightAlignedCell>,
-            <RightAlignedCell key="p95">
-              p95<span className="ml-1">▼</span>
-            </RightAlignedCell>,
-            <RightAlignedCell key="p99">p99</RightAlignedCell>,
-          ]}
-          rows={generateLatencyData(tracesLatencies.data)}
-          isLoading={isLoading || tracesLatencies.isPending}
-          collapse={{ collapsed: 5, expanded: 20 }}
-        />
+        {tracesLatencies.isError ? (
+          <ChartErrorView error={tracesLatencies.error} />
+        ) : tracesLatencies.isPending ? (
+          <ChartLoadingView />
+        ) : (
+          <DashboardTable
+            headers={[
+              "Trace Name",
+              <RightAlignedCell key="p50">p50</RightAlignedCell>,
+              <RightAlignedCell key="p90">p90</RightAlignedCell>,
+              <RightAlignedCell key="p95">
+                p95<span className="ml-1">▼</span>
+              </RightAlignedCell>,
+              <RightAlignedCell key="p99">p99</RightAlignedCell>,
+            ]}
+            rows={generateLatencyData(tracesLatencies.data)}
+            isLoading={false}
+            collapse={{ collapsed: 5, expanded: 20 }}
+          />
+        )}
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Generation latency percentiles"
         isLoading={isLoading || generationsLatencies.isPending}
       >
-        <DashboardTable
-          headers={[
-            "Generation Name",
-            <RightAlignedCell key="p50">p50</RightAlignedCell>,
-            <RightAlignedCell key="p90">p90</RightAlignedCell>,
-            <RightAlignedCell key="p95">
-              p95<span className="ml-1">▼</span>
-            </RightAlignedCell>,
-            <RightAlignedCell key="p99">p99</RightAlignedCell>,
-          ]}
-          rows={generateLatencyData(generationsLatencies.data)}
-          isLoading={isLoading || generationsLatencies.isPending}
-          collapse={{ collapsed: 5, expanded: 20 }}
-        />
+        {generationsLatencies.isError ? (
+          <ChartErrorView error={generationsLatencies.error} />
+        ) : generationsLatencies.isPending ? (
+          <ChartLoadingView />
+        ) : (
+          <DashboardTable
+            headers={[
+              "Generation Name",
+              <RightAlignedCell key="p50">p50</RightAlignedCell>,
+              <RightAlignedCell key="p90">p90</RightAlignedCell>,
+              <RightAlignedCell key="p95">
+                p95<span className="ml-1">▼</span>
+              </RightAlignedCell>,
+              <RightAlignedCell key="p99">p99</RightAlignedCell>,
+            ]}
+            rows={generateLatencyData(generationsLatencies.data)}
+            isLoading={false}
+            collapse={{ collapsed: 5, expanded: 20 }}
+          />
+        )}
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Span latency percentiles"
         isLoading={isLoading || spansLatencies.isPending}
       >
-        <DashboardTable
-          headers={[
-            "Span Name",
-            <RightAlignedCell key="p50">p50</RightAlignedCell>,
-            <RightAlignedCell key="p90">p90</RightAlignedCell>,
-            <RightAlignedCell key="p95">
-              p95<span className="ml-1">▼</span>
-            </RightAlignedCell>,
-            <RightAlignedCell key="p99">p99</RightAlignedCell>,
-          ]}
-          rows={generateLatencyData(spansLatencies.data)}
-          isLoading={isLoading || spansLatencies.isPending}
-          collapse={{ collapsed: 5, expanded: 20 }}
-        />
+        {spansLatencies.isError ? (
+          <ChartErrorView error={spansLatencies.error} />
+        ) : spansLatencies.isPending ? (
+          <ChartLoadingView />
+        ) : (
+          <DashboardTable
+            headers={[
+              "Span Name",
+              <RightAlignedCell key="p50">p50</RightAlignedCell>,
+              <RightAlignedCell key="p90">p90</RightAlignedCell>,
+              <RightAlignedCell key="p95">
+                p95<span className="ml-1">▼</span>
+              </RightAlignedCell>,
+              <RightAlignedCell key="p99">p99</RightAlignedCell>,
+            ]}
+            rows={generateLatencyData(spansLatencies.data)}
+            isLoading={false}
+            collapse={{ collapsed: 5, expanded: 20 }}
+          />
+        )}
       </DashboardCard>
     </>
   );
