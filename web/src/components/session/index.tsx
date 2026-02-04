@@ -779,7 +779,7 @@ export const SessionEventsPage: React.FC<{
 
   const setFiltersWrapper = useCallback(
     (filters: FilterState) => queryFilter.setFilterState(filters),
-    [queryFilter.setFilterState],
+    [queryFilter],
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
@@ -802,7 +802,7 @@ export const SessionEventsPage: React.FC<{
       viewControllers.handleSetViewId(preset.id);
       queryFilter.setFilterState(preset.filters);
     },
-    [queryFilter.setFilterState, viewControllers.handleSetViewId],
+    [queryFilter, viewControllers],
   );
 
   useEffect(() => {
