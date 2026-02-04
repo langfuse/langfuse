@@ -10,6 +10,7 @@ import {
 import {
   filterAndValidateDbScoreList,
   type FilterState,
+  type OrderByState,
   orderBy,
   paginationZod,
   type PrismaClient,
@@ -758,8 +759,15 @@ export const sessionRouter = createTRPCRouter({
   observationsForTraceFromEvents: protectedGetSessionProcedure
     .input(SessionTraceObservationsInput)
     .query(async ({ input }) => {
+      const positionFilter = (input.filter ?? []).find(
+        (filter) => filter.type === "positionInTrace",
+      );
+      const baseFilters = (input.filter ?? []).filter(
+        (filter) => filter.type !== "positionInTrace",
+      );
+
       const filterState: FilterState = [
-        ...(input.filter ?? []),
+        ...baseFilters,
         {
           column: "traceId",
           type: "string",
@@ -774,12 +782,41 @@ export const sessionRouter = createTRPCRouter({
         },
       ];
 
+      let orderBy: OrderByState = { column: "startTime", order: "ASC" };
+      let limit: number | undefined;
+      let offset: number | undefined;
+
+      if (positionFilter) {
+        if (positionFilter.key === "root") {
+          filterState.push({
+            column: "hasParentObservation",
+            type: "boolean",
+            operator: "=",
+            value: false,
+          });
+          orderBy = { column: "startTime", order: "ASC" };
+          limit = 1;
+        } else {
+          const fromEnd =
+            positionFilter.key === "last" ||
+            positionFilter.key === "nthFromEnd";
+          orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
+          const rawIndex =
+            positionFilter.key === "last" ? 1 : (positionFilter.value ?? 1);
+          const safeIndex = Math.max(1, rawIndex);
+          offset = safeIndex - 1;
+          limit = 1;
+        }
+      }
+
       const observations = await getObservationsWithModelDataFromEventsTable({
         projectId: input.projectId,
         filter: filterState,
         searchQuery: undefined,
         searchType: [],
-        orderBy: { column: "startTime", order: "ASC" },
+        orderBy,
+        limit,
+        offset,
         selectIOAndMetadata: true,
         renderingProps: { truncated: true, shouldJsonParse: true },
       });

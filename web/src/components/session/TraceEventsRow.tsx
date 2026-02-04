@@ -229,7 +229,7 @@ export const LazyTraceEventsRow = React.forwardRef<
   );
 
   return (
-    <div ref={combinedRef} className="pb-3">
+    <div ref={combinedRef} className="pb-3" data-index={index}>
       {shouldLoad ? <TraceEventsRow {...cardProps} /> : <TraceSkeleton />}
     </div>
   );

@@ -240,17 +240,30 @@ export function InlineFilterState({
           ? `.${filter.key}`
           : ""}{" "}
         {filter.operator}{" "}
-        {filter.type === "datetime"
-          ? new Date(filter.value).toLocaleString()
-          : filter.type === "stringOptions" || filter.type === "arrayOptions"
-            ? filter.value.length > 2
-              ? `${filter.value.length} selected`
-              : filter.value.join(", ")
-            : filter.type === "number" || filter.type === "numberObject"
-              ? filter.value
-              : filter.type === "boolean"
-                ? `${filter.value}`
-                : `"${filter.value}"`}
+        {filter.type === "positionInTrace"
+          ? (() => {
+              const mode = filter.key ?? "last";
+              const label =
+                mode === "root"
+                  ? "root"
+                  : mode === "last"
+                    ? "last"
+                    : mode === "nthFromStart"
+                      ? `nth from start ${filter.value ?? ""}`.trim()
+                      : `nth from end ${filter.value ?? ""}`.trim();
+              return label;
+            })()
+          : filter.type === "datetime"
+            ? new Date(filter.value).toLocaleString()
+            : filter.type === "stringOptions" || filter.type === "arrayOptions"
+              ? filter.value.length > 2
+                ? `${filter.value.length} selected`
+                : filter.value.join(", ")
+              : filter.type === "number" || filter.type === "numberObject"
+                ? filter.value
+                : filter.type === "boolean"
+                  ? `${filter.value}`
+                  : `"${filter.value}"`}
       </span>
     );
   });
@@ -569,7 +582,10 @@ function FilterBuilderForm({
                                           type: col?.type,
                                           operator: defaultOperator,
                                           value: undefined,
-                                          key: undefined,
+                                          key:
+                                            col?.type === "positionInTrace"
+                                              ? "last"
+                                              : undefined,
                                         } as WipFilterCondition,
                                         i,
                                       );
@@ -655,6 +671,42 @@ function FilterBuilderForm({
                                 {option.label}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                      ) : filter.type === "positionInTrace" ? (
+                        <Select
+                          onValueChange={(value) => {
+                            const needsValue =
+                              value === "nthFromEnd" ||
+                              value === "nthFromStart";
+                            handleFilterChange(
+                              {
+                                ...filter,
+                                key: value,
+                                value: needsValue
+                                  ? typeof filter.value === "number" &&
+                                    filter.value >= 1
+                                    ? filter.value
+                                    : 1
+                                  : undefined,
+                              },
+                              i,
+                            );
+                          }}
+                          value={filter.key ?? "last"}
+                        >
+                          <SelectTrigger className="min-w-[140px]">
+                            <SelectValue placeholder="" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="root">root</SelectItem>
+                            <SelectItem value="last">last</SelectItem>
+                            <SelectItem value="nthFromStart">
+                              nth from start
+                            </SelectItem>
+                            <SelectItem value="nthFromEnd">
+                              nth from end
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       ) : null}
@@ -810,6 +862,30 @@ function FilterBuilderForm({
                             ))}
                           </SelectContent>
                         </Select>
+                      ) : filter.type === "positionInTrace" ? (
+                        filter.key === "nthFromStart" ||
+                        filter.key === "nthFromEnd" ? (
+                          <Input
+                            value={filter.value ?? ""}
+                            disabled={disabled}
+                            type="number"
+                            min={1}
+                            step={1}
+                            onChange={(e) =>
+                              handleFilterChange(
+                                {
+                                  ...filter,
+                                  value: isNaN(Number(e.target.value))
+                                    ? undefined
+                                    : Math.max(1, Number(e.target.value)),
+                                },
+                                i,
+                              )
+                            }
+                          />
+                        ) : (
+                          <Input disabled placeholder="-" />
+                        )
                       ) : (
                         <Input disabled />
                       )}

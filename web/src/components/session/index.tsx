@@ -6,7 +6,10 @@ import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPrevie
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  type ListEntry,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -33,6 +36,7 @@ import {
   type ColumnDefinition,
   type FilterState,
   type ScoreDomain,
+  TableViewPresetTableName,
 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { TablePeekView } from "@/src/components/table/peek";
@@ -46,18 +50,54 @@ import { Switch } from "@/src/components/ui/switch";
 import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { type EventsViewMode } from "@/src/features/events/hooks/useEventsViewMode";
-import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import { Separator } from "@/src/components/ui/separator";
+import {
+  type VisibilityState,
+  type ColumnOrderState,
+} from "@tanstack/react-table";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
 const USERS_PER_PAGE_IN_POPOVER = 50;
+
+const buildDefaultLastGenerationFilters = (): FilterState => {
+  return [
+    {
+      column: "type",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["GENERATION"],
+    },
+    {
+      column: "positionInTrace",
+      type: "positionInTrace",
+      operator: "=",
+      key: "last",
+    },
+  ];
+};
+
+const areDetailPageListsEqual = (
+  left: ListEntry[] | undefined,
+  right: ListEntry[] | undefined,
+) => {
+  if (left === right) return true;
+  if (!left || !right || left.length !== right.length) return false;
+  return left.every((entry, index) => {
+    const other = right[index];
+    if (entry.id !== other?.id) return false;
+    if (!entry.params && !other?.params) return true;
+    return JSON.stringify(entry.params) === JSON.stringify(other?.params);
+  });
+};
 
 export function SessionUsers({
   projectId,
@@ -171,7 +211,7 @@ export const SessionPage: React.FC<{
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const router = useRouter();
-  const { setDetailPageList } = useDetailPageLists();
+  const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -260,17 +300,15 @@ export const SessionPage: React.FC<{
     });
 
   useEffect(() => {
-    if (session.isSuccess) {
-      setDetailPageList(
-        "traces",
-        session.data.traces.map((t) => ({
-          id: t.id,
-          params: { timestamp: t.timestamp.toISOString() },
-        })),
-      );
-    }
+    if (!session.isSuccess) return;
+    const nextList = session.data.traces.map((t) => ({
+      id: t.id,
+      params: { timestamp: t.timestamp.toISOString() },
+    }));
+    if (areDetailPageListsEqual(detailPagelists.traces, nextList)) return;
+    setDetailPageList("traces", nextList);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.isSuccess, session.data]);
+  }, [session.isSuccess, session.data, detailPagelists.traces]);
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -493,9 +531,10 @@ export const SessionEventsPage: React.FC<{
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const router = useRouter();
-  const { setDetailPageList } = useDetailPageLists();
+  const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
   const parentRef = useRef<HTMLDivElement>(null);
+  const defaultPresetAppliedRef = useRef(false);
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -563,19 +602,19 @@ export const SessionEventsPage: React.FC<{
     });
 
   useEffect(() => {
-    if (tracesQuery.isSuccess) {
-      setDetailPageList(
-        "traces",
-        tracesQuery.data.map((t) => ({
-          id: t.id,
-          params: { timestamp: t.timestamp.toISOString() },
-        })),
-      );
-    }
-  }, [tracesQuery.isSuccess, tracesQuery.data, setDetailPageList]);
-
-  const [viewMode, setViewMode] = React.useState<EventsViewMode>("observation");
-  const hasParentObservation = viewMode === "observation" ? undefined : false;
+    if (!tracesQuery.isSuccess) return;
+    const nextList = tracesQuery.data.map((t) => ({
+      id: t.id,
+      params: { timestamp: t.timestamp.toISOString() },
+    }));
+    if (areDetailPageListsEqual(detailPagelists.traces, nextList)) return;
+    setDetailPageList("traces", nextList);
+  }, [
+    tracesQuery.isSuccess,
+    tracesQuery.data,
+    setDetailPageList,
+    detailPagelists.traces,
+  ]);
 
   // Decode time filters from URL for scoping filter options
   const [filtersQuery] = useQueryParam("filter", withDefault(StringParam, ""));
@@ -594,18 +633,32 @@ export const SessionEventsPage: React.FC<{
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
     oldFilterState: timeFiltersForOptions,
-    hasParentObservation,
   });
+
+  const positionInTraceColumn: ColumnDefinition = React.useMemo(
+    () => ({
+      name: "Position in Trace",
+      id: "positionInTrace",
+      type: "positionInTrace",
+      internal: "positionInTrace",
+    }),
+    [],
+  );
 
   const sessionEventsFilterConfig = React.useMemo(() => {
     return {
       ...observationEventsFilterConfig,
       tableName: "session-events",
+      columnDefinitions: [
+        ...observationEventsFilterConfig.columnDefinitions,
+        positionInTraceColumn,
+      ],
       facets: observationEventsFilterConfig.facets.filter(
-        (facet) => facet.column !== "sessionId",
+        (facet) =>
+          facet.column !== "sessionId" && facet.column !== "environment",
       ),
     };
-  }, []);
+  }, [positionInTraceColumn]);
 
   const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
     const scoreCategoryOptions = filterOptions.score_categories
@@ -699,19 +752,48 @@ export const SessionEventsPage: React.FC<{
     [queryFilter.filterState],
   );
 
-  const viewModeFilter: FilterState =
-    viewMode === "trace"
-      ? [
-          {
-            column: "hasParentObservation",
-            type: "boolean",
-            operator: "=",
-            value: false,
-          },
-        ]
-      : [];
+  // Stub state for Saved Views (no actual table columns in this view)
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const observationFilterState = visibleFilterState.concat(viewModeFilter);
+  const setFiltersWrapper = useCallback(
+    (filters: FilterState) => queryFilter.setFilterState(filters),
+    [queryFilter.setFilterState],
+  );
+
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.SessionDetail,
+    projectId,
+    stateUpdaters: {
+      setColumnOrder,
+      setColumnVisibility,
+      setFilters: setFiltersWrapper,
+    },
+    validationContext: {
+      columns: [],
+      filterColumnDefinition: sessionEventsFilterConfig.columnDefinitions,
+    },
+    currentFilterState: queryFilter.filterState,
+  });
+
+  const applyDefaultFilter = useCallback(() => {
+    const nextFilters = buildDefaultLastGenerationFilters();
+    queryFilter.setFilterState(nextFilters);
+  }, [queryFilter.setFilterState]);
+
+  useEffect(() => {
+    if (defaultPresetAppliedRef.current) return;
+    if (isViewLoading) return; // Wait for view manager to initialize
+    if (viewControllers.selectedViewId) return; // A saved view is being applied
+    if (queryFilter.filterState.length > 0) return; // Already has filters
+    defaultPresetAppliedRef.current = true;
+    applyDefaultFilter();
+  }, [
+    applyDefaultFilter,
+    queryFilter.filterState.length,
+    isViewLoading,
+    viewControllers.selectedViewId,
+  ]);
 
   const virtualizer = useVirtualizer({
     count: tracesQuery.data?.length ?? 0,
@@ -826,30 +908,50 @@ export const SessionEventsPage: React.FC<{
     >
       <div className="flex h-full flex-col overflow-auto">
         <div className="sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b bg-background p-4">
+          {/* Saved Views */}
+          <TableViewPresetsDrawer
+            viewConfig={{
+              tableName: TableViewPresetTableName.SessionDetail,
+              projectId,
+              controllers: viewControllers,
+            }}
+            currentState={{
+              orderBy: null,
+              filters: queryFilter.filterState,
+              columnOrder,
+              columnVisibility,
+              searchQuery: "",
+            }}
+          />
+
+          {/* Filter Builder */}
+          <PopoverFilterBuilder
+            columns={filterColumns}
+            filterState={visibleFilterState}
+            onChange={queryFilter.setFilterState}
+            columnsWithCustomSelect={filterColumnsWithCustomSelect}
+          />
+
+          {/* Separator */}
+          <Separator orientation="vertical" className="h-6" />
+
+          {/* Stats */}
+          <Badge variant="outline">
+            Total traces: {session.data?.countTraces ?? 0}
+          </Badge>
+          {session.data && (
+            <Badge variant="outline">
+              Total cost: {usdFormatter(session.data.totalCost ?? 0, 2)}
+            </Badge>
+          )}
+
+          {/* Users */}
           {session.data?.users?.length ? (
             <SessionUsers projectId={projectId} users={session.data.users} />
           ) : null}
+
+          {/* Scores */}
           <SessionScores scores={session.data?.scores ?? []} />
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">
-              Total traces: {session.data?.countTraces ?? 0}
-            </Badge>
-            {session.data && (
-              <Badge variant="outline">
-                Total cost: {usdFormatter(session.data.totalCost ?? 0, 2)}
-              </Badge>
-            )}
-            <PopoverFilterBuilder
-              columns={filterColumns}
-              filterState={visibleFilterState}
-              onChange={queryFilter.setFilterState}
-              columnsWithCustomSelect={filterColumnsWithCustomSelect}
-            />
-            <EventsViewModeToggle
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
-          </div>
         </div>
         <div ref={parentRef} className="flex-1 overflow-auto p-4">
           <div
@@ -884,7 +986,7 @@ export const SessionEventsPage: React.FC<{
                     traceCommentCounts={traceCommentCounts.data}
                     index={virtualItem.index}
                     showCorrections={showCorrections}
-                    filterState={observationFilterState}
+                    filterState={visibleFilterState}
                     onLoad={() => {
                       virtualizer.measureElement(
                         document.querySelector(
