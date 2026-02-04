@@ -788,24 +788,20 @@ function applyCursorPagination(
   queryBuilder: EventsQueryBuilder,
 ): EventsQueryBuilder {
   // Apply cursor filter if provided
-  return queryBuilder.when(Boolean(opts.cursor), (b) => {
+  queryBuilder = queryBuilder.when(Boolean(opts.cursor), (b) => {
     const cursor = opts.cursor!;
-    return (
-      b
-        .whereRaw(
-          "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
-          {
-            lastStartTime: convertDateToClickhouseDateTime(
-              cursor.lastStartTimeTo,
-            ),
-            lastTraceId: cursor.lastTraceId,
-            lastId: cursor.lastId,
-          },
-        )
-        // When cursor pagination (v2): fetch limit+1 to detect if there are more results
-        .limit(opts.limit + 1, undefined)
+    return b.whereRaw(
+      "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
+      {
+        lastStartTime: convertDateToClickhouseDateTime(cursor.lastStartTimeTo),
+        lastTraceId: cursor.lastTraceId,
+        lastId: cursor.lastId,
+      },
     );
   });
+
+  // Always apply limit (fetch limit+1 to detect if there are more results)
+  return queryBuilder.limit(opts.limit + 1, undefined);
 }
 
 async function getObservationsRowsFromBuilder<T>(
