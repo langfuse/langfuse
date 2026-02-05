@@ -571,12 +571,14 @@ export const getTraceByIdFromEventsTable = async ({
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   // Build traces CTE using eventsTracesAggregation
+  // Pass truncated flag to select events_core (truncated) or events_full (full I/O)
   const tracesBuilder = eventsTracesAggregation({
     projectId,
     traceIds: [traceId],
     startTimeFrom: fromTimestamp
       ? convertDateToClickhouseDateTime(fromTimestamp)
       : null,
+    truncated: renderingProps.truncated,
   });
 
   // Build the final query
@@ -1046,9 +1048,11 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
   // Build traces CTE using eventsTracesAggregation WITHOUT filters
   // Filters must be applied AFTER aggregation to ensure filters on aggregated
   // fields (like timestamp or version) are applied correctly
+  // Use events_full when I/O is requested (truncated: false), otherwise events_core
   const tracesBuilder = eventsTracesAggregation({
     projectId,
     startTimeFrom,
+    truncated: !includeIO,
   });
 
   // Build the final query using CTEQueryBuilder
@@ -2496,7 +2500,7 @@ export const hasAnyUserFromEventsTable = async (
   // Filter out deleted rows
   const query = `
     SELECT 1
-    FROM events
+    FROM events_core
     WHERE project_id = {projectId: String}
     AND user_id IS NOT NULL
     AND user_id != ''

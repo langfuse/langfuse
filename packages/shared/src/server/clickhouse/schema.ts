@@ -2,7 +2,6 @@ export const ClickhouseTableNames = {
   traces: "traces",
   observations: "observations",
   scores: "scores",
-  events: "events",
   events_full: "events_full",
   events_core: "events_core",
   dataset_run_items_rmt: "dataset_run_items_rmt",

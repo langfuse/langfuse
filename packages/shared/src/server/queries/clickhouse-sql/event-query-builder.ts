@@ -8,7 +8,7 @@ export type OrderByEntry = { column: string; direction: OrderByDirection };
 
 /**
  * Field mapping: each field defined once with its full SELECT expression
- * All queries use `FROM events_core e` with alias, so all fields use `e.` prefix
+ * All queries use `FROM events_<type> e` with alias, so all fields use `e.` prefix
  */
 const EVENTS_FIELDS = {
   // Aggregates
@@ -120,7 +120,7 @@ const FIELD_SETS = {
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
   eventTs: ["eventTs"],
 
-  // getById field sets (reuse the same fields - all queries use `FROM events_core e`)
+  // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
     "id",
     "traceId",
@@ -469,6 +469,15 @@ abstract class BaseEventsQueryBuilder<
   protected abstract buildGroupByClause(): string;
 
   /**
+   * Get the table name to query from.
+   * Subclasses can override to implement dynamic table selection.
+   * Default: events_core (lightweight table with truncated I/O)
+   */
+  protected getTableName(): string {
+    return "events_core";
+  }
+
+  /**
    * Build the final query string
    */
   protected buildQuery(): string {
@@ -483,8 +492,9 @@ abstract class BaseEventsQueryBuilder<
     // SELECT
     parts.push(this.buildSelectClause());
 
-    // FROM - use events_core for reads (lightweight table with truncated I/O)
-    parts.push("FROM events_core e");
+    // FROM - choose table based on data requirements
+    const tableName = this.getTableName();
+    parts.push(`FROM ${tableName} e`);
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -666,6 +676,32 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   protected buildGroupByClause(): string {
     return "";
   }
+
+  /**
+   * Determine if query needs events_full table (full I/O and metadata).
+   * - events_core: truncated I/O and metadata (faster for most queries)
+   * - events_full: full I/O and metadata (when full data is needed)
+   */
+  private needsFullTable(): boolean {
+    // Need full I/O? (truncated = false means we need full data)
+    const needsFullIO = this.ioFields !== null && !this.ioFields.truncated;
+
+    // Need full metadata? (expansion requested with metadata in select)
+    const needsFullMetadata =
+      this.metadataExpansionKeys !== null &&
+      this.metadataExpansionKeys.length > 0 &&
+      this.selectFields.has("metadata");
+
+    return needsFullIO || needsFullMetadata;
+  }
+
+  /**
+   * Get table name based on data requirements.
+   * Uses events_full when full I/O or metadata expansion is needed.
+   */
+  protected override getTableName(): string {
+    return this.needsFullTable() ? "events_full" : "events_core";
+  }
 }
 
 /**
@@ -716,8 +752,27 @@ type AliasedColumns<
 export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_AGGREGATION_FIELDS
 > {
+  private truncated: boolean = true;
+
   constructor(options: { projectId: string }) {
     super(EVENTS_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Set whether to use truncated I/O (events_core) or full I/O (events_full).
+   * Default is true (truncated).
+   */
+  withTruncated(truncated: boolean): this {
+    this.truncated = truncated;
+    return this;
+  }
+
+  /**
+   * Get table name based on truncated setting.
+   * Uses events_full when full I/O is needed (truncated = false).
+   */
+  protected override getTableName(): string {
+    return this.truncated ? "events_core" : "events_full";
   }
 
   /**

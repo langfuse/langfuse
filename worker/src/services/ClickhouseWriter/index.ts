@@ -46,7 +46,6 @@ export class ClickhouseWriter {
       [TableName.ObservationsBatchStaging]: [],
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
-      [TableName.Events]: [], // Kept for backwards compatibility with type
       [TableName.EventsFull]: [],
     };
 
@@ -505,7 +504,6 @@ export enum TableName {
   ObservationsBatchStaging = "observations_batch_staging",
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
-  Events = "events", // Keep for backwards compat (reads use events_core via query builder)
   EventsFull = "events_full", // Primary write target - MV auto-populates events_core
 }
 
@@ -523,11 +521,9 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
             ? BlobStorageFileLogInsertType
             : T extends TableName.DatasetRunItems
               ? DatasetRunItemRecordInsertType
-              : T extends TableName.Events
+              : T extends TableName.EventsFull
                 ? EventRecordInsertType
-                : T extends TableName.EventsFull
-                  ? EventRecordInsertType
-                  : never;
+                : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];
