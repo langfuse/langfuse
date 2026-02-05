@@ -17,6 +17,10 @@
       "import": "./dist/src/db.js",
       "require": "./dist/src/db.js"
     },
+    "./src/env": {
+      "import": "./dist/src/env.js",
+      "require": "./dist/src/env.js"
+    },
     "./src/server": {
       "import": "./dist/src/server/index.js",
       "require": "./dist/src/server/index.js"

@@ -233,7 +233,9 @@ export const getQueuePrefix = (queueName: string): string | undefined => {
     // Use hash tags for Redis cluster compatibility
     // This ensures all keys for a queue are placed on the same hash slot
     // Format: {prefix:queueName} ensures all keys land on same slot
-    return redisKeyPrefix ? `{${redisKeyPrefix}:${queueName}}` : `{${queueName}}`;
+    return redisKeyPrefix
+      ? `{${redisKeyPrefix}:${queueName}}`
+      : `{${queueName}}`;
   }
 
   // Non-cluster mode: Return prefix or undefined

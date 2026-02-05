@@ -52,7 +52,9 @@ describe("getQueuePrefix", () => {
     env.REDIS_KEY_PREFIX = "test-prefix";
     env.REDIS_CLUSTER_ENABLED = "true";
 
-    expect(getQueuePrefix("IngestionQueue")).toBe("{test-prefix:IngestionQueue}");
+    expect(getQueuePrefix("IngestionQueue")).toBe(
+      "{test-prefix:IngestionQueue}",
+    );
     expect(getQueuePrefix("TraceUpsert")).toBe("{test-prefix:TraceUpsert}");
     expect(getQueuePrefix("BatchExport")).toBe("{test-prefix:BatchExport}");
   });
