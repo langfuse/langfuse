@@ -505,10 +505,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("Metadata expansion with expandMetadata parameter", () => {
-    // Cutoff is 200 chars - values longer than 200 chars are truncated by default
-    const METADATA_CUTOFF = 200;
-
-    it("should selectively expand only specified metadata keys", async () => {
+    it("should return full metadata values when expandMetadata is specified", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
       const timestamp = new Date();
@@ -529,10 +526,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
         start_time: timeValue,
         metadata: {
           expandMe: longValue1,
-          keepTruncated: longValue2,
+          otherKey: longValue2,
           shortKey: "shortValue",
         },
-        metadata_names: ["expandMe", "keepTruncated", "shortKey"],
+        metadata_names: ["expandMe", "otherKey", "shortKey"],
         metadata_values: [longValue1, longValue2, "shortValue"],
       });
 
@@ -551,7 +548,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         10,
       );
 
-      // Request metadata with expansion for only 'expandMe' key
+      // Request metadata with expansion - this switches to events_full table
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
@@ -562,20 +559,15 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const obs = response.body.data.find((o: any) => o.id === observationId);
       expect(obs).toBeDefined();
 
-      // Note: events_core table truncates metadata to 200 chars via materialized view.
-      // The expandMetadata parameter doesn't expand beyond what's stored in the table.
-      // Both 'expandMe' and 'keepTruncated' are truncated to 200 chars.
-      expect(obs?.metadata?.expandMe?.length).toBe(METADATA_CUTOFF);
-      expect(obs?.metadata?.expandMe).toBe(
-        longValue1.substring(0, METADATA_CUTOFF),
-      );
+      // When expandMetadata is specified, the query uses events_full table which has
+      // full (non-truncated) metadata values. All metadata values are returned in full.
+      expect(obs?.metadata?.expandMe?.length).toBe(300);
+      expect(obs?.metadata?.expandMe).toBe(longValue1);
 
-      expect(obs?.metadata?.keepTruncated?.length).toBe(METADATA_CUTOFF);
-      expect(obs?.metadata?.keepTruncated).toBe(
-        longValue2.substring(0, METADATA_CUTOFF),
-      );
+      expect(obs?.metadata?.otherKey?.length).toBe(300);
+      expect(obs?.metadata?.otherKey).toBe(longValue2);
 
-      // 'shortValue' should be present as is (under cutoff)
+      // 'shortValue' should be present as is
       expect(obs?.metadata?.shortKey).toBe("shortValue");
     });
 
@@ -638,8 +630,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
 
-      // Create a long metadata value (> 200 chars)
+      // Create a long metadata value (> 200 chars, the MV truncation limit)
       const longValue = "z".repeat(300);
+      // events_core MV truncates metadata values to 200 chars
+      const METADATA_CUTOFF = 200;
 
       const observation = createEvent({
         id: observationId,
@@ -670,7 +664,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         10,
       );
 
-      // Request metadata with empty expandMetadata - should use truncated
+      // Request metadata with empty expandMetadata - should use events_core (truncated)
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
@@ -681,7 +675,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const obs = response.body.data.find((o: any) => o.id === observationId);
       expect(obs).toBeDefined();
 
-      // Metadata should still be present but truncated (empty expandMetadata means no expansion)
+      // Metadata should still be present but truncated (empty expandMetadata uses events_core)
       expect(obs?.metadata?.longKey).toBeDefined();
       expect(obs?.metadata?.longKey?.length).toBe(METADATA_CUTOFF);
       expect(obs?.metadata?.longKey).toBe(

@@ -4,9 +4,11 @@ export const ClickhouseTableNames = {
   scores: "scores",
   dataset_run_items_rmt: "dataset_run_items_rmt",
 
-  // Virtual table for UI column mappings validation.
-  // Actual queries use events_core or events_full tables directly.
+  // Virtual table for UI column mappings validation (eventsTableUiColumnDefinitions).
   events_proto: "events_proto",
+
+  // Actual events tables used for dashboard/metrics query joins.
+  events_core: "events_core",
 
   // Virtual tables for dashboards
   // TODO: Check if we can do this more elegantly

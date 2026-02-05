@@ -614,8 +614,7 @@ export const getTraceByIdFromEventsTable = async ({
   }
 
   // Handle input/output with truncation
-  // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
-  // Use leftUTF8() on input/output directly for truncation.
+  // Note: eventsTracesAggregation above is responsible for choosing events_core/events_full
   if (renderingProps.truncated) {
     queryBuilder
       .select(
