@@ -1539,7 +1539,7 @@ model PendingDeletion {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  @@index([projectId, object, isDeleted])
+  @@index([projectId, object, isDeleted, objectId, id])
   @@index([objectId, object])
   @@map("pending_deletions")
 }
