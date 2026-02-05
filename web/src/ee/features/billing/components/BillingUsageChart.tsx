@@ -1,7 +1,6 @@
 // Langfuse Cloud only
 
 import { api } from "@/src/utils/api";
-import { MarkerBar } from "@tremor/react";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { Card } from "@/src/components/ui/card";
 import { numberFormatter, compactNumberFormatter } from "@/src/utils/numbers";
@@ -60,13 +59,26 @@ export const BillingUsageChart = () => {
                     Plan limit: {compactNumberFormatter(hobbyPlanLimit)}
                   </span>
                 </div>
-                <MarkerBar
-                  value={Math.min(
+                <div
+                  className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuenow={Math.min(
                     (usage.data.usageCount / hobbyPlanLimit) * 100,
                     100,
                   )}
-                  className="mt-3"
-                />
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{
+                      width: `${Math.min(
+                        (usage.data.usageCount / hobbyPlanLimit) * 100,
+                        100,
+                      )}%`,
+                    }}
+                  />
+                </div>
               </>
             )}
           </>
