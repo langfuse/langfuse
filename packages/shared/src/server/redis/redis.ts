@@ -7,7 +7,7 @@ const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
-  keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
+  // keyPrefix removed - BullMQ uses its own prefix option
 };
 
 const REDIS_SCAN_COUNT = 1000;
@@ -224,15 +224,20 @@ export const createNewRedisInstance = (
 /**
  * Get the queue prefix for BullMQ cluster compatibility
  * In cluster mode, uses hash tags to ensure queue keys are on the same node
- * In single-node mode, returns undefined (no prefix needed)
+ * In single-node mode, returns the configured prefix or undefined
  */
 export const getQueuePrefix = (queueName: string): string | undefined => {
+  const redisKeyPrefix = env.REDIS_KEY_PREFIX;
+
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     // Use hash tags for Redis cluster compatibility
     // This ensures all keys for a queue are placed on the same hash slot
-    return `{${queueName}}`;
+    // Format: {prefix:queueName} ensures all keys land on same slot
+    return redisKeyPrefix ? `{${redisKeyPrefix}:${queueName}}` : `{${queueName}}`;
   }
-  return undefined;
+
+  // Non-cluster mode: Return prefix or undefined
+  return redisKeyPrefix ?? undefined;
 };
 
 /**
@@ -297,7 +302,9 @@ export const scanKeys = async (
 
 const createRedisClient = () => {
   try {
-    return createNewRedisInstance();
+    return createNewRedisInstance({
+      keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
+    });
   } catch (e) {
     logger.error("Failed to connect to redis", e);
     return null;
