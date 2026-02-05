@@ -21,6 +21,11 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
+import {
+  escapePipeInValue,
+  splitOnUnescapedPipe,
+  unescapePipeInValue,
+} from "../lib/filter-query-encoding";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -41,7 +46,8 @@ const getCommaArrayParam = (table: TableName) => ({
           const stringified = `${columnId};${f.type};${
             f.type === "numberObject" ||
             f.type === "stringObject" ||
-            f.type === "categoryOptions"
+            f.type === "categoryOptions" ||
+            f.type === "positionInTrace"
               ? f.key
               : ""
           };${f.operator};${encodeURIComponent(
@@ -50,8 +56,12 @@ const getCommaArrayParam = (table: TableName) => ({
               : f.type === "stringOptions" ||
                   f.type === "arrayOptions" ||
                   f.type === "categoryOptions"
-                ? f.value.join("|")
-                : f.value,
+                ? (f.value as string[]).map(escapePipeInValue).join("|")
+                : f.type === "positionInTrace"
+                  ? f.value === undefined || f.value === null
+                    ? ""
+                    : f.value
+                  : f.value,
           )}`;
 
           if (DEBUG_QUERY_STATE) console.log("stringified", stringified);
@@ -77,13 +87,19 @@ const getCommaArrayParam = (table: TableName) => ({
               ? new Date(decodedValue)
               : type === "number" || type === "numberObject"
                 ? Number(decodedValue)
-                : type === "stringOptions" ||
-                    type === "arrayOptions" ||
-                    type === "categoryOptions"
-                  ? decodedValue.split("|")
-                  : type === "boolean"
-                    ? decodedValue === "true"
-                    : decodedValue;
+                : type === "positionInTrace"
+                  ? decodedValue === ""
+                    ? undefined
+                    : Number(decodedValue)
+                  : type === "stringOptions" ||
+                      type === "arrayOptions" ||
+                      type === "categoryOptions"
+                    ? splitOnUnescapedPipe(decodedValue).map(
+                        unescapePipeInValue,
+                      )
+                    : type === "boolean"
+                      ? decodedValue === "true"
+                      : decodedValue;
 
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({

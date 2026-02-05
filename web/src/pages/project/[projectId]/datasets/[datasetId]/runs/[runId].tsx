@@ -21,6 +21,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 export default function Dataset() {
   const router = useRouter();
@@ -98,6 +99,7 @@ export default function Dataset() {
             projectId={projectId}
             datasetId={datasetId}
             datasetRunId={runId}
+            datasetVersion={run.data?.datasetVersion}
           />
         </div>
         <SidePanel
@@ -112,6 +114,17 @@ export default function Dataset() {
               <Skeleton className="h-full w-full" />
             ) : (
               <>
+                {run.data?.datasetVersion && (
+                  <div className="flex flex-col gap-2 p-1">
+                    <span className="text-sm font-medium">Dataset Version</span>
+                    <Link
+                      href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
+                      className="text-sm text-accent-dark-blue hover:text-primary-accent/60"
+                    >
+                      <LocalIsoDate date={run.data.datasetVersion} />
+                    </Link>
+                  </div>
+                )}
                 {!!run.data?.description && (
                   <JSONView
                     json={run.data.description}
