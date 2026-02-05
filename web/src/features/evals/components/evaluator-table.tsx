@@ -73,8 +73,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { RemapEvalWizard } from "@/src/features/evals/components/remap-eval-wizard";
-
 export type EvaluatorDataRow = {
   id: string;
   status: string;
@@ -100,64 +98,41 @@ export type EvaluatorDataRow = {
   isLegacy?: boolean;
 };
 
-function LegacyBadgeCell({
-  projectId,
-  evalConfigId,
-  status,
-}: {
-  projectId: string;
-  evalConfigId: string;
-  status: string;
-}) {
-  const [remapModalOpen, setRemapModalOpen] = useState(false);
-  const utils = api.useUtils();
-
+function LegacyBadgeCell({ status }: { status: string }) {
   return (
-    <>
-      <div className="flex items-center gap-1.5">
-        <Badge variant="warning">
-          Legacy
-          {status === "ACTIVE" && (
-            <Tooltip>
-              <TooltipTrigger>
-                <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[280px]">
-                <div className="space-y-1 text-sm">
-                  <p className="font-medium">Action required</p>
-                  <p className="text-muted-foreground">
-                    This evaluator requires changes to benefit from new features
-                    and performance improvements. Please follow{" "}
-                    <Link
-                      href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-dark-blue hover:opacity-80"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      this guide
-                    </Link>{" "}
-                    to upgrade to the new version.
-                  </p>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
-        </Badge>
-      </div>
-
-      <RemapEvalWizard
-        projectId={projectId}
-        evalConfigId={evalConfigId}
-        open={remapModalOpen}
-        onOpenChange={setRemapModalOpen}
-        onSuccess={() => {
-          utils.evals.invalidate();
-        }}
-      />
-    </>
+    <div className="flex items-center gap-1.5">
+      <Badge variant="warning">
+        Legacy
+        {status === "ACTIVE" && (
+          <Tooltip>
+            <TooltipTrigger>
+              <Info className="ml-1 h-3.5 w-3.5 text-dark-yellow" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[280px]">
+              <div className="space-y-1 text-sm">
+                <p className="font-medium">Action required</p>
+                <p className="text-muted-foreground">
+                  This evaluator requires changes to benefit from new features
+                  and performance improvements. Please follow{" "}
+                  <Link
+                    href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-dark-blue hover:opacity-80"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    this guide
+                  </Link>{" "}
+                  to upgrade to the new version.
+                </p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </Badge>
+    </div>
   );
 }
 
@@ -365,13 +340,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
         if (!isDeprecated) return null;
 
-        return (
-          <LegacyBadgeCell
-            projectId={projectId}
-            evalConfigId={row.row.original.id}
-            status={status}
-          />
-        );
+        return <LegacyBadgeCell status={status} />;
       },
     }),
     columnHelper.accessor("target", {

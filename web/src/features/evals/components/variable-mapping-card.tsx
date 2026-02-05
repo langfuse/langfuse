@@ -93,7 +93,7 @@ export const VariableMappingCard = ({
     <div className="flex items-center gap-2">
       {isTraceOrEventTarget(form.watch("target")) && !disabled && (
         <>
-          <span className="text-xs text-muted-foreground">Show Preview</span>
+          <span className="text-xs text-muted-foreground">Preview</span>
           <Switch
             checked={showPreview}
             onCheckedChange={setShowPreview}
