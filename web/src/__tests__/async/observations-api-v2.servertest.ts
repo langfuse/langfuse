@@ -722,7 +722,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await waitForExpect(
         async () => {
           const result = await queryClickhouse<{ count: string }>({
-            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
             params: { projectId, traceId },
           });
           expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(10);

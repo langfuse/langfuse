@@ -1462,7 +1462,7 @@ export const getEventsGroupedByTraceTags = async (
 
   const query = `
     SELECT DISTINCT arrayJoin(e.tags) as tag
-    FROM events e
+    FROM events_core e
     WHERE e.project_id = {projectId: String}
     AND e.is_deleted = 0
     ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
@@ -2531,7 +2531,7 @@ export const hasAnySessionFromEventsTable = async (
 ): Promise<boolean> => {
   const query = `
     SELECT 1
-    FROM events
+    FROM events_core
     WHERE project_id = {projectId: String}
     AND session_id IS NOT NULL
     AND session_id != ''
