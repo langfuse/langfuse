@@ -4,8 +4,6 @@ import { EvalTargetObject } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { useEffect } from "react";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 
 export type PreviewData =
   | {
@@ -28,15 +26,9 @@ export function usePreviewData(
   observationId: string | undefined,
 ): { previewData: PreviewData | null; isLoading: boolean } {
   const { isBetaEnabled } = useV4Beta();
-  const [, setOrderByState] = useOrderByState();
-
-  // Clear orderBy from URL when target changes (embedded preview tables)
-  const target = form.watch("target");
-  useEffect(() => {
-    setOrderByState(null);
-  }, [target, setOrderByState]);
 
   // For trace evals without traceId: fetch latest trace matching filter
+  const target = form.watch("target");
   const isEventEval = isEventTarget(target);
   const latestTrace = api.traces.all.useQuery(
     {

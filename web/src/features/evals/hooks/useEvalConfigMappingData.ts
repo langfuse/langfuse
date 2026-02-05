@@ -47,9 +47,8 @@ export function useEvalConfigMappingData(
       prevTargetRef.current !== targetValue &&
       prevTargetRef.current !== undefined
     ) {
-      // Remove both 'observationId' (used in eval pages) and 'observation' (used in trace detail links)
-      const { traceId, observationId, observation, ...restQuery } =
-        router.query;
+      // Remove navigation-related params when target changes
+      const { traceId, observationId, ...restQuery } = router.query;
 
       // Use replace to avoid adding to browser history
       void router.replace(

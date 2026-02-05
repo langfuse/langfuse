@@ -384,12 +384,10 @@ export default function ObservationsEventsTable({
         "observations",
         observations?.rows?.map((o) => ({
           id: o?.id,
-          params: o?.startTime
-            ? {
-                timestamp: o?.startTime.toISOString(),
-                traceId: o?.traceId || "",
-              }
-            : undefined,
+          params: {
+            traceId: o?.traceId || "",
+            ...(o?.startTime ? { timestamp: o?.startTime.toISOString() } : {}),
+          },
         })) ?? [],
       );
     }

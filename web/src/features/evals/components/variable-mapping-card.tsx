@@ -112,9 +112,16 @@ export const VariableMappingCard = ({
                     ? "observations"
                     : "traces"
                 }
-                path={() =>
-                  `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}&traceId=${previewData.traceId}${previewData.type === EvalTargetObject.EVENT ? `&observationId=${previewData.observationId}` : ""}`
-                }
+                path={(entry) => {
+                  const isEvent = isEventTarget(form.watch("target"));
+                  if (isEvent) {
+                    // For observations/events: entry.id is observationId, entry.params.traceId is traceId
+                    return `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}&traceId=${entry.params?.traceId}&observationId=${entry.id}`;
+                  } else {
+                    // For traces: entry.id is traceId
+                    return `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}&traceId=${entry.id}`;
+                  }
+                }}
               />
             ) : (
               <div className="flex flex-row gap-1">

@@ -504,12 +504,12 @@ export default function ObservationsTable({
         "observations",
         generations.data.generations.map((g) => ({
           id: g.id,
-          params: g.traceTimestamp
-            ? {
-                timestamp: g.traceTimestamp.toISOString(),
-                traceId: g.traceId || "",
-              }
-            : undefined,
+          params: {
+            traceId: g.traceId || "",
+            ...(g.traceTimestamp
+              ? { timestamp: g.traceTimestamp.toISOString() }
+              : {}),
+          },
         })),
       );
     }
