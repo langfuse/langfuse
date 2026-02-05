@@ -10,7 +10,7 @@ import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyB
 import { type RouterOutput } from "@/src/utils/types";
 import { useState } from "react";
 
-const TracingSetup = ({
+export const TracingSetup = ({
   projectId,
   hasTracingConfigured,
 }: {
@@ -39,7 +39,7 @@ const TracingSetup = ({
   return (
     <div className="space-y-8">
       <div>
-        <SubHeader title="1. Get API Keys" />
+        <SubHeader title="1. Get API keys" />
         {apiKeys ? (
           <ApiKeyRender
             generatedKeys={apiKeys}
@@ -73,7 +73,7 @@ const TracingSetup = ({
 
       <div>
         <SubHeader
-          title="2. Instrument Your Application"
+          title="2. Add tracing to your application"
           status={hasTracingConfigured ? "active" : "pending"}
         />
         <p className="mb-4 text-sm text-muted-foreground">
@@ -83,7 +83,7 @@ const TracingSetup = ({
           in the documentation to add Langfuse to your application.
         </p>
         <ActionButton href="https://langfuse.com/docs/observability/get-started">
-          Instrumentation Quickstart
+          Quickstart guide
         </ActionButton>
       </div>
     </div>
