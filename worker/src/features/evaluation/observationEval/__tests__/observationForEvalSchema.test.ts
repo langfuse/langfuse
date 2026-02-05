@@ -4,6 +4,7 @@ import {
   type ObservationForEval,
   observationEvalFilterColumns,
   observationEvalVariableColumns,
+  eventsEvalFilterColumns,
 } from "@langfuse/shared";
 
 describe("observationForEvalSchema", () => {
@@ -190,7 +191,7 @@ describe("observationForEvalSchema", () => {
     });
 
     it("should include expected filter columns", () => {
-      const columnIds = observationEvalFilterColumns.map((c) => c.id);
+      const columnIds = eventsEvalFilterColumns.map((c) => c.id);
 
       // Observation properties
       expect(columnIds).toContain("type");

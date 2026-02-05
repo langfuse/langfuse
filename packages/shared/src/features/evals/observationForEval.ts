@@ -237,7 +237,7 @@ export const experimentEvalFilterColumns: ObservationEvalColumnDef[] = [
   },
 ];
 
-const eventsEvalFilterColumns: ObservationEvalColumnDef[] = [
+export const eventsEvalFilterColumns: ObservationEvalColumnDef[] = [
   ...observationEvalFilterColumns,
   ...experimentEvalFilterColumns,
 ];
