@@ -302,7 +302,7 @@ describe("Observation Eval E2E Pipeline", () => {
         scoreName: "relevance",
         filter: [
           {
-            column: "provided_model_name",
+            column: "providedModelName",
             type: "stringOptions",
             operator: "any of",
             value: ["gpt-4"],

@@ -181,11 +181,11 @@ describe("observationForEvalSchema", () => {
   });
 
   describe("filter columns alignment", () => {
-    it("should have all filter column IDs present in schema", () => {
+    it("should have all filter column internal mappings present in schema", () => {
       const schemaKeys = Object.keys(observationForEvalSchema.shape);
 
       for (const column of observationEvalFilterColumns) {
-        expect(schemaKeys).toContain(column.id);
+        expect(schemaKeys).toContain(column.internal);
       }
     });
 
@@ -199,14 +199,14 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("level");
       expect(columnIds).toContain("version");
 
-      // Trace-level properties (snake_case)
-      expect(columnIds).toContain("trace_name");
-      expect(columnIds).toContain("user_id");
-      expect(columnIds).toContain("session_id");
+      // Trace-level properties
+      expect(columnIds).toContain("traceName");
+      expect(columnIds).toContain("userId");
+      expect(columnIds).toContain("sessionId");
       expect(columnIds).toContain("tags");
       expect(columnIds).toContain("release");
 
-      expect(columnIds).toContain("experiment_dataset_id");
+      expect(columnIds).toContain("experimentDatasetId");
 
       // Metadata
       expect(columnIds).toContain("metadata");
