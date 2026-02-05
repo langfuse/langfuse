@@ -1,19 +1,12 @@
 import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
-// Lazy load everything-json to avoid webpack bundling issues (native addon)
-// Use indirect require to prevent webpack from statically analyzing the import
-let everythingJsonModule: {
+// Lazy load everything-json to avoid webpack/turbopack bundling issues (native addon)
+// The eval("require") prevents static analysis from bundling the native module
+const everythingJsonModule = eval("require")("everything-json") as {
   JSON: typeof import("everything-json").JSON;
-} | null = null;
-const getEverythingJSON = () => {
-  if (!everythingJsonModule) {
-    // Hide module name from webpack static analysis
-    const moduleName = ["everything", "json"].join("-");
-    everythingJsonModule = require(moduleName);
-  }
-  return everythingJsonModule!.JSON;
 };
+const EverythingJSON = everythingJsonModule.JSON;
 
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -410,7 +403,6 @@ export const parseJsonPrioritised = (
   try {
     // Fast path: use everything-json (faster than native JSON.parse) if no potentially unsafe numbers
     if (!UNSAFE_NUMBER_PATTERN.test(json)) {
-      const EverythingJSON = getEverythingJSON();
       const parsed = EverythingJSON.parse(json);
       // For primitives, use expand(); for objects/arrays, use toObject()
       // toObject() throws for primitives
@@ -450,7 +442,6 @@ export const parseJsonPrioritisedAsync = async (
   try {
     // Fast path: non-blocking parsing with everything-json if no potentially unsafe numbers
     if (!UNSAFE_NUMBER_PATTERN.test(json)) {
-      const EverythingJSON = getEverythingJSON();
       const parsed = await EverythingJSON.parseAsync(json);
       // For primitives, use expand(); for objects/arrays, use toObjectAsync()
       // toObjectAsync() throws for primitives

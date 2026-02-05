@@ -62,6 +62,8 @@ const nextConfig = {
     "@opentelemetry/instrumentation-winston",
     "kysely",
     "everything-json",
+    "@mapbox/node-pre-gyp",
+    "node-addon-api",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
