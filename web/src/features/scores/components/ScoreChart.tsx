@@ -40,7 +40,7 @@ export function CategoricalChart(props: {
   ) : (
     <Card
       className={cn(
-        "max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border",
+        "max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-md border",
         props.className,
       )}
     >
@@ -88,7 +88,7 @@ export function NumericChart(props: {
   return isEmptyChart({ data: props.chartData }) ? (
     <NoDataOrLoading isLoading={false} />
   ) : (
-    <Card className="max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-tremor-default border">
+    <Card className="max-h-full min-h-0 min-w-0 max-w-full flex-1 rounded-md border">
       <LineChart
         className="max-h-full min-h-0 min-w-0 max-w-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
         data={props.chartData}

@@ -23,11 +23,11 @@ const NoData = ({
   return (
     <div
       className={cn(
-        "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-tremor-default border border-dashed",
+        "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-md border border-dashed",
         className,
       )}
     >
-      <p className="text-tremor-content">{noDataText}</p>
+      <p className="text-muted-foreground">{noDataText}</p>
       {children}
     </div>
   );
@@ -43,7 +43,7 @@ export function NoDataOrLoading({
     return (
       <div
         className={cn(
-          "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-tremor-default",
+          "flex h-3/4 min-h-[9rem] w-full items-center justify-center rounded-md",
           className,
         )}
       >
