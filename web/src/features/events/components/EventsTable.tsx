@@ -147,6 +147,7 @@ export type EventsTableProps = {
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
+  sessionId?: string;
 };
 
 export default function ObservationsEventsTable({
@@ -156,6 +157,7 @@ export default function ObservationsEventsTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  sessionId,
 }: EventsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
@@ -230,7 +232,7 @@ export default function ObservationsEventsTable({
   const [rawRefreshInterval, setRawRefreshInterval] =
     useSessionStorage<RefreshInterval>(
       `tableRefreshInterval-events-${projectId}`,
-      null,
+      60_000,
     );
 
   // Validate session storage value against allowed intervals
@@ -349,10 +351,22 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
+  const sessionIdFilter: FilterState = sessionId
+    ? [
+        {
+          column: "Session ID",
+          type: "string",
+          operator: "=",
+          value: sessionId,
+        },
+      ]
+    : [];
+
   const combinedFilterState = queryFilter.filterState
     .concat(dateRangeFilter)
     .concat(viewModeFilter)
-    .concat(userIdFilter);
+    .concat(userIdFilter)
+    .concat(sessionIdFilter);
 
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;

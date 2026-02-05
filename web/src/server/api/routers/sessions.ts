@@ -10,6 +10,7 @@ import {
 import {
   filterAndValidateDbScoreList,
   type FilterState,
+  type OrderByState,
   orderBy,
   paginationZod,
   type PrismaClient,
@@ -26,6 +27,11 @@ import {
   traceException,
   getSessionsTable,
   getSessionsTableCount,
+  getSessionsTableFromEvents,
+  getSessionsTableCountFromEvents,
+  getSessionsWithMetricsFromEvents,
+  getSessionTracesFromEvents,
+  getObservationsWithModelDataFromEventsTable,
   getTracesGroupedByTags,
   getTracesIdentifierForSession,
   getScoresForTraces,
@@ -39,6 +45,9 @@ import {
   getNumericScoresGroupedByName,
   getCategoricalScoresGroupedByName,
   tracesTableUiColumnDefinitions,
+  getEventsGroupedByUserId,
+  getEventsGroupedByTraceTags,
+  hasAnySessionFromEventsTable,
 } from "@langfuse/shared/src/server";
 import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -49,6 +58,13 @@ const SessionFilterOptions = z.object({
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
   ...paginationZod,
+});
+
+const SessionTraceObservationsInput = z.object({
+  projectId: z.string(),
+  sessionId: z.string(),
+  traceId: z.string(),
+  filter: z.array(singleFilter).nullable(),
 });
 
 const handleGetSessionById = async (input: {
@@ -141,6 +157,15 @@ export const sessionRouter = createTRPCRouter({
     .query(async ({ input }) => {
       return await hasAnySession(input.projectId);
     }),
+  hasAnyFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await hasAnySessionFromEventsTable(input.projectId);
+    }),
   all: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
@@ -200,6 +225,64 @@ export const sessionRouter = createTRPCRouter({
         }),
       };
     }),
+  allFromEvents: protectedProjectProcedure
+    .input(SessionFilterOptions)
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "SESSION",
+      });
+
+      if (hasNoMatches) {
+        return { sessions: [] };
+      }
+
+      const finalFilter = await getPublicSessionsFilter(
+        input.projectId,
+        filterState,
+      );
+      const sessions = await getSessionsTableFromEvents({
+        projectId: input.projectId,
+        filter: finalFilter,
+        orderBy: input.orderBy,
+        page: input.page,
+        limit: input.limit,
+      });
+
+      const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
+        where: {
+          id: {
+            in: sessions.map((s) => s.session_id),
+          },
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          bookmarked: true,
+          public: true,
+        },
+      });
+      return {
+        sessions: sessions.map((s) => {
+          return {
+            id: s.session_id,
+            userIds: s.user_ids,
+            countTraces: s.trace_count,
+            traceTags: s.trace_tags,
+            createdAt: new Date(s.min_timestamp),
+            bookmarked:
+              prismaSessionInfo.find((p) => p.id === s.session_id)
+                ?.bookmarked ?? false,
+            public:
+              prismaSessionInfo.find((p) => p.id === s.session_id)?.public ??
+              false,
+            environment: s.environment,
+          };
+        }),
+      };
+    }),
   countAll: protectedProjectProcedure
     .input(SessionFilterOptions)
     .query(async ({ input, ctx }) => {
@@ -219,6 +302,36 @@ export const sessionRouter = createTRPCRouter({
         filterState,
       );
       const count = await getSessionsTableCount({
+        projectId: input.projectId,
+        filter: finalFilter,
+        orderBy: input.orderBy,
+        page: 0,
+        limit: 1,
+      });
+
+      return {
+        totalCount: count,
+      };
+    }),
+  countAllFromEvents: protectedProjectProcedure
+    .input(SessionFilterOptions)
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "SESSION",
+      });
+
+      if (hasNoMatches) {
+        return { totalCount: 0 };
+      }
+
+      const finalFilter = await getPublicSessionsFilter(
+        input.projectId,
+        filterState,
+      );
+      const count = await getSessionsTableCountFromEvents({
         projectId: input.projectId,
         filter: finalFilter,
         orderBy: input.orderBy,
@@ -305,6 +418,81 @@ export const sessionRouter = createTRPCRouter({
         ),
       }));
     }),
+  metricsFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (input.sessionIds.length === 0) return [];
+      const finalFilter = await getPublicSessionsFilter(input.projectId, [
+        {
+          column: "id",
+          type: "stringOptions",
+          operator: "any of",
+          value: input.sessionIds,
+        },
+      ]);
+      const sessions = await getSessionsWithMetricsFromEvents({
+        projectId: input.projectId,
+        filter: finalFilter,
+      });
+
+      const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
+        where: {
+          id: {
+            in: sessions.map((s) => s.session_id),
+          },
+          projectId: input.projectId,
+        },
+        select: {
+          id: true,
+          bookmarked: true,
+          public: true,
+        },
+      });
+
+      const scores = await getScoresForSessions({
+        projectId: ctx.session.projectId,
+        sessionIds: sessions.map((s) => s.session_id),
+        limit: 1000,
+        offset: 0,
+      });
+
+      const validatedScores = filterAndValidateDbScoreList({
+        scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        onParseError: traceException,
+      });
+
+      return sessions.map((s) => ({
+        id: s.session_id,
+        userIds: s.user_ids,
+        countTraces: s.trace_count,
+        traceTags: s.trace_tags,
+        createdAt: new Date(s.min_timestamp),
+        bookmarked:
+          prismaSessionInfo.find((p) => p.id === s.session_id)?.bookmarked ??
+          false,
+        public:
+          prismaSessionInfo.find((p) => p.id === s.session_id)?.public ?? false,
+        environment: s.environment,
+        trace_count: Number(s.trace_count),
+        total_observations: Number(s.total_observations),
+        sessionDuration: Number(s.duration),
+        inputCost: new Decimal(s.session_input_cost),
+        outputCost: new Decimal(s.session_output_cost),
+        totalCost: new Decimal(s.session_total_cost),
+        promptTokens: Number(s.session_input_usage),
+        completionTokens: Number(s.session_output_usage),
+        totalTokens: Number(s.session_total_usage),
+        scores: aggregateScores(
+          validatedScores.filter((score) => score.sessionId === s.session_id),
+        ),
+      }));
+    }),
   filterOptions: protectedProjectProcedure
     .input(
       z.object({
@@ -376,6 +564,66 @@ export const sessionRouter = createTRPCRouter({
         score_categories: categoricalScoreNames,
       };
     }),
+  filterOptionsFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        timestampFilter: z.array(timeFilter).optional(),
+      }),
+    )
+    .query(async ({ input }): Promise<SessionOptions> => {
+      const { timestampFilter } = input;
+
+      const eventsFilter: FilterState = [
+        {
+          column: "sessionId",
+          operator: "is not null",
+          type: "null",
+          value: "",
+        },
+      ];
+
+      if (timestampFilter && timestampFilter.length > 0) {
+        eventsFilter.push(
+          ...timestampFilter.map((tf) => ({
+            ...tf,
+            column: "startTime" as const,
+          })),
+        );
+      }
+
+      const scoreTimestampFilter =
+        timestampFilter && timestampFilter.length > 0
+          ? timestampFilter.map((tf) => ({
+              ...tf,
+              column: "Timestamp", // Use exact trace column name for score functions
+            }))
+          : [];
+
+      const [userIds, tags, numericScoreNames, categoricalScoreNames] =
+        await Promise.all([
+          getEventsGroupedByUserId(input.projectId, eventsFilter),
+          getEventsGroupedByTraceTags(input.projectId, eventsFilter),
+          getNumericScoresGroupedByName(input.projectId, scoreTimestampFilter),
+          getCategoricalScoresGroupedByName(
+            input.projectId,
+            scoreTimestampFilter,
+          ),
+        ]);
+
+      return {
+        userIds: userIds.map((row) => ({
+          value: row.userId,
+          count: Number(row.count),
+        })),
+        environment: [], // Environment is fetched separately via api.projects.environmentFilterOptions
+        tags: tags.map((row) => ({
+          value: row.tag,
+        })),
+        scores_avg: numericScoreNames.map((s) => s.name),
+        score_categories: categoricalScoreNames,
+      };
+    }),
   byIdWithScores: protectedGetSessionProcedure
     .input(
       z.object({
@@ -406,6 +654,174 @@ export const sessionRouter = createTRPCRouter({
         ...session,
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };
+    }),
+  byIdWithScoresFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        sessionId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const postgresSession = await ctx.prisma.traceSession.findFirst({
+        where: {
+          id: input.sessionId,
+          projectId: input.projectId,
+        },
+      });
+
+      if (!postgresSession) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Session not found in project",
+        });
+      }
+
+      const [scores, sessionMetrics] = await Promise.all([
+        getScoresForSessions({
+          projectId: input.projectId,
+          sessionIds: [input.sessionId],
+        }),
+        getSessionsWithMetricsFromEvents({
+          projectId: input.projectId,
+          filter: [
+            {
+              column: "id",
+              type: "stringOptions",
+              operator: "any of",
+              value: [input.sessionId],
+            },
+          ],
+          limit: 1,
+          page: 0,
+        }).then((rows) => rows[0]),
+      ]);
+
+      const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
+        scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        onParseError: traceException,
+      });
+
+      return {
+        ...postgresSession,
+        users:
+          sessionMetrics?.user_ids?.filter(
+            (userId) => userId !== null && userId !== "",
+          ) ?? [],
+        countTraces: sessionMetrics?.trace_count ?? 0,
+        totalCost: sessionMetrics
+          ? Number(sessionMetrics.session_total_cost)
+          : 0,
+        environment: sessionMetrics?.environment,
+        scores: toDomainArrayWithStringifiedMetadata(validatedScores),
+      };
+    }),
+  tracesFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        sessionId: z.string(), // used for security check
+        projectId: z.string(), // used for security check
+      }),
+    )
+    .query(async ({ input }) => {
+      const traces = await getSessionTracesFromEvents({
+        projectId: input.projectId,
+        sessionId: input.sessionId,
+      });
+
+      const chunks = chunk(traces, 500);
+      const scores = await Promise.all(
+        chunks.map((traceChunk) =>
+          getScoresForTraces({
+            projectId: input.projectId,
+            traceIds: traceChunk.map((t) => t.id),
+            timestamp: new Date(
+              Math.min(...traceChunk.map((t) => t.timestamp.getTime())),
+            ),
+          }),
+        ),
+      ).then((results) => results.flat());
+
+      const validatedScores = filterAndValidateDbScoreList({
+        scores,
+        dataTypes: AGGREGATABLE_SCORE_TYPES,
+        onParseError: traceException,
+      });
+
+      return traces.map((trace) => ({
+        ...trace,
+        scores: toDomainArrayWithStringifiedMetadata(
+          validatedScores.filter((s) => s.traceId === trace.id),
+        ),
+      }));
+    }),
+  observationsForTraceFromEvents: protectedGetSessionProcedure
+    .input(SessionTraceObservationsInput)
+    .query(async ({ input }) => {
+      const positionFilter = (input.filter ?? []).find(
+        (filter) => filter.type === "positionInTrace",
+      );
+      const baseFilters = (input.filter ?? []).filter(
+        (filter) => filter.type !== "positionInTrace",
+      );
+
+      const filterState: FilterState = [
+        ...baseFilters,
+        {
+          column: "traceId",
+          type: "string",
+          operator: "=",
+          value: input.traceId,
+        },
+        {
+          column: "sessionId",
+          type: "string",
+          operator: "=",
+          value: input.sessionId,
+        },
+      ];
+
+      let orderBy: OrderByState = { column: "startTime", order: "ASC" };
+      let limit: number | undefined;
+      let offset: number | undefined;
+
+      if (positionFilter) {
+        if (positionFilter.key === "root") {
+          filterState.push({
+            column: "hasParentObservation",
+            type: "boolean",
+            operator: "=",
+            value: false,
+          });
+          orderBy = { column: "startTime", order: "ASC" };
+          limit = 1;
+        } else {
+          const fromEnd =
+            positionFilter.key === "last" ||
+            positionFilter.key === "nthFromEnd";
+          orderBy = { column: "startTime", order: fromEnd ? "DESC" : "ASC" };
+          const rawIndex =
+            positionFilter.key === "last" ? 1 : (positionFilter.value ?? 1);
+          const safeIndex = Math.max(1, rawIndex);
+          offset = safeIndex - 1;
+          limit = 1;
+        }
+      }
+
+      const observations = await getObservationsWithModelDataFromEventsTable({
+        projectId: input.projectId,
+        filter: filterState,
+        searchQuery: undefined,
+        searchType: [],
+        orderBy,
+        limit,
+        offset,
+        selectIOAndMetadata: true,
+        renderingProps: { truncated: true, shouldJsonParse: true },
+      });
+
+      return observations;
     }),
   bookmark: protectedProjectProcedure
     .input(

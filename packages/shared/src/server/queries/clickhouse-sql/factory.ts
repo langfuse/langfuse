@@ -32,7 +32,11 @@ export const createFilterFromFilterState = (
   filter: FilterCondition[],
   columnMapping: UiColumnMappings,
 ) => {
-  return filter.map((frontEndFilter) => {
+  const applicableFilters = filter.filter(
+    (frontEndFilter) => frontEndFilter.type !== "positionInTrace",
+  );
+
+  return applicableFilters.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
     const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
 
