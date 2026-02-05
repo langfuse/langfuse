@@ -500,7 +500,7 @@ export default class BackfillEventsHistoricFromParts
       };
     }
 
-    // Check if ClickHouse events table exists
+    // Check if ClickHouse events_full table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
     });

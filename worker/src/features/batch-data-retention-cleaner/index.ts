@@ -99,7 +99,7 @@ function buildRetentionConditions(
  * BatchDataRetentionCleaner handles bulk deletion of ClickHouse data based on
  * project retention settings.
  *
- * Each instance processes one table (traces, observations, scores, events).
+ * Each instance processes one table (traces, observations, scores, events_full, events_core).
  * Multiple workers coordinate via Redis distributed locking to ensure only one
  * worker deletes from a given table at a time.
  *

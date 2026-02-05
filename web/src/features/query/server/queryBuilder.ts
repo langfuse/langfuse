@@ -190,7 +190,7 @@ export class QueryBuilder {
   }
 
   private actualTableName(view: ViewDeclarationType): string {
-    // Extract actual table name from baseCte (handles cases like "events-observations" -> "events")
+    // Extract actual table name from baseCte (e.g., "events_core events_traces" -> "events_core")
     return view.baseCte.split(" ")[0];
   }
 

@@ -582,7 +582,7 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
   }
 
   logger.info(
-    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events table via IngestionService`,
+    `[EXPERIMENT BACKFILL] Wrote ${spans.length} enriched spans to events_full table via IngestionService`,
   );
 }
 
