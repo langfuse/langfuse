@@ -229,7 +229,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     const requiredTables = [
       "observations_pid_tid_sorting",
       "traces_pid_tid_sorting",
-      "events",
+      "events_full",
       "backfill_chunks",
     ];
 
@@ -648,11 +648,11 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
     });
     const tableNames = (await tables.json()).data as { name: string }[];
 
-    if (!tableNames.some((r) => r.name === "events")) {
+    if (!tableNames.some((r) => r.name === "events_full")) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `ClickHouse events table does not exist. Retrying in 10s...`,
+          `ClickHouse events_full table does not exist. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -661,7 +661,7 @@ export default class BackfillEventsHistoric implements IBackgroundMigration {
 
       return {
         valid: false,
-        invalidReason: "ClickHouse events table does not exist",
+        invalidReason: "ClickHouse events_full table does not exist",
       };
     }
 

@@ -506,11 +506,11 @@ export default class BackfillEventsHistoricFromParts
     });
     const tableNames = (await tables.json()).data as { name: string }[];
 
-    if (!tableNames.some((r) => r.name === "events")) {
+    if (!tableNames.some((r) => r.name === "events_full")) {
       // Retry if the table does not exist as this may mean migrations are still pending
       if (attempts > 0) {
         logger.info(
-          `ClickHouse events table does not exist. Retrying in 10s...`,
+          `ClickHouse events_full table does not exist. Retrying in 10s...`,
         );
         return new Promise((resolve) => {
           setTimeout(() => resolve(this.validate(args, attempts - 1)), 10_000);
@@ -519,7 +519,7 @@ export default class BackfillEventsHistoricFromParts
 
       return {
         valid: false,
-        invalidReason: "ClickHouse events table does not exist",
+        invalidReason: "ClickHouse events_full table does not exist",
       };
     }
 

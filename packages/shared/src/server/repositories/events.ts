@@ -206,12 +206,15 @@ async function enrichObservationsWithTraceFields(
  */
 function extractTimeFilter(
   filter: FilterList,
-  tableName: "events" | "traces" = "events",
+  tableName: "events_proto" | "traces" = "events_proto",
   fieldName: "start_time" | "timestamp" = "start_time",
 ): string | null {
   const timeFilter = filter.find(
     (f) =>
-      f.clickhouseTable === tableName &&
+      // For events tables, match any events_* prefix (events_proto, events_core, events_full)
+      (tableName === "events_proto"
+        ? f.clickhouseTable.startsWith("events_")
+        : f.clickhouseTable === tableName) &&
       f.field === fieldName &&
       (f.operator === ">=" || f.operator === ">"),
   );
@@ -225,7 +228,11 @@ function extractTimeFilter(
  * Column mapping for public API filters on events table (observations)
  */
 const PUBLIC_API_EVENTS_COLUMN_MAPPING: ApiColumnMapping[] =
-  createPublicApiObservationsColumnMapping("events", "e", "parent_span_id");
+  createPublicApiObservationsColumnMapping(
+    "events_proto",
+    "e",
+    "parent_span_id",
+  );
 
 /**
  * Column mappings for traces aggregated from events table

@@ -1043,7 +1043,7 @@ export class QueryBuilder {
 
     // Events table never needs FINAL modifier (already deduplicated)
     if (view.name === "events-observations") {
-      // baseCte already set to "events" in view definition (no FINAL)
+      // baseCte already set to "events_core" in view definition (no FINAL)
       // No changes needed, just using as-is
     }
     // Skip FINAL on observations base table if OTEL project

@@ -640,8 +640,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     });
 
     // Add I/O fields if configured
-    // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
-    // Use leftUTF8() on input/output directly for truncation.
+    // Note: needsFullTable() is responsible for choosing events_core/events_full (truncated vs full I/O)
     if (this.ioFields) {
       if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
         fieldExpressions.push(
@@ -653,7 +652,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     }
 
     // Add metadata field with expansion if configured
-    // Note: events_core/events_full tables don't have metadata_hashes/metadata_long_values columns.
+    // Note: needsFullTable() is responsible for choosing events_core/events_full
     // Metadata expansion is handled by querying events_full directly for full values.
     if (
       this.metadataExpansionKeys !== null &&

@@ -562,9 +562,9 @@ export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
 if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DELETION_TABLES) {
-    // Only start the events table cleaner if the events table experiment is enabled
+    // Only start the events table cleaners if the events table experiment is enabled
     if (
-      table !== "events" ||
+      (table !== "events_full" && table !== "events_core") ||
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
     ) {
       const cleaner = new BatchProjectCleaner(table);

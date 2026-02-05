@@ -224,7 +224,7 @@ export class CategoryOptionsFilter implements Filter {
 
 // stringObject filter is used when we want to filter on a key value pair in metadata.
 // For observations/traces tables: uses Map column (metadata)
-// For events tables (events, events_core, events_full): uses Array columns (metadata_names/metadata_values)
+// For events tables (events_core, events_full): uses Array columns (metadata_names/metadata_values)
 // We can only filter efficiently on the first level of a json obj.
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
