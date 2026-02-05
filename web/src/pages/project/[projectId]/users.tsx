@@ -83,9 +83,23 @@ export default function UsersPage() {
       headerProps={{
         title: "Users",
         help: {
-          description:
-            "Attribute data in Langfuse to a user by adding a userId to your traces. See docs to learn more.",
-          href: "https://langfuse.com/docs/user-explorer",
+          description: (
+            <>
+              Attribute data in Langfuse to a user by adding a userId to your
+              traces. See{" "}
+              <a
+                href="https://langfuse.com/docs/observability/features/users"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-primary/30 hover:decoration-primary"
+                onClick={(e) => e.stopPropagation()}
+              >
+                docs
+              </a>{" "}
+              to learn more.
+            </>
+          ),
+          href: "https://langfuse.com/docs/observability/features/users",
         },
       }}
       scrollable={showOnboarding}
