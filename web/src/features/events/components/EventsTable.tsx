@@ -139,11 +139,13 @@ export type EventsTableRow = {
 export type EventsTableProps = {
   projectId: string;
   userId?: string;
+  sessionId?: string;
 };
 
 export default function ObservationsEventsTable({
   projectId,
   userId,
+  sessionId,
 }: EventsTableProps) {
   const router = useRouter();
   const { viewId } = router.query;
@@ -334,10 +336,22 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
+  const sessionIdFilter: FilterState = sessionId
+    ? [
+        {
+          column: "Session ID",
+          type: "string",
+          operator: "=",
+          value: sessionId,
+        },
+      ]
+    : [];
+
   const filterState = queryFilter.filterState
     .concat(dateRangeFilter)
     .concat(viewModeFilter)
-    .concat(userIdFilter);
+    .concat(userIdFilter)
+    .concat(sessionIdFilter);
 
   // Use the custom hook for observations data fetching
   const {

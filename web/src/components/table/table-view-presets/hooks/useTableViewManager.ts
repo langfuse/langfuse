@@ -17,6 +17,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { validateOrderBy, validateFilters } from "../validation";
+import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
@@ -66,12 +67,14 @@ export function useTableViewManager({
   // Keep track of the viewId in session storage and in the query params
   const handleSetViewId = useCallback(
     (viewId: string | null) => {
+      // to ensure immediate sync -> update URL
+      const url = new URL(window.location.href);
       if (viewId === null) {
-        // When clearing, remove from URL first to prevent sync loop
-        const url = new URL(window.location.href);
         url.searchParams.delete("viewId");
-        window.history.replaceState({}, "", url.toString());
+      } else {
+        url.searchParams.set("viewId", viewId);
       }
+      window.history.replaceState({}, "", url.toString());
       setStoredViewId(viewId);
       setSelectedViewId(viewId);
     },
@@ -115,7 +118,7 @@ export function useTableViewManager({
     }
   }, [storedViewId, setStoredViewId, setSelectedViewId]);
 
-  // Fetch view data if viewId is provided
+  // Fetch view data if viewId is provided (skip for system presets)
   const {
     data: viewData,
     isLoading: isViewLoading,
@@ -123,7 +126,8 @@ export function useTableViewManager({
   } = api.TableViewPresets.getById.useQuery(
     { viewId: viewId as string, projectId },
     {
-      enabled: !!viewId && !isInitialized,
+      enabled:
+        !!viewId && !isInitialized && !isSystemPresetId(viewId as string),
     },
   );
 
@@ -237,15 +241,20 @@ export function useTableViewManager({
     }
   }, [viewError, isInitialized, setIsLoading, handleSetViewId]);
 
-  // Initialize on mount if no viewId
+  // Initialize on mount if no viewId (or if viewId is a system preset from another page)
   useEffect(() => {
-    if (!isInitialized && !isViewLoading && !viewId) {
-      // No view to load - just mark as initialized
+    const shouldSkipViewId = !viewId || isSystemPresetId(viewId as string);
+    if (!isInitialized && !isViewLoading && shouldSkipViewId) {
+      // No view to load (or system preset which is page-specific) - just mark as initialized
       // The individual state hooks will have their own defaults
+      // Clear any stale system preset ID from URL
+      if (isSystemPresetId(viewId as string)) {
+        handleSetViewId(null);
+      }
       setIsInitialized(true);
       setIsLoading(false);
     }
-  }, [isInitialized, isViewLoading, viewId]);
+  }, [isInitialized, isViewLoading, viewId, handleSetViewId]);
 
   // Observe when filter state propagates from saved view
   // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion

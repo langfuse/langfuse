@@ -116,6 +116,9 @@ export function tableColumnsToSqlFilter(
       case "null":
         valuePrisma = Prisma.sql``;
         break;
+      case "positionInTrace":
+        logger.warn("Position-in-trace filters are not supported in postgres");
+        throw new Error("Position-in-trace filters not supported in postgres");
     }
     const jsonKeyPrisma =
       filter.type === "stringObject" || filter.type === "numberObject"
