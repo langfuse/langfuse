@@ -182,6 +182,10 @@ const SEED_DATASET_ITEMS_GREETINGS = [
   { input: { language: "German" }, output: "Guten Tag" },
 ];
 
+const SEED_DATASET_ITEMS_VERSION_TEST = [
+  { input: { color: "red" }, output: "#FF0000" },
+];
+
 export const SEED_DATASETS = [
   {
     name: "demo-countries-dataset",
@@ -236,6 +240,15 @@ export const SEED_DATASETS = [
       category: "i18n",
     },
     items: SEED_DATASET_ITEMS_GREETINGS,
+    shouldRunExperiment: false,
+  },
+  {
+    name: "test-dataset-versioning",
+    description: "Test dataset with multiple versions of a single item",
+    metadata: {
+      purpose: "testing dataset versioning feature",
+    },
+    items: SEED_DATASET_ITEMS_VERSION_TEST,
     shouldRunExperiment: false,
   },
 ];

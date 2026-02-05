@@ -186,6 +186,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
       id: ri.id,
       createdAt: ri.createdAt,
       datasetItemId: ri.datasetItemId,
+      datasetItemVersion: ri.datasetItemVersion ?? undefined,
       datasetRunId: ri.datasetRunId,
       datasetRunName: ri.datasetRunName,
       observation,
