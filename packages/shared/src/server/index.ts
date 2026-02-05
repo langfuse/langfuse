@@ -98,6 +98,7 @@ export * from "./utils/rendering";
 export * from "./redis/evalExecutionQueue";
 export * from "./redis/llmAsJudgeExecutionQueue";
 export * from "./services/sessions-ui-table-service";
+export * from "./services/sessions-ui-table-events-service";
 export * from "./services/DashboardService";
 export * from "./services/TableViewService";
 export * from "./services/DefaultEvaluationModelService";
