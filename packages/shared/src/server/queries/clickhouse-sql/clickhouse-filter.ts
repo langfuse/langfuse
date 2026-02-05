@@ -257,9 +257,11 @@ export class StringObjectFilter implements Filter {
 
     // Events tables use array columns (metadata_names/metadata_values)
     // Observations/traces tables use Map column (metadata)
-    const isEventsTable = ["events", "events_core", "events_full"].includes(
-      this.clickhouseTable,
-    );
+    const isEventsTable = [
+      "events_proto",
+      "events_core",
+      "events_full",
+    ].includes(this.clickhouseTable);
 
     let query: string;
     if (isEventsTable) {
