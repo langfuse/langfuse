@@ -46,7 +46,7 @@ export const useUserFacingTarget = (targetObject?: string) => {
       setUserFacingTarget("offline-experiment");
       setUseOtelDataForExperiment(false);
     }
-  }, [targetObject]);
+  }, [targetObject, isBetaEnabled]);
 
   return {
     userFacingTarget,

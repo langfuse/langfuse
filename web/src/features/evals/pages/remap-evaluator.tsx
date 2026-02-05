@@ -5,7 +5,6 @@ import { api } from "@/src/utils/api";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
 import {
   mapLegacyToModernTarget,
-  isLegacyEvalTarget,
   isTraceTarget,
   isEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";

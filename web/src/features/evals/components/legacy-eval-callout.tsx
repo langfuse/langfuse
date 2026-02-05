@@ -7,14 +7,12 @@ import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 interface LegacyEvalCalloutProps {
   projectId: string;
   evalConfigId: string;
-  evalTemplateId: string;
   targetObject: string;
 }
 
 export function LegacyEvalCallout({
   projectId,
   evalConfigId,
-  evalTemplateId,
   targetObject,
 }: LegacyEvalCalloutProps) {
   const router = useRouter();
