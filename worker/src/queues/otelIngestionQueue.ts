@@ -19,6 +19,10 @@ import {
   compareVersions,
   ResourceSpan,
 } from "@langfuse/shared/src/server";
+import {
+  applyIngestionMasking,
+  isIngestionMaskingEnabled,
+} from "@langfuse/shared/src/server/ee/ingestionMasking";
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
@@ -158,12 +162,34 @@ export const otelIngestionQueueProcessor: Processor = async (
       },
     );
 
+    // Parse spans from S3 download
+    let parsedSpans = JSON.parse(resourceSpans);
+
+    // Apply ingestion masking if enabled (EE feature)
+    if (isIngestionMaskingEnabled()) {
+      const maskingResult = await applyIngestionMasking({
+        data: parsedSpans,
+        projectId,
+        orgId: job.data.payload.authCheck.scope.orgId,
+        propagatedHeaders: job.data.payload.propagatedHeaders,
+      });
+
+      if (!maskingResult.success) {
+        // Fail-closed: drop event
+        logger.warn(`Dropping OTEL event due to masking failure`, {
+          projectId,
+          error: maskingResult.error,
+        });
+        return;
+      }
+      parsedSpans = maskingResult.data;
+    }
+
     // Generate events via OtelIngestionProcessor
     const processor = new OtelIngestionProcessor({
       projectId,
       publicKey,
     });
-    const parsedSpans = JSON.parse(resourceSpans);
     const events: IngestionEventType[] =
       await processor.processToIngestionEvents(parsedSpans);
     // Here, we split the events into observations and non-observations.
