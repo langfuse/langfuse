@@ -90,6 +90,7 @@
     "date-fns": "^3.3.1",
     "dd-trace": "^5.65.0",
     "decimal.js": "^10.4.3",
+    "everything-json": "^1.2.1",
     "exponential-backoff": "^3.1.2",
     "https-proxy-agent": "^7.0.6",
     "ioredis": "^5.8.2",

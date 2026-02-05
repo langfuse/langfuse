@@ -1,6 +1,21 @@
 import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
 
+// Lazy load everything-json to avoid webpack bundling issues (native addon)
+// Use indirect require to prevent webpack from statically analyzing the import
+let everythingJsonModule: {
+  JSON: typeof import("everything-json").JSON;
+} | null = null;
+const getEverythingJSON = async () => {
+  if (!everythingJsonModule) {
+    // Hide module name from webpack static analysis
+    const moduleName = ["everything", "json"].join("-");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    everythingJsonModule = require(moduleName);
+  }
+  return everythingJsonModule!.JSON;
+};
+
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -407,6 +422,44 @@ export const parseJsonPrioritised = (
           return Number(value.valueOf());
         } else {
           // For large integers beyond safe limits, preserve string representation
+          return value.toString();
+        }
+      }
+      return value;
+    }) as JsonNested;
+  } catch {
+    return json;
+  }
+};
+
+/**
+ * Async version of parseJsonPrioritised using everything-json for non-blocking parsing.
+ * Uses everything-json for the fast path (no large numbers) to avoid blocking the event loop.
+ * Falls back to lossless-json for precision-sensitive parsing with large numbers.
+ */
+export const parseJsonPrioritisedAsync = async (
+  json: string,
+): Promise<JsonNested | string | undefined> => {
+  try {
+    // Fast path: non-blocking parsing with everything-json if no potentially unsafe numbers
+    if (!UNSAFE_NUMBER_PATTERN.test(json)) {
+      const EverythingJSON = await getEverythingJSON();
+      const parsed = await EverythingJSON.parseAsync(json);
+      // For primitives, use expand(); for objects/arrays, use toObjectAsync()
+      // toObjectAsync() throws for primitives
+      if (parsed.type === "object" || parsed.type === "array") {
+        return (await parsed.toObjectAsync()) as JsonNested;
+      }
+      // Primitives: expand() returns the actual value synchronously
+      return parsed.expand() as JsonNested;
+    }
+
+    // Slow path: use lossless-json to preserve precision for large numbers
+    return parse(json, null, (value) => {
+      if (isNumber(value)) {
+        if (isSafeNumber(value)) {
+          return Number(value.valueOf());
+        } else {
           return value.toString();
         }
       }
