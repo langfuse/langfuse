@@ -1,1 +1,1 @@
-ALTER TABLE scores ON CLUSTER default MODIFY COLUMN trace_id Nullable(String) SETTINGS mutations_sync = 2;
+ALTER TABLE scores ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} MODIFY COLUMN trace_id Nullable(String) SETTINGS mutations_sync = 2;

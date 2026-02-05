@@ -1,4 +1,4 @@
-CREATE TABLE blob_storage_file_log ON CLUSTER default (
+CREATE TABLE blob_storage_file_log ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} (
     `id`          String,
     `project_id`  String,
     `entity_type` String,

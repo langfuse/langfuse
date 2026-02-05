@@ -1,1 +1,1 @@
-DROP TABLE observations ON CLUSTER default;
+DROP TABLE observations ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME};

@@ -1,4 +1,4 @@
-CREATE TABLE dataset_run_items_rmt ON CLUSTER default (
+CREATE TABLE dataset_run_items_rmt ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} (
     -- primary identifiers
     `id` String,
     `project_id` String,

@@ -67,6 +67,15 @@ if [ "$CLICKHOUSE_MIGRATION_SSL" = true ] ; then
       DATABASE_URL="${CLICKHOUSE_MIGRATION_URL}?username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}&database=${CLICKHOUSE_DB}&x-multi-statement=true&x-cluster-name=${CLICKHOUSE_CLUSTER_NAME}&x-migrations-table-engine=ReplicatedMergeTree"
   fi
 
-  # Execute the up command
-  migrate -source file://clickhouse/migrations/clustered -database "$DATABASE_URL" up
+  # Prepare a temp directory with cluster name substituted (supports names with dashes)
+  TMP_DIR=$(mktemp -d)
+  SRC_DIR="clickhouse/migrations/clustered"
+  for f in "$SRC_DIR"/*.sql; do
+    # Replace literal placeholder with quoted cluster name to satisfy ClickHouse grammar
+    sed -e "s|ON CLUSTER \\\${CLICKHOUSE_CLUSTER_NAME}|ON CLUSTER '$CLICKHOUSE_CLUSTER_NAME'|g" "$f" > "$TMP_DIR/$(basename "$f")"
+  done
+  # Execute the up command using the preprocessed migrations
+  migrate -source file://"$TMP_DIR" -database "$DATABASE_URL" up
+  # Cleanup
+  rm -rf "$TMP_DIR"
 fi

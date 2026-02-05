@@ -1,4 +1,4 @@
-CREATE TABLE traces ON CLUSTER default (
+CREATE TABLE traces ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} (
     `id` String,
     `timestamp` DateTime64(3),
     `name` String,

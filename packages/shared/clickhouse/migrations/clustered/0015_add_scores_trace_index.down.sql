@@ -1,1 +1,1 @@
-ALTER TABLE scores ON CLUSTER default DROP INDEX IF EXISTS idx_project_trace_observation SETTINGS mutations_sync = 2;
+ALTER TABLE scores ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} DROP INDEX IF EXISTS idx_project_trace_observation SETTINGS mutations_sync = 2;

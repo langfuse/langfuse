@@ -1,4 +1,4 @@
-CREATE VIEW analytics_scores ON CLUSTER default AS
+CREATE VIEW analytics_scores ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} AS
 SELECT
     project_id,
     toStartOfHour(timestamp) AS hour,

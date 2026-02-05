@@ -1,1 +1,1 @@
-ALTER TABLE scores ON CLUSTER default ADD COLUMN metadata Map(LowCardinality(String), String) AFTER comment;
+ALTER TABLE scores ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME} ADD COLUMN metadata Map(LowCardinality(String), String) AFTER comment;

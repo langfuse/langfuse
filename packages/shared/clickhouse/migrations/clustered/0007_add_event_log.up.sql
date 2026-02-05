@@ -1,4 +1,4 @@
-CREATE TABLE event_log ON CLUSTER default
+CREATE TABLE event_log ON CLUSTER ${CLICKHOUSE_CLUSTER_NAME}
 (
     `id`          String,
     `project_id`  String,
