@@ -238,98 +238,20 @@ function buildTreeNodesBottomUp(
       }
     }
 
-    // Aggregate ALL metrics from children in a single pass
-    const childrenAggregates = childTreeNodes.reduce(
+    // Sum children's total costs (already computed bottom-up)
+    const childrenTotalCost = childTreeNodes.reduce<Decimal | undefined>(
       (acc, child) => {
-        // totalCost
-        if (child.totalCost) {
-          acc.totalCost = acc.totalCost
-            ? acc.totalCost.plus(child.totalCost)
-            : child.totalCost;
-        }
-
-        // costDetails - merge keys and sum values
-        if (child.aggregatedCostDetails) {
-          acc.costDetails = acc.costDetails ?? {};
-          for (const [key, value] of Object.entries(
-            child.aggregatedCostDetails,
-          )) {
-            acc.costDetails[key] = (acc.costDetails[key] ?? 0) + value;
-          }
-        }
-
-        // usageDetails - merge keys and sum values
-        if (child.aggregatedUsageDetails) {
-          acc.usageDetails = acc.usageDetails ?? {};
-          for (const [key, value] of Object.entries(
-            child.aggregatedUsageDetails,
-          )) {
-            acc.usageDetails[key] = (acc.usageDetails[key] ?? 0) + value;
-          }
-        }
-
-        // usage counts
-        acc.inputUsage += child.aggregatedInputUsage ?? 0;
-        acc.outputUsage += child.aggregatedOutputUsage ?? 0;
-        acc.totalUsage += child.aggregatedTotalUsage ?? 0;
-
-        // hasGenerationLike propagates up
-        acc.hasGenerationLike =
-          acc.hasGenerationLike || child.hasGenerationLike;
-
-        return acc;
+        if (!child.totalCost) return acc;
+        return acc ? acc.plus(child.totalCost) : child.totalCost;
       },
-      {
-        totalCost: undefined as Decimal | undefined,
-        costDetails: undefined as Record<string, number> | undefined,
-        usageDetails: undefined as Record<string, number> | undefined,
-        inputUsage: 0,
-        outputUsage: 0,
-        totalUsage: 0,
-        hasGenerationLike: false as boolean | undefined,
-      },
+      undefined,
     );
 
-    // Total cost = node cost + children costs
+    // Total = node cost + children costs
     const totalCost =
-      nodeCost && childrenAggregates.totalCost
-        ? nodeCost.plus(childrenAggregates.totalCost)
-        : nodeCost || childrenAggregates.totalCost;
-
-    // Merge node's own costDetails with children's aggregated costDetails
-    let aggregatedCostDetails = childrenAggregates.costDetails;
-    if (obs.costDetails && Object.keys(obs.costDetails).length > 0) {
-      aggregatedCostDetails = aggregatedCostDetails ?? {};
-      for (const [key, value] of Object.entries(obs.costDetails)) {
-        aggregatedCostDetails[key] = (aggregatedCostDetails[key] ?? 0) + value;
-      }
-    }
-
-    // Check if this node is generation-like
-    const nodeIsGenerationLike = isGenerationLike(obs.type as ObservationType);
-    const hasGenerationLike =
-      nodeIsGenerationLike || childrenAggregates.hasGenerationLike;
-
-    // Only include this node's usage if it's generation-like (matching aggregateTraceMetrics behavior)
-    let aggregatedUsageDetails = childrenAggregates.usageDetails;
-    let aggregatedInputUsage = childrenAggregates.inputUsage;
-    let aggregatedOutputUsage = childrenAggregates.outputUsage;
-    let aggregatedTotalUsage = childrenAggregates.totalUsage;
-
-    if (nodeIsGenerationLike) {
-      // Merge node's own usageDetails
-      if (obs.usageDetails && Object.keys(obs.usageDetails).length > 0) {
-        aggregatedUsageDetails = aggregatedUsageDetails ?? {};
-        for (const [key, value] of Object.entries(obs.usageDetails)) {
-          aggregatedUsageDetails[key] =
-            (aggregatedUsageDetails[key] ?? 0) + value;
-        }
-      }
-      // Add node's own usage counts
-      aggregatedInputUsage += obs.inputUsage ?? 0;
-      aggregatedOutputUsage += obs.outputUsage ?? 0;
-      aggregatedTotalUsage += obs.totalUsage ?? 0;
-    }
+      nodeCost && childrenTotalCost
+        ? nodeCost.plus(childrenTotalCost)
+        : nodeCost || childrenTotalCost;
 
     // Calculate temporal and structural properties
     const startTimeSinceTrace =
@@ -374,21 +296,6 @@ function buildTreeNodesBottomUp(
       parentObservationId: obs.parentObservationId,
       traceId: obs.traceId,
       totalCost,
-      aggregatedCostDetails:
-        aggregatedCostDetails && Object.keys(aggregatedCostDetails).length > 0
-          ? aggregatedCostDetails
-          : undefined,
-      aggregatedUsageDetails:
-        aggregatedUsageDetails && Object.keys(aggregatedUsageDetails).length > 0
-          ? aggregatedUsageDetails
-          : undefined,
-      aggregatedInputUsage:
-        aggregatedInputUsage > 0 ? aggregatedInputUsage : undefined,
-      aggregatedOutputUsage:
-        aggregatedOutputUsage > 0 ? aggregatedOutputUsage : undefined,
-      aggregatedTotalUsage:
-        aggregatedTotalUsage > 0 ? aggregatedTotalUsage : undefined,
-      hasGenerationLike: hasGenerationLike || undefined,
       startTimeSinceTrace,
       startTimeSinceParentStart,
       depth,
@@ -498,55 +405,13 @@ function buildTraceTree(
 
   // Traditional traces: wrap in TRACE node
 
-  // Aggregate all metrics from root observations into trace node
-  const traceAggregates = rootTreeNodes.reduce(
+  // Calculate trace root total cost
+  const traceTotalCost = rootTreeNodes.reduce<Decimal | undefined>(
     (acc, child) => {
-      // totalCost
-      if (child.totalCost) {
-        acc.totalCost = acc.totalCost
-          ? acc.totalCost.plus(child.totalCost)
-          : child.totalCost;
-      }
-
-      // costDetails
-      if (child.aggregatedCostDetails) {
-        acc.costDetails = acc.costDetails ?? {};
-        for (const [key, value] of Object.entries(
-          child.aggregatedCostDetails,
-        )) {
-          acc.costDetails[key] = (acc.costDetails[key] ?? 0) + value;
-        }
-      }
-
-      // usageDetails
-      if (child.aggregatedUsageDetails) {
-        acc.usageDetails = acc.usageDetails ?? {};
-        for (const [key, value] of Object.entries(
-          child.aggregatedUsageDetails,
-        )) {
-          acc.usageDetails[key] = (acc.usageDetails[key] ?? 0) + value;
-        }
-      }
-
-      // usage counts
-      acc.inputUsage += child.aggregatedInputUsage ?? 0;
-      acc.outputUsage += child.aggregatedOutputUsage ?? 0;
-      acc.totalUsage += child.aggregatedTotalUsage ?? 0;
-
-      // hasGenerationLike
-      acc.hasGenerationLike = acc.hasGenerationLike || child.hasGenerationLike;
-
-      return acc;
+      if (!child.totalCost) return acc;
+      return acc ? acc.plus(child.totalCost) : child.totalCost;
     },
-    {
-      totalCost: undefined as Decimal | undefined,
-      costDetails: undefined as Record<string, number> | undefined,
-      usageDetails: undefined as Record<string, number> | undefined,
-      inputUsage: 0,
-      outputUsage: 0,
-      totalUsage: 0,
-      hasGenerationLike: false as boolean | undefined,
-    },
+    undefined,
   );
 
   // Calculate trace root childrenDepth
@@ -564,24 +429,7 @@ function buildTraceTree(
     endTime: null,
     children: rootTreeNodes,
     latency: trace.latency,
-    totalCost: traceAggregates.totalCost,
-    aggregatedCostDetails:
-      traceAggregates.costDetails &&
-      Object.keys(traceAggregates.costDetails).length > 0
-        ? traceAggregates.costDetails
-        : undefined,
-    aggregatedUsageDetails:
-      traceAggregates.usageDetails &&
-      Object.keys(traceAggregates.usageDetails).length > 0
-        ? traceAggregates.usageDetails
-        : undefined,
-    aggregatedInputUsage:
-      traceAggregates.inputUsage > 0 ? traceAggregates.inputUsage : undefined,
-    aggregatedOutputUsage:
-      traceAggregates.outputUsage > 0 ? traceAggregates.outputUsage : undefined,
-    aggregatedTotalUsage:
-      traceAggregates.totalUsage > 0 ? traceAggregates.totalUsage : undefined,
-    hasGenerationLike: traceAggregates.hasGenerationLike || undefined,
+    totalCost: traceTotalCost,
     startTimeSinceTrace: 0,
     startTimeSinceParentStart: null,
     // depth: -1 for TRACE wrapper so its children (observations) start at depth 0
@@ -592,6 +440,67 @@ function buildTraceTree(
   nodeMap.set(traceNode.id, traceNode);
 
   return { roots: [traceNode], hiddenObservationsCount, nodeMap };
+}
+
+/**
+ * Aggregates cost/usage details for a root node by traversing its subtree.
+ * Sets aggregated fields directly on the root node (mutates).
+ * Only called for root nodes to avoid memory overhead on intermediate nodes.
+ */
+function aggregateRootNodeDetails(
+  root: TreeNode,
+  observationMap: Map<string, ObservationReturnType>,
+): void {
+  const costDetails: Record<string, number> = {};
+  const usageDetails: Record<string, number> = {};
+  let inputUsage = 0;
+  let outputUsage = 0;
+  let totalUsage = 0;
+  let hasGenerationLike = false;
+
+  // Single DFS traversal, aggregate as we go
+  const stack: TreeNode[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    const obs = observationMap.get(node.id);
+
+    if (obs) {
+      // Merge cost details
+      if (obs.costDetails) {
+        for (const [key, value] of Object.entries(obs.costDetails)) {
+          costDetails[key] = (costDetails[key] ?? 0) + value;
+        }
+      }
+
+      // Only aggregate usage for generation-like observations
+      if (isGenerationLike(obs.type as ObservationType)) {
+        hasGenerationLike = true;
+        inputUsage += obs.inputUsage ?? 0;
+        outputUsage += obs.outputUsage ?? 0;
+        totalUsage += obs.totalUsage ?? 0;
+
+        if (obs.usageDetails) {
+          for (const [key, value] of Object.entries(obs.usageDetails)) {
+            usageDetails[key] = (usageDetails[key] ?? 0) + value;
+          }
+        }
+      }
+    }
+
+    for (const child of node.children) {
+      stack.push(child);
+    }
+  }
+
+  // Set aggregated fields on root node
+  root.aggregatedCostDetails =
+    Object.keys(costDetails).length > 0 ? costDetails : undefined;
+  root.aggregatedUsageDetails =
+    Object.keys(usageDetails).length > 0 ? usageDetails : undefined;
+  root.aggregatedInputUsage = inputUsage > 0 ? inputUsage : undefined;
+  root.aggregatedOutputUsage = outputUsage > 0 ? outputUsage : undefined;
+  root.aggregatedTotalUsage = totalUsage > 0 ? totalUsage : undefined;
+  root.hasGenerationLike = hasGenerationLike || undefined;
 }
 
 /**
@@ -622,6 +531,13 @@ export function buildTraceUiData(
   // Handle empty roots case
   if (roots.length === 0) {
     return { roots, hiddenObservationsCount, searchItems: [], nodeMap };
+  }
+
+  // Aggregate cost/usage details for each root node (only roots, not intermediate nodes)
+  // Build observation map once for O(1) lookups during DFS
+  const observationMap = new Map(observations.map((obs) => [obs.id, obs]));
+  for (const root of roots) {
+    aggregateRootNodeDetails(root, observationMap);
   }
 
   // TODO: Extract aggregation logic to shared utility - duplicated in TraceTree.tsx and TraceTimeline/index.tsx
