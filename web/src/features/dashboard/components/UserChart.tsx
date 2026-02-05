@@ -13,6 +13,8 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
 
 type BarChartDataPoint = {
   name: string;
@@ -26,6 +28,7 @@ export const UserChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -33,6 +36,7 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  isDashboardChartsBeta?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
@@ -175,13 +179,27 @@ export const UserChart = ({
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
-                    <BarList
-                      data={item.data}
-                      valueFormatter={item.formatter}
-                      className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                      showAnimation={true}
-                      color={"indigo"}
-                    />
+                    {isDashboardChartsBeta ? (
+                      <div className="mt-4 min-h-[200px] w-full">
+                        <Chart
+                          chartType="HORIZONTAL_BAR"
+                          data={barListToDataPoints(item.data)}
+                          rowLimit={maxNumberOfEntries.expanded}
+                          chartConfig={{
+                            type: "HORIZONTAL_BAR",
+                            row_limit: maxNumberOfEntries.expanded,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <BarList
+                        data={item.data}
+                        valueFormatter={item.formatter}
+                        className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
+                        showAnimation={true}
+                        color={"indigo"}
+                      />
+                    )}
                   </>
                 ) : (
                   <NoDataOrLoading

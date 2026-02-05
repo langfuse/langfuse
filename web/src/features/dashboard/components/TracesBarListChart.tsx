@@ -11,6 +11,8 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
 
 export const TracesBarListChart = ({
   className,
@@ -19,6 +21,7 @@ export const TracesBarListChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -26,6 +29,7 @@ export const TracesBarListChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  isDashboardChartsBeta?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -116,15 +120,29 @@ export const TracesBarListChart = ({
         />
         {adjustedData.length > 0 ? (
           <>
-            <BarList
-              data={adjustedData}
-              valueFormatter={(number: number) =>
-                Intl.NumberFormat("en-US").format(number).toString()
-              }
-              className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-              showAnimation={true}
-              color={"indigo"}
-            />
+            {isDashboardChartsBeta ? (
+              <div className="mt-4 min-h-[200px] w-full">
+                <Chart
+                  chartType="HORIZONTAL_BAR"
+                  data={barListToDataPoints(adjustedData)}
+                  rowLimit={maxNumberOfEntries.expanded}
+                  chartConfig={{
+                    type: "HORIZONTAL_BAR",
+                    row_limit: maxNumberOfEntries.expanded,
+                  }}
+                />
+              </div>
+            ) : (
+              <BarList
+                data={adjustedData}
+                valueFormatter={(number: number) =>
+                  Intl.NumberFormat("en-US").format(number).toString()
+                }
+                className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
+                showAnimation={true}
+                color={"indigo"}
+              />
+            )}
           </>
         ) : (
           <NoDataOrLoading
