@@ -1185,6 +1185,10 @@ export class OtelIngestionProcessor {
       "events",
       // LiveKit
       "lk.input_text",
+      "lk.user_transcript",
+      "lk.chat_ctx",
+      "lk.user_input",
+      "lk.function_tool.arguments",
       "lk.function_tool.output",
       "lk.response.text",
       // MLFlow
@@ -1413,7 +1417,10 @@ export class OtelIngestionProcessor {
     }
 
     // LiveKit
-    input = attributes["lk.input_text"];
+    input =
+      attributes["lk.input_text"] ??
+      attributes["lk.user_transcript"] ??
+      attributes["lk.chat_ctx"];
     output =
       attributes["lk.function_tool.output"] || attributes["lk.response.text"];
     if (input || output) {
