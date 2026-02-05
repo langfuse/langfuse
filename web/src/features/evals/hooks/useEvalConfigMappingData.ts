@@ -6,6 +6,7 @@ import {
   type PreviewData,
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
+import { useEffect, useRef } from "react";
 
 type EvalConfigMappingData = {
   namesByObject: Map<string, Set<string>>;
@@ -24,8 +25,8 @@ export function useEvalConfigMappingData(
   const traceId =
     typeof router.query.traceId === "string" ? router.query.traceId : undefined;
   const observationId =
-    typeof router.query.observation === "string"
-      ? router.query.observation
+    typeof router.query.observationId === "string"
+      ? router.query.observationId
       : undefined;
 
   const { previewData, isLoading } = usePreviewData(
@@ -35,6 +36,33 @@ export function useEvalConfigMappingData(
     traceId,
     observationId,
   );
+
+  // drop the traceId and observation-related params from the URL query parameters when target changes
+  const targetValue = form.watch("target");
+  const prevTargetRef = useRef(targetValue);
+
+  useEffect(() => {
+    // Only run when target actually changes (not on initial mount)
+    if (
+      prevTargetRef.current !== targetValue &&
+      prevTargetRef.current !== undefined
+    ) {
+      // Remove both 'observationId' (used in eval pages) and 'observation' (used in trace detail links)
+      const { traceId, observationId, observation, ...restQuery } =
+        router.query;
+
+      // Use replace to avoid adding to browser history
+      void router.replace(
+        {
+          pathname: router.pathname,
+          query: restQuery,
+        },
+        undefined,
+        { shallow: true },
+      );
+    }
+    prevTargetRef.current = targetValue;
+  }, [targetValue, router]);
 
   const observationTypeToNames = new Map<ObservationType, Set<string>>([
     ["SPAN", new Set()],
