@@ -306,13 +306,15 @@ export function ObservationDetailView({
                     {selectedTab === "log" && isLogViewVirtualized ? (
                       <HoverCard openDelay={200}>
                         <HoverCardTrigger asChild>
-                          <TabsTrigger
-                            value="json"
-                            className="h-fit px-1 text-xs"
-                            disabled
-                          >
-                            JSON
-                          </TabsTrigger>
+                          <span>
+                            <TabsTrigger
+                              value="json"
+                              className="h-fit px-1 text-xs"
+                              disabled
+                            >
+                              JSON
+                            </TabsTrigger>
+                          </span>
                         </HoverCardTrigger>
                         <HoverCardContent
                           align="end"
