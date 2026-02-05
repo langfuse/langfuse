@@ -28,7 +28,7 @@ type LegacyEvalAction = "keep-active" | "mark-inactive" | "delete";
 export default function RemapEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const evalConfigId = router.query.evalConfigId as string;
+  const evalConfigId = router.query.evaluator as string;
 
   const evalCapabilities = useEvalCapabilities(projectId);
 
@@ -96,12 +96,6 @@ export default function RemapEvaluatorPage() {
       // Always set to NEW for remapped evals - new eval types cannot run on existing data
       timeScope: ["NEW"],
     };
-  }, [oldConfig]);
-
-  // Validate that old config is actually legacy
-  const isValidForRemapping = useMemo(() => {
-    if (!oldConfig) return false;
-    return isLegacyEvalTarget(oldConfig.targetObject);
   }, [oldConfig]);
 
   const handleFormSuccess = async () => {
@@ -191,13 +185,6 @@ export default function RemapEvaluatorPage() {
               <Skeleton className="h-[600px] w-full" />
               <Skeleton className="h-[600px] w-full" />
             </div>
-          ) : !isValidForRemapping ? (
-            <Alert variant="destructive">
-              <AlertDescription>
-                This eval configuration is not a legacy eval and does not need
-                remapping.
-              </AlertDescription>
-            </Alert>
           ) : !oldConfig || !evalTemplate ? (
             <Alert variant="destructive">
               <AlertDescription>
@@ -257,6 +244,7 @@ export default function RemapEvaluatorPage() {
                   preventRedirect={true}
                   hideAdvancedSettings={true}
                   evalCapabilities={evalCapabilities}
+                  oldConfigId={evalConfigId}
                   renderFooter={({ isLoading, formError }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">

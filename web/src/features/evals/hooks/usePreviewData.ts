@@ -30,6 +30,7 @@ export function usePreviewData(
   // For trace evals without traceId: fetch latest trace matching filter
   const target = form.watch("target");
   const isEventEval = isEventTarget(target);
+  const isTraceEval = target === EvalTargetObject.TRACE;
   const latestTrace = api.traces.all.useQuery(
     {
       projectId,
@@ -41,7 +42,7 @@ export function usePreviewData(
       orderBy: { column: "timestamp", order: "DESC" },
     },
     {
-      enabled: enabled && !traceId && !isEventEval,
+      enabled: enabled && !traceId && isTraceEval,
     },
   );
 
@@ -54,7 +55,7 @@ export function usePreviewData(
       traceId: actualTraceId as string,
     },
     {
-      enabled: enabled && !!actualTraceId && !isEventEval,
+      enabled: enabled && !!actualTraceId && isTraceEval,
     },
   );
 

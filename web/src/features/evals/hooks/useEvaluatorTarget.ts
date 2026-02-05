@@ -15,12 +15,14 @@ import {
   type LangfuseObject,
 } from "../utils/evaluator-form-utils";
 import { OBSERVATION_VARIABLES } from "../utils/evaluator-constants";
+import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
 
 /**
  * Custom hook to manage user-facing target state.
  * Maps internal target objects to UI tabs (trace/event/offline-experiment).
  */
 export const useUserFacingTarget = (targetObject?: string) => {
+  const isBetaEnabled = useObservationEvals();
   const [userFacingTarget, setUserFacingTarget] = useState<
     "trace" | "event" | "offline-experiment"
   >("event");
@@ -28,7 +30,9 @@ export const useUserFacingTarget = (targetObject?: string) => {
     useState(true);
 
   useEffect(() => {
-    const currentTarget = targetObject ?? EvalTargetObject.EVENT;
+    const currentTarget =
+      targetObject ??
+      (isBetaEnabled ? EvalTargetObject.EVENT : EvalTargetObject.TRACE);
 
     if (isTraceTarget(currentTarget)) {
       setUserFacingTarget("trace");
@@ -42,8 +46,7 @@ export const useUserFacingTarget = (targetObject?: string) => {
       setUserFacingTarget("offline-experiment");
       setUseOtelDataForExperiment(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [targetObject]);
 
   return {
     userFacingTarget,

@@ -73,6 +73,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+
 export type EvaluatorDataRow = {
   id: string;
   status: string;
@@ -137,6 +139,7 @@ function LegacyBadgeCell({ status }: { status: string }) {
 }
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
+  const isBetaEnabled = useObservationEvals();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
@@ -328,21 +331,25 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.accessor("isLegacy", {
-      id: "isLegacy",
-      header: "Eval Version",
-      size: 180,
-      enableHiding: true,
-      cell: (row) => {
-        const targetObject = row.row.original.target;
-        const status = row.row.original.status;
-        const isDeprecated = isLegacyEvalTarget(targetObject);
+    ...(isBetaEnabled
+      ? [
+          columnHelper.accessor("isLegacy", {
+            id: "isLegacy",
+            header: "Eval Version",
+            size: 180,
+            enableHiding: true,
+            cell: (row) => {
+              const targetObject = row.row.original.target;
+              const status = row.row.original.status;
+              const isDeprecated = isLegacyEvalTarget(targetObject);
 
-        if (!isDeprecated) return null;
+              if (!isDeprecated) return null;
 
-        return <LegacyBadgeCell status={status} />;
-      },
-    }),
+              return <LegacyBadgeCell status={status} />;
+            },
+          }),
+        ]
+      : []),
     columnHelper.accessor("target", {
       id: "target",
       header: "Runs on",
@@ -492,7 +499,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        {hasLegacyEvals && (
+        {isBetaEnabled && hasLegacyEvals && (
           <div className="p-2 pb-0">
             <Callout
               id="eval-remapping-table"

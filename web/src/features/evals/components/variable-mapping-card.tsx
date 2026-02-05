@@ -52,6 +52,7 @@ export const VariableMappingCard = ({
   availableVariables,
   evalTemplate,
   form,
+  oldConfigId,
   disabled = false,
   shouldWrapVariables = false,
   hideAdvancedSettings = false,
@@ -62,6 +63,7 @@ export const VariableMappingCard = ({
     | typeof availableDatasetEvalVariables;
   evalTemplate: EvalTemplate;
   form: UseFormReturn<EvalFormType>;
+  oldConfigId?: string;
   disabled?: boolean;
   shouldWrapVariables?: boolean;
   hideAdvancedSettings?: boolean;
@@ -114,12 +116,15 @@ export const VariableMappingCard = ({
                 }
                 path={(entry) => {
                   const isEvent = isEventTarget(form.watch("target"));
+                  const basePath = hideAdvancedSettings
+                    ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
+                    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
                   if (isEvent) {
                     // For observations/events: entry.id is observationId, entry.params.traceId is traceId
-                    return `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}&traceId=${entry.params?.traceId}&observationId=${entry.id}`;
+                    return `${basePath}&traceId=${entry.params?.traceId}&observationId=${entry.id}`;
                   } else {
                     // For traces: entry.id is traceId
-                    return `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}&traceId=${entry.id}`;
+                    return `${basePath}&traceId=${entry.id}`;
                   }
                 }}
               />
