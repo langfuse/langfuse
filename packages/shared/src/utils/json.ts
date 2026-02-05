@@ -6,11 +6,10 @@ import { parse, isSafeNumber, isNumber } from "lossless-json";
 let everythingJsonModule: {
   JSON: typeof import("everything-json").JSON;
 } | null = null;
-const getEverythingJSON = async () => {
+const getEverythingJSON = () => {
   if (!everythingJsonModule) {
     // Hide module name from webpack static analysis
     const moduleName = ["everything", "json"].join("-");
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     everythingJsonModule = require(moduleName);
   }
   return everythingJsonModule!.JSON;
@@ -409,12 +408,20 @@ export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
-    // Fast path: use native JSON.parse if no potentially unsafe numbers detected
+    // Fast path: use everything-json (faster than native JSON.parse) if no potentially unsafe numbers
     if (!UNSAFE_NUMBER_PATTERN.test(json)) {
-      return JSON.parse(json) as JsonNested;
+      const EverythingJSON = getEverythingJSON();
+      const parsed = EverythingJSON.parse(json);
+      // For primitives, use expand(); for objects/arrays, use toObject()
+      // toObject() throws for primitives
+      if (parsed.type === "object" || parsed.type === "array") {
+        return parsed.toObject() as JsonNested;
+      }
+      // Primitives: expand() returns the actual value synchronously
+      return parsed.expand() as JsonNested;
     }
 
-    // Slow path: use lossless-json to preserve precision
+    // Slow path: use lossless-json to preserve precision for large numbers
     return parse(json, null, (value) => {
       if (isNumber(value)) {
         if (isSafeNumber(value)) {
@@ -443,7 +450,7 @@ export const parseJsonPrioritisedAsync = async (
   try {
     // Fast path: non-blocking parsing with everything-json if no potentially unsafe numbers
     if (!UNSAFE_NUMBER_PATTERN.test(json)) {
-      const EverythingJSON = await getEverythingJSON();
+      const EverythingJSON = getEverythingJSON();
       const parsed = await EverythingJSON.parseAsync(json);
       // For primitives, use expand(); for objects/arrays, use toObjectAsync()
       // toObjectAsync() throws for primitives
