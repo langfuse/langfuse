@@ -7,7 +7,6 @@
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
-import { type TreeNode } from "./types";
 
 export interface AggregatedTraceMetrics {
   totalCost: number | null;
@@ -77,19 +76,4 @@ export function aggregateTraceMetrics(
       Object.keys(usageDetails).length > 0 ? usageDetails : undefined,
     hasGenerationLike,
   };
-}
-
-/**
- * Collects all descendant IDs from a TreeNode using iterative DFS.
- * Does NOT include the node itself - only its descendants.
- */
-export function getDescendantIds(node: TreeNode): string[] {
-  const ids: string[] = [];
-  const stack = [...node.children];
-  while (stack.length > 0) {
-    const current = stack.pop()!;
-    ids.push(current.id);
-    stack.push(...current.children);
-  }
-  return ids;
 }
