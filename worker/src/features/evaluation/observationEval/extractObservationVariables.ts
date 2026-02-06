@@ -28,7 +28,7 @@ interface ExtractVariablesParams {
  * 2. Optionally applies JSON selector if provided
  * 3. Returns an array of extracted variables compatible with executeLLMAsJudgeEvaluation()
  *
- * Column IDs are typed as keyof ObservationForEval (see observationEvalVariableColumns),
+ * Column internals are typed as keyof ObservationForEval (see observationEvalVariableColumns),
  * ensuring compile-time safety when adding new columns.
  *
  * Note: Environment is passed directly to executeLLMAsJudgeEvaluation() by the caller,

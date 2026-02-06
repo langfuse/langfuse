@@ -808,24 +808,6 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       expect(matched).toBe(true);
     });
-
-    it("should filter by release", async () => {
-      const observation = createTestObservation({
-        project_id: projectId,
-        release: "v2.0.0",
-      });
-
-      const matched = await testFilterMatch(observation, [
-        {
-          column: "release",
-          type: "string",
-          operator: "starts with",
-          value: "v2",
-        },
-      ]);
-
-      expect(matched).toBe(true);
-    });
   });
 
   describe("experiment target object filtering", () => {

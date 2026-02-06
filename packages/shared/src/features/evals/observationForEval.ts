@@ -143,6 +143,58 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
   },
 ];
 
+export const availableObservationEvalVariableColumns = [
+  ...observationEvalVariableColumns,
+  {
+    id: "toolCalls",
+    name: "Tool Calls",
+    description: "Tool calls",
+    internal: "tool_calls",
+  },
+  {
+    id: "toolDefinitions",
+    name: "Tool Definitions",
+    description: "Tool definitions",
+    internal: "tool_definitions",
+  },
+  {
+    id: "toolCallNames",
+    name: "Tool Call Names",
+    description: "Tool call names",
+    internal: "tool_call_names",
+  },
+  {
+    id: "model",
+    name: "Model",
+    description: "Model",
+    internal: "model",
+  },
+  {
+    id: "modelParameters",
+    name: "Model Parameters",
+    description: "Model parameters",
+    internal: "model_parameters",
+  },
+  {
+    id: "usageDetails",
+    name: "Usage Details",
+    description: "Usage details",
+    internal: "usage_details",
+  },
+  {
+    id: "costDetails",
+    name: "Cost Details",
+    description: "Cost details",
+    internal: "cost_details",
+  },
+  {
+    id: "providedModelName",
+    name: "Provided Model Name",
+    description: "Provided model name",
+    internal: "provided_model_name",
+  },
+];
+
 type ObservationEvalColumnDef = ColumnDefinition & {
   internal: ObservationEvalFilterColumnInternal;
 };

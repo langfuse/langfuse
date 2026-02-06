@@ -240,9 +240,9 @@ describe("processObservationEval", () => {
         evalTemplate: template,
       });
       const observation = createTestObservation({
-        id: "obs-xyz",
-        projectId,
-        traceId: "trace-abc",
+        span_id: "obs-xyz",
+        project_id: projectId,
+        trace_id: "trace-abc",
         environment: "production",
         output: '{"response": "test output"}',
       });
@@ -289,7 +289,7 @@ describe("processObservationEval", () => {
         variableMapping: [],
       });
       const observation = createTestObservation({
-        projectId,
+        project_id: projectId,
         environment: undefined as unknown as string,
       });
 
@@ -326,7 +326,7 @@ describe("processObservationEval", () => {
           { templateVariable: "output", selectedColumnId: "output" },
           {
             templateVariable: "model",
-            selectedColumnId: "provided_model_name",
+            selectedColumnId: "providedModelName",
           },
         ],
       });
