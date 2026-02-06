@@ -164,10 +164,10 @@ export const availableObservationEvalVariableColumns = [
     internal: "tool_call_names",
   },
   {
-    id: "model",
+    id: "providedModelName",
     name: "Model",
     description: "Model",
-    internal: "model",
+    internal: "provided_model_name",
   },
   {
     id: "modelParameters",
@@ -186,12 +186,6 @@ export const availableObservationEvalVariableColumns = [
     name: "Cost Details",
     description: "Cost details",
     internal: "cost_details",
-  },
-  {
-    id: "providedModelName",
-    name: "Provided Model Name",
-    description: "Provided model name",
-    internal: "provided_model_name",
   },
 ];
 

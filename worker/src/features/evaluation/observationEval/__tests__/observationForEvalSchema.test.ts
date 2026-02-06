@@ -218,7 +218,7 @@ describe("observationForEvalSchema", () => {
       const schemaKeys = Object.keys(observationForEvalSchema.shape);
 
       for (const column of observationEvalVariableColumns) {
-        expect(schemaKeys).toContain(column.id);
+        expect(schemaKeys).toContain(column.internal);
       }
     });
 
@@ -231,7 +231,7 @@ describe("observationForEvalSchema", () => {
       expect(columnInternals).toContain("input");
       expect(columnInternals).toContain("output");
       expect(columnInternals).toContain("metadata");
-      expect(columnInternals).toContain("experimentItemExpectedOutput");
+      expect(columnInternals).toContain("experiment_item_expected_output");
     });
   });
 });

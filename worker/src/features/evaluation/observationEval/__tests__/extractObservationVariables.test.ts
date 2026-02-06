@@ -195,7 +195,10 @@ describe("extractObservationVariables", () => {
   describe("model extraction", () => {
     it("should extract model variable", () => {
       const variableMapping: ObservationVariableMapping[] = [
-        { templateVariable: "modelName", selectedColumnId: "model" },
+        {
+          templateVariable: "modelName",
+          selectedColumnId: "providedModelName",
+        },
       ];
 
       const result = extractObservationVariables(
@@ -276,10 +279,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "cost", selectedColumnId: "costDetails" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("cost");
