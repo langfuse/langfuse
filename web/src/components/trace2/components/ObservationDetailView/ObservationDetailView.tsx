@@ -4,12 +4,13 @@
  * Responsibility:
  * - Display observation metadata (type, timestamp, model, environment, etc.)
  * - Show cost and token usage with tooltips
- * - Provide tabbed interface (Preview, Scores)
- * - Support Formatted/JSON toggle for preview content
+ * - Provide tabbed interface (Preview, Log View [v4 only], Scores)
+ * - Support Formatted/JSON toggle for preview and log view content
  *
  * Hooks:
- * - useLocalStorage() - for JSON view preference
+ * - useViewPreferences() - for JSON view preference
  * - useState() - for tab selection
+ * - useV4Beta() - for v4 mode detection (enables log tab)
  *
  * Re-renders when:
  * - Observation prop changes (new observation selected)
@@ -26,6 +27,17 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Switch } from "@/src/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -44,6 +56,13 @@ import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
+import { TraceLogView } from "../TraceLogView/TraceLogView";
+import { TRACE_VIEW_CONFIG } from "@/src/components/trace2/config/trace-view-config";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  aggregateTraceMetrics,
+  getDescendantIds,
+} from "@/src/components/trace2/lib/trace-aggregation";
 
 export interface ObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -57,18 +76,50 @@ export function ObservationDetailView({
   traceId,
 }: ObservationDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
-  // For observations, "log" tab doesn't apply - map to "preview"
   const {
     selectedTab: globalSelectedTab,
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
 
-  // Map global tab to observation-specific tabs (preview, scores)
-  // "log" tab doesn't exist for observations, so fall back to "preview"
-  const selectedTab =
-    globalSelectedTab === "scores" ? "scores" : ("preview" as const);
+  // V4 beta mode and observations for log tab
+  const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
+  const { observations, roots, nodeMap } = useTraceData();
+  const showLogViewTab = isV4BetaEnabled && observations.length > 0;
+  const isLogViewVirtualized =
+    observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
-  const setSelectedTab = (tab: "preview" | "scores") => {
+  // for v4:
+  // is this observation topmost in tree? we don't check for root observation here as this is not necessarily given.
+  // Uses the tree's roots array which handles orphans correctly
+  const treeNode = nodeMap.get(observation.id);
+  const isRoot = roots.some((root) => root.id === observation.id);
+
+  // For root observations, compute subtree metrics for badge tooltips.
+  // We compute this lazily here rather than in tree-building.ts because:
+  // - TreeNode.totalCost just has the aggregated cost, we use it
+  // - costDetails/usageDetails (for tooltips) aren't in TreeNode, adding them causes high memory for all nodes, esp on big traces
+  // - computation only runs when viewing a root observation and is memo'd
+  const subtreeMetrics = useMemo(() => {
+    if (!isRoot || !treeNode) return null;
+    const descendantIds = getDescendantIds(treeNode);
+    const descendantIdSet = new Set(descendantIds);
+
+    const descendants = observations.filter((obs) =>
+      descendantIdSet.has(obs.id),
+    );
+    const allObservations = [observation, ...descendants];
+    return aggregateTraceMetrics(allObservations);
+  }, [isRoot, treeNode, observations, observation]);
+
+  // Map global tab to observation-specific tabs (preview, log, scores)
+  // "log" tab only available in v4 mode when there are observations
+  const selectedTab = useMemo(() => {
+    if (globalSelectedTab === "scores") return "scores" as const;
+    if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
+    return "preview" as const;
+  }, [globalSelectedTab, showLogViewTab]);
+
+  const setSelectedTab = (tab: "preview" | "log" | "scores") => {
     setGlobalSelectedTab(tab);
   };
 
@@ -222,49 +273,116 @@ export function ObservationDetailView({
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+        subtreeMetrics={subtreeMetrics}
+        treeNodeTotalCost={treeNode?.totalCost}
       />
 
       {/* Tabs section */}
       <TabsBar
         value={selectedTab}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        onValueChange={(value) => setSelectedTab(value as "preview" | "scores")}
+        onValueChange={(value) =>
+          setSelectedTab(value as "preview" | "log" | "scores")
+        }
       >
-        <TabsBarList>
-          <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-          <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+        <TooltipProvider>
+          <TabsBarList>
+            <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+            <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+            {showLogViewTab && (
+              <TabsBarTrigger value="log">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>Log View</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs">
+                    {isLogViewVirtualized
+                      ? `Shows all ${observations.length} observations with virtualization enabled.`
+                      : "Shows all observations concatenated. Great for quickly scanning through them."}
+                  </TooltipContent>
+                </Tooltip>
+              </TabsBarTrigger>
+            )}
 
-          {/* View toggle (Formatted/JSON) - show for preview tab when pretty view is available */}
-          {selectedTab === "preview" && isPrettyViewAvailable && (
-            <>
-              <Tabs
-                className="ml-auto h-fit px-2 py-0.5"
-                value={selectedViewTab}
-                onValueChange={handleViewTabChange}
-              >
-                <TabsList className="h-fit py-0.5">
-                  <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
-                    Formatted
-                  </TabsTrigger>
-                  <TabsTrigger value="json" className="h-fit px-1 text-xs">
-                    JSON
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-              {/* Beta toggle - only show when JSON is selected */}
-              {selectedViewTab === "json" && (
-                <div className="mr-1 flex items-center gap-1.5">
-                  <Switch
-                    size="sm"
-                    checked={jsonBetaEnabled}
-                    onCheckedChange={handleBetaToggle}
-                  />
-                  <span className="text-xs text-muted-foreground">Beta</span>
-                </div>
-              )}
-            </>
-          )}
-        </TabsBarList>
+            {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
+            {/* JSON views are disabled for virtualized log view (large traces) */}
+            {(selectedTab === "log" ||
+              (selectedTab === "preview" && isPrettyViewAvailable)) && (
+              <>
+                <Tabs
+                  className="ml-auto h-fit px-2 py-0.5"
+                  value={
+                    selectedTab === "log" && isLogViewVirtualized
+                      ? "pretty"
+                      : selectedViewTab
+                  }
+                  onValueChange={(value) => {
+                    // Don't allow JSON views for virtualized log view
+                    if (
+                      selectedTab === "log" &&
+                      isLogViewVirtualized &&
+                      value === "json"
+                    ) {
+                      return;
+                    }
+                    handleViewTabChange(value);
+                  }}
+                >
+                  <TabsList className="h-fit py-0.5">
+                    <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
+                      Formatted
+                    </TabsTrigger>
+                    {selectedTab === "log" && isLogViewVirtualized ? (
+                      <HoverCard openDelay={200}>
+                        <HoverCardTrigger asChild>
+                          <span>
+                            <TabsTrigger
+                              value="json"
+                              className="h-fit px-1 text-xs"
+                              disabled
+                            >
+                              JSON
+                            </TabsTrigger>
+                          </span>
+                        </HoverCardTrigger>
+                        <HoverCardContent
+                          align="end"
+                          className="w-64 text-sm"
+                          sideOffset={8}
+                        >
+                          <p className="font-medium">JSON view unavailable</p>
+                          <p className="mt-1 text-muted-foreground">
+                            Disabled for traces with{" "}
+                            {TRACE_VIEW_CONFIG.logView.virtualizationThreshold}+
+                            observations to maintain performance.
+                          </p>
+                        </HoverCardContent>
+                      </HoverCard>
+                    ) : (
+                      <TabsTrigger value="json" className="h-fit px-1 text-xs">
+                        JSON
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+                </Tabs>
+                {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
+                {selectedViewTab === "json" &&
+                  !(selectedTab === "log" && isLogViewVirtualized) && (
+                    <div className="mr-1 flex items-center gap-1.5">
+                      <Switch
+                        size="sm"
+                        checked={jsonBetaEnabled}
+                        onCheckedChange={handleBetaToggle}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        Beta
+                      </span>
+                    </div>
+                  )}
+              </>
+            )}
+          </TabsBarList>
+        </TooltipProvider>
 
         {/* Preview tab content */}
         <TabsBarContent
@@ -366,6 +484,20 @@ export function ObservationDetailView({
             />
           </div>
         </TabsBarContent>
+
+        {/* Log View tab content (v4 mode only) */}
+        {showLogViewTab && (
+          <TabsBarContent
+            value="log"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+          >
+            <TraceLogView
+              traceId={traceId}
+              projectId={projectId}
+              currentView={isLogViewVirtualized ? "pretty" : currentView}
+            />
+          </TabsBarContent>
+        )}
       </TabsBar>
     </div>
   );
