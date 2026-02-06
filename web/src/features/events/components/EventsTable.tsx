@@ -61,8 +61,12 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { useEventsViewMode } from "@/src/features/events/hooks/useEventsViewMode";
+import {
+  useEventsViewMode,
+  type EventsViewMode,
+} from "@/src/features/events/hooks/useEventsViewMode";
 import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
+import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
   type RefreshInterval,
@@ -203,16 +207,29 @@ export default function ObservationsEventsTable({
   const { viewMode, setViewMode: setViewModeRaw } =
     useEventsViewMode(projectId);
 
+  // if the user explicitly choose to filter for trace, we don't want to auto switch them even if there are no "traces" aka root observations
+  const [userExplicitChoice, setUserExplicitChoice] =
+    useSessionStorage<EventsViewMode | null>(
+      `eventsViewModeUserChoice-${projectId}`,
+      null,
+    );
+
+  // Track date range(s) for which we've auto-switched (to avoid repeated switches)
+  const [autoSwitchedForRange, setAutoSwitchedForRange] = useSessionStorage<
+    string | null
+  >(`eventsAutoSwitchRange-${projectId}`, null);
+
   // For filter options: trace mode filters to root items, observation mode shows all
   const hasParentObservation = viewMode === "observation" ? undefined : false;
 
-  // Wrap setViewMode to reset pagination when view mode changes
+  // Wrap setViewMode to reset pagination and track explicit user choice
   const setViewMode = useCallback(
-    (mode: typeof viewMode) => {
+    (mode: EventsViewMode) => {
+      setUserExplicitChoice(mode); // Track explicit choice
       setViewModeRaw(mode);
       setPaginationState({ page: 1 });
     },
-    [setViewModeRaw, setPaginationState],
+    [setUserExplicitChoice, setViewModeRaw, setPaginationState],
   );
 
   // for auto data refresh
@@ -353,6 +370,52 @@ export default function ObservationsEventsTable({
     .concat(userIdFilter)
     .concat(sessionIdFilter);
 
+  // Filter state WITHOUT viewModeFilter - for auto-switch observation count check
+  const filterStateWithoutViewMode = useMemo(() => {
+    const filters: FilterState = [...queryFilter.filterState];
+
+    if (dateRange?.from) {
+      filters.push({
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: dateRange.from,
+      });
+    }
+    if (dateRange?.to) {
+      filters.push({
+        column: "startTime",
+        type: "datetime",
+        operator: "<=",
+        value: dateRange.to,
+      });
+    }
+    if (userId) {
+      filters.push({
+        column: "User ID",
+        type: "string",
+        operator: "=",
+        value: userId,
+      });
+    }
+    if (sessionId) {
+      filters.push({
+        column: "Session ID",
+        type: "string",
+        operator: "=",
+        value: sessionId,
+      });
+    }
+
+    return filters;
+  }, [
+    queryFilter.filterState,
+    dateRange?.from,
+    dateRange?.to,
+    userId,
+    sessionId,
+  ]);
+
   // Use the custom hook for observations data fetching
   const {
     observations,
@@ -371,6 +434,66 @@ export default function ObservationsEventsTable({
     selectAll,
     setSelectedRows,
   });
+
+  // === Auto-switch to observation mode when trace view is empty ===
+
+  const dateRangeKey = useMemo(() => {
+    if (!dateRange?.from) return null;
+    return `${dateRange.from.getTime()}-${dateRange.to?.getTime() ?? "now"}`;
+  }, [dateRange]);
+
+  // Reset auto-switch tracking when date range changes
+  useEffect(() => {
+    if (
+      dateRangeKey &&
+      autoSwitchedForRange &&
+      dateRangeKey !== autoSwitchedForRange
+    ) {
+      setAutoSwitchedForRange(null);
+    }
+  }, [dateRangeKey, autoSwitchedForRange, setAutoSwitchedForRange]);
+
+  // Determine if we should check observation count for auto-switch
+  const shouldCheckObservationCount =
+    viewMode === "trace" &&
+    totalCount === 0 &&
+    observations.status === "success" &&
+    userExplicitChoice !== "trace" &&
+    dateRangeKey !== null &&
+    autoSwitchedForRange !== dateRangeKey;
+
+  const {
+    observationCount,
+    isSuccess: obsCountSuccess,
+    isPending: obsCountPending,
+  } = useObservationCountCheck({
+    projectId,
+    filterStateWithoutViewMode,
+    enabled: shouldCheckObservationCount,
+  });
+
+  // Auto-switch to observation mode when conditions are met
+  useEffect(() => {
+    if (
+      shouldCheckObservationCount &&
+      obsCountSuccess &&
+      observationCount !== null &&
+      observationCount > 0 &&
+      dateRangeKey
+    ) {
+      setViewModeRaw("observation");
+      setAutoSwitchedForRange(dateRangeKey);
+    }
+  }, [
+    shouldCheckObservationCount,
+    obsCountSuccess,
+    observationCount,
+    dateRangeKey,
+    setViewModeRaw,
+    setAutoSwitchedForRange,
+  ]);
+
+  const isAutoSwitchPending = shouldCheckObservationCount && obsCountPending;
 
   useEffect(() => {
     if (observations.status === "success") {
@@ -1173,7 +1296,9 @@ export default function ObservationsEventsTable({
               columns={columns}
               peekView={peekConfig}
               data={
-                observations.status === "loading" || isViewLoading
+                observations.status === "loading" ||
+                isViewLoading ||
+                isAutoSwitchPending
                   ? { isLoading: true, isError: false }
                   : observations.status === "error"
                     ? {
