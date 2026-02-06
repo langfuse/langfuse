@@ -308,7 +308,9 @@ const EnvSchema = z.object({
     ),
 });
 
-export const env: z.infer<typeof EnvSchema> =
+export type SharedEnv = z.infer<typeof EnvSchema>;
+
+export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
     : EnvSchema.parse(removeEmptyEnvVariables(process.env));

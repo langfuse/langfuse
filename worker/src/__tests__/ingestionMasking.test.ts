@@ -6,10 +6,10 @@ import {
   beforeAll,
   afterAll,
   afterEach,
-  vi,
 } from "vitest";
 import { setupServer } from "msw/node";
 import { http, HttpResponse, delay } from "msw";
+import type { SharedEnv } from "@langfuse/shared/src/env";
 import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
@@ -158,23 +158,21 @@ class MaskingCallbackTestServer {
 
 const maskingServer = new MaskingCallbackTestServer();
 
-// Mock the env module
-vi.mock("@langfuse/shared/src/env", () => ({
-  env: {
-    LANGFUSE_INGESTION_MASKING_CALLBACK_URL: undefined,
-    LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: 500,
-    LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "false",
-    LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 1,
-    LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: [],
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
-    LANGFUSE_EE_LICENSE_KEY: undefined,
-  },
-}));
+const VALID_EE_LICENSE_KEY = "langfuse_ee_test-license-key";
 
-// Helper to update mocked env
-async function updateMockedEnv(updates: Record<string, unknown>) {
-  const { env } = await import("@langfuse/shared/src/env");
-  Object.assign(env, updates);
+// Default test env with masking disabled
+const defaultTestEnv: SharedEnv = {
+  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: undefined,
+  LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: 500,
+  LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "false",
+  LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 1,
+  LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: [],
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+  LANGFUSE_EE_LICENSE_KEY: undefined,
+} as SharedEnv;
+
+function createTestEnv(overrides: Partial<SharedEnv> = {}): SharedEnv {
+  return { ...defaultTestEnv, ...overrides } as SharedEnv;
 }
 
 describe("Ingestion Masking", () => {
@@ -182,18 +180,8 @@ describe("Ingestion Masking", () => {
     maskingServer.setup();
   });
 
-  beforeEach(async () => {
+  beforeEach(() => {
     maskingServer.reset();
-    // Reset env to defaults
-    await updateMockedEnv({
-      LANGFUSE_INGESTION_MASKING_CALLBACK_URL: undefined,
-      LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: 500,
-      LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "false",
-      LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 1,
-      LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: [],
-      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
-      LANGFUSE_EE_LICENSE_KEY: undefined,
-    });
   });
 
   afterEach(() => {
@@ -205,58 +193,56 @@ describe("Ingestion Masking", () => {
   });
 
   describe("isIngestionMaskingEnabled", () => {
-    it("should return false when callback URL is not configured", async () => {
-      await updateMockedEnv({
-        LANGFUSE_INGESTION_MASKING_CALLBACK_URL: undefined,
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+    it("should return false when callback URL is not configured", () => {
+      const testEnv = createTestEnv({
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
       });
 
-      expect(isIngestionMaskingEnabled()).toBe(false);
+      expect(isIngestionMaskingEnabled(testEnv)).toBe(false);
     });
 
-    it("should return false when EE license is not available", async () => {
-      await updateMockedEnv({
+    it("should return false when EE license is not available", () => {
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/success",
-        LANGFUSE_EE_LICENSE_KEY: undefined,
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
       });
 
-      expect(isIngestionMaskingEnabled()).toBe(false);
+      expect(isIngestionMaskingEnabled(testEnv)).toBe(false);
     });
 
-    it("should return true when callback URL and EE license are configured", async () => {
-      await updateMockedEnv({
+    it("should return true when callback URL and EE license are configured", () => {
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/success",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
       });
 
-      expect(isIngestionMaskingEnabled()).toBe(true);
+      expect(isIngestionMaskingEnabled(testEnv)).toBe(true);
     });
 
-    it("should return true when callback URL is configured and running in cloud region", async () => {
-      await updateMockedEnv({
+    it("should return true when callback URL is configured and running in cloud region", () => {
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/success",
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "US",
       });
 
-      expect(isIngestionMaskingEnabled()).toBe(true);
+      expect(isIngestionMaskingEnabled(testEnv)).toBe(true);
     });
   });
 
   describe("applyIngestionMasking", () => {
     it("should return original data immediately when masking is not configured", async () => {
-      await updateMockedEnv({
-        LANGFUSE_INGESTION_MASKING_CALLBACK_URL: undefined,
-      });
+      const testEnv = createTestEnv();
 
-      const result = await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(true);
       expect(result.masked).toBe(false);
@@ -267,18 +253,19 @@ describe("Ingestion Masking", () => {
     });
 
     it("should return original data when EE license is not available", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/success",
-        LANGFUSE_EE_LICENSE_KEY: undefined,
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
       });
 
-      const result = await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(true);
       expect(result.masked).toBe(false);
@@ -289,17 +276,20 @@ describe("Ingestion Masking", () => {
     });
 
     it("should return masked data on successful callback", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/success",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
       });
 
-      const result = await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(true);
       expect(result.masked).toBe(true);
@@ -312,17 +302,20 @@ describe("Ingestion Masking", () => {
     });
 
     it("should include X-Langfuse-Org-Id and X-Langfuse-Project-Id headers", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/success",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
       });
 
-      await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project-123",
-        orgId: "test-org-456",
-      });
+      await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project-123",
+          orgId: "test-org-456",
+        },
+        testEnv,
+      );
 
       const request = maskingServer.getLastRequest();
       expect(request?.headers["x-langfuse-org-id"]).toBe("test-org-456");
@@ -332,21 +325,24 @@ describe("Ingestion Masking", () => {
     });
 
     it("should propagate custom headers when configured", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/success",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
       });
 
-      await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-        propagatedHeaders: {
-          "x-custom-header": "custom-value",
-          "x-another-header": "another-value",
+      await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+          propagatedHeaders: {
+            "x-custom-header": "custom-value",
+            "x-another-header": "another-value",
+          },
         },
-      });
+        testEnv,
+      );
 
       const request = maskingServer.getLastRequest();
       expect(request?.headers["x-custom-header"]).toBe("custom-value");
@@ -354,19 +350,22 @@ describe("Ingestion Masking", () => {
     });
 
     it("should return original data on HTTP 500 with fail-open (default)", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/error",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
         LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "false",
         LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
       });
 
-      const result = await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(true);
       expect(result.masked).toBe(false);
@@ -374,19 +373,22 @@ describe("Ingestion Masking", () => {
     });
 
     it("should return failure on HTTP 500 with fail-closed", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/error",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
         LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "true",
         LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
       });
 
-      const result = await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(false);
       expect(result.masked).toBe(false);
@@ -394,19 +396,22 @@ describe("Ingestion Masking", () => {
     });
 
     it("should retry on failure", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/error",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
         LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "false",
         LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 2,
       });
 
-      await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       // Should have made 3 requests (1 initial + 2 retries)
       const requests = maskingServer.getReceivedRequests();
@@ -414,20 +419,23 @@ describe("Ingestion Masking", () => {
     });
 
     it("should handle timeout with fail-open", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/timeout",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
         LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: 100, // Short timeout
         LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "false",
         LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
       });
 
-      const result = await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(true);
       expect(result.masked).toBe(false);
@@ -435,20 +443,23 @@ describe("Ingestion Masking", () => {
     }, 10000);
 
     it("should handle timeout with fail-closed", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/timeout",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
         LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: 100, // Short timeout
         LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: "true",
         LANGFUSE_INGESTION_MASKING_MAX_RETRIES: 0,
       });
 
-      const result = await applyIngestionMasking({
-        data: sampleSpanData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: sampleSpanData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(false);
       expect(result.masked).toBe(false);
@@ -456,19 +467,22 @@ describe("Ingestion Masking", () => {
     }, 10000);
 
     it("should work with generic data types", async () => {
-      await updateMockedEnv({
+      const testEnv = createTestEnv({
         LANGFUSE_INGESTION_MASKING_CALLBACK_URL:
           "https://masking.example.com/echo",
-        LANGFUSE_EE_LICENSE_KEY: "test-license",
+        LANGFUSE_EE_LICENSE_KEY: VALID_EE_LICENSE_KEY,
       });
 
       const customData = { key: "value", nested: { data: [1, 2, 3] } };
 
-      const result = await applyIngestionMasking({
-        data: customData,
-        projectId: "test-project",
-        orgId: "test-org",
-      });
+      const result = await applyIngestionMasking(
+        {
+          data: customData,
+          projectId: "test-project",
+          orgId: "test-org",
+        },
+        testEnv,
+      );
 
       expect(result.success).toBe(true);
       expect(result.masked).toBe(true);

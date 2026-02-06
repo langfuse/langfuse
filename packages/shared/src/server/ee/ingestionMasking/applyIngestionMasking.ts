@@ -1,4 +1,4 @@
-import { env } from "../../../env";
+import { env, type SharedEnv } from "../../../env";
 import { logger } from "../../logger";
 import {
   traceException,
@@ -16,18 +16,21 @@ import type {
  * Get ingestion masking configuration from environment variables.
  * Returns null if the callback URL is not configured.
  */
-function getIngestionMaskingConfig(): IngestionMaskingConfig | null {
-  const callbackUrl = env.LANGFUSE_INGESTION_MASKING_CALLBACK_URL;
+export function getIngestionMaskingConfig(
+  envOverride?: SharedEnv,
+): IngestionMaskingConfig | null {
+  const e = envOverride ?? env;
+  const callbackUrl = e.LANGFUSE_INGESTION_MASKING_CALLBACK_URL;
   if (!callbackUrl) {
     return null;
   }
 
   return {
     callbackUrl,
-    timeoutMs: env.LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS,
-    failClosed: env.LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED === "true",
-    maxRetries: env.LANGFUSE_INGESTION_MASKING_MAX_RETRIES,
-    propagatedHeaders: env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
+    timeoutMs: e.LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS,
+    failClosed: e.LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED === "true",
+    maxRetries: e.LANGFUSE_INGESTION_MASKING_MAX_RETRIES,
+    propagatedHeaders: e.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
   };
 }
 
@@ -37,13 +40,13 @@ function getIngestionMaskingConfig(): IngestionMaskingConfig | null {
  * 1. The callback URL is configured
  * 2. An EE license is available (cloud or self-hosted with license)
  */
-export function isIngestionMaskingEnabled(): boolean {
-  const config = getIngestionMaskingConfig();
+export function isIngestionMaskingEnabled(envOverride?: SharedEnv): boolean {
+  const config = getIngestionMaskingConfig(envOverride);
   if (!config) {
     return false;
   }
 
-  if (!isEnterpriseLicenseAvailable()) {
+  if (!isEnterpriseLicenseAvailable(envOverride)) {
     logger.warn(
       "Ingestion masking callback URL is configured but enterprise license is not available. Masking will be disabled. Ingestion masking requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).",
     );
@@ -141,15 +144,15 @@ async function makeCallbackRequest<T>(params: {
  */
 export async function applyIngestionMasking<T>(
   params: ApplyIngestionMaskingParams<T>,
+  envOverride?: SharedEnv,
 ): Promise<MaskingResult<T>> {
   const { data, projectId, orgId, propagatedHeaders } = params;
 
-  if (!isIngestionMaskingEnabled()) {
+  if (!isIngestionMaskingEnabled(envOverride)) {
     return { success: true, data, masked: false };
   }
 
-  // Check if masking is enabled
-  const config = getIngestionMaskingConfig()!;
+  const config = getIngestionMaskingConfig(envOverride)!;
 
   // Attempt the callback with retries
   let lastError: string | undefined;

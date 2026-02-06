@@ -1,4 +1,4 @@
-import { env } from "../../../env";
+import { env, type SharedEnv } from "../../../env";
 
 /**
  * Check if enterprise EE license is available.
@@ -8,14 +8,16 @@ import { env } from "../../../env";
  *
  * Note: Pro tier (langfuse_pro_*) does NOT count as enterprise.
  */
-export function isEnterpriseLicenseAvailable(): boolean {
+export function isEnterpriseLicenseAvailable(envOverride?: SharedEnv): boolean {
+  const e = envOverride ?? env;
+
   // Langfuse Cloud always has enterprise features
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
+  if (e.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) {
     return true;
   }
 
   // Self-hosted: must have enterprise license key (not pro)
-  const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
+  const licenseKey = e.LANGFUSE_EE_LICENSE_KEY;
   if (licenseKey && licenseKey.startsWith("langfuse_ee_")) {
     return true;
   }
