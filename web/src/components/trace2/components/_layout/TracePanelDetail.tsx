@@ -19,17 +19,26 @@ import { useSelection } from "../../contexts/SelectionContext";
 import { useTraceData } from "../../contexts/TraceDataContext";
 import { TraceDetailView } from "../TraceDetailView/TraceDetailView";
 import { ObservationDetailView } from "../ObservationDetailView/ObservationDetailView";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 
 export function TracePanelDetail() {
-  const { selectedNodeId } = useSelection();
+  const { selectedNodeId, setSelectedNodeId } = useSelection();
   const {
     trace,
+    roots,
     nodeMap,
     observations,
     serverScores: scores,
     corrections,
   } = useTraceData();
+
+  // Auto-select first root observation when roots are observations (not TRACE wrapped)
+  // This happens for events-based traces with observation roots
+  useEffect(() => {
+    if (!selectedNodeId && roots.length > 0 && roots[0].type !== "TRACE") {
+      setSelectedNodeId(roots[0].id);
+    }
+  }, [selectedNodeId, roots, setSelectedNodeId]);
 
   // Memoize to prevent recreation when deps haven't changed
   const content = useMemo(() => {

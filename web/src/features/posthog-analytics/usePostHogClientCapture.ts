@@ -49,6 +49,7 @@ export const events = {
     "permalink_visit",
     "update_name",
     "search_views",
+    "system_preset_selected",
   ],
   score: [
     "create",
@@ -196,9 +197,15 @@ export const events = {
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
-  support_chat: ["initiated", "opened", "message_sent"], // also used on landing page for consistency
+  support_chat: [
+    "initiated",
+    "opened",
+    "message_sent",
+    "community_hours_click",
+  ], // also used on landing page for consistency
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  sidebar: ["book_a_call_clicked"],
 } as const;
 
 // type that represents all possible event names, e.g. "traces:bookmark"

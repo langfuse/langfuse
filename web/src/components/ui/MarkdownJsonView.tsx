@@ -88,6 +88,7 @@ export function MarkdownJsonView({
   audio,
   media,
   controlButtons,
+  afterHeader,
 }: {
   content?: unknown;
   title?: string;
@@ -97,6 +98,8 @@ export function MarkdownJsonView({
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   controlButtons?: React.ReactNode;
+  /** Content to render between header and main content (e.g., thinking blocks) */
+  afterHeader?: React.ReactNode;
 }) {
   const stringOrValidatedMarkdown = useMemo(
     () => StringOrMarkdownSchema.safeParse(content),
@@ -123,6 +126,7 @@ export function MarkdownJsonView({
           audio={audio}
           media={media}
           controlButtons={controlButtons}
+          afterHeader={afterHeader}
         />
       ) : (
         <PrettyJsonView
@@ -133,6 +137,7 @@ export function MarkdownJsonView({
           media={media}
           currentView="pretty"
           controlButtons={controlButtons}
+          afterHeader={afterHeader}
         />
       )}
     </>

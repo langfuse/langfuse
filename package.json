@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.146.0",
+  "version": "3.151.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -21,6 +21,9 @@
     "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
+    "build:check": "turbo run build:check",
+    "typecheck": "turbo run typecheck",
+    "tc": "turbo run typecheck",
     "start": "turbo run start",
     "dev": "turbo run dev",
     "dev:worker": "turbo run dev --filter=worker",
@@ -40,7 +43,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "release-it": "^19.0.4",
-    "turbo": "^2.7.2"
+    "turbo": "^2.7.6"
   },
   "release-it": {
     "git": {

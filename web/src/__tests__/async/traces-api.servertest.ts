@@ -24,7 +24,7 @@ import {
   GetTraceV1Response,
 } from "@/src/features/public-api/types/traces";
 import { randomUUID } from "crypto";
-import { snakeCase } from "lodash";
+import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 

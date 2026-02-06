@@ -85,6 +85,7 @@ async function processItem(
       datasetId: datasetItem.datasetId,
       runId: config.runId,
       datasetItemId: datasetItem.id,
+      datasetVersion: datasetItem.validFrom.toISOString(),
     },
   };
 
@@ -134,6 +135,7 @@ async function processItem(
         payload: {
           projectId,
           datasetItemId: datasetItem.id,
+          datasetItemValidFrom: datasetItem.validFrom,
           traceId: newTraceId,
         },
         id: randomUUID(),
@@ -208,13 +210,14 @@ async function getItemsToProcess(
   runId: string,
   config: PromptExperimentConfig,
 ) {
-  // Fetch all dataset items
+  // Fetch all dataset items at the specified version (if provided)
   const datasetItems = await getDatasetItems({
     projectId,
     filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],
       status: "ACTIVE",
     }),
+    version: config.datasetVersion,
     includeIO: true,
   });
 
@@ -399,6 +402,7 @@ async function createAllDatasetRunItemsWithConfigError(
           datasetId: datasetItem.datasetId,
           runId: runId,
           datasetItemId: datasetItem.id,
+          datasetVersion: datasetItem.validFrom.toISOString(),
         },
       },
       // trace

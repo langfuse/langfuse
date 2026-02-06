@@ -9,7 +9,13 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { DatePicker } from "@/src/components/date-picker";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import {
@@ -77,6 +83,26 @@ export function PopoverFilterBuilder({
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
+
+  // Sync wipFilterState when filterState prop changes externally
+  // (e.g., when a saved view preset is applied)
+  // We use a ref to track previous filterState to avoid re-running when wipFilterState changes
+  const prevFilterStateRef = useRef(filterState);
+  useEffect(() => {
+    // Only sync if filterState actually changed (reference comparison is fine here
+    // since filterState comes from URL parsing which creates new arrays)
+    if (prevFilterStateRef.current === filterState) return;
+    prevFilterStateRef.current = filterState;
+
+    _setWipFilterState((currentWip) => {
+      const hasWipFilters = currentWip.some(
+        (f) => !singleFilter.safeParse(f).success,
+      );
+      // Don't sync if user is actively editing (has invalid WIP filters)
+      return hasWipFilters ? currentWip : filterState;
+    });
+  }, [filterState]);
+
   const addNewFilter = () => {
     setWipFilterState((prev) => [
       ...prev,
@@ -240,17 +266,30 @@ export function InlineFilterState({
           ? `.${filter.key}`
           : ""}{" "}
         {filter.operator}{" "}
-        {filter.type === "datetime"
-          ? new Date(filter.value).toLocaleString()
-          : filter.type === "stringOptions" || filter.type === "arrayOptions"
-            ? filter.value.length > 2
-              ? `${filter.value.length} selected`
-              : filter.value.join(", ")
-            : filter.type === "number" || filter.type === "numberObject"
-              ? filter.value
-              : filter.type === "boolean"
-                ? `${filter.value}`
-                : `"${filter.value}"`}
+        {filter.type === "positionInTrace"
+          ? (() => {
+              const mode = filter.key ?? "last";
+              const label =
+                mode === "root"
+                  ? "root"
+                  : mode === "last"
+                    ? "last"
+                    : mode === "nthFromStart"
+                      ? `nth from start ${filter.value ?? ""}`.trim()
+                      : `nth from end ${filter.value ?? ""}`.trim();
+              return label;
+            })()
+          : filter.type === "datetime"
+            ? new Date(filter.value).toLocaleString()
+            : filter.type === "stringOptions" || filter.type === "arrayOptions"
+              ? filter.value.length > 2
+                ? `${filter.value.length} selected`
+                : filter.value.join(", ")
+              : filter.type === "number" || filter.type === "numberObject"
+                ? filter.value
+                : filter.type === "boolean"
+                  ? `${filter.value}`
+                  : `"${filter.value}"`}
       </span>
     );
   });
@@ -275,6 +314,19 @@ export function InlineFilterBuilder({
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
+
+  // sync filter state, e.g. when we exclude default LF filters on score creation to reflect in UI
+  // Only sync if we don't have any WIP (invalid) filters, to avoid overwriting user's work-in-progress
+  useEffect(() => {
+    const hasWipFilters = wipFilterState.some(
+      (f) => !singleFilter.safeParse(f).success,
+    );
+
+    // Don't sync if we have WIP filters - user is actively editing
+    if (!hasWipFilters) {
+      _setWipFilterState(filterState);
+    }
+  }, [filterState, wipFilterState]);
 
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
@@ -556,7 +608,10 @@ function FilterBuilderForm({
                                           type: col?.type,
                                           operator: defaultOperator,
                                           value: undefined,
-                                          key: undefined,
+                                          key:
+                                            col?.type === "positionInTrace"
+                                              ? "last"
+                                              : undefined,
                                         } as WipFilterCondition,
                                         i,
                                       );
@@ -642,6 +697,42 @@ function FilterBuilderForm({
                                 {option.label}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                      ) : filter.type === "positionInTrace" ? (
+                        <Select
+                          onValueChange={(value) => {
+                            const needsValue =
+                              value === "nthFromEnd" ||
+                              value === "nthFromStart";
+                            handleFilterChange(
+                              {
+                                ...filter,
+                                key: value,
+                                value: needsValue
+                                  ? typeof filter.value === "number" &&
+                                    filter.value >= 1
+                                    ? filter.value
+                                    : 1
+                                  : undefined,
+                              } as WipFilterCondition,
+                              i,
+                            );
+                          }}
+                          value={filter.key ?? "last"}
+                        >
+                          <SelectTrigger className="min-w-[140px]">
+                            <SelectValue placeholder="" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="root">root</SelectItem>
+                            <SelectItem value="last">last</SelectItem>
+                            <SelectItem value="nthFromStart">
+                              nth from start
+                            </SelectItem>
+                            <SelectItem value="nthFromEnd">
+                              nth from end
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       ) : null}
@@ -797,6 +888,30 @@ function FilterBuilderForm({
                             ))}
                           </SelectContent>
                         </Select>
+                      ) : filter.type === "positionInTrace" ? (
+                        filter.key === "nthFromStart" ||
+                        filter.key === "nthFromEnd" ? (
+                          <Input
+                            value={filter.value ?? ""}
+                            disabled={disabled}
+                            type="number"
+                            min={1}
+                            step={1}
+                            onChange={(e) =>
+                              handleFilterChange(
+                                {
+                                  ...filter,
+                                  value: isNaN(Number(e.target.value))
+                                    ? undefined
+                                    : Math.max(1, Number(e.target.value)),
+                                } as WipFilterCondition,
+                                i,
+                              )
+                            }
+                          />
+                        ) : (
+                          <Input disabled placeholder="-" />
+                        )
                       ) : (
                         <Input disabled />
                       )}

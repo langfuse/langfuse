@@ -20,7 +20,7 @@ import {
   getDatasetItemsCount,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
-import { groupBy } from "lodash";
+import groupBy from "lodash/groupBy";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { calculateRecursiveMetricsForRunItems } from "./utils";
 
@@ -186,6 +186,7 @@ export const getRunItemsByRunIdOrItemId = async <WithIO extends boolean = true>(
       id: ri.id,
       createdAt: ri.createdAt,
       datasetItemId: ri.datasetItemId,
+      datasetItemVersion: ri.datasetItemVersion ?? undefined,
       datasetRunId: ri.datasetRunId,
       datasetRunName: ri.datasetRunName,
       observation,
