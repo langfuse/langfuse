@@ -36,13 +36,14 @@ interface ExtractVariablesParams {
  */
 export function extractObservationVariables(
   params: ExtractVariablesParams,
+  columns = observationEvalVariableColumns,
 ): ExtractedVariable[] {
   const { observation, variableMapping } = params;
   const variables: ExtractedVariable[] = [];
 
   for (const mapping of variableMapping) {
     // Direct property access - columnId is typed as keyof ObservationForEval
-    const internal = observationEvalVariableColumns.find(
+    const internal = columns.find(
       (col) => col.id === mapping.selectedColumnId,
     )?.internal;
 
