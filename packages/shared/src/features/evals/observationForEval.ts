@@ -74,7 +74,7 @@ export function convertEventRecordToObservationForEval(
   return observationForEvalSchema.parse(record);
 }
 
-export type ObservationEvalFilterColumnIdentifiers =
+export type ObservationEvalFilterColumnInternal =
   /** Column identifier (must match an ObservationForEval field name) */
   keyof Pick<
     ObservationForEval,
@@ -92,18 +92,21 @@ export type ObservationEvalFilterColumnIdentifiers =
     | "metadata"
   >;
 
+export type ObservationEvalMappingColumnInternal = keyof Pick<
+  ObservationForEval,
+  "input" | "output" | "metadata" | "experiment_item_expected_output"
+>;
+
 export interface ObservationEvalVariableColumn {
   /** Column identifier (must match an ObservationForEval field name) */
-  id: keyof Pick<
-    ObservationForEval,
-    "input" | "output" | "metadata" | "experiment_item_expected_output"
-  >;
+  id: string;
   /** Display name for UI */
   name: string;
   /** Description for UI tooltips */
   description: string;
   /** Optional type hint for special handling (e.g., stringObject for metadata) */
   type?: "stringObject";
+  internal: ObservationEvalMappingColumnInternal;
 }
 
 /**
@@ -118,28 +121,31 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     id: "input",
     name: "Input",
     description: "Observation input data",
+    internal: "input",
   },
   {
     id: "output",
     name: "Output",
     description: "Observation output data",
+    internal: "output",
   },
   {
     id: "metadata",
     name: "Metadata",
     description: "Observation metadata",
     type: "stringObject",
+    internal: "metadata",
   },
-
   {
-    id: "experiment_item_expected_output",
-    name: "Experiment Item Expected Output",
+    id: "experimentItemExpectedOutput",
+    name: "Expected Output",
     description: "Expected output from experiment item",
+    internal: "experiment_item_expected_output",
   },
 ];
 
 type ObservationEvalColumnDef = ColumnDefinition & {
-  internal: ObservationEvalFilterColumnIdentifiers;
+  internal: ObservationEvalFilterColumnInternal;
 };
 
 /**

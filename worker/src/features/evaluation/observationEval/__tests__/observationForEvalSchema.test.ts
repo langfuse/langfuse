@@ -230,7 +230,7 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("input");
       expect(columnIds).toContain("output");
       expect(columnIds).toContain("metadata");
-      expect(columnIds).toContain("experiment_item_expected_output");
+      expect(columnIds).toContain("experimentItemExpectedOutput");
     });
   });
 });

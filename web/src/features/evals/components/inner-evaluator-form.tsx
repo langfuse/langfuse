@@ -90,6 +90,7 @@ import {
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
 import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -195,7 +196,7 @@ const ObservationsPreview = memo(
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
   }) => {
-    const isBetaEnabled = useObservationEvals();
+    const isv4Enabled = useV4Beta();
 
     const dateRange = useMemo(() => {
       return {
@@ -218,7 +219,7 @@ const ObservationsPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            {isBetaEnabled ? (
+            {isv4Enabled ? (
               <EventsTable
                 projectId={projectId}
                 hideControls
@@ -342,10 +343,14 @@ export const InnerEvaluatorForm = (props: {
 
   useEffect(() => {
     if (props.evalTemplate && form.getValues("mapping").length === 0) {
+      const target = form.getValues("target");
       form.setValue(
         "mapping",
         props.evalTemplate.vars.map((v) => ({
           templateVariable: v,
+          langfuseObject: isLegacyEvalTarget(target)
+            ? ("trace" as const)
+            : undefined,
           ...inferDefaultMapping(v),
         })),
       );

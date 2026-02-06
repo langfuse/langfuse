@@ -37,12 +37,11 @@ export function useEvalConfigMappingData(
     observationId,
   );
 
-  // drop the traceId and observation-related params from the URL query parameters when target changes
   const targetValue = form.watch("target");
   const prevTargetRef = useRef(targetValue);
 
+  // drop the traceId and observation-related params from the URL query parameters when target changes
   useEffect(() => {
-    // Only run when target actually changes (not on initial mount)
     if (
       prevTargetRef.current !== targetValue &&
       prevTargetRef.current !== undefined

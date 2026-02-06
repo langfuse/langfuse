@@ -456,7 +456,7 @@ describe("Observation Eval E2E Pipeline", () => {
           { templateVariable: "generated", selectedColumnId: "output" },
           {
             templateVariable: "expected",
-            selectedColumnId: "experiment_item_expected_output",
+            selectedColumnId: "experimentItemExpectedOutput",
           },
         ],
       });

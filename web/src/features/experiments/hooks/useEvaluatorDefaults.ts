@@ -23,7 +23,7 @@ export function useEvaluatorDefaults() {
     datasetId: string,
     scoreName?: string,
   ): PartialConfig & { evalTemplate: EvalTemplate } => {
-    // Create variable mappings with langfuseObject (dataset evaluator schema)
+    // Create variable mappings (dataset evaluator schema)
     const variableMappings = createDefaultVariableMappings(template);
 
     // Return the configured evaluator for dataset target

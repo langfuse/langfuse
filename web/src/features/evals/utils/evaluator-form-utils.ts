@@ -25,9 +25,8 @@ export type VariableMapping = z.infer<typeof wipVariableMapping>;
 
 export const inferDefaultMapping = (
   variable: string,
-): Pick<VariableMapping, "langfuseObject" | "selectedColumnId"> => {
+): Pick<VariableMapping, "selectedColumnId"> => {
   return {
-    langfuseObject: "trace" as const,
     selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
       ? "output"
       : "input",
@@ -40,7 +39,10 @@ export const fieldHasJsonSelectorOption = (
   selectedColumnId === "input" ||
   selectedColumnId === "output" ||
   selectedColumnId === "metadata" ||
-  selectedColumnId === "expected_output";
+  selectedColumnId === "expected_output" ||
+  selectedColumnId === "experiment_item_expected_output" ||
+  selectedColumnId === "expectedOutput" ||
+  selectedColumnId === "experimentItemExpectedOutput";
 
 export const getTargetDisplayName = (target: string): string => {
   switch (target) {

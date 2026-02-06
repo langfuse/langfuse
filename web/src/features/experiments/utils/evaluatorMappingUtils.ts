@@ -130,9 +130,9 @@ const observationDefaultMappings = new Map<
   ["completion", { selectedColumnId: "output" }],
 
   // Common ground truth variables (from experiment item)
-  ["expected_output", { selectedColumnId: "experiment_item_expected_output" }],
-  ["ground_truth", { selectedColumnId: "experiment_item_expected_output" }],
-  ["reference", { selectedColumnId: "experiment_item_expected_output" }],
+  ["expected_output", { selectedColumnId: "experimentItemExpectedOutput" }],
+  ["ground_truth", { selectedColumnId: "experimentItemExpectedOutput" }],
+  ["reference", { selectedColumnId: "experimentItemExpectedOutput" }],
 ]);
 
 /**
@@ -197,14 +197,14 @@ export function createDefaultObservationVariableMappings(
       return {
         templateVariable: variable,
         selectedColumnId:
-          defaultMapping.selectedColumnId || "experiment_item_expected_output",
+          defaultMapping.selectedColumnId || "experimentItemExpectedOutput",
         jsonSelector: defaultMapping.jsonSelector,
       };
     }
 
     return {
       templateVariable: variable,
-      selectedColumnId: "experiment_item_expected_output",
+      selectedColumnId: "experimentItemExpectedOutput",
     };
   });
 }

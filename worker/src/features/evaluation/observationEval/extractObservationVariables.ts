@@ -1,5 +1,9 @@
 import { type ObservationForEval } from "./types";
-import { type ObservationVariableMapping } from "@langfuse/shared";
+import {
+  ObservationEvalMappingColumnInternal,
+  observationEvalVariableColumns,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 import { JSONPath } from "jsonpath-plus";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -39,8 +43,22 @@ export function extractObservationVariables(
 
   for (const mapping of variableMapping) {
     // Direct property access - columnId is typed as keyof ObservationForEval
-    const rawValue =
-      observation[mapping.selectedColumnId as keyof ObservationForEval];
+    const internal = observationEvalVariableColumns.find(
+      (col) => col.id === mapping.selectedColumnId,
+    )?.internal;
+
+    if (!internal) {
+      logger.info(
+        `No internal column found for variable ${mapping.templateVariable} and column ${mapping.selectedColumnId}`,
+      );
+      variables.push({
+        var: mapping.templateVariable,
+        value: "",
+      });
+      continue;
+    }
+
+    const rawValue = observation[internal];
 
     const extractedValue = mapping.jsonSelector
       ? applyJsonSelector({ value: rawValue, selector: mapping.jsonSelector })

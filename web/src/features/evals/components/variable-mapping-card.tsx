@@ -552,7 +552,7 @@ export const VariableMappingCard = ({
                                   ? observationEvalVariableColumns.filter(
                                       (col) =>
                                         col.id !==
-                                        "experiment_item_expected_output",
+                                        "experimentItemExpectedOutput",
                                     )
                                   : observationEvalVariableColumns;
 
@@ -602,7 +602,7 @@ export const VariableMappingCard = ({
                             form.watch(`mapping.${index}.selectedColumnId`) ===
                               "output" ||
                             form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "experiment_item_expected_output") && (
+                              "experimentItemExpectedOutput") && (
                             <FormField
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}

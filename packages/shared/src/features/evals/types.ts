@@ -57,7 +57,7 @@ export const variableMappingList = z.array(variableMapping);
 export const wipVariableMapping = z.object({
   templateVariable: z.string(),
   objectName: z.string().nullish(),
-  langfuseObject: langfuseObject,
+  langfuseObject: langfuseObject.optional(),
   selectedColumnId: z.string().nullish(),
   jsonSelector: z.string().nullish(),
 });
@@ -177,12 +177,9 @@ export const TimeScopeSchema = z.array(JobTimeScopeZod).default(["NEW"]);
 // Simplified variable mapping for observation-based evals.
 // Unlike trace-based evals, we don't need objectName since we're directly
 // targeting a specific observation - no need to specify which observation to extract from.
-//
-// Note: selectedColumnId must be a valid column ID from observationEvalVariableColumns.
-// See packages/shared/src/features/evals/observationForEval.ts for the source of truth.
 export const observationVariableMapping = z.object({
   templateVariable: z.string(), // variable name in the template
-  selectedColumnId: z.string(), // column to extract (must match observationEvalVariableColumns)
+  selectedColumnId: z.string(), // column to extract (must match observationEvalVariableColumns.id)
   jsonSelector: z.string().nullish(), // optional JSON path selector
 });
 

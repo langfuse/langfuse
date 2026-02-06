@@ -12,10 +12,11 @@ export const OBSERVATION_VARIABLES = [
     id: "observation",
     display: "Observation",
     availableColumns: observationEvalVariableColumns.map((col) => ({
+      // id corresponds to the internal column name
       id: col.id,
       name: col.name,
       ...(col.type ? { type: col.type } : {}),
-      internal: `o."${col.id}"`,
+      internal: col.internal,
     })),
   },
 ];
