@@ -13,13 +13,6 @@ import {
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
-const CHART_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-];
-
 /**
  * LineChartTimeSeries component
  * @param data - Data to be displayed. Expects an array of objects with time_dimension, dimension, and metric properties.
@@ -81,8 +74,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                   <div
                     className="h-2 w-2 shrink-0 rounded-[2px]"
                     style={{
-                      backgroundColor:
-                        CHART_COLORS[index % CHART_COLORS.length],
+                      backgroundColor: `hsl(var(--chart-${(index % 4) + 1}))`,
                     }}
                   />
                   <span className="text-muted-foreground">{dimension}</span>
@@ -122,7 +114,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 strokeWidth={2.5}
                 dot={!isMuted ? { r: 4 } : false}
                 activeDot={isMuted ? false : { r: 5, strokeWidth: 0 }}
-                stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls
               />
