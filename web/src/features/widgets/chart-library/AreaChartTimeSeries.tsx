@@ -10,6 +10,7 @@ import {
   getUniqueDimensions,
   groupDataByTimeDimension,
 } from "@/src/features/widgets/chart-library/utils";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 const CHART_COLORS = [
@@ -44,8 +45,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
 
-  const tooltipFormatter =
-    valueFormatter ?? ((v: number) => Intl.NumberFormat("en-US").format(v));
+  const tooltipFormatter = valueFormatter ?? compactNumberFormatter;
 
   const handleLegendClick = (dimension: string) => {
     setHighlightedDimension((prev) => (prev === dimension ? null : dimension));
@@ -106,6 +106,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             fontSize={12}
             tickLine={false}
             axisLine={false}
+            tickFormatter={(value) => tooltipFormatter(Number(value))}
           />
           {dimensions.map((dimension, index) => {
             const isMuted =
@@ -132,10 +133,23 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 active={props.active}
                 payload={props.payload}
                 label={props.label}
-                formatter={(value, name) => [
-                  tooltipFormatter(Number(value)),
-                  name,
-                ]}
+                formatter={(value, name, item) => (
+                  <div className="flex w-full items-center gap-2">
+                    <div
+                      className="h-3 w-3 shrink-0 rounded-sm"
+                      style={{
+                        backgroundColor:
+                          item?.color ?? item?.payload?.fill ?? "currentColor",
+                      }}
+                    />
+                    <span className="min-w-0 flex-1 text-muted-foreground">
+                      {name}
+                    </span>
+                    <span className="shrink-0 font-medium tabular-nums">
+                      {tooltipFormatter(Number(value))}
+                    </span>
+                  </div>
+                )}
               />
             )}
           />
