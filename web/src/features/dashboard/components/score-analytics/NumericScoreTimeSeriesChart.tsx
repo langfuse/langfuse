@@ -111,7 +111,7 @@ export function NumericScoreTimeSeriesChart(props: {
     isNullValueAllowed: true,
   }) ? (
     props.isDashboardChartsBeta ? (
-      <div className="min-h-[9rem] w-full flex-1">
+      <div className="h-80 w-full shrink-0">
         <Chart
           chartType="LINE_TIME_SERIES"
           data={timeSeriesToDataPoints(extractedScores, props.agg)}

@@ -360,7 +360,7 @@ export const ModelUsageChart = ({
                     isLoading={isLoading || queryResult.isPending}
                   />
                 ) : isDashboardChartsBeta ? (
-                  <div className="min-h-80">
+                  <div className="h-80 w-full shrink-0">
                     <Chart
                       chartType="AREA_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}

@@ -77,7 +77,7 @@ export function NumericScoreHistogram(props: {
   return histogram.isLoading || !Boolean(chartData.length) ? (
     <NoDataOrLoading isLoading={histogram.isLoading} />
   ) : props.isDashboardChartsBeta ? (
-    <div className="min-h-[9rem] w-full flex-1">
+    <div className="h-80 w-full shrink-0">
       <Chart
         chartType="HISTOGRAM"
         data={scoreHistogramToDataPoints(chartData, chartLabels)}

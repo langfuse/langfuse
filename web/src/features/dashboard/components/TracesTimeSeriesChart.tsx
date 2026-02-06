@@ -183,7 +183,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   isDashboardChartsBeta ? (
-                    <div className="h-full min-h-80 self-stretch">
+                    <div className="h-80 w-full shrink-0">
                       <Chart
                         chartType="AREA_TIME_SERIES"
                         data={timeSeriesToDataPoints(item.data, agg)}
@@ -193,13 +193,15 @@ export const TracesAndObservationsTimeSeriesChart = ({
                       />
                     </div>
                   ) : (
-                    <BaseTimeSeriesChart
-                      className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                      agg={agg}
-                      data={item.data}
-                      connectNulls={true}
-                      chartType="area"
-                    />
+                    <div className="h-80 w-full shrink-0">
+                      <BaseTimeSeriesChart
+                        className="h-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
+                        agg={agg}
+                        data={item.data}
+                        connectNulls={true}
+                        chartType="area"
+                      />
+                    </div>
                   )
                 ) : (
                   <NoDataOrLoading

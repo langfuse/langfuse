@@ -106,7 +106,7 @@ export function CategoricalScoreChart(props: {
       );
     }
     return (
-      <div className="min-h-[9rem] flex-1">
+      <div className="h-80 w-full shrink-0">
         <Chart
           chartType="VERTICAL_BAR"
           data={scoreChartDataToDataPoints(chartData, chartLabels)}
