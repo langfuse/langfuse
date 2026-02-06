@@ -287,7 +287,7 @@ export const VariableMappingCard = ({
                           />
 
                           {!isTraceOrDatasetObject(
-                            form.watch(`mapping.${index}.langfuseObject`),
+                            form.watch(`mapping.${index}.langfuseObject`) ?? "",
                           ) ? (
                             <FormField
                               control={form.control}

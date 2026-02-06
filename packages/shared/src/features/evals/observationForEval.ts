@@ -83,7 +83,6 @@ export type ObservationEvalFilterColumnInternal =
     | "environment"
     | "level"
     | "version"
-    | "release"
     | "trace_name"
     | "user_id"
     | "session_id"
@@ -187,13 +186,6 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     id: "version",
     type: "string",
     internal: "version",
-    nullable: true,
-  },
-  {
-    name: "Release",
-    id: "release",
-    type: "string",
-    internal: "release",
     nullable: true,
   },
   {
