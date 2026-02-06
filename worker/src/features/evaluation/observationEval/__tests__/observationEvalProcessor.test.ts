@@ -324,17 +324,12 @@ describe("processObservationEval", () => {
         variableMapping: [
           { templateVariable: "input", selectedColumnId: "input" },
           { templateVariable: "output", selectedColumnId: "output" },
-          {
-            templateVariable: "model",
-            selectedColumnId: "providedModelName",
-          },
         ],
       });
       const observation = createTestObservation({
         project_id: projectId,
         input: '{"prompt": "Hello"}',
         output: '{"response": "World"}',
-        provided_model_name: "gpt-4",
       });
 
       (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
@@ -359,7 +354,6 @@ describe("processObservationEval", () => {
               var: "output",
               value: '{"response": "World"}',
             }),
-            expect.objectContaining({ var: "model", value: "gpt-4" }),
           ]),
         }),
       );
