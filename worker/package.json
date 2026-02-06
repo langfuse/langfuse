@@ -68,7 +68,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.6",
-    "@types/express-serve-static-core": "^5.1.0",
+    "@types/express-serve-static-core": "^5.1.1",
     "@types/lodash": "^4.17.23",
     "@types/node": "^24.3.0",
     "@types/pg": "^8.11.10",
