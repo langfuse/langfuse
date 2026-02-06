@@ -1,6 +1,4 @@
-import z from "zod/v4";
 import { JSONPath } from "jsonpath-plus";
-import { variableMapping } from "./types";
 
 /**
  * Parses an unknown value to a string representation
