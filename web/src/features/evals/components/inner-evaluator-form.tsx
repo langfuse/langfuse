@@ -371,7 +371,8 @@ export const InnerEvaluatorForm = (props: {
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
   >(() =>
     targetState.getAvailableVariables(
-      props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
+      props.existingEvaluator?.targetObject ??
+        (isBetaEnabled ? EvalTargetObject.EVENT : EvalTargetObject.TRACE),
     ),
   );
 
@@ -463,10 +464,13 @@ export const InnerEvaluatorForm = (props: {
     )
       .then(() => {
         props.onFormSuccess?.();
-        form.reset();
 
         if (props.mode !== "edit" && !props.preventRedirect) {
           void router.push(`/project/${props.projectId}/evals`);
+          // Don't reset form when redirecting - it will unmount anyway
+        } else {
+          // Only reset form when NOT redirecting
+          form.reset();
         }
       })
       .catch((error) => {
