@@ -59,9 +59,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
           </nav>
         </div>
       </div>
-      <div className="mt-4 flex h-3/4 flex-col">
-        {tabs[selectedIndex]?.content}
-      </div>
+      <div className="mt-4 flex flex-col">{tabs[selectedIndex]?.content}</div>
     </div>
   );
 };

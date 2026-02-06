@@ -102,6 +102,10 @@ export const TracesBarListChart = ({
     ? transformedTraces.slice(0, maxNumberOfEntries.expanded)
     : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
 
+  // Height scales with bar count so each bar keeps the same height when expanding (legacy behavior)
+  const BAR_ROW_HEIGHT = 36;
+  const CHART_AXIS_PADDING = 32;
+
   return (
     <DashboardCard
       className={className}
@@ -121,7 +125,16 @@ export const TracesBarListChart = ({
         {adjustedData.length > 0 ? (
           <>
             {isDashboardChartsBeta ? (
-              <div className="mt-4 min-h-[200px] w-full">
+              <div
+                className="mt-4 w-full"
+                style={{
+                  minHeight: 200,
+                  height: Math.max(
+                    200,
+                    adjustedData.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING,
+                  ),
+                }}
+              >
                 <Chart
                   chartType="HORIZONTAL_BAR"
                   data={barListToDataPoints(adjustedData)}
