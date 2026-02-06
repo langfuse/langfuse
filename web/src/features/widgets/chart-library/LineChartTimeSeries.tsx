@@ -4,7 +4,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { Line, LineChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   getUniqueDimensions,
@@ -56,7 +56,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   return (
     <div className="flex h-full w-full flex-col">
       {legendPosition === "above" && dimensions.length > 0 && (
-        <div className="flex shrink-0 flex-nowrap overflow-x-auto pb-3">
+        <div className="flex shrink-0 flex-nowrap justify-end overflow-x-auto pb-3">
           <div className="flex items-center gap-4">
             {dimensions.map((dimension, index) => {
               const isHighlighted =
@@ -94,6 +94,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
       )}
       <ChartContainer config={config} className="min-h-0 flex-1">
         <LineChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+          <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis
             dataKey="time_dimension"
             stroke="hsl(var(--chart-grid))"
@@ -117,11 +118,12 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 key={dimension}
                 type="monotone"
                 dataKey={dimension}
-                strokeWidth={2}
-                dot={!isMuted}
-                activeDot={isMuted ? false : { r: 6, strokeWidth: 0 }}
+                strokeWidth={2.5}
+                dot={!isMuted ? { r: 4 } : false}
+                activeDot={isMuted ? false : { r: 5, strokeWidth: 0 }}
                 stroke={CHART_COLORS[index % CHART_COLORS.length]}
                 strokeOpacity={isMuted ? 0.2 : 1}
+                connectNulls
               />
             );
           })}

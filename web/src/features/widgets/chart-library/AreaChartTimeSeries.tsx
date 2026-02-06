@@ -4,7 +4,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { Area, AreaChart, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   getUniqueDimensions,
@@ -54,7 +54,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   return (
     <div className="flex h-full w-full flex-col">
       {legendPosition === "above" && dimensions.length > 0 && (
-        <div className="flex shrink-0 flex-nowrap overflow-x-auto pb-3">
+        <div className="flex shrink-0 flex-nowrap justify-end overflow-x-auto pb-3">
           <div className="flex items-center gap-4">
             {dimensions.map((dimension, index) => {
               const isHighlighted =
@@ -92,6 +92,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       )}
       <ChartContainer config={config} className="min-h-0 flex-1">
         <AreaChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+          <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis
             dataKey="time_dimension"
             stroke="hsl(var(--chart-grid))"
@@ -117,9 +118,10 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 dataKey={dimension}
                 stroke={CHART_COLORS[index % CHART_COLORS.length]}
                 fill={CHART_COLORS[index % CHART_COLORS.length]}
-                fillOpacity={isMuted ? 0.15 : 0.6}
-                strokeWidth={2}
+                fillOpacity={isMuted ? 0.15 : 0.75}
+                strokeWidth={2.5}
                 strokeOpacity={isMuted ? 0.2 : 1}
+                connectNulls
               />
             );
           })}
