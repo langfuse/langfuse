@@ -1,6 +1,5 @@
 import { type ObservationForEval } from "./types";
 import {
-  ObservationEvalMappingColumnInternal,
   observationEvalVariableColumns,
   type ObservationVariableMapping,
 } from "@langfuse/shared";

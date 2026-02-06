@@ -105,7 +105,7 @@ export function useExtractVariables({
         (m) => m.templateVariable === variable,
       );
 
-      if (!mapping || !mapping.selectedColumnId) {
+      if (!mapping || !mapping.selectedColumnId || !mapping.langfuseObject) {
         return { variable, value: "n/a" };
       }
 
@@ -146,10 +146,11 @@ export function useExtractVariables({
         return { variable, value: "n/a" };
       }
 
-      const { value, error } = extractValueFromObject(object, {
-        ...mapping,
-        selectedColumnId: mapping.selectedColumnId,
-      });
+      const { value, error } = extractValueFromObject(
+        object,
+        mapping.selectedColumnId,
+        mapping.jsonSelector ?? undefined,
+      );
       return { variable, value, error };
     });
 
