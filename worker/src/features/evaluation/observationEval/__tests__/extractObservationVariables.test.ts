@@ -1,58 +1,62 @@
 import { describe, it, expect } from "vitest";
 import { extractObservationVariables } from "../extractObservationVariables";
 import { type ObservationForEval } from "../types";
-import { type ObservationVariableMapping } from "@langfuse/shared";
+import {
+  availableObservationEvalVariableColumns,
+  ObservationEvalVariableColumn,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 
 describe("extractObservationVariables", () => {
   const mockObservation: ObservationForEval = {
     // Core identifiers
-    id: "obs-123",
-    traceId: "trace-456",
-    projectId: "project-789",
-    parentObservationId: null,
+    span_id: "obs-123",
+    trace_id: "trace-456",
+    project_id: "project-789",
+    parent_span_id: null,
 
     // Observation properties
-    type: "generation",
+    type: "GENERATION",
     name: "chat-completion",
     environment: "production",
     level: "DEFAULT",
-    statusMessage: null,
+    status_message: null,
     version: "v1.0",
 
     // Trace-level properties
-    traceName: "my-trace",
-    userId: "user-abc",
-    sessionId: "session-xyz",
+    trace_name: "my-trace",
+    user_id: "user-abc",
+    session_id: "session-xyz",
     tags: ["tag1", "tag2"],
     release: "v2.0.0",
 
     // Model properties
-    model: "gpt-4",
-    modelParameters: '{"temperature": 0.7}',
+    provided_model_name: "gpt-4",
+    model_parameters: '{"temperature": 0.7}',
 
     // Prompt properties
-    promptId: null,
-    promptName: null,
-    promptVersion: null,
+    prompt_id: null,
+    prompt_name: null,
+    prompt_version: null,
 
     // Tool call properties
-    toolDefinitions: { search: '{"description": "Search the web"}' },
-    toolCalls: ['{"name": "search", "args": {"query": "test"}}'],
-    toolCallNames: ["search"],
+    tool_definitions: { search: '{"description": "Search the web"}' },
+    tool_calls: ['{"name": "search", "args": {"query": "test"}}'],
+    tool_call_names: ["search"],
 
     // Usage & Cost
-    usageDetails: { input: 100, output: 50 },
-    costDetails: {},
-    providedUsageDetails: {},
-    providedCostDetails: {},
+    usage_details: { input: 100, output: 50 },
+    cost_details: {},
+    provided_usage_details: {},
+    provided_cost_details: {},
 
     // Experiment properties
-    experimentId: null,
-    experimentName: null,
-    experimentDescription: null,
-    experimentDatasetId: null,
-    experimentItemId: null,
-    experimentItemExpectedOutput: "expected response",
+    experiment_id: null,
+    experiment_name: null,
+    experiment_description: null,
+    experiment_dataset_id: null,
+    experiment_item_id: null,
+    experiment_item_expected_output: "expected response",
 
     // Data fields
     input: JSON.stringify({
@@ -72,10 +76,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "input", selectedColumnId: "input" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("input");
@@ -87,10 +94,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "output", selectedColumnId: "output" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("output");
@@ -102,10 +112,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "meta", selectedColumnId: "metadata" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("meta");
@@ -119,10 +132,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "metadata", selectedColumnId: "metadata" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(3);
       expect(result[0].var).toBe("userInput");
@@ -139,14 +155,17 @@ describe("extractObservationVariables", () => {
         { templateVariable: "tools", selectedColumnId: "toolCalls" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("tools");
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.toolCalls));
+      expect(result[0].value).toBe(JSON.stringify(mockObservation.tool_calls));
     });
 
     it("should extract toolDefinitions variable", () => {
@@ -157,15 +176,18 @@ describe("extractObservationVariables", () => {
         },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("definitions");
       expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.toolDefinitions),
+        JSON.stringify(mockObservation.tool_definitions),
       );
     });
   });
@@ -173,13 +195,19 @@ describe("extractObservationVariables", () => {
   describe("model extraction", () => {
     it("should extract model variable", () => {
       const variableMapping: ObservationVariableMapping[] = [
-        { templateVariable: "modelName", selectedColumnId: "model" },
+        {
+          templateVariable: "modelName",
+          selectedColumnId: "providedModelName",
+        },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("modelName");
@@ -191,14 +219,17 @@ describe("extractObservationVariables", () => {
         { templateVariable: "params", selectedColumnId: "modelParameters" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("params");
-      expect(result[0].value).toBe(mockObservation.modelParameters);
+      expect(result[0].value).toBe(mockObservation.model_parameters);
     });
   });
 
@@ -228,15 +259,18 @@ describe("extractObservationVariables", () => {
         { templateVariable: "usage", selectedColumnId: "usageDetails" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("usage");
       expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.usageDetails),
+        JSON.stringify(mockObservation.usage_details),
       );
     });
 
@@ -245,14 +279,19 @@ describe("extractObservationVariables", () => {
         { templateVariable: "cost", selectedColumnId: "costDetails" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("cost");
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.costDetails));
+      expect(result[0].value).toBe(
+        JSON.stringify(mockObservation.cost_details),
+      );
     });
   });
 
@@ -284,10 +323,13 @@ describe("extractObservationVariables", () => {
         },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result[0].value).toBe(JSON.stringify(["I am fine, thank you!"]));
     });
@@ -349,10 +391,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "output", selectedColumnId: "output" },
       ];
 
-      const result = extractObservationVariables({
-        observation: observationWithNulls,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: observationWithNulls,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result[0].value).toBe("");
       expect(result[1].value).toBe("");
@@ -367,10 +412,13 @@ describe("extractObservationVariables", () => {
         },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       // JSONPath returns empty array for non-matching paths
       expect(result[0].value).toBe("[]");
@@ -390,10 +438,13 @@ describe("extractObservationVariables", () => {
         },
       ];
 
-      const result = extractObservationVariables({
-        observation: observationWithPlainText,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: observationWithPlainText,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       // Should fall back to original value when JSON parsing fails
       expect(result[0].value).toBe("plain text, not JSON");
@@ -406,10 +457,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "var", selectedColumnId: "input" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result[0].value).toBe(mockObservation.input);
     });
@@ -419,10 +473,13 @@ describe("extractObservationVariables", () => {
         { templateVariable: "var", selectedColumnId: "output" },
       ];
 
-      const result = extractObservationVariables({
-        observation: mockObservation,
-        variableMapping,
-      });
+      const result = extractObservationVariables(
+        {
+          observation: mockObservation,
+          variableMapping,
+        },
+        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
+      );
 
       expect(result[0].value).toBe(mockObservation.output);
     });

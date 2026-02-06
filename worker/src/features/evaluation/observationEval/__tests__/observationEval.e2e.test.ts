@@ -280,6 +280,7 @@ describe("Observation Eval E2E Pipeline", () => {
         project_id: projectId,
         type: "generation",
         provided_model_name: "gpt-4",
+        trace_name: "llm-trace",
       });
 
       const config1 = createTestEvalConfig({
@@ -302,10 +303,10 @@ describe("Observation Eval E2E Pipeline", () => {
         scoreName: "relevance",
         filter: [
           {
-            column: "provided_model_name",
+            column: "traceName",
             type: "stringOptions",
             operator: "any of",
-            value: ["gpt-4"],
+            value: ["llm-trace"],
           },
         ],
       });
@@ -455,7 +456,7 @@ describe("Observation Eval E2E Pipeline", () => {
           { templateVariable: "generated", selectedColumnId: "output" },
           {
             templateVariable: "expected",
-            selectedColumnId: "experiment_item_expected_output",
+            selectedColumnId: "experimentItemExpectedOutput",
           },
         ],
       });

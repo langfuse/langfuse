@@ -30,7 +30,10 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import {
+  toAbsoluteTimeRange,
+  type TableDateRange,
+} from "@/src/utils/date-range-utils";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -139,12 +142,21 @@ export type EventsTableRow = {
 export type EventsTableProps = {
   projectId: string;
   userId?: string;
+  hideControls?: boolean;
+  // External control props for embedded preview tables
+  externalFilterState?: FilterState;
+  externalDateRange?: TableDateRange;
+  limitRows?: number;
   sessionId?: string;
 };
 
 export default function ObservationsEventsTable({
   projectId,
   userId,
+  hideControls = false,
+  externalFilterState,
+  externalDateRange,
+  limitRows,
   sessionId,
 }: EventsTableProps) {
   const router = useRouter();
@@ -259,11 +271,13 @@ export default function ObservationsEventsTable({
 
   // Convert timeRange to absolute date range for compatibility
   // Include refreshTick to force recalculation on refresh
-  const dateRange = useMemo(() => {
+  const tableDateRange = useMemo(() => {
     // refreshTick forces recalculation but isn't used in computation
     void refreshTick;
     return toAbsoluteTimeRange(timeRange) ?? undefined;
   }, [timeRange, refreshTick]);
+
+  const dateRange = externalDateRange ?? tableDateRange;
 
   const dateRangeFilter: FilterState = dateRange
     ? [
@@ -300,6 +314,7 @@ export default function ObservationsEventsTable({
     filterOptions,
     projectId,
     isFilterOptionsPending,
+    hideControls, // Disable URL persistence for embedded preview tables
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -347,11 +362,14 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  const filterState = queryFilter.filterState
+  const combinedFilterState = queryFilter.filterState
     .concat(dateRangeFilter)
     .concat(viewModeFilter)
     .concat(userIdFilter)
     .concat(sessionIdFilter);
+
+  // Use external filter state if provided, otherwise use combined filter state
+  const filterState = externalFilterState || combinedFilterState;
 
   // Use the custom hook for observations data fetching
   const {
@@ -363,7 +381,9 @@ export default function ObservationsEventsTable({
   } = useEventsTableData({
     projectId,
     filterState,
-    paginationState,
+    paginationState: limitRows
+      ? { page: 1, limit: limitRows }
+      : paginationState,
     orderByState,
     searchQuery,
     searchType,
@@ -378,12 +398,10 @@ export default function ObservationsEventsTable({
         "observations",
         observations?.rows?.map((o) => ({
           id: o?.id,
-          params: o?.startTime
-            ? {
-                timestamp: o?.startTime.toISOString(),
-                traceId: o?.traceId || "",
-              }
-            : undefined,
+          params: {
+            traceId: o?.traceId || "",
+            ...(o?.startTime ? { timestamp: o?.startTime.toISOString() } : {}),
+          },
         })) ?? [],
       );
     }
@@ -418,15 +436,17 @@ export default function ObservationsEventsTable({
     },
   ];
 
+  const enableSorting = !hideControls;
+
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
-    selectActionColumn,
+    ...(hideControls ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
       id: "startTime",
       header: getEventsColumnName("startTime"),
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
         return <LocalIsoDate date={value} />;
@@ -437,7 +457,7 @@ export default function ObservationsEventsTable({
       id: "type",
       header: getEventsColumnName("type"),
       size: 50,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: ObservationType = row.getValue("type");
         return value ? (
@@ -452,7 +472,7 @@ export default function ObservationsEventsTable({
       id: "name",
       header: getEventsColumnName("name"),
       size: 150,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const value: EventsTableRow["name"] = row.getValue("name");
         return value ?? undefined;
@@ -562,7 +582,7 @@ export default function ObservationsEventsTable({
           </span>
         ) : undefined;
       },
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "statusMessage",
@@ -599,7 +619,7 @@ export default function ObservationsEventsTable({
         ) : undefined;
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "totalCost",
@@ -623,7 +643,7 @@ export default function ObservationsEventsTable({
         ) : undefined;
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
     },
     {
       accessorKey: "cost",
@@ -654,7 +674,7 @@ export default function ObservationsEventsTable({
           },
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
         },
         {
           accessorKey: "outputCost",
@@ -673,7 +693,7 @@ export default function ObservationsEventsTable({
           },
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
         },
       ],
     },
@@ -683,7 +703,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("timeToFirstToken"),
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const timeToFirstToken: number | undefined =
           row.getValue("timeToFirstToken");
@@ -730,7 +750,7 @@ export default function ObservationsEventsTable({
           },
           defaultHidden: true,
           enableHiding: true,
-          enableSorting: true,
+          enableSorting,
         },
         {
           accessorKey: "inputTokens",
@@ -739,7 +759,7 @@ export default function ObservationsEventsTable({
           size: 100,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
           cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
@@ -756,7 +776,7 @@ export default function ObservationsEventsTable({
           size: 100,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
           cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
@@ -773,7 +793,7 @@ export default function ObservationsEventsTable({
           size: 100,
           enableHiding: true,
           defaultHidden: true,
-          enableSorting: true,
+          enableSorting,
           cell: ({ row }: { row: Row<EventsTableRow> }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
@@ -791,7 +811,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("providedModelName"),
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const model = row.getValue("providedModelName") as string;
         const modelId = row.getValue("modelId") as string | undefined;
@@ -839,7 +859,7 @@ export default function ObservationsEventsTable({
       },
       size: 200,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       cell: ({ row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
@@ -905,7 +925,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("endTime"),
       size: 150,
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
       cell: ({ row }) => {
         const value: Date | undefined = row.getValue("endTime");
@@ -923,7 +943,7 @@ export default function ObservationsEventsTable({
           <TableIdOrName value={value} />
         ) : undefined;
       },
-      enableSorting: true,
+      enableSorting,
       enableHiding: true,
       defaultHidden: true,
     },
@@ -945,7 +965,7 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/experimentation",
       },
       enableHiding: true,
-      enableSorting: true,
+      enableSorting,
       defaultHidden: true,
     },
     {
@@ -1007,17 +1027,17 @@ export default function ObservationsEventsTable({
     currentFilterState: queryFilter.filterState,
   });
 
-  const peekConfig: DataTablePeekViewProps = useMemo(
-    () => ({
+  const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
+    if (hideControls) return undefined;
+    return {
       itemType: "TRACE",
       customTitlePrefix: "Observation ID:",
       detailNavigationKey: "observations",
       children: <PeekViewObservationDetail projectId={projectId} />,
       tableDataUpdatedAt: dataUpdatedAt,
       ...peekNavigationProps,
-    }),
-    [projectId, dataUpdatedAt, peekNavigationProps],
-  );
+    };
+  }, [projectId, dataUpdatedAt, peekNavigationProps, hideControls]);
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
@@ -1086,85 +1106,93 @@ export default function ObservationsEventsTable({
     <DataTableControlsProvider>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          columns={columns}
-          filterState={queryFilter.filterState}
-          searchConfig={{
-            metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
-            updateQuery: setSearchQuery,
-            currentQuery: searchQuery ?? undefined,
-            searchType,
-            setSearchType,
-            tableAllowsFullTextSearch: true,
-          }}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Observations,
-            projectId,
-            controllers: viewControllers,
-          }}
-          columnsWithCustomSelect={["providedModelName", "name", "promptName"]}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibilityState}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          orderByState={orderByState}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
-          viewModeToggle={
-            <EventsViewModeToggle
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
-          }
-          refreshConfig={{
-            onRefresh: handleRefresh,
-            isRefreshing: observations.status === "loading",
-            interval: refreshInterval,
-            setInterval: setRefreshInterval,
-          }}
-          actionButtons={[
-            <BatchExportTableButton
-              {...{
-                projectId,
-                filterState,
-                orderByState,
-                searchQuery,
-                searchType,
-              }}
-              tableName={BatchExportTableName.Observations}
-              key="batchExport"
-            />,
-            Object.keys(selectedRows).filter((observationId) =>
-              observations.rows?.map((o) => o.id).includes(observationId),
-            ).length > 0 ? (
-              <TableActionMenu
-                key="observations-multi-select-actions"
-                projectId={projectId}
-                actions={tableActions}
-                tableName={BatchExportTableName.Observations}
+        {!hideControls && (
+          <DataTableToolbar
+            columns={columns}
+            filterState={queryFilter.filterState}
+            searchConfig={{
+              metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
+              updateQuery: setSearchQuery,
+              currentQuery: searchQuery ?? undefined,
+              searchType,
+              setSearchType,
+              tableAllowsFullTextSearch: true,
+            }}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Observations,
+              projectId,
+              controllers: viewControllers,
+            }}
+            columnsWithCustomSelect={[
+              "providedModelName",
+              "name",
+              "promptName",
+            ]}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibilityState}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
+            orderByState={orderByState}
+            rowHeight={rowHeight}
+            setRowHeight={setRowHeight}
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+            viewModeToggle={
+              <EventsViewModeToggle
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
               />
-            ) : null,
-          ]}
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds:
+            }
+            refreshConfig={{
+              onRefresh: handleRefresh,
+              isRefreshing: observations.status === "loading",
+              interval: refreshInterval,
+              setInterval: setRefreshInterval,
+            }}
+            actionButtons={[
+              <BatchExportTableButton
+                {...{
+                  projectId,
+                  filterState,
+                  orderByState,
+                  searchQuery,
+                  searchType,
+                }}
+                tableName={BatchExportTableName.Observations}
+                key="batchExport"
+              />,
               Object.keys(selectedRows).filter((observationId) =>
                 observations.rows?.map((o) => o.id).includes(observationId),
-              ) ?? [],
-            setRowSelection: setSelectedRows,
-            totalCount,
-            pageSize: paginationState.limit,
-            pageIndex: paginationState.page - 1,
-          }}
-          filterWithAI
-        />
+              ).length > 0 ? (
+                <TableActionMenu
+                  key="observations-multi-select-actions"
+                  projectId={projectId}
+                  actions={tableActions}
+                  tableName={BatchExportTableName.Observations}
+                />
+              ) : null,
+            ]}
+            multiSelect={{
+              selectAll,
+              setSelectAll,
+              selectedRowIds:
+                Object.keys(selectedRows).filter((observationId) =>
+                  observations.rows?.map((o) => o.id).includes(observationId),
+                ) ?? [],
+              setRowSelection: setSelectedRows,
+              totalCount,
+              pageSize: paginationState.limit,
+              pageIndex: paginationState.page - 1,
+            }}
+            filterWithAI
+          />
+        )}
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} filterWithAI />
+          {!hideControls && (
+            <DataTableControls queryFilter={queryFilter} filterWithAI />
+          )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
@@ -1187,26 +1215,30 @@ export default function ObservationsEventsTable({
                         data: rows,
                       }
               }
-              pagination={{
-                totalCount,
-                onChange: (updater) => {
-                  const newState =
-                    typeof updater === "function"
-                      ? updater({
-                          pageIndex: paginationState.page - 1,
-                          pageSize: paginationState.limit,
-                        })
-                      : updater;
-                  setPaginationState({
-                    page: newState.pageIndex + 1,
-                    limit: newState.pageSize,
-                  });
-                },
-                state: {
-                  pageIndex: paginationState.page - 1,
-                  pageSize: paginationState.limit,
-                },
-              }}
+              pagination={
+                limitRows
+                  ? undefined
+                  : {
+                      totalCount,
+                      onChange: (updater) => {
+                        const newState =
+                          typeof updater === "function"
+                            ? updater({
+                                pageIndex: paginationState.page - 1,
+                                pageSize: paginationState.limit,
+                              })
+                            : updater;
+                        setPaginationState({
+                          page: newState.pageIndex + 1,
+                          limit: newState.pageSize,
+                        });
+                      },
+                      state: {
+                        pageIndex: paginationState.page - 1,
+                        pageSize: paginationState.limit,
+                      },
+                    }
+              }
               rowSelection={selectedRows}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}

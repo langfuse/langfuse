@@ -1,5 +1,8 @@
 import { type ObservationForEval } from "./types";
-import { type ObservationVariableMapping } from "@langfuse/shared";
+import {
+  observationEvalVariableColumns,
+  type ObservationVariableMapping,
+} from "@langfuse/shared";
 import { JSONPath } from "jsonpath-plus";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -25,7 +28,7 @@ interface ExtractVariablesParams {
  * 2. Optionally applies JSON selector if provided
  * 3. Returns an array of extracted variables compatible with executeLLMAsJudgeEvaluation()
  *
- * Column IDs are typed as keyof ObservationForEval (see observationEvalVariableColumns),
+ * Column internals are typed as keyof ObservationForEval (see observationEvalVariableColumns),
  * ensuring compile-time safety when adding new columns.
  *
  * Note: Environment is passed directly to executeLLMAsJudgeEvaluation() by the caller,
@@ -33,14 +36,29 @@ interface ExtractVariablesParams {
  */
 export function extractObservationVariables(
   params: ExtractVariablesParams,
+  columns = observationEvalVariableColumns,
 ): ExtractedVariable[] {
   const { observation, variableMapping } = params;
   const variables: ExtractedVariable[] = [];
 
   for (const mapping of variableMapping) {
     // Direct property access - columnId is typed as keyof ObservationForEval
-    const rawValue =
-      observation[mapping.selectedColumnId as keyof ObservationForEval];
+    const internal = columns.find(
+      (col) => col.id === mapping.selectedColumnId,
+    )?.internal;
+
+    if (!internal) {
+      logger.info(
+        `No internal column found for variable ${mapping.templateVariable} and column ${mapping.selectedColumnId}`,
+      );
+      variables.push({
+        var: mapping.templateVariable,
+        value: "",
+      });
+      continue;
+    }
+
+    const rawValue = observation[internal];
 
     const extractedValue = mapping.jsonSelector
       ? applyJsonSelector({ value: rawValue, selector: mapping.jsonSelector })

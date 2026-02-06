@@ -13,27 +13,3 @@ export function VariableMappingDescription(p: {
     </div>
   );
 }
-
-export function TimeScopeDescription(props: {
-  projectId: string;
-  timeScope: ("NEW" | "EXISTING")[] | undefined;
-  target: "trace" | "dataset_item" | undefined;
-}) {
-  if (!props.timeScope || props.timeScope.length === 0) {
-    return "Select a time scope to run this configuration on.";
-  }
-
-  return (
-    <span>
-      This configuration will target{" "}
-      {props.timeScope?.includes("NEW") && props.timeScope?.includes("EXISTING")
-        ? "all future and existing"
-        : props.timeScope?.includes("NEW")
-          ? "all future"
-          : "all existing"}{" "}
-      {props.target === "trace" ? "traces" : "dataset run items"} that match
-      these filters. Please note that it might take a while for your data to be
-      evaluated.
-    </span>
-  );
-}

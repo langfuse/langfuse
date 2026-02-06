@@ -1,12 +1,13 @@
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
 import { cn } from "@/src/utils/tailwind";
-import { type RouterOutput } from "@/src/utils/types";
-import { type EvalTemplate } from "@langfuse/shared";
+import { EvalTargetObject, type EvalTemplate } from "@langfuse/shared";
 import Link from "next/link";
 import { Fragment, useMemo } from "react";
+import { isTraceTarget } from "@/src/features/evals/utils/typeHelpers";
+import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 
 const VARIABLE_COLORS = [
   "text-primary-accent",
@@ -112,16 +113,18 @@ const ColoredPromptView = ({
 };
 
 export const EvaluationPromptPreview = ({
+  previewData,
+  projectId,
   evalTemplate,
-  trace,
   variableMapping,
   isLoading,
   showControls = true,
   className,
   controlButtons,
 }: {
+  previewData: PreviewData;
+  projectId: string;
   evalTemplate: EvalTemplate;
-  trace: RouterOutput["traces"]["byIdWithObservationsAndScores"];
   variableMapping: VariableMapping[];
   isLoading: boolean;
   showControls?: boolean;
@@ -136,7 +139,7 @@ export const EvaluationPromptPreview = ({
   const { extractedVariables, isExtracting } = useExtractVariables({
     variables: memoizedVariables,
     variableMapping,
-    trace: trace,
+    previewData,
     isLoading,
   });
 
@@ -210,19 +213,41 @@ export const EvaluationPromptPreview = ({
     return content;
   }
 
+  // Get target URL and badge type based on target type
+  const getTargetLink = () => {
+    if (isTraceTarget(previewData.type)) {
+      return {
+        href: `/project/${projectId}/traces/${previewData.traceId}`,
+        badgeType: "TRACE" as const,
+      };
+    } else if (previewData.type === EvalTargetObject.EVENT) {
+      return {
+        href: `/project/${projectId}/traces/${previewData.traceId}?observation=${previewData.observationId}`,
+        badgeType: "OBSERVATION" as const,
+      };
+    }
+  };
+
+  const targetLink = getTargetLink();
+
   return (
     <div className={cn("flex flex-col", className)}>
       <span className="mb-1 flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
         <div className="flex flex-row items-center gap-2">
           Evaluation Prompt Preview
-          <Link
-            href={`/project/${trace.projectId}/traces/${trace.id}`}
-            className="hover:cursor-pointer"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ItemBadge type="TRACE" showLabel />
-          </Link>
+          {targetLink && (
+            <Link
+              href={targetLink.href}
+              className="hover:cursor-pointer"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ItemBadge
+                type={targetLink.badgeType as LangfuseItemType}
+                showLabel
+              />
+            </Link>
+          )}
         </div>
         {controlButtons}
       </span>
