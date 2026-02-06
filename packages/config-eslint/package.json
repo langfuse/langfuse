@@ -18,7 +18,7 @@
     "@eslint/compat": "^2.0.0",
     "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^9.39.2",
-    "eslint-config-next": "15.5.10",
+    "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-turbo": "^2.7.6",
     "eslint-plugin-only-warn": "^1.1.0",
