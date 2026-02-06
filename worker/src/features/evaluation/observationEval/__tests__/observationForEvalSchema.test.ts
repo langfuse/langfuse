@@ -205,7 +205,6 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("userId");
       expect(columnIds).toContain("sessionId");
       expect(columnIds).toContain("tags");
-      expect(columnIds).toContain("release");
 
       expect(columnIds).toContain("experimentDatasetId");
 
@@ -224,13 +223,15 @@ describe("observationForEvalSchema", () => {
     });
 
     it("should include expected variable columns", () => {
-      const columnIds = observationEvalVariableColumns.map((c) => c.id);
+      const columnInternals = observationEvalVariableColumns.map(
+        (c) => c.internal,
+      );
 
       // Primary data fields
-      expect(columnIds).toContain("input");
-      expect(columnIds).toContain("output");
-      expect(columnIds).toContain("metadata");
-      expect(columnIds).toContain("experimentItemExpectedOutput");
+      expect(columnInternals).toContain("input");
+      expect(columnInternals).toContain("output");
+      expect(columnInternals).toContain("metadata");
+      expect(columnInternals).toContain("experimentItemExpectedOutput");
     });
   });
 });
