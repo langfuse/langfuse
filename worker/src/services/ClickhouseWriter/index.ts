@@ -46,7 +46,7 @@ export class ClickhouseWriter {
       [TableName.ObservationsBatchStaging]: [],
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
-      [TableName.Events]: [],
+      [TableName.EventsFull]: [],
     };
 
     this.start();
@@ -114,7 +114,7 @@ export class ClickhouseWriter {
           this.flush(TableName.ObservationsBatchStaging, fullQueue),
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
-          this.flush(TableName.Events, fullQueue),
+          this.flush(TableName.EventsFull, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -504,7 +504,7 @@ export enum TableName {
   ObservationsBatchStaging = "observations_batch_staging",
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
-  Events = "events",
+  EventsFull = "events_full", // Primary write target - MV auto-populates events_core
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -521,7 +521,7 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
             ? BlobStorageFileLogInsertType
             : T extends TableName.DatasetRunItems
               ? DatasetRunItemRecordInsertType
-              : T extends TableName.Events
+              : T extends TableName.EventsFull
                 ? EventRecordInsertType
                 : never;
 

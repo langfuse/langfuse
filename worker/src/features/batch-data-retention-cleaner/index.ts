@@ -19,7 +19,8 @@ export const BATCH_DATA_RETENTION_TABLES = [
   "traces",
   "observations",
   "scores",
-  "events",
+  "events_full",
+  "events_core",
 ] as const;
 
 export type BatchDataRetentionTable =
@@ -34,7 +35,8 @@ export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   traces: "timestamp",
   observations: "start_time",
   scores: "timestamp",
-  events: "start_time",
+  events_full: "start_time",
+  events_core: "start_time",
 };
 
 interface ProjectWorkload {
@@ -97,7 +99,7 @@ function buildRetentionConditions(
  * BatchDataRetentionCleaner handles bulk deletion of ClickHouse data based on
  * project retention settings.
  *
- * Each instance processes one table (traces, observations, scores, events).
+ * Each instance processes one table (traces, observations, scores, events_full, events_core).
  * Multiple workers coordinate via Redis distributed locking to ensure only one
  * worker deletes from a given table at a time.
  *

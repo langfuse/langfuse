@@ -11,7 +11,8 @@ export const BATCH_DELETION_TABLES = [
   "traces",
   "observations",
   "scores",
-  "events",
+  "events_full",
+  "events_core",
   "dataset_run_items_rmt",
 ] as const;
 import { env } from "../../env";
@@ -30,7 +31,7 @@ interface ProjectCount {
 /**
  * BatchProjectCleaner handles bulk deletion of ClickHouse data for soft-deleted projects.
  *
- * Each instance processes one table (traces, observations, scores, events).
+ * Each instance processes one table (traces, observations, scores, events_full, events_core).
  * Multiple workers coordinate via Redis distributed locking to ensure only one
  * worker deletes from a given table at a time.
  *

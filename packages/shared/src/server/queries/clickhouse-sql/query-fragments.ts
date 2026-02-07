@@ -8,6 +8,11 @@ interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
   startTimeFrom?: string | null;
+  /**
+   * Whether to use truncated I/O (events_core) or full I/O (events_full).
+   * Default is false (full) for better compatibility.
+   */
+  truncated?: boolean;
 }
 
 /**
@@ -28,6 +33,7 @@ export const eventsTracesAggregation = (
       .selectFieldSet("all")
       .withTraceIds(params.traceIds)
       .withStartTimeFrom(params.startTimeFrom)
+      .withTruncated(params.truncated ?? false)
       .orderByColumns([{ column: "timestamp", direction: "DESC" }])
   );
 };

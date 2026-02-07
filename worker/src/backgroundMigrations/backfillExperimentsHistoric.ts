@@ -367,7 +367,7 @@ export default class BackfillExperimentsHistoric
     const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
     const tableNames = (await tables.json()).data as { name: string }[];
 
-    const requiredTables = ["events", "dataset_run_items_rmt"];
+    const requiredTables = ["events_full", "dataset_run_items_rmt"];
 
     for (const tableName of requiredTables) {
       if (!tableNames.some((r) => r.name === tableName)) {
@@ -518,11 +518,11 @@ export default class BackfillExperimentsHistoric
         );
       }
 
-      // Write enriched spans to events table
+      // Write enriched spans to events_full table
       if (allEnrichedSpans.length > 0) {
         await writeEnrichedSpans(allEnrichedSpans);
         logger.info(
-          `[Backfill Experiments] Wrote ${allEnrichedSpans.length} enriched spans to events table`,
+          `[Backfill Experiments] Wrote ${allEnrichedSpans.length} enriched spans to events_full table`,
         );
       }
 

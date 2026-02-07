@@ -158,7 +158,7 @@ export const handleEventPropagationJob = async (
           limit 1 by t.project_id, t.id
         )
 
-        INSERT INTO events (
+        INSERT INTO events_full (
           project_id,
           trace_id,
           span_id,
@@ -199,7 +199,7 @@ export const handleEventPropagationJob = async (
           output,
           metadata,
           metadata_names,
-          metadata_raw_values,
+          metadata_values,
           source,
           blob_storage_file_path,
           event_bytes,
@@ -256,7 +256,7 @@ export const handleEventPropagationJob = async (
           -- Merge trace and observation metadata, with observation taking precedence (first map wins)
           CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON(max_dynamic_paths=0)') AS metadata,
           mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_raw_values,
+          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
           '' AS blob_storage_file_path,
           byteSize(*) AS event_bytes,
