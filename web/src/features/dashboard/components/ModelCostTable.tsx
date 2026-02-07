@@ -13,6 +13,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 export const ModelCostTable = ({
   className,
@@ -101,26 +102,30 @@ export const ModelCostTable = ({
       title="Model costs"
       isLoading={isLoading || metrics.isLoading}
     >
-      <DashboardTable
-        headers={[
-          "Model",
-          <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
-          <RightAlignedCell key="cost">USD</RightAlignedCell>,
-        ]}
-        rows={metricsData}
-        isLoading={isLoading || metrics.isLoading}
-        collapse={{ collapsed: 5, expanded: 20 }}
-      >
-        <TotalMetric
-          metric={totalCostDashboardFormatted(totalTokenCost)}
-          description="Total cost"
+      {metrics.error ? (
+        <DashboardChartError error={metrics.error} />
+      ) : (
+        <DashboardTable
+          headers={[
+            "Model",
+            <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
+            <RightAlignedCell key="cost">USD</RightAlignedCell>,
+          ]}
+          rows={metricsData}
+          isLoading={isLoading || metrics.isLoading}
+          collapse={{ collapsed: 5, expanded: 20 }}
         >
-          <DocPopup
-            description="Calculated multiplying the number of tokens with cost per token for each model."
-            href="https://langfuse.com/docs/model-usage-and-cost"
-          />
-        </TotalMetric>
-      </DashboardTable>
+          <TotalMetric
+            metric={totalCostDashboardFormatted(totalTokenCost)}
+            description="Total cost"
+          >
+            <DocPopup
+              description="Calculated multiplying the number of tokens with cost per token for each model."
+              href="https://langfuse.com/docs/model-usage-and-cost"
+            />
+          </TotalMetric>
+        </DashboardTable>
+      )}
     </DashboardCard>
   );
 };

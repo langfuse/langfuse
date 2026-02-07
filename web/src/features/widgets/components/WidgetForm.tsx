@@ -1752,7 +1752,7 @@ export function WidgetForm({
               {widgetDescription}
             </CardDescription>
           </CardHeader>
-          {queryResult.data ? (
+          {queryResult.data || queryResult.error ? (
             <Chart
               chartType={selectedChartType as DashboardWidgetChartType}
               data={transformedData}
@@ -1788,6 +1788,7 @@ export function WidgetForm({
                   : undefined
               }
               onSortChange={undefined}
+              error={queryResult.error}
             />
           ) : (
             <CardContent>

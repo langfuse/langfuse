@@ -24,6 +24,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -102,6 +103,10 @@ export function NumericScoreTimeSeriesChart(props: {
         )
       : [];
   }, [scores.data]);
+
+  if (scores.error) {
+    return <DashboardChartError error={scores.error} />;
+  }
 
   return !isEmptyTimeSeries({
     data: extractedScores,
