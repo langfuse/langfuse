@@ -118,6 +118,29 @@ export const createFilterFromFilterState = (
           tablePrefix: column.queryPrefix,
         });
       case "null":
+        // Events table uses empty string instead of NULL for parent_span_id
+        if (
+          frontEndFilter.column === "parentObservationId" &&
+          column.clickhouseTableName === "events"
+        ) {
+          const isNull = frontEndFilter.operator === "is null";
+          const fieldWithPrefix = column.queryPrefix
+            ? `${column.queryPrefix}.${column.clickhouseSelect}`
+            : column.clickhouseSelect;
+
+          // Create an inline filter for empty string comparison
+          return {
+            clickhouseTable: column.clickhouseTableName,
+            field: column.clickhouseSelect,
+            operator: isNull ? ("=" as const) : ("!=" as const),
+            tablePrefix: column.queryPrefix,
+            apply: () => ({
+              query: `${fieldWithPrefix} ${isNull ? "=" : "!="} ''`,
+              params: {},
+            }),
+          };
+        }
+
         return new NullFilter({
           clickhouseTable: column.clickhouseTableName,
           field: column.clickhouseSelect,
