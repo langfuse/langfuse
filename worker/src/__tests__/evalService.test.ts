@@ -2131,7 +2131,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
           message:
             "401 status code (no body)\n" +
             "\n" +
-            "Troubleshooting URL: https://js.langchain.com/docs/troubleshooting/errors/MODEL_AUTHENTICATION/\n",
+            "Troubleshooting URL: https://docs.langchain.com/oss/javascript/langchain/errors/MODEL_AUTHENTICATION/\n",
           responseStatusCode: 401,
         }),
       );
