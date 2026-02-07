@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { fetchLLMCompletion } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import { ChatMessageType, LLMAdapter } from "@langfuse/shared";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
 
 /**
  * LLM Connection Integration Tests
@@ -159,7 +159,8 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("Anthropic", () => {
-    const MODEL = "claude-3-5-haiku-20241022";
+    // claude-3-5-haiku-20241022 deprecated 2025-12-19: https://platform.claude.com/docs/en/about-claude/model-deprecations#2025-12-19-claude-haiku-3-5-model
+    const MODEL = "claude-haiku-4-5-20251001";
 
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY) {
@@ -398,7 +399,7 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("Bedrock", () => {
-    const MODEL = "eu.anthropic.claude-sonnet-4-20250514-v1:0";
+    const MODEL = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
     const checkEnvVars = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID) {
@@ -469,7 +470,7 @@ describe("LLM Connection Tests", () => {
     }, 30_000);
 
     // Flaky
-    test.skip("structured output - eval schema", async () => {
+    test("structured output - eval schema", async () => {
       checkEnvVars();
 
       const completion = await fetchLLMCompletion({
