@@ -217,6 +217,8 @@ export function CreateLLMApiKeyForm({
         return customization?.defaultBaseUrlAzure ?? "";
       case LLMAdapter.Anthropic:
         return customization?.defaultBaseUrlAnthropic ?? "";
+      case LLMAdapter.DeepSeek:
+        return "https://api.deepseek.com";
       default:
         return "";
     }
@@ -276,7 +278,8 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.OpenAI ||
     adapter === LLMAdapter.Anthropic ||
     adapter === LLMAdapter.VertexAI ||
-    adapter === LLMAdapter.GoogleAIStudio;
+    adapter === LLMAdapter.GoogleAIStudio ||
+    adapter === LLMAdapter.DeepSeek;
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
