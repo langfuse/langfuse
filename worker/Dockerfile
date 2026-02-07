@@ -9,8 +9,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS base
 RUN npm install turbo@^2.7.6 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-RUN corepack prepare pnpm@9.5.0 --activate
+RUN corepack enable && corepack prepare pnpm@9.5.0 --activate
 
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS pruner
@@ -31,7 +30,7 @@ COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=pruner /app/out/json/ .
 
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # pass public variables in build step
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
@@ -45,7 +44,10 @@ COPY --from=pruner /app/out/full/ .
 
 RUN turbo run build --filter=worker...
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
+# Prune dev dependencies and prepare production node_modules
+RUN pnpm prune --prod
+
+FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runner
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -63,12 +65,33 @@ ENV DOCKER_BUILD 0
 # Don't run production as root
 ARG UID=1001
 ARG GID=1001
-RUN addgroup --system --gid ${GID} expressjs
-RUN adduser --system --uid ${UID} expressjs
-USER expressjs
-COPY --from=builder --chown=expressjs:expressjs /app .
+RUN addgroup --system --gid ${GID} expressjs && \
+    adduser --system --uid ${UID} expressjs
+
+# Copy only necessary files for production
+# 1. Worker dist and package.json
+COPY --from=builder --chown=expressjs:expressjs /app/worker/dist ./worker/dist
+COPY --from=builder --chown=expressjs:expressjs /app/worker/package.json ./worker/package.json
+
+# 2. Shared package dist and package.json
+COPY --from=builder --chown=expressjs:expressjs /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder --chown=expressjs:expressjs /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder --chown=expressjs:expressjs /app/packages/shared/prisma ./packages/shared/prisma
+
+# 3. Production node_modules (pruned)
+COPY --from=builder --chown=expressjs:expressjs /app/node_modules ./node_modules
+COPY --from=builder --chown=expressjs:expressjs /app/worker/node_modules ./worker/node_modules
+COPY --from=builder --chown=expressjs:expressjs /app/packages/shared/node_modules ./packages/shared/node_modules
+
+# 4. Workspace configuration files
+COPY --from=builder --chown=expressjs:expressjs /app/package.json ./package.json
+COPY --from=builder --chown=expressjs:expressjs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+
+# 5. Entrypoint
 COPY --chown=expressjs:expressjs ./worker/entrypoint.sh ./worker/entrypoint.sh
 RUN chmod +x ./worker/entrypoint.sh
+
+USER expressjs
 
 EXPOSE 3030
 ENV PORT=3030
