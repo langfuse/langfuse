@@ -493,7 +493,6 @@ model ScoreConfig {
   @@index([dataType])
   @@index([isArchived])
   @@index([projectId])
-  @@index([categories])
   @@index([createdAt])
   @@index([updatedAt])
   @@map("score_configs")
