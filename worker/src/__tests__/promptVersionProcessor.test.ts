@@ -4,12 +4,10 @@ import {
   ActionExecutionStatus,
   JobConfigState,
   TriggerEventSource,
-  TriggerEventAction,
   PromptType,
 } from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
-  redis,
   EntityChangeEventType,
 } from "@langfuse/shared/src/server";
 import { ActionType, prisma } from "@langfuse/shared/src/db";
@@ -301,6 +299,175 @@ describe("promptVersionChangeWorker", () => {
     });
 
     expect(executions).toHaveLength(0);
+  });
+
+  it("should not execute when eventActions doesn't include the event action", async () => {
+    // Create a prompt
+    const promptId = v4();
+
+    // Create a webhook action
+    const actionId = v4();
+    await prisma.action.create({
+      data: {
+        id: actionId,
+        projectId,
+        type: ActionType.WEBHOOK,
+        config: {
+          type: "WEBHOOK",
+          url: "https://webhook.example.com/test",
+          headers: {},
+          method: "POST",
+        },
+      },
+    });
+
+    // Create a trigger that only matches CREATED events via eventActions field
+    const triggerId = v4();
+    await prisma.trigger.create({
+      data: {
+        id: triggerId,
+        projectId,
+        eventSource: TriggerEventSource.Prompt,
+        eventActions: ["created"], // Only created, not updated
+        status: JobConfigState.ACTIVE,
+        filter: [], // No additional filter
+      },
+    });
+
+    // Create automation linking trigger and action
+    const automationId = v4();
+    await prisma.automation.create({
+      data: {
+        id: automationId,
+        name: "prompt-created-only-automation",
+        projectId,
+        triggerId,
+        actionId,
+      },
+    });
+
+    // Create an UPDATED event (which shouldn't match the eventActions)
+    const event: EntityChangeEventType = {
+      entityType: "prompt-version",
+      projectId,
+      promptId,
+      action: "updated",
+      prompt: {
+        id: promptId,
+        projectId,
+        name: "test-prompt",
+        version: 1,
+        prompt: { messages: [{ role: "user", content: "Hello" }] },
+        config: null,
+        tags: [],
+        labels: [],
+        type: PromptType.Chat,
+        isActive: true,
+        createdBy: "test-user",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        commitMessage: null,
+      },
+    };
+
+    // Execute the worker
+    await promptVersionProcessor(event);
+
+    // Verify no automation execution was created
+    const executions = await prisma.automationExecution.findMany({
+      where: {
+        projectId,
+        automationId,
+      },
+    });
+
+    expect(executions).toHaveLength(0);
+  });
+
+  it("should execute when eventActions includes the event action", async () => {
+    // Create a prompt
+    const promptId = v4();
+
+    // Create a webhook action
+    const actionId = v4();
+    await prisma.action.create({
+      data: {
+        id: actionId,
+        projectId,
+        type: ActionType.WEBHOOK,
+        config: {
+          type: "WEBHOOK",
+          url: "https://webhook.example.com/test",
+          headers: {},
+          method: "POST",
+        },
+      },
+    });
+
+    // Create a trigger that matches CREATED and DELETED events via eventActions field
+    const triggerId = v4();
+    await prisma.trigger.create({
+      data: {
+        id: triggerId,
+        projectId,
+        eventSource: TriggerEventSource.Prompt,
+        eventActions: ["created", "deleted"], // created and deleted, not updated
+        status: JobConfigState.ACTIVE,
+        filter: [], // No additional filter
+      },
+    });
+
+    // Create automation linking trigger and action
+    const automationId = v4();
+    await prisma.automation.create({
+      data: {
+        id: automationId,
+        name: "prompt-created-deleted-automation",
+        projectId,
+        triggerId,
+        actionId,
+      },
+    });
+
+    // Create a CREATED event (which should match the eventActions)
+    const event: EntityChangeEventType = {
+      entityType: "prompt-version",
+      projectId,
+      promptId,
+      action: "created",
+      prompt: {
+        id: promptId,
+        projectId,
+        name: "test-prompt",
+        version: 1,
+        prompt: { messages: [{ role: "user", content: "Hello" }] },
+        config: null,
+        tags: [],
+        labels: [],
+        type: PromptType.Chat,
+        isActive: true,
+        createdBy: "test-user",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        commitMessage: null,
+      },
+    };
+
+    // Execute the worker
+    await promptVersionProcessor(event);
+
+    // Verify automation execution was created
+    const executions = await prisma.automationExecution.findMany({
+      where: {
+        projectId,
+        automationId,
+        triggerId,
+        actionId,
+      },
+    });
+
+    expect(executions).toHaveLength(1);
+    expect(executions[0].status).toBe(ActionExecutionStatus.PENDING);
   });
 
   it("should not execute when prompt name filter doesn't match", async () => {
