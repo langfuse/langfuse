@@ -31,6 +31,8 @@ describe("InMemoryFilterService", () => {
     cost: 0.0025,
     latency: 1500,
     tokenCount: 250,
+    input: "What is the capital of France?",
+    output: "The capital of France is Paris.",
   };
 
   // Simple field mapper for testing
@@ -69,6 +71,10 @@ describe("InMemoryFilterService", () => {
         return data.latency;
       case "tokenCount":
         return data.tokenCount;
+      case "input":
+        return data.input;
+      case "output":
+        return data.output;
       default:
         return undefined;
     }
@@ -1150,6 +1156,221 @@ describe("InMemoryFilterService", () => {
               type: "unsupportedType" as any,
               operator: "=",
               value: "test",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+    });
+
+    test("evaluates input field filters correctly", () => {
+      // Input contains
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "contains",
+              value: "capital",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "contains",
+              value: "weather",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Input starts with
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "starts with",
+              value: "What is",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Input does not contain
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "does not contain",
+              value: "error",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Test with null input
+      const dataWithNullInput = { ...mockData, input: null };
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          dataWithNullInput,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "contains",
+              value: "test",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+    });
+
+    test("evaluates output field filters correctly", () => {
+      // Output contains
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "output",
+              type: "string",
+              operator: "contains",
+              value: "Paris",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "output",
+              type: "string",
+              operator: "contains",
+              value: "London",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+
+      // Output ends with
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "output",
+              type: "string",
+              operator: "ends with",
+              value: "Paris.",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Output does not contain
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "output",
+              type: "string",
+              operator: "does not contain",
+              value: "error",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+    });
+
+    test("evaluates combined input/output filters with other fields", () => {
+      // Input contains AND environment is production
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "contains",
+              value: "capital",
+            },
+            {
+              column: "environment",
+              type: "string",
+              operator: "=",
+              value: "production",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Input contains AND output contains
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "contains",
+              value: "France",
+            },
+            {
+              column: "output",
+              type: "string",
+              operator: "contains",
+              value: "Paris",
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(true);
+
+      // Input contains (true) AND output contains (false) - should fail
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "input",
+              type: "string",
+              operator: "contains",
+              value: "France",
+            },
+            {
+              column: "output",
+              type: "string",
+              operator: "contains",
+              value: "London",
             },
           ],
           fieldMapper,
