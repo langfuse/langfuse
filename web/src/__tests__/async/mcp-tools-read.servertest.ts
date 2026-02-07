@@ -16,6 +16,7 @@ jest.mock("@langfuse/shared/src/server", () => {
 });
 
 import { nanoid } from "nanoid";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   createMcpTestSetup,
   createPromptInDb,
@@ -405,6 +406,130 @@ describe("MCP Read Tools", () => {
       for (const prompt of result.data) {
         expect(prompt.tags).toContain("experimental");
       }
+    });
+
+    it("should filter by fromUpdatedAt", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const oldPrompt = `filter-from-updated-${nanoid()}`;
+      const newPrompt = `filter-from-updated-${nanoid()}`;
+
+      const oldDate = new Date("2026-01-01T00:00:00.000Z");
+      const newDate = new Date("2026-02-01T00:00:00.000Z");
+
+      await prisma.prompt.create({
+        data: {
+          name: oldPrompt,
+          prompt: "old",
+          labels: [],
+          tags: [],
+          type: "text",
+          version: 1,
+          config: {},
+          createdBy: "test-user",
+          createdAt: oldDate,
+          updatedAt: oldDate,
+          project: { connect: { id: projectId } },
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          name: newPrompt,
+          prompt: "new",
+          labels: [],
+          tags: [],
+          type: "text",
+          version: 1,
+          config: {},
+          createdBy: "test-user",
+          createdAt: newDate,
+          updatedAt: newDate,
+          project: { connect: { id: projectId } },
+        },
+      });
+
+      const result = (await handleListPrompts(
+        {
+          fromUpdatedAt: "2026-01-15T00:00:00.000Z",
+          page: 1,
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ name: string }> };
+
+      const names = result.data.map((p) => p.name);
+      expect(names).toContain(newPrompt);
+      expect(names).not.toContain(oldPrompt);
+    });
+
+    it("should filter by toUpdatedAt", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const oldPrompt = `filter-to-updated-${nanoid()}`;
+      const newPrompt = `filter-to-updated-${nanoid()}`;
+
+      const oldDate = new Date("2026-01-01T00:00:00.000Z");
+      const newDate = new Date("2026-02-01T00:00:00.000Z");
+
+      await prisma.prompt.create({
+        data: {
+          name: oldPrompt,
+          prompt: "old",
+          labels: [],
+          tags: [],
+          type: "text",
+          version: 1,
+          config: {},
+          createdBy: "test-user",
+          createdAt: oldDate,
+          updatedAt: oldDate,
+          project: { connect: { id: projectId } },
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          name: newPrompt,
+          prompt: "new",
+          labels: [],
+          tags: [],
+          type: "text",
+          version: 1,
+          config: {},
+          createdBy: "test-user",
+          createdAt: newDate,
+          updatedAt: newDate,
+          project: { connect: { id: projectId } },
+        },
+      });
+
+      const result = (await handleListPrompts(
+        {
+          toUpdatedAt: "2026-01-15T00:00:00.000Z",
+          page: 1,
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ name: string }> };
+
+      const names = result.data.map((p) => p.name);
+      expect(names).toContain(oldPrompt);
+      expect(names).not.toContain(newPrompt);
+    });
+
+    it("should return error when fromUpdatedAt is after toUpdatedAt", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleListPrompts(
+          {
+            fromUpdatedAt: "2026-02-02T00:00:00.000Z",
+            toUpdatedAt: "2026-02-01T00:00:00.000Z",
+            page: 1,
+            limit: 50,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/fromUpdatedAt.*<=.*toUpdatedAt/i);
     });
 
     it("should handle pagination with page and limit", async () => {
