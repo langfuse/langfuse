@@ -2010,7 +2010,7 @@ export class OtelIngestionProcessor {
     }
 
     if (instrumentationScopeName === "pydantic-ai") {
-      const inputTokens = attributes["gen_ai.usage.input_tokens"];
+      let inputTokens = attributes["gen_ai.usage.input_tokens"];
       const outputTokens = attributes["gen_ai.usage.output_tokens"];
       const cacheReadTokens =
         attributes["gen_ai.usage.cache_read_tokens"] ??
@@ -2018,6 +2018,12 @@ export class OtelIngestionProcessor {
       const cacheWriteTokens =
         attributes["gen_ai.usage.cache_write_tokens"] ??
         attributes["gen_ai.usage.details.cache_creation_input_tokens"];
+
+      // Subtract cached token count from total input and output
+      inputTokens = Math.max(
+        (inputTokens ?? 0) - (cacheReadTokens ?? 0) - (cacheWriteTokens ?? 0),
+        0,
+      );
 
       return {
         input: inputTokens,
