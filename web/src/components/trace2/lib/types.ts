@@ -31,6 +31,15 @@ export type TreeNode = {
   // Pre-computed cost for this node + all descendants
   // Calculated bottom-up during tree construction for O(1) access
   totalCost?: Decimal;
+  // Pre-computed aggregated details for this node + all descendants (for badge tooltips)
+  // Calculated bottom-up during tree construction for O(1) access
+  aggregatedCostDetails?: Record<string, number>;
+  aggregatedUsageDetails?: Record<string, number>;
+  aggregatedInputUsage?: number;
+  aggregatedOutputUsage?: number;
+  aggregatedTotalUsage?: number;
+  /** True if this subtree contains any generation-like observations (for showing usage badge) */
+  hasGenerationLike?: boolean;
   // Trace-specific properties (when type === 'TRACE')
   latency?: number;
   // Observation-specific properties (when type !== 'TRACE')

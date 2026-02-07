@@ -767,6 +767,323 @@ describe("buildTraceUiData", () => {
     });
   });
 
+  describe("Aggregated Details (root nodes only)", () => {
+    // Note: Aggregated fields are only set on root nodes (nodes in the roots array)
+    // to avoid memory overhead on intermediate nodes. For traditional traces,
+    // that's the TRACE node. For events-based traces, it's the observation roots.
+
+    it("aggregates costDetails on root node (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "SPAN" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          parentObservationId: null,
+          costDetails: { input: 0.1, output: 0.05 },
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "root",
+          costDetails: { input: 0.2, output: 0.1 },
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+
+      expect(root.aggregatedCostDetails).toEqual({
+        input: 0.3, // 0.1 + 0.2
+        output: 0.15, // 0.05 + 0.1
+      });
+    });
+
+    it("aggregates usageDetails for generation-like types (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "GENERATION" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          type: "GENERATION",
+          parentObservationId: null,
+          usageDetails: { prompt_tokens: 100, completion_tokens: 50 },
+          inputUsage: 100,
+          outputUsage: 50,
+          totalUsage: 150,
+        }),
+        createMockObservation({
+          id: "child",
+          type: "GENERATION",
+          parentObservationId: "root",
+          usageDetails: { prompt_tokens: 200, completion_tokens: 100 },
+          inputUsage: 200,
+          outputUsage: 100,
+          totalUsage: 300,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+
+      expect(root.aggregatedUsageDetails).toEqual({
+        prompt_tokens: 300,
+        completion_tokens: 150,
+      });
+      expect(root.aggregatedInputUsage).toBe(300);
+      expect(root.aggregatedOutputUsage).toBe(150);
+      expect(root.aggregatedTotalUsage).toBe(450);
+      expect(root.hasGenerationLike).toBe(true);
+    });
+
+    it("handles root with empty costDetails/usageDetails (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "SPAN" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          type: "SPAN",
+          parentObservationId: null,
+          costDetails: {},
+          usageDetails: {},
+        }),
+        createMockObservation({
+          id: "child",
+          type: "GENERATION",
+          parentObservationId: "root",
+          costDetails: { input: 0.1 },
+          usageDetails: { tokens: 100 },
+          inputUsage: 100,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+
+      expect(root.aggregatedCostDetails).toEqual({ input: 0.1 });
+      expect(root.aggregatedUsageDetails).toEqual({ tokens: 100 });
+      expect(root.aggregatedInputUsage).toBe(100);
+      expect(root.hasGenerationLike).toBe(true);
+    });
+
+    it("merges different cost/usage keys from siblings (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "SPAN" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          parentObservationId: null,
+        }),
+        createMockObservation({
+          id: "child-1",
+          type: "GENERATION",
+          parentObservationId: "root",
+          costDetails: { model_a: 0.1 },
+          usageDetails: { tokens_a: 100 },
+          totalUsage: 100,
+        }),
+        createMockObservation({
+          id: "child-2",
+          type: "GENERATION",
+          parentObservationId: "root",
+          costDetails: { model_b: 0.2 },
+          usageDetails: { tokens_b: 200 },
+          totalUsage: 200,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+
+      expect(root.aggregatedCostDetails).toEqual({
+        model_a: 0.1,
+        model_b: 0.2,
+      });
+      expect(root.aggregatedUsageDetails).toEqual({
+        tokens_a: 100,
+        tokens_b: 200,
+      });
+    });
+
+    it("only aggregates usage from generation-like types (not SPAN/EVENT)", () => {
+      const trace = createMockTrace({ rootObservationType: "SPAN" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          type: "SPAN",
+          parentObservationId: null,
+          usageDetails: { tokens: 50 }, // SPAN usage should be ignored
+          inputUsage: 50,
+        }),
+        createMockObservation({
+          id: "child",
+          type: "GENERATION",
+          parentObservationId: "root",
+          usageDetails: { tokens: 100 },
+          inputUsage: 100,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+
+      // Only child's usage should be aggregated (SPAN is not generation-like)
+      expect(root.aggregatedUsageDetails).toEqual({ tokens: 100 });
+      expect(root.aggregatedInputUsage).toBe(100);
+      expect(root.hasGenerationLike).toBe(true);
+    });
+
+    it("sets hasGenerationLike when subtree contains GENERATION (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "SPAN" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          type: "SPAN",
+          parentObservationId: null,
+        }),
+        createMockObservation({
+          id: "generation",
+          type: "GENERATION",
+          parentObservationId: "root",
+          usageDetails: { tokens: 100 },
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+
+      expect(root.hasGenerationLike).toBe(true);
+    });
+
+    it("does not set hasGenerationLike for pure SPAN trees (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "SPAN" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          type: "SPAN",
+          parentObservationId: null,
+        }),
+        createMockObservation({
+          id: "child",
+          type: "SPAN",
+          parentObservationId: "root",
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+
+      expect(root.hasGenerationLike).toBeUndefined();
+    });
+
+    it("aggregates to TRACE root node (traditional traces)", () => {
+      const trace = createMockTrace({ id: "trace-1" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "obs-1",
+          type: "GENERATION",
+          parentObservationId: null,
+          costDetails: { input: 0.1 },
+          usageDetails: { tokens: 100 },
+          inputUsage: 100,
+          totalCost: 0.1,
+        }),
+        createMockObservation({
+          id: "obs-2",
+          type: "GENERATION",
+          parentObservationId: null,
+          costDetails: { input: 0.2 },
+          usageDetails: { tokens: 200 },
+          inputUsage: 200,
+          totalCost: 0.2,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const traceNode = result.roots[0];
+
+      expect(traceNode.type).toBe("TRACE");
+      expect(traceNode.aggregatedCostDetails).toEqual({ input: 0.3 });
+      expect(traceNode.aggregatedUsageDetails).toEqual({ tokens: 300 });
+      expect(traceNode.aggregatedInputUsage).toBe(300);
+      expect(traceNode.hasGenerationLike).toBe(true);
+    });
+
+    it("aggregates deep nesting to root only (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "SPAN" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root",
+          parentObservationId: null,
+          costDetails: { api: 0.1 },
+        }),
+        createMockObservation({
+          id: "child",
+          parentObservationId: "root",
+          costDetails: { api: 0.2 },
+        }),
+        createMockObservation({
+          id: "grandchild",
+          type: "GENERATION",
+          parentObservationId: "child",
+          costDetails: { api: 0.3 },
+          usageDetails: { tokens: 100 },
+          inputUsage: 100,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const root = result.roots[0];
+      const child = result.nodeMap.get("child");
+
+      // Root has aggregated values
+      expect(root.aggregatedCostDetails).toEqual({ api: 0.6 });
+      expect(root.aggregatedUsageDetails).toEqual({ tokens: 100 });
+      expect(root.hasGenerationLike).toBe(true);
+
+      // Non-root nodes do NOT have aggregated values (to save memory)
+      expect(child?.aggregatedCostDetails).toBeUndefined();
+      expect(child?.aggregatedUsageDetails).toBeUndefined();
+    });
+
+    it("handles multiple roots (events-based)", () => {
+      const trace = createMockTrace({ rootObservationType: "GENERATION" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "root-1",
+          type: "GENERATION",
+          parentObservationId: null,
+          costDetails: { input: 0.1 },
+          usageDetails: { tokens: 100 },
+          inputUsage: 100,
+        }),
+        createMockObservation({
+          id: "child-1",
+          type: "GENERATION",
+          parentObservationId: "root-1",
+          costDetails: { input: 0.2 },
+          usageDetails: { tokens: 200 },
+          inputUsage: 200,
+        }),
+        createMockObservation({
+          id: "root-2",
+          type: "GENERATION",
+          parentObservationId: null,
+          costDetails: { input: 0.5 },
+          usageDetails: { tokens: 500 },
+          inputUsage: 500,
+          startTime: new Date("2024-01-01T00:00:01.000Z"),
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+
+      // First root has its subtree aggregated
+      expect(result.roots[0].id).toBe("root-1");
+      expect(result.roots[0].aggregatedCostDetails).toEqual({ input: 0.3 });
+      expect(result.roots[0].aggregatedUsageDetails).toEqual({ tokens: 300 });
+
+      // Second root has only its own values (no children)
+      expect(result.roots[1].id).toBe("root-2");
+      expect(result.roots[1].aggregatedCostDetails).toEqual({ input: 0.5 });
+      expect(result.roots[1].aggregatedUsageDetails).toEqual({ tokens: 500 });
+    });
+  });
+
   describe.skip("Performance Tests", () => {
     // Helper to generate observations at scale
     const generateObservations = (

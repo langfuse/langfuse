@@ -23,6 +23,8 @@ import {
   type ObservationLevelType,
   ObservationLevel,
   type TraceDomain,
+  isGenerationLike,
+  type ObservationType,
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
@@ -441,6 +443,67 @@ function buildTraceTree(
 }
 
 /**
+ * Aggregates cost/usage details for a root node by traversing its subtree.
+ * Sets aggregated fields directly on the root node (mutates).
+ * Only called for root nodes to avoid memory overhead on intermediate nodes.
+ */
+function aggregateRootNodeDetails(
+  root: TreeNode,
+  observationMap: Map<string, ObservationReturnType>,
+): void {
+  const costDetails: Record<string, number> = {};
+  const usageDetails: Record<string, number> = {};
+  let inputUsage = 0;
+  let outputUsage = 0;
+  let totalUsage = 0;
+  let hasGenerationLike = false;
+
+  // Single DFS traversal, aggregate as we go
+  const stack: TreeNode[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    const obs = observationMap.get(node.id);
+
+    if (obs) {
+      // Merge cost details
+      if (obs.costDetails) {
+        for (const [key, value] of Object.entries(obs.costDetails)) {
+          costDetails[key] = (costDetails[key] ?? 0) + value;
+        }
+      }
+
+      // Only aggregate usage for generation-like observations
+      if (isGenerationLike(obs.type as ObservationType)) {
+        hasGenerationLike = true;
+        inputUsage += obs.inputUsage ?? 0;
+        outputUsage += obs.outputUsage ?? 0;
+        totalUsage += obs.totalUsage ?? 0;
+
+        if (obs.usageDetails) {
+          for (const [key, value] of Object.entries(obs.usageDetails)) {
+            usageDetails[key] = (usageDetails[key] ?? 0) + value;
+          }
+        }
+      }
+    }
+
+    for (const child of node.children) {
+      stack.push(child);
+    }
+  }
+
+  // Set aggregated fields on root node
+  root.aggregatedCostDetails =
+    Object.keys(costDetails).length > 0 ? costDetails : undefined;
+  root.aggregatedUsageDetails =
+    Object.keys(usageDetails).length > 0 ? usageDetails : undefined;
+  root.aggregatedInputUsage = inputUsage > 0 ? inputUsage : undefined;
+  root.aggregatedOutputUsage = outputUsage > 0 ? outputUsage : undefined;
+  root.aggregatedTotalUsage = totalUsage > 0 ? totalUsage : undefined;
+  root.hasGenerationLike = hasGenerationLike || undefined;
+}
+
+/**
  * Main entry point: builds complete UI data from trace and observations.
  *
  * Returns:
@@ -468,6 +531,13 @@ export function buildTraceUiData(
   // Handle empty roots case
   if (roots.length === 0) {
     return { roots, hiddenObservationsCount, searchItems: [], nodeMap };
+  }
+
+  // Aggregate cost/usage details for each root node (only roots, not intermediate nodes)
+  // Build observation map once for O(1) lookups during DFS
+  const observationMap = new Map(observations.map((obs) => [obs.id, obs]));
+  for (const root of roots) {
+    aggregateRootNodeDetails(root, observationMap);
   }
 
   // TODO: Extract aggregation logic to shared utility - duplicated in TraceTree.tsx and TraceTimeline/index.tsx
