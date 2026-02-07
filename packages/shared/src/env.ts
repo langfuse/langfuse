@@ -283,9 +283,34 @@ const EnvSchema = z.object({
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
     .default("true"),
+
+  // EE License
+  LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+
+  // Ingestion Masking (EE feature)
+  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.string().url().optional(),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(500),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_INGESTION_MASKING_MAX_RETRIES: z.coerce
+    .number()
+    .nonnegative()
+    .default(1),
+  LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((h) => h.toLowerCase().trim()) : [],
+    ),
 });
 
-export const env: z.infer<typeof EnvSchema> =
+export type SharedEnv = z.infer<typeof EnvSchema>;
+
+export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
     : EnvSchema.parse(removeEmptyEnvVariables(process.env));
