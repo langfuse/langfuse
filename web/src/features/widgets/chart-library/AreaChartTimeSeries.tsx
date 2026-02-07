@@ -4,7 +4,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   getUniqueDimensions,
@@ -14,12 +14,10 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 /**
- * LineChartTimeSeries component
- * @param data - Data to be displayed. Expects an array of objects with time_dimension, dimension, and metric properties.
- * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
- * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
+ * AreaChartTimeSeries component
+ * Same data shape as LineChartTimeSeries; uses Recharts Area for filled series.
  */
-export const LineChartTimeSeries: React.FC<ChartProps> = ({
+export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   data,
   config = {
     metric: {
@@ -85,7 +83,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
         </div>
       )}
       <ChartContainer config={config} className="min-h-0 flex-1">
-        <LineChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+        <AreaChart accessibilityLayer={accessibilityLayer} data={groupedData}>
           <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis
             dataKey="time_dimension"
@@ -107,14 +105,14 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
               highlightedDimension !== null &&
               highlightedDimension !== dimension;
             return (
-              <Line
+              <Area
                 key={dimension}
                 type="monotone"
                 dataKey={dimension}
-                strokeWidth={2.5}
-                dot={!isMuted ? { r: 4 } : false}
-                activeDot={isMuted ? false : { r: 5, strokeWidth: 0 }}
                 stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
+                fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+                fillOpacity={isMuted ? 0.15 : 0.75}
+                strokeWidth={2.5}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls
               />
@@ -147,10 +145,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
               />
             )}
           />
-        </LineChart>
+        </AreaChart>
       </ChartContainer>
     </div>
   );
 };
 
-export default LineChartTimeSeries;
+export default AreaChartTimeSeries;

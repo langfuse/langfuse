@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "DashboardWidgetChartType" ADD VALUE 'AREA_TIME_SERIES';

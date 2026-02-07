@@ -23,11 +23,14 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
 }) => {
   return (
-    <ChartContainer config={config}>
+    <ChartContainer config={config} className="min-h-0 w-full">
       <BarChart
         accessibilityLayer={accessibilityLayer}
         data={data}
         layout="vertical"
+        margin={{ top: 4, right: 8, bottom: 4, left: 0 }}
+        barCategoryGap="12%"
+        barGap={4}
       >
         <XAxis
           type="number"
@@ -44,11 +47,12 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
           tickFormatter={formatAxisLabel}
-          width={90}
+          width={100}
         />
         <Bar
           dataKey="metric"
           radius={[0, 4, 4, 0]}
+          maxBarSize={28}
           className="fill-[--color-metric]"
         />
         <ChartTooltip

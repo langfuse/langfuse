@@ -13,6 +13,8 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
 
 type BarChartDataPoint = {
   name: string;
@@ -26,6 +28,7 @@ export const UserChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -33,6 +36,7 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  isDashboardChartsBeta?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
@@ -132,6 +136,10 @@ export const UserChart = ({
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
+  // Height scales with bar count so each bar keeps the same height when expanding (matches TracesBarListChart)
+  const BAR_ROW_HEIGHT = 36;
+  const CHART_AXIS_PADDING = 32;
+
   const localUsdFormatter = (value: number) =>
     totalCostDashboardFormatted(value);
 
@@ -170,19 +178,45 @@ export const UserChart = ({
             content: (
               <>
                 {item.data.length > 0 ? (
-                  <>
+                  <div className="flex flex-col">
                     <TotalMetric
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
-                    <BarList
-                      data={item.data}
-                      valueFormatter={item.formatter}
-                      className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                      showAnimation={true}
-                      color={"indigo"}
-                    />
-                  </>
+                    {isDashboardChartsBeta ? (
+                      <div
+                        className="mt-4 w-full"
+                        style={{
+                          minHeight: 200,
+                          height: Math.max(
+                            200,
+                            item.data.length * BAR_ROW_HEIGHT +
+                              CHART_AXIS_PADDING,
+                          ),
+                        }}
+                      >
+                        <Chart
+                          chartType="HORIZONTAL_BAR"
+                          data={barListToDataPoints(item.data)}
+                          rowLimit={maxNumberOfEntries.expanded}
+                          chartConfig={{
+                            type: "HORIZONTAL_BAR",
+                            row_limit: maxNumberOfEntries.expanded,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <BarList
+                          data={item.data}
+                          valueFormatter={item.formatter}
+                          className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
+                          showAnimation={true}
+                          color={"indigo"}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <NoDataOrLoading
                     isLoading={isLoading || user.isPending}

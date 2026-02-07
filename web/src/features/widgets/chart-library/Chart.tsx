@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { CardContent } from "@/src/components/ui/card";
 import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
 import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
 import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
 import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
@@ -22,6 +23,9 @@ export const Chart = ({
   sortState,
   onSortChange,
   isLoading = false,
+  valueFormatter,
+  legendPosition,
+  overrideWarning = false,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -37,8 +41,11 @@ export const Chart = ({
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
+  valueFormatter?: (value: number) => string;
+  legendPosition?: "above" | "none";
+  overrideWarning?: boolean;
 }) => {
-  const [forceRender, setForceRender] = useState(false);
+  const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
 
   const renderedData = useMemo(() => {
@@ -61,7 +68,21 @@ export const Chart = ({
   const renderChart = () => {
     switch (chartType) {
       case "LINE_TIME_SERIES":
-        return <LineChartTimeSeries data={renderedData} />;
+        return (
+          <LineChartTimeSeries
+            data={renderedData}
+            valueFormatter={valueFormatter}
+            legendPosition={legendPosition}
+          />
+        );
+      case "AREA_TIME_SERIES":
+        return (
+          <AreaChartTimeSeries
+            data={renderedData}
+            valueFormatter={valueFormatter}
+            legendPosition={legendPosition}
+          />
+        );
       case "BAR_TIME_SERIES":
         return <VerticalBarChartTimeSeries data={renderedData} />;
       case "HORIZONTAL_BAR":

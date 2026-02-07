@@ -12,6 +12,8 @@ import { getColorsForCategories } from "@/src/features/dashboard/utils/getColors
 import { padChartData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
 
 export function NumericScoreHistogram(props: {
   projectId: string;
@@ -19,6 +21,7 @@ export function NumericScoreHistogram(props: {
   source: ScoreSourceType;
   dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   globalFilterState: FilterState;
+  isDashboardChartsBeta?: boolean;
 }) {
   const histogram = api.dashboard.scoreHistogram.useQuery(
     {
@@ -73,8 +76,17 @@ export function NumericScoreHistogram(props: {
 
   return histogram.isLoading || !Boolean(chartData.length) ? (
     <NoDataOrLoading isLoading={histogram.isLoading} />
+  ) : props.isDashboardChartsBeta ? (
+    <div className="h-80 w-full shrink-0">
+      <Chart
+        chartType="HISTOGRAM"
+        data={scoreHistogramToDataPoints(chartData, chartLabels)}
+        rowLimit={100}
+        chartConfig={{ type: "HISTOGRAM" }}
+      />
+    </div>
   ) : (
-    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
+    <Card className="min-h-[9rem] w-full flex-1 rounded-md border">
       <BarChart
         className="mt-4 [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
         data={paddedChartData}
