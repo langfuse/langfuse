@@ -853,6 +853,7 @@ export type SsoConfig = {
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   auth_provider: string;
+  callback_url_id: string | null;
   auth_config: unknown | null;
 };
 export type Survey = {

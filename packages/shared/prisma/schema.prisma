@@ -1049,10 +1049,11 @@ model DefaultLlmModel {
 // Single Sign-On configuration for a domain
 // This feature is part of the Enterprise Edition
 model SsoConfig {
-  domain       String   @id @default(cuid()) // e.g. "google.com"
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
-  authProvider String   @map("auth_provider") // e.g. "okta", ee/sso/types.ts
+  domain        String   @id @default(cuid()) // e.g. "google.com"
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  authProvider  String   @map("auth_provider") // e.g. "okta", ee/sso/types.ts
+  callbackUrlId String?  @unique @map("callback_url_id") // hashed provider ID for secure callbacks
 
   authConfig Json? @map("auth_config")
 
