@@ -7,6 +7,7 @@ import {
   RenderingProps,
   DEFAULT_RENDERING_PROPS,
   applyInputOutputRendering,
+  applyInputOutputRenderingAsync,
 } from "../utils/rendering";
 
 export const convertTraceDomainToClickhouse = (
@@ -54,6 +55,39 @@ export const convertClickhouseToDomain = (
     public: record.public,
     input: applyInputOutputRendering(record.input, renderingProps),
     output: applyInputOutputRendering(record.output, renderingProps),
+    metadata: parseMetadataCHRecordToDomain(record.metadata),
+    createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
+    updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
+  };
+};
+
+/**
+ * Async version of convertClickhouseToDomain using non-blocking JSON parsing.
+ */
+export const convertClickhouseToDomainAsync = async (
+  record: TraceRecordReadType,
+  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
+): Promise<TraceDomain> => {
+  const [input, output] = await Promise.all([
+    applyInputOutputRenderingAsync(record.input, renderingProps),
+    applyInputOutputRenderingAsync(record.output, renderingProps),
+  ]);
+
+  return {
+    id: record.id,
+    projectId: record.project_id,
+    name: record.name ?? null,
+    timestamp: parseClickhouseUTCDateTimeFormat(record.timestamp),
+    environment: record.environment,
+    tags: record.tags,
+    bookmarked: record.bookmarked,
+    release: record.release ?? null,
+    version: record.version ?? null,
+    userId: record.user_id ?? null,
+    sessionId: record.session_id ?? null,
+    public: record.public,
+    input,
+    output,
     metadata: parseMetadataCHRecordToDomain(record.metadata),
     createdAt: parseClickhouseUTCDateTimeFormat(record.created_at),
     updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),

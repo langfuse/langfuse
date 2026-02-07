@@ -1,5 +1,6 @@
 import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
+import { parseAsync, type Reviver } from "yieldable-json";
 
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -394,24 +395,78 @@ export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
-    // Fast path: use native JSON.parse if no potentially unsafe numbers detected
+    // Fast path: use JSON.parse if no potentially unsafe numbers
     if (!UNSAFE_NUMBER_PATTERN.test(json)) {
       return JSON.parse(json) as JsonNested;
     }
 
-    // Slow path: use lossless-json to preserve precision
+    // Slow path: use lossless-json to preserve precision for large numbers
     return parse(json, null, (value) => {
       if (isNumber(value)) {
         if (isSafeNumber(value)) {
-          // Safe numbers (integers and decimals) can be converted to Number
           return Number(value.valueOf());
         } else {
-          // For large integers beyond safe limits, preserve string representation
           return value.toString();
         }
       }
       return value;
     }) as JsonNested;
+  } catch {
+    return json;
+  }
+};
+
+/** Size threshold above which we use yieldable-json to avoid blocking the event loop */
+const LARGE_JSON_THRESHOLD = 500_000; // 500KB
+
+class PrototypePollutionError extends Error {}
+
+/**
+ * Async version of parseJsonPrioritised.
+ * - Small strings (<500KB): uses JSON.parse (fast, negligible event loop impact)
+ * - Large strings (>=500KB): uses yieldable-json (non-blocking, yields to event loop)
+ * - Strings with large numbers: uses lossless-json (preserves precision)
+ */
+export const parseJsonPrioritisedAsync = async (
+  json: string,
+): Promise<JsonNested | string | undefined> => {
+  // Precision path: use lossless-json for strings with potentially unsafe numbers
+  if (UNSAFE_NUMBER_PATTERN.test(json)) {
+    return parseJsonPrioritised(json);
+  }
+
+  try {
+    // Large strings: use yieldable-json to avoid blocking the event loop
+    // yieldable-json is vulnerable to prototype pollution, so we use a reviver
+    // to detect dangerous keys and fall back to sync parseJsonPrioritised
+    if (json.length >= LARGE_JSON_THRESHOLD) {
+      try {
+        return await new Promise<JsonNested>((resolve, reject) => {
+          parseAsync(
+            json,
+            // @types/yieldable-json incorrectly types key as number; it's actually string
+            ((key: string, value: unknown) => {
+              if (DANGEROUS_KEYS.has(key)) {
+                throw new PrototypePollutionError();
+              }
+              return value;
+            }) as unknown as Reviver,
+            (err: Error | null, data: unknown) => {
+              if (err) reject(err);
+              else resolve(data as JsonNested);
+            },
+          );
+        });
+      } catch (e) {
+        if (e instanceof PrototypePollutionError) {
+          return parseJsonPrioritised(json);
+        }
+        throw e;
+      }
+    }
+
+    // Small strings: JSON.parse is fast enough
+    return JSON.parse(json) as JsonNested;
   } catch {
     return json;
   }

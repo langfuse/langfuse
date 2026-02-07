@@ -17,9 +17,11 @@ import {
   RenderingProps,
   DEFAULT_RENDERING_PROPS,
   applyInputOutputRendering,
+  applyInputOutputRenderingAsync,
 } from "../utils/rendering";
 import { logger } from "../logger";
 import type { Model, Price } from "@prisma/client";
+import { JsonNested } from "../../utils/zod";
 
 type ModelWithPrice = Model & { Price: Price[] };
 
@@ -95,30 +97,13 @@ export const enrichObservationWithModelData = (
 };
 
 /**
- * Convert observation record from ClickHouse to domain model
- * Return type depends on input parameters: either complete Observation or Partial<Observation>
- *
- * @param record - Raw observation record from ClickHouse
- * @param renderingProps - Rendering options for input/output
- * @param complete - If true, fills missing fields with defaults (V1 API). If false/undefined, returns only present fields (V2 API)
- *
- * Type signatures:
- * - convertObservation(record, props, true) → Observation
- * - convertObservation(record, props) → Partial<Observation>
+ * Internal helper to build partial observation from record with pre-parsed input/output.
+ * Shared between sync and async conversion functions.
  */
-export function convertObservationPartial(
-  record: ObservationRecordReadType,
-  renderingProps: RenderingProps,
-  complete: true,
-): Observation;
-export function convertObservationPartial(
+function buildObservationPartialInternal(
   record: Partial<ObservationRecordReadType>,
-  renderingProps: RenderingProps,
-  complete: false,
-): PartialObservation;
-export function convertObservationPartial(
-  record: Partial<ObservationRecordReadType>,
-  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
+  parsedInput: JsonNested | string | null | undefined,
+  parsedOutput: JsonNested | string | null | undefined,
   complete: boolean,
 ): Observation | PartialObservation {
   // Core fields validation - these should always be present
@@ -182,13 +167,9 @@ export function convertObservationPartial(
       updatedAt: parseClickhouseUTCDateTimeFormat(record.updated_at),
     }),
 
-    // IO fields
-    ...(record.input !== undefined && {
-      input: applyInputOutputRendering(record.input, renderingProps),
-    }),
-    ...(record.output !== undefined && {
-      output: applyInputOutputRendering(record.output, renderingProps),
-    }),
+    // IO fields (pre-parsed)
+    ...(parsedInput !== undefined && { input: parsedInput }),
+    ...(parsedOutput !== undefined && { output: parsedOutput }),
 
     // Metadata
     ...(record.metadata !== undefined && {
@@ -330,11 +311,99 @@ export function convertObservationPartial(
   };
 }
 
+/**
+ * Convert observation record from ClickHouse to domain model
+ * Return type depends on input parameters: either complete Observation or Partial<Observation>
+ *
+ * @param record - Raw observation record from ClickHouse
+ * @param renderingProps - Rendering options for input/output
+ * @param complete - If true, fills missing fields with defaults (V1 API). If false/undefined, returns only present fields (V2 API)
+ *
+ * Type signatures:
+ * - convertObservation(record, props, true) → Observation
+ * - convertObservation(record, props) → Partial<Observation>
+ */
+export function convertObservationPartial(
+  record: ObservationRecordReadType,
+  renderingProps: RenderingProps,
+  complete: true,
+): Observation;
+export function convertObservationPartial(
+  record: Partial<ObservationRecordReadType>,
+  renderingProps: RenderingProps,
+  complete: false,
+): PartialObservation;
+export function convertObservationPartial(
+  record: Partial<ObservationRecordReadType>,
+  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
+  complete: boolean,
+): Observation | PartialObservation {
+  const parsedInput =
+    record.input !== undefined
+      ? applyInputOutputRendering(record.input, renderingProps)
+      : undefined;
+  const parsedOutput =
+    record.output !== undefined
+      ? applyInputOutputRendering(record.output, renderingProps)
+      : undefined;
+
+  return buildObservationPartialInternal(
+    record,
+    parsedInput,
+    parsedOutput,
+    complete,
+  );
+}
+
 export function convertObservation(
   record: ObservationRecordReadType,
   renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
 ): Observation {
   return convertObservationPartial(record, renderingProps, true);
+}
+
+/**
+ * Async version of convertObservationPartial using non-blocking JSON parsing.
+ * Use this for better performance with large input/output payloads.
+ */
+export async function convertObservationPartialAsync(
+  record: ObservationRecordReadType,
+  renderingProps: RenderingProps,
+  complete: true,
+): Promise<Observation>;
+export async function convertObservationPartialAsync(
+  record: Partial<ObservationRecordReadType>,
+  renderingProps: RenderingProps,
+  complete: false,
+): Promise<PartialObservation>;
+export async function convertObservationPartialAsync(
+  record: Partial<ObservationRecordReadType>,
+  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
+  complete: boolean,
+): Promise<Observation | PartialObservation> {
+  // Parse input/output asynchronously in parallel
+  const [parsedInput, parsedOutput] = await Promise.all([
+    record.input !== undefined
+      ? applyInputOutputRenderingAsync(record.input, renderingProps)
+      : Promise.resolve(undefined),
+    record.output !== undefined
+      ? applyInputOutputRenderingAsync(record.output, renderingProps)
+      : Promise.resolve(undefined),
+  ]);
+
+  return buildObservationPartialInternal(
+    record,
+    parsedInput,
+    parsedOutput,
+    complete,
+  );
+}
+
+export async function convertObservationAsync(
+  record: ObservationRecordReadType,
+  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
+): Promise<Observation> {
+  return convertObservationPartialAsync(record, renderingProps, true);
 }
 
 /**
@@ -364,6 +433,40 @@ export function convertEventsObservation(
         true,
       )
     : convertObservationPartial(record, renderingProps, false);
+
+  return {
+    ...baseObservation,
+    userId: record.user_id ?? null,
+    sessionId: record.session_id ?? null,
+  };
+}
+
+/**
+ * Async version of convertEventsObservation using non-blocking JSON parsing.
+ */
+export async function convertEventsObservationAsync(
+  record: EventsObservationRecordReadType,
+  renderingProps: RenderingProps,
+  complete: true,
+): Promise<EventsObservation>;
+export async function convertEventsObservationAsync(
+  record: Partial<EventsObservationRecordReadType>,
+  renderingProps: RenderingProps,
+  complete: false,
+): Promise<PartialEventsObservation>;
+export async function convertEventsObservationAsync(
+  record: Partial<EventsObservationRecordReadType>,
+  renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
+  complete: boolean,
+): Promise<EventsObservation | PartialEventsObservation> {
+  // Branch based on complete flag to use correct overload
+  const baseObservation = complete
+    ? await convertObservationPartialAsync(
+        record as ObservationRecordReadType,
+        renderingProps,
+        true,
+      )
+    : await convertObservationPartialAsync(record, renderingProps, false);
 
   return {
     ...baseObservation,
