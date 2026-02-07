@@ -348,6 +348,13 @@ function IOPreviewJSONInner({
             value={searchQuery}
             onValueChange={setSearchQuery}
             onKeyDown={(e) => {
+              // Allow browser's native find dialog (Cmd+F / Ctrl+F)
+              if (e.key === "f" && (e.metaKey || e.ctrlKey)) {
+                // Blur the search input so browser find can work properly
+                e.currentTarget.blur();
+                return; // Don't prevent default, let browser handle it
+              }
+
               if (e.key === "Enter") {
                 e.preventDefault();
                 if (e.shiftKey) {
