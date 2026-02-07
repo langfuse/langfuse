@@ -22,6 +22,7 @@ import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import { getTraceStream } from "../database-read-stream/trace-stream";
+import { getEventsStream } from "../database-read-stream/event-stream";
 
 // Map table names to comment object types for preprocessing
 const tableToCommentType: Record<string, CommentObjectType | undefined> = {
@@ -183,12 +184,19 @@ export const handleBatchExportJob = async (
             ...parsedQuery.data,
             filter: processedFilter,
           })
-        : await getDatabaseReadStreamPaginated({
-            projectId,
-            cutoffCreatedAt: jobDetails.createdAt,
-            ...parsedQuery.data,
-            filter: processedFilter,
-          });
+        : parsedQuery.data.tableName === BatchExportTableName.Events
+          ? await getEventsStream({
+              projectId,
+              cutoffCreatedAt: jobDetails.createdAt,
+              ...parsedQuery.data,
+              filter: processedFilter,
+            })
+          : await getDatabaseReadStreamPaginated({
+              projectId,
+              cutoffCreatedAt: jobDetails.createdAt,
+              ...parsedQuery.data,
+              filter: processedFilter,
+            });
 
   // Transform data to desired format
   let rowCount = 0;
