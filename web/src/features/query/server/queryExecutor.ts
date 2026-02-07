@@ -262,6 +262,7 @@ export async function executeQuery(
               query: queryToExecute.query,
               params: queryToExecute.params,
               clickhouseConfigs: {
+                request_timeout: 60_000,
                 clickhouse_settings: {
                   date_time_output_format: "iso",
                   max_bytes_before_external_group_by: String(
@@ -304,6 +305,7 @@ export async function executeQuery(
                   query: input.query,
                   params: input.params,
                   clickhouseConfigs: {
+                    request_timeout: 60_000,
                     clickhouse_settings: {
                       date_time_output_format: "iso",
                       max_bytes_before_external_group_by: String(

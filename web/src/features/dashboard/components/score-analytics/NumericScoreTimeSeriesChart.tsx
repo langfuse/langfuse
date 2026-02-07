@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { Card } from "@/src/components/ui/card";
 import {
@@ -83,6 +83,7 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
     },
   );
 

@@ -14,6 +14,9 @@ import {
 } from "@/src/utils/date-range-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
@@ -57,6 +60,7 @@ export function ChartScores(props: {
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
       enabled: !props.isLoading,
     },
   );
@@ -90,7 +94,11 @@ export function ChartScores(props: {
       description="Moving average per score"
       isLoading={props.isLoading || scores.isPending}
     >
-      {!isEmptyTimeSeries({ data: extractedScores }) ? (
+      {scores.isError ? (
+        <ChartErrorView error={scores.error} />
+      ) : props.isLoading || scores.isPending ? (
+        <ChartLoadingView />
+      ) : !isEmptyTimeSeries({ data: extractedScores }) ? (
         <BaseTimeSeriesChart
           className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
           agg={props.agg}
@@ -99,7 +107,7 @@ export function ChartScores(props: {
         />
       ) : (
         <NoDataOrLoading
-          isLoading={props.isLoading || scores.isPending}
+          isLoading={false}
           description="Scores evaluate LLM quality and can be created manually or using the SDK."
           href="https://langfuse.com/docs/evaluation/overview"
           className="h-full"

@@ -1,4 +1,6 @@
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
@@ -8,6 +10,7 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { api } from "@/src/utils/api";
 import {
@@ -102,6 +105,7 @@ export const ModelUsageChart = ({
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
     },
   );
 
@@ -349,12 +353,12 @@ export const ModelUsageChart = ({
                   description={item.metricDescription}
                   className="mb-4"
                 />
-                {isEmptyTimeSeries({ data: item.data }) ||
-                isLoading ||
-                queryResult.isPending ? (
-                  <NoDataOrLoading
-                    isLoading={isLoading || queryResult.isPending}
-                  />
+                {queryResult.isError ? (
+                  <ChartErrorView error={queryResult.error} />
+                ) : isLoading || queryResult.isPending ? (
+                  <ChartLoadingView />
+                ) : isEmptyTimeSeries({ data: item.data }) ? (
+                  <NoDataOrLoading isLoading={false} />
                 ) : (
                   <BaseTimeSeriesChart
                     className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"

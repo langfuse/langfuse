@@ -1,4 +1,6 @@
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
@@ -7,6 +9,7 @@ import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { truncate } from "@/src/utils/string";
 import {
@@ -62,6 +65,7 @@ export const ModelCostTable = ({
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -99,28 +103,34 @@ export const ModelCostTable = ({
     <DashboardCard
       className={className}
       title="Model costs"
-      isLoading={isLoading || metrics.isLoading}
+      isLoading={isLoading || metrics.isPending}
     >
-      <DashboardTable
-        headers={[
-          "Model",
-          <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
-          <RightAlignedCell key="cost">USD</RightAlignedCell>,
-        ]}
-        rows={metricsData}
-        isLoading={isLoading || metrics.isLoading}
-        collapse={{ collapsed: 5, expanded: 20 }}
-      >
-        <TotalMetric
-          metric={totalCostDashboardFormatted(totalTokenCost)}
-          description="Total cost"
+      {metrics.isError ? (
+        <ChartErrorView error={metrics.error} />
+      ) : metrics.isPending ? (
+        <ChartLoadingView />
+      ) : (
+        <DashboardTable
+          headers={[
+            "Model",
+            <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
+            <RightAlignedCell key="cost">USD</RightAlignedCell>,
+          ]}
+          rows={metricsData}
+          isLoading={false}
+          collapse={{ collapsed: 5, expanded: 20 }}
         >
-          <DocPopup
-            description="Calculated multiplying the number of tokens with cost per token for each model."
-            href="https://langfuse.com/docs/model-usage-and-cost"
-          />
-        </TotalMetric>
-      </DashboardTable>
+          <TotalMetric
+            metric={totalCostDashboardFormatted(totalTokenCost)}
+            description="Total cost"
+          >
+            <DocPopup
+              description="Calculated multiplying the number of tokens with cost per token for each model."
+              href="https://langfuse.com/docs/model-usage-and-cost"
+            />
+          </TotalMetric>
+        </DashboardTable>
+      )}
     </DashboardCard>
   );
 };
