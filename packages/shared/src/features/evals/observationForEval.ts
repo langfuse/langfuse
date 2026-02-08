@@ -210,8 +210,9 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
   {
     name: "Name",
     id: "name",
-    type: "string",
+    type: "stringOptions",
     internal: "name",
+    options: [], // to be filled at runtime
   },
   {
     name: "Environment",
@@ -291,6 +292,7 @@ export type ObservationEvalOptions = {
   environment?: Array<SingleValueOption>;
   tags?: Array<SingleValueOption>;
   traceName?: Array<SingleValueOption>;
+  name?: Array<SingleValueOption>;
 };
 
 export type ExperimentEvalOptions = {
@@ -310,6 +312,9 @@ export function observationEvalFilterColsWithOptions(
     }
     if (col.id === "traceName") {
       return formatColumnOptions(col, options?.traceName ?? []);
+    }
+    if (col.id === "name") {
+      return formatColumnOptions(col, options?.name ?? []);
     }
     return col;
   });

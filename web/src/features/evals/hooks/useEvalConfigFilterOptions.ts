@@ -35,6 +35,11 @@ export function useEvalConfigFilterOptions({
       },
     );
 
+  const observationsFilterOptionsResponse =
+    api.generations.filterOptions.useQuery({
+      projectId,
+    });
+
   const traceFilterOptions = useMemo(() => {
     // Normalize API response to match TraceOptions type (count should be number, not string)
     const normalized = traceFilterOptionsResponse.data
@@ -97,8 +102,15 @@ export function useEvalConfigFilterOptions({
       traceName: traceFilterOptionsResponse.data?.name?.map((n) => ({
         value: n.value,
       })),
+      name: observationsFilterOptionsResponse.data?.name?.map((n) => ({
+        value: n.value,
+      })),
     };
-  }, [traceFilterOptionsResponse.data, environmentFilterOptionsResponse.data]);
+  }, [
+    traceFilterOptionsResponse.data,
+    environmentFilterOptionsResponse.data,
+    observationsFilterOptionsResponse.data,
+  ]);
 
   const experimentEvalFilterOptions: ExperimentEvalOptions = useMemo(() => {
     return {
