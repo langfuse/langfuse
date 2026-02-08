@@ -268,7 +268,10 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
-        defaultHeaders: extraHeaders,
+        defaultHeaders: {
+          "User-Agent": "langfuse",
+          ...extraHeaders,
+        },
         timeout: timeoutMs,
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
