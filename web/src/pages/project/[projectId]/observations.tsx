@@ -27,7 +27,7 @@ export default function Generations() {
             skipBatch: true,
           },
         },
-        refetchInterval: hasTracingConfigured ? false : 10_000,
+        refetchInterval: 10_000,
       },
     );
 

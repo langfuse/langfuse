@@ -36,7 +36,7 @@ export default function Traces() {
             skipBatch: true,
           },
         },
-        refetchInterval: hasTracingConfigured ? false : 10_000,
+        refetchInterval: 10_000,
       },
     );
 
