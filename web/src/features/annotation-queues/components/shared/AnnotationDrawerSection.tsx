@@ -62,7 +62,8 @@ export const AnnotationDrawerSection: React.FC<
       />
       {hasNonAnnotationScores && (
         <div className="mt-4 text-xs text-muted-foreground">
-          API and eval scores visible on left. Add manual annotations above.
+          API and eval scores visible when toggling on the detailed view. Add
+          manual annotations above.
         </div>
       )}
     </Card>

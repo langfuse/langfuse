@@ -91,10 +91,15 @@ export const PlaygroundToolsPopover = () => {
               onSelect={() => handleSelectTool(tool)}
               className="flex items-center justify-between px-1 py-2"
             >
-              <div className="flex items-center gap-2">
-                <WrenchIcon size={12} className="text-muted-foreground" />
-                <div className="flex-1 overflow-hidden">
-                  <div className="truncate font-medium">{tool.name}</div>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <WrenchIcon
+                  size={12}
+                  className="shrink-0 text-muted-foreground"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium" title={tool.name}>
+                    {tool.name}
+                  </div>
                   <div className="line-clamp-1 text-xs text-muted-foreground">
                     {tool.description}
                   </div>
