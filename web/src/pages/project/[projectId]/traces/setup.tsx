@@ -100,7 +100,7 @@ export default function TracesSetupPage() {
       { projectId },
       {
         enabled: !!projectId,
-        refetchInterval: 5000,
+        refetchInterval: hasTracingConfigured ? false : 5000,
         trpc: {
           context: {
             skipBatch: true,

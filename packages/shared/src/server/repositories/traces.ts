@@ -35,6 +35,8 @@ import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
+import { redis } from "../redis/redis";
+import { traceException } from "../instrumentation";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -310,8 +312,27 @@ export const getTracesBySessionId = async (
   return traces;
 };
 
+const HAS_ANY_TRACE_CACHE_TTL_SECONDS = 86400; // 24 hours
+
+const getHasAnyTraceCacheKey = (projectId: string) =>
+  `langfuse:project:${projectId}:hasAnyTrace`;
+
 export const hasAnyTrace = async (projectId: string) => {
-  return measureAndReturn({
+  // Check Redis cache first — a cached positive result never becomes false
+  try {
+    const cached = await redis?.get(getHasAnyTraceCacheKey(projectId));
+    if (cached === "1") {
+      return true;
+    }
+  } catch (error) {
+    traceException(error);
+    logger.error("Failed to read hasAnyTrace cache from Redis", {
+      projectId,
+      error,
+    });
+  }
+
+  const result = await measureAndReturn({
     operationName: "hasAnyTrace",
     projectId,
     input: {
@@ -338,11 +359,34 @@ export const hasAnyTrace = async (projectId: string) => {
           projectId: input.projectId,
         },
         tags: input.tags,
+        clickhouseSettings: {
+          max_threads: 1,
+        },
       });
 
       return rows.length > 0;
     },
   });
+
+  // Cache positive results in Redis — once a project has traces, it stays true
+  if (result) {
+    try {
+      await redis?.set(
+        getHasAnyTraceCacheKey(projectId),
+        "1",
+        "EX",
+        HAS_ANY_TRACE_CACHE_TTL_SECONDS,
+      );
+    } catch (error) {
+      traceException(error);
+      logger.error("Failed to write hasAnyTrace cache to Redis", {
+        projectId,
+        error,
+      });
+    }
+  }
+
+  return result;
 };
 
 export const getTraceCountsByProjectInCreationInterval = async ({
