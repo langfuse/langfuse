@@ -412,6 +412,72 @@ describe("prompts trpc", () => {
         );
       });
     });
+
+    it("should delete prompts by pathPrefix (folder)", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test prompts in a folder
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder/prompt-1",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world 1" },
+          createdBy: "test-user",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder/prompt-2",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world 2" },
+          createdBy: "test-user",
+        },
+      });
+
+      // Create a prompt outside the folder
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "other-prompt",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world 3" },
+          createdBy: "test-user",
+        },
+      });
+
+      // Delete the folder
+      await caller.prompts.delete({
+        projectId: project.id,
+        pathPrefix: "folder",
+      });
+
+      // Verify folder prompts are deleted
+      const folderPrompts = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: { startsWith: "folder/" },
+        },
+      });
+      expect(folderPrompts).toHaveLength(0);
+
+      // Verify other prompt still exists
+      const otherPrompt = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: "other-prompt",
+        },
+      });
+      expect(otherPrompt).not.toBeNull();
+    });
   });
 
   describe("prompts.deleteVersion", () => {
