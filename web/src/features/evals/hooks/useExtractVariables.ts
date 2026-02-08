@@ -1,5 +1,6 @@
 import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
+import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { EvalTargetObject, extractValueFromObject } from "@langfuse/shared";
@@ -35,6 +36,7 @@ export function useExtractVariables({
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
+  const isBetaEnabled = useObservationEvals();
   const [extractedVariables, setExtractedVariables] = useState<
     ExtractedVariable[]
   >([]);
@@ -105,7 +107,12 @@ export function useExtractVariables({
         (m) => m.templateVariable === variable,
       );
 
-      if (!mapping || !mapping.selectedColumnId || !mapping.langfuseObject) {
+      if (
+        !mapping ||
+        !mapping.selectedColumnId ||
+        (!mapping.langfuseObject &&
+          !(isBetaEnabled && previewData.type === "event"))
+      ) {
         return { variable, value: "n/a" };
       }
 
