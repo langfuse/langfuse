@@ -110,10 +110,10 @@ const addPropagationWarnings = (
           severity: "warning" as const,
           content: (
             <>
-              This filter requires JS SDK &ge; 4.4.0 or Python SDK &ge; 3.9.0
+              This filter requires JS SDK &ge; 4.0.0 or Python SDK &ge; 3.0.0
               with attribute propagation enabled. Please{" "}
               <a
-                href="https://langfuse.com/integrations/native/opentelemetry"
+                href="https://langfuse.com/integrations/native/opentelemetry#propagating-attributes"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-dark-blue hover:opacity-80"
