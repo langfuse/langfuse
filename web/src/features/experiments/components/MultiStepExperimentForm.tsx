@@ -121,6 +121,7 @@ export const MultiStepExperimentForm = ({
     defaultValues: {
       promptId: "",
       datasetId: "",
+      datasetVersion: undefined,
       modelConfig: {},
       name: "",
       runName: "",
@@ -130,6 +131,12 @@ export const MultiStepExperimentForm = ({
   });
 
   const datasetId = form.watch("datasetId");
+  const datasetVersion = form.watch("datasetVersion") as Date | undefined;
+
+  // Reset dataset version when dataset changes
+  useEffect(() => {
+    form.setValue("datasetVersion", undefined);
+  }, [datasetId, form]);
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
@@ -219,6 +226,7 @@ export const MultiStepExperimentForm = ({
       projectId,
       promptId: promptIdFromHook as string,
       datasetId: datasetId as string,
+      datasetVersion: datasetVersion,
     },
     {
       enabled: Boolean(promptIdFromHook && datasetId),
@@ -374,6 +382,7 @@ export const MultiStepExperimentForm = ({
     datasets: datasets.data,
     selectedDatasetId: datasetId,
     selectedDataset,
+    selectedDatasetVersion: datasetVersion,
     validationResult: validationResult.data,
     expectedColumnsForDataset: {
       inputVariables: expectedColumns || [],
@@ -471,6 +480,7 @@ export const MultiStepExperimentForm = ({
 
               {activeStep === "dataset" && (
                 <DatasetStep
+                  projectId={projectId}
                   formState={formState}
                   datasetState={datasetState}
                   promptInfo={{

@@ -169,3 +169,19 @@ export function sanitizeEmailSubject(input: string): string {
       .trim()
   );
 }
+
+/**
+ * Zod schema for optional ISO 8601 timestamp strings (RFC 3339, Section 5.6) in UTC.
+ * Used for dataset versioning to allow querying data at a specific point in time.
+ *
+ * Behavior:
+ * - If provided, must be a valid ISO 8601 string (e.g., "2026-01-21T14:35:42Z")
+ * - Coerces to Date object
+ * - If undefined, treated as optional (returns latest version)
+ *
+ * @example
+ * // Valid inputs
+ * versionZod.parse("2026-01-21T14:35:42Z") // Returns Date object
+ * versionZod.parse(undefined) // Returns undefined
+ */
+export const versionZod = z.coerce.date().optional();

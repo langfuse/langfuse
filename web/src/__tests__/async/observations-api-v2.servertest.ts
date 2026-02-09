@@ -688,6 +688,61 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("Cursor-based pagination", () => {
+    it("should apply LIMIT to query even on first request (no cursor)", async () => {
+      // This test verifies the bug fix - the v2 API should respect limit
+      // even on the first request without a cursor
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create more observations than the limit
+      const observations = [];
+      for (let i = 0; i < 10; i++) {
+        const obsId = randomUUID();
+        observations.push(
+          createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `limit-test-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: timeValue + i * 1000 * 1000,
+          }),
+        );
+      }
+
+      await createEventsCh(observations);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(10);
+        },
+        5000,
+        10,
+      );
+
+      // Request with limit=5 - should return exactly 5, not all 10
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&limit=5`,
+      );
+
+      expect(response.status).toBe(200);
+      // With the bug, this returns all 10 (no LIMIT applied)
+      // After fix, this should return exactly 5
+      expect(response.body.data.length).toBe(5);
+      // Should have cursor since there are more results
+      expect(response.body.meta.cursor).toBeDefined();
+    });
+
     it("should return cursor when results equal limit", async () => {
       const traceId = randomUUID();
       const timestamp = new Date();

@@ -12,38 +12,113 @@ type VariableMapping = {
   jsonSelector?: string;
 };
 
+// Observation variable mapping (for event/experiment evaluators)
+type ObservationVariableMapping = {
+  templateVariable: string;
+  selectedColumnId: string;
+  jsonSelector?: string;
+};
+
 const defaultMappings = new Map<string, Partial<VariableMapping>>([
-  // Common input variables
-  ["input", { langfuseObject: "trace", selectedColumnId: "input" }],
-  ["query", { langfuseObject: "trace", selectedColumnId: "input" }],
-  ["question", { langfuseObject: "trace", selectedColumnId: "input" }],
-  ["prompt", { langfuseObject: "trace", selectedColumnId: "input" }],
+  // Common input variables (trace doesn't need objectName)
+  [
+    "input",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "input",
+      objectName: undefined,
+    },
+  ],
+  [
+    "query",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "input",
+      objectName: undefined,
+    },
+  ],
+  [
+    "question",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "input",
+      objectName: undefined,
+    },
+  ],
+  [
+    "prompt",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "input",
+      objectName: undefined,
+    },
+  ],
 
-  // Common output variables
-  ["output", { langfuseObject: "trace", selectedColumnId: "output" }],
-  ["response", { langfuseObject: "trace", selectedColumnId: "output" }],
-  ["answer", { langfuseObject: "trace", selectedColumnId: "output" }],
-  ["completion", { langfuseObject: "trace", selectedColumnId: "output" }],
+  // Common output variables (trace doesn't need objectName)
+  [
+    "output",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "output",
+      objectName: undefined,
+    },
+  ],
+  [
+    "response",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "output",
+      objectName: undefined,
+    },
+  ],
+  [
+    "answer",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "output",
+      objectName: undefined,
+    },
+  ],
+  [
+    "completion",
+    {
+      langfuseObject: "trace",
+      selectedColumnId: "output",
+      objectName: undefined,
+    },
+  ],
 
-  // Common ground truth variables
+  // Common ground truth variables (dataset_item doesn't need objectName)
   [
     "expected_output",
-    { langfuseObject: "dataset_item", selectedColumnId: "expected_output" },
+    {
+      langfuseObject: "dataset_item",
+      selectedColumnId: "expected_output",
+      objectName: undefined,
+    },
   ],
   [
     "ground_truth",
-    { langfuseObject: "dataset_item", selectedColumnId: "expected_output" },
+    {
+      langfuseObject: "dataset_item",
+      selectedColumnId: "expected_output",
+      objectName: undefined,
+    },
   ],
   [
     "reference",
-    { langfuseObject: "dataset_item", selectedColumnId: "expected_output" },
+    {
+      langfuseObject: "dataset_item",
+      selectedColumnId: "expected_output",
+      objectName: undefined,
+    },
   ],
 ]);
 
 // Default mappings for observation-based evaluators (event/experiment)
 const observationDefaultMappings = new Map<
   string,
-  { selectedColumnId: string; jsonSelector?: string }
+  Partial<ObservationVariableMapping>
 >([
   // Common input variables
   ["input", { selectedColumnId: "input" }],
@@ -58,13 +133,14 @@ const observationDefaultMappings = new Map<
   ["completion", { selectedColumnId: "output" }],
 
   // Common ground truth variables (from experiment item)
-  ["expected_output", { selectedColumnId: "experiment_item_expected_output" }],
-  ["ground_truth", { selectedColumnId: "experiment_item_expected_output" }],
-  ["reference", { selectedColumnId: "experiment_item_expected_output" }],
+  ["expected_output", { selectedColumnId: "experimentItemExpectedOutput" }],
+  ["ground_truth", { selectedColumnId: "experimentItemExpectedOutput" }],
+  ["reference", { selectedColumnId: "experimentItemExpectedOutput" }],
 ]);
 
 /**
  * Creates default variable mappings for an evaluator template.
+ * Used for trace/dataset evaluators (legacy).
  *
  * @param template - The evaluation template containing variables
  * @returns Array of variable mappings
@@ -102,11 +178,10 @@ export function createDefaultVariableMappings(
 
 /**
  * Creates default variable mappings for observation-based evaluators (event/experiment).
- * Unlike trace/dataset evals, these don't need langfuseObject or objectName since
- * the observation is already selected - we only need to specify which column to use.
+ * Uses simplified schema without langfuseObject.
  *
  * @param template - The evaluation template containing variables
- * @returns Array of observation variable mappings (simplified, no langfuseObject/objectName)
+ * @returns Array of observation variable mappings
  */
 export function createDefaultObservationVariableMappings(
   template: EvalTemplate,
@@ -121,11 +196,18 @@ export function createDefaultObservationVariableMappings(
       variable.toLowerCase(),
     );
 
+    if (defaultMapping) {
+      return {
+        templateVariable: variable,
+        selectedColumnId:
+          defaultMapping.selectedColumnId || "experimentItemExpectedOutput",
+        jsonSelector: defaultMapping.jsonSelector,
+      };
+    }
+
     return {
       templateVariable: variable,
-      selectedColumnId:
-        defaultMapping?.selectedColumnId || "experiment_item_expected_output",
-      jsonSelector: defaultMapping?.jsonSelector,
+      selectedColumnId: "experimentItemExpectedOutput",
     };
   });
 }

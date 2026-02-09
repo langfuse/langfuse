@@ -37,7 +37,7 @@ export const variableMapping = z
   .object({
     templateVariable: z.string(), // variable name in the template
     // name of the observation to extract the variable from
-    // not required for trace, as we only have one.
+    // not required for trace or dataset_item, as we only have one of each.
     objectName: z.string().nullish(),
     langfuseObject: langfuseObject.optional(),
     selectedColumnId: z.string(),
@@ -45,14 +45,12 @@ export const variableMapping = z
   })
   .refine(
     (value) =>
-      // Only validate objectName if langfuseObject is provided and requires it
-      !value.langfuseObject ||
       value.langfuseObject === "trace" ||
       value.langfuseObject === "dataset_item" ||
       value.objectName !== null,
     {
       message:
-        "objectName is required when langfuseObject is an observation type",
+        "objectName is required for observation objects (generation, span, score)",
     },
   );
 
@@ -184,12 +182,9 @@ export const TimeScopeSchema = z.array(JobTimeScopeZod).default(["NEW"]);
 // Simplified variable mapping for observation-based evals.
 // Unlike trace-based evals, we don't need objectName since we're directly
 // targeting a specific observation - no need to specify which observation to extract from.
-//
-// Note: selectedColumnId must be a valid column ID from observationEvalVariableColumns.
-// See packages/shared/src/features/evals/observationForEval.ts for the source of truth.
 export const observationVariableMapping = z.object({
   templateVariable: z.string(), // variable name in the template
-  selectedColumnId: z.string(), // column to extract (must match observationEvalVariableColumns)
+  selectedColumnId: z.string(), // column to extract (must match observationEvalVariableColumns.id)
   jsonSelector: z.string().nullish(), // optional JSON path selector
 });
 

@@ -293,7 +293,9 @@ export const addAttributesToSpan = ({
     }
 
     input.filter.forEach((f) => {
-      span.setAttribute(f.column, f.value.toString());
+      if (f.value !== undefined) {
+        span.setAttribute(f.column, String(f.value));
+      }
     });
   }
 

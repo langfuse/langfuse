@@ -381,10 +381,25 @@ export function deepParseJsonIterative(
   return rootEntry.output;
 }
 
+/**
+ * Pattern to detect JSON numbers that might lose precision with native JSON.parse.
+ *
+ * Catches:
+ * 1. [\d.]{13,} - 13+ characters of digits/dots (conservative threshold for ~12+ significant digits)
+ * 2. \d[eE] - scientific notation (always use lossless-json for safety)
+ */
+const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
+
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
+    // Fast path: use native JSON.parse if no potentially unsafe numbers detected
+    if (!UNSAFE_NUMBER_PATTERN.test(json)) {
+      return JSON.parse(json) as JsonNested;
+    }
+
+    // Slow path: use lossless-json to preserve precision
     return parse(json, null, (value) => {
       if (isNumber(value)) {
         if (isSafeNumber(value)) {

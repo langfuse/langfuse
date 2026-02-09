@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 import { type EvalTemplate, EvalTargetObject } from "@langfuse/shared";
-import { createDefaultObservationVariableMappings } from "../utils/evaluatorMappingUtils";
 import { type PartialConfig } from "@/src/features/evals/types";
+import { createDefaultVariableMappings } from "@/src/features/experiments/utils/evaluatorMappingUtils";
 
 export const CONFIG_BASE = {
   targetObject: EvalTargetObject.EXPERIMENT,
@@ -23,10 +23,10 @@ export function useEvaluatorDefaults() {
     datasetId: string,
     scoreName?: string,
   ): PartialConfig & { evalTemplate: EvalTemplate } => {
-    // Create variable mappings for experiment target (observation-based)
-    const variableMappings = createDefaultObservationVariableMappings(template);
+    // Create variable mappings (dataset evaluator schema)
+    const variableMappings = createDefaultVariableMappings(template);
 
-    // Return the configured evaluator for experiment target
+    // Return the configured evaluator for dataset target
     return {
       ...CONFIG_BASE,
       evalTemplate: template,

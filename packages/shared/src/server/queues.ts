@@ -36,8 +36,10 @@ export const OtelIngestionEvent = z.object({
     scope: z.object({
       projectId: z.string(),
       accessLevel: z.literal("project"),
+      orgId: z.string().optional(),
     }),
   }),
+  propagatedHeaders: z.record(z.string(), z.string()).optional(),
 });
 
 export const BatchExportJobSchema = z.object({
@@ -83,6 +85,7 @@ export const ProjectQueueEventSchema = z.object({
 export const DatasetRunItemUpsertEventSchema = z.object({
   projectId: z.string(),
   datasetItemId: z.string(),
+  datasetItemValidFrom: z.date().optional(), // Exact valid_from value from DB (internally controlled)
   traceId: z.string(),
   observationId: z.string().optional(),
 });
