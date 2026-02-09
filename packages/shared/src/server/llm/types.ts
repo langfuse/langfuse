@@ -510,6 +510,18 @@ export enum LangfuseInternalTraceEnvironment {
   LLMJudge = "langfuse-llm-as-a-judge",
 }
 
+/**
+ * Details of a generation extracted from traced events.
+ * Used to pass generation information from internal tracing to callbacks.
+ */
+export type GenerationDetails = {
+  observationId: string;
+  name: string;
+  input: unknown;
+  output: unknown;
+  metadata: Record<string, unknown>;
+};
+
 export type TraceSinkParams = {
   /**
    * IMPORTANT: This controls into what project the resulting traces are ingested.
@@ -525,4 +537,9 @@ export type TraceSinkParams = {
     name: string;
     version: number;
   };
+  /**
+   * Optional callback invoked after the generation events have been processed.
+   * Called with merged generation details (from create + update events).
+   */
+  onGenerationComplete?: (details: GenerationDetails) => void;
 };

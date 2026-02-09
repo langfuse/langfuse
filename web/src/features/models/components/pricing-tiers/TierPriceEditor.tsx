@@ -28,17 +28,24 @@ export function TierPriceEditor({
         <span>Usage type</span>
         <span>Price</span>
       </div>
-      {Object.entries(prices).map(([key, value], priceIndex) => (
-        <div key={priceIndex} className="grid grid-cols-2 gap-1">
+      {Object.entries(prices).map(([key, value]) => (
+        <div key={key} className="grid grid-cols-2 gap-1">
           <Input
             placeholder="Key (e.g. input, output)"
             value={key}
             disabled={!isDefault}
             onChange={(e) => {
+              const newKey = e.target.value;
+
+              // Prevent overwriting existing keys (unless it's the same key)
+              if (newKey !== key && prices[newKey] !== undefined) {
+                return; // Don't allow the change
+              }
+
               const newPrices = { ...prices };
               const oldValue = newPrices[key];
               delete newPrices[key];
-              newPrices[e.target.value] = oldValue;
+              newPrices[newKey] = oldValue;
               form.setValue(`pricingTiers.${tierIndex}.prices`, newPrices);
             }}
             className={!isDefault ? "cursor-not-allowed bg-muted" : ""}

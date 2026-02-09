@@ -42,8 +42,8 @@ type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
 
 export class ClickHouseResourceError extends Error {
   static ERROR_ADVICE_MESSAGE = [
-    "We got notified about this issue and are looking into it.",
-    "We are continuously improving our API performance.",
+    "Your query could not be completed because it required too many resources.",
+    "Please narrow your request by adding more specific filters (e.g., a shorter date range).",
   ].join(" ");
 
   public readonly errorType: ErrorType;

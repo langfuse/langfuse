@@ -40,7 +40,7 @@ await orchestrator.createSyntheticData(projectIds, config);
 ### 1. Dataset Experiment Data
 
 - **Purpose**: Realistic experiment traces based on actual datasets
-- **Environment**: `langfuse-prompt-experiments`
+- **Environment**: `langfuse-prompt-experiment`
 - **Structure**: Each dataset item links to a trace with a single generation observation
 - **ID Pattern**: `trace-dataset-{datasetName}-{itemIndex}-{projectId}-{runNumber}`
 
