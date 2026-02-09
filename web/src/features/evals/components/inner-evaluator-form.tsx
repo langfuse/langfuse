@@ -20,6 +20,7 @@ import {
   observationEvalFilterColsWithOptions,
   experimentEvalFilterColsWithOptions,
   type ColumnDefinition,
+  availableDatasetEvalVariables,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
