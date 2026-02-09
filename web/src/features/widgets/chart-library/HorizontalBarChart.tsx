@@ -1,5 +1,9 @@
 import React from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
 import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
@@ -69,7 +73,14 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
         </Bar>
         <ChartTooltip
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={({ active, payload, label }) => (
+            <ChartTooltipContent
+              active={active}
+              payload={payload}
+              label={label}
+              valueFormatter={(v) => valueFormatter(Number(v))}
+            />
+          )}
         />
       </BarChart>
     </ChartContainer>

@@ -1,7 +1,12 @@
 import React, { useMemo } from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
 import { Label, Pie, PieChart as PieChartComponent } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 
 /**
  * PieChart component
@@ -20,6 +25,7 @@ export const PieChart: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
+  valueFormatter = compactNumberFormatter,
 }) => {
   // Calculate total metric value for center label
   const totalValue = useMemo(() => {
@@ -40,7 +46,14 @@ export const PieChart: React.FC<ChartProps> = ({
       <PieChartComponent accessibilityLayer={accessibilityLayer}>
         <ChartTooltip
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-          itemStyle={{ color: "hsl(var(--foreground))" }}
+          content={({ active, payload, label }) => (
+            <ChartTooltipContent
+              active={active}
+              payload={payload}
+              label={label}
+              valueFormatter={(v) => valueFormatter(Number(v))}
+            />
+          )}
         />
         <Pie
           data={chartData}
@@ -70,7 +83,7 @@ export const PieChart: React.FC<ChartProps> = ({
                         y={viewBox.cy}
                         className="fill-foreground text-3xl font-bold"
                       >
-                        {totalValue.toLocaleString()}
+                        {numberFormatter(totalValue, 0)}
                       </tspan>
                       <tspan
                         x={viewBox.cx}

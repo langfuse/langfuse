@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { BarList } from "@tremor/react";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
@@ -144,17 +144,13 @@ export const TracesBarListChart = ({
                     row_limit: maxNumberOfEntries.expanded,
                     show_value_labels: true,
                   }}
-                  valueFormatter={(n) =>
-                    Intl.NumberFormat("en-US").format(n).toString()
-                  }
+                  valueFormatter={(n) => numberFormatter(n, 0)}
                 />
               </div>
             ) : (
               <BarList
                 data={adjustedData}
-                valueFormatter={(number: number) =>
-                  Intl.NumberFormat("en-US").format(number).toString()
-                }
+                valueFormatter={(number: number) => numberFormatter(number, 0)}
                 className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
                 showAnimation={true}
                 color={"indigo"}

@@ -1,7 +1,11 @@
 import React from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
 import { compactSmallNumberFormatter } from "@/src/utils/numbers";
 
 interface HistogramDataPoint {
@@ -86,11 +90,16 @@ const HistogramChart = ({ data }: { data: DataPoint[] }) => {
           />
           <ChartTooltip
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            formatter={(value, name) => [
-              `${value}`,
-              name === "count" ? "Count" : name,
-            ]}
-            labelFormatter={(label) => `Bin: ${label}`}
+            content={({ active, payload, label }) => (
+              <ChartTooltipContent
+                active={active}
+                payload={payload}
+                label={label}
+                valueFormatter={(v) => compactSmallNumberFormatter(Number(v))}
+                nameFormatter={(name) => (name === "count" ? "Count" : name)}
+                labelFormatter={(label) => `Bin: ${label}`}
+              />
+            )}
           />
         </BarChart>
       </ResponsiveContainer>

@@ -14,6 +14,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
+import { numberFormatter } from "@/src/utils/numbers";
 
 export function NumericScoreHistogram(props: {
   projectId: string;
@@ -70,7 +71,7 @@ export function NumericScoreHistogram(props: {
   const TooltipComponent = (tooltipProps: CustomTooltipProps) => (
     <Tooltip
       {...tooltipProps}
-      formatter={(value) => Intl.NumberFormat("en-US").format(value).toString()}
+      formatter={(value) => numberFormatter(Number(value), 0)}
     />
   );
 
@@ -93,9 +94,7 @@ export function NumericScoreHistogram(props: {
         index="binLabel"
         categories={chartLabels}
         colors={colors}
-        valueFormatter={(number: number) =>
-          Intl.NumberFormat("en-US").format(number).toString()
-        }
+        valueFormatter={(number: number) => numberFormatter(number, 0)}
         yAxisWidth={48}
         barCategoryGap={"0%"}
         customTooltip={TooltipComponent}

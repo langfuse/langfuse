@@ -85,7 +85,12 @@ export const Chart = ({
           />
         );
       case "BAR_TIME_SERIES":
-        return <VerticalBarChartTimeSeries data={renderedData} />;
+        return (
+          <VerticalBarChartTimeSeries
+            data={renderedData}
+            valueFormatter={valueFormatter}
+          />
+        );
       case "HORIZONTAL_BAR":
         return (
           <HorizontalBarChart
@@ -95,9 +100,19 @@ export const Chart = ({
           />
         );
       case "VERTICAL_BAR":
-        return <VerticalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <VerticalBarChart
+            data={renderedData.slice(0, rowLimit)}
+            valueFormatter={valueFormatter}
+          />
+        );
       case "PIE":
-        return <PieChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <PieChart
+            data={renderedData.slice(0, rowLimit)}
+            valueFormatter={valueFormatter}
+          />
+        );
       case "HISTOGRAM":
         return <HistogramChart data={renderedData} />;
       case "NUMBER": {

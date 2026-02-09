@@ -122,28 +122,13 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           })}
           <ChartTooltip
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={(props) => (
+            content={({ active, payload, label }) => (
               <ChartTooltipContent
-                active={props.active}
-                payload={props.payload}
-                label={props.label}
-                formatter={(value, name, item) => (
-                  <div className="flex w-full items-center gap-2">
-                    <div
-                      className="h-3 w-3 shrink-0 rounded-sm"
-                      style={{
-                        backgroundColor:
-                          item?.color ?? item?.payload?.fill ?? "currentColor",
-                      }}
-                    />
-                    <span className="min-w-0 flex-1 text-muted-foreground">
-                      {name}
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums">
-                      {tooltipFormatter(Number(value))}
-                    </span>
-                  </div>
-                )}
+                active={active}
+                payload={payload}
+                label={label}
+                valueFormatter={tooltipFormatter}
+                sortPayloadByValue="desc"
               />
             )}
           />
