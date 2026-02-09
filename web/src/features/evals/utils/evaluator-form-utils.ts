@@ -7,6 +7,11 @@ import {
 import { wipVariableMapping } from "@langfuse/shared";
 import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
 
+// Legacy eval targets (TRACE, DATASET) use full variable mapping UI with object selector
+// Modern eval targets (EVENT, EXPERIMENT) use simplified UI with just column selection
+export const isLegacyEvalTarget = (target: string): boolean =>
+  target === "trace" || target === "dataset";
+
 export const evalConfigFormSchema = z.object({
   scoreName: z.string(),
   target: z.string(),
