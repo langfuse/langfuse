@@ -663,14 +663,14 @@ export const InnerEvaluatorForm = (props: {
                         className="min-w-[150px]"
                         disabled={props.mode === "edit" || props.disabled}
                       >
-                        {"JS SDK >= 4.4.0, Python SDK >= 3.9.0 [Recommended]"}
+                        {"JS SDK >= 4.4.0, Python SDK >= 3.9.0 [New]"}
                       </TabsTrigger>
                       <TabsTrigger
                         value="non-otel"
                         className="min-w-[150px]"
                         disabled={props.mode === "edit" || props.disabled}
                       >
-                        {"JS SDK < 4.4.0, Python SDK < 3.9.0"}
+                        {"JS SDK < 4.4.0, Python SDK < 3.9.0 [Legacy]"}
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>

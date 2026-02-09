@@ -196,6 +196,7 @@ export function useExtractVariables({
     id,
     utils.observations.byId,
     previewData,
+    isBetaEnabled,
   ]);
 
   return { extractedVariables, isExtracting };
