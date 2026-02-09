@@ -12,7 +12,6 @@ export type ObservationPriceFields = {
 };
 
 type AdditionalObservationFields = {
-  traceName: string | null;
   traceTags: Array<string>;
   traceTimestamp: Date | null;
   // Tool counts for list view performance

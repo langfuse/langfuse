@@ -135,6 +135,7 @@ export type EventsTableRow = {
 
   // Trace fields
   traceTags?: string[];
+  traceName?: string;
 
   // Scores
   scores: ScoreAggregate;
@@ -578,6 +579,17 @@ export default function ObservationsEventsTable({
       enableSorting: true,
       cell: ({ row }) => {
         const value: EventsTableRow["name"] = row.getValue("name");
+        return value ?? undefined;
+      },
+    },
+    {
+      accessorKey: "traceName",
+      id: "traceName",
+      header: getEventsColumnName("traceName"),
+      size: 150,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const value: string | undefined = row.getValue("traceName");
         return value ?? undefined;
       },
     },
@@ -1177,6 +1189,7 @@ export default function ObservationsEventsTable({
               promptName: observation.promptName ?? undefined,
               promptVersion: observation.promptVersion?.toString() ?? undefined,
               traceTags: undefined, // TODO: traceTags not available in EventsObservation
+              traceName: observation.traceName ?? undefined,
               timestamp: observation.startTime ?? undefined,
               usageDetails: observation.usageDetails ?? {},
               costDetails: observation.costDetails ?? {},
