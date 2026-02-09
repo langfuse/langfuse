@@ -29,6 +29,7 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: 'e.user_id as "user_id"',
   sessionId: 'e.session_id as "session_id"',
+  traceName: 'e.trace_name as "trace_name"',
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
@@ -110,6 +111,7 @@ const FIELD_SETS = {
     "internalModelId",
     "userId",
     "sessionId",
+    "traceName",
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",

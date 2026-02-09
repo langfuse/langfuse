@@ -1,13 +1,15 @@
+import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
 import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
+import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { extractValueFromObject } from "@langfuse/shared";
+import { EvalTargetObject, extractValueFromObject } from "@langfuse/shared";
 import { useEffect, useState, useRef } from "react";
 
 /**
  * Helper function to find an observation by name in the trace data
  */
-function getObservation(
+function getObservationByName(
   objectName: string | null | undefined,
   observations: Record<string, unknown>[] | undefined,
 ): Record<string, unknown> | null {
@@ -25,17 +27,16 @@ type ExtractedVariable = {
 export function useExtractVariables({
   variables,
   variableMapping,
-  trace,
+  previewData,
   isLoading,
 }: {
   variables: string[];
   variableMapping: VariableMapping[];
-  trace?: Record<string, unknown> & {
-    observations?: Record<string, unknown>[];
-  };
+  previewData: PreviewData;
   isLoading: boolean;
 }) {
   const utils = api.useUtils();
+  const isBetaEnabled = useObservationEvals();
   const [extractedVariables, setExtractedVariables] = useState<
     ExtractedVariable[]
   >([]);
@@ -47,9 +48,11 @@ export function useExtractVariables({
   const currentMappingString =
     variables.length > 0 ? JSON.stringify(variableMapping) : "";
 
-  // Create a stable reference to the trace ID
-  const traceId = trace?.id;
-  const traceIdRef = useRef<string | undefined>(traceId as string | undefined);
+  const id =
+    previewData.type === EvalTargetObject.EVENT
+      ? previewData.observationId
+      : previewData.traceId;
+  const idRef = useRef<string | undefined>(id);
 
   // Handle error toasts separately to avoid repeated toasts on re-renders
   useEffect(() => {
@@ -72,14 +75,14 @@ export function useExtractVariables({
     }
 
     // Check if the variableMapping has changed by comparing string representations
-    // OR if the trace ID has changed
+    // OR if the target ID has changed
     const mappingChanged = previousMappingRef.current !== currentMappingString;
-    const traceChanged = traceIdRef.current !== traceId;
-    const shouldExtract = mappingChanged || traceChanged;
+    const idChanged = idRef.current !== id;
+    const shouldExtract = mappingChanged || idChanged;
 
-    // Update the trace ID reference
-    if (traceChanged) {
-      traceIdRef.current = traceId as string | undefined;
+    // Update the id reference
+    if (idChanged) {
+      idRef.current = id;
     }
 
     // Exit if we don't need to extract
@@ -87,8 +90,8 @@ export function useExtractVariables({
       return;
     }
 
-    // Clear existing variables immediately when trace changes to avoid showing stale data
-    if (traceChanged) {
+    // Clear existing variables immediately when id changes to avoid showing stale data
+    if (idChanged) {
       setExtractedVariables(
         variables.map((variable) => ({ variable, value: "n/a" })),
       );
@@ -104,32 +107,44 @@ export function useExtractVariables({
         (m) => m.templateVariable === variable,
       );
 
-      if (!mapping || !mapping.selectedColumnId) {
+      if (
+        !mapping ||
+        !mapping.selectedColumnId ||
+        (!mapping.langfuseObject &&
+          !(isBetaEnabled && previewData.type === "event"))
+      ) {
         return { variable, value: "n/a" };
       }
 
       let object;
-      if (mapping.langfuseObject === "trace") {
-        object = trace;
-      } else if (mapping.objectName) {
-        // For observations, find them in the pre-loaded trace data
-        const observation = getObservation(
-          mapping.objectName,
-          trace?.observations,
-        );
 
-        if (observation?.id) {
-          try {
-            const observationWithInputAndOutput =
-              await utils.observations.byId.fetch({
-                observationId: observation.id as string,
-                startTime: observation.startTime as Date | null,
-                traceId: trace?.id as string,
-                projectId: trace?.projectId as string,
-              });
-            object = observationWithInputAndOutput;
-          } catch (error) {
-            console.error(`Error fetching observation data:`, error);
+      if (previewData.type === "event") {
+        object = previewData.data; // Already has input/output
+      } else {
+        // Trace eval: can map to trace or observation fields
+        if (mapping.langfuseObject === "trace") {
+          object = previewData.data;
+        } else if (mapping.langfuseObject !== "dataset_item") {
+          // Find observation by name from mapping
+          const observation = getObservationByName(
+            mapping.objectName,
+            previewData.data.observations as Record<string, unknown>[],
+          );
+
+          if (observation?.id) {
+            try {
+              // Fetch observation to get input/output
+              const observationWithInputAndOutput =
+                await utils.observations.byId.fetch({
+                  observationId: observation.id as string,
+                  startTime: observation.startTime as Date | null,
+                  traceId: previewData.data.id as string,
+                  projectId: previewData.data.projectId as string,
+                });
+              object = observationWithInputAndOutput;
+            } catch (error) {
+              console.error(`Error fetching observation data:`, error);
+            }
           }
         }
       }
@@ -138,10 +153,11 @@ export function useExtractVariables({
         return { variable, value: "n/a" };
       }
 
-      const { value, error } = extractValueFromObject(object, {
-        ...mapping,
-        selectedColumnId: mapping.selectedColumnId,
-      });
+      const { value, error } = extractValueFromObject(
+        object,
+        mapping.selectedColumnId,
+        mapping.jsonSelector ?? undefined,
+      );
       return { variable, value, error };
     });
 
@@ -177,9 +193,10 @@ export function useExtractVariables({
     variableMapping,
     currentMappingString,
     isLoading,
-    traceId,
+    id,
     utils.observations.byId,
-    trace,
+    previewData,
+    isBetaEnabled,
   ]);
 
   return { extractedVariables, isExtracting };
