@@ -23,15 +23,15 @@ export function useEvaluatorDefaults() {
     datasetId: string,
     scoreName?: string,
   ): PartialConfig & { evalTemplate: EvalTemplate } => {
-    // Create variable mappings that alternate between dataset_item and trace
-    const alternatingMappings = createDefaultVariableMappings(template);
+    // Create variable mappings (dataset evaluator schema)
+    const variableMappings = createDefaultVariableMappings(template);
 
-    // Return the configured evaluator
+    // Return the configured evaluator for dataset target
     return {
       ...CONFIG_BASE,
       evalTemplate: template,
       scoreName: scoreName || template.name,
-      variableMapping: alternatingMappings,
+      variableMapping: variableMappings,
       filter: [
         {
           type: "stringOptions",
