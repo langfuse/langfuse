@@ -51,18 +51,18 @@ export const Chart = ({
 
   const renderedData = useMemo(() => {
     return data.map((item) => {
-      return {
-        ...item,
-        time_dimension: item.time_dimension
-          ? new Date(item.time_dimension).toLocaleTimeString("en-US", {
-              year: "2-digit",
-              month: "numeric",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : undefined,
-      };
+      if (!item.time_dimension) return { ...item, time_dimension: undefined };
+      const parsed = new Date(item.time_dimension);
+      const time_dimension = Number.isNaN(parsed.getTime())
+        ? item.time_dimension
+        : parsed.toLocaleTimeString("en-US", {
+            year: "2-digit",
+            month: "numeric",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+      return { ...item, time_dimension };
     });
   }, [data]);
 

@@ -116,3 +116,30 @@ export function scoreChartDataToDataPoints(
     };
   });
 }
+
+/**
+ * Converts dataset run compare-view chartData (ChartBin[] from CompareViewAdapter) to DataPoint[].
+ * - Single series (chartLabels.length === 1): one row per run → HORIZONTAL_BAR / VERTICAL_BAR.
+ * - Multi series (categorical): one row per (run, category) → BAR_TIME_SERIES.
+ */
+export function compareViewChartDataToDataPoints(
+  chartData: ChartBin[],
+  chartLabels: string[],
+): DataPoint[] {
+  if (chartLabels.length === 0) return [];
+  if (chartLabels.length === 1) {
+    const label = chartLabels[0]!;
+    return chartData.map((bin) => ({
+      dimension: bin.binLabel,
+      metric: (bin as Record<string, number>)[label] ?? 0,
+      time_dimension: undefined,
+    }));
+  }
+  return chartData.flatMap((bin) =>
+    chartLabels.map((label) => ({
+      time_dimension: bin.binLabel,
+      dimension: label,
+      metric: (bin as Record<string, number>)[label] ?? 0,
+    })),
+  );
+}
