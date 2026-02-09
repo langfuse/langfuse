@@ -37,7 +37,7 @@ export const PieChart: React.FC<ChartProps> = ({
     return data.map((item, index) => ({
       name: item.dimension || "Unknown",
       value: item.metric,
-      fill: `hsl(var(--chart-${(index % 4) + 1}))`,
+      fill: `hsl(var(--chart-${(index % 8) + 1}))`,
     }));
   }, [data]);
 

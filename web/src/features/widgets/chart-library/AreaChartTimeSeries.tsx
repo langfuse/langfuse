@@ -72,7 +72,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                   <div
                     className="h-2 w-2 shrink-0 rounded-[2px]"
                     style={{
-                      backgroundColor: `hsl(var(--chart-${(index % 4) + 1}))`,
+                      backgroundColor: `hsl(var(--chart-${(index % 8) + 1}))`,
                     }}
                   />
                   <span className="text-muted-foreground">{dimension}</span>
@@ -109,8 +109,8 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 key={dimension}
                 type="monotone"
                 dataKey={dimension}
-                stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
-                fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+                stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
+                fill={`hsl(var(--chart-${(index % 8) + 1}))`}
                 fillOpacity={isMuted ? 0.15 : 0.75}
                 strokeWidth={2.5}
                 strokeOpacity={isMuted ? 0.2 : 1}

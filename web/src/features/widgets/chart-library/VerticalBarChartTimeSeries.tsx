@@ -55,8 +55,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           <Bar
             key={dimension}
             dataKey={dimension}
-            stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
-            fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+            stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
+            fill={`hsl(var(--chart-${(index % 8) + 1}))`}
             // Stack bars if there are multiple dimensions
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
