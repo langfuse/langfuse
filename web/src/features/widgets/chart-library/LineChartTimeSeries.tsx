@@ -32,6 +32,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   valueFormatter,
   legendPosition = "none",
+  showDataPointDots = true,
 }) => {
   const [highlightedDimension, setHighlightedDimension] = useState<
     string | null
@@ -112,8 +113,12 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 type="monotone"
                 dataKey={dimension}
                 strokeWidth={2.5}
-                dot={!isMuted ? { r: 4 } : false}
-                activeDot={isMuted ? false : { r: 5, strokeWidth: 0 }}
+                dot={showDataPointDots && !isMuted ? { r: 4 } : false}
+                activeDot={
+                  showDataPointDots && !isMuted
+                    ? { r: 5, strokeWidth: 0 }
+                    : false
+                }
                 stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls

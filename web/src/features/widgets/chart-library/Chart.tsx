@@ -38,6 +38,7 @@ export const Chart = ({
     metrics?: string[];
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
+    show_data_point_dots?: boolean;
   };
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
@@ -74,6 +75,7 @@ export const Chart = ({
             data={renderedData}
             valueFormatter={valueFormatter}
             legendPosition={legendPosition}
+            showDataPointDots={chartConfig?.show_data_point_dots ?? true}
           />
         );
       case "AREA_TIME_SERIES":

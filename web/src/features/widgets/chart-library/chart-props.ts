@@ -18,4 +18,6 @@ export interface ChartProps {
   legendPosition?: LegendPosition;
   /** Show numeric value to the right of each bar (horizontal bar chart). */
   showValueLabels?: boolean;
+  /** Show dots on line/area data points. Default true. */
+  showDataPointDots?: boolean;
 }

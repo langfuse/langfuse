@@ -55,11 +55,6 @@ export function ChartScores(props: {
       query: scoresQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
       enabled: !props.isLoading,
     },
   );
@@ -100,9 +95,11 @@ export function ChartScores(props: {
               chartType="LINE_TIME_SERIES"
               data={timeSeriesToDataPoints(extractedScores, props.agg)}
               rowLimit={100}
-              chartConfig={{ type: "LINE_TIME_SERIES" }}
+              chartConfig={{
+                type: "LINE_TIME_SERIES",
+                show_data_point_dots: false,
+              }}
               legendPosition="above"
-              overrideWarning={true}
             />
           </div>
         ) : (
