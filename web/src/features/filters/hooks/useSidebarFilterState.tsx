@@ -250,11 +250,6 @@ export function useSidebarFilterState(
    * the parent page's URL with filters that don't apply to the parent context.
    */
   disableUrlPersistence?: boolean,
-  /**
-   * Default filters to apply on initial load (when no URL filters are present).
-   * These are applied once per project and stored in localStorage to prevent re-application.
-   */
-  defaultFilters?: FilterState,
 ) {
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
@@ -304,56 +299,42 @@ export function useSidebarFilterState(
     false,
   );
 
-  // Apply default filters on first load
+  // init default env filters on first load to deselect envs prefixed with "langfuse-"
   useEffect(() => {
     // Skip auto-applying defaults for embedded tables
     if (disableUrlPersistence) return;
     if (filterState.length > 0 || defaultsApplied) return;
 
-    let filtersToApply: FilterState = [];
+    // only if there is an environment facet
+    const environmentFacet = config.facets.find(
+      (f) => f.column === "environment" && f.type === "categorical",
+    );
+    if (!environmentFacet) return;
 
-    // Apply custom default filters if provided
-    if (defaultFilters && defaultFilters.length > 0) {
-      filtersToApply = defaultFilters;
-    } else {
-      // Fallback to legacy environment filter behavior if no custom defaults
-      // only if there is an environment facet
-      const environmentFacet = config.facets.find(
-        (f) => f.column === "environment" && f.type === "categorical",
-      );
+    const environmentOptions = options["environment"];
+    if (!Array.isArray(environmentOptions) || environmentOptions.length === 0)
+      return;
 
-      if (environmentFacet) {
-        const environmentOptions = options["environment"];
-        if (
-          Array.isArray(environmentOptions) &&
-          environmentOptions.length > 0
-        ) {
-          const environments = environmentOptions.map((opt) =>
-            typeof opt === "string" ? opt : opt.value,
-          );
+    const environments = environmentOptions.map((opt) =>
+      typeof opt === "string" ? opt : opt.value,
+    );
 
-          const langfuseEnvironments = environments.filter((env) =>
-            env.startsWith("langfuse-"),
-          );
+    const langfuseEnvironments = environments.filter((env) =>
+      env.startsWith("langfuse-"),
+    );
 
-          // exclude langfuse- environments if there are any
-          if (langfuseEnvironments.length > 0) {
-            filtersToApply = [
-              {
-                column: "environment",
-                type: "stringOptions",
-                operator: "none of",
-                value: langfuseEnvironments,
-              },
-            ];
-          }
-        }
-      }
-    }
+    // exclude langfuse- environments if there are any
+    if (langfuseEnvironments.length > 0) {
+      const defaultFilter: FilterState = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: langfuseEnvironments,
+        },
+      ];
 
-    // Apply filters if any were determined
-    if (filtersToApply.length > 0) {
-      setFilterState(filtersToApply);
+      setFilterState(defaultFilter);
       setDefaultsApplied(true);
     }
   }, [
@@ -364,7 +345,6 @@ export function useSidebarFilterState(
     disableUrlPersistence,
     setFilterState,
     setDefaultsApplied,
-    defaultFilters,
   ]);
 
   const clearAll = () => {
