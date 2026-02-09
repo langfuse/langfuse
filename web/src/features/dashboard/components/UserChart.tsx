@@ -136,7 +136,6 @@ export const UserChart = ({
 
   const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
 
-  // Height scales with bar count so each bar keeps the same height when expanding (matches TracesBarListChart)
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;
 
@@ -202,7 +201,9 @@ export const UserChart = ({
                           chartConfig={{
                             type: "HORIZONTAL_BAR",
                             row_limit: maxNumberOfEntries.expanded,
+                            show_value_labels: true,
                           }}
+                          valueFormatter={item.formatter}
                         />
                       </div>
                     ) : (

@@ -37,6 +37,7 @@ export const Chart = ({
     dimensions?: string[];
     metrics?: string[];
     defaultSort?: OrderByState;
+    show_value_labels?: boolean;
   };
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
@@ -86,7 +87,13 @@ export const Chart = ({
       case "BAR_TIME_SERIES":
         return <VerticalBarChartTimeSeries data={renderedData} />;
       case "HORIZONTAL_BAR":
-        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <HorizontalBarChart
+            data={renderedData.slice(0, rowLimit)}
+            showValueLabels={chartConfig?.show_value_labels}
+            valueFormatter={valueFormatter}
+          />
+        );
       case "VERTICAL_BAR":
         return <VerticalBarChart data={renderedData.slice(0, rowLimit)} />;
       case "PIE":
@@ -115,7 +122,13 @@ export const Chart = ({
         );
       }
       default:
-        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <HorizontalBarChart
+            data={renderedData.slice(0, rowLimit)}
+            showValueLabels={chartConfig?.show_value_labels}
+            valueFormatter={valueFormatter}
+          />
+        );
     }
   };
 

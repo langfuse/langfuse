@@ -16,4 +16,6 @@ export interface ChartProps {
   valueFormatter?: (value: number) => string;
   /** Legend placement. 'above' = horizontal legend row above the chart. */
   legendPosition?: LegendPosition;
+  /** Show numeric value to the right of each bar (horizontal bar chart). */
+  showValueLabels?: boolean;
 }

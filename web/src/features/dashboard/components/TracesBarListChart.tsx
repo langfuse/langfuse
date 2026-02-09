@@ -142,7 +142,11 @@ export const TracesBarListChart = ({
                   chartConfig={{
                     type: "HORIZONTAL_BAR",
                     row_limit: maxNumberOfEntries.expanded,
+                    show_value_labels: true,
                   }}
+                  valueFormatter={(n) =>
+                    Intl.NumberFormat("en-US").format(n).toString()
+                  }
                 />
               </div>
             ) : (

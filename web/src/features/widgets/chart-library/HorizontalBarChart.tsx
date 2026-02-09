@@ -1,9 +1,9 @@
 import React from "react";
 import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
-
+import { compactNumberFormatter } from "@/src/utils/numbers";
 /**
  * HorizontalBarChart component
  * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
@@ -21,6 +21,8 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
+  showValueLabels = false,
+  valueFormatter = compactNumberFormatter,
 }) => {
   return (
     <ChartContainer config={config} className="min-h-0 w-full">
@@ -54,7 +56,17 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           radius={[0, 4, 4, 0]}
           maxBarSize={28}
           className="fill-[--color-metric]"
-        />
+        >
+          {showValueLabels ? (
+            <LabelList
+              dataKey="metric"
+              position="right"
+              formatter={(value: number) => valueFormatter(value)}
+              className="fill-muted-foreground"
+              style={{ fontSize: 12 }}
+            />
+          ) : null}
+        </Bar>
         <ChartTooltip
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           itemStyle={{ color: "hsl(var(--foreground))" }}

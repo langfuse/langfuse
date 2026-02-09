@@ -19,6 +19,7 @@ export const AreaChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
 
 export const HorizontalBarChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("HORIZONTAL_BAR"),
+  show_value_labels: z.boolean().optional(),
 });
 export const VerticalBarChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("VERTICAL_BAR"),
