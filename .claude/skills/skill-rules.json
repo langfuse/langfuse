@@ -25,6 +25,53 @@
         ]
       }
     },
+"add-model-price": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "high",
+      "description": "Guide for adding LLM model pricing entries to default-model-prices.json",
+      "promptTriggers": {
+        "keywords": [
+          "model price",
+          "model pricing",
+          "model prices",
+          "add model",
+          "new model",
+          "model cost",
+          "default-model-prices",
+          "matchPattern",
+          "pricingTiers",
+          "pricing tier",
+          "token pricing",
+          "Claude pricing",
+          "OpenAI pricing",
+          "Anthropic pricing",
+          "Gemini pricing",
+          "Bedrock pricing",
+          "Vertex pricing"
+        ],
+        "intentPatterns": [
+          "(add|create|insert|update).*?(model|pricing|price)",
+          "(new|add).*?(claude|openai|anthropic|gemini|gpt).*?(model|price)",
+          "model.*?(price|pricing|cost)",
+          "pricing.*?tier"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "worker/src/constants/default-model-prices.json",
+          "packages/shared/src/server/llm/types.ts",
+          "**/model*price*.json"
+        ],
+        "contentPatterns": [
+          "matchPattern",
+          "pricingTiers",
+          "tokenizerId",
+          "anthropicModels",
+          "openAIModels"
+        ]
+      }
+    },
     "backend-dev-guidelines": {
       "type": "domain",
       "enforcement": "suggest",
