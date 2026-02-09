@@ -17,10 +17,10 @@ import {
   singleFilter,
   availableTraceEvalVariables,
   datasetFormFilterColsWithOptions,
-  type availableDatasetEvalVariables,
   observationEvalFilterColsWithOptions,
   experimentEvalFilterColsWithOptions,
   type ColumnDefinition,
+  type availableDatasetEvalVariables,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";

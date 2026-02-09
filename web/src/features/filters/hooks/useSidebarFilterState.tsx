@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect, useRef } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import {
   type FilterState,
@@ -251,8 +251,9 @@ export function useSidebarFilterState(
    */
   disableUrlPersistence?: boolean,
   /**
-   * Default filters to apply on initial load (when no URL filters are present).
-   * These are applied once per project and stored in localStorage to prevent re-application.
+   * Default filters to apply on initial page load (when no URL filters are present).
+   * These apply every time the component mounts, but respect user's manual filter changes.
+   * If a user clears all filters, defaults won't reapply until the component remounts (new page visit).
    */
   defaultFilters?: FilterState,
 ) {
@@ -284,10 +285,21 @@ export function useSidebarFilterState(
     return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
   }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
 
+  // Track if user has manually interacted with filters
+  // This prevents default filters from overriding user's explicit "clear all" action
+  const userHasInteractedRef = useRef(false);
+
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
       // Don't modify URL if persistence is disabled
       if (disableUrlPersistence) return;
+
+      // Mark that user has manually interacted with filters
+      // Exception: Don't mark as interacted if this is the initial default filter application
+      if (userHasInteractedRef.current || newFilters.length > 0) {
+        userHasInteractedRef.current = true;
+      }
+
       const encoded = encodeFiltersGeneric(newFilters);
       setFiltersQuery(encoded || null);
     },
@@ -309,22 +321,25 @@ export function useSidebarFilterState(
     // Skip auto-applying defaults for embedded tables
     if (disableUrlPersistence) return;
 
-    // If there are already filters in the URL, don't override them
+    // If there are already filters in URL, don't apply defaults
     if (filterState.length > 0) return;
+
+    // If user has manually interacted with filters (e.g., cleared them), respect their choice
+    // This prevents defaults from reapplying when user clears filters in the same session
+    if (userHasInteractedRef.current) return;
 
     let filtersToApply: FilterState = [];
 
-    // Apply custom default filters if provided (always apply when no URL filters)
+    // Priority 1: Apply custom default filters if provided
     if (defaultFilters && defaultFilters.length > 0) {
       filtersToApply = defaultFilters;
-    } else {
-      // Fallback to environment filter behavior (one-time with localStorage)
-      if (defaultsApplied) return;
-
-      // only if there is an environment facet
+    }
+    // Priority 2: Fallback to legacy environment filter (one-time with localStorage)
+    else if (!defaultsApplied) {
       const environmentFacet = config.facets.find(
         (f) => f.column === "environment" && f.type === "categorical",
       );
+
       if (environmentFacet) {
         const environmentOptions = options["environment"];
         if (
@@ -339,7 +354,6 @@ export function useSidebarFilterState(
             env.startsWith("langfuse-"),
           );
 
-          // exclude langfuse- environments if there are any
           if (langfuseEnvironments.length > 0) {
             filtersToApply = [
               {
@@ -357,7 +371,7 @@ export function useSidebarFilterState(
     // Apply filters if any were determined
     if (filtersToApply.length > 0) {
       setFilterState(filtersToApply);
-      // Only mark as applied for legacy environment filter behavior
+      // Only mark as applied for legacy environment filter (not for custom defaultFilters)
       if (!defaultFilters || defaultFilters.length === 0) {
         setDefaultsApplied(true);
       }

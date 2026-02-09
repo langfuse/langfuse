@@ -39,7 +39,7 @@ export const OUTPUT_MAPPING = [
 
 export const INTERNAL_ENVIRONMENTS = [
   LangfuseInternalTraceEnvironment.LLMJudge,
-  "langfuse-prompt-experiments",
+  "langfuse-prompt-experiment",
   "langfuse-evaluation",
   "sdk-experiment",
 ] as const;

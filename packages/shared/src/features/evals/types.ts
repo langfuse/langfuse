@@ -54,6 +54,9 @@ export const variableMapping = z
 
 export const variableMappingList = z.array(variableMapping);
 
+// WIP version for forms - langfuseObject optional to support both:
+// - Trace/Dataset evals: Include langfuseObject and objectName to specify which observation
+// - Event/Experiment evals: Omit them since the observation is already selected
 export const wipVariableMapping = z.object({
   templateVariable: z.string(),
   objectName: z.string().nullish(),
