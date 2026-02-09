@@ -316,7 +316,7 @@ export function useSidebarFilterState(
     false,
   );
 
-  // Apply default filters on component mount
+  // Apply default filters when no URL filters are present
   useEffect(() => {
     // Skip auto-applying defaults for embedded tables
     if (disableUrlPersistence) return;

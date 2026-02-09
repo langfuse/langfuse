@@ -168,7 +168,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     newFilterOptions,
     projectId,
     false,
-    false, // disableUrlPersistence
+    false,
     [
       {
         column: "status",
@@ -176,7 +176,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         operator: "any of",
         value: ["ACTIVE"],
       },
-    ], // defaultFilters
+    ],
   );
 
   const evaluators = api.evals.allConfigs.useQuery({
