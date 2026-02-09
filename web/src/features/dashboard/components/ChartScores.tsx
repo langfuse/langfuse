@@ -55,6 +55,11 @@ export function ChartScores(props: {
       query: scoresQuery,
     },
     {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
       enabled: !props.isLoading,
     },
   );
