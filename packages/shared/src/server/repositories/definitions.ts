@@ -114,6 +114,7 @@ export const eventsObservationRecordReadSchema =
   observationRecordReadSchema.extend({
     user_id: z.string().nullish(),
     session_id: z.string().nullish(),
+    trace_name: z.string().nullish(),
   });
 export type EventsObservationRecordReadType = z.infer<
   typeof eventsObservationRecordReadSchema

@@ -109,6 +109,7 @@ export type ObservationCoreFields = Pick<
 export const EventsObservationSchema = ObservationSchema.extend({
   userId: z.string().nullable(),
   sessionId: z.string().nullable(),
+  traceName: z.string().nullable(),
 });
 
 export type EventsObservation = z.infer<typeof EventsObservationSchema>;
