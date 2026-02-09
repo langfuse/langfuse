@@ -1,7 +1,4 @@
-import {
-  type EvalTemplate,
-  type ObservationVariableMapping,
-} from "@langfuse/shared";
+import { type EvalTemplate } from "@langfuse/shared";
 
 // Define the type locally to match what's in @langfuse/shared
 type VariableMapping = {
