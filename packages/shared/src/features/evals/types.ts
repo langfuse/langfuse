@@ -31,15 +31,13 @@ const langfuseObject = z.enum(langfuseObjects);
 export type LangfuseEvaluationObject = z.infer<typeof langfuseObject>;
 
 // variable mapping stored in the db for eval templates
-// langfuseObject is optional - it's only needed for trace/dataset targets
-// For observation-based evals (EVENT, EXPERIMENT), the observation is already selected
 export const variableMapping = z
   .object({
     templateVariable: z.string(), // variable name in the template
     // name of the observation to extract the variable from
     // not required for trace or dataset_item, as we only have one of each.
     objectName: z.string().nullish(),
-    langfuseObject: langfuseObject.optional(),
+    langfuseObject: langfuseObject,
     selectedColumnId: z.string(),
     jsonSelector: z.string().nullish(),
   })
