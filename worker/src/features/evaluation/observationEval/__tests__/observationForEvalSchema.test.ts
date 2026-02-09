@@ -4,6 +4,7 @@ import {
   type ObservationForEval,
   observationEvalFilterColumns,
   observationEvalVariableColumns,
+  eventsEvalFilterColumns,
 } from "@langfuse/shared";
 
 describe("observationForEvalSchema", () => {
@@ -181,16 +182,16 @@ describe("observationForEvalSchema", () => {
   });
 
   describe("filter columns alignment", () => {
-    it("should have all filter column IDs present in schema", () => {
+    it("should have all filter column internal mappings present in schema", () => {
       const schemaKeys = Object.keys(observationForEvalSchema.shape);
 
       for (const column of observationEvalFilterColumns) {
-        expect(schemaKeys).toContain(column.id);
+        expect(schemaKeys).toContain(column.internal);
       }
     });
 
     it("should include expected filter columns", () => {
-      const columnIds = observationEvalFilterColumns.map((c) => c.id);
+      const columnIds = eventsEvalFilterColumns.map((c) => c.id);
 
       // Observation properties
       expect(columnIds).toContain("type");
@@ -199,14 +200,13 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("level");
       expect(columnIds).toContain("version");
 
-      // Trace-level properties (snake_case)
-      expect(columnIds).toContain("trace_name");
-      expect(columnIds).toContain("user_id");
-      expect(columnIds).toContain("session_id");
+      // Trace-level properties
+      expect(columnIds).toContain("traceName");
+      expect(columnIds).toContain("userId");
+      expect(columnIds).toContain("sessionId");
       expect(columnIds).toContain("tags");
-      expect(columnIds).toContain("release");
 
-      expect(columnIds).toContain("experiment_dataset_id");
+      expect(columnIds).toContain("experimentDatasetId");
 
       // Metadata
       expect(columnIds).toContain("metadata");
@@ -218,18 +218,20 @@ describe("observationForEvalSchema", () => {
       const schemaKeys = Object.keys(observationForEvalSchema.shape);
 
       for (const column of observationEvalVariableColumns) {
-        expect(schemaKeys).toContain(column.id);
+        expect(schemaKeys).toContain(column.internal);
       }
     });
 
     it("should include expected variable columns", () => {
-      const columnIds = observationEvalVariableColumns.map((c) => c.id);
+      const columnInternals = observationEvalVariableColumns.map(
+        (c) => c.internal,
+      );
 
       // Primary data fields
-      expect(columnIds).toContain("input");
-      expect(columnIds).toContain("output");
-      expect(columnIds).toContain("metadata");
-      expect(columnIds).toContain("experiment_item_expected_output");
+      expect(columnInternals).toContain("input");
+      expect(columnInternals).toContain("output");
+      expect(columnInternals).toContain("metadata");
+      expect(columnInternals).toContain("experiment_item_expected_output");
     });
   });
 });
