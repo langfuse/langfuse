@@ -35,8 +35,8 @@ import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
-import { redis } from "../redis/redis";
 import { traceException } from "../instrumentation";
+import { prisma } from "../../db";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -312,21 +312,19 @@ export const getTracesBySessionId = async (
   return traces;
 };
 
-const HAS_ANY_TRACE_CACHE_TTL_SECONDS = 86400; // 24 hours
-
-const getHasAnyTraceCacheKey = (projectId: string) =>
-  `langfuse:project:${projectId}:hasAnyTrace`;
-
 export const hasAnyTrace = async (projectId: string) => {
-  // Check Redis cache first — a cached positive result never becomes false
+  // Check PostgreSQL flag first — once set, it's never reverted
   try {
-    const cached = await redis?.get(getHasAnyTraceCacheKey(projectId));
-    if (cached === "1") {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { hasTraces: true },
+    });
+    if (project?.hasTraces) {
       return true;
     }
   } catch (error) {
     traceException(error);
-    logger.error("Failed to read hasAnyTrace cache from Redis", {
+    logger.error("Failed to read hasTraces flag from PostgreSQL", {
       projectId,
       error,
     });
@@ -368,18 +366,17 @@ export const hasAnyTrace = async (projectId: string) => {
     },
   });
 
-  // Cache positive results in Redis — once a project has traces, it stays true
+  // Persist positive result in PostgreSQL — once a project has traces, it stays true
+  // Only update if not already set to avoid unnecessary writes
   if (result) {
     try {
-      await redis?.set(
-        getHasAnyTraceCacheKey(projectId),
-        "1",
-        "EX",
-        HAS_ANY_TRACE_CACHE_TTL_SECONDS,
-      );
+      await prisma.project.updateMany({
+        where: { id: projectId, hasTraces: false },
+        data: { hasTraces: true },
+      });
     } catch (error) {
       traceException(error);
-      logger.error("Failed to write hasAnyTrace cache to Redis", {
+      logger.error("Failed to persist hasTraces flag to PostgreSQL", {
         projectId,
         error,
       });
