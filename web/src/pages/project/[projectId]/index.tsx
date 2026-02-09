@@ -44,15 +44,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { useSession } from "next-auth/react";
+
+const isLangfuseEmail = (email: string | null | undefined) =>
+  Boolean(email?.toLowerCase().endsWith("@langfuse.com"));
 
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const utils = api.useUtils();
+  const { data: session } = useSession();
   const { timeRange, setTimeRange } = useDashboardDateRange();
   const { isDashboardChartsBeta, setDashboardChartsBeta } =
     useDashboardChartsBeta();
   const prevBetaRef = useRef<boolean | null>(null);
+  const showChartsBetaToggle = isLangfuseEmail(session?.user?.email ?? null);
 
   // Reload all dashboard data when the charts beta toggle is switched
   useEffect(() => {
@@ -210,7 +216,7 @@ export default function Dashboard() {
       scrollable
       headerProps={{
         title: "Home",
-        titleBadges: (
+        titleBadges: showChartsBetaToggle ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center gap-2">
@@ -233,7 +239,7 @@ export default function Dashboard() {
               Unified Recharts charts. Toggle to compare with previous charts.
             </TooltipContent>
           </Tooltip>
-        ),
+        ) : undefined,
         actionButtonsLeft: (
           <>
             <TimeRangePicker
