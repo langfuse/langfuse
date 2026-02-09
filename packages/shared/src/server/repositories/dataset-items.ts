@@ -1715,9 +1715,12 @@ export async function getDatasetVersionForRun(params: {
       // Step 1: Get the latest creation timestamp from dataset run items (ClickHouse)
       const maxCreatedAtResult = await queryClickhouse<{
         max_created_at: string | null;
+        max_dataset_item_version: string | null;
       }>({
         query: `
-          SELECT maxOrNull(created_at) as max_created_at
+          SELECT 
+            maxOrNull(created_at) as max_created_at,
+            maxOrNull(dataset_item_version) as max_dataset_item_version
           FROM dataset_run_items_rmt
           WHERE project_id = {projectId: String}
             AND dataset_id = {datasetId: String}
@@ -1735,12 +1738,19 @@ export async function getDatasetVersionForRun(params: {
       });
 
       const maxCreatedAt = maxCreatedAtResult[0]?.max_created_at ?? null;
+      const maxDatasetItemVersion =
+        maxCreatedAtResult[0]?.max_dataset_item_version ?? null;
 
-      if (!maxCreatedAt) {
+      if (!maxCreatedAt && !maxDatasetItemVersion) {
         return null;
       }
 
-      const timestamp = parseClickhouseUTCDateTimeFormat(maxCreatedAt);
+      // dataset item version takes precedence over created_at
+      // max_created_at as fallback for experiments that ran before dataset item versioning was introduced
+      const relevantTimestamp = maxDatasetItemVersion ?? maxCreatedAt;
+      const formattedTimestamp = parseClickhouseUTCDateTimeFormat(
+        relevantTimestamp as string,
+      );
       // Step 2: Resolve to dataset version using temporal query (PostgreSQL)
       const result = await prisma.$queryRaw<Array<{ valid_from: Date | null }>>(
         Prisma.sql`
@@ -1749,8 +1759,8 @@ export async function getDatasetVersionForRun(params: {
           WHERE project_id = ${params.projectId}
             AND dataset_id = ${params.datasetId}
             AND is_deleted = false
-            AND valid_from <= ${timestamp}
-            AND (valid_to IS NULL OR valid_to > ${timestamp})
+            AND valid_from <= ${formattedTimestamp}
+            AND (valid_to IS NULL OR valid_to > ${formattedTimestamp})
         `,
       );
 
