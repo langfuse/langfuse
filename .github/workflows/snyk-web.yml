@@ -1,7 +1,7 @@
 name: Snyk Container - Web
 on:
   push:
-    branches: ["production", "test-snyk-again"]
+    branches: ["production", "main"]
 
 jobs:
   snyk:
