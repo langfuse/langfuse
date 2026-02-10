@@ -118,6 +118,7 @@ export function NumericScoreTimeSeriesChart(props: {
           rowLimit={100}
           chartConfig={{
             type: "LINE_TIME_SERIES",
+            show_data_point_dots: false,
             subtle_fill: true,
           }}
           legendPosition="above"

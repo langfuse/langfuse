@@ -185,6 +185,7 @@ export const GenerationLatencyChart = ({
                         rowLimit={100}
                         chartConfig={{
                           type: "LINE_TIME_SERIES",
+                          show_data_point_dots: false,
                         }}
                         valueFormatter={latencyFormatter}
                         legendPosition="above"

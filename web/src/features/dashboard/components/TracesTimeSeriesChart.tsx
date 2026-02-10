@@ -190,6 +190,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                         rowLimit={100}
                         chartConfig={{
                           type: "AREA_TIME_SERIES",
+                          show_data_point_dots: false,
                           subtle_fill: true,
                         }}
                         legendPosition="above"
