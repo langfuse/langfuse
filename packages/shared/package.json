@@ -32,6 +32,10 @@
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
+    },
+    "./src/server/ee/ingestionMasking": {
+      "import": "./dist/src/server/ee/ingestionMasking/index.js",
+      "require": "./dist/src/server/ee/ingestionMasking/index.js"
     }
   },
   "scripts": {

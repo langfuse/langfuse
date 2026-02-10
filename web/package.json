@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.150.0",
+  "version": "3.152.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -46,7 +46,7 @@
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
-    "@modelcontextprotocol/sdk": "1.25.3",
+    "@modelcontextprotocol/sdk": "1.26.0",
     "@mui/material": "^7.3.1",
     "@mui/x-tree-view": "^8.17.0",
     "@next-auth/prisma-adapter": "^1.0.7",

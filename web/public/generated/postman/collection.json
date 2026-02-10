@@ -739,9 +739,9 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get dataset items",
+            "description": "Get dataset items. Optionally specify a version to get the items as they existed at that point in time.\nNote: If version parameter is provided, datasetName must also be provided.",
             "url": {
-              "raw": "{{baseUrl}}/api/public/dataset-items?datasetName=&sourceTraceId=&sourceObservationId=&page=&limit=",
+              "raw": "{{baseUrl}}/api/public/dataset-items?datasetName=&sourceTraceId=&sourceObservationId=&version=&page=&limit=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -765,6 +765,11 @@
                   "key": "sourceObservationId",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g., \"2026-01-21T14:35:42Z\").\nIf provided, returns state of dataset at this timestamp.\nIf not provided, returns the latest version. Requires datasetName to be specified."
                 },
                 {
                   "key": "page",
@@ -848,7 +853,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"runName\": \"example\",\n    \"runDescription\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\"\n}",
+              "raw": "{\n    \"runName\": \"example\",\n    \"runDescription\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\",\n    \"datasetVersion\": \"1994-11-05T13:15:30Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

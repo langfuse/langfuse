@@ -892,4 +892,340 @@ describe("/api/public/observations API Endpoint", () => {
     }
     runAdvancedFilterTestSuite(false); // with observations table
   });
+
+  // parentObservationId filter tests
+  describe("parentObservationId filter", () => {
+    const runParentObservationIdFilterTestSuite = (useEventsTable: boolean) => {
+      const suiteName = useEventsTable
+        ? "with events table"
+        : "with observations table";
+      const queryParam = useEventsTable ? "?useEventsTable=true&" : "?";
+
+      describe(`${suiteName}`, () => {
+        it("should filter for root observations (no parent) using 'is null'", async () => {
+          const traceId = randomUUID();
+          const timestamp = new Date();
+          const timeValue = useEventsTable
+            ? timestamp.getTime() * 1000
+            : timestamp.getTime();
+          const timeMultiplier = useEventsTable ? 1000 : 1;
+
+          const createdTrace = createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: timestamp.getTime(),
+          });
+
+          const parentObsId = randomUUID();
+          const childObsId = randomUUID();
+
+          // Create parent (root) observation and child observation
+          await createTracesCh([createdTrace]);
+
+          if (useEventsTable) {
+            await createEventsCh([
+              createEvent({
+                id: parentObsId,
+                span_id: parentObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-observation",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue,
+                parent_span_id: "", // root observation - empty string for events table
+              }),
+              createEvent({
+                id: childObsId,
+                span_id: childObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-observation",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 1000 * timeMultiplier,
+                parent_span_id: parentObsId, // has parent
+              }),
+            ]);
+          } else {
+            await createObservationsCh([
+              createObservation({
+                id: parentObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-observation",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue,
+                parent_observation_id: null, // root observation - NULL for observations table
+              }),
+              createObservation({
+                id: childObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-observation",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 1000 * timeMultiplier,
+                parent_observation_id: parentObsId, // has parent
+              }),
+            ]);
+          }
+
+          // Filter for root observations (parentObservationId is null)
+          const filterParam = JSON.stringify([
+            {
+              type: "null",
+              column: "parentObservationId",
+              operator: "is null",
+              value: "",
+            },
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+          );
+
+          expect(response.status).toBe(200);
+          expect(response.body.data.length).toBe(1);
+          expect(response.body.data[0]?.name).toBe("parent-observation");
+          expect(response.body.data[0]?.id).toBe(parentObsId);
+        });
+
+        it("should filter for non-root observations (has parent) using 'is not null'", async () => {
+          const traceId = randomUUID();
+          const timestamp = new Date();
+          const timeValue = useEventsTable
+            ? timestamp.getTime() * 1000
+            : timestamp.getTime();
+          const timeMultiplier = useEventsTable ? 1000 : 1;
+
+          const createdTrace = createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: timestamp.getTime(),
+          });
+
+          const parentObsId = randomUUID();
+          const childObsId = randomUUID();
+
+          await createTracesCh([createdTrace]);
+
+          if (useEventsTable) {
+            await createEventsCh([
+              createEvent({
+                id: parentObsId,
+                span_id: parentObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-observation",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue,
+                parent_span_id: "", // root observation
+              }),
+              createEvent({
+                id: childObsId,
+                span_id: childObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-observation",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 1000 * timeMultiplier,
+                parent_span_id: parentObsId, // has parent
+              }),
+            ]);
+          } else {
+            await createObservationsCh([
+              createObservation({
+                id: parentObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-observation",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue,
+                parent_observation_id: null, // root observation
+              }),
+              createObservation({
+                id: childObsId,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-observation",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 1000 * timeMultiplier,
+                parent_observation_id: parentObsId, // has parent
+              }),
+            ]);
+          }
+
+          // Filter for non-root observations (parentObservationId is not null)
+          const filterParam = JSON.stringify([
+            {
+              type: "null",
+              column: "parentObservationId",
+              operator: "is not null",
+              value: "",
+            },
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+          );
+
+          expect(response.status).toBe(200);
+          expect(response.body.data.length).toBe(1);
+          expect(response.body.data[0]?.name).toBe("child-observation");
+          expect(response.body.data[0]?.id).toBe(childObsId);
+        });
+
+        it("should filter by specific parent ID using string equals", async () => {
+          const traceId = randomUUID();
+          const timestamp = new Date();
+          const timeValue = useEventsTable
+            ? timestamp.getTime() * 1000
+            : timestamp.getTime();
+          const timeMultiplier = useEventsTable ? 1000 : 1;
+
+          const createdTrace = createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: timestamp.getTime(),
+          });
+
+          const parent1Id = randomUUID();
+          const parent2Id = randomUUID();
+          const child1Id = randomUUID();
+          const child2Id = randomUUID();
+
+          await createTracesCh([createdTrace]);
+
+          if (useEventsTable) {
+            await createEventsCh([
+              createEvent({
+                id: parent1Id,
+                span_id: parent1Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-1",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue,
+                parent_span_id: "",
+              }),
+              createEvent({
+                id: parent2Id,
+                span_id: parent2Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-2",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue + 100 * timeMultiplier,
+                parent_span_id: "",
+              }),
+              createEvent({
+                id: child1Id,
+                span_id: child1Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-of-parent-1",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 1000 * timeMultiplier,
+                parent_span_id: parent1Id,
+              }),
+              createEvent({
+                id: child2Id,
+                span_id: child2Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-of-parent-2",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 2000 * timeMultiplier,
+                parent_span_id: parent2Id,
+              }),
+            ]);
+          } else {
+            await createObservationsCh([
+              createObservation({
+                id: parent1Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-1",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue,
+                parent_observation_id: null,
+              }),
+              createObservation({
+                id: parent2Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "parent-2",
+                type: "SPAN",
+                level: "DEFAULT",
+                start_time: timeValue + 100 * timeMultiplier,
+                parent_observation_id: null,
+              }),
+              createObservation({
+                id: child1Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-of-parent-1",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 1000 * timeMultiplier,
+                parent_observation_id: parent1Id,
+              }),
+              createObservation({
+                id: child2Id,
+                trace_id: traceId,
+                project_id: projectId,
+                name: "child-of-parent-2",
+                type: "GENERATION",
+                level: "DEFAULT",
+                start_time: timeValue + 2000 * timeMultiplier,
+                parent_observation_id: parent2Id,
+              }),
+            ]);
+          }
+
+          // Filter for children of parent-1 only
+          const filterParam = JSON.stringify([
+            {
+              type: "string",
+              column: "parentObservationId",
+              operator: "=",
+              value: parent1Id,
+            },
+          ]);
+
+          const response = await makeZodVerifiedAPICall(
+            GetObservationsV1Response,
+            "GET",
+            `/api/public/observations${queryParam}traceId=${traceId}&filter=${encodeURIComponent(filterParam)}`,
+          );
+
+          expect(response.status).toBe(200);
+          expect(response.body.data.length).toBe(1);
+          expect(response.body.data[0]?.name).toBe("child-of-parent-1");
+          expect(response.body.data[0]?.id).toBe(child1Id);
+        });
+      });
+    };
+
+    // Run parentObservationId filter tests for both implementations
+    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+      runParentObservationIdFilterTestSuite(true); // with events table
+    }
+    runParentObservationIdFilterTestSuite(false); // with observations table
+  });
 });

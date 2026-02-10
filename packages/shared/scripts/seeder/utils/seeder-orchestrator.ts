@@ -31,7 +31,7 @@ const DATASET_RUN_SCORE_NAMES = [
  * Orchestrates seeding operations across ClickHouse and PostgreSQL.
  *
  * Use createXxxData() for specific data types:
- * - createDatasetExperimentData(): Dataset runs in langfuse-prompt-experiments env
+ * - createDatasetExperimentData(): Dataset runs in langfuse-prompt-experiment env
  * - createEvaluationData(): Evaluation data in langfuse-evaluation env
  * - createSyntheticData(): Large synthetic data in default env
  * - executeFullSeed(): All data types together
