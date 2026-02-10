@@ -1,28 +1,26 @@
 name: Snyk Container
 on:
   push:
-    branches: ["main"]
+    branches: ["production", "test-snyk-again"]
 
 jobs:
   snyk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Scan web image with Snyk
+      - uses: actions/checkout@v2
+      - name: Run Snyk to check Docker image for vulnerabilities
+        # Snyk can be used to break the build when it detects vulnerabilities.
+        # In this case we want to upload the issues to GitHub Code Scanning
+        continue-on-error: true
         uses: snyk/actions/docker@master
-        continue-on-error: true # let upload step always run
         env:
+          # In order to use the Snyk Action you will need to have a Snyk API token.
+          # See https://docs.snyk.io/integrations/ci-cd-integrations/github-actions-integration#getting-your-snyk-token
+          # or you can sign up for free at https://snyk.io/login
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: langfuse/langfuse # pulled from Docker Hub
-          args: --severity-threshold=high # (any extra CLI flags, but NO --file)
-
-      - name: Scan worker image with Snyk
-        uses: snyk/actions/docker@master
-        continue-on-error: true # let upload step always run
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          image: langfuse/langfuse
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          image: langfuse/langfuse-worker # pulled from Docker Hub
-          args: --severity-threshold=high # (any extra CLI flags, but NO --file)
+          sarif_file: snyk.sarif
