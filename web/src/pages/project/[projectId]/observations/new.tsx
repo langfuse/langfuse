@@ -29,6 +29,7 @@ export default function Events() {
         },
         refetchInterval: project?.hasTraces ? false : 10_000,
         initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 

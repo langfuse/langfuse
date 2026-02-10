@@ -105,6 +105,7 @@ export default function TracesSetupPage() {
         enabled: !!projectId,
         refetchInterval: project?.hasTraces ? false : 5000,
         initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
         trpc: {
           context: {
             skipBatch: true,
