@@ -54,9 +54,25 @@ export const Chart = ({
   const renderedData = useMemo(() => {
     return data.map((item) => {
       if (!item.time_dimension) return { ...item, time_dimension: undefined };
-      const parsed = new Date(item.time_dimension);
-      const time_dimension = Number.isNaN(parsed.getTime())
-        ? item.time_dimension
+      const value = item.time_dimension;
+      const looksLikeIso =
+        value.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(value);
+      if (!looksLikeIso) {
+        return { ...item, time_dimension: value };
+      }
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return { ...item };
+      const isMidnight =
+        parsed.getUTCHours() === 0 &&
+        parsed.getUTCMinutes() === 0 &&
+        parsed.getUTCSeconds() === 0 &&
+        parsed.getUTCMilliseconds() === 0;
+      const time_dimension = isMidnight
+        ? parsed.toLocaleDateString("en-US", {
+            year: "2-digit",
+            month: "numeric",
+            day: "numeric",
+          })
         : parsed.toLocaleTimeString("en-US", {
             year: "2-digit",
             month: "numeric",
