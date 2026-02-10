@@ -12,14 +12,9 @@ export interface ChartProps {
   data: DataPoint[];
   config?: ChartConfig;
   accessibilityLayer?: boolean;
-  /** Optional formatter for tooltip values (e.g. USD, compact number). */
   valueFormatter?: (value: number) => string;
-  /** Legend placement. 'above' = horizontal legend row above the chart. */
   legendPosition?: LegendPosition;
-  /** Show numeric value to the right of each bar (horizontal bar chart). */
   showValueLabels?: boolean;
-  /** Show dots on line/area data points. Default true. */
   showDataPointDots?: boolean;
-  /** Use reduced fill opacity for bars/areas. Default false. */
   subtleFill?: boolean;
 }

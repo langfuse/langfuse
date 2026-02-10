@@ -12,7 +12,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
 
 export const TracesBarListChart = ({
   className,
@@ -102,7 +102,7 @@ export const TracesBarListChart = ({
     ? transformedTraces.slice(0, maxNumberOfEntries.expanded)
     : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
 
-  // Height scales with bar count so each bar keeps the same height when expanding (legacy behavior)
+  // Height scales with bar count so each bar keeps the same height when expanding, otherwise recharts chart would resize to fit into the container.
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;
 

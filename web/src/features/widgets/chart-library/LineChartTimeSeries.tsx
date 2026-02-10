@@ -48,9 +48,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   };
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col">
+    <div className="flex size-full min-w-0 flex-col">
       {legendPosition === "above" && dimensions.length > 0 && (
-        <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-3">
+        <div className="min-w-0 shrink-0 overflow-x-auto pb-3">
           <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
             {dimensions.map((dimension, index) => {
               const isHighlighted =

@@ -15,7 +15,7 @@ import {
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
+import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
 import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 

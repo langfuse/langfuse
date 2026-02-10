@@ -40,7 +40,7 @@ import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
+import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
 import { useDashboardChartsBeta } from "@/src/features/dashboard/hooks/useDashboardChartsBeta";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";

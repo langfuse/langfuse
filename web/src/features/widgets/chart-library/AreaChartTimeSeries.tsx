@@ -13,10 +13,6 @@ import {
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
-/**
- * AreaChartTimeSeries component
- * Same data shape as LineChartTimeSeries; uses Recharts Area for filled series.
- */
 export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   data,
   config = {

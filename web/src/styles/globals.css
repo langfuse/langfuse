@@ -74,7 +74,6 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
-    /* Legacy chart palette (matches getColorsForCategories: indigo, cyan, zinc, purple, yellow, red, lime, pink) */
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
@@ -171,7 +170,6 @@
     --sidebar-border: 217.2 32.6% 26.5%;
     --sidebar-ring: 224.3 76.3% 46%;
 
-    /* Legacy chart palette (same as light for consistent chart colors) */
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;

@@ -13,7 +13,7 @@ import { padChartData } from "@/src/features/dashboard/lib/score-analytics-utils
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Tooltip } from "@/src/features/dashboard/components/Tooltip";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/legacy-chart-adapters";
+import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
 import { numberFormatter } from "@/src/utils/numbers";
 
 export function NumericScoreHistogram(props: {
