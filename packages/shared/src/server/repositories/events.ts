@@ -2554,6 +2554,9 @@ export const getEventsForAnalyticsIntegrations = async function* (
       mixpanel_session_id: record.mixpanel_session_id ?? null,
     } satisfies AnalyticsEventEvent;
   }
+};
+
+/*
  * Check if any session exists in events table
  * Filters for non-empty session_id
  */
