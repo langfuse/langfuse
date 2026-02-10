@@ -3239,6 +3239,34 @@
     ]
   },
   {
+    "id": "13458bc0-1c20-44c2-8753-172f54b67647",
+    "modelName": "claude-opus-4-6",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
+    "createdAt": "2026-02-09T00:00:00.000Z",
+    "updatedAt": "2026-02-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "13458bc0-1c20-44c2-8753-172f54b67647_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_tokens": 5e-6,
+          "output": 25e-6,
+          "output_tokens": 25e-6,
+          "cache_creation_input_tokens": 6.25e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "cmig1hb7i000104l72qrzgc6h",
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-pro)$",
