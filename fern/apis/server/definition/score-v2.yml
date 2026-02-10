@@ -59,6 +59,9 @@ service:
           traceId:
             type: optional<string>
             docs: Retrieve only scores with a specific traceId.
+          observationId:
+            type: optional<string>
+            docs: Comma-separated list of observation IDs to filter scores by.
           queueId:
             type: optional<string>
             docs: Retrieve only scores with a specific annotation queueId.
