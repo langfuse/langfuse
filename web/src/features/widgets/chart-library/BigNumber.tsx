@@ -2,6 +2,10 @@ import React, { useEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
+// Helper function to strip trailing zeros after decimal point while preserving integer zeros
+const stripTrailingDecimalZeros = (numStr: string): string =>
+  numStr.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+
 // Format large numbers with appropriate units and dynamic decimal places
 const formatBigNumber = (
   value: number,
@@ -29,28 +33,28 @@ const formatBigNumber = (
     const baseValue = value / 1e12;
     const decimals = getOptimalDecimalPlaces(baseValue, "T", maxCharacters);
     return {
-      formatted: baseValue.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
       unit: "T",
     };
   } else if (absValue >= 1e9) {
     const baseValue = value / 1e9;
     const decimals = getOptimalDecimalPlaces(baseValue, "B", maxCharacters);
     return {
-      formatted: baseValue.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
       unit: "B",
     };
   } else if (absValue >= 1e6) {
     const baseValue = value / 1e6;
     const decimals = getOptimalDecimalPlaces(baseValue, "M", maxCharacters);
     return {
-      formatted: baseValue.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
       unit: "M",
     };
   } else if (absValue >= 1e3) {
     const baseValue = value / 1e3;
     const decimals = getOptimalDecimalPlaces(baseValue, "K", maxCharacters);
     return {
-      formatted: baseValue.toFixed(decimals).replace(/\.?0+$/, ""),
+      formatted: stripTrailingDecimalZeros(baseValue.toFixed(decimals)),
       unit: "K",
     };
   } else if (absValue >= 1) {
@@ -68,9 +72,9 @@ const formatBigNumber = (
         )
       : 2;
     return {
-      formatted: value
-        .toFixed(Math.max(0, Math.min(3, decimals)))
-        .replace(/\.?0+$/, ""),
+      formatted: stripTrailingDecimalZeros(
+        value.toFixed(Math.max(0, Math.min(3, decimals))),
+      ),
       unit: "",
     };
   } else if (absValue > 0) {
@@ -87,9 +91,9 @@ const formatBigNumber = (
     const decimals = Math.min(neededDecimals, maxAllowedDecimals, 8); // Max 8 decimal places
 
     return {
-      formatted: value
-        .toFixed(Math.max(0, Math.min(3, decimals)))
-        .replace(/\.?0+$/, ""),
+      formatted: stripTrailingDecimalZeros(
+        value.toFixed(Math.max(0, Math.min(3, decimals))),
+      ),
       unit: "",
     };
   } else {

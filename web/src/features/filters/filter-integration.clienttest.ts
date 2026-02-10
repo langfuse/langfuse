@@ -188,13 +188,35 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
         ],
       },
       {
-        description: "pipe characters in array values",
+        description: "pipe as delimiter between array values",
         filters: [
           {
             column: "period",
             type: "stringOptions",
             operator: "any of",
             value: ["triassic", "jurassic"],
+          },
+        ],
+      },
+      {
+        description: "literal pipe characters within values (issue #11757)",
+        filters: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["Builder | Short Research"],
+          },
+        ],
+      },
+      {
+        description: "multiple values with literal pipes",
+        filters: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["Builder | Short Research", "Another | Value"],
           },
         ],
       },

@@ -759,7 +759,21 @@ export default function TracesTable({
       header: "Tags",
       size: 150,
       headerTooltip: {
-        description: "Group traces with tags.",
+        description: (
+          <>
+            Group traces with tags. Read more about implementing tags{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/tags"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
@@ -784,7 +798,22 @@ export default function TracesTable({
       header: "Metadata",
       size: 400,
       headerTooltip: {
-        description: "Add metadata to traces to track additional information.",
+        description: (
+          <>
+            Add metadata to traces to track additional information. Read more
+            about adding metadata{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/metadata"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/metadata",
       },
       cell: ({ row }) => {
@@ -827,7 +856,22 @@ export default function TracesTable({
       header: "Session",
       size: 150,
       headerTooltip: {
-        description: "Add `sessionId` to traces to track sessions.",
+        description: (
+          <>
+            Group traces into sessions to track longer conversations/workflows.
+            Read more about sessions{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/sessions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/sessions",
       },
       cell: ({ row }) => {
@@ -846,7 +890,22 @@ export default function TracesTable({
       id: "userId",
       size: 150,
       headerTooltip: {
-        description: "Add `userId` to traces to track users.",
+        description: (
+          <>
+            Add <code>userId</code> to traces to track users. Read more about
+            user tracking{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/users"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/users",
       },
       cell: ({ row }) => {
@@ -908,7 +967,21 @@ export default function TracesTable({
       header: "Version",
       size: 100,
       headerTooltip: {
-        description: "Track changes via the version tag.",
+        description: (
+          <>
+            Track changes via the version tag. Read more about versions{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/releases-and-versioning"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
@@ -921,7 +994,22 @@ export default function TracesTable({
       header: "Release",
       size: 100,
       headerTooltip: {
-        description: "Track changes to your application via the release tag.",
+        description: (
+          <>
+            Track changes to your application via the release tag. Read more
+            about the release tag{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/releases-and-versioning"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,

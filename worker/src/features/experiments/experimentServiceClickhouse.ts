@@ -6,6 +6,7 @@ import {
   eventTypes,
   ExperimentCreateEventSchema,
   fetchLLMCompletion,
+  GenerationDetails,
   getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
@@ -30,6 +31,7 @@ import {
 } from "@langfuse/shared";
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
+import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -85,6 +87,7 @@ async function processItem(
       datasetId: datasetItem.datasetId,
       runId: config.runId,
       datasetItemId: datasetItem.id,
+      datasetVersion: datasetItem.validFrom.toISOString(),
     },
   };
 
@@ -124,6 +127,20 @@ async function processItem(
   if (!llmResult.success) return { success: false };
 
   /********************
+   * SCHEDULE EXPERIMENT OBSERVATION EVALS *
+   ********************/
+
+  if (llmResult.generationDetails) {
+    await scheduleExperimentObservationEvals({
+      projectId,
+      traceId: newTraceId,
+      datasetItem,
+      config,
+      generationDetails: llmResult.generationDetails,
+    });
+  }
+
+  /********************
    * ASYNC RUN ITEM EVAL *
    ********************/
 
@@ -134,6 +151,7 @@ async function processItem(
         payload: {
           projectId,
           datasetItemId: datasetItem.id,
+          datasetItemValidFrom: datasetItem.validFrom,
           traceId: newTraceId,
         },
         id: randomUUID(),
@@ -151,7 +169,7 @@ async function processLLMCall(
   traceId: string,
   datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
   config: PromptExperimentConfig,
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; generationDetails?: GenerationDetails }> {
   let messages: ChatMessage[] = [];
   // Extract and replace variables in prompt
   try {
@@ -169,6 +187,8 @@ async function processLLMCall(
     return { success: false };
   }
 
+  let generationDetails: GenerationDetails | null = null;
+
   const traceSinkParams: TraceSinkParams = {
     environment: LangfuseInternalTraceEnvironment.PromptExperiments,
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
@@ -182,6 +202,9 @@ async function processLLMCall(
       experiment_run_name: config.experimentRunName,
     },
     prompt: config.prompt,
+    onGenerationComplete: (details) => {
+      generationDetails = details;
+    },
   };
 
   await fetchLLMCompletion({
@@ -199,7 +222,10 @@ async function processLLMCall(
     traceSinkParams,
   }).catch(); // catch errors and do not retry
 
-  return { success: true };
+  return {
+    success: true,
+    generationDetails: generationDetails ?? undefined,
+  };
 }
 
 async function getItemsToProcess(
@@ -208,13 +234,14 @@ async function getItemsToProcess(
   runId: string,
   config: PromptExperimentConfig,
 ) {
-  // Fetch all dataset items
+  // Fetch all dataset items at the specified version (if provided)
   const datasetItems = await getDatasetItems({
     projectId,
     filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],
       status: "ACTIVE",
     }),
+    version: config.datasetVersion,
     includeIO: true,
   });
 
@@ -399,6 +426,7 @@ async function createAllDatasetRunItemsWithConfigError(
           datasetId: datasetItem.datasetId,
           runId: runId,
           datasetItemId: datasetItem.id,
+          datasetVersion: datasetItem.validFrom.toISOString(),
         },
       },
       // trace

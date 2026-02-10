@@ -128,6 +128,7 @@ model Project {
   deletedAt                 DateTime?                   @map("deleted_at")
   name                      String
   retentionDays             Int?                        @map("retention_days")
+  hasTraces                 Boolean                     @default(false) @map("has_traces")
   metadata                  Json?
   projectMembers            ProjectMembership[]
   organization              Organization                @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
@@ -1013,6 +1014,8 @@ model JobExecution {
 
   jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
+  jobInputDatasetItemValidFrom DateTime? @map("job_input_dataset_item_valid_from")
+
   jobOutputScoreId String? @map("job_output_score_id")
 
   executionTraceId String? @map("execution_trace_id")
@@ -1219,6 +1222,7 @@ model Media {
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
+  @@index([projectId, createdAt])
   @@map("media")
 }
 
@@ -1547,7 +1551,7 @@ model PendingDeletion {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  @@index([projectId, object, isDeleted])
+  @@index([projectId, object, isDeleted, objectId, id])
   @@index([objectId, object])
   @@map("pending_deletions")
 }

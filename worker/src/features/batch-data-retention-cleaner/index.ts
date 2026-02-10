@@ -150,6 +150,15 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   protected async execute(): Promise<void> {
     const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
 
+    // Reset gauges before attempting lock - ensures they don't appear stuck
+    // if another worker holds the lock
+    recordGauge(`${METRIC_PREFIX}.pending_projects`, 0, {
+      table: this.tableName,
+    });
+    recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0, {
+      table: this.tableName,
+    });
+
     await this.withLock(
       async () => {
         // Step 1: Get project workloads (chunked CH counts + PG retention config)

@@ -73,7 +73,6 @@ import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
-import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
 import {
   BatchProjectCleaner,
   BATCH_DELETION_TABLES,
@@ -83,6 +82,7 @@ import {
   BATCH_DATA_RETENTION_TABLES,
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 
 const app = express();
 
@@ -557,11 +557,6 @@ if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
   );
 }
 
-if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
-  // Start the ClickHouse mutation monitor after all workers are registered
-  MutationMonitor.start();
-}
-
 // Batch project cleaners for bulk deletion of ClickHouse data
 export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
@@ -602,6 +597,14 @@ export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   mediaRetentionCleaner = new MediaRetentionCleaner();
   mediaRetentionCleaner.start();
+}
+
+// Batch trace deletion cleaner for supplementary trace deletion
+export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
+
+if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
+  batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
+  batchTraceDeletionCleaner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

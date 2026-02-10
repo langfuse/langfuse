@@ -11,12 +11,14 @@ import {
 } from "@/src/features/navigation/utils/tracing-tabs";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled } = useV4Beta();
   const [, setQueryParams] = useQueryParams({ viewMode: StringParam });
+  const { project } = useQueryProject();
 
   // Clear viewMode query when beta is turned off (e.g. from sidebar)
   useEffect(() => {
@@ -26,6 +28,7 @@ export default function Traces() {
   }, [isBetaEnabled, setQueryParams]);
 
   // Check if the user has tracing configured
+  // Skip polling entirely if the project flag is already set in the session
   const { data: hasTracingConfigured, isLoading } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
@@ -36,7 +39,9 @@ export default function Traces() {
             skipBatch: true,
           },
         },
-        refetchInterval: 10_000,
+        refetchInterval: project?.hasTraces ? false : 10_000,
+        initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 
@@ -49,7 +54,7 @@ export default function Traces() {
           title: "Tracing",
           help: {
             description:
-              "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+              "A trace represents a single function/api invocation. Traces contain observations. See [docs](https://langfuse.com/docs/observability/data-model) to learn more.",
             href: "https://langfuse.com/docs/observability/data-model",
           },
         }}
@@ -65,8 +70,22 @@ export default function Traces() {
       headerProps={{
         title: "Tracing",
         help: {
-          description:
-            "A trace represents a single function/api invocation. Traces contain observations. See docs to learn more.",
+          description: (
+            <>
+              A trace represents a single function/api invocation. Traces
+              contain observations. See{" "}
+              <a
+                href="https://langfuse.com/docs/observability/data-model"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-primary/30 hover:decoration-primary"
+                onClick={(e) => e.stopPropagation()}
+              >
+                docs
+              </a>{" "}
+              to learn more.
+            </>
+          ),
           href: "https://langfuse.com/docs/observability/data-model",
         },
         tabsProps: isBetaEnabled

@@ -33,6 +33,13 @@ export type ColumnDefinition =
   | {
       name: string;
       id: string;
+      type: "positionInTrace";
+      internal: string;
+      nullable?: boolean;
+    }
+  | {
+      name: string;
+      id: string;
       type: "stringOptions";
       options: Array<SingleValueOption>;
       internal: string;
