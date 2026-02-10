@@ -35,6 +35,8 @@ import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
+import { traceException } from "../instrumentation";
+import { prisma } from "../../db";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -311,7 +313,24 @@ export const getTracesBySessionId = async (
 };
 
 export const hasAnyTrace = async (projectId: string) => {
-  return measureAndReturn({
+  // Check PostgreSQL flag first — once set, it's never reverted
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { hasTraces: true },
+    });
+    if (project?.hasTraces) {
+      return true;
+    }
+  } catch (error) {
+    traceException(error);
+    logger.error("Failed to read hasTraces flag from PostgreSQL", {
+      projectId,
+      error,
+    });
+  }
+
+  const result = await measureAndReturn({
     operationName: "hasAnyTrace",
     projectId,
     input: {
@@ -338,11 +357,33 @@ export const hasAnyTrace = async (projectId: string) => {
           projectId: input.projectId,
         },
         tags: input.tags,
+        clickhouseSettings: {
+          max_threads: 1,
+        },
       });
 
       return rows.length > 0;
     },
   });
+
+  // Persist positive result in PostgreSQL — once a project has traces, it stays true
+  // Only update if not already set to avoid unnecessary writes
+  if (result) {
+    try {
+      await prisma.project.updateMany({
+        where: { id: projectId, hasTraces: false },
+        data: { hasTraces: true },
+      });
+    } catch (error) {
+      traceException(error);
+      logger.error("Failed to persist hasTraces flag to PostgreSQL", {
+        projectId,
+        error,
+      });
+    }
+  }
+
+  return result;
 };
 
 export const getTraceCountsByProjectInCreationInterval = async ({
