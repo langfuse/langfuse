@@ -27,4 +27,7 @@ export const mixpanelIntegrationFormSchema = z.object({
       "Mixpanel Project Token is required. You can find it in your Mixpanel project settings.",
     ),
   enabled: z.boolean(),
+  exportSource: z
+    .enum(["TRACES_OBSERVATIONS", "TRACES_OBSERVATIONS_EVENTS", "EVENTS"])
+    .default("EVENTS"),
 });

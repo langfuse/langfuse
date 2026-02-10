@@ -79,6 +79,8 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
         return "Note: Filters on observation-level columns (Level, Tokens, Cost, Latency) and Comments are not included in trace exports. You may receive more data than expected.";
       case BatchTableNames.Observations:
         return "Note: Filters on trace-level columns (Trace Name, Trace Tags, User ID, Trace Environment) and Comments are not included in observation exports. You may receive more data than expected.";
+      case BatchTableNames.Events:
+        return "Note: Filters on Comments are not included in event exports. You may receive more data than expected.";
       case BatchTableNames.Sessions:
         return "Note: Filters on Comments are not included in session exports. You may receive more data than expected.";
       case BatchTableNames.AuditLogs:
