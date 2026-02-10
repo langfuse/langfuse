@@ -154,7 +154,9 @@ const MixpanelIntegrationSettingsForm = ({
       enabled: state?.enabled ?? false,
       exportSource:
         state?.exportSource ??
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        (isBetaEnabled
+          ? AnalyticsIntegrationExportSource.EVENTS
+          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
     },
     disabled: isLoading,
   });
@@ -168,7 +170,9 @@ const MixpanelIntegrationSettingsForm = ({
       enabled: state?.enabled ?? false,
       exportSource:
         state?.exportSource ??
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        (isBetaEnabled
+          ? AnalyticsIntegrationExportSource.EVENTS
+          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);

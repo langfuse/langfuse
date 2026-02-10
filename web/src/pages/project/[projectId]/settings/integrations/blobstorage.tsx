@@ -200,7 +200,9 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource:
         state?.exportSource ||
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        (isBetaEnabled
+          ? AnalyticsIntegrationExportSource.EVENTS
+          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
     },
     disabled: isLoading,
   });
@@ -226,7 +228,9 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource:
         state?.exportSource ||
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        (isBetaEnabled
+          ? AnalyticsIntegrationExportSource.EVENTS
+          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
