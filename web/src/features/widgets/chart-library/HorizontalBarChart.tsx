@@ -27,6 +27,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   showValueLabels = false,
   valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   return (
     <ChartContainer config={config} className="min-h-0 w-full">
@@ -60,6 +61,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           radius={[0, 4, 4, 0]}
           maxBarSize={28}
           className="fill-[--color-metric]"
+          fillOpacity={subtleFill ? 0.3 : 1}
         >
           {showValueLabels ? (
             <LabelList

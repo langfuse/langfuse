@@ -116,7 +116,7 @@ export function NumericScoreTimeSeriesChart(props: {
           chartType="LINE_TIME_SERIES"
           data={timeSeriesToDataPoints(extractedScores, props.agg)}
           rowLimit={100}
-          chartConfig={{ type: "LINE_TIME_SERIES" }}
+          chartConfig={{ type: "LINE_TIME_SERIES", subtle_fill: true }}
           legendPosition="above"
         />
       </div>

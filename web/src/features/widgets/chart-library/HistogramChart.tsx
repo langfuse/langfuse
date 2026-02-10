@@ -16,7 +16,13 @@ interface HistogramDataPoint {
   height?: number;
 }
 
-const HistogramChart = ({ data }: { data: DataPoint[] }) => {
+const HistogramChart = ({
+  data,
+  subtleFill = false,
+}: {
+  data: DataPoint[];
+  subtleFill?: boolean;
+}) => {
   const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
     if (!data.length) return [];
 
@@ -87,6 +93,7 @@ const HistogramChart = ({ data }: { data: DataPoint[] }) => {
             dataKey="count"
             fill="hsl(var(--chart-1))"
             radius={[2, 2, 0, 0]}
+            fillOpacity={subtleFill ? 0.3 : 1}
           />
           <ChartTooltip
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}

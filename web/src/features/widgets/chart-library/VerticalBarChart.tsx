@@ -26,6 +26,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   return (
     <ChartContainer config={config}>
@@ -49,6 +50,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           dataKey="metric"
           radius={[4, 4, 0, 0]}
           className="fill-[--color-metric]"
+          fillOpacity={subtleFill ? 0.3 : 1}
         />
         <ChartTooltip
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}

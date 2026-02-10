@@ -202,6 +202,7 @@ export const UserChart = ({
                             type: "HORIZONTAL_BAR",
                             row_limit: maxNumberOfEntries.expanded,
                             show_value_labels: true,
+                            subtle_fill: true,
                           }}
                           valueFormatter={item.formatter}
                         />

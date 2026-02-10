@@ -39,6 +39,7 @@ export const Chart = ({
     defaultSort?: OrderByState;
     show_value_labels?: boolean;
     show_data_point_dots?: boolean;
+    subtle_fill?: boolean;
   };
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
@@ -84,6 +85,7 @@ export const Chart = ({
             data={renderedData}
             valueFormatter={valueFormatter}
             legendPosition={legendPosition}
+            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "BAR_TIME_SERIES":
@@ -91,6 +93,7 @@ export const Chart = ({
           <VerticalBarChartTimeSeries
             data={renderedData}
             valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HORIZONTAL_BAR":
@@ -99,6 +102,7 @@ export const Chart = ({
             data={renderedData.slice(0, rowLimit)}
             showValueLabels={chartConfig?.show_value_labels}
             valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "VERTICAL_BAR":
@@ -106,6 +110,7 @@ export const Chart = ({
           <VerticalBarChart
             data={renderedData.slice(0, rowLimit)}
             valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "PIE":
@@ -113,10 +118,16 @@ export const Chart = ({
           <PieChart
             data={renderedData.slice(0, rowLimit)}
             valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HISTOGRAM":
-        return <HistogramChart data={renderedData} />;
+        return (
+          <HistogramChart
+            data={renderedData}
+            subtleFill={chartConfig?.subtle_fill}
+          />
+        );
       case "NUMBER": {
         return <BigNumber data={renderedData} />;
       }

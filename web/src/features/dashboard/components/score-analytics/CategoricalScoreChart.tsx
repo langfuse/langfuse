@@ -111,7 +111,7 @@ export function CategoricalScoreChart(props: {
           chartType="VERTICAL_BAR"
           data={scoreChartDataToDataPoints(chartData, chartLabels)}
           rowLimit={100}
-          chartConfig={{ type: "VERTICAL_BAR", row_limit: 100 }}
+          chartConfig={{ type: "VERTICAL_BAR", row_limit: 100, subtle_fill: true }}
         />
       </div>
     );

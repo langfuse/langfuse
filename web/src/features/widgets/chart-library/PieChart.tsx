@@ -4,7 +4,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { Label, Pie, PieChart as PieChartComponent } from "recharts";
+import { Cell, Label, Pie, PieChart as PieChartComponent } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 
@@ -26,6 +26,7 @@ export const PieChart: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   // Calculate total metric value for center label
   const totalValue = useMemo(() => {
@@ -66,6 +67,13 @@ export const PieChart: React.FC<ChartProps> = ({
           paddingAngle={2}
           strokeWidth={5}
         >
+          {chartData.map((entry) => (
+            <Cell
+              key={entry.name}
+              fill={entry.fill}
+              fillOpacity={subtleFill ? 0.3 : 1}
+            />
+          ))}
           {/* Label in the center of the donut */}
           {data.length > 0 && (
             <Label

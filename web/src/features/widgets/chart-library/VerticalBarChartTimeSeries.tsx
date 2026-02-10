@@ -30,6 +30,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   },
   accessibilityLayer = true,
   valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
@@ -57,6 +58,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             dataKey={dimension}
             stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
             fill={`hsl(var(--chart-${(index % 8) + 1}))`}
+            fillOpacity={subtleFill ? 0.3 : 1}
             // Stack bars if there are multiple dimensions
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />

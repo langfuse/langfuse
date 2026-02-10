@@ -20,4 +20,6 @@ export interface ChartProps {
   showValueLabels?: boolean;
   /** Show dots on line/area data points. Default true. */
   showDataPointDots?: boolean;
+  /** Use reduced fill opacity for bars/areas. Default false. */
+  subtleFill?: boolean;
 }

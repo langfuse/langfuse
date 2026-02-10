@@ -30,6 +30,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   valueFormatter,
   legendPosition = "none",
+  subtleFill = false,
 }) => {
   const [highlightedDimension, setHighlightedDimension] = useState<
     string | null
@@ -111,7 +112,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 dataKey={dimension}
                 stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
                 fill={`hsl(var(--chart-${(index % 8) + 1}))`}
-                fillOpacity={isMuted ? 0.15 : 0.75}
+                fillOpacity={isMuted ? 0.15 : subtleFill ? 0.3 : 0.75}
                 strokeWidth={2.5}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls

@@ -142,6 +142,7 @@ export const TracesBarListChart = ({
                   chartConfig={{
                     type: "HORIZONTAL_BAR",
                     row_limit: maxNumberOfEntries.expanded,
+                    subtle_fill: true,
                     show_value_labels: true,
                   }}
                   valueFormatter={(n) => numberFormatter(n, 0)}
