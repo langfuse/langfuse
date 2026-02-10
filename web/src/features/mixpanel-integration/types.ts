@@ -1,3 +1,4 @@
+import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
 import { z } from "zod/v4";
 
 export const MIXPANEL_REGIONS = [
@@ -28,6 +29,6 @@ export const mixpanelIntegrationFormSchema = z.object({
     ),
   enabled: z.boolean(),
   exportSource: z
-    .enum(["TRACES_OBSERVATIONS", "TRACES_OBSERVATIONS_EVENTS", "EVENTS"])
-    .default("EVENTS"),
+    .enum(AnalyticsIntegrationExportSource)
+    .default(AnalyticsIntegrationExportSource.EVENTS),
 });

@@ -3,7 +3,7 @@ import type {
   AnalyticsTraceEvent,
   AnalyticsGenerationEvent,
   AnalyticsScoreEvent,
-  AnalyticsEventEvent,
+  AnalyticsObservationEvent,
 } from "@langfuse/shared/src/server";
 
 // UUID v5 namespace for PostHog
@@ -123,7 +123,7 @@ export const transformScoreForPostHog = (
 };
 
 export const transformEventForPostHog = (
-  event: AnalyticsEventEvent,
+  event: AnalyticsObservationEvent,
   projectId: string,
 ): PostHogEvent => {
   const uuid = v5(`${projectId}-${event.langfuse_id}`, POSTHOG_UUID_NAMESPACE);
@@ -136,7 +136,7 @@ export const transformEventForPostHog = (
     distinctId: event.langfuse_user_id
       ? (event.langfuse_user_id as string)
       : uuid,
-    event: "langfuse event",
+    event: "langfuse observation",
     properties: {
       ...otherProps,
       $session_id: posthog_session_id ?? null,

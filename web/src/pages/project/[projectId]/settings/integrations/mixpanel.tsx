@@ -32,7 +32,10 @@ import {
   MIXPANEL_REGIONS,
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
-import { EXPORT_SOURCE_OPTIONS } from "@langfuse/shared";
+import {
+  AnalyticsIntegrationExportSource,
+  EXPORT_SOURCE_OPTIONS,
+} from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -147,7 +150,8 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
-      exportSource: state?.exportSource ?? "EVENTS",
+      exportSource:
+        state?.exportSource ?? AnalyticsIntegrationExportSource.EVENTS,
     },
     disabled: isLoading,
   });
@@ -159,7 +163,8 @@ const MixpanelIntegrationSettingsForm = ({
         MIXPANEL_REGIONS[0].subdomain,
       mixpanelProjectToken: state?.mixpanelProjectToken ?? "",
       enabled: state?.enabled ?? false,
-      exportSource: state?.exportSource ?? "EVENTS",
+      exportSource:
+        state?.exportSource ?? AnalyticsIntegrationExportSource.EVENTS,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);

@@ -50,7 +50,7 @@ import {
   queryClickhouseStream,
 } from "./clickhouse";
 import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
-import type { AnalyticsEventEvent } from "../analytics-integrations/types";
+import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
@@ -2490,9 +2490,9 @@ export const getEventsForAnalyticsIntegrations = async function* (
     // Add analytics-specific computed fields
     .selectRaw(
       // Token counts from usage/cost details
-      "e.usage_details['total'] as input_tokens",
+      "e.usage_details['input'] as input_tokens",
       "e.usage_details['output'] as output_tokens",
-      "e.cost_details['total'] as total_tokens",
+      "e.usage_details['total'] as total_tokens",
       // Analytics integration session IDs from metadata (constructed from array columns)
       "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$posthog_session_id'] as posthog_session_id",
       "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$mixpanel_session_id'] as mixpanel_session_id",
@@ -2525,10 +2525,10 @@ export const getEventsForAnalyticsIntegrations = async function* (
   for await (const record of records) {
     yield {
       timestamp: record.start_time,
-      langfuse_event_name: record.name,
+      langfuse_observation_name: record.name,
       langfuse_trace_name: record.trace_name,
       langfuse_trace_id: record.trace_id,
-      langfuse_url: `${baseUrl}/project/${projectId}/events/${encodeURIComponent(record.id as string)}`,
+      langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
       langfuse_user_url: record.user_id
         ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
         : undefined,
@@ -2552,7 +2552,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
       langfuse_event_version: "1.0.0",
       posthog_session_id: record.posthog_session_id ?? null,
       mixpanel_session_id: record.mixpanel_session_id ?? null,
-    } satisfies AnalyticsEventEvent;
+    } satisfies AnalyticsObservationEvent;
   }
 };
 

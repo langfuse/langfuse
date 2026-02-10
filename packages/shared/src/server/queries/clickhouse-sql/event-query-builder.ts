@@ -70,7 +70,6 @@ const EVENTS_FIELDS = {
   // Trace-level denormalized fields
   tags: "e.tags as tags",
   release: "e.release as release",
-  traceName: 'e.trace_name as "trace_name"',
 
   // Model ID with different alias for exports
   modelId: 'e.model_id as "model_id"',
@@ -376,6 +375,7 @@ abstract class AbstractQueryBuilder {
     if (columns.length > 0) {
       this.limitByClause = `LIMIT 1 BY ${columns.join(", ")}`;
     }
+
     return this;
   }
 
@@ -406,12 +406,14 @@ abstract class AbstractQueryBuilder {
    */
   protected buildLimitSection(): string {
     const parts: string[] = [];
+
     if (this.limitByClause) {
       parts.push(this.limitByClause);
     }
     if (this.limitClause) {
       parts.push(this.limitClause);
     }
+
     return parts.join("\n");
   }
 
@@ -663,6 +665,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   selectMetadataDirect(): this {
     this.useDirectMetadata = true;
     this.selectFields.add("metadataDirect");
+
     return this;
   }
 
@@ -676,6 +679,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   selectRaw(...expressions: string[]): this {
     this.rawSelectExpressions.push(...expressions);
+
     return this;
   }
 

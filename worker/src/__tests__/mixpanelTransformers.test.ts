@@ -9,7 +9,7 @@ import type {
   AnalyticsTraceEvent,
   AnalyticsGenerationEvent,
   AnalyticsScoreEvent,
-  AnalyticsEventEvent,
+  AnalyticsObservationEvent,
 } from "@langfuse/shared/src/server";
 
 describe("Mixpanel transformers", () => {
@@ -17,10 +17,10 @@ describe("Mixpanel transformers", () => {
 
   describe("transformEventForMixpanel", () => {
     it("should transform an event with user_id", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-123",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "test-event",
+        langfuse_observation_name: "test-event",
         langfuse_trace_name: "test-trace",
         langfuse_trace_id: "trace-456",
         langfuse_url:
@@ -57,7 +57,7 @@ describe("Mixpanel transformers", () => {
       );
       expect(result.properties.$insert_id).toBeDefined();
       expect(result.properties.session_id).toBe("mixpanel-session-456");
-      expect(result.properties.langfuse_event_name).toBe("test-event");
+      expect(result.properties.langfuse_observation_name).toBe("test-event");
       expect(result.properties.langfuse_trace_name).toBe("test-trace");
       expect(result.properties.langfuse_model).toBe("gpt-4");
       expect(result.properties.langfuse_type).toBe("GENERATION");
@@ -67,10 +67,10 @@ describe("Mixpanel transformers", () => {
     });
 
     it("should transform an anonymous event without user_id", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-anonymous",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "anonymous-event",
+        langfuse_observation_name: "anonymous-event",
         langfuse_project_id: projectId,
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
@@ -89,10 +89,10 @@ describe("Mixpanel transformers", () => {
     });
 
     it("should generate consistent insert IDs for the same event", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-consistent",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "consistent-event",
+        langfuse_observation_name: "consistent-event",
         langfuse_project_id: projectId,
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
@@ -107,10 +107,10 @@ describe("Mixpanel transformers", () => {
     });
 
     it("should use langfuse_session_id when mixpanel_session_id is not available", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-with-langfuse-session",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "session-event",
+        langfuse_observation_name: "session-event",
         langfuse_session_id: "langfuse-session-123",
         langfuse_project_id: projectId,
         langfuse_user_id: "user-456",
@@ -125,10 +125,10 @@ describe("Mixpanel transformers", () => {
     });
 
     it("should prefer mixpanel_session_id over langfuse_session_id", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-with-both-sessions",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "session-event",
+        langfuse_observation_name: "session-event",
         langfuse_session_id: "langfuse-session-123",
         langfuse_project_id: projectId,
         langfuse_user_id: "user-456",

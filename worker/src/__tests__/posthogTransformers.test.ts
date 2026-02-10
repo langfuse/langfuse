@@ -9,7 +9,7 @@ import type {
   AnalyticsTraceEvent,
   AnalyticsGenerationEvent,
   AnalyticsScoreEvent,
-  AnalyticsEventEvent,
+  AnalyticsObservationEvent,
 } from "@langfuse/shared/src/server";
 
 describe("PostHog transformers", () => {
@@ -17,10 +17,10 @@ describe("PostHog transformers", () => {
 
   describe("transformEventForPostHog", () => {
     it("should transform an event with user_id", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-123",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "test-event",
+        langfuse_observation_name: "test-event",
         langfuse_trace_name: "test-trace",
         langfuse_trace_id: "trace-456",
         langfuse_url:
@@ -54,7 +54,7 @@ describe("PostHog transformers", () => {
       expect(result.timestamp).toEqual(new Date("2024-01-15T10:00:00Z"));
       expect(result.uuid).toBeDefined();
       expect(result.properties.$session_id).toBe("posthog-session-123");
-      expect(result.properties.langfuse_event_name).toBe("test-event");
+      expect(result.properties.langfuse_observation_name).toBe("test-event");
       expect(result.properties.langfuse_trace_name).toBe("test-trace");
       expect(result.properties.langfuse_model).toBe("gpt-4");
       expect(result.properties.langfuse_type).toBe("GENERATION");
@@ -67,10 +67,10 @@ describe("PostHog transformers", () => {
     });
 
     it("should transform an anonymous event without user_id", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-anonymous",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "anonymous-event",
+        langfuse_observation_name: "anonymous-event",
         langfuse_project_id: projectId,
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
@@ -90,10 +90,10 @@ describe("PostHog transformers", () => {
     });
 
     it("should generate consistent UUIDs for the same event", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-consistent",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "consistent-event",
+        langfuse_observation_name: "consistent-event",
         langfuse_project_id: projectId,
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
@@ -108,10 +108,10 @@ describe("PostHog transformers", () => {
     });
 
     it("should handle event with session_id but no user_id", () => {
-      const event: AnalyticsEventEvent = {
+      const event: AnalyticsObservationEvent = {
         langfuse_id: "event-with-session",
         timestamp: new Date("2024-01-15T10:00:00Z"),
-        langfuse_event_name: "session-event",
+        langfuse_observation_name: "session-event",
         langfuse_session_id: "session-123",
         langfuse_project_id: projectId,
         langfuse_user_id: null,

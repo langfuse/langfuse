@@ -3,7 +3,7 @@ import type {
   AnalyticsTraceEvent,
   AnalyticsGenerationEvent,
   AnalyticsScoreEvent,
-  AnalyticsEventEvent,
+  AnalyticsObservationEvent,
 } from "@langfuse/shared/src/server";
 
 // UUID v5 namespace for Mixpanel (different from PostHog)
@@ -124,7 +124,7 @@ export const transformScoreForMixpanel = (
 };
 
 export const transformEventForMixpanel = (
-  event: AnalyticsEventEvent,
+  event: AnalyticsObservationEvent,
   projectId: string,
 ): MixpanelEvent => {
   const insertId = v5(
@@ -137,7 +137,7 @@ export const transformEventForMixpanel = (
   const { posthog_session_id, mixpanel_session_id, ...otherProps } = event;
 
   return {
-    event: "[Langfuse] Event",
+    event: "[Langfuse] Observation",
     properties: {
       time: new Date(event.timestamp as Date).getTime(),
       distinct_id: event.langfuse_user_id

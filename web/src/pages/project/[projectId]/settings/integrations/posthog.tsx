@@ -29,7 +29,10 @@ import {
 } from "@/src/components/ui/tooltip";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
-import { EXPORT_SOURCE_OPTIONS } from "@langfuse/shared";
+import {
+  AnalyticsIntegrationExportSource,
+  EXPORT_SOURCE_OPTIONS,
+} from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -142,7 +145,8 @@ const PostHogIntegrationSettings = ({
       posthogHostname: state?.posthogHostName ?? "",
       posthogProjectApiKey: state?.posthogApiKey ?? "",
       enabled: state?.enabled ?? false,
-      exportSource: state?.exportSource ?? "EVENTS",
+      exportSource:
+        state?.exportSource ?? AnalyticsIntegrationExportSource.EVENTS,
     },
     disabled: isLoading,
   });
@@ -152,7 +156,8 @@ const PostHogIntegrationSettings = ({
       posthogHostname: state?.posthogHostName ?? "",
       posthogProjectApiKey: state?.posthogApiKey ?? "",
       enabled: state?.enabled ?? false,
-      exportSource: state?.exportSource ?? "EVENTS",
+      exportSource:
+        state?.exportSource ?? AnalyticsIntegrationExportSource.EVENTS,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);

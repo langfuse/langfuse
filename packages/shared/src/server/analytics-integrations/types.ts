@@ -75,10 +75,10 @@ export type AnalyticsScoreEvent = {
   mixpanel_session_id?: unknown;
 };
 
-export type AnalyticsEventEvent = {
+export type AnalyticsObservationEvent = {
   langfuse_id: unknown;
   timestamp: unknown;
-  langfuse_event_name?: unknown;
+  langfuse_observation_name?: unknown;
   langfuse_trace_name?: unknown;
   langfuse_trace_id?: unknown;
   langfuse_url?: unknown;
