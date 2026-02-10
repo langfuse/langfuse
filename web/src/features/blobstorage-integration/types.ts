@@ -32,7 +32,7 @@ export const blobStorageIntegrationFormSchema = z.object({
   exportStartDate: z.coerce.date().optional().nullable(),
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
-    .default(AnalyticsIntegrationExportSource.EVENTS),
+    .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
 });
 
 export type BlobStorageIntegrationFormSchema = z.infer<

@@ -30,5 +30,5 @@ export const mixpanelIntegrationFormSchema = z.object({
   enabled: z.boolean(),
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
-    .default(AnalyticsIntegrationExportSource.EVENTS),
+    .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
 });

@@ -50,6 +50,7 @@ import {
   EXPORT_SOURCE_OPTIONS,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Info, ExternalLink } from "lucide-react";
 
 export default function BlobStorageIntegrationSettings() {
@@ -171,6 +172,7 @@ const BlobStorageIntegrationSettingsForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { isBetaEnabled } = useV4Beta();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
@@ -197,7 +199,8 @@ const BlobStorageIntegrationSettingsForm = ({
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
       exportSource:
-        state?.exportSource || AnalyticsIntegrationExportSource.EVENTS,
+        state?.exportSource ||
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
     },
     disabled: isLoading,
   });
@@ -222,7 +225,8 @@ const BlobStorageIntegrationSettingsForm = ({
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
       exportSource:
-        state?.exportSource || AnalyticsIntegrationExportSource.EVENTS,
+        state?.exportSource ||
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -580,65 +584,67 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
-        <FormField
-          control={blobStorageForm.control}
-          name="exportSource"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="flex items-center gap-1.5 pt-2">
-                Export Source
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[350px] space-y-2 p-3"
-                  >
-                    {EXPORT_SOURCE_OPTIONS.map((option) => (
-                      <div key={option.value} className="space-y-0.5">
-                        <div className="font-medium">{option.label}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {option.description}
+        {isBetaEnabled && (
+          <FormField
+            control={blobStorageForm.control}
+            name="exportSource"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-1.5 pt-2">
+                  Export Source
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="bottom"
+                      className="max-w-[350px] space-y-2 p-3"
+                    >
+                      {EXPORT_SOURCE_OPTIONS.map((option) => (
+                        <div key={option.value} className="space-y-0.5">
+                          <div className="font-medium">{option.label}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {option.description}
+                          </div>
                         </div>
+                      ))}
+                      <div className="border-t pt-2">
+                        <a
+                          href="https://langfuse.com/docs/integrations/export-sources"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary hover:underline"
+                        >
+                          For further information see
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
                       </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select data to export" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {EXPORT_SOURCE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
                     ))}
-                    <div className="border-t pt-2">
-                      <a
-                        href="https://langfuse.com/docs/integrations/export-sources"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary hover:underline"
-                      >
-                        For further information see
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select data to export" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {EXPORT_SOURCE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormDescription>
-                Choose which data sources to export to blob storage. Scores are
-                always included.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Choose which data sources to export to blob storage. Scores
+                  are always included.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {blobStorageForm.watch("exportMode") ===
           BlobStorageExportMode.FROM_CUSTOM_DATE && (
