@@ -49,7 +49,7 @@ describe("PostHog transformers", () => {
 
       const result = transformEventForPostHog(event, projectId);
 
-      expect(result.event).toBe("langfuse event");
+      expect(result.event).toBe("langfuse observation");
       expect(result.distinctId).toBe("user-789");
       expect(result.timestamp).toEqual(new Date("2024-01-15T10:00:00Z"));
       expect(result.uuid).toBeDefined();
@@ -80,7 +80,7 @@ describe("PostHog transformers", () => {
 
       const result = transformEventForPostHog(event, projectId);
 
-      expect(result.event).toBe("langfuse event");
+      expect(result.event).toBe("langfuse observation");
       // distinctId should be the generated UUID when no user_id
       expect(result.distinctId).toBe(result.uuid);
       expect(result.properties.$session_id).toBeNull();

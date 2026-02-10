@@ -49,7 +49,7 @@ describe("Mixpanel transformers", () => {
 
       const result = transformEventForMixpanel(event, projectId);
 
-      expect(result.event).toBe("[Langfuse] Event");
+      expect(result.event).toBe("[Langfuse] Observation");
       expect(result.properties.distinct_id).toBe("user-789");
       expect(result.properties.$user_id).toBe("user-789");
       expect(result.properties.time).toBe(
@@ -80,7 +80,7 @@ describe("Mixpanel transformers", () => {
 
       const result = transformEventForMixpanel(event, projectId);
 
-      expect(result.event).toBe("[Langfuse] Event");
+      expect(result.event).toBe("[Langfuse] Observation");
       // distinct_id should be the generated $insert_id when no user_id
       expect(result.properties.distinct_id).toBe(result.properties.$insert_id);
       // Should not have $user_id for anonymous events
