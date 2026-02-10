@@ -40,7 +40,7 @@ import {
   TraceSinkParams,
 } from "./types";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import { ProxyAgent } from "undici";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
@@ -222,7 +222,7 @@ export async function fetchLLMCompletion(
 
   // Common proxy configuration for all adapters
   const proxyUrl = env.HTTPS_PROXY;
-  const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+  const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
   let chatModel:
@@ -247,7 +247,9 @@ export async function fetchLLMCompletion(
       clientOptions: {
         maxRetries,
         timeout: timeoutMs,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
@@ -297,7 +299,9 @@ export async function fetchLLMCompletion(
       configuration: {
         baseURL: processedBaseURL,
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
@@ -316,7 +320,9 @@ export async function fetchLLMCompletion(
       timeout: timeoutMs,
       configuration: {
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       modelKwargs: modelParams.providerOptions,
     });

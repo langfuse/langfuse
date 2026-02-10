@@ -235,9 +235,6 @@ importers:
       exponential-backoff:
         specifier: ^3.1.2
         version: 3.1.2
-      https-proxy-agent:
-        specifier: ^7.0.6
-        version: 7.0.6
       ioredis:
         specifier: ^5.8.2
         version: 5.8.2
@@ -277,6 +274,9 @@ importers:
       safe-regex2:
         specifier: ^5.0.0
         version: 5.0.0
+      undici:
+        specifier: ^7.18.0
+        version: 7.18.2
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
