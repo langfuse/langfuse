@@ -4526,7 +4526,7 @@ paths:
         API key)
       operationId: scim_getServiceProviderConfig
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4567,7 +4567,7 @@ paths:
       description: Get SCIM Resource Types (requires organization-scoped API key)
       operationId: scim_getResourceTypes
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4608,7 +4608,7 @@ paths:
       description: Get SCIM Schemas (requires organization-scoped API key)
       operationId: scim_getSchemas
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4649,7 +4649,7 @@ paths:
       description: List users in the organization (requires organization-scoped API key)
       operationId: scim_listUsers
       tags:
-        - Scim
+        - SCIM
       parameters:
         - name: filter
           in: query
@@ -4712,7 +4712,7 @@ paths:
         key)
       operationId: scim_createUser
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4783,7 +4783,7 @@ paths:
       description: Get a specific user by ID (requires organization-scoped API key)
       operationId: scim_getUser
       tags:
-        - Scim
+        - SCIM
       parameters:
         - name: userId
           in: path
@@ -4831,7 +4831,7 @@ paths:
         does not delete the user entity itself.
       operationId: scim_deleteUser
       tags:
-        - Scim
+        - SCIM
       parameters:
         - name: userId
           in: path
@@ -5197,6 +5197,13 @@ paths:
         - name: traceId
           in: query
           description: Retrieve only scores with a specific traceId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: observationId
+          in: query
+          description: Comma-separated list of observation IDs to filter scores by.
           required: false
           schema:
             type: string
