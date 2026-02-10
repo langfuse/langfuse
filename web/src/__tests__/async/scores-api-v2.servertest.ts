@@ -1174,6 +1174,136 @@ describe("/api/public/v2/scores API Endpoint", () => {
           ]),
         );
       });
+
+      it("should filter scores by single observation ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?observationId=${generationId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 3,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_1,
+              observationId: generationId,
+              name: scoreName,
+              value: 10.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_2,
+              observationId: generationId,
+              name: scoreName,
+              value: 50.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_3,
+              observationId: generationId,
+              name: scoreName,
+              value: 100.8,
+            }),
+          ]),
+        );
+      });
+
+      it("should filter scores by multiple observation IDs", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const tId = v4();
+        const obsId1 = v4();
+        const obsId2 = v4();
+        const obsId3 = v4();
+        const sId1 = v4();
+        const sId2 = v4();
+        const sId3 = v4();
+
+        await createTracesCh([createTrace({ id: tId, project_id: projectId })]);
+        await createObservationsCh([
+          createObservation({
+            id: obsId1,
+            project_id: projectId,
+            type: "GENERATION",
+          }),
+          createObservation({
+            id: obsId2,
+            project_id: projectId,
+            type: "GENERATION",
+          }),
+          createObservation({
+            id: obsId3,
+            project_id: projectId,
+            type: "GENERATION",
+          }),
+        ]);
+        await createScoresCh([
+          createTraceScore({
+            id: sId1,
+            project_id: projectId,
+            trace_id: tId,
+            observation_id: obsId1,
+            name: "score",
+            value: 1,
+            data_type: "NUMERIC",
+          }),
+          createTraceScore({
+            id: sId2,
+            project_id: projectId,
+            trace_id: tId,
+            observation_id: obsId2,
+            name: "score",
+            value: 2,
+            data_type: "NUMERIC",
+          }),
+          createTraceScore({
+            id: sId3,
+            project_id: projectId,
+            trace_id: tId,
+            observation_id: obsId3,
+            name: "score",
+            value: 3,
+            data_type: "NUMERIC",
+          }),
+        ]);
+
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?observationId=${obsId1},${obsId2}`,
+          undefined,
+          auth,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: sId1,
+              observationId: obsId1,
+              value: 1,
+            }),
+            expect.objectContaining({
+              id: sId2,
+              observationId: obsId2,
+              value: 2,
+            }),
+          ]),
+        );
+        expect(
+          getScore.body.data.find((s: any) => s.id === sId3),
+        ).toBeUndefined();
+      });
     });
 
     describe("GET /api/public/v2/scores - fields parameter", () => {
