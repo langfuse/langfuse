@@ -146,6 +146,9 @@ export const transformDbToApiObservation = (
     userId,
 
     sessionId,
+
+    // exclude trace name, this will only be available on events api
+    traceName,
     // Exclude tool data from public API (not yet released)
 
     toolDefinitions,

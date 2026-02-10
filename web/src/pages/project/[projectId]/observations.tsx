@@ -10,13 +10,16 @@ import {
 } from "@/src/features/navigation/utils/tracing-tabs";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled } = useV4Beta();
+  const { project } = useQueryProject();
 
   // Check if the user has tracing configured
+  // Skip polling entirely if the project flag is already set in the session
   const { data: hasTracingConfigured, isLoading } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
@@ -27,7 +30,9 @@ export default function Generations() {
             skipBatch: true,
           },
         },
-        refetchInterval: 10_000,
+        refetchInterval: project?.hasTraces ? false : 10_000,
+        initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 

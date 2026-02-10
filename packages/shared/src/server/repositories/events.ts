@@ -186,7 +186,6 @@ async function enrichObservationsWithTraceFields(
   return observationRecords.map((o) => {
     return {
       ...o,
-      traceName: o.name ?? null,
       traceTags: [], // TODO pull from PG
       traceTimestamp: null,
       toolDefinitions: o.toolDefinitions ?? null,
