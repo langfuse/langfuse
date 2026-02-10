@@ -1,4 +1,4 @@
-name: Snyk Container
+name: Snyk Container - Worker
 on:
   push:
     branches: ["production", "test-snyk-again"]
