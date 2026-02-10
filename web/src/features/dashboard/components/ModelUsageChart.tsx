@@ -365,7 +365,10 @@ export const ModelUsageChart = ({
                       chartType="AREA_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
                       rowLimit={100}
-                      chartConfig={{ type: "AREA_TIME_SERIES", subtle_fill: true }}
+                      chartConfig={{
+                        type: "AREA_TIME_SERIES",
+                        subtle_fill: true,
+                      }}
                       valueFormatter={item.formatter}
                       legendPosition="above"
                     />
