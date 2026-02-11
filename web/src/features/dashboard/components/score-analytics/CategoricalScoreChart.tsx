@@ -14,6 +14,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -90,6 +91,10 @@ export function CategoricalScoreChart(props: {
     );
     return adapter.toChartData();
   }, [scores.data, props.agg]);
+
+  if (scores.error) {
+    return <DashboardChartError error={scores.error} />;
+  }
 
   return (
     <CategoricalChart

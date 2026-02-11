@@ -25,6 +25,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 export const ModelUsageChart = ({
   className,
@@ -338,38 +339,46 @@ export const ModelUsageChart = ({
         </div>
       }
     >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                <TotalMetric
-                  metric={item.totalMetric}
-                  description={item.metricDescription}
-                  className="mb-4"
-                />
-                {isEmptyTimeSeries({ data: item.data }) ||
-                isLoading ||
-                queryResult.isPending ? (
-                  <NoDataOrLoading
-                    isLoading={isLoading || queryResult.isPending}
+      {queryResult.error || queryCostByType.error || queryUsageByType.error ? (
+        <DashboardChartError
+          error={
+            queryResult.error || queryCostByType.error || queryUsageByType.error
+          }
+        />
+      ) : (
+        <TabComponent
+          tabs={data.map((item) => {
+            return {
+              tabTitle: item.tabTitle,
+              content: (
+                <>
+                  <TotalMetric
+                    metric={item.totalMetric}
+                    description={item.metricDescription}
+                    className="mb-4"
                   />
-                ) : (
-                  <BaseTimeSeriesChart
-                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                    agg={agg}
-                    data={item.data}
-                    showLegend={true}
-                    connectNulls={true}
-                    valueFormatter={item.formatter}
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
-      />
+                  {isEmptyTimeSeries({ data: item.data }) ||
+                  isLoading ||
+                  queryResult.isPending ? (
+                    <NoDataOrLoading
+                      isLoading={isLoading || queryResult.isPending}
+                    />
+                  ) : (
+                    <BaseTimeSeriesChart
+                      className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
+                      agg={agg}
+                      data={item.data}
+                      showLegend={true}
+                      connectNulls={true}
+                      valueFormatter={item.formatter}
+                    />
+                  )}
+                </>
+              ),
+            };
+          })}
+        />
+      )}
     </DashboardCard>
   );
 };

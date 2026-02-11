@@ -338,6 +338,7 @@ export function DashboardWidget({
             widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
           }
           isLoading={queryResult.isPending}
+          error={queryResult.error}
         />
       </div>
     </div>

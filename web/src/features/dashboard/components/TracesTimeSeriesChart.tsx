@@ -15,6 +15,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -163,40 +164,44 @@ export const TracesAndObservationsTimeSeriesChart = ({
       isLoading={isLoading || traces.isPending}
       cardContentClassName="flex flex-col content-end "
     >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                <TotalMetric
-                  description={item.metricDescription}
-                  metric={
-                    item.totalMetric
-                      ? compactNumberFormatter(item.totalMetric)
-                      : compactNumberFormatter(0)
-                  }
-                />
-                {!isEmptyTimeSeries({ data: item.data }) ? (
-                  <BaseTimeSeriesChart
-                    className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                    agg={agg}
-                    data={item.data}
-                    connectNulls={true}
-                    chartType="area"
+      {traces.error || observations.error ? (
+        <DashboardChartError error={traces.error || observations.error} />
+      ) : (
+        <TabComponent
+          tabs={data.map((item) => {
+            return {
+              tabTitle: item.tabTitle,
+              content: (
+                <>
+                  <TotalMetric
+                    description={item.metricDescription}
+                    metric={
+                      item.totalMetric
+                        ? compactNumberFormatter(item.totalMetric)
+                        : compactNumberFormatter(0)
+                    }
                   />
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || traces.isPending}
-                    description="Traces contain details about LLM applications and can be created using the SDK."
-                    href="https://langfuse.com/docs/observability/overview"
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
-      />
+                  {!isEmptyTimeSeries({ data: item.data }) ? (
+                    <BaseTimeSeriesChart
+                      className="h-full min-h-80 self-stretch [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
+                      agg={agg}
+                      data={item.data}
+                      connectNulls={true}
+                      chartType="area"
+                    />
+                  ) : (
+                    <NoDataOrLoading
+                      isLoading={isLoading || traces.isPending}
+                      description="Traces contain details about LLM applications and can be created using the SDK."
+                      href="https://langfuse.com/docs/observability/overview"
+                    />
+                  )}
+                </>
+              ),
+            };
+          })}
+        />
+      )}
     </DashboardCard>
   );
 };

@@ -13,6 +13,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 type BarChartDataPoint = {
   name: string;
@@ -163,49 +164,55 @@ export const UserChart = ({
       title="User consumption"
       isLoading={isLoading || user.isPending}
     >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                {item.data.length > 0 ? (
+      {user.error || traces.error ? (
+        <DashboardChartError error={user.error || traces.error} />
+      ) : (
+        <>
+          <TabComponent
+            tabs={data.map((item) => {
+              return {
+                tabTitle: item.tabTitle,
+                content: (
                   <>
-                    <TotalMetric
-                      metric={item.totalMetric}
-                      description={item.metricDescription}
-                    />
-                    <BarList
-                      data={item.data}
-                      valueFormatter={item.formatter}
-                      className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                      showAnimation={true}
-                      color={"indigo"}
-                    />
+                    {item.data.length > 0 ? (
+                      <>
+                        <TotalMetric
+                          metric={item.totalMetric}
+                          description={item.metricDescription}
+                        />
+                        <BarList
+                          data={item.data}
+                          valueFormatter={item.formatter}
+                          className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
+                          showAnimation={true}
+                          color={"indigo"}
+                        />
+                      </>
+                    ) : (
+                      <NoDataOrLoading
+                        isLoading={isLoading || user.isPending}
+                        description="Consumption per user is tracked by passing their ids on traces."
+                        href="https://langfuse.com/docs/observability/features/users"
+                      />
+                    )}
                   </>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
-                    description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/observability/features/users"
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
-      />
-      <ExpandListButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={transformedCost.length}
-        maxLength={maxNumberOfEntries.collapsed}
-        expandText={
-          transformedCost.length > maxNumberOfEntries.expanded
-            ? `Show top ${maxNumberOfEntries.expanded}`
-            : "Show all"
-        }
-      />
+                ),
+              };
+            })}
+          />
+          <ExpandListButton
+            isExpanded={isExpanded}
+            setExpanded={setIsExpanded}
+            totalLength={transformedCost.length}
+            maxLength={maxNumberOfEntries.collapsed}
+            expandText={
+              transformedCost.length > maxNumberOfEntries.expanded
+                ? `Show top ${maxNumberOfEntries.expanded}`
+                : "Show all"
+            }
+          />
+        </>
+      )}
     </DashboardCard>
   );
 };

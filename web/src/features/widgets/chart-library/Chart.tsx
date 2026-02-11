@@ -13,6 +13,34 @@ import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
+import { TRPCClientError } from "@trpc/client";
+
+/**
+ * Checks if an error is a timeout error
+ */
+function isTimeoutError(error: unknown): boolean {
+  if (error instanceof TRPCClientError) {
+    const httpStatus =
+      typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 0;
+    // Check for status 524 (timeout) or error message containing timeout keywords
+    if (httpStatus === 524) return true;
+    const errorMessage = error.message?.toLowerCase() || "";
+    return (
+      errorMessage.includes("timeout") ||
+      errorMessage.includes("timed out") ||
+      errorMessage.includes("time out")
+    );
+  }
+  if (error instanceof Error) {
+    const errorMessage = error.message?.toLowerCase() || "";
+    return (
+      errorMessage.includes("timeout") ||
+      errorMessage.includes("timed out") ||
+      errorMessage.includes("time out")
+    );
+  }
+  return false;
+}
 
 export const Chart = ({
   chartType,
@@ -22,6 +50,7 @@ export const Chart = ({
   sortState,
   onSortChange,
   isLoading = false,
+  error,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -37,6 +66,7 @@ export const Chart = ({
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
+  error?: unknown;
 }) => {
   const [forceRender, setForceRender] = useState(false);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -118,9 +148,38 @@ export const Chart = ({
     </div>
   );
 
+  const renderTimeoutError = () => (
+    <div className="flex h-full flex-col items-center justify-center p-6 text-center">
+      <h3 className="mb-2 text-lg font-semibold text-foreground">
+        Query timed out
+      </h3>
+      <p className="text-sm text-muted-foreground">
+        For faster results, consider using a shorter time frame.
+      </p>
+    </div>
+  );
+
+  const renderGenericError = () => (
+    <div className="flex h-full flex-col items-center justify-center p-6 text-center">
+      <AlertCircle className="mb-4 h-12 w-12 text-destructive" />
+      <h3 className="mb-2 text-lg font-semibold">Error loading chart</h3>
+      <p className="text-sm text-muted-foreground">
+        {error instanceof Error
+          ? error.message
+          : "An unexpected error occurred"}
+      </p>
+    </div>
+  );
+
   return (
     <CardContent className="h-full p-0">
-      {shouldWarn ? renderWarning() : renderChart()}
+      {error
+        ? isTimeoutError(error)
+          ? renderTimeoutError()
+          : renderGenericError()
+        : shouldWarn
+          ? renderWarning()
+          : renderChart()}
     </CardContent>
   );
 };

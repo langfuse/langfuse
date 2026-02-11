@@ -23,6 +23,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { DashboardChartError } from "@/src/features/dashboard/components/DashboardChartError";
 
 export const GenerationLatencyChart = ({
   className,
@@ -166,30 +167,34 @@ export const GenerationLatencyChart = ({
         </div>
       }
     >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                {!isEmptyTimeSeries({ data: item.data }) ? (
-                  <BaseTimeSeriesChart
-                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                    agg={agg}
-                    data={item.data}
-                    connectNulls={true}
-                    valueFormatter={latencyFormatter}
-                  />
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || latencies.isPending}
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
-      />
+      {latencies.error ? (
+        <DashboardChartError error={latencies.error} />
+      ) : (
+        <TabComponent
+          tabs={data.map((item) => {
+            return {
+              tabTitle: item.tabTitle,
+              content: (
+                <>
+                  {!isEmptyTimeSeries({ data: item.data }) ? (
+                    <BaseTimeSeriesChart
+                      className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
+                      agg={agg}
+                      data={item.data}
+                      connectNulls={true}
+                      valueFormatter={latencyFormatter}
+                    />
+                  ) : (
+                    <NoDataOrLoading
+                      isLoading={isLoading || latencies.isPending}
+                    />
+                  )}
+                </>
+              ),
+            };
+          })}
+        />
+      )}
     </DashboardCard>
   );
 };
