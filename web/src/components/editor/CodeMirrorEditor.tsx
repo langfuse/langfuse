@@ -169,6 +169,7 @@ export function CodeMirrorEditor({
   onBlur,
   mode,
   minHeight,
+  maxHeight,
   placeholder,
   editorRef,
 }: {
@@ -181,6 +182,7 @@ export function CodeMirrorEditor({
   className?: string;
   mode: "json" | "text" | "prompt";
   minHeight: "none" | 30 | 100 | 200;
+  maxHeight?: string;
   placeholder?: string;
   editorRef?: React.RefObject<ReactCodeMirrorRef | null>;
 }) {
@@ -235,6 +237,14 @@ export function CodeMirrorEditor({
                 ".cm-scroller": { overflow: "auto" },
               }),
             ]),
+        // Add max height support for very long bodies of text
+        ...(maxHeight
+          ? [
+              EditorView.theme({
+                ".cm-scroller": { maxHeight: maxHeight },
+              }),
+            ]
+          : []),
         ...(mode === "json" ? [json()] : []),
         ...(mode === "json" && linterEnabled
           ? [linter(jsonParseLinter())]
