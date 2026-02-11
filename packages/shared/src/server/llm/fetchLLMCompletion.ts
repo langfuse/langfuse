@@ -241,13 +241,14 @@ export async function fetchLLMCompletion(
       modelParams.model?.includes("claude-opus-4-6") ||
       modelParams.model?.includes("claude-haiku-4-5");
 
-    const chatOptions: Record<string, any> = {
+    const chatOptions: ConstructorParameters<typeof ChatAnthropic>[0] = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
       modelName: modelParams.model,
       maxTokens: modelParams.max_tokens,
       callbacks: finalCallbacks,
       clientOptions: {
+        defaultHeaders: extraHeaders,
         maxRetries,
         timeout: timeoutMs,
         ...(proxyAgent && { httpAgent: proxyAgent }),
