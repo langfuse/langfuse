@@ -143,6 +143,10 @@ const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
+  } else if (errorCode === "UNPROCESSABLE_CONTENT") {
+    logger.warn(`middleware intercepted error with code ${errorCode}`, {
+      error,
+    });
   } else {
     logger.error(`middleware intercepted error with code ${errorCode}`, {
       error,
@@ -158,9 +162,9 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
-      logErrorByCode("SERVICE_UNAVAILABLE", res.error);
+      logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
       res.error = new TRPCError({
-        code: "SERVICE_UNAVAILABLE",
+        code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       });
     } else {

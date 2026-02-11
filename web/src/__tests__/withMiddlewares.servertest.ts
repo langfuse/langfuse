@@ -21,6 +21,7 @@ jest.mock("@langfuse/shared/src/server", () => ({
   ...jest.requireActual("@langfuse/shared/src/server"),
   logger: {
     info: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
   },
@@ -181,7 +182,7 @@ describe("withMiddlewares error handling", () => {
   });
 
   describe("ClickHouseResourceError handling", () => {
-    it("should handle ClickHouseResourceError with 400 status", async () => {
+    it("should handle ClickHouseResourceError with 422 status", async () => {
       const originalError = new Error("Memory limit exceeded: maximum: 10GB");
       const resourceError = new ClickHouseResourceError(
         "MEMORY_LIMIT",
@@ -203,12 +204,13 @@ describe("withMiddlewares error handling", () => {
 
       await handler(req, res);
 
-      expect(res._getStatusCode()).toBe(524);
+      expect(res._getStatusCode()).toBe(422);
       const jsonData = JSON.parse(res._getData());
       expect(jsonData["message"]).toBeDefined();
       expect(jsonData["message"]).toContain(
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       );
+      expect(jsonData["error"]).toBe("Unprocessable Content");
     });
   });
 

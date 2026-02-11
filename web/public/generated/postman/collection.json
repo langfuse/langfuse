@@ -739,9 +739,9 @@
           "_type": "endpoint",
           "name": "List",
           "request": {
-            "description": "Get dataset items",
+            "description": "Get dataset items. Optionally specify a version to get the items as they existed at that point in time.\nNote: If version parameter is provided, datasetName must also be provided.",
             "url": {
-              "raw": "{{baseUrl}}/api/public/dataset-items?datasetName=&sourceTraceId=&sourceObservationId=&page=&limit=",
+              "raw": "{{baseUrl}}/api/public/dataset-items?datasetName=&sourceTraceId=&sourceObservationId=&version=&page=&limit=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -765,6 +765,11 @@
                   "key": "sourceObservationId",
                   "value": "",
                   "description": null
+                },
+                {
+                  "key": "version",
+                  "value": "",
+                  "description": "ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g., \"2026-01-21T14:35:42Z\").\nIf provided, returns state of dataset at this timestamp.\nIf not provided, returns the latest version. Requires datasetName to be specified."
                 },
                 {
                   "key": "page",
@@ -848,7 +853,7 @@
             "auth": null,
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"runName\": \"example\",\n    \"runDescription\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\"\n}",
+              "raw": "{\n    \"runName\": \"example\",\n    \"runDescription\": \"example\",\n    \"metadata\": \"UNKNOWN\",\n    \"datasetItemId\": \"example\",\n    \"observationId\": \"example\",\n    \"traceId\": \"example\",\n    \"datasetVersion\": \"1994-11-05T13:15:30Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3236,7 +3241,7 @@
           "request": {
             "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&datasetRunId=&traceId=&queueId=&dataType=&traceTags=&fields=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&datasetRunId=&traceId=&observationId=&queueId=&dataType=&traceTags=&fields=&filter=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3323,6 +3328,11 @@
                   "description": "Retrieve only scores with a specific traceId."
                 },
                 {
+                  "key": "observationId",
+                  "value": "",
+                  "description": "Comma-separated list of observation IDs to filter scores by."
+                },
+                {
                   "key": "queueId",
                   "value": "",
                   "description": "Retrieve only scores with a specific annotation queueId."
@@ -3341,6 +3351,11 @@
                   "key": "fields",
                   "value": "",
                   "description": "Comma-separated list of field groups to include in the response. Available field groups: 'score' (core score fields), 'trace' (trace properties: userId, tags, environment). If not specified, both 'score' and 'trace' are returned by default. Example: 'score' to exclude trace data, 'score,trace' to include both. Note: When filtering by trace properties (using userId or traceTags parameters), the 'trace' field group must be included, otherwise a 400 error will be returned."
+                },
+                {
+                  "key": "filter",
+                  "value": "",
+                  "description": "A JSON stringified array of filter objects. Each object requires type, column, operator, and value. Supports filtering by score metadata using the stringObject type. Example: [{\"type\":\"stringObject\",\"column\":\"metadata\",\"key\":\"user_id\",\"operator\":\"=\",\"value\":\"abc123\"}]. Supported types: stringObject (metadata key-value filtering), string, number, datetime, stringOptions, arrayOptions. Supported operators for stringObject: =, contains, does not contain, starts with, ends with."
                 }
               ],
               "variable": []

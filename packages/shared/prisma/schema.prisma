@@ -128,6 +128,7 @@ model Project {
   deletedAt                 DateTime?                   @map("deleted_at")
   name                      String
   retentionDays             Int?                        @map("retention_days")
+  hasTraces                 Boolean                     @default(false) @map("has_traces")
   metadata                  Json?
   projectMembers            ProjectMembership[]
   organization              Organization                @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
@@ -1334,6 +1335,7 @@ enum DashboardWidgetViews {
 
 enum DashboardWidgetChartType {
   LINE_TIME_SERIES
+  AREA_TIME_SERIES
   BAR_TIME_SERIES
   HORIZONTAL_BAR
   VERTICAL_BAR

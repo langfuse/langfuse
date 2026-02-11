@@ -1,5 +1,4 @@
-import { Divider } from "@tremor/react";
-
+import { Separator } from "@/src/components/ui/separator";
 import { usePlaygroundContext } from "../context";
 import { MessagePlaceholderComponent } from "./MessagePlaceholderComponent";
 
@@ -29,7 +28,7 @@ export const MessagePlaceholders = () => {
               <div key={placeholder.name}>
                 <MessagePlaceholderComponent messagePlaceholder={placeholder} />
                 {index !== messagePlaceholders.length - 1 && (
-                  <Divider className="my-2 text-muted-foreground" />
+                  <Separator className="my-2" />
                 )}
               </div>
             ))}

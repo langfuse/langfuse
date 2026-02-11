@@ -24,6 +24,8 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -34,6 +36,7 @@ export function NumericScoreTimeSeriesChart(props: {
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
+  isDashboardChartsBeta?: boolean;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -107,14 +110,30 @@ export function NumericScoreTimeSeriesChart(props: {
     data: extractedScores,
     isNullValueAllowed: true,
   }) ? (
-    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-      <BaseTimeSeriesChart
-        className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-        agg={props.agg}
-        data={extractedScores}
-        connectNulls
-      />
-    </Card>
+    props.isDashboardChartsBeta ? (
+      <div className="h-80 w-full shrink-0">
+        <Chart
+          chartType="LINE_TIME_SERIES"
+          data={timeSeriesToDataPoints(extractedScores, props.agg)}
+          rowLimit={100}
+          chartConfig={{
+            type: "LINE_TIME_SERIES",
+            show_data_point_dots: false,
+            subtle_fill: true,
+          }}
+          legendPosition="above"
+        />
+      </div>
+    ) : (
+      <Card className="min-h-[9rem] w-full flex-1 rounded-md border">
+        <BaseTimeSeriesChart
+          className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
+          agg={props.agg}
+          data={extractedScores}
+          connectNulls
+        />
+      </Card>
+    )
   ) : (
     <NoDataOrLoading isLoading={scores.isLoading} />
   );

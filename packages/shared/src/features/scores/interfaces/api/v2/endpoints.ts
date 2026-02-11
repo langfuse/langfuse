@@ -12,6 +12,13 @@ export const GetScoresQueryV2 = GetScoresQuery.extend({
   sessionId: z.string().nullish(),
   traceId: z.string().nullish(),
   datasetRunId: z.string().nullish(),
+  observationId: z
+    .string()
+    .transform((str) => str.split(",").map((id) => id.trim()))
+    .refine((arr) => arr.every((id) => typeof id === "string"), {
+      message: "Each observation ID must be a string",
+    })
+    .nullish(),
 });
 export const GetScoreResponseDataV2 = z
   .intersection(

@@ -146,6 +146,7 @@ export type DashboardWidgetViews =
   (typeof DashboardWidgetViews)[keyof typeof DashboardWidgetViews];
 export const DashboardWidgetChartType = {
   LINE_TIME_SERIES: "LINE_TIME_SERIES",
+  AREA_TIME_SERIES: "AREA_TIME_SERIES",
   BAR_TIME_SERIES: "BAR_TIME_SERIES",
   HORIZONTAL_BAR: "HORIZONTAL_BAR",
   VERTICAL_BAR: "VERTICAL_BAR",
@@ -776,6 +777,7 @@ export type Project = {
   deleted_at: Timestamp | null;
   name: string;
   retention_days: number | null;
+  has_traces: Generated<boolean>;
   metadata: unknown | null;
 };
 export type ProjectMembership = {

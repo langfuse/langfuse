@@ -80,8 +80,9 @@ jobs:
               if (context.ref === "refs/heads/main") {
                 return `["staging"]`
               }
+              // TODO revert to: `["prod-eu", "prod-us", "prod-hipaa"]`
               if (context.ref === "refs/heads/production") {
-                return `["prod-eu", "prod-us", "prod-hipaa"]`
+                return `["prod-eu", "prod-us"]`
               }
             }
             return "[]"
