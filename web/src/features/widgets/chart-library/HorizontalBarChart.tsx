@@ -35,7 +35,12 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
         accessibilityLayer={accessibilityLayer}
         data={data}
         layout="vertical"
-        margin={{ top: 4, right: 8, bottom: 4, left: 0 }}
+        margin={{
+          top: 4,
+          right: showValueLabels ? 68 : 8,
+          bottom: 4,
+          left: 0,
+        }}
         barCategoryGap="12%"
         barGap={4}
       >
@@ -53,8 +58,28 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={formatAxisLabel}
-          width={100}
+          width={120}
+          tick={({ x, y, payload }) => {
+            const fullLabel =
+              typeof payload === "string"
+                ? payload
+                : ((payload as { value?: string })?.value ?? String(payload));
+            return (
+              <g transform={`translate(${x},${y})`}>
+                <title>{fullLabel}</title>
+                <text
+                  textAnchor="end"
+                  x={0}
+                  y={0}
+                  dy={4}
+                  fill="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                >
+                  {formatAxisLabel(fullLabel)}
+                </text>
+              </g>
+            );
+          }}
         />
         <Bar
           dataKey="metric"
