@@ -5248,6 +5248,21 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: filter
+          in: query
+          description: >-
+            A JSON stringified array of filter objects. Each object requires
+            type, column, operator, and value. Supports filtering by score
+            metadata using the stringObject type. Example:
+            [{"type":"stringObject","column":"metadata","key":"user_id","operator":"=","value":"abc123"}].
+            Supported types: stringObject (metadata key-value filtering),
+            string, number, datetime, stringOptions, arrayOptions. Supported
+            operators for stringObject: =, contains, does not contain, starts
+            with, ends with.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
