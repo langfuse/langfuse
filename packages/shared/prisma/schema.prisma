@@ -1335,6 +1335,7 @@ enum DashboardWidgetViews {
 
 enum DashboardWidgetChartType {
   LINE_TIME_SERIES
+  AREA_TIME_SERIES
   BAR_TIME_SERIES
   HORIZONTAL_BAR
   VERTICAL_BAR
