@@ -413,15 +413,20 @@ describe("prompts trpc", () => {
       });
     });
 
-    it("should delete prompts by pathPrefix (folder)", async () => {
+    it("should delete prompts by pathPrefix (folder) including nested folders but preserving prompt with same name", async () => {
       const { project, caller } = await prepare();
 
-      // Create test prompts in a folder
+      // Create test structure:
+      // folder1/prompt-1 (Prompt)
+      // folder1/folder2 (Prompt named folder1/folder2)
+      // folder1/folder2/prompt-2 (Prompt inside folder1/folder2)
+      // folder1/folder2/prompt-3 (Prompt inside folder1/folder2)
+
       await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
-          name: "folder/prompt-1",
+          name: "folder1/prompt-1",
           version: 1,
           type: "text",
           prompt: { text: "Hello world 1" },
@@ -429,11 +434,23 @@ describe("prompts trpc", () => {
         },
       });
 
+      const promptNamedSameAsFolder = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder1/folder2",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is a prompt named folder1/folder2" },
+          createdBy: "test-user",
+        },
+      });
+
       await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
-          name: "folder/prompt-2",
+          name: "folder1/folder2/prompt-2",
           version: 1,
           type: "text",
           prompt: { text: "Hello world 2" },
@@ -441,12 +458,11 @@ describe("prompts trpc", () => {
         },
       });
 
-      // Create a prompt outside the folder
       await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
-          name: "other-prompt",
+          name: "folder1/folder2/prompt-3",
           version: 1,
           type: "text",
           prompt: { text: "Hello world 3" },
@@ -454,29 +470,36 @@ describe("prompts trpc", () => {
         },
       });
 
-      // Delete the folder
+      // Delete the folder "folder1/folder2"
       await caller.prompts.delete({
         projectId: project.id,
-        pathPrefix: "folder",
+        pathPrefix: "folder1/folder2",
       });
 
-      // Verify folder prompts are deleted
-      const folderPrompts = await prisma.prompt.findMany({
+      // Verify nested items are deleted
+      const nestedPrompts = await prisma.prompt.findMany({
         where: {
           projectId: project.id,
-          name: { startsWith: "folder/" },
+          name: { startsWith: "folder1/folder2/" },
         },
       });
-      expect(folderPrompts).toHaveLength(0);
+      expect(nestedPrompts).toHaveLength(0);
 
-      // Verify other prompt still exists
-      const otherPrompt = await prisma.prompt.findFirst({
+      // Verify prompt named folder1/folder2 remains
+      const sameNamePrompt = await prisma.prompt.findUnique({
+        where: { id: promptNamedSameAsFolder.id },
+      });
+      expect(sameNamePrompt).not.toBeNull();
+      expect(sameNamePrompt?.name).toBe("folder1/folder2");
+
+      // Verify folder1/prompt-1 still exists
+      const unrelatedPrompt = await prisma.prompt.findFirst({
         where: {
           projectId: project.id,
-          name: "other-prompt",
+          name: "folder1/prompt-1",
         },
       });
-      expect(otherPrompt).not.toBeNull();
+      expect(unrelatedPrompt).not.toBeNull();
     });
   });
 

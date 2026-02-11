@@ -78,7 +78,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
               {folderPath}
             </code>{" "}
             and <b>all contents inside it recursively</b>. This cannot be
-            undone.
+            undone. If a prompt is still used in your application, your application will break.
           </p>
 
           <div className="rounded-md border bg-muted/50 p-4">
@@ -122,13 +122,12 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
 
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              To confirm, type <span className="font-bold">{folderName}</span>{" "}
-              below:
+              To confirm, type the name of the folder you want to delete below:
             </label>
             <Input
               value={confirmName}
               onChange={(e) => setConfirmName(e.target.value)}
-              placeholder={folderName}
+              placeholder="folder to delete"
               className="h-9"
             />
           </div>
