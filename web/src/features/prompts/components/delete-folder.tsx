@@ -69,7 +69,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete Folder "{folderName}"</DialogTitle>
+          <DialogTitle>Delete All Prompts in Folder "{folderName}"</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <p className="text-sm text-muted-foreground">
@@ -77,19 +77,20 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
             <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
               {folderPath}
             </code>{" "}
-            and <b>all contents inside it recursively</b>. This cannot be
-            undone. If a prompt is still used in your application, your application will break.
+            and <b>all prompts inside it recursively</b>. This cannot be undone.
+            If a prompt is still used in your application, your application will
+            break.
           </p>
 
           <div className="rounded-md border bg-muted/50 p-4">
-            <h4 className="mb-2 text-sm font-medium">Items to be deleted:</h4>
+            <h4 className="mb-2 text-sm font-medium">Prompts to be deleted:</h4>
             {prompts.isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
             ) : prompts.isError ? (
               <div className="py-2 text-xs text-red-500">
-                Failed to load items: {prompts.error.message}
+                Failed to load prompts: {prompts.error.message}
               </div>
             ) : (
               <ul className="max-h-32 space-y-1 overflow-y-auto text-xs">
@@ -108,12 +109,12 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                 ))}
                 {(prompts.data?.totalCount ?? 0) > 100 && (
                   <li className="pt-1 italic text-muted-foreground">
-                    And {(prompts.data?.totalCount ?? 0) - 100} more items...
+                    And {(prompts.data?.totalCount ?? 0) - 100} more prompts...
                   </li>
                 )}
                 {prompts.data?.prompts.length === 0 && (
                   <li className="italic text-muted-foreground">
-                    No items found in this folder.
+                    No prompts found in this folder.
                   </li>
                 )}
               </ul>
