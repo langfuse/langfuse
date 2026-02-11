@@ -1174,6 +1174,136 @@ describe("/api/public/v2/scores API Endpoint", () => {
           ]),
         );
       });
+
+      it("should filter scores by single observation ID", async () => {
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?observationId=${generationId}`,
+          undefined,
+          authentication,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 3,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: scoreId_1,
+              observationId: generationId,
+              name: scoreName,
+              value: 10.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_2,
+              observationId: generationId,
+              name: scoreName,
+              value: 50.5,
+            }),
+            expect.objectContaining({
+              id: scoreId_3,
+              observationId: generationId,
+              name: scoreName,
+              value: 100.8,
+            }),
+          ]),
+        );
+      });
+
+      it("should filter scores by multiple observation IDs", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const tId = v4();
+        const obsId1 = v4();
+        const obsId2 = v4();
+        const obsId3 = v4();
+        const sId1 = v4();
+        const sId2 = v4();
+        const sId3 = v4();
+
+        await createTracesCh([createTrace({ id: tId, project_id: projectId })]);
+        await createObservationsCh([
+          createObservation({
+            id: obsId1,
+            project_id: projectId,
+            type: "GENERATION",
+          }),
+          createObservation({
+            id: obsId2,
+            project_id: projectId,
+            type: "GENERATION",
+          }),
+          createObservation({
+            id: obsId3,
+            project_id: projectId,
+            type: "GENERATION",
+          }),
+        ]);
+        await createScoresCh([
+          createTraceScore({
+            id: sId1,
+            project_id: projectId,
+            trace_id: tId,
+            observation_id: obsId1,
+            name: "score",
+            value: 1,
+            data_type: "NUMERIC",
+          }),
+          createTraceScore({
+            id: sId2,
+            project_id: projectId,
+            trace_id: tId,
+            observation_id: obsId2,
+            name: "score",
+            value: 2,
+            data_type: "NUMERIC",
+          }),
+          createTraceScore({
+            id: sId3,
+            project_id: projectId,
+            trace_id: tId,
+            observation_id: obsId3,
+            name: "score",
+            value: 3,
+            data_type: "NUMERIC",
+          }),
+        ]);
+
+        const getScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?observationId=${obsId1},${obsId2}`,
+          undefined,
+          auth,
+        );
+        expect(getScore.status).toBe(200);
+        expect(getScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        expect(getScore.body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: sId1,
+              observationId: obsId1,
+              value: 1,
+            }),
+            expect.objectContaining({
+              id: sId2,
+              observationId: obsId2,
+              value: 2,
+            }),
+          ]),
+        );
+        expect(
+          getScore.body.data.find((s: any) => s.id === sId3),
+        ).toBeUndefined();
+      });
     });
 
     describe("GET /api/public/v2/scores - fields parameter", () => {
@@ -1676,6 +1806,354 @@ describe("/api/public/v2/scores API Endpoint", () => {
           id: scoreId,
           trace: null,
         });
+      });
+    });
+
+    describe("GET /api/public/v2/scores - filter parameter", () => {
+      it("should filter scores by metadata key-value with stringObject filter", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId1 = v4();
+        const scoreId2 = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 10,
+          data_type: "NUMERIC",
+          metadata: { user_id: "alice" },
+        });
+        const score2 = createTraceScore({
+          id: scoreId2,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 20,
+          data_type: "NUMERIC",
+          metadata: { user_id: "bob" },
+        });
+        await createScoresCh([score1, score2]);
+
+        const filterParam = JSON.stringify([
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "user_id",
+            operator: "=",
+            value: "alice",
+          },
+        ]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?filter=${encodeURIComponent(filterParam)}`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0].id).toBe(scoreId1);
+      });
+
+      it("should filter scores by metadata using contains operator", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId1 = v4();
+        const scoreId2 = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 10,
+          data_type: "NUMERIC",
+          metadata: { region: "us-east-1" },
+        });
+        const score2 = createTraceScore({
+          id: scoreId2,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 20,
+          data_type: "NUMERIC",
+          metadata: { region: "eu-west-1" },
+        });
+        await createScoresCh([score1, score2]);
+
+        const filterParam = JSON.stringify([
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "region",
+            operator: "contains",
+            value: "us-east",
+          },
+        ]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?filter=${encodeURIComponent(filterParam)}`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0].id).toBe(scoreId1);
+      });
+
+      it("should return empty when no scores match metadata filter", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId1 = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score",
+          value: 10,
+          data_type: "NUMERIC",
+          metadata: { team: "backend" },
+        });
+        await createScoresCh([score1]);
+
+        const filterParam = JSON.stringify([
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "team",
+            operator: "=",
+            value: "frontend",
+          },
+        ]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?filter=${encodeURIComponent(filterParam)}`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(0);
+      });
+
+      it("should support multiple metadata filters with AND logic", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId1 = v4();
+        const scoreId2 = v4();
+        const scoreId3 = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score-1",
+          value: 10,
+          data_type: "NUMERIC",
+          metadata: { env: "prod", team: "backend" },
+        });
+        const score2 = createTraceScore({
+          id: scoreId2,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score-2",
+          value: 20,
+          data_type: "NUMERIC",
+          metadata: { env: "prod", team: "frontend" },
+        });
+        const score3 = createTraceScore({
+          id: scoreId3,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "test-score-3",
+          value: 30,
+          data_type: "NUMERIC",
+          metadata: { env: "staging", team: "backend" },
+        });
+        await createScoresCh([score1, score2, score3]);
+
+        const filterParam = JSON.stringify([
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "env",
+            operator: "=",
+            value: "prod",
+          },
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "team",
+            operator: "=",
+            value: "backend",
+          },
+        ]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?filter=${encodeURIComponent(filterParam)}`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0].id).toBe(scoreId1);
+      });
+
+      it("should combine metadata filter with simple query parameters", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId1 = v4();
+        const scoreId2 = v4();
+        const scoreId3 = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "accuracy",
+          value: 90,
+          data_type: "NUMERIC",
+          metadata: { user_id: "alice" },
+        });
+        const score2 = createTraceScore({
+          id: scoreId2,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "accuracy",
+          value: 80,
+          data_type: "NUMERIC",
+          metadata: { user_id: "bob" },
+        });
+        const score3 = createTraceScore({
+          id: scoreId3,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "latency",
+          value: 50,
+          data_type: "NUMERIC",
+          metadata: { user_id: "alice" },
+        });
+        await createScoresCh([score1, score2, score3]);
+
+        const filterParam = JSON.stringify([
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "user_id",
+            operator: "=",
+            value: "alice",
+          },
+        ]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?name=accuracy&filter=${encodeURIComponent(filterParam)}`,
+          undefined,
+          auth,
+        );
+
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0].id).toBe(scoreId1);
+      });
+
+      it("should let advanced filter take precedence over simple param for same field", async () => {
+        const { projectId, auth } = await createOrgProjectAndApiKey();
+        const traceId = v4();
+        const scoreId1 = v4();
+        const scoreId2 = v4();
+
+        const trace = createTrace({
+          id: traceId,
+          project_id: projectId,
+        });
+        await createTracesCh([trace]);
+
+        const score1 = createTraceScore({
+          id: scoreId1,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "accuracy",
+          value: 90,
+          data_type: "NUMERIC",
+        });
+        const score2 = createTraceScore({
+          id: scoreId2,
+          project_id: projectId,
+          trace_id: traceId,
+          name: "latency",
+          value: 50,
+          data_type: "NUMERIC",
+        });
+        await createScoresCh([score1, score2]);
+
+        // Simple param says name=accuracy, but advanced filter overrides to name=latency
+        const filterParam = JSON.stringify([
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: "latency",
+          },
+        ]);
+
+        const getScores = await makeZodVerifiedAPICall(
+          GetScoresResponseV2,
+          "GET",
+          `/api/public/v2/scores?name=accuracy&filter=${encodeURIComponent(filterParam)}`,
+          undefined,
+          auth,
+        );
+
+        // Advanced filter wins: should return "latency", not "accuracy"
+        expect(getScores.status).toBe(200);
+        expect(getScores.body.data).toHaveLength(1);
+        expect(getScores.body.data[0].id).toBe(scoreId2);
+        expect(getScores.body.data[0].name).toBe("latency");
       });
     });
   });
