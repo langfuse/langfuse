@@ -459,6 +459,7 @@ export const InnerEvalTemplateForm = (props: {
                         editable={props.isEditing}
                         mode="prompt"
                         minHeight={200}
+                        maxHeight="30dvh"
                       />
                     </FormControl>
                     <FormMessage />
