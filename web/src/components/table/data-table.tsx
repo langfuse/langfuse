@@ -68,6 +68,7 @@ interface DataTableProps<TData, TValue> {
   orderBy?: OrderByState;
   setOrderBy?: (s: OrderByState) => void;
   help?: { description: string; href: string };
+  noResultsMessage?: React.ReactNode;
   rowHeight?: RowHeight;
   customRowHeights?: CustomHeights;
   className?: string;
@@ -152,6 +153,7 @@ export function DataTable<TData extends object, TValue>({
   columnOrder,
   onColumnOrderChange,
   help,
+  noResultsMessage,
   orderBy,
   setOrderBy,
   rowHeight,
@@ -410,6 +412,7 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
+                noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 tableSnapshot={{
@@ -427,6 +430,7 @@ export function DataTable<TData extends object, TValue>({
                 columns={columns}
                 data={data}
                 help={help}
+                noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
               />
@@ -472,6 +476,7 @@ interface TableBodyComponentProps<TData> {
   columns: LangfuseColumnDef<TData, any>[];
   data: AsyncTableData<TData[]>;
   help?: { description: string; href: string };
+  noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
@@ -524,6 +529,7 @@ function TableBodyComponent<TData>({
   columns,
   data,
   help,
+  noResultsMessage,
   onRowClick,
   getRowClassName,
 }: TableBodyComponentProps<TData>) {
@@ -599,9 +605,13 @@ function TableBodyComponent<TData>({
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
             <div className="pointer-events-none absolute left-[50%] flex -translate-y-1/2 items-center justify-center">
-              No results.{" "}
-              {help && (
-                <DocPopup description={help.description} href={help.href} />
+              {noResultsMessage ?? (
+                <>
+                  No results.{" "}
+                  {help && (
+                    <DocPopup description={help.description} href={help.href} />
+                  )}
+                </>
               )}
             </div>
           </TableCell>
