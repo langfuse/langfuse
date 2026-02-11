@@ -52,6 +52,7 @@ export type ScoreQueryType = {
   traceTags?: string | string[];
   operator?: string;
   scoreIds?: string[];
+  observationId?: string[];
   dataType?: string;
   environment?: string | string[];
   fields?: string[] | null;
@@ -287,6 +288,13 @@ const secureScoreFilterOptions = [
     clickhouseSelect: "trace_id",
     clickhouseTable: "scores",
     filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "observationId",
+    clickhouseSelect: "observation_id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
     clickhousePrefix: "s",
   },
   {

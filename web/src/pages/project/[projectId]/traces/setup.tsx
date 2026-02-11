@@ -9,6 +9,7 @@ import { Button } from "@/src/components/ui/button";
 import { ApiKeyRender } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { type RouterOutput } from "@/src/utils/types";
 import { useState } from "react";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export const TracingSetup = ({
   projectId,
@@ -93,14 +94,18 @@ export const TracingSetup = ({
 export default function TracesSetupPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { project } = useQueryProject();
 
   // Check if the user has tracing configured
+  // Skip polling entirely if the project flag is already set in the session
   const { data: hasTracingConfigured } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
       {
         enabled: !!projectId,
-        refetchInterval: 5000,
+        refetchInterval: project?.hasTraces ? false : 5000,
+        initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
         trpc: {
           context: {
             skipBatch: true,

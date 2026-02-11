@@ -49,7 +49,7 @@ export default function Dataset() {
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
-    `${projectId}-dataset-chart-metrics`,
+    `${projectId}-${datasetId}-chart-metrics`,
     RESOURCE_METRICS.map((metric) => metric.key),
   );
 

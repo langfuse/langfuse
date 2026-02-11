@@ -3241,7 +3241,7 @@
           "request": {
             "description": "Get a list of scores (supports both trace and session scores)",
             "url": {
-              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&datasetRunId=&traceId=&queueId=&dataType=&traceTags=&fields=",
+              "raw": "{{baseUrl}}/api/public/v2/scores?page=&limit=&userId=&name=&fromTimestamp=&toTimestamp=&environment=&source=&operator=&value=&scoreIds=&configId=&sessionId=&datasetRunId=&traceId=&observationId=&queueId=&dataType=&traceTags=&fields=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3326,6 +3326,11 @@
                   "key": "traceId",
                   "value": "",
                   "description": "Retrieve only scores with a specific traceId."
+                },
+                {
+                  "key": "observationId",
+                  "value": "",
+                  "description": "Comma-separated list of observation IDs to filter scores by."
                 },
                 {
                   "key": "queueId",
