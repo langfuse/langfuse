@@ -4,7 +4,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   getUniqueDimensions,
@@ -13,13 +13,7 @@ import {
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
-/**
- * LineChartTimeSeries component
- * @param data - Data to be displayed. Expects an array of objects with time_dimension, dimension, and metric properties.
- * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
- * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
- */
-export const LineChartTimeSeries: React.FC<ChartProps> = ({
+export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   data,
   config = {
     metric: {
@@ -32,7 +26,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   valueFormatter,
   legendPosition = "none",
-  showDataPointDots = true,
+  subtleFill = false,
 }) => {
   const [highlightedDimension, setHighlightedDimension] = useState<
     string | null
@@ -48,9 +42,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   };
 
   return (
-    <div className="flex size-full min-w-0 flex-col">
+    <div className="flex h-full w-full min-w-0 flex-col">
       {legendPosition === "above" && dimensions.length > 0 && (
-        <div className="min-w-0 shrink-0 overflow-x-auto pb-3">
+        <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-3">
           <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
             {dimensions.map((dimension, index) => {
               const isHighlighted =
@@ -86,7 +80,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
         </div>
       )}
       <ChartContainer config={config} className="min-h-0 flex-1">
-        <LineChart accessibilityLayer={accessibilityLayer} data={groupedData}>
+        <AreaChart accessibilityLayer={accessibilityLayer} data={groupedData}>
           <CartesianGrid stroke="hsl(var(--chart-grid))" vertical={false} />
           <XAxis
             dataKey="time_dimension"
@@ -108,18 +102,14 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
               highlightedDimension !== null &&
               highlightedDimension !== dimension;
             return (
-              <Line
+              <Area
                 key={dimension}
                 type="monotone"
                 dataKey={dimension}
-                strokeWidth={2.5}
-                dot={showDataPointDots && !isMuted ? { r: 4 } : false}
-                activeDot={
-                  showDataPointDots && !isMuted
-                    ? { r: 5, strokeWidth: 0 }
-                    : false
-                }
                 stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
+                fill={`hsl(var(--chart-${(index % 8) + 1}))`}
+                fillOpacity={isMuted ? 0.15 : subtleFill ? 0.3 : 0.75}
+                strokeWidth={2.5}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls
               />
@@ -137,10 +127,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
               />
             )}
           />
-        </LineChart>
+        </AreaChart>
       </ChartContainer>
     </div>
   );
 };
 
-export default LineChartTimeSeries;
+export default AreaChartTimeSeries;
