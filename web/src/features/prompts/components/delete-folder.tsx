@@ -69,7 +69,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete All Prompts in Folder "{folderName}"</DialogTitle>
+          <DialogTitle>Delete All Prompts in Folder &quot;{folderName}&quot;</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <p className="text-sm text-muted-foreground">
