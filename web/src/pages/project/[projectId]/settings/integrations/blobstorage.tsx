@@ -29,7 +29,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Card } from "@tremor/react";
+import { Card } from "@/src/components/ui/card";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";

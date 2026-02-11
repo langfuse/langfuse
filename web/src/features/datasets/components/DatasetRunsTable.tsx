@@ -7,7 +7,11 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
-import { usdFormatter } from "../../../utils/numbers";
+import {
+  compactNumberFormatter,
+  latencyFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type Prisma, datasetRunsTableColsWithOptions } from "@langfuse/shared";
@@ -36,6 +40,9 @@ import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { useDashboardChartsBeta } from "@/src/features/dashboard/hooks/useDashboardChartsBeta";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
@@ -184,6 +191,7 @@ export function DatasetRunsTable(props: {
   selectedMetrics: string[];
   setScoreOptions: (options: { key: string; value: string }[]) => void;
 }) {
+  const { isDashboardChartsBeta } = useDashboardChartsBeta();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -640,6 +648,53 @@ export function DatasetRunsTable(props: {
                   const { chartData, chartLabels } = adapter.toChartData();
 
                   const scoreData = scoreKeyToData.get(key);
+                  const valueFormatter =
+                    key === "latency"
+                      ? latencyFormatter
+                      : key === "cost"
+                        ? usdFormatter
+                        : compactNumberFormatter;
+
+                  if (isDashboardChartsBeta) {
+                    const dataPoints =
+                      chartLabels.length === 1
+                        ? chartData.map((d) => ({
+                            time_dimension: d.binLabel,
+                            dimension: chartLabels[0]!,
+                            metric: (d[chartLabels[0]!] as number) ?? 0,
+                          }))
+                        : compareViewChartDataToDataPoints(
+                            chartData,
+                            chartLabels,
+                          );
+                    const chartType =
+                      chartLabels.length === 1
+                        ? "LINE_TIME_SERIES"
+                        : "BAR_TIME_SERIES";
+                    return (
+                      <div
+                        key={key}
+                        className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                      >
+                        <span className="shrink-0 text-sm font-medium">
+                          {title}
+                        </span>
+                        <div className="min-h-0 flex-1">
+                          <Chart
+                            chartType={chartType}
+                            data={dataPoints}
+                            rowLimit={Math.max(dataPoints.length, 1)}
+                            chartConfig={{ type: chartType }}
+                            valueFormatter={valueFormatter}
+                            legendPosition={
+                              chartLabels.length > 1 ? "above" : "none"
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+
                   if (!scoreData)
                     return (
                       <div key={key} className="h-full min-w-80 max-w-full">

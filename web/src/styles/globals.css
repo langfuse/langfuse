@@ -74,10 +74,14 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
-    --chart-1: var(--dark-green);
-    --chart-2: var(--dark-yellow);
-    --chart-3: var(--dark-blue);
-    --chart-4: var(--dark-red);
+    --chart-1: 239 84% 58%;
+    --chart-2: 188 94% 43%;
+    --chart-3: 240 4% 46%;
+    --chart-4: 271 91% 65%;
+    --chart-5: 48 96% 47%;
+    --chart-6: 0 84% 60%;
+    --chart-7: 84 81% 44%;
+    --chart-8: 330 81% 60%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
@@ -166,10 +170,14 @@
     --sidebar-border: 217.2 32.6% 26.5%;
     --sidebar-ring: 224.3 76.3% 46%;
 
-    --chart-1: var(--dark-green);
-    --chart-2: var(--dark-yellow);
-    --chart-3: var(--dark-blue);
-    --chart-4: var(--dark-red);
+    --chart-1: 239 84% 58%;
+    --chart-2: 188 94% 43%;
+    --chart-3: 240 4% 46%;
+    --chart-4: 271 91% 65%;
+    --chart-5: 48 96% 47%;
+    --chart-6: 0 84% 60%;
+    --chart-7: 84 81% 44%;
+    --chart-8: 330 81% 60%;
     --chart-grid: var(--muted-gray);
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);

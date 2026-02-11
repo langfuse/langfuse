@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { Separator } from "@/src/components/ui/separator";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
@@ -21,7 +22,6 @@ import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
-import { Divider } from "@tremor/react";
 import { Fragment } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
@@ -312,7 +312,7 @@ export const OrganizationProjectOverview = () => {
         .map((org) => (
           <Fragment key={org.id}>
             {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
-              <Divider />
+              <Separator />
             )}
             <SingleOrganizationProjectOverviewTile
               orgId={org.id}
