@@ -1,11 +1,16 @@
 import React, { useMemo } from "react";
-import { ChartContainer, ChartTooltip } from "@/src/components/ui/chart";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   getUniqueDimensions,
   groupDataByTimeDimension,
 } from "@/src/features/widgets/chart-library/utils";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -24,6 +29,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
+  valueFormatter = compactNumberFormatter,
+  subtleFill = false,
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
@@ -49,14 +56,24 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           <Bar
             key={dimension}
             dataKey={dimension}
-            stroke={`hsl(var(--chart-${(index % 4) + 1}))`}
-            fill={`hsl(var(--chart-${(index % 4) + 1}))`}
+            stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
+            fill={`hsl(var(--chart-${(index % 8) + 1}))`}
+            fillOpacity={subtleFill ? 0.3 : 1}
             // Stack bars if there are multiple dimensions
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
         ))}
         <ChartTooltip
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
+          content={({ active, payload, label }) => (
+            <ChartTooltipContent
+              active={active}
+              payload={payload}
+              label={label}
+              valueFormatter={valueFormatter}
+              sortPayloadByValue="desc"
+            />
+          )}
         />
       </BarChart>
     </ChartContainer>
