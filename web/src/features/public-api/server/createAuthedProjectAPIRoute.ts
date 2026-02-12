@@ -306,6 +306,11 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
+      // Skip JSON response if handler already sent response (e.g., protobuf)
+      if (res.headersSent) {
+        return;
+      }
+
       res
         .status(
           // Check whether status code was already set inside handler to non default value
