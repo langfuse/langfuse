@@ -47,28 +47,30 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
     ...postHogSettings,
   });
 
+  let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
       `[POSTHOG] Error sending traces to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `[POSTHOG] Error sending traces to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
 
   let count = 0;
   for await (const trace of traces) {
+    if (sendError) throw sendError;
     count++;
     const event = transformTraceForPostHog(trace, config.projectId);
     posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
+      if (sendError) throw sendError;
       logger.info(
         `[POSTHOG] Sent ${count} traces to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
+  if (sendError) throw sendError;
   logger.info(
     `[POSTHOG] Sent ${count} traces to PostHog for project ${config.projectId}`,
   );
@@ -91,28 +93,30 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
     ...postHogSettings,
   });
 
+  let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
       `[POSTHOG] Error sending generations to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `[POSTHOG] Error sending generations to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
 
   let count = 0;
   for await (const generation of generations) {
+    if (sendError) throw sendError;
     count++;
     const event = transformGenerationForPostHog(generation, config.projectId);
     posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
+      if (sendError) throw sendError;
       logger.info(
         `[POSTHOG] Sent ${count} generations to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
+  if (sendError) throw sendError;
   logger.info(
     `[POSTHOG] Sent ${count} generations to PostHog for project ${config.projectId}`,
   );
@@ -135,27 +139,30 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     ...postHogSettings,
   });
 
+  let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
       `[POSTHOG] Error sending scores to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `[POSTHOG] Error sending scores to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
+
   let count = 0;
   for await (const score of scores) {
+    if (sendError) throw sendError;
     count++;
     const event = transformScoreForPostHog(score, config.projectId);
     posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
+      if (sendError) throw sendError;
       logger.info(
         `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
+  if (sendError) throw sendError;
   logger.info(
     `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
   );
