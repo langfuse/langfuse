@@ -2454,7 +2454,9 @@ export const getEventsForBlobStorageExport = function (
         minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
         maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       },
-    );
+    )
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.span_id", "e.project_id");
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -2503,7 +2505,9 @@ export const getEventsForAnalyticsIntegrations = async function* (
         minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
         maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       },
-    );
+    )
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.span_id", "e.project_id");
 
   const { query, params } = queryBuilder.buildWithParams();
 

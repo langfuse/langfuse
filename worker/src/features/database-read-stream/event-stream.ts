@@ -142,6 +142,7 @@ export const getEventsStream = async (props: {
     )
     .where(appliedEventsFilter)
     .where(search)
+    .whereRaw("e.is_deleted = 0")
     .limitBy("e.span_id", "e.project_id")
     .limit(rowLimit);
 
