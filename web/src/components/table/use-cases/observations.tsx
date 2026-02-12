@@ -173,6 +173,7 @@ export default function ObservationsTable({
   );
 
   const [refreshTick, setRefreshTick] = useState(0);
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
 
   // Auto-increment refresh tick to force date range recalculation
   useEffect(() => {
@@ -181,10 +182,11 @@ export default function ObservationsTable({
       setRefreshTick((t) => t + 1);
     }, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval]);
+  }, [refreshInterval, manualRefreshTrigger]);
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
+    setManualRefreshTrigger((t) => t + 1);
     void Promise.all([
       utils.generations.all.invalidate(),
       utils.generations.countAll.invalidate(),
