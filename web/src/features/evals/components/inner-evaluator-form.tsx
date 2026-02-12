@@ -72,7 +72,13 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/src/components/ui/tooltip";
-import { CircleDot, FlaskConical, InfoIcon, ListTree } from "lucide-react";
+import {
+  BetweenHorizonalStart,
+  CircleDot,
+  FlaskConical,
+  InfoIcon,
+  ListTree,
+} from "lucide-react";
 import {
   isDatasetTarget,
   isEventTarget,
@@ -698,7 +704,7 @@ export const InnerEvaluatorForm = (props: {
                         className="min-w-[100px] gap-1.5"
                         disabled={props.mode === "edit" || props.disabled}
                       >
-                        <ListTree className="h-3.5 w-3.5" />
+                        <BetweenHorizonalStart className="h-3.5 w-3.5" />
                         Dataset Run
                         <Badge
                           variant="secondary"
