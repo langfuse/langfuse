@@ -7,8 +7,6 @@ import {
   MoreVertical,
   Pen,
   Lock,
-  Star,
-  StarOff,
 } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -406,8 +404,15 @@ export function TableViewPresetsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button variant="outline" title={selectedViewName ?? "Saved Views"}>
-            <span>{selectedViewName ?? "Saved Views"}</span>
+          <Button
+            variant="outline"
+            title={
+              selectedViewName ? `View: ${selectedViewName}` : "Saved Views"
+            }
+          >
+            <span>
+              {selectedViewName ? `View: ${selectedViewName}` : "Saved Views"}
+            </span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
@@ -457,12 +462,12 @@ export function TableViewPresetsDrawer({
                       }
                       className={cn(
                         "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
-                        selectedViewId === null && "bg-muted font-medium",
+                        selectedViewId === null && "bg-muted",
                       )}
                       title="Reflects your current table settings without applying any saved custom table views"
                     >
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-muted-foreground">
+                        <span className="text-sm text-muted-foreground">
                           {SYSTEM_PRESETS.DEFAULT.name}
                         </span>
                         <span className="w-fit pl-0 text-xs text-muted-foreground">
@@ -484,13 +489,11 @@ export function TableViewPresetsDrawer({
                             normalizeForComparison(currentState.filters),
                             normalizeForComparison(preset.filters),
                           ) &&
-                          "bg-muted font-medium",
+                          "bg-muted",
                       )}
                     >
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium">
-                          {preset.name}
-                        </span>
+                        <span className="text-sm">{preset.name}</span>
                         {preset.description && (
                           <span className="w-fit pl-0 text-xs text-muted-foreground">
                             {preset.description}
@@ -521,14 +524,12 @@ export function TableViewPresetsDrawer({
                         onSelect={() => handleSelectView(view.id)}
                         className={cn(
                           "group mt-1 flex cursor-pointer items-center justify-between rounded-md p-2 transition-colors hover:bg-muted/50",
-                          selectedViewId === view.id && "bg-muted font-medium",
+                          selectedViewId === view.id && "bg-muted",
                         )}
                       >
                         <div className="flex flex-col">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {view.name}
-                            </span>
+                            <span className="text-sm">{view.name}</span>
                             {isUserDefault && (
                               <Badge variant="secondary" className="text-xs">
                                 Your default
@@ -623,7 +624,7 @@ export function TableViewPresetsDrawer({
                                       ) : (
                                         <Lock className="mr-2 h-4 w-4" />
                                       )}
-                                      Edit
+                                      Rename
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent
@@ -689,15 +690,9 @@ export function TableViewPresetsDrawer({
                                 disabled={isSettingDefault}
                               >
                                 {isUserDefault ? (
-                                  <>
-                                    <StarOff className="mr-2 h-4 w-4" />
-                                    Remove as my default
-                                  </>
+                                  <>Remove as my default</>
                                 ) : (
-                                  <>
-                                    <Star className="mr-2 h-4 w-4" />
-                                    Set as my default
-                                  </>
+                                  <>Set as my default</>
                                 )}
                               </DropdownMenuItem>
                               {/* Set as project default - requires write access */}
@@ -714,15 +709,9 @@ export function TableViewPresetsDrawer({
                                 disabled={!hasWriteAccess || isSettingDefault}
                               >
                                 {isProjectDefault ? (
-                                  <>
-                                    <StarOff className="mr-2 h-4 w-4" />
-                                    Remove as project default
-                                  </>
+                                  <>Remove as project default</>
                                 ) : (
-                                  <>
-                                    <Star className="mr-2 h-4 w-4" />
-                                    Set as project default
-                                  </>
+                                  <>Set as project default</>
                                 )}
                                 {!hasWriteAccess && (
                                   <Lock className="ml-auto h-4 w-4" />
