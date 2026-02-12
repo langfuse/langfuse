@@ -47,7 +47,7 @@ export const handlePostHogIntegrationSchedule = async () => {
   if (hasLegacyJobs) {
     logger.info("[POSTHOG] Cleaning up legacy hourly-key jobs");
     await postHogIntegrationProcessingQueue.drain();
-    await postHogIntegrationProcessingQueue.clean(0, 0, "failed");
+    await postHogIntegrationProcessingQueue.clean(0, 1000, "failed");
   }
 
   await postHogIntegrationProcessingQueue.addBulk(
