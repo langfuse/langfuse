@@ -33,7 +33,7 @@ const getCalloutContent = (
 
     return {
       visible: true,
-      title: "Live observations require a newer Langfuse SDK",
+      title: "Please check your SDK version",
       description: (
         <>
           This evaluator targets live observations, which require JS SDK v4+ or
