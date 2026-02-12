@@ -52,7 +52,7 @@ export const handleMixpanelIntegrationSchedule = async () => {
   if (hasLegacyJobs) {
     logger.info("[MIXPANEL] Cleaning up legacy hourly-key jobs");
     await mixpanelIntegrationProcessingQueue.drain();
-    await mixpanelIntegrationProcessingQueue.clean(0, 0, "failed");
+    await mixpanelIntegrationProcessingQueue.clean(0, 1000, "failed");
   }
 
   await mixpanelIntegrationProcessingQueue.addBulk(
