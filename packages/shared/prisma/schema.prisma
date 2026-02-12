@@ -1063,25 +1063,27 @@ model SsoConfig {
 }
 
 model PosthogIntegration {
-  projectId              String    @id @map("project_id")
-  project                Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  encryptedPosthogApiKey String    @map("encrypted_posthog_api_key")
-  posthogHostName        String    @map("posthog_host_name")
-  lastSyncAt             DateTime? @map("last_sync_at")
+  projectId              String                            @id @map("project_id")
+  project                Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedPosthogApiKey String                            @map("encrypted_posthog_api_key")
+  posthogHostName        String                            @map("posthog_host_name")
+  lastSyncAt             DateTime?                         @map("last_sync_at")
   enabled                Boolean
-  createdAt              DateTime  @default(now()) @map("created_at")
+  createdAt              DateTime                          @default(now()) @map("created_at")
+  exportSource           AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
 
   @@map("posthog_integrations")
 }
 
 model MixpanelIntegration {
-  projectId                     String    @id @map("project_id")
-  project                       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  encryptedMixpanelProjectToken String    @map("encrypted_mixpanel_project_token")
-  mixpanelRegion                String    @map("mixpanel_region")
-  lastSyncAt                    DateTime? @map("last_sync_at")
+  projectId                     String                            @id @map("project_id")
+  project                       Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedMixpanelProjectToken String                            @map("encrypted_mixpanel_project_token")
+  mixpanelRegion                String                            @map("mixpanel_region")
+  lastSyncAt                    DateTime?                         @map("last_sync_at")
   enabled                       Boolean
-  createdAt                     DateTime  @default(now()) @map("created_at")
+  createdAt                     DateTime                          @default(now()) @map("created_at")
+  exportSource                  AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
 
   @@map("mixpanel_integrations")
 }
@@ -1101,13 +1103,14 @@ model BlobStorageIntegration {
   forcePathStyle  Boolean                    @map("force_path_style")
 
   // Integration Config
-  nextSyncAt      DateTime?                      @map("next_sync_at")
-  lastSyncAt      DateTime?                      @map("last_sync_at")
+  nextSyncAt      DateTime?                         @map("next_sync_at")
+  lastSyncAt      DateTime?                         @map("last_sync_at")
   enabled         Boolean
-  exportFrequency String                         @map("export_frequency")
-  fileType        BlobStorageIntegrationFileType @default(CSV) @map("file_type")
-  exportMode      BlobStorageExportMode          @default(FULL_HISTORY) @map("export_mode")
-  exportStartDate DateTime?                      @map("export_start_date")
+  exportFrequency String                            @map("export_frequency")
+  fileType        BlobStorageIntegrationFileType    @default(CSV) @map("file_type")
+  exportMode      BlobStorageExportMode             @default(FULL_HISTORY) @map("export_mode")
+  exportStartDate DateTime?                         @map("export_start_date")
+  exportSource    AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
@@ -1137,6 +1140,14 @@ enum BlobStorageExportMode {
   FROM_CUSTOM_DATE
 
   @@map("BlobStorageExportMode")
+}
+
+enum AnalyticsIntegrationExportSource {
+  TRACES_OBSERVATIONS
+  TRACES_OBSERVATIONS_EVENTS
+  EVENTS
+
+  @@map("AnalyticsIntegrationExportSource")
 }
 
 model BatchExport {
