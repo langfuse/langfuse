@@ -136,6 +136,13 @@ export const BlobStorageExportMode = {
 } as const;
 export type BlobStorageExportMode =
   (typeof BlobStorageExportMode)[keyof typeof BlobStorageExportMode];
+export const AnalyticsIntegrationExportSource = {
+  TRACES_OBSERVATIONS: "TRACES_OBSERVATIONS",
+  TRACES_OBSERVATIONS_EVENTS: "TRACES_OBSERVATIONS_EVENTS",
+  EVENTS: "EVENTS",
+} as const;
+export type AnalyticsIntegrationExportSource =
+  (typeof AnalyticsIntegrationExportSource)[keyof typeof AnalyticsIntegrationExportSource];
 export const DashboardWidgetViews = {
   TRACES: "TRACES",
   OBSERVATIONS: "OBSERVATIONS",
@@ -146,6 +153,7 @@ export type DashboardWidgetViews =
   (typeof DashboardWidgetViews)[keyof typeof DashboardWidgetViews];
 export const DashboardWidgetChartType = {
   LINE_TIME_SERIES: "LINE_TIME_SERIES",
+  AREA_TIME_SERIES: "AREA_TIME_SERIES",
   BAR_TIME_SERIES: "BAR_TIME_SERIES",
   HORIZONTAL_BAR: "HORIZONTAL_BAR",
   VERTICAL_BAR: "VERTICAL_BAR",
@@ -359,6 +367,7 @@ export type BlobStorageIntegration = {
   file_type: Generated<BlobStorageIntegrationFileType>;
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -674,6 +683,7 @@ export type MixpanelIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Model = {
   id: string;
@@ -747,6 +757,7 @@ export type PosthogIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Price = {
   id: string;
@@ -776,6 +787,7 @@ export type Project = {
   deleted_at: Timestamp | null;
   name: string;
   retention_days: number | null;
+  has_traces: Generated<boolean>;
   metadata: unknown | null;
 };
 export type ProjectMembership = {

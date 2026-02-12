@@ -36,8 +36,10 @@ export const OtelIngestionEvent = z.object({
     scope: z.object({
       projectId: z.string(),
       accessLevel: z.literal("project"),
+      orgId: z.string().optional(),
     }),
   }),
+  propagatedHeaders: z.record(z.string(), z.string()).optional(),
 });
 
 export const BatchExportJobSchema = z.object({

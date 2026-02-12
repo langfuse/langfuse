@@ -85,15 +85,15 @@ export function withMiddlewares(handlers: Handlers) {
         if (error instanceof ClickHouseResourceError) {
           const resourceError = error as ClickHouseResourceError;
 
-          logger.error("ClickHouse resource limit exceeded", {
+          logger.warn("ClickHouse resource limit exceeded", {
             errorType: resourceError.errorType,
             message: resourceError.message,
             suggestion: CH_ERROR_ADVICE_FULL,
           });
 
-          return res.status(524).json({
+          return res.status(422).json({
             message: CH_ERROR_ADVICE_FULL,
-            error: "Request is taking too long to process.",
+            error: "Unprocessable Content",
           });
         }
 

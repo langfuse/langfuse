@@ -65,7 +65,6 @@ export const PromptVariableComponent: React.FC<{
         value={value}
         onChange={(e) => handleInputChange(e)}
         mode="prompt"
-        minHeight="none"
         className={`max-h-[10rem] w-full resize-y p-1 font-mono text-xs focus:outline-none ${hasConflict ? "border border-red-500" : ""}`}
         editable={true}
         lineNumbers={false}

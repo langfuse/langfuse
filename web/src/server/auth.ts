@@ -706,6 +706,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 name: project.name,
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
+                                hasTraces: project.hasTraces,
                                 deletedAt: project.deletedAt,
                                 metadata:
                                   (project.metadata as Record<
