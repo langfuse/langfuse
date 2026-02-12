@@ -58,7 +58,7 @@ const getCalloutContent = (
     if (!evalCapabilities.isNewCompatible) {
       return {
         visible: true,
-        title: "The Experiment Runner SDK requires a newer Langfuse SDK",
+        title: "Please check your SDK version",
         description: (
           <>
             The Experiment Runner SDK requires JS SDK v4.4+ or Python SDK v3.9+.
