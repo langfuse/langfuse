@@ -14,8 +14,8 @@ import {
 import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
-  transformScoreForPostHog,
   transformEventForPostHog,
+  transformScoreForPostHog,
 } from "./transformers";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
@@ -131,7 +131,9 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     config.maxTimestamp,
   );
 
-  logger.info(`Sending scores for project ${config.projectId} to PostHog`);
+  logger.info(
+    `[POSTHOG] Sending scores for project ${config.projectId} to PostHog`,
+  );
 
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
@@ -142,30 +144,28 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
   let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
-      `Error sending scores to PostHog for project ${config.projectId}: ${error}`,
+      `[POSTHOG] Error sending scores to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `Error sending scores to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
 
   let count = 0;
   for await (const score of scores) {
     count++;
-    const event = transformEventForPostHog(analyticsEvent, config.projectId);
+    const event = transformScoreForPostHog(score, config.projectId);
     posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
       if (sendError) throw sendError;
       logger.info(
-        `Sent ${count} scores to PostHog for project ${config.projectId}`,
+        `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
   if (sendError) throw sendError;
   logger.info(
-    `Sent ${count} scores to PostHog for project ${config.projectId}`,
+    `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
   );
 };
 
@@ -176,7 +176,9 @@ const processPostHogEvents = async (config: PostHogExecutionConfig) => {
     config.maxTimestamp,
   );
 
-  logger.info(`Sending events for project ${config.projectId} to PostHog`);
+  logger.info(
+    `[POSTHOG] Sending events for project ${config.projectId} to PostHog`,
+  );
 
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
@@ -201,13 +203,13 @@ const processPostHogEvents = async (config: PostHogExecutionConfig) => {
     if (count % 10000 === 0) {
       await posthog.flush();
       logger.info(
-        `Sent ${count} events to PostHog for project ${config.projectId}`,
+        `[POSTHOG] Sent ${count} events to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
   logger.info(
-    `Sent ${count} events to PostHog for project ${config.projectId}`,
+    `[POSTHOG] Sent ${count} events to PostHog for project ${config.projectId}`,
   );
 };
 
