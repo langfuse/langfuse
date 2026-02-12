@@ -32,7 +32,9 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
     config.maxTimestamp,
   );
 
-  logger.info(`Sending traces for project ${config.projectId} to Mixpanel`);
+  logger.info(
+    `[MIXPANEL] Sending traces for project ${config.projectId} to Mixpanel`,
+  );
 
   const mixpanel = new MixpanelClient({
     projectToken: config.decryptedMixpanelProjectToken,
@@ -48,13 +50,13 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
     if (count % 1000 === 0) {
       await mixpanel.flush();
       logger.info(
-        `Sent ${count} traces to Mixpanel for project ${config.projectId}`,
+        `[MIXPANEL] Sent ${count} traces to Mixpanel for project ${config.projectId}`,
       );
     }
   }
   await mixpanel.flush();
   logger.info(
-    `Sent ${count} traces to Mixpanel for project ${config.projectId}`,
+    `[MIXPANEL] Sent ${count} traces to Mixpanel for project ${config.projectId}`,
   );
 };
 
@@ -66,7 +68,7 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
   );
 
   logger.info(
-    `Sending generations for project ${config.projectId} to Mixpanel`,
+    `[MIXPANEL] Sending generations for project ${config.projectId} to Mixpanel`,
   );
 
   const mixpanel = new MixpanelClient({
@@ -83,13 +85,13 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
     if (count % 1000 === 0) {
       await mixpanel.flush();
       logger.info(
-        `Sent ${count} generations to Mixpanel for project ${config.projectId}`,
+        `[MIXPANEL] Sent ${count} generations to Mixpanel for project ${config.projectId}`,
       );
     }
   }
   await mixpanel.flush();
   logger.info(
-    `Sent ${count} generations to Mixpanel for project ${config.projectId}`,
+    `[MIXPANEL] Sent ${count} generations to Mixpanel for project ${config.projectId}`,
   );
 };
 
@@ -100,7 +102,9 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
     config.maxTimestamp,
   );
 
-  logger.info(`Sending scores for project ${config.projectId} to Mixpanel`);
+  logger.info(
+    `[MIXPANEL] Sending scores for project ${config.projectId} to Mixpanel`,
+  );
 
   const mixpanel = new MixpanelClient({
     projectToken: config.decryptedMixpanelProjectToken,
@@ -116,13 +120,13 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
     if (count % 1000 === 0) {
       await mixpanel.flush();
       logger.info(
-        `Sent ${count} scores to Mixpanel for project ${config.projectId}`,
+        `[MIXPANEL] Sent ${count} scores to Mixpanel for project ${config.projectId}`,
       );
     }
   }
   await mixpanel.flush();
   logger.info(
-    `Sent ${count} scores to Mixpanel for project ${config.projectId}`,
+    `[MIXPANEL] Sent ${count} scores to Mixpanel for project ${config.projectId}`,
   );
 };
 
@@ -137,7 +141,9 @@ export const handleMixpanelIntegrationProjectJob = async (
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
   }
 
-  logger.info(`Processing Mixpanel integration for project ${projectId}`);
+  logger.info(
+    `[MIXPANEL] Processing Mixpanel integration for project ${projectId}`,
+  );
 
   // Fetch Mixpanel integration information for project
   const mixpanelIntegration = await prisma.mixpanelIntegration.findFirst({
@@ -149,7 +155,7 @@ export const handleMixpanelIntegrationProjectJob = async (
 
   if (!mixpanelIntegration) {
     logger.warn(
-      `Enabled Mixpanel integration not found for project ${projectId}`,
+      `[MIXPANEL] Enabled Mixpanel integration not found for project ${projectId}`,
     );
     return;
   }
@@ -166,22 +172,30 @@ export const handleMixpanelIntegrationProjectJob = async (
     mixpanelRegion: mixpanelIntegration.mixpanelRegion,
   };
 
-  await Promise.all([
-    processMixpanelTraces(executionConfig),
-    processMixpanelGenerations(executionConfig),
-    processMixpanelScores(executionConfig),
-  ]);
+  try {
+    await Promise.all([
+      processMixpanelTraces(executionConfig),
+      processMixpanelGenerations(executionConfig),
+      processMixpanelScores(executionConfig),
+    ]);
 
-  // Update the last run information for the mixpanelIntegration record
-  await prisma.mixpanelIntegration.update({
-    where: {
-      projectId,
-    },
-    data: {
-      lastSyncAt: executionConfig.maxTimestamp,
-    },
-  });
-  logger.info(
-    `Mixpanel integration processing complete for project ${projectId}`,
-  );
+    // Update the last run information for the mixpanelIntegration record.
+    await prisma.mixpanelIntegration.update({
+      where: {
+        projectId,
+      },
+      data: {
+        lastSyncAt: executionConfig.maxTimestamp,
+      },
+    });
+    logger.info(
+      `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
+    );
+  } catch (error) {
+    logger.error(
+      `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
+      error,
+    );
+    throw error;
+  }
 };
