@@ -206,7 +206,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         f.file.includes("/observations/"),
       );
       const scoreFile = projectFiles.find((f) => f.file.includes("/scores/"));
-      const eventFile = projectFiles.find((f) => f.file.includes("/events/"));
+      const eventFile = projectFiles.find((f) =>
+        f.file.includes("/observations_v2/"),
+      );
 
       expect(traceFile).toBeDefined();
       expect(observationFile).toBeDefined();
