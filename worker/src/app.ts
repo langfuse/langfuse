@@ -73,7 +73,6 @@ import { datasetDeleteProcessor } from "./queues/datasetDelete";
 import { otelIngestionQueueProcessor } from "./queues/otelIngestionQueue";
 import { eventPropagationProcessor } from "./queues/eventPropagationQueue";
 import { notificationQueueProcessor } from "./queues/notificationQueue";
-import { MutationMonitor } from "./features/mutation-monitoring/mutationMonitor";
 import {
   BatchProjectCleaner,
   BATCH_DELETION_TABLES,
@@ -83,6 +82,7 @@ import {
   BATCH_DATA_RETENTION_TABLES,
 } from "./features/batch-data-retention-cleaner";
 import { MediaRetentionCleaner } from "./features/media-retention-cleaner";
+import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-cleaner";
 
 const app = express();
 
@@ -447,6 +447,13 @@ if (env.QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED === "true") {
         max: 1,
         duration: 10_000,
       },
+      // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
+      // We set it to 60s to reduce the number of lock renewals and also be less sensitive to high CPU wait times.
+      // We also update the stalledInterval check to 120s from 30s default to perform the check less frequently.
+      // Finally, we set the maxStalledCount to 3 (default 1) to perform repeated attempts on stalled jobs.
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
+      maxStalledCount: 3,
     },
   );
 }
@@ -557,11 +564,6 @@ if (env.QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED === "true") {
   );
 }
 
-if (env.LANGFUSE_MUTATION_MONITOR_ENABLED === "true") {
-  // Start the ClickHouse mutation monitor after all workers are registered
-  MutationMonitor.start();
-}
-
 // Batch project cleaners for bulk deletion of ClickHouse data
 export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
@@ -602,6 +604,14 @@ export let mediaRetentionCleaner: MediaRetentionCleaner | null = null;
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   mediaRetentionCleaner = new MediaRetentionCleaner();
   mediaRetentionCleaner.start();
+}
+
+// Batch trace deletion cleaner for supplementary trace deletion
+export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
+
+if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
+  batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
+  batchTraceDeletionCleaner.start();
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

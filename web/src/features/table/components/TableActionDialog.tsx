@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   Dialog,
   DialogBody,
@@ -30,6 +31,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { Loader2 } from "lucide-react";
+import { targetOptionsQueryMap } from "@/src/features/table/components/targetOptionsQueryMap";
 
 type TableActionDialogProps = {
   isOpen: boolean;
@@ -64,6 +66,24 @@ export function TableActionDialog({
       refetchInterval: 2 * 60 * 1000, // 2 minutes
     },
   );
+
+  const targetOptions = api.annotationQueues.allNamesAndIds.useQuery(
+    { projectId },
+    {
+      enabled:
+        action.type === "create" &&
+        action.id in targetOptionsQueryMap &&
+        hasEntitlement,
+    },
+  );
+
+  // Auto-select when there's only one option
+  useEffect(() => {
+    const options = targetOptions?.data;
+    if (options?.length === 1 && !form.getValues().targetId) {
+      form.setValue("targetId", options[0].id);
+    }
+  }, [targetOptions?.data, form]);
 
   const handleConfirm = async () => {
     if ("execute" in action) {
@@ -100,7 +120,7 @@ export function TableActionDialog({
                     <FormItem>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>

@@ -55,7 +55,7 @@ export function getColorsForCategories(categories: string[]): Color[] {
   if (categories.length <= predefinedColors.length) {
     return predefinedColors.slice(0, categories.length);
   }
-  const colors: Color[] = predefinedColors;
+  const colors: Color[] = [...predefinedColors];
   while (colors.length < categories.length) {
     colors.push(getRandomColor());
   }

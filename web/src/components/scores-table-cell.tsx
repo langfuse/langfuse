@@ -33,13 +33,13 @@ const ScoreValueCounts = ({
   wrap: boolean;
 }) => {
   return valueCounts.map(({ value, count }, index) => (
-    <div key={value} className="flex flex-row">
+    <span key={value} className="inline-block">
       <span className="truncate">{value}</span>
       <span>{`: ${numberFormatter(count, 0)}`}</span>
-      {!wrap && index < valueCounts.length - 1 && (
-        <span className="mr-1">{";"}</span>
+      {index < valueCounts.length - 1 && (
+        <span className="mr-1">{wrap ? "" : "; "}</span>
       )}
-    </div>
+    </span>
   ));
 };
 
@@ -124,11 +124,11 @@ export const ScoresTableCell = ({
     <div className="group">
       {aggregate.valueCounts.length > COLLAPSE_CATEGORICAL_SCORES_AFTER ? (
         <HoverCard>
-          <HoverCardTrigger>
+          <HoverCardTrigger asChild>
             <div
               className={cn(
-                "flex cursor-pointer group-hover:text-accent-dark-blue/55",
-                wrap ? "flex-col" : "flex-row",
+                "cursor-pointer overflow-hidden group-hover:text-accent-dark-blue/55",
+                wrap ? "line-clamp-5" : "text-ellipsis whitespace-nowrap",
               )}
             >
               <ScoreValueCounts
@@ -141,7 +141,7 @@ export const ScoresTableCell = ({
             </div>
           </HoverCardTrigger>
           <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal text-xs">
-            <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap={wrap} />
+            <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap />
           </HoverCardContent>
         </HoverCard>
       ) : (

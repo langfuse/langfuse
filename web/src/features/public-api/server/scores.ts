@@ -1,17 +1,20 @@
-import { convertApiProvidedFilterToClickhouseFilter } from "@langfuse/shared/src/server";
 import {
+  convertApiProvidedFilterToClickhouseFilter,
+  deriveFilters,
   convertClickhouseScoreToDomain,
   StringFilter,
   StringOptionsFilter,
   type ScoreRecordReadType,
   queryClickhouse,
   measureAndReturn,
+  scoresTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import {
   removeObjectKeys,
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
   type ScoreDomain,
+  type FilterState,
 } from "@langfuse/shared";
 
 /**
@@ -52,9 +55,11 @@ export type ScoreQueryType = {
   traceTags?: string | string[];
   operator?: string;
   scoreIds?: string[];
+  observationId?: string[];
   dataType?: string;
   environment?: string | string[];
   fields?: string[] | null;
+  advancedFilters?: FilterState;
 };
 
 /**
@@ -290,6 +295,13 @@ const secureScoreFilterOptions = [
     clickhousePrefix: "s",
   },
   {
+    id: "observationId",
+    clickhouseSelect: "observation_id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
     id: "name",
     clickhouseSelect: "name",
     clickhouseTable: "scores",
@@ -412,9 +424,11 @@ const generateScoreFilter = (
   filter: ScoreQueryType,
   scoreDataTypes?: readonly ScoreDataTypeType[],
 ) => {
-  const scoresFilter = convertApiProvidedFilterToClickhouseFilter(
+  const scoresFilter = deriveFilters(
     filter,
     secureScoreFilterOptions,
+    filter.advancedFilters,
+    scoresTableUiColumnDefinitions,
   );
   scoresFilter.push(
     new StringFilter({

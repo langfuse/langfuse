@@ -68,6 +68,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."trace_id"',
   },
+  {
+    uiTableName: "Parent Observation ID",
+    uiTableId: "parentObservationId",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."parent_observation_id"',
+  },
 
   {
     uiTableName: "Start Time",

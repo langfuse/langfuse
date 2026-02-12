@@ -115,7 +115,7 @@ pnpm run nuke              # Remove all node_modules, build files, wipe database
 - **Styling**: Tailwind CSS with CSS variables for theming
 - **Components**: shadcn/ui (Radix UI primitives)
 - **State Management**: TanStack Query (React Query) + tRPC
-- **Charts**: Tremor, Recharts
+- **Charts**: Recharts
 
 ### Worker Application (`/worker/`)
 - **Framework**: Express.js

@@ -306,21 +306,6 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
-  // ClickHouse mutation monitoring
-  LANGFUSE_MUTATION_MONITOR_ENABLED: z.enum(["true", "false"]).default("false"),
-  LANGFUSE_MUTATION_MONITOR_CHECK_INTERVAL_MS: z.coerce
-    .number()
-    .positive()
-    .default(60_000), // 1 minute
-  LANGFUSE_DELETION_MUTATIONS_MAX_COUNT: z.coerce
-    .number()
-    .positive()
-    .default(25),
-  LANGFUSE_DELETION_MUTATIONS_SAFE_COUNT: z.coerce
-    .number()
-    .positive()
-    .default(1),
-
   // Batch Project Cleaner configuration
   LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED: z
     .enum(["true", "false"])
@@ -372,6 +357,19 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(10_000), // Max items (media files) to process per batch
+
+  // Batch Trace Deletion Cleaner configuration
+  LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_BATCH_TRACE_DELETION_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000), // 10 minutes between runs
+  LANGFUSE_BATCH_TRACE_DELETION_CLEANER_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(7200), // 2 hours to handle worst-case deletions
 
   LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
     .enum(["true", "false"])
