@@ -187,17 +187,17 @@ const processPostHogEvents = async (config: PostHogExecutionConfig) => {
     ...postHogSettings,
   });
 
+  let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
-      `Error sending events to PostHog for project ${config.projectId}: ${error}`,
+      `[POSTHOG] Error sending events to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `Error sending events to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
 
   let count = 0;
   for await (const analyticsEvent of events) {
+    if (sendError) throw sendError;
     count++;
     const event = transformEventForPostHog(analyticsEvent, config.projectId);
     posthog.capture(event);
@@ -209,6 +209,7 @@ const processPostHogEvents = async (config: PostHogExecutionConfig) => {
     }
   }
   await posthog.flush();
+  if (sendError) throw sendError;
   logger.info(
     `[POSTHOG] Sent ${count} events to PostHog for project ${config.projectId}`,
   );
