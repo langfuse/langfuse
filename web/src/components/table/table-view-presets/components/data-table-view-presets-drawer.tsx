@@ -9,6 +9,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
+import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import {
   DrawerTrigger,
   DrawerContent,
@@ -424,9 +425,9 @@ export function TableViewPresetsDrawer({
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">
           <div className="mx-auto w-full">
-            <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-2">
+            <DrawerHeader className="flex flex-row items-center justify-between rounded-sm bg-background px-3 py-1.5">
               <DrawerTitle className="flex flex-row items-center gap-1">
-                Saved Table Views{" "}
+                Saved Views{" "}
                 <a
                   href="https://github.com/orgs/langfuse/discussions/4657"
                   target="_blank"
@@ -445,13 +446,13 @@ export function TableViewPresetsDrawer({
 
             <Command className="h-fit rounded-none border-none pb-1 shadow-none">
               <CommandInput
-                placeholder="Search saved table views..."
+                placeholder="Search saved views..."
                 value={searchQuery}
                 onValueChange={setSearchQueryLocal}
-                className="h-12 border-none focus:ring-0"
+                className="h-9 border-none focus:ring-0"
               />
               <CommandList className="max-h-[calc(100vh-150px)]">
-                <CommandEmpty>No saved table views found</CommandEmpty>
+                <CommandEmpty>No saved views found</CommandEmpty>
                 <CommandGroup className="pb-0">
                   {/* System Preset: Langfuse Default - hidden when page-specific presets exist */}
                   {!systemFilterPresets?.length && (
@@ -493,7 +494,10 @@ export function TableViewPresetsDrawer({
                       )}
                     >
                       <div className="flex flex-col">
-                        <span className="text-sm">{preset.name}</span>
+                        <span className="flex items-center gap-1.5 text-sm">
+                          <LangfuseIcon size={14} />
+                          {preset.name}
+                        </span>
                         {preset.description && (
                           <span className="w-fit pl-0 text-xs text-muted-foreground">
                             {preset.description}
