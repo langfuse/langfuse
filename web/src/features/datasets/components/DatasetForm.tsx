@@ -429,7 +429,6 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
                           onChange={(v) => {
                             field.onChange(v);
                           }}
-                          minHeight="none"
                         />
                       </FormControl>
                       <FormMessage />

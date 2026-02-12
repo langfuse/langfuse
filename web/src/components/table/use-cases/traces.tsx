@@ -172,6 +172,7 @@ export default function TracesTable({
   );
 
   const [refreshTick, setRefreshTick] = useState(0);
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
   const { setDetailPageList } = useDetailPageLists();
 
   // Auto-increment refresh tick to force date range recalculation
@@ -181,10 +182,11 @@ export default function TracesTable({
       setRefreshTick((t) => t + 1);
     }, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval]);
+  }, [refreshInterval, manualRefreshTrigger]);
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
+    setManualRefreshTrigger((t) => t + 1);
     void Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
