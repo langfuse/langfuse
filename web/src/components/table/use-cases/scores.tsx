@@ -767,6 +767,19 @@ export default function ScoresTable({
             <DataTable
               tableName={"scores"}
               columns={columns}
+              noResultsMessage={
+                <div className="flex flex-col items-center">
+                  <span>No scores found.</span>
+                  <a
+                    href="https://langfuse.com/faq/all/what-are-scores"
+                    className="pointer-events-auto italic text-primary underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    What are scores?
+                  </a>
+                </div>
+              }
               data={
                 scores.isPending || isViewLoading
                   ? { isLoading: true, isError: false }

@@ -37,7 +37,9 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
     config.maxTimestamp,
   );
 
-  logger.info(`Sending traces for project ${config.projectId} to PostHog`);
+  logger.info(
+    `[POSTHOG] Sending traces for project ${config.projectId} to PostHog`,
+  );
 
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
@@ -45,30 +47,32 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
     ...postHogSettings,
   });
 
+  let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
-      `Error sending traces to PostHog for project ${config.projectId}: ${error}`,
+      `[POSTHOG] Error sending traces to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `Error sending traces to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
 
   let count = 0;
   for await (const trace of traces) {
+    if (sendError) throw sendError;
     count++;
     const event = transformTraceForPostHog(trace, config.projectId);
     posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
+      if (sendError) throw sendError;
       logger.info(
-        `Sent ${count} traces to PostHog for project ${config.projectId}`,
+        `[POSTHOG] Sent ${count} traces to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
+  if (sendError) throw sendError;
   logger.info(
-    `Sent ${count} traces to PostHog for project ${config.projectId}`,
+    `[POSTHOG] Sent ${count} traces to PostHog for project ${config.projectId}`,
   );
 };
 
@@ -79,7 +83,9 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
     config.maxTimestamp,
   );
 
-  logger.info(`Sending generations for project ${config.projectId} to PostHog`);
+  logger.info(
+    `[POSTHOG] Sending generations for project ${config.projectId} to PostHog`,
+  );
 
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
@@ -87,30 +93,32 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
     ...postHogSettings,
   });
 
+  let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
-      `Error sending generations to PostHog for project ${config.projectId}: ${error}`,
+      `[POSTHOG] Error sending generations to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `Error sending generations to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
 
   let count = 0;
   for await (const generation of generations) {
+    if (sendError) throw sendError;
     count++;
     const event = transformGenerationForPostHog(generation, config.projectId);
     posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
+      if (sendError) throw sendError;
       logger.info(
-        `Sent ${count} generations to PostHog for project ${config.projectId}`,
+        `[POSTHOG] Sent ${count} generations to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
+  if (sendError) throw sendError;
   logger.info(
-    `Sent ${count} generations to PostHog for project ${config.projectId}`,
+    `[POSTHOG] Sent ${count} generations to PostHog for project ${config.projectId}`,
   );
 };
 
@@ -121,7 +129,9 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     config.maxTimestamp,
   );
 
-  logger.info(`Sending scores for project ${config.projectId} to PostHog`);
+  logger.info(
+    `[POSTHOG] Sending scores for project ${config.projectId} to PostHog`,
+  );
 
   // Send each via PostHog SDK
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
@@ -129,29 +139,32 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     ...postHogSettings,
   });
 
+  let sendError: Error | undefined;
   posthog.on("error", (error) => {
     logger.error(
-      `Error sending scores to PostHog for project ${config.projectId}: ${error}`,
+      `[POSTHOG] Error sending scores to PostHog for project ${config.projectId}: ${error}`,
     );
-    throw new Error(
-      `Error sending scores to PostHog for project ${config.projectId}: ${error}`,
-    );
+    sendError = error instanceof Error ? error : new Error(String(error));
   });
+
   let count = 0;
   for await (const score of scores) {
+    if (sendError) throw sendError;
     count++;
     const event = transformScoreForPostHog(score, config.projectId);
     posthog.capture(event);
     if (count % 10000 === 0) {
       await posthog.flush();
+      if (sendError) throw sendError;
       logger.info(
-        `Sent ${count} scores to PostHog for project ${config.projectId}`,
+        `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
       );
     }
   }
   await posthog.flush();
+  if (sendError) throw sendError;
   logger.info(
-    `Sent ${count} scores to PostHog for project ${config.projectId}`,
+    `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
   );
 };
 
@@ -166,7 +179,9 @@ export const handlePostHogIntegrationProjectJob = async (
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
   }
 
-  logger.info(`Processing PostHog integration for project ${projectId}`);
+  logger.info(
+    `[POSTHOG] Processing PostHog integration for project ${projectId}`,
+  );
 
   // Fetch PostHog integration information for project
   const postHogIntegration = await prisma.posthogIntegration.findFirst({
@@ -178,7 +193,7 @@ export const handlePostHogIntegrationProjectJob = async (
 
   if (!postHogIntegration) {
     logger.warn(
-      `Enabled PostHog integration not found for project ${projectId}`,
+      `[POSTHOG] Enabled PostHog integration not found for project ${projectId}`,
     );
     return;
   }
@@ -188,7 +203,7 @@ export const handlePostHogIntegrationProjectJob = async (
     await validateWebhookURL(postHogIntegration.posthogHostName);
   } catch (error) {
     logger.error(
-      `PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+      `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
     );
     throw new Error(
       `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -205,22 +220,30 @@ export const handlePostHogIntegrationProjectJob = async (
     postHogHost: postHogIntegration.posthogHostName,
   };
 
-  await Promise.all([
-    processPostHogTraces(executionConfig),
-    processPostHogGenerations(executionConfig),
-    processPostHogScores(executionConfig),
-  ]);
+  try {
+    await Promise.all([
+      processPostHogTraces(executionConfig),
+      processPostHogGenerations(executionConfig),
+      processPostHogScores(executionConfig),
+    ]);
 
-  // Update the last run information for the postHogIntegration record
-  await prisma.posthogIntegration.update({
-    where: {
-      projectId,
-    },
-    data: {
-      lastSyncAt: executionConfig.maxTimestamp,
-    },
-  });
-  logger.info(
-    `PostHog integration processing complete for project ${projectId}`,
-  );
+    // Update the last run information for the postHogIntegration record.
+    await prisma.posthogIntegration.update({
+      where: {
+        projectId,
+      },
+      data: {
+        lastSyncAt: executionConfig.maxTimestamp,
+      },
+    });
+    logger.info(
+      `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
+    );
+  } catch (error) {
+    logger.error(
+      `[POSTHOG] Error processing PostHog integration for project ${projectId}`,
+      error,
+    );
+    throw error;
+  }
 };
