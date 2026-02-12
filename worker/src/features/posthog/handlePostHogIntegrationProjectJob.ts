@@ -151,6 +151,7 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
 
   let count = 0;
   for await (const score of scores) {
+    if (sendError) throw sendError;
     count++;
     const event = transformScoreForPostHog(score, config.projectId);
     posthog.capture(event);
