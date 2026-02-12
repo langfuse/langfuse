@@ -136,9 +136,12 @@ export class DefaultViewService {
    * Check if a view is set as default (user or project level).
    * Returns info about which defaults reference this view.
    */
-  public static async isViewDefault(viewId: string): Promise<IsDefaultResult> {
+  public static async isViewDefault(
+    viewId: string,
+    projectId: string,
+  ): Promise<IsDefaultResult> {
     const defaults = await prisma.defaultView.findMany({
-      where: { viewId },
+      where: { viewId, projectId },
     });
 
     return {

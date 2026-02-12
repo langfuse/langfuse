@@ -281,6 +281,9 @@ export const TableViewPresetsRouter = createTRPCRouter({
         scope: "TableViewPresets:read",
       });
 
-      return await DefaultViewService.isViewDefault(input.viewId);
+      return await DefaultViewService.isViewDefault(
+        input.viewId,
+        input.projectId,
+      );
     }),
 });
