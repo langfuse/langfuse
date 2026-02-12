@@ -42,9 +42,9 @@ const getCalloutContent = (
       title: "Newer version of the Langfuse SDK required",
       description: (
         <>
-          Running evaluators on live observations require JS SDK &ge; 4.0.0 or
-          Python SDK &ge; 3.0.0. You can still set up this evaluator now—it will
-          start running once you upgrade your SDK to latest.{" "}
+          Running evaluators on live observations require JS SDK v4+ or Python
+          SDK v3+. You can still set up this evaluator now—it will start running
+          once you upgrade your SDK to latest.{" "}
           <a
             href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
             target="_blank"
@@ -68,9 +68,10 @@ const getCalloutContent = (
         title: "Are you sure you are already on the recommended SDK version?",
         description: (
           <>
-            Running observation-targeting evaluators requires JS SDK &ge; 4.4.0
-            or Python SDK &ge; 3.9.0. You can still set your evaluator up now—it
-            will start running once you upgrade to the latest SDK version.{" "}
+            Running observation-targeting evaluators for experiments requires JS
+            SDK v4.4+ or Python SDK v3.9+. You can still set your evaluator up
+            now—it will start running once you upgrade to the latest SDK
+            version.{" "}
             <a
               href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
               target="_blank"
@@ -101,8 +102,21 @@ const getCalloutContent = (
     return {
       variant: "info",
       title: "Consider upgrading to live observations evaluators",
-      description:
-        "Live observations evaluators provide more granular control and an easier workflow. We strongly recommend upgrading to live observations evaluators.",
+      description: (
+        <>
+          Live observations evaluators provide more granular control and an
+          easier workflow. We strongly recommend upgrading to live observations
+          evaluators.
+          <a
+            href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-dark-blue hover:opacity-80"
+          >
+            Learn more.
+          </a>
+        </>
+      ),
     };
   }
 
