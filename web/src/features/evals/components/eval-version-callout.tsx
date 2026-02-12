@@ -68,9 +68,9 @@ const getCalloutContent = (
         title: "Are you sure you are already on the recommended SDK version?",
         description: (
           <>
-            Running evaluators requires JS SDK &ge; 4.4.0 or Python SDK &ge;
-            3.9.0. You can still set your evaluator up now—it will start running
-            once you upgrade to the latest SDK version.{" "}
+            Running observation-targeting evaluators requires JS SDK &ge; 4.4.0
+            or Python SDK &ge; 3.9.0. You can still set your evaluator up now—it
+            will start running once you upgrade to the latest SDK version.{" "}
             <a
               href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
               target="_blank"
