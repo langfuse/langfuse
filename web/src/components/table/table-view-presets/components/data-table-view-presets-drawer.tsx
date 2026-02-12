@@ -563,7 +563,7 @@ export function TableViewPresetsDrawer({
                               }}
                               disabled={!hasWriteAccess}
                             >
-                              Update View
+                              Update view with current filters
                             </Button>
                           )}
                         </div>
