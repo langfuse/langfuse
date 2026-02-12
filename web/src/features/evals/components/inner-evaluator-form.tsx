@@ -12,6 +12,7 @@ import {
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { Badge } from "@/src/components/ui/badge";
 import {
   tracesTableColsWithOptions,
   singleFilter,
@@ -71,7 +72,13 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/src/components/ui/tooltip";
-import { InfoIcon } from "lucide-react";
+import {
+  BetweenHorizonalStart,
+  CircleDot,
+  FlaskConical,
+  InfoIcon,
+  ListTree,
+} from "lucide-react";
 import {
   isDatasetTarget,
   isEventTarget,
@@ -582,31 +589,50 @@ export const InnerEvaluatorForm = (props: {
                           field.onChange(actualTarget);
                         }}
                       >
-                        <TabsList className="grid w-fit max-w-fit grid-flow-col">
+                        <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
                           {isBetaEnabled && (
                             <TabsTrigger
                               value="event"
                               disabled={props.disabled || props.mode === "edit"}
-                              className="min-w-[100px]"
+                              className="min-w-[100px] gap-1.5"
                             >
-                              Live Observations [New]
+                              <CircleDot className="h-3.5 w-3.5" />
+                              Live Observations
+                              <Badge
+                                variant="secondary"
+                                size="sm"
+                                className="border border-border font-normal"
+                              >
+                                New
+                              </Badge>
                             </TabsTrigger>
                           )}
                           {allowLegacy && (
                             <TabsTrigger
                               value="trace"
                               disabled={props.disabled || props.mode === "edit"}
-                              className="min-w-[100px]"
+                              className="min-w-[100px] gap-1.5"
                             >
-                              Live Traces {isBetaEnabled ? "[Legacy]" : ""}
+                              <ListTree className="h-3.5 w-3.5" />
+                              Live Traces
+                              {isBetaEnabled && (
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="border border-border font-normal"
+                                >
+                                  Legacy
+                                </Badge>
+                              )}
                             </TabsTrigger>
                           )}
                           <TabsTrigger
                             value="offline-experiment"
                             disabled={props.disabled || props.mode === "edit"}
-                            className="min-w-[100px]"
+                            className="min-w-[100px] gap-1.5"
                           >
-                            Offline Experiments
+                            <FlaskConical className="h-3.5 w-3.5" />
+                            Experiments
                           </TabsTrigger>
                         </TabsList>
                       </Tabs>
@@ -623,7 +649,7 @@ export const InnerEvaluatorForm = (props: {
               userFacingTarget === "offline-experiment" &&
               props.evalCapabilities.allowLegacy && (
                 <div className="flex flex-col gap-2">
-                  <FormLabel className="text-sm">SDK Version</FormLabel>
+                  <FormLabel className="text-sm">Experiment Method</FormLabel>
                   <Tabs
                     value={useOtelDataForExperiment ? "otel" : "non-otel"}
                     onValueChange={(value) => {
@@ -657,29 +683,39 @@ export const InnerEvaluatorForm = (props: {
                       );
                     }}
                   >
-                    <TabsList className="grid w-fit max-w-fit grid-cols-2">
+                    <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
                       <TabsTrigger
                         value="otel"
-                        className="min-w-[150px]"
+                        className="min-w-[100px] gap-1.5"
                         disabled={props.mode === "edit" || props.disabled}
                       >
-                        {"JS SDK >= 4.4.0, Python SDK >= 3.9.0 [New]"}
+                        <FlaskConical className="h-3.5 w-3.5" />
+                        Experiment Runner SDK
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="border border-border font-normal"
+                        >
+                          New
+                        </Badge>
                       </TabsTrigger>
                       <TabsTrigger
                         value="non-otel"
-                        className="min-w-[150px]"
+                        className="min-w-[100px] gap-1.5"
                         disabled={props.mode === "edit" || props.disabled}
                       >
-                        {"JS SDK < 4.4.0, Python SDK < 3.9.0 [Legacy]"}
+                        <BetweenHorizonalStart className="h-3.5 w-3.5" />
+                        Dataset Run
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="border border-border font-normal"
+                        >
+                          Legacy
+                        </Badge>
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
-                  {!props.disabled && (
-                    <FormDescription>
-                      Check with your technical team to see which version of the
-                      Langfuse SDK you are using.
-                    </FormDescription>
-                  )}
                 </div>
               )}
 

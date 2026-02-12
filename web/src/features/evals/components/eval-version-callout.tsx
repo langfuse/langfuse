@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
-import { Info, AlertTriangle } from "lucide-react";
+import { Info } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   isTraceTarget,
@@ -13,10 +13,8 @@ interface EvalVersionCalloutProps {
   evalCapabilities: EvalCapabilities;
 }
 
-type CalloutVariant = "info" | "warning" | "hidden";
-
 interface CalloutContent {
-  variant: CalloutVariant;
+  visible: boolean;
   title: string;
   description: React.ReactNode;
 }
@@ -25,33 +23,29 @@ const getCalloutContent = (
   targetObject: string,
   evalCapabilities: EvalCapabilities,
 ): CalloutContent => {
+  const hidden = { visible: false, title: "", description: "" };
+
   // For event/observation target
   if (isEventTarget(targetObject)) {
-    // If user IS compatible with OTEL, don't show callout
     if (evalCapabilities.isNewCompatible) {
-      return {
-        variant: "hidden",
-        title: "",
-        description: "",
-      };
+      return hidden;
     }
 
-    // If user is NOT compatible with OTEL, show warning
     return {
-      variant: "warning",
-      title: "Newer version of the Langfuse SDK required",
+      visible: true,
+      title: "Please check your SDK version",
       description: (
         <>
-          Running evaluators on live observations require JS SDK &ge; 4.0.0 or
-          Python SDK &ge; 3.0.0. You can still set up this evaluator now—it will
-          start running once you upgrade your SDK to latest.{" "}
+          This evaluator targets live observations, which require JS SDK v4+ or
+          Python SDK v3+. You can still configure this evaluator now—it will
+          start running once you upgrade.{" "}
           <a
             href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium text-dark-blue hover:opacity-80"
           >
-            Learn how to upgrade
+            Learn more
           </a>
           .
         </>
@@ -59,59 +53,83 @@ const getCalloutContent = (
     };
   }
 
-  // For experiment target (OTEL-based experiments)
+  // For experiment target (Experiment Runner SDK)
   if (isExperimentTarget(targetObject)) {
-    // If user is NOT compatible with OTEL, show warning
     if (!evalCapabilities.isNewCompatible) {
       return {
-        variant: "warning",
-        title: "Are you sure you are already on the recommended SDK version?",
+        visible: true,
+        title: "Please check your SDK version",
         description: (
           <>
-            Running evaluators requires JS SDK &ge; 4.4.0 or Python SDK &ge;
-            3.9.0. You can still set your evaluator up now—it will start running
-            once you upgrade to the latest SDK version.{" "}
+            The Experiment Runner SDK requires JS SDK v4.4+ or Python SDK v3.9+.
+            You can still configure this evaluator now—it will start running
+            once you upgrade.{" "}
             <a
-              href="https://langfuse.com/docs/tracing/overview#langfuse-tracing-vs-opentelemetry"
+              href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-dark-blue hover:opacity-80"
             >
-              Learn how to upgrade
+              Learn more
             </a>
             .
           </>
         ),
       };
     }
+
+    return hidden;
   }
 
-  // For dataset target (now represents non-OTEL experiments when selected via second tab)
+  // For dataset target (legacy dataset run methods)
   if (isDatasetTarget(targetObject)) {
     return {
-      variant: "info",
-      title: "You selected an old SDK version",
-      description:
-        "Please consider upgrading to the latest SDK version for improved performance and features. You can even set up the evaluator for the new version now—it will start running once you upgrade to the latest SDK version.",
+      visible: true,
+      title: "Legacy dataset run methods",
+      description: (
+        <>
+          This evaluator targets traces from legacy low-level SDK methods for
+          dataset runs. Consider upgrading to the Experiment Runner SDK for
+          improved performance and features.{" "}
+          <a
+            href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-dark-blue hover:opacity-80"
+          >
+            Learn more
+          </a>
+          .
+        </>
+      ),
     };
   }
 
-  // For trace target - always show deprecation info
+  // For trace target
   if (isTraceTarget(targetObject)) {
     return {
-      variant: "info",
+      visible: true,
       title: "Consider upgrading to live observations evaluators",
-      description:
-        "Live observations evaluators provide more granular control and an easier workflow. We strongly recommend upgrading to live observations evaluators.",
+      description: (
+        <>
+          Live observations evaluators provide more granular control and an
+          easier workflow. We strongly recommend upgrading to live observations
+          evaluators.{" "}
+          <a
+            href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-dark-blue hover:opacity-80"
+          >
+            Learn more
+          </a>
+          .
+        </>
+      ),
     };
   }
 
-  // Default: hidden
-  return {
-    variant: "hidden",
-    title: "",
-    description: "",
-  };
+  return hidden;
 };
 
 export function EvalVersionCallout({
@@ -120,26 +138,13 @@ export function EvalVersionCallout({
 }: EvalVersionCalloutProps) {
   const content = getCalloutContent(targetObject, evalCapabilities);
 
-  if (content.variant === "hidden") {
+  if (!content.visible) {
     return null;
   }
 
-  const isWarning = content.variant === "warning";
-
   return (
-    <Alert
-      variant="default"
-      className={
-        isWarning
-          ? "mt-2 border-light-yellow bg-light-yellow"
-          : "mt-2 border-light-blue bg-light-blue"
-      }
-    >
-      {isWarning ? (
-        <AlertTriangle className="h-4 w-4 text-dark-yellow dark:text-dark-yellow" />
-      ) : (
-        <Info className="h-4 w-4 text-dark-blue dark:text-dark-blue" />
-      )}
+    <Alert variant="default" className="mt-2 border-light-blue bg-light-blue">
+      <Info className="h-4 w-4 text-dark-blue dark:text-dark-blue" />
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
