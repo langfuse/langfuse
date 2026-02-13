@@ -688,7 +688,7 @@ export const InnerEvaluatorForm = (props: {
                           size="sm"
                           className="border border-border font-normal"
                         >
-                          New
+                          Beta
                         </Badge>
                       </TabsTrigger>
                       <TabsTrigger
@@ -698,13 +698,15 @@ export const InnerEvaluatorForm = (props: {
                       >
                         <BetweenHorizonalStart className="h-3.5 w-3.5" />
                         Dataset Run
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="border border-border font-normal"
-                        >
-                          Legacy
-                        </Badge>
+                        {isFullyReleased && (
+                          <Badge
+                            variant="secondary"
+                            size="sm"
+                            className="border border-border font-normal"
+                          >
+                            Legacy
+                          </Badge>
+                        )}
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>

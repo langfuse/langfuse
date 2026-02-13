@@ -79,8 +79,7 @@ export const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {isFullyReleased &&
-        evalConfig &&
+      {evalConfig &&
         evalConfig.targetObject &&
         evalConfig.evalTemplate &&
         evalConfig.finalStatus === "ACTIVE" && (
