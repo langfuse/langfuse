@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { sql } from "kysely";
 import { z } from "zod/v4";
-import { SpanKind } from "@opentelemetry/api";
 import {
   JobConfigState,
   JobExecutionStatus,
@@ -729,14 +728,12 @@ export async function executeLLMAsJudgeEvaluation({
   deps?: EvalExecutionDeps;
 }): Promise<void> {
   return instrumentAsync(
-    { name: "eval.execute-llm-as-judge", spanKind: SpanKind.INTERNAL },
+    { name: "eval.execute-llm-as-judge" },
     async (span) => {
       span.setAttribute("langfuse.project.id", projectId);
       span.setAttribute("eval.job_execution.id", jobExecutionId);
       span.setAttribute("eval.template.name", template.name);
       span.setAttribute("eval.template.id", template.id);
-      span.setAttribute("eval.model.provider", template.provider ?? "unknown");
-      span.setAttribute("eval.model.name", template.model ?? "unknown");
       if (job.jobInputTraceId) {
         span.setAttribute("eval.target.trace_id", job.jobInputTraceId);
       }
@@ -805,6 +802,9 @@ export async function executeLLMAsJudgeEvaluation({
         );
       }
 
+      span.setAttribute("eval.model.provider", modelConfig.config.provider);
+      span.setAttribute("eval.model.name", modelConfig.config.model);
+
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
 
@@ -822,7 +822,7 @@ export async function executeLLMAsJudgeEvaluation({
 
       // Call LLM
       const llmOutput = await instrumentAsync(
-        { name: "eval.call-llm", spanKind: SpanKind.INTERNAL },
+        { name: "eval.call-llm" },
         async (llmSpan) => {
           llmSpan.setAttribute(
             "eval.model.provider",
