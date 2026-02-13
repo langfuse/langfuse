@@ -91,6 +91,26 @@ type FetchLLMCompletionParams = LLMCompletionParams & {
   tools?: LLMToolDefinition[];
 };
 
+export const normalizeAnthropicSamplingParams = (params: {
+  topP: number | undefined;
+  temperature: number | undefined;
+}): {
+  normalizedTopP: number | undefined;
+  normalizedTemperature: number | undefined;
+} => {
+  const hasValidTopP =
+    params.topP !== undefined &&
+    Number.isFinite(params.topP) &&
+    params.topP > 0 &&
+    params.topP <= 1;
+
+  return {
+    // Anthropic-compatible gateways may reject placeholder values from SDKs.
+    normalizedTopP: hasValidTopP ? params.topP : undefined,
+    normalizedTemperature: params.temperature,
+  };
+};
+
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: true;
@@ -234,13 +254,6 @@ export async function fetchLLMCompletion(
     | ChatVertexAI
     | ChatGoogleGenerativeAI;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    const isClaude45Family =
-      modelParams.model?.includes("claude-sonnet-4-5") ||
-      modelParams.model?.includes("claude-opus-4-1") ||
-      modelParams.model?.includes("claude-opus-4-5") ||
-      modelParams.model?.includes("claude-opus-4-6") ||
-      modelParams.model?.includes("claude-haiku-4-5");
-
     const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
@@ -259,27 +272,13 @@ export async function fetchLLMCompletion(
 
     chatModel = new ChatAnthropic(chatOptions);
 
-    if (isClaude45Family) {
-      if (chatModel.topP === -1) {
-        chatModel.topP = undefined;
-      }
-
-      // TopP and temperature cannot be specified both,
-      // but Langchain is setting placeholder values despite that
-      if (
-        modelParams.temperature !== undefined &&
-        modelParams.top_p === undefined
-      ) {
-        chatModel.topP = undefined;
-      }
-
-      if (
-        modelParams.top_p !== undefined &&
-        modelParams.temperature === undefined
-      ) {
-        chatModel.temperature = undefined;
-      }
-    }
+    const { normalizedTopP, normalizedTemperature } =
+      normalizeAnthropicSamplingParams({
+        topP: modelParams.top_p,
+        temperature: modelParams.temperature,
+      });
+    chatModel.topP = normalizedTopP;
+    chatModel.temperature = normalizedTemperature;
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     const processedBaseURL = processOpenAIBaseURL({
       url: baseURL,
