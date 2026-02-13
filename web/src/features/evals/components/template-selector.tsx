@@ -37,7 +37,7 @@ import {
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+import { useIsObservationEvalsBeta } from "@/src/features/events/hooks/useObservationEvals";
 
 type TemplateSelectorProps = {
   projectId: string;
@@ -68,7 +68,7 @@ export const TemplateSelector = ({
 }: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const isBetaEnabled = useObservationEvals();
+  const isBetaEnabled = useIsObservationEvalsBeta();
   const {
     activeTemplates,
     isTemplateActive,

@@ -20,7 +20,7 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+import { useIsObservationEvalsBeta } from "@/src/features/events/hooks/useObservationEvals";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -28,7 +28,7 @@ export const PeekViewEvaluatorConfigDetail = ({
   projectId: string;
 }) => {
   const router = useRouter();
-  const isBetaEnabled = useObservationEvals();
+  const isBetaEnabled = useIsObservationEvalsBeta();
   const peekId = router.query.peek as string | undefined;
   const [isEditMode, setIsEditMode] = useState(false);
   const utils = api.useUtils();
