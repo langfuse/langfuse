@@ -73,7 +73,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+import { useIsObservationEvalsBeta } from "@/src/features/events/hooks/useObservationEvals";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -139,7 +139,7 @@ function LegacyBadgeCell({ status }: { status: string }) {
 }
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
-  const isBetaEnabled = useObservationEvals();
+  const isBetaEnabled = useIsObservationEvalsBeta();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
