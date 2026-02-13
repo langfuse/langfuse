@@ -221,7 +221,7 @@ const ObservationsPreview = memo(
             Preview sample matched observations
           </span>
           <FormDescription>
-            Sample over the last 24 hours that match these filters
+            Sample over the last 24 hours that match filters
           </FormDescription>
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
@@ -896,7 +896,7 @@ export const InnerEvaluatorForm = (props: {
                             disabled={props.disabled}
                             columnsWithCustomSelect={
                               isEventTarget(target) || isTraceTarget(target)
-                                ? ["tags"]
+                                ? ["tags", "name"]
                                 : undefined
                             }
                           />
