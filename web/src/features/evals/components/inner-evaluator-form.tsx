@@ -96,7 +96,10 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+import {
+  useIsObservationEvalsBeta,
+  useObservationEvals,
+} from "@/src/features/events/hooks/useObservationEvals";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 /**
@@ -275,6 +278,7 @@ export const InnerEvaluatorForm = (props: {
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const isBetaEnabled = useObservationEvals();
+  const isObservationEvalsBeta = useIsObservationEvalsBeta();
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
@@ -603,7 +607,7 @@ export const InnerEvaluatorForm = (props: {
                                 size="sm"
                                 className="border border-border font-normal"
                               >
-                                New
+                                Beta
                               </Badge>
                             </TabsTrigger>
                           )}
@@ -615,7 +619,7 @@ export const InnerEvaluatorForm = (props: {
                             >
                               <ListTree className="h-3.5 w-3.5" />
                               Live Traces
-                              {isBetaEnabled && (
+                              {isObservationEvalsBeta && (
                                 <Badge
                                   variant="secondary"
                                   size="sm"
