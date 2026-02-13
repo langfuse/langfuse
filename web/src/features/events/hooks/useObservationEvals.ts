@@ -5,5 +5,5 @@ export function useObservationEvals() {
 }
 
 export function useIsObservationEvalsBeta() {
-  return true;
+  return false;
 }
