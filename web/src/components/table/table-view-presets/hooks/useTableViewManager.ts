@@ -155,6 +155,13 @@ export function useTableViewManager({
     if (isDefaultLoading) return;
 
     if (defaultViewId) {
+      if (isSystemPresetId(defaultViewId)) {
+        // System presets don't need data fetching, initialize immediately
+        setSelectedViewId(defaultViewId);
+        setIsInitialized(true);
+        setIsLoading(false);
+        return;
+      }
       pendingResolveRef.current = true;
       setStoredViewId(defaultViewId);
       setSelectedViewId(defaultViewId);
