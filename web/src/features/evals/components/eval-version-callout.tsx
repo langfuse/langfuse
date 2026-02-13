@@ -58,7 +58,7 @@ const getCalloutContent = (
     if (!evalCapabilities.isNewCompatible) {
       return {
         visible: true,
-        title: "Please check your SDK version",
+        title: "Please verify you are using the Experiment Runner SDK",
         description: (
           <>
             The Experiment Runner SDK requires JS SDK v4.4+ or Python SDK v3.9+.
@@ -70,7 +70,7 @@ const getCalloutContent = (
               rel="noopener noreferrer"
               className="font-medium text-dark-blue hover:opacity-80"
             >
-              Learn more
+              Learn more about the Experiment Runner SDK.
             </a>
             .
           </>
@@ -85,12 +85,13 @@ const getCalloutContent = (
   if (isDatasetTarget(targetObject)) {
     return {
       visible: true,
-      title: "Legacy dataset run methods",
+      title: "Legacy low-level SDK methods",
       description: (
         <>
           This evaluator targets traces from legacy low-level SDK methods for
-          dataset runs. Consider upgrading to the Experiment Runner SDK for
-          improved performance and features.{" "}
+          dataset runs that manually linked dataset items to traces. Consider
+          upgrading to the Experiment Runner SDK for improved performance and
+          features.{" "}
           <a
             href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
             target="_blank"

@@ -697,7 +697,7 @@ export const InnerEvaluatorForm = (props: {
                         disabled={props.mode === "edit" || props.disabled}
                       >
                         <BetweenHorizonalStart className="h-3.5 w-3.5" />
-                        Dataset Run
+                        Low-level SDK methods
                         {isFullyReleased && (
                           <Badge
                             variant="secondary"
