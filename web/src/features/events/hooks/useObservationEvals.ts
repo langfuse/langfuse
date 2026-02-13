@@ -1,3 +1,3 @@
 export function useIsObservationEvalsBeta() {
-  return true;
+  return false;
 }

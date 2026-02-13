@@ -1,6 +1,10 @@
 import { z } from "zod/v4";
 
-import { timeFilter, type ObservationOptions } from "@langfuse/shared";
+import {
+  ObservationType,
+  timeFilter,
+  type ObservationOptions,
+} from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import {
   getCategoricalScoresGroupedByName,
@@ -21,6 +25,9 @@ export const filterOptionsQuery = protectedProjectProcedure
     z.object({
       projectId: z.string(),
       startTimeFilter: z.array(timeFilter).optional(),
+      observationType: z
+        .union([z.enum(ObservationType), z.literal("ALL")])
+        .default("GENERATION"),
     }),
   )
   .query(async ({ input }) => {
@@ -77,7 +84,11 @@ export const filterOptionsQuery = protectedProjectProcedure
       //model
       getObservationsGroupedByModel(input.projectId, startTimeFilter ?? []),
       //name
-      getObservationsGroupedByName(input.projectId, startTimeFilter ?? []),
+      getObservationsGroupedByName(
+        input.projectId,
+        startTimeFilter ?? [],
+        input.observationType === "ALL" ? null : input.observationType,
+      ),
       //prompt name
       getObservationsGroupedByPromptName(
         input.projectId,
