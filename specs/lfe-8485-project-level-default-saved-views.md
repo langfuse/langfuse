@@ -33,7 +33,7 @@ The hook gets data from a new tRPC query, to get default state.
 
 ### Postgres table to hold view defaults
 
-The following new tables holds the defaul settings.
+The following new tables holds the default settings.
 
 With this, relationships and uniqueness constrains are clean in the database, deletes and updates to the defaults are very easy and we could also track who set/unset something as default.
 ```prisma
