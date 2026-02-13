@@ -969,7 +969,7 @@ export const getObservationsGroupedByModelId = async (
 export const getObservationsGroupedByName = async (
   projectId: string,
   filter: FilterState,
-  type = "GENERATION",
+  type: ObservationType | null = "GENERATION",
 ) => {
   const observationsFilter = new FilterList([
     new StringFilter({

@@ -87,7 +87,7 @@ export const filterOptionsQuery = protectedProjectProcedure
       getObservationsGroupedByName(
         input.projectId,
         startTimeFilter ?? [],
-        input.observationType === "ALL" ? undefined : input.observationType,
+        input.observationType === "ALL" ? null : input.observationType,
       ),
       //prompt name
       getObservationsGroupedByPromptName(
