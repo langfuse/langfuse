@@ -38,9 +38,58 @@ import {
 } from "../features/evaluation/observationEval";
 
 /**
+ * Check if HTTP headers from the SDK request indicate the batch is eligible
+ * for direct event writes.
+ *
+ * Requirements:
+ * - x-langfuse-sdk-name "python" with x-langfuse-sdk-version >= 4.0.0
+ * - x-langfuse-sdk-name "javascript" with x-langfuse-sdk-version >= 5.0.0
+ * - x-langfuse-ingestion-version === "4" (custom OTel exporter opt-in)
+ */
+export function checkHeaderBasedDirectWrite(params: {
+  sdkName?: string;
+  sdkVersion?: string;
+  ingestionVersion?: string;
+}): boolean {
+  const { sdkName, sdkVersion, ingestionVersion } = params;
+
+  // Check x-langfuse-ingestion-version (>= 4 means direct write eligible).
+  // Values > 4 are rejected at the API route, so anything reaching here is valid.
+  const parsed = ingestionVersion ? parseInt(ingestionVersion, 10) : NaN;
+  if (!isNaN(parsed) && parsed >= 4) {
+    return true;
+  }
+
+  // Check Langfuse SDK name + version
+  if (!sdkName || !sdkVersion) {
+    return false;
+  }
+
+  try {
+    // compareVersions returns null when current >= minimum (no update needed).
+    // Strip pre-release/build metadata so that e.g. 4.0.0-rc.1 qualifies as 4.0.0.
+    const baseVersion = sdkVersion.split(/[-+]/)[0];
+
+    if (sdkName === "python") {
+      return compareVersions(baseVersion, "v4.0.0") === null;
+    }
+
+    if (sdkName === "javascript") {
+      return compareVersions(baseVersion, "v5.0.0") === null;
+    }
+  } catch {
+    logger.warn(
+      `Failed to parse SDK version from headers: ${sdkName}@${sdkVersion}`,
+    );
+  }
+
+  return false;
+}
+
+/**
  * SDK information extracted from OTEL resourceSpans.
  */
-type SdkInfo = {
+export type SdkInfo = {
   scopeName: string | null;
   scopeVersion: string | null;
   telemetrySdkLanguage: string | null;
@@ -50,7 +99,9 @@ type SdkInfo = {
  * Extract SDK information from resourceSpans.
  * Gets scope name/version and telemetry SDK language from the OTEL structure.
  */
-function getSdkInfoFromResourceSpans(resourceSpans: ResourceSpan): SdkInfo {
+export function getSdkInfoFromResourceSpans(
+  resourceSpans: ResourceSpan,
+): SdkInfo {
   try {
     // Get the first scopeSpan (all spans in a batch share the same scope)
     const firstScopeSpan = resourceSpans?.scopeSpans?.[0];
@@ -78,7 +129,7 @@ function getSdkInfoFromResourceSpans(resourceSpans: ResourceSpan): SdkInfo {
  * - Python SDK: scope_version >= 3.9.0
  * - JS/JavaScript SDK: scope_version >= 4.4.0
  */
-function checkSdkVersionRequirements(
+export function checkSdkVersionRequirements(
   sdkInfo: SdkInfo,
   isSdkExperimentBatch: boolean,
 ): boolean {
@@ -242,24 +293,50 @@ export const otelIngestionQueueProcessor: Processor = async (
 
     // Decide whether observations should be processed via new flow (directly to events table)
     // or via the dual write (staging table and batch job to events).
-    // Rules:
-    // 1. If the environment is `sdk-experiment`, JS SDK 4.4.0+ and python SDK 3.9.0+ will write directly to events.
-    // 2. All other observations will go through the dual write until we have SDKs in place that have old trace updates
-    //    deprecated and new methods in place.
-    // 3. Non-Langfuse SDK spans will go through the dual write until a yet to be determined cutoff date.
-    // Check if any observation has environment='sdk-experiment'
-    const hasExperimentEnvironment = observations.some((o) => {
-      const body = o.body as { environment?: string };
-      return body.environment === "sdk-experiment";
+    //
+    // Priority 1: HTTP headers from the SDK request (batch-level decision).
+    //   - x-langfuse-sdk-name/version: Python >= 4.0.0 or JS >= 5.0.0
+    //   - x-langfuse-ingestion-version: "4" (custom OTel exporter opt-in)
+    //   When headers qualify, ALL spans in the batch (including third-party scoped) use direct write.
+    //
+    // Priority 2 (fallback): Per-span OTEL scope inspection (legacy).
+    //   - scope.name contains "langfuse", sdk-experiment environment, Python >= 3.9.0 or JS >= 4.4.0
+    const headerBasedDirectWrite = checkHeaderBasedDirectWrite({
+      sdkName: job.data.payload.sdkName,
+      sdkVersion: job.data.payload.sdkVersion,
+      ingestionVersion: job.data.payload.ingestionVersion,
     });
-    const sdkInfo =
-      parsedSpans.length > 0
-        ? getSdkInfoFromResourceSpans(parsedSpans[0])
-        : { scopeName: null, scopeVersion: null, telemetrySdkLanguage: null };
-    const useDirectEventWrite = checkSdkVersionRequirements(
-      sdkInfo,
-      hasExperimentEnvironment,
-    );
+
+    let useDirectEventWrite = headerBasedDirectWrite;
+
+    if (!useDirectEventWrite) {
+      const hasExperimentEnvironment = observations.some((o) => {
+        const body = o.body as { environment?: string };
+        return body.environment === "sdk-experiment";
+      });
+      const sdkInfo =
+        parsedSpans.length > 0
+          ? getSdkInfoFromResourceSpans(parsedSpans[0])
+          : {
+              scopeName: null,
+              scopeVersion: null,
+              telemetrySdkLanguage: null,
+            };
+      useDirectEventWrite = checkSdkVersionRequirements(
+        sdkInfo,
+        hasExperimentEnvironment,
+      );
+    }
+
+    const writePath = useDirectEventWrite
+      ? headerBasedDirectWrite
+        ? "direct_header"
+        : "direct_scope"
+      : "dual";
+    span?.setAttribute("langfuse.ingestion.otel.write_path", writePath);
+    recordIncrement("langfuse.ingestion.otel.write_path", 1, {
+      path: writePath,
+    });
 
     const shouldForwardToEventsTable =
       !useDirectEventWrite &&

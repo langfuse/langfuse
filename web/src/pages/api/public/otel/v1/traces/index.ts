@@ -104,6 +104,35 @@ export default withMiddlewares({
         return {};
       }
 
+      // Extract SDK headers for write path decision
+      const sdkName =
+        typeof req.headers["x-langfuse-sdk-name"] === "string"
+          ? req.headers["x-langfuse-sdk-name"]
+          : undefined;
+      const sdkVersion =
+        typeof req.headers["x-langfuse-sdk-version"] === "string"
+          ? req.headers["x-langfuse-sdk-version"]
+          : undefined;
+      const ingestionVersion =
+        typeof req.headers["x-langfuse-ingestion-version"] === "string"
+          ? req.headers["x-langfuse-ingestion-version"]
+          : undefined;
+
+      // Reject unsupported future ingestion versions (> 4)
+      // Lower versions are valid but use dual write (path A)
+      const parsedIngestionVersion = ingestionVersion
+        ? parseInt(ingestionVersion, 10)
+        : undefined;
+      if (
+        parsedIngestionVersion !== undefined &&
+        (isNaN(parsedIngestionVersion) || parsedIngestionVersion > 4)
+      ) {
+        res.status(400);
+        return {
+          error: `Unsupported x-langfuse-ingestion-version: "${ingestionVersion}". Maximum supported: "4".`,
+        };
+      }
+
       // Extract headers to propagate for ingestion masking
       const propagatedHeaderNames =
         env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS;
@@ -123,6 +152,9 @@ export default withMiddlewares({
           Object.keys(propagatedHeaders).length > 0
             ? propagatedHeaders
             : undefined,
+        sdkName,
+        sdkVersion,
+        ingestionVersion,
       });
 
       // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
