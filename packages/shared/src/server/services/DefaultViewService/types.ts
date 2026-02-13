@@ -24,19 +24,7 @@ export const GetDefaultViewInput = z.object({
 });
 export type GetDefaultViewInput = z.infer<typeof GetDefaultViewInput>;
 
-export const CheckIsDefaultInput = z.object({
-  viewId: z.string(),
-  projectId: z.string(),
-});
-export type CheckIsDefaultInput = z.infer<typeof CheckIsDefaultInput>;
-
 export interface ResolvedDefault {
   viewId: string;
   scope: DefaultViewScope;
-}
-
-export interface IsDefaultResult {
-  isUserDefault: boolean;
-  isProjectDefault: boolean;
-  affectedCount: number;
 }

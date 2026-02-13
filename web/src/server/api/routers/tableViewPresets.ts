@@ -14,7 +14,6 @@ import {
   GetDefaultViewInput,
   SetDefaultViewInput,
   ClearDefaultViewInput,
-  CheckIsDefaultInput,
 } from "@langfuse/shared/src/server";
 import {
   LangfuseConflictError,
@@ -270,20 +269,5 @@ export const TableViewPresetsRouter = createTRPCRouter({
       });
 
       return { success: true };
-    }),
-
-  checkIsDefault: protectedProjectProcedure
-    .input(CheckIsDefaultInput)
-    .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "TableViewPresets:read",
-      });
-
-      return await DefaultViewService.isViewDefault(
-        input.viewId,
-        input.projectId,
-      );
     }),
 });
