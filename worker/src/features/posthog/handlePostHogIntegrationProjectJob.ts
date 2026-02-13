@@ -7,12 +7,14 @@ import {
   getTracesForAnalyticsIntegrations,
   getGenerationsForAnalyticsIntegrations,
   getScoresForAnalyticsIntegrations,
+  getEventsForAnalyticsIntegrations,
   getCurrentSpan,
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import {
   transformTraceForPostHog,
   transformGenerationForPostHog,
+  transformEventForPostHog,
   transformScoreForPostHog,
 } from "./transformers";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -168,6 +170,51 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
   );
 };
 
+const processPostHogEvents = async (config: PostHogExecutionConfig) => {
+  const events = getEventsForAnalyticsIntegrations(
+    config.projectId,
+    config.minTimestamp,
+    config.maxTimestamp,
+  );
+
+  logger.info(
+    `[POSTHOG] Sending events for project ${config.projectId} to PostHog`,
+  );
+
+  // Send each via PostHog SDK
+  const posthog = new PostHog(config.decryptedPostHogApiKey, {
+    host: config.postHogHost,
+    ...postHogSettings,
+  });
+
+  let sendError: Error | undefined;
+  posthog.on("error", (error) => {
+    logger.error(
+      `[POSTHOG] Error sending events to PostHog for project ${config.projectId}: ${error}`,
+    );
+    sendError = error instanceof Error ? error : new Error(String(error));
+  });
+
+  let count = 0;
+  for await (const analyticsEvent of events) {
+    if (sendError) throw sendError;
+    count++;
+    const event = transformEventForPostHog(analyticsEvent, config.projectId);
+    posthog.capture(event);
+    if (count % 10000 === 0) {
+      await posthog.flush();
+      logger.info(
+        `[POSTHOG] Sent ${count} events to PostHog for project ${config.projectId}`,
+      );
+    }
+  }
+  await posthog.flush();
+  if (sendError) throw sendError;
+  logger.info(
+    `[POSTHOG] Sent ${count} events to PostHog for project ${config.projectId}`,
+  );
+};
+
 export const handlePostHogIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.PostHogIntegrationProcessingQueue]>,
 ) => {
@@ -221,11 +268,31 @@ export const handlePostHogIntegrationProjectJob = async (
   };
 
   try {
-    await Promise.all([
-      processPostHogTraces(executionConfig),
-      processPostHogGenerations(executionConfig),
-      processPostHogScores(executionConfig),
-    ]);
+    const processPromises: Promise<void>[] = [];
+
+    // Always include scores
+    processPromises.push(processPostHogScores(executionConfig));
+
+    // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+    if (
+      postHogIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+      postHogIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+    ) {
+      processPromises.push(
+        processPostHogTraces(executionConfig),
+        processPostHogGenerations(executionConfig),
+      );
+    }
+
+    // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+    if (
+      postHogIntegration.exportSource === "EVENTS" ||
+      postHogIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+    ) {
+      processPromises.push(processPostHogEvents(executionConfig));
+    }
+
+    await Promise.all(processPromises);
 
     // Update the last run information for the postHogIntegration record.
     await prisma.posthogIntegration.update({

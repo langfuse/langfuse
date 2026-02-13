@@ -136,6 +136,13 @@ export const BlobStorageExportMode = {
 } as const;
 export type BlobStorageExportMode =
   (typeof BlobStorageExportMode)[keyof typeof BlobStorageExportMode];
+export const AnalyticsIntegrationExportSource = {
+  TRACES_OBSERVATIONS: "TRACES_OBSERVATIONS",
+  TRACES_OBSERVATIONS_EVENTS: "TRACES_OBSERVATIONS_EVENTS",
+  EVENTS: "EVENTS",
+} as const;
+export type AnalyticsIntegrationExportSource =
+  (typeof AnalyticsIntegrationExportSource)[keyof typeof AnalyticsIntegrationExportSource];
 export const DashboardWidgetViews = {
   TRACES: "TRACES",
   OBSERVATIONS: "OBSERVATIONS",
@@ -360,6 +367,7 @@ export type BlobStorageIntegration = {
   file_type: Generated<BlobStorageIntegrationFileType>;
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -675,6 +683,7 @@ export type MixpanelIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Model = {
   id: string;
@@ -748,6 +757,7 @@ export type PosthogIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Price = {
   id: string;

@@ -169,6 +169,7 @@ export function CodeMirrorEditor({
   onBlur,
   mode,
   minHeight,
+  maxHeight,
   placeholder,
   editorRef,
 }: {
@@ -180,13 +181,13 @@ export function CodeMirrorEditor({
   lineWrapping?: boolean;
   className?: string;
   mode: "json" | "text" | "prompt";
-  minHeight: "none" | 30 | 100 | 200;
+  minHeight?: number | string;
+  maxHeight?: number | string;
   placeholder?: string;
   editorRef?: React.RefObject<ReactCodeMirrorRef | null>;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
-
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!value && value !== "",
@@ -227,14 +228,32 @@ export function CodeMirrorEditor({
             ]),
         // Extend gutter to full height when minHeight > content height
         // This also enlarges the text area to minHeight
-        ...(minHeight === "none"
-          ? []
-          : [
+        ...(!!minHeight
+          ? [
               EditorView.theme({
-                ".cm-gutter,.cm-content": { minHeight: `${minHeight}px` },
+                ".cm-gutter,.cm-content": {
+                  minHeight:
+                    typeof minHeight === "number"
+                      ? `${minHeight}px`
+                      : minHeight,
+                },
                 ".cm-scroller": { overflow: "auto" },
               }),
-            ]),
+            ]
+          : []),
+        // Add max height support for very long bodies of text
+        ...(!!maxHeight
+          ? [
+              EditorView.theme({
+                ".cm-scroller": {
+                  maxHeight:
+                    typeof maxHeight === "number"
+                      ? `${maxHeight}px`
+                      : maxHeight,
+                },
+              }),
+            ]
+          : []),
         ...(mode === "json" ? [json()] : []),
         ...(mode === "json" && linterEnabled
           ? [linter(jsonParseLinter())]

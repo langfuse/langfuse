@@ -7,6 +7,7 @@ import {
   getTracesForAnalyticsIntegrations,
   getGenerationsForAnalyticsIntegrations,
   getScoresForAnalyticsIntegrations,
+  getEventsForAnalyticsIntegrations,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -15,6 +16,7 @@ import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
   transformScoreForMixpanel,
+  transformEventForMixpanel,
 } from "./transformers";
 
 type MixpanelExecutionConfig = {
@@ -130,6 +132,41 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
   );
 };
 
+const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
+  const events = getEventsForAnalyticsIntegrations(
+    config.projectId,
+    config.minTimestamp,
+    config.maxTimestamp,
+  );
+
+  logger.info(
+    `[MIXPANEL] Sending events for project ${config.projectId} to Mixpanel`,
+  );
+
+  const mixpanel = new MixpanelClient({
+    projectToken: config.decryptedMixpanelProjectToken,
+    region: config.mixpanelRegion,
+  });
+
+  let count = 0;
+  for await (const analyticsEvent of events) {
+    count++;
+    const event = transformEventForMixpanel(analyticsEvent, config.projectId);
+    mixpanel.addEvent(event);
+
+    if (count % 1000 === 0) {
+      await mixpanel.flush();
+      logger.info(
+        `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
+      );
+    }
+  }
+  await mixpanel.flush();
+  logger.info(
+    `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
+  );
+};
+
 export const handleMixpanelIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.MixpanelIntegrationProcessingQueue]>,
 ) => {
@@ -173,11 +210,31 @@ export const handleMixpanelIntegrationProjectJob = async (
   };
 
   try {
-    await Promise.all([
-      processMixpanelTraces(executionConfig),
-      processMixpanelGenerations(executionConfig),
-      processMixpanelScores(executionConfig),
-    ]);
+    const processPromises: Promise<void>[] = [];
+
+    // Always include scores
+    processPromises.push(processMixpanelScores(executionConfig));
+
+    // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
+    if (
+      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS" ||
+      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+    ) {
+      processPromises.push(
+        processMixpanelTraces(executionConfig),
+        processMixpanelGenerations(executionConfig),
+      );
+    }
+
+    // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
+    if (
+      mixpanelIntegration.exportSource === "EVENTS" ||
+      mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
+    ) {
+      processPromises.push(processMixpanelEvents(executionConfig));
+    }
+
+    await Promise.all(processPromises);
 
     // Update the last run information for the mixpanelIntegration record.
     await prisma.mixpanelIntegration.update({
