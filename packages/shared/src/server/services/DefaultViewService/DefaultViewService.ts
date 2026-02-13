@@ -37,7 +37,7 @@ export class DefaultViewService {
       where: {
         projectId,
         viewName,
-        OR: [{ userId: userId ?? null }, { userId: null }],
+        OR: userId ? [{ userId }, { userId: null }] : [{ userId: null }],
       },
     });
 
