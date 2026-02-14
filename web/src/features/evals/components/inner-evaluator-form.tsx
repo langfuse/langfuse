@@ -92,6 +92,7 @@ import {
 } from "@/src/features/evals/hooks/useEvaluatorTarget";
 import {
   COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
+  DEFAULT_OBSERVATION_FILTER,
   DEFAULT_TRACE_FILTER,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
@@ -308,11 +309,15 @@ export const InnerEvaluatorForm = (props: {
       target: props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT,
       filter: props.existingEvaluator?.filter
         ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : // For new trace evaluators, exclude internal environments by default
-          (props.existingEvaluator?.targetObject ?? EvalTargetObject.TRACE) ===
+        : (props.existingEvaluator?.targetObject ?? EvalTargetObject.EVENT) ===
             EvalTargetObject.TRACE
-          ? DEFAULT_TRACE_FILTER
-          : [],
+          ? // For new trace evaluators, exclude internal environments by default
+            DEFAULT_TRACE_FILTER
+          : (props.existingEvaluator?.targetObject ??
+                EvalTargetObject.EVENT) === EvalTargetObject.EVENT
+            ? // For new observation evaluators, default to GENERATION type
+              DEFAULT_OBSERVATION_FILTER
+            : [],
       mapping: props.existingEvaluator?.variableMapping
         ? isEventTarget(props.existingEvaluator.targetObject) ||
           isExperimentTarget(props.existingEvaluator.targetObject)
@@ -530,8 +535,15 @@ export const InnerEvaluatorForm = (props: {
       actualTarget,
     );
 
-    // Update form state
-    form.setValue("filter", []);
+    // Update form state with target-appropriate default filters
+    form.setValue(
+      "filter",
+      actualTarget === EvalTargetObject.TRACE
+        ? DEFAULT_TRACE_FILTER
+        : actualTarget === EvalTargetObject.EVENT
+          ? DEFAULT_OBSERVATION_FILTER
+          : [],
+    );
     form.setValue("mapping", newMapping);
     setAvailableVariables(targetState.getAvailableVariables(actualTarget));
     return actualTarget;
@@ -1066,7 +1078,7 @@ export const InnerEvaluatorForm = (props: {
                   ...field,
                   langfuseObject,
                 }));
-                form.setValue("filter", []);
+                form.setValue("filter", DEFAULT_TRACE_FILTER);
                 form.setValue("mapping", newMapping);
                 setAvailableVariables(availableTraceEvalVariables);
                 form.setValue("target", actualTarget);
