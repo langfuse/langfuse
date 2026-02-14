@@ -1,4 +1,5 @@
 import { type UseFormReturn, useForm } from "react-hook-form";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -75,6 +76,7 @@ import {
 import {
   BetweenHorizonalStart,
   CircleDot,
+  AlertTriangle,
   FlaskConical,
   InfoIcon,
   ListTree,
@@ -908,6 +910,17 @@ export const InnerEvaluatorForm = (props: {
                         )}
                       </div>
                     </FormControl>
+                    {!props.disabled && !hasFilters && (
+                      <Alert className="max-w-[500px]">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          No filters set. This evaluator will run on{" "}
+                          <span className="font-semibold">all</span>{" "}
+                          {getTargetDisplayName(target)}. Verify this is
+                          intended.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <FormMessage />
                   </FormItem>
                 );
