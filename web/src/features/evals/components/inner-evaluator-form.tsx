@@ -911,15 +911,13 @@ export const InnerEvaluatorForm = (props: {
                       </div>
                     </FormControl>
                     {!props.disabled && !hasFilters && (
-                      <Alert className="max-w-[500px]">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          No filters set. This evaluator will run on{" "}
-                          <span className="font-semibold">all</span>{" "}
-                          {getTargetDisplayName(target)}. Verify this is
-                          intended.
+                      <div className="align-center flex max-w-[500px] gap-1">
+                        <AlertTriangle className="h-4 w-4 text-dark-yellow" />
+                        <AlertDescription className="text-dark-yellow">
+                          No filters set. This evaluator will run on all{" "}
+                          {getTargetDisplayName(target)}.
                         </AlertDescription>
-                      </Alert>
+                      </div>
                     )}
                     <FormMessage />
                   </FormItem>
