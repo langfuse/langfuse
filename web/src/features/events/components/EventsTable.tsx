@@ -1293,7 +1293,7 @@ export default function ObservationsEventsTable({
                   searchQuery,
                   searchType,
                 }}
-                tableName={BatchExportTableName.Observations}
+                tableName={BatchExportTableName.Events}
                 key="batchExport"
               />,
               Object.keys(selectedRows).filter((observationId) =>

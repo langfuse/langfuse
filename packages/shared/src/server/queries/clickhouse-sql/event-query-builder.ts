@@ -65,6 +65,14 @@ const EVENTS_FIELDS = {
   input: "e.input",
   output: "e.output",
   metadata: "mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata",
+  metadataDirect: "e.metadata as metadata", // Direct JSON column access for exports
+
+  // Trace-level denormalized fields
+  tags: "e.tags as tags",
+  release: "e.release as release",
+
+  // Model ID with different alias for exports
+  modelId: 'e.model_id as "model_id"',
 
   // Calculated fields
   latency:
@@ -181,6 +189,39 @@ const FIELD_SETS = {
   usage: ["usageDetails", "costDetails", "totalCost"],
   prompt: ["promptId", "promptName", "promptVersion"],
   metrics: ["latency", "timeToFirstToken"],
+
+  // Batch export field set (all fields needed for CSV/JSON exports)
+  export: [
+    "id",
+    "traceId",
+    "projectId",
+    "startTime",
+    "endTime",
+    "name",
+    "type",
+    "environment",
+    "version",
+    "userId",
+    "sessionId",
+    "level",
+    "statusMessage",
+    "promptName",
+    "promptId",
+    "promptVersion",
+    "modelId",
+    "providedModelName",
+    "modelParameters",
+    "usageDetails",
+    "costDetails",
+    "totalCost",
+    "completionStartTime",
+    "latency",
+    "timeToFirstToken",
+    "tags",
+    "release",
+    "traceName",
+    "parentObservationId",
+  ],
 } as const;
 
 export type FieldSetName = keyof typeof FIELD_SETS;
@@ -262,6 +303,7 @@ export type NoProjectIdType = typeof NoProjectId;
 abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected orderByClause: string = "";
+  protected limitByClause: string = "";
   protected limitClause: string = "";
   protected params: Record<string, any> = {};
 
@@ -322,6 +364,22 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
+   * Add LIMIT 1 BY for ClickHouse deduplication
+   * This is applied before the regular LIMIT clause
+   *
+   * @param columns - Columns to deduplicate by
+   * @example
+   *   .limitBy("e.span_id", "e.project_id")
+   */
+  limitBy(...columns: string[]): this {
+    if (columns.length > 0) {
+      this.limitByClause = `LIMIT 1 BY ${columns.join(", ")}`;
+    }
+
+    return this;
+  }
+
+  /**
    * Conditionally apply builder operations
    */
   when<T extends AbstractQueryBuilder>(
@@ -344,10 +402,19 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
-   * Helper to build LIMIT section
+   * Helper to build LIMIT section (includes LIMIT BY if set)
    */
   protected buildLimitSection(): string {
-    return this.limitClause;
+    const parts: string[] = [];
+
+    if (this.limitByClause) {
+      parts.push(this.limitByClause);
+    }
+    if (this.limitClause) {
+      parts.push(this.limitClause);
+    }
+
+    return parts.join("\n");
   }
 
   /**
@@ -551,6 +618,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
+  // Flag to use direct metadata JSON column instead of array-based metadata
+  private useDirectMetadata: boolean = false;
+  // Raw SELECT expressions for custom columns (e.g., from CTEs)
+  private rawSelectExpressions: string[] = [];
 
   /**
    * Constructor
@@ -581,6 +652,34 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     this.metadataExpansionKeys = keys;
     // Also ensure metadata is in the select fields (will be replaced in buildSelectClause)
     this.selectFields.add("metadata");
+    return this;
+  }
+
+  /**
+   * Select metadata using direct JSON column access instead of array-based reconstruction.
+   * Use this for exports where full metadata values are needed without truncation.
+   *
+   * @example
+   * builder.selectMetadataDirect()
+   */
+  selectMetadataDirect(): this {
+    this.useDirectMetadata = true;
+    this.selectFields.add("metadataDirect");
+
+    return this;
+  }
+
+  /**
+   * Add raw SELECT expressions for custom columns (e.g., from CTEs).
+   * These are appended after the field set columns.
+   *
+   * @param expressions - Raw SQL expressions to add to SELECT
+   * @example
+   * builder.selectRaw("s.scores_avg as scores_avg", "s.score_categories as score_categories")
+   */
+  selectRaw(...expressions: string[]): this {
+    this.rawSelectExpressions.push(...expressions);
+
     return this;
   }
 
@@ -616,10 +715,11 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     if (this.ioFields) {
       fieldsToExclude.push("input", "output");
     }
-    // Only exclude metadata if we have actual keys to expand
+    // Exclude array-based metadata if using direct JSON metadata or expanded metadata
     if (
-      this.metadataExpansionKeys !== null &&
-      this.metadataExpansionKeys.length > 0
+      this.useDirectMetadata ||
+      (this.metadataExpansionKeys !== null &&
+        this.metadataExpansionKeys.length > 0)
     ) {
       fieldsToExclude.push("metadata");
     }
@@ -666,6 +766,11 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
           e.metadata_hashes
         )
       ) as metadata`);
+    }
+
+    // Add raw SELECT expressions (e.g., from CTE joins)
+    if (this.rawSelectExpressions.length > 0) {
+      fieldExpressions.push(...this.rawSelectExpressions);
     }
 
     return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
