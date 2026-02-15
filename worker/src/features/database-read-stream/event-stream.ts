@@ -337,3 +337,98 @@ export const getEventsStream = async (props: {
     })(),
   );
 };
+
+/**
+ * Lightweight event stream for batch observation evaluation.
+ * Unlike getEventsStream, this:
+ * - Uses the "eval" field set (no time/latency/modelId columns)
+ * - Skips scores CTE and JOIN
+ * - Skips comment fetching
+ * - Yields raw ClickHouse rows directly (no buffering or camelCase mapping)
+ */
+export const getEventsStreamForEval = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[] | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
+}): Promise<Readable> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter = [],
+    searchQuery,
+    searchType,
+    rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  } = props;
+
+  // Filter out score and comment filters since they're not relevant for eval
+  const eventOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = eventsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+    return (
+      columnDef?.clickhouseTableName !== "scores" &&
+      columnDef?.clickhouseTableName !== "comments"
+    );
+  });
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      [
+        ...eventOnlyFilters,
+        {
+          column: "startTime",
+          operator: "<" as const,
+          value: cutoffCreatedAt,
+          type: "datetime" as const,
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
+    "span_id",
+    "name",
+    "user_id",
+    "session_id",
+    "trace_id",
+  ]);
+
+  const eventsQuery = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("eval")
+    .selectIO(false)
+    .selectMetadataDirect()
+    .where(appliedEventsFilter)
+    .where(search)
+    .whereRaw("e.is_deleted = 0")
+    .orderByDefault()
+    .limitBy("e.span_id", "e.project_id")
+    .limit(rowLimit);
+
+  const { query, params: queryParams } = eventsQuery.buildWithParams();
+
+  const asyncGenerator = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params: queryParams,
+    clickhouseConfigs: {
+      request_timeout: 180_000,
+      clickhouse_settings: {
+        http_send_timeout: 300,
+        http_receive_timeout: 300,
+      },
+    },
+    tags: {
+      feature: "batch-eval",
+      type: "event",
+      kind: "eval",
+      projectId,
+    },
+  });
+
+  return Readable.from(asyncGenerator);
+};

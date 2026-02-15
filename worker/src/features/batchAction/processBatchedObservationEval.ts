@@ -10,9 +10,8 @@ import {
   scheduleObservationEvals,
   type ObservationEvalConfig,
 } from "../evaluation/observationEval";
-import { type BatchExportEventsRow } from "../database-read-stream/types";
-
 const BATCH_SIZE = 100;
+const CONCURRENCY_LIMIT = 50;
 const MAX_ERROR_LOG_LINES = 20;
 
 function toNumericRecord(value: unknown): Record<string, number | null> {
@@ -55,65 +54,64 @@ function toObjectRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-function parseEventRow(record: unknown): BatchExportEventsRow {
+export function toObservationForEval(record: unknown, projectId: string) {
   if (!record || typeof record !== "object") {
     throw new Error("Invalid events table row");
   }
 
-  const row = record as Partial<BatchExportEventsRow>;
-  if (!row.id || !row.traceId) {
+  const row = record as Record<string, unknown>;
+  if (!row.id || !row.trace_id) {
     throw new Error("Events row is missing required identifiers");
   }
 
-  return row as BatchExportEventsRow;
-}
-
-export function toObservationForEval(record: unknown, projectId: string) {
-  const row = parseEventRow(record);
-
   const observation = {
-    span_id: row.id,
-    trace_id: row.traceId,
+    span_id: row.id as string,
+    trace_id: row.trace_id as string,
     project_id: projectId,
-    parent_span_id: row.parentObservationId,
-    type: row.type,
-    name: row.name ?? "",
-    environment: row.environment ?? "default",
-    version: row.version,
-    level: row.level,
-    status_message: row.statusMessage,
-    trace_name: row.traceName,
-    user_id: row.userId,
-    session_id: row.sessionId,
+    parent_span_id: (row.parent_observation_id as string | null) ?? null,
+    type: (row.type as string) ?? undefined,
+    name: (row.name as string) ?? "",
+    environment: (row.environment as string) ?? "default",
+    version: (row.version as string | null) ?? undefined,
+    level: (row.level as string) ?? undefined,
+    status_message: (row.status_message as string | null) ?? undefined,
+    trace_name: (row.trace_name as string | null) ?? undefined,
+    user_id: (row.user_id as string | null) ?? undefined,
+    session_id: (row.session_id as string | null) ?? undefined,
     tags: toStringArray(row.tags),
-    release: row.release,
-    provided_model_name: row.providedModelName,
-    model_parameters: row.modelParameters ?? null,
-    prompt_id: row.promptId,
-    prompt_name: row.promptName,
+    release: (row.release as string | null) ?? undefined,
+    provided_model_name:
+      (row.provided_model_name as string | null) ?? undefined,
+    model_parameters: row.model_parameters ?? null,
+    prompt_id: (row.prompt_id as string | null) ?? undefined,
+    prompt_name: (row.prompt_name as string | null) ?? undefined,
     prompt_version:
-      typeof row.promptVersion === "number" ||
-      typeof row.promptVersion === "string"
-        ? row.promptVersion
+      typeof row.prompt_version === "number" ||
+      typeof row.prompt_version === "string"
+        ? row.prompt_version
         : null,
     // The ClickHouse events table doesn't distinguish between computed and
     // provided usage/cost details — both map to the same source column.
     // totalCost is added as the "total" key to match the normal ingestion path.
-    provided_usage_details: toNumericRecord(row.usageDetails),
+    provided_usage_details: toNumericRecord(
+      row.provided_usage_details ?? row.usage_details,
+    ),
     provided_cost_details: {
-      ...toNumericRecord(row.costDetails),
-      ...(row.totalCost != null ? { total: row.totalCost } : {}),
+      ...toNumericRecord(row.provided_cost_details ?? row.cost_details),
+      ...((row.total_cost as number | null) != null
+        ? { total: row.total_cost as number }
+        : {}),
     },
-    usage_details: toNumericRecord(row.usageDetails),
+    usage_details: toNumericRecord(row.usage_details),
     cost_details: {
-      ...toNumericRecord(row.costDetails),
-      ...(row.totalCost != null ? { total: row.totalCost } : {}),
+      ...toNumericRecord(row.cost_details),
+      ...((row.total_cost as number | null) != null
+        ? { total: row.total_cost as number }
+        : {}),
     },
-    // Tool fields are not available from the events export stream.
-    // Evaluators depending on tool variables will receive empty values.
-    tool_definitions: {},
-    tool_calls: [],
-    tool_call_names: [],
+    tool_definitions: toObjectRecord(row.tool_definitions) ?? {},
+    tool_calls: Array.isArray(row.tool_calls) ? row.tool_calls : [],
+    tool_call_names: toStringArray(row.tool_call_names),
     experiment_id: null,
     experiment_name: null,
     experiment_description: null,
@@ -138,6 +136,8 @@ export async function processBatchedObservationEval(params: {
 }): Promise<void> {
   const { projectId, batchActionId, config, evaluators, observationStream } =
     params;
+  const { default: pLimit } = await import("p-limit");
+  const limit = pLimit(CONCURRENCY_LIMIT);
   const schedulerDeps = createObservationEvalSchedulerDeps();
 
   await prisma.batchAction.update({
@@ -160,15 +160,17 @@ export async function processBatchedObservationEval(params: {
 
   const processBatch = async (batch: unknown[]) => {
     const results = await Promise.allSettled(
-      batch.map(async (record) => {
-        const observation = toObservationForEval(record, projectId);
-        await scheduleObservationEvals({
-          observation,
-          configs: evaluators,
-          schedulerDeps,
-          ignoreConfigTargeting: true,
-        });
-      }),
+      batch.map((record) =>
+        limit(async () => {
+          const observation = toObservationForEval(record, projectId);
+          await scheduleObservationEvals({
+            observation,
+            configs: evaluators,
+            schedulerDeps,
+            ignoreConfigTargeting: true,
+          });
+        }),
+      ),
     );
 
     for (let i = 0; i < results.length; i++) {

@@ -758,6 +758,9 @@ export const evalRouter = createTRPCRouter({
       await clearNoEvalConfigsCache(input.projectId, "traceBased");
       await clearNoEvalConfigsCache(input.projectId, "eventBased");
 
+      // EVENT targets handle historical evaluation via the dedicated batch
+      // "Run Evaluation" action (runEvaluationRouter), so we only schedule
+      // historical backfills here for TRACE and DATASET targets.
       if (
         input.timeScope.includes("EXISTING") &&
         (input.target === EvalTargetObject.TRACE ||
@@ -1116,6 +1119,9 @@ export const evalRouter = createTRPCRouter({
         await clearNoEvalConfigsCache(projectId, "eventBased");
       }
 
+      // EVENT targets handle historical evaluation via the dedicated batch
+      // "Run Evaluation" action (runEvaluationRouter), so we only schedule
+      // historical backfills here for TRACE and DATASET targets.
       if (
         config.timeScope?.includes("EXISTING") &&
         (existingJob?.targetObject === EvalTargetObject.TRACE ||

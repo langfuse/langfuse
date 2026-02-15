@@ -30,7 +30,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
-import { getEventsStream } from "../database-read-stream/event-stream";
+import { getEventsStreamForEval } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import {
   ObservationAddToDatasetConfigSchema,
@@ -403,7 +403,7 @@ export const handleBatchActionJob = async (
       return;
     }
 
-    const dbReadStream = await getEventsStream({
+    const dbReadStream = await getEventsStreamForEval({
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
       filter: convertDatesInFiltersFromStrings(query.filter ?? []),

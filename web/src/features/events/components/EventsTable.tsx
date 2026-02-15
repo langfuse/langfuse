@@ -1435,10 +1435,10 @@ export default function ObservationsEventsTable({
       {showRunEvaluationDialog && (
         <RunEvaluationDialog
           projectId={projectId}
-          selectedObservationIds={Object.keys(selectedRows).filter(
-            (observationId) =>
-              observations.rows?.some((o) => o.id === observationId),
-          )}
+          selectedObservationIds={(() => {
+            const rowIds = new Set(observations.rows?.map((o) => o.id));
+            return Object.keys(selectedRows).filter((id) => rowIds.has(id));
+          })()}
           query={{
             filter: filterState,
             orderBy: orderByState,

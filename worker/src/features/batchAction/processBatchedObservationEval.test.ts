@@ -30,38 +30,35 @@ describe("toObservationForEval", () => {
 
   const fullRow = {
     id: "obs-1",
-    traceId: "trace-1",
-    traceName: "my-trace",
+    trace_id: "trace-1",
+    trace_name: "my-trace",
     type: "GENERATION",
     name: "gen-step",
-    startTime: new Date("2024-01-01"),
-    endTime: null,
-    completionStartTime: null,
     environment: "production",
     version: "1.0",
-    userId: "user-1",
-    sessionId: "sess-1",
+    user_id: "user-1",
+    session_id: "sess-1",
     level: "DEFAULT",
-    statusMessage: null,
-    promptName: "my-prompt",
-    promptId: "prompt-1",
-    promptVersion: 3,
-    modelId: null,
-    providedModelName: "gpt-4",
-    modelParameters: { temperature: 0.7 },
-    usageDetails: { input: 100, output: 50 },
-    costDetails: { input: 0.01, output: 0.02 },
-    totalCost: 0.03,
+    status_message: null,
+    prompt_name: "my-prompt",
+    prompt_id: "prompt-1",
+    prompt_version: 3,
+    provided_model_name: "gpt-4",
+    model_parameters: { temperature: 0.7 },
+    provided_usage_details: { input: 100, output: 50 },
+    usage_details: { input: 100, output: 50 },
+    provided_cost_details: { input: 0.01, output: 0.02 },
+    cost_details: { input: 0.01, output: 0.02 },
+    total_cost: 0.03,
     input: { role: "user", content: "hello" },
     output: { role: "assistant", content: "hi" },
     metadata: { key: "value" },
-    latencyMs: 150,
-    timeToFirstTokenMs: 20,
     tags: ["tag1", "tag2"],
     release: "v1.0",
-    parentObservationId: "parent-1",
-    scores: {},
-    comments: [],
+    parent_observation_id: "parent-1",
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
   };
 
   it("maps a full events row to the observation eval schema", () => {
@@ -99,11 +96,11 @@ describe("toObservationForEval", () => {
   it("handles null and missing optional fields", () => {
     const minimalRow = {
       id: "obs-2",
-      traceId: "trace-2",
+      trace_id: "trace-2",
       type: "SPAN",
       name: null,
-      usageDetails: {},
-      costDetails: {},
+      usage_details: {},
+      cost_details: {},
       tags: null,
       input: null,
       output: null,
@@ -126,10 +123,10 @@ describe("toObservationForEval", () => {
   it("coerces string-formatted numbers in usageDetails", () => {
     const row = {
       id: "obs-3",
-      traceId: "trace-3",
+      trace_id: "trace-3",
       type: "GENERATION",
-      usageDetails: { input: "100", output: "50", invalid: "abc" },
-      costDetails: {},
+      usage_details: { input: "100", output: "50", invalid: "abc" },
+      cost_details: {},
       tags: [],
     };
 
@@ -162,10 +159,10 @@ describe("toObservationForEval", () => {
   it("handles malformed usageDetails gracefully", () => {
     const row = {
       id: "obs-4",
-      traceId: "trace-4",
+      trace_id: "trace-4",
       type: "SPAN",
-      usageDetails: "not-an-object",
-      costDetails: [1, 2, 3],
+      usage_details: "not-an-object",
+      cost_details: [1, 2, 3],
       tags: [],
     };
 
@@ -210,18 +207,17 @@ describe("processBatchedObservationEval", () => {
         scoreName: "quality",
         targetObject: EvalTargetObject.EVENT,
         variableMapping: [],
-        delay: 0,
       },
     ];
 
     const observationStream = (async function* () {
       yield {
         id: "obs-1",
-        traceId: "trace-1",
+        trace_id: "trace-1",
         type: "GENERATION",
         name: "test",
-        usageDetails: {},
-        costDetails: {},
+        usage_details: {},
+        cost_details: {},
         tags: [],
         input: "input",
         output: "output",

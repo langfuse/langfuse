@@ -188,7 +188,7 @@ export function MultiSelectCombobox<T>({
             <div
               className={
                 dropdownClassName ??
-                "absolute top-0 z-50 max-h-64 w-full overflow-y-auto rounded-md border bg-background shadow-md"
+                "absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border bg-background shadow-md"
               }
               onMouseDown={(e) => e.preventDefault()}
               onWheel={(e) => e.stopPropagation()}
