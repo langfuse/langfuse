@@ -8,7 +8,6 @@ import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
-import { ObservationBatchEvaluationConfigSchema } from "../features/batchAction/runEvaluationTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 
 export const IngestionEvent = z.object({
@@ -188,16 +187,6 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       batchActionId: z.string(),
       config: ObservationAddToDatasetConfigSchema,
-      type: z.enum(BatchActionType),
-    }),
-    z.object({
-      actionId: z.literal("observation-run-evaluation"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      batchActionId: z.string(),
-      config: ObservationBatchEvaluationConfigSchema,
       type: z.enum(BatchActionType),
     }),
   ],
