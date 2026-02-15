@@ -7,6 +7,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { type ObservationEvalConfig } from "./types";
 
+type ObservationEvalConfigFilter = {
+  requireTimeScopeNew?: boolean;
+};
+
 /**
  * Fetches active observation eval configs for a project.
  *
@@ -19,6 +23,7 @@ import { type ObservationEvalConfig } from "./types";
  */
 export async function fetchObservationEvalConfigs(
   projectId: string,
+  filter: ObservationEvalConfigFilter = {},
 ): Promise<ObservationEvalConfig[]> {
   // Check cache first
   const hasNoConfigs = await hasNoEvalConfigsCache(projectId, "eventBased");
@@ -38,6 +43,13 @@ export async function fetchObservationEvalConfigs(
         in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
       },
       status: "ACTIVE",
+      ...(filter.requireTimeScopeNew
+        ? {
+            timeScope: {
+              has: "NEW",
+            },
+          }
+        : {}),
     },
     select: {
       id: true,

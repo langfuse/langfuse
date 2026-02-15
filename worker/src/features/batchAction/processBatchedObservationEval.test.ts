@@ -1,0 +1,250 @@
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import {
+  EvalTargetObject,
+  type ObservationRunEvaluationConfig,
+} from "@langfuse/shared";
+import { type ObservationEvalConfig } from "../evaluation/observationEval";
+
+vi.mock("@langfuse/shared/src/db", () => ({
+  prisma: {
+    batchAction: {
+      update: vi.fn().mockResolvedValue(undefined),
+    },
+  },
+}));
+
+vi.mock("../evaluation/observationEval", () => ({
+  createObservationEvalSchedulerDeps: vi.fn(() => ({ deps: true })),
+  scheduleObservationEvals: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { prisma } from "@langfuse/shared/src/db";
+import { scheduleObservationEvals } from "../evaluation/observationEval";
+import {
+  processBatchedObservationEval,
+  toObservationForEval,
+} from "./processBatchedObservationEval";
+
+describe("toObservationForEval", () => {
+  const projectId = "proj-1";
+
+  const fullRow = {
+    id: "obs-1",
+    traceId: "trace-1",
+    traceName: "my-trace",
+    type: "GENERATION",
+    name: "gen-step",
+    startTime: new Date("2024-01-01"),
+    endTime: null,
+    completionStartTime: null,
+    environment: "production",
+    version: "1.0",
+    userId: "user-1",
+    sessionId: "sess-1",
+    level: "DEFAULT",
+    statusMessage: null,
+    promptName: "my-prompt",
+    promptId: "prompt-1",
+    promptVersion: 3,
+    modelId: null,
+    providedModelName: "gpt-4",
+    modelParameters: { temperature: 0.7 },
+    usageDetails: { input: 100, output: 50 },
+    costDetails: { input: 0.01, output: 0.02 },
+    totalCost: 0.03,
+    input: { role: "user", content: "hello" },
+    output: { role: "assistant", content: "hi" },
+    metadata: { key: "value" },
+    latencyMs: 150,
+    timeToFirstTokenMs: 20,
+    tags: ["tag1", "tag2"],
+    release: "v1.0",
+    parentObservationId: "parent-1",
+    scores: {},
+    comments: [],
+  };
+
+  it("maps a full events row to the observation eval schema", () => {
+    const result = toObservationForEval(fullRow, projectId);
+
+    expect(result.span_id).toBe("obs-1");
+    expect(result.trace_id).toBe("trace-1");
+    expect(result.project_id).toBe(projectId);
+    expect(result.parent_span_id).toBe("parent-1");
+    expect(result.type).toBe("GENERATION");
+    expect(result.name).toBe("gen-step");
+    expect(result.environment).toBe("production");
+    expect(result.tags).toEqual(["tag1", "tag2"]);
+    expect(result.provided_model_name).toBe("gpt-4");
+    expect(result.prompt_name).toBe("my-prompt");
+    expect(result.prompt_version).toBe(3);
+    expect(result.usage_details).toEqual({ input: 100, output: 50 });
+    expect(result.cost_details).toEqual({
+      input: 0.01,
+      output: 0.02,
+      total: 0.03,
+    });
+    // Both provided and computed map to same source
+    expect(result.provided_usage_details).toEqual(result.usage_details);
+    expect(result.provided_cost_details).toEqual(result.cost_details);
+    // Tool fields are empty
+    expect(result.tool_definitions).toEqual({});
+    expect(result.tool_calls).toEqual([]);
+    expect(result.tool_call_names).toEqual([]);
+    expect(result.input).toEqual({ role: "user", content: "hello" });
+    expect(result.output).toEqual({ role: "assistant", content: "hi" });
+    expect(result.metadata).toEqual({ key: "value" });
+  });
+
+  it("handles null and missing optional fields", () => {
+    const minimalRow = {
+      id: "obs-2",
+      traceId: "trace-2",
+      type: "SPAN",
+      name: null,
+      usageDetails: {},
+      costDetails: {},
+      tags: null,
+      input: null,
+      output: null,
+      metadata: null,
+    };
+
+    const result = toObservationForEval(minimalRow, projectId);
+
+    expect(result.span_id).toBe("obs-2");
+    expect(result.name).toBe("");
+    expect(result.environment).toBe("default");
+    expect(result.tags).toEqual([]);
+    expect(result.input).toBeNull();
+    expect(result.output).toBeNull();
+    expect(result.metadata).toBeUndefined();
+    expect(result.usage_details).toEqual({});
+    expect(result.cost_details).toEqual({});
+  });
+
+  it("coerces string-formatted numbers in usageDetails", () => {
+    const row = {
+      id: "obs-3",
+      traceId: "trace-3",
+      type: "GENERATION",
+      usageDetails: { input: "100", output: "50", invalid: "abc" },
+      costDetails: {},
+      tags: [],
+    };
+
+    const result = toObservationForEval(row, projectId);
+
+    expect(result.usage_details).toEqual({ input: 100, output: 50 });
+  });
+
+  it("throws for null or non-object records", () => {
+    expect(() => toObservationForEval(null, projectId)).toThrow(
+      "Invalid events table row",
+    );
+    expect(() => toObservationForEval(undefined, projectId)).toThrow(
+      "Invalid events table row",
+    );
+    expect(() => toObservationForEval("string", projectId)).toThrow(
+      "Invalid events table row",
+    );
+  });
+
+  it("throws for records missing required identifiers", () => {
+    expect(() => toObservationForEval({}, projectId)).toThrow(
+      "Events row is missing required identifiers",
+    );
+    expect(() => toObservationForEval({ id: "obs-1" }, projectId)).toThrow(
+      "Events row is missing required identifiers",
+    );
+  });
+
+  it("handles malformed usageDetails gracefully", () => {
+    const row = {
+      id: "obs-4",
+      traceId: "trace-4",
+      type: "SPAN",
+      usageDetails: "not-an-object",
+      costDetails: [1, 2, 3],
+      tags: [],
+    };
+
+    const result = toObservationForEval(row, projectId);
+
+    expect(result.usage_details).toEqual({});
+    expect(result.cost_details).toEqual({});
+  });
+});
+
+describe("processBatchedObservationEval", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("bypasses evaluator filter and sampling when scheduling historical rows", async () => {
+    const projectId = "project-1";
+    const batchActionId = "batch-action-1";
+    const config: ObservationRunEvaluationConfig = {
+      evaluators: [
+        {
+          evaluatorConfigId: "config-1",
+          evaluatorName: "quality",
+        },
+      ],
+    };
+
+    const evaluators: ObservationEvalConfig[] = [
+      {
+        id: "config-1",
+        projectId,
+        filter: [
+          {
+            column: "type",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["SPAN"],
+          },
+        ],
+        sampling: { toNumber: () => 0 } as ObservationEvalConfig["sampling"],
+        evalTemplateId: "template-1",
+        scoreName: "quality",
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        delay: 0,
+      },
+    ];
+
+    const observationStream = (async function* () {
+      yield {
+        id: "obs-1",
+        traceId: "trace-1",
+        type: "GENERATION",
+        name: "test",
+        usageDetails: {},
+        costDetails: {},
+        tags: [],
+        input: "input",
+        output: "output",
+        metadata: {},
+      };
+    })();
+
+    await processBatchedObservationEval({
+      projectId,
+      batchActionId,
+      config,
+      evaluators,
+      observationStream,
+    });
+
+    expect(scheduleObservationEvals).toHaveBeenCalledTimes(1);
+    expect(scheduleObservationEvals).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ignoreConfigTargeting: true,
+      }),
+    );
+    expect(
+      (prisma.batchAction.update as Mock).mock.calls.length,
+    ).toBeGreaterThan(0);
+  });
+});

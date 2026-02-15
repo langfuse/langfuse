@@ -215,6 +215,33 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
+
+    it("should process config when targeting is ignored even if filter does not match", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ type: "span" });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            filter: [
+              {
+                column: "type",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["generation"],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+        ignoreConfigTargeting: true,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("sampling", () => {
@@ -253,6 +280,26 @@ describe("scheduleObservationEvals", () => {
 
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
+    });
+
+    it("should process config when targeting is ignored even if sampled out", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            sampling: { toNumber: () => 0 } as unknown as Prisma.Decimal,
+          }),
+        ],
+        schedulerDeps,
+        ignoreConfigTargeting: true,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
     });
   });
 

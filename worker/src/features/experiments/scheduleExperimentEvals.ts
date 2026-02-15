@@ -40,7 +40,9 @@ export async function scheduleExperimentObservationEvals(
 
   try {
     // 1. Fetch experiment-targeted eval configs
-    const configs = await fetchObservationEvalConfigs(projectId);
+    const configs = await fetchObservationEvalConfigs(projectId, {
+      requireTimeScopeNew: true,
+    });
     if (configs.length === 0) return;
 
     // 2. Build ObservationForEval with experiment context

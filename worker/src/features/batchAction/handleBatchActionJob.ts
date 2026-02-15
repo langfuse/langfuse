@@ -10,6 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
+  BatchActionStatus,
   BatchTableNames,
   FilterCondition,
   EvalTargetObject,
@@ -29,8 +30,14 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
+import { getEventsStream } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
-import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
+import {
+  ObservationAddToDatasetConfigSchema,
+  ObservationRunEvaluationConfigSchema,
+} from "@langfuse/shared";
+import { processBatchedObservationEval } from "./processBatchedObservationEval";
+import { fetchAndValidateEvaluatorConfigs } from "./fetchAndValidateEvaluatorConfigs";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -354,6 +361,63 @@ export const handleBatchActionJob = async (
       batchActionId: batchActionId as string,
       config: parsedConfig,
       observations,
+    });
+  } else if (actionId === "observation-run-evaluation") {
+    const { projectId, query, cutoffCreatedAt, config, batchActionId } =
+      batchActionEvent;
+
+    if (!batchActionId) {
+      throw new Error(
+        "batchActionId is required for observation-run-evaluation action",
+      );
+    }
+
+    const parsedConfig = ObservationRunEvaluationConfigSchema.parse(config);
+    const selectedEvaluatorIds = Array.from(
+      new Set(
+        parsedConfig.evaluators.map((evaluator) => evaluator.evaluatorConfigId),
+      ),
+    );
+
+    let orderedEvaluators;
+    try {
+      orderedEvaluators = await fetchAndValidateEvaluatorConfigs({
+        projectId,
+        evaluatorIds: selectedEvaluatorIds,
+      });
+    } catch (error) {
+      await prisma.batchAction.update({
+        where: { id: batchActionId },
+        data: {
+          status: BatchActionStatus.Failed,
+          finishedAt: new Date(),
+          totalCount: 0,
+          processedCount: 0,
+          failedCount: 0,
+          log:
+            error instanceof Error
+              ? error.message
+              : "Selected evaluators are missing, inactive, or not event-scoped for historical event evaluation.",
+        },
+      });
+      return;
+    }
+
+    const dbReadStream = await getEventsStream({
+      projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      searchQuery: query.searchQuery ?? undefined,
+      searchType: query.searchType ?? ["id", "content"],
+      rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+    });
+
+    await processBatchedObservationEval({
+      projectId,
+      batchActionId,
+      config: parsedConfig,
+      evaluators: orderedEvaluators,
+      observationStream: dbReadStream,
     });
   }
 

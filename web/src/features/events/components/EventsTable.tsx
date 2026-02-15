@@ -77,6 +77,7 @@ import {
 } from "@/src/components/table/data-table-refresh-button";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
+import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 
 export type EventsTableRow = {
   // Identity fields
@@ -173,6 +174,7 @@ export default function ObservationsEventsTable({
     useFullTextSearch();
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
+  const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
@@ -552,6 +554,16 @@ export default function ObservationsEventsTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
+      },
+    },
+    {
+      id: ActionId.ObservationRunEvaluation,
+      type: BatchActionType.Create,
+      label: "Run Evaluation",
+      description: "Run an evaluation on selected observations.",
+      customDialog: true,
+      accessCheck: {
+        scope: "evalJob:CUD",
       },
     },
   ];
@@ -1301,6 +1313,11 @@ export default function ObservationsEventsTable({
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  onCustomAction={(actionType) => {
+                    if (actionType === ActionId.ObservationRunEvaluation) {
+                      setShowRunEvaluationDialog(true);
+                    }
+                  }}
                 />
               ) : null,
             ]}
@@ -1414,6 +1431,29 @@ export default function ObservationsEventsTable({
           </div>
         </ResizableFilterLayout>
       </div>
+
+      {showRunEvaluationDialog && (
+        <RunEvaluationDialog
+          projectId={projectId}
+          selectedObservationIds={Object.keys(selectedRows).filter(
+            (observationId) =>
+              observations.rows?.some((o) => o.id === observationId),
+          )}
+          query={{
+            filter: filterState,
+            orderBy: orderByState,
+            searchQuery: searchQuery ?? undefined,
+            searchType,
+          }}
+          selectAll={selectAll}
+          totalCount={totalCount ?? 0}
+          onClose={() => {
+            setShowRunEvaluationDialog(false);
+            setSelectedRows({});
+            setSelectAll(false);
+          }}
+        />
+      )}
     </DataTableControlsProvider>
   );
 }

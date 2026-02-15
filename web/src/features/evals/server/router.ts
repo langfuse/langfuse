@@ -758,7 +758,11 @@ export const evalRouter = createTRPCRouter({
       await clearNoEvalConfigsCache(input.projectId, "traceBased");
       await clearNoEvalConfigsCache(input.projectId, "eventBased");
 
-      if (input.timeScope.includes("EXISTING")) {
+      if (
+        input.timeScope.includes("EXISTING") &&
+        (input.target === EvalTargetObject.TRACE ||
+          input.target === EvalTargetObject.DATASET)
+      ) {
         logger.info(
           `Applying to historical traces for job ${job.id} and project ${input.projectId}`,
         );
@@ -790,6 +794,8 @@ export const evalRouter = createTRPCRouter({
           { delay: input.delay },
         );
       }
+
+      return { id: job.id };
     }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplate)
@@ -1110,7 +1116,11 @@ export const evalRouter = createTRPCRouter({
         await clearNoEvalConfigsCache(projectId, "eventBased");
       }
 
-      if (config.timeScope?.includes("EXISTING")) {
+      if (
+        config.timeScope?.includes("EXISTING") &&
+        (existingJob?.targetObject === EvalTargetObject.TRACE ||
+          existingJob?.targetObject === EvalTargetObject.DATASET)
+      ) {
         logger.info(
           `Applying to historical traces for job ${evalConfigId} and project ${projectId}`,
         );

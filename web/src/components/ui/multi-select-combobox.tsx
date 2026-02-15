@@ -21,6 +21,8 @@ interface MultiSelectComboboxProps<T> {
   getItemKey: (item: T) => string;
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
+  showSelectedItemsInInput?: boolean;
+  dropdownClassName?: string;
 }
 
 export function MultiSelectCombobox<T>({
@@ -37,6 +39,8 @@ export function MultiSelectCombobox<T>({
   getItemKey,
   disabled = false,
   onOpenChange,
+  showSelectedItemsInInput = true,
+  dropdownClassName,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -137,16 +141,24 @@ export function MultiSelectCombobox<T>({
           <Search className="absolute left-2 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
           <div className="flex max-h-full flex-1 flex-wrap items-center gap-1 pl-8">
             {/* Selected Items Pills */}
-            {selectedItems.map((item) => (
-              <div key={getItemKey(item)}>
-                {renderSelectedItem(item, () => handleItemRemove(item))}
-              </div>
-            ))}
+            {showSelectedItemsInInput
+              ? selectedItems.map((item) => (
+                  <div key={getItemKey(item)}>
+                    {renderSelectedItem(item, () => handleItemRemove(item))}
+                  </div>
+                ))
+              : null}
             {/* Search Input */}
             <Input
               ref={inputRef}
               type="text"
-              placeholder={selectedItems.length === 0 ? placeholder : ""}
+              placeholder={
+                showSelectedItemsInInput
+                  ? selectedItems.length === 0
+                    ? placeholder
+                    : ""
+                  : placeholder
+              }
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={handleInputFocus}
@@ -174,8 +186,12 @@ export function MultiSelectCombobox<T>({
           {searchResults.length > 0 ||
           (isLoading && previousResults.length > 0) ? (
             <div
-              className="absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border bg-background shadow-md"
+              className={
+                dropdownClassName ??
+                "absolute top-0 z-50 max-h-64 w-full overflow-y-auto rounded-md border bg-background shadow-md"
+              }
               onMouseDown={(e) => e.preventDefault()}
+              onWheel={(e) => e.stopPropagation()}
             >
               {(isLoading && previousResults.length > 0
                 ? previousResults

@@ -390,17 +390,17 @@ export const otelIngestionQueueProcessor: Processor = async (
       env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
       useDirectEventWrite;
 
-    const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
-      (error) => {
-        traceException(error);
-        logger.warn(
-          `Failed to fetch observation eval configs for project ${projectId}`,
-          error,
-        );
+    const evalConfigs = await fetchObservationEvalConfigs(projectId, {
+      requireTimeScopeNew: true,
+    }).catch((error) => {
+      traceException(error);
+      logger.warn(
+        `Failed to fetch observation eval configs for project ${projectId}`,
+        error,
+      );
 
-        return [];
-      },
-    );
+      return [];
+    });
     const hasEvalConfigs = evalConfigs.length > 0;
 
     // Early exit if no processing needed

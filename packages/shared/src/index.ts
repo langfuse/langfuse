@@ -37,6 +37,7 @@ export * from "./features/evals/observationForEval";
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";
 export * from "./features/batchAction/addToDatasetTypes";
+export * from "./features/batchAction/runEvaluationTypes";
 export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
 
