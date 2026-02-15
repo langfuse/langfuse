@@ -19,11 +19,11 @@ import {
   EvalTargetObject,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-import { CreateObservationRunEvaluationActionSchema } from "../validation";
+import { CreateObservationBatchEvaluationActionSchema } from "../validation";
 
 export const runEvaluationRouter = createTRPCRouter({
   create: protectedProjectProcedure
-    .input(CreateObservationRunEvaluationActionSchema)
+    .input(CreateObservationBatchEvaluationActionSchema)
     .mutation(async ({ input, ctx }) => {
       try {
         throwIfNoProjectAccess({
@@ -121,7 +121,7 @@ export const runEvaluationRouter = createTRPCRouter({
           data: {
             projectId,
             userId,
-            actionType: ActionId.ObservationRunEvaluation,
+            actionType: ActionId.ObservationBatchEvaluation,
             tableName: BatchTableNames.Observations,
             status: BatchActionStatus.Queued,
             query,
@@ -147,7 +147,7 @@ export const runEvaluationRouter = createTRPCRouter({
             payload: {
               batchActionId: batchAction.id,
               projectId,
-              actionId: ActionId.ObservationRunEvaluation,
+              actionId: ActionId.ObservationBatchEvaluation,
               tableName: BatchTableNames.Observations,
               cutoffCreatedAt: new Date(),
               query,

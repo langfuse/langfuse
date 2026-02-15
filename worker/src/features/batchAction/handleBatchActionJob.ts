@@ -34,7 +34,7 @@ import { getEventsStreamForEval } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import {
   ObservationAddToDatasetConfigSchema,
-  ObservationRunEvaluationConfigSchema,
+  ObservationBatchEvaluationConfigSchema,
 } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
 import { fetchAndValidateEvaluatorConfigs } from "./fetchAndValidateEvaluatorConfigs";
@@ -372,7 +372,7 @@ export const handleBatchActionJob = async (
       );
     }
 
-    const parsedConfig = ObservationRunEvaluationConfigSchema.parse(config);
+    const parsedConfig = ObservationBatchEvaluationConfigSchema.parse(config);
     const selectedEvaluatorIds = Array.from(
       new Set(
         parsedConfig.evaluators.map((evaluator) => evaluator.evaluatorConfigId),

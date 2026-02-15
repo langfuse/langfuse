@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   EvalTargetObject,
-  type ObservationRunEvaluationConfig,
+  type ObservationBatchEvaluationConfig,
 } from "@langfuse/shared";
 import { type ObservationEvalConfig } from "../evaluation/observationEval";
 
@@ -181,7 +181,7 @@ describe("processBatchedObservationEval", () => {
   it("bypasses evaluator filter and sampling when scheduling historical rows", async () => {
     const projectId = "project-1";
     const batchActionId = "batch-action-1";
-    const config: ObservationRunEvaluationConfig = {
+    const config: ObservationBatchEvaluationConfig = {
       evaluators: [
         {
           evaluatorConfigId: "config-1",

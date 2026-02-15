@@ -2,7 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   BatchActionStatus,
   observationForEvalSchema,
-  type ObservationRunEvaluationConfig,
+  type ObservationBatchEvaluationConfig,
 } from "@langfuse/shared";
 import { logger, traceException } from "@langfuse/shared/src/server";
 import {
@@ -130,7 +130,7 @@ export function toObservationForEval(record: unknown, projectId: string) {
 export async function processBatchedObservationEval(params: {
   projectId: string;
   batchActionId: string;
-  config: ObservationRunEvaluationConfig;
+  config: ObservationBatchEvaluationConfig;
   evaluators: ObservationEvalConfig[];
   observationStream: AsyncIterable<unknown>;
 }): Promise<void> {

@@ -2,7 +2,7 @@ import z from "zod/v4";
 import {
   AddToDatasetMappingSchema,
   ObservationAddToDatasetConfigSchema,
-  ObservationRunEvaluationConfigSchema,
+  ObservationBatchEvaluationConfigSchema,
   BatchActionQuerySchema,
 } from "@langfuse/shared";
 
@@ -12,10 +12,10 @@ export const CreateObservationAddToDatasetActionSchema = z.object({
   config: ObservationAddToDatasetConfigSchema,
 });
 
-export const CreateObservationRunEvaluationActionSchema = z.object({
+export const CreateObservationBatchEvaluationActionSchema = z.object({
   projectId: z.string(),
   query: BatchActionQuerySchema,
-  config: ObservationRunEvaluationConfigSchema,
+  config: ObservationBatchEvaluationConfigSchema,
 });
 
 export const ValidateBatchAddToDatasetMappingSchema = z.object({
