@@ -1822,6 +1822,7 @@ export const getObservationsForBlobStorageExport = function (
 
 export const getGenerationsForAnalyticsIntegrations = async function* (
   projectId: string,
+  projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
@@ -1902,6 +1903,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       langfuse_total_units: record.total_tokens,
       langfuse_session_id: record.trace_session_id,
       langfuse_project_id: projectId,
+      langfuse_project_name: projectName,
       langfuse_user_id: record.trace_user_id || null,
       langfuse_latency: record.latency,
       langfuse_time_to_first_token: record.time_to_first_token,
