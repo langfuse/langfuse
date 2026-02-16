@@ -2,9 +2,6 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import type { PaginationState, OnChangeFn } from "@tanstack/react-table";
 
-type PaginationParams = "page" | "pageIndex";
-type LimitParams = "limit" | "pageSize";
-
 // Overload for pageIndex/pageSize (returns TanStack types)
 export function usePaginationState(
   defaultPageIndex: number,

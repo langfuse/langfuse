@@ -18,7 +18,7 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
-import { useQueryParam, StringParam } from "use-query-params";
+import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { z } from "zod/v4";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
