@@ -28,7 +28,10 @@ export function usePaginationState(
   paramNames?: { page: "page" | "pageIndex"; limit: "limit" | "pageSize" },
 ): readonly [
   { page: number; limit: number } | PaginationState,
-  ((value: { page: number; limit: number }) => void) | OnChangeFn<PaginationState>,
+  (
+    | ((value: { page: number; limit: number }) => void)
+    | OnChangeFn<PaginationState>
+  ),
 ] {
   const peekContext = usePeekTableState();
   const pageParam = paramNames?.page ?? "page";

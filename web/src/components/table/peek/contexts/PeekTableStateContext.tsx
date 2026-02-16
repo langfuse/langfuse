@@ -5,8 +5,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import type { FilterState } from "@langfuse/shared";
-import type { OrderByState } from "@/src/features/orderBy/types";
+import type { FilterState, OrderByState } from "@langfuse/shared";
 
 interface PeekTableState {
   filters: FilterState;
