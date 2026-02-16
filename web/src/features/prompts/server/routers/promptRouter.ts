@@ -27,6 +27,7 @@ import {
   PromptService,
   redis,
   logger,
+  escapeSqlLikePattern,
   tableColumnsToSqlFilterAndPrefix,
   getObservationsWithPromptName,
   getObservationMetricsForPrompts,
@@ -62,6 +63,15 @@ const buildPromptSearchFilter = (
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
     : Prisma.empty;
+};
+
+const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
+  if (!pathPrefix) {
+    return Prisma.empty;
+  }
+
+  const escapedPathPrefix = escapeSqlLikePattern(pathPrefix);
+  return Prisma.sql` AND (p.name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\' OR p.name = ${pathPrefix})`;
 };
 
 const PromptFilterOptions = z.object({
@@ -119,17 +129,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       // pathFilter: SQL WHERE clause to filter prompts by folder (e.g., "AND p.name LIKE 'folder/%'")
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            // Escape backslashes and other LIKE special characters for pattern matching
-            const escapedPrefix = prefix
-              .replace(/\\/g, "\\\\")
-              .replace(/%/g, "\\%")
-              .replace(/_/g, "\\_");
-            return Prisma.sql` AND (p.name LIKE ${`${escapedPrefix}/%`} OR p.name = ${escapedPrefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
       const searchFilter = buildPromptSearchFilter(
         input.searchQuery,
@@ -210,12 +210,7 @@ export const promptRouter = createTRPCRouter({
             )
           : Prisma.empty;
 
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
       const searchFilter = buildPromptSearchFilter(
         input.searchQuery,
@@ -436,6 +431,12 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
+        // Prisma translates `startsWith` to SQL LIKE on PostgreSQL, so `%` and `_`
+        // must be escaped when the prefix should be interpreted literally.
+        const escapedPathPrefix = pathPrefix
+          ? escapeSqlLikePattern(pathPrefix)
+          : undefined;
+
         // fetch prompts before deletion to enable audit logging
         const prompts = await ctx.prisma.prompt.findMany({
           where: {
@@ -443,7 +444,7 @@ export const promptRouter = createTRPCRouter({
             name: promptName
               ? promptName
               : {
-                  startsWith: `${pathPrefix}/`,
+                  startsWith: `${escapedPathPrefix}/`,
                 },
           },
         });
@@ -472,11 +473,11 @@ export const promptRouter = createTRPCRouter({
             AND ${
               promptName
                 ? Prisma.sql`pd.child_name = ${promptName}`
-                : Prisma.sql`pd.child_name LIKE ${`${pathPrefix}/%`}`
+                : Prisma.sql`pd.child_name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\'`
             }
             ${
-              pathPrefix
-                ? Prisma.sql`AND p."name" NOT LIKE ${`${pathPrefix}/%`}`
+              escapedPathPrefix
+                ? Prisma.sql`AND p."name" NOT LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\'`
                 : Prisma.empty
             }
       `;
