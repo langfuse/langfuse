@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -8,6 +8,11 @@ import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+
+/** Approximate px width per character at font-size 12 for value labels */
+const CHAR_WIDTH_PX = 7;
+const LABEL_PADDING_PX = 16;
+
 /**
  * HorizontalBarChart component
  * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
@@ -29,6 +34,21 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   valueFormatter = compactNumberFormatter,
   subtleFill = false,
 }) => {
+  const rightMargin = useMemo(() => {
+    if (!showValueLabels || !data?.length) return 8;
+    const maxLabelLength = Math.max(
+      ...data.map((d) => {
+        const value =
+          typeof d.metric === "number" ? d.metric : Number(d.metric ?? 0);
+        return valueFormatter(value).length;
+      }),
+    );
+    return Math.min(
+      120,
+      Math.max(20, maxLabelLength * CHAR_WIDTH_PX + LABEL_PADDING_PX),
+    );
+  }, [showValueLabels, data, valueFormatter]);
+
   return (
     <ChartContainer
       config={config}
@@ -40,7 +60,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
         layout="vertical"
         margin={{
           top: 4,
-          right: showValueLabels ? 68 : 8,
+          right: rightMargin,
           bottom: 4,
           left: 0,
         }}
