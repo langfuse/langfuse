@@ -28,7 +28,6 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -117,8 +116,6 @@ export const MultiStepExperimentForm = ({
     scope: "evalJob:CUD",
   });
 
-  const isBetaEnabled = useObservationEvals();
-
   const form = useForm({
     resolver: zodResolver(CreateExperimentData),
     defaultValues: {
@@ -144,7 +141,7 @@ export const MultiStepExperimentForm = ({
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     {
       projectId,
-      targetObject: isBetaEnabled ? ["dataset", "experiment"] : ["dataset"],
+      targetObject: ["dataset", "experiment"],
     },
     {
       enabled: hasEvalReadAccess && !!datasetId,
@@ -259,16 +256,6 @@ export const MultiStepExperimentForm = ({
   // For new experiment evaluators (beta enabled), we only run on new data (not historic)
   // For legacy dataset evaluators (beta disabled), allow user to choose
   const preprocessFormValues = (values: any) => {
-    if (!isBetaEnabled) {
-      const shouldRunOnHistoric = confirm(
-        "Do you also want to execute this evaluator on historic data? If not, click cancel.",
-      );
-
-      if (shouldRunOnHistoric && !values.timeScope.includes("EXISTING")) {
-        values.timeScope = [...values.timeScope, "EXISTING"];
-      }
-    }
-
     return values;
   };
 

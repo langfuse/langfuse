@@ -37,7 +37,7 @@ import {
 import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { useIsObservationEvalsBeta } from "@/src/features/events/hooks/useObservationEvals";
+import { useIsObservationEvalsFullyReleased } from "@/src/features/events/hooks/useObservationEvals";
 
 type TemplateSelectorProps = {
   projectId: string;
@@ -68,7 +68,7 @@ export const TemplateSelector = ({
 }: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const isBetaEnabled = useIsObservationEvalsBeta();
+  const isFullyReleased = useIsObservationEvalsFullyReleased();
   const {
     activeTemplates,
     isTemplateActive,
@@ -224,7 +224,7 @@ export const TemplateSelector = ({
                               <div className="mr-2 h-4 w-4" />
                             )}
                             {name}
-                            {isBetaEnabled && isLegacy && (
+                            {isFullyReleased && isLegacy && (
                               <Badge variant="outline" className="ml-2 text-xs">
                                 legacy
                               </Badge>
@@ -316,7 +316,7 @@ export const TemplateSelector = ({
                           <MaintainerTooltip
                             maintainer={getMaintainer(latestTemplate)}
                           />
-                          {isBetaEnabled && isLegacy && (
+                          {isFullyReleased && isLegacy && (
                             <Badge variant="outline" className="ml-2 text-xs">
                               legacy
                             </Badge>

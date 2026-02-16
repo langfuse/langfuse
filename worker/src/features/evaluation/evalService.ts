@@ -24,6 +24,7 @@ import {
   InMemoryFilterService,
   recordIncrement,
   getCurrentSpan,
+  instrumentAsync,
   getDatasetItemIdsByTraceIdCh,
   mapDatasetRunItemFilterColumn,
   tableColumnsToSqlFilterAndPrefix,
@@ -726,153 +727,195 @@ export async function executeLLMAsJudgeEvaluation({
   environment: string;
   deps?: EvalExecutionDeps;
 }): Promise<void> {
-  logger.debug(
-    `Executing LLM-as-judge evaluation for job ${jobExecutionId} in project ${projectId}`,
-  );
+  return instrumentAsync(
+    { name: "eval.execute-llm-as-judge" },
+    async (span) => {
+      span.setAttribute("langfuse.project.id", projectId);
+      span.setAttribute("eval.job_execution.id", jobExecutionId);
+      span.setAttribute("eval.template.name", template.name);
+      span.setAttribute("eval.template.id", template.id);
+      if (job.jobInputTraceId) {
+        span.setAttribute("eval.target.trace_id", job.jobInputTraceId);
+      }
+      if (job.jobInputObservationId) {
+        span.setAttribute(
+          "eval.target.observation_id",
+          job.jobInputObservationId,
+        );
+      }
+      if (job.jobInputDatasetItemId) {
+        span.setAttribute(
+          "eval.target.dataset_item_id",
+          job.jobInputDatasetItemId,
+        );
+      }
 
-  // Compile the prompt with extracted variables
-  let prompt: string;
-  try {
-    prompt = compileEvalPrompt({
-      templatePrompt: template.prompt,
-      variables: extractedVariables,
-    });
-  } catch (e) {
-    logger.error(
-      `Failed to compile prompt for job ${jobExecutionId}. Eval will fail. ${e}`,
-    );
-    prompt = template.prompt;
-  }
+      logger.debug(
+        `Executing LLM-as-judge evaluation for job ${jobExecutionId} in project ${projectId}`,
+      );
 
-  logger.debug(
-    `Compiled prompt for job ${jobExecutionId}: ${prompt.slice(0, 200)}...`,
-  );
+      // Compile the prompt with extracted variables
+      let prompt: string;
+      try {
+        prompt = compileEvalPrompt({
+          templatePrompt: template.prompt,
+          variables: extractedVariables,
+        });
+      } catch (e) {
+        logger.error(
+          `Failed to compile prompt for job ${jobExecutionId}. Eval will fail. ${e}`,
+        );
+        prompt = template.prompt;
+      }
 
-  // Parse and validate output schema
-  const parsedOutputSchema = evalTemplateOutputSchema.safeParse(
-    template.outputSchema,
-  );
+      logger.debug(
+        `Compiled prompt for job ${jobExecutionId}: ${prompt.slice(0, 200)}...`,
+      );
 
-  if (!parsedOutputSchema.success) {
-    throw new UnrecoverableError(
-      "Output schema not found or invalid in evaluation template",
-    );
-  }
+      // Parse and validate output schema
+      const parsedOutputSchema = evalTemplateOutputSchema.safeParse(
+        template.outputSchema,
+      );
 
-  const evalScoreSchema = buildEvalScoreSchema(parsedOutputSchema.data);
+      if (!parsedOutputSchema.success) {
+        throw new UnrecoverableError(
+          "Output schema not found or invalid in evaluation template",
+        );
+      }
 
-  // Get model configuration
-  const modelConfig = await deps.fetchModelConfig({
-    projectId,
-    provider: template.provider ?? undefined,
-    model: template.model ?? undefined,
-    modelParams: template.modelParams as Record<string, unknown> | null,
-  });
+      const evalScoreSchema = buildEvalScoreSchema(parsedOutputSchema.data);
 
-  if (!modelConfig.valid) {
-    logger.warn(`Eval job ${jobExecutionId} will fail. ${modelConfig.error}`);
-    throw new UnrecoverableError(
-      `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
-    );
-  }
+      // Get model configuration
+      const modelConfig = await deps.fetchModelConfig({
+        projectId,
+        provider: template.provider ?? undefined,
+        model: template.model ?? undefined,
+        modelParams: template.modelParams as Record<string, unknown> | null,
+      });
 
-  // Prepare LLM call
-  const messages = buildEvalMessages(prompt);
+      if (!modelConfig.valid) {
+        logger.warn(
+          `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
+        );
+        throw new UnrecoverableError(
+          `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
+        );
+      }
 
-  const scoreId = randomUUID();
-  const executionTraceId = createW3CTraceId(jobExecutionId);
+      span.setAttribute("eval.model.provider", modelConfig.config.provider);
+      span.setAttribute("eval.model.name", modelConfig.config.model);
 
-  const executionMetadata = buildExecutionMetadata({
-    jobExecutionId,
-    jobConfigurationId: job.jobConfigurationId,
-    targetTraceId: job.jobInputTraceId,
-    targetObservationId: job.jobInputObservationId,
-    targetDatasetItemId: job.jobInputDatasetItemId,
-  });
+      // Prepare LLM call
+      const messages = buildEvalMessages(prompt);
 
-  // Call LLM
-  const llmOutput = await deps.callLLM({
-    messages,
-    modelConfig: modelConfig.config,
-    structuredOutputSchema: evalScoreSchema,
-    traceSinkParams: {
-      targetProjectId: projectId,
-      traceId: executionTraceId,
-      traceName: `Execute evaluator: ${template.name}`,
-      environment: LangfuseInternalTraceEnvironment.LLMJudge,
-      metadata: {
-        ...executionMetadata,
-        score_id: scoreId,
-      },
+      const scoreId = randomUUID();
+      span.setAttribute("eval.score.id", scoreId);
+      const executionTraceId = createW3CTraceId(jobExecutionId);
+
+      const executionMetadata = buildExecutionMetadata({
+        jobExecutionId,
+        jobConfigurationId: job.jobConfigurationId,
+        targetTraceId: job.jobInputTraceId,
+        targetObservationId: job.jobInputObservationId,
+        targetDatasetItemId: job.jobInputDatasetItemId,
+      });
+
+      // Call LLM
+      const llmOutput = await instrumentAsync(
+        { name: "eval.call-llm" },
+        async (llmSpan) => {
+          llmSpan.setAttribute(
+            "eval.model.provider",
+            modelConfig.config.provider,
+          );
+          llmSpan.setAttribute("eval.model.name", modelConfig.config.model);
+
+          return deps.callLLM({
+            messages,
+            modelConfig: modelConfig.config,
+            structuredOutputSchema: evalScoreSchema,
+            traceSinkParams: {
+              targetProjectId: projectId,
+              traceId: executionTraceId,
+              traceName: `Execute evaluator: ${template.name}`,
+              environment: LangfuseInternalTraceEnvironment.LLMJudge,
+              metadata: {
+                ...executionMetadata,
+                score_id: scoreId,
+              },
+            },
+          });
+        },
+      );
+
+      const parsedLLMOutput = validateLLMResponse({
+        response: llmOutput,
+        schema: evalScoreSchema,
+      });
+
+      if (!parsedLLMOutput.success) {
+        throw new UnrecoverableError(
+          `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
+        );
+      }
+
+      logger.debug(
+        `Job ${jobExecutionId} received LLM output: score=${parsedLLMOutput.data.score}`,
+      );
+
+      // Build and persist score
+      const eventId = randomUUID();
+      const scoreEvent = buildScoreEvent({
+        eventId,
+        scoreId,
+        traceId: job.jobInputTraceId,
+        observationId: job.jobInputObservationId,
+        scoreName: config.scoreName,
+        value: parsedLLMOutput.data.score,
+        reasoning: parsedLLMOutput.data.reasoning,
+        environment,
+        executionTraceId,
+        metadata: executionMetadata,
+      });
+
+      // Write score to S3 and enqueue for ingestion
+      try {
+        await deps.uploadScore({
+          projectId,
+          scoreId,
+          eventId,
+          event: scoreEvent,
+        });
+
+        await deps.enqueueScoreIngestion({
+          projectId,
+          scoreId,
+          eventId,
+        });
+      } catch (e) {
+        logger.error(`Failed to persist score: ${e}`, e);
+        traceException(e);
+        throw new Error(`Failed to write score ${scoreId} into IngestionQueue`);
+      }
+
+      logger.debug(`Persisted score ${scoreId} for job ${jobExecutionId}`);
+
+      // Update job execution status
+      await deps.updateJobExecution({
+        id: jobExecutionId,
+        projectId,
+        data: {
+          status: JobExecutionStatus.COMPLETED,
+          endTime: new Date(),
+          jobOutputScoreId: scoreId,
+          executionTraceId,
+        },
+      });
+
+      logger.debug(
+        `Eval job ${job.id} completed with score ${parsedLLMOutput.data.score}`,
+      );
     },
-  });
-
-  const parsedLLMOutput = validateLLMResponse({
-    response: llmOutput,
-    schema: evalScoreSchema,
-  });
-
-  if (!parsedLLMOutput.success) {
-    throw new UnrecoverableError(
-      `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
-    );
-  }
-
-  logger.debug(
-    `Job ${jobExecutionId} received LLM output: score=${parsedLLMOutput.data.score}`,
-  );
-
-  // Build and persist score
-  const eventId = randomUUID();
-  const scoreEvent = buildScoreEvent({
-    eventId,
-    scoreId,
-    traceId: job.jobInputTraceId,
-    observationId: job.jobInputObservationId,
-    scoreName: config.scoreName,
-    value: parsedLLMOutput.data.score,
-    reasoning: parsedLLMOutput.data.reasoning,
-    environment,
-    executionTraceId,
-    metadata: executionMetadata,
-  });
-
-  // Write score to S3 and enqueue for ingestion
-  try {
-    await deps.uploadScore({
-      projectId,
-      scoreId,
-      eventId,
-      event: scoreEvent,
-    });
-
-    await deps.enqueueScoreIngestion({
-      projectId,
-      scoreId,
-      eventId,
-    });
-  } catch (e) {
-    logger.error(`Failed to persist score: ${e}`, e);
-    traceException(e);
-    throw new Error(`Failed to write score ${scoreId} into IngestionQueue`);
-  }
-
-  logger.debug(`Persisted score ${scoreId} for job ${jobExecutionId}`);
-
-  // Update job execution status
-  await deps.updateJobExecution({
-    id: jobExecutionId,
-    projectId,
-    data: {
-      status: JobExecutionStatus.COMPLETED,
-      endTime: new Date(),
-      jobOutputScoreId: scoreId,
-      executionTraceId,
-    },
-  });
-
-  logger.debug(
-    `Eval job ${job.id} completed with score ${parsedLLMOutput.data.score}`,
   );
 }
 
