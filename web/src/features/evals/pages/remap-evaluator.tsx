@@ -170,8 +170,8 @@ export default function RemapEvaluatorPage() {
               <AlertDescription>
                 <div className="flex flex-col gap-2">
                   {isEventTarget(mappedConfig.targetObject ?? "event")
-                    ? "Running evaluators requires JS SDK ≥ 4.0.0 or Python SDK ≥ 3.0.0."
-                    : "Running evaluators requires JS SDK ≥ 4.4.0 or Python SDK ≥ 3.9.0."}
+                    ? "Running observation-targeting evaluators requires JS SDK ≥ 4.0.0 or Python SDK ≥ 3.0.0."
+                    : "Running observation-targeting evaluators requires JS SDK ≥ 4.4.0 or Python SDK ≥ 3.9.0."}
                 </div>
               </AlertDescription>
             </Alert>

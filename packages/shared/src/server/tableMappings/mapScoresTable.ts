@@ -80,6 +80,12 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "string_value",
   },
   {
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "metadata",
+  },
+  {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",

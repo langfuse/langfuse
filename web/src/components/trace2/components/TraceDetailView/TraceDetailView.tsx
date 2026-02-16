@@ -193,6 +193,7 @@ export function TraceDetailView({
       <TraceDetailViewHeader
         trace={trace}
         observations={observations}
+        parsedMetadata={parsedMetadata}
         projectId={projectId}
         traceScores={traceScores}
         commentCount={comments.get(trace.id)}
