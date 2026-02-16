@@ -32,7 +32,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   return (
     <ChartContainer
       config={config}
-      className="min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30"
+      className="min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
     >
       <BarChart
         accessibilityLayer={accessibilityLayer}

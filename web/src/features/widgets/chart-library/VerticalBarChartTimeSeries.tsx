@@ -38,7 +38,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   return (
     <ChartContainer
       config={config}
-      className="[&_.recharts-bar-rectangle:hover]:opacity-30"
+      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
     >
       <BarChart accessibilityLayer={accessibilityLayer} data={groupedData}>
         <XAxis
