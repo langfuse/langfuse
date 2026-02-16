@@ -54,3 +54,14 @@ export const DEFAULT_TRACE_FILTER = [
     type: "stringOptions" as const,
   },
 ];
+
+// Default filter for new observation evaluators - restricts to GENERATION type
+// to prevent evaluators from running on every observation by default
+export const DEFAULT_OBSERVATION_FILTER = [
+  {
+    column: "type",
+    operator: "any of" as const,
+    value: ["GENERATION"],
+    type: "stringOptions" as const,
+  },
+];

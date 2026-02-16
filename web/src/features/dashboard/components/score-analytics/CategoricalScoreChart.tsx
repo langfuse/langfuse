@@ -14,6 +14,10 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -22,6 +26,7 @@ export function CategoricalScoreChart(props: {
   fromTimestamp: Date;
   toTimestamp: Date;
   agg?: DashboardDateRangeAggregationOption;
+  isDashboardChartsBeta?: boolean;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-categorical",
@@ -90,6 +95,31 @@ export function CategoricalScoreChart(props: {
     );
     return adapter.toChartData();
   }, [scores.data, props.agg]);
+
+  if (props.isDashboardChartsBeta) {
+    if (isEmptyChart({ data: chartData })) {
+      return (
+        <NoDataOrLoading
+          isLoading={scores.isLoading}
+          className="min-h-[9rem] flex-1"
+        />
+      );
+    }
+    return (
+      <div className="h-80 w-full shrink-0">
+        <Chart
+          chartType="VERTICAL_BAR"
+          data={scoreChartDataToDataPoints(chartData, chartLabels)}
+          rowLimit={100}
+          chartConfig={{
+            type: "VERTICAL_BAR",
+            row_limit: 100,
+            subtle_fill: true,
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <CategoricalChart

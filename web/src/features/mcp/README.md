@@ -48,7 +48,7 @@ The MCP server provides 6 tools for prompt management:
 
 - **`getPrompt`** - Fetch a specific prompt by name with optional label or version (fully resolved with dependencies)
 - **`getPromptUnresolved`** - Fetch a specific prompt WITHOUT resolving dependencies (useful for prompt composition analysis)
-- **`listPrompts`** - List all prompts in the project with filtering and pagination
+- **`listPrompts`** - List all prompts in the project with filtering (name/label/tag/updatedAt range) and pagination
 - **`createTextPrompt`** - Create a new text prompt version
 - **`createChatPrompt`** - Create a new chat prompt version (OpenAI-style messages)
 - **`updatePromptLabels`** - Add/move labels across prompt versions

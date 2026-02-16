@@ -925,7 +925,12 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateDatasetItemRequest'
     get:
-      description: Get dataset items
+      description: >-
+        Get dataset items. Optionally specify a version to get the items as they
+        existed at that point in time.
+
+        Note: If version parameter is provided, datasetName must also be
+        provided.
       operationId: datasetItems_list
       tags:
         - DatasetItems
@@ -947,6 +952,21 @@ paths:
           required: false
           schema:
             type: string
+            nullable: true
+        - name: version
+          in: query
+          description: >-
+            ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g.,
+            "2026-01-21T14:35:42Z").
+
+            If provided, returns state of dataset at this timestamp.
+
+            If not provided, returns the latest version. Requires datasetName to
+            be specified.
+          required: false
+          schema:
+            type: string
+            format: date-time
             nullable: true
         - name: page
           in: query
@@ -4506,7 +4526,7 @@ paths:
         API key)
       operationId: scim_getServiceProviderConfig
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4547,7 +4567,7 @@ paths:
       description: Get SCIM Resource Types (requires organization-scoped API key)
       operationId: scim_getResourceTypes
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4588,7 +4608,7 @@ paths:
       description: Get SCIM Schemas (requires organization-scoped API key)
       operationId: scim_getSchemas
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4629,7 +4649,7 @@ paths:
       description: List users in the organization (requires organization-scoped API key)
       operationId: scim_listUsers
       tags:
-        - Scim
+        - SCIM
       parameters:
         - name: filter
           in: query
@@ -4692,7 +4712,7 @@ paths:
         key)
       operationId: scim_createUser
       tags:
-        - Scim
+        - SCIM
       parameters: []
       responses:
         '200':
@@ -4763,7 +4783,7 @@ paths:
       description: Get a specific user by ID (requires organization-scoped API key)
       operationId: scim_getUser
       tags:
-        - Scim
+        - SCIM
       parameters:
         - name: userId
           in: path
@@ -4811,7 +4831,7 @@ paths:
         does not delete the user entity itself.
       operationId: scim_deleteUser
       tags:
-        - Scim
+        - SCIM
       parameters:
         - name: userId
           in: path
@@ -5181,6 +5201,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: observationId
+          in: query
+          description: Comma-separated list of observation IDs to filter scores by.
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: queueId
           in: query
           description: Retrieve only scores with a specific annotation queueId.
@@ -5217,6 +5244,21 @@ paths:
             filtering by trace properties (using userId or traceTags
             parameters), the 'trace' field group must be included, otherwise a
             400 error will be returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            A JSON stringified array of filter objects. Each object requires
+            type, column, operator, and value. Supports filtering by score
+            metadata using the stringObject type. Example:
+            [{"type":"stringObject","column":"metadata","key":"user_id","operator":"=","value":"abc123"}].
+            Supported types: stringObject (metadata key-value filtering),
+            string, number, datetime, stringOptions, arrayOptions. Supported
+            operators for stringObject: =, contains, does not contain, starts
+            with, ends with.
           required: false
           schema:
             type: string
@@ -7981,6 +8023,20 @@ components:
           description: >-
             traceId should always be provided. For compatibility with older SDK
             versions it can also be inferred from the provided observationId.
+        datasetVersion:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g.,
+            "2026-01-21T14:35:42Z").
+
+            Specifies the dataset version to use for this experiment run. 
+
+            If provided, the experiment will use dataset items as they existed
+            at or before this timestamp.
+
+            If not provided, uses the latest version of dataset items.
       required:
         - runName
         - datasetItemId
