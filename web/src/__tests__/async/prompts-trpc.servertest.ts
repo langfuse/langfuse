@@ -446,7 +446,7 @@ describe("prompts trpc", () => {
         },
       });
 
-      await prisma.prompt.create({
+      const prompt2 = await prisma.prompt.create({
         data: {
           id: v4(),
           projectId: project.id,
@@ -467,6 +467,17 @@ describe("prompts trpc", () => {
           type: "text",
           prompt: { text: "Hello world 3" },
           createdBy: "test-user",
+        },
+      });
+
+      // Add intra-folder dependency: prompt-2 depends on prompt-3
+      // This should NOT block folder deletion since both are inside the folder
+      await prisma.promptDependency.create({
+        data: {
+          projectId: project.id,
+          parentId: prompt2.id,
+          childName: "folder1/folder2/prompt-3",
+          childVersion: 1,
         },
       });
 
