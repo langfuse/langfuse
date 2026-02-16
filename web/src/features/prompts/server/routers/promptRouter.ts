@@ -474,6 +474,11 @@ export const promptRouter = createTRPCRouter({
                 ? Prisma.sql`pd.child_name = ${promptName}`
                 : Prisma.sql`pd.child_name LIKE ${`${pathPrefix}/%`}`
             }
+            ${
+              pathPrefix
+                ? Prisma.sql`AND p."name" NOT LIKE ${`${pathPrefix}/%`}`
+                : Prisma.empty
+            }
       `;
 
         if (dependents.length > 0) {
