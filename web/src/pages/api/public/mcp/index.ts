@@ -174,6 +174,8 @@ export default async function handler(
  */
 export const config = {
   api: {
-    bodyParser: true,
+    bodyParser: {
+      sizeLimit: "1mb",
+    },
   },
 };

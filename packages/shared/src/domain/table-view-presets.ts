@@ -7,6 +7,7 @@ export enum TableViewPresetTableName {
   Observations = "observations",
   Scores = "scores",
   Sessions = "sessions",
+  SessionDetail = "session-detail",
   Datasets = "datasets",
 }
 

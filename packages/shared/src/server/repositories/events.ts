@@ -47,8 +47,10 @@ import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
+  queryClickhouseStream,
 } from "./clickhouse";
 import { ObservationRecordReadType, TraceRecordReadType } from "./definitions";
+import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   ObservationsTableQueryResult,
   ObservationTableQuery,
@@ -186,7 +188,6 @@ async function enrichObservationsWithTraceFields(
   return observationRecords.map((o) => {
     return {
       ...o,
-      traceName: o.name ?? null,
       traceTags: [], // TODO pull from PG
       traceTimestamp: null,
       toolDefinitions: o.toolDefinitions ?? null,
@@ -788,24 +789,20 @@ function applyCursorPagination(
   queryBuilder: EventsQueryBuilder,
 ): EventsQueryBuilder {
   // Apply cursor filter if provided
-  return queryBuilder.when(Boolean(opts.cursor), (b) => {
+  queryBuilder = queryBuilder.when(Boolean(opts.cursor), (b) => {
     const cursor = opts.cursor!;
-    return (
-      b
-        .whereRaw(
-          "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
-          {
-            lastStartTime: convertDateToClickhouseDateTime(
-              cursor.lastStartTimeTo,
-            ),
-            lastTraceId: cursor.lastTraceId,
-            lastId: cursor.lastId,
-          },
-        )
-        // When cursor pagination (v2): fetch limit+1 to detect if there are more results
-        .limit(opts.limit + 1, undefined)
+    return b.whereRaw(
+      "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String})",
+      {
+        lastStartTime: convertDateToClickhouseDateTime(cursor.lastStartTimeTo),
+        lastTraceId: cursor.lastTraceId,
+        lastId: cursor.lastId,
+      },
     );
   });
+
+  // Always apply limit (fetch limit+1 to detect if there are more results)
+  return queryBuilder.limit(opts.limit + 1, undefined);
 }
 
 async function getObservationsRowsFromBuilder<T>(
@@ -1420,6 +1417,55 @@ export const getEventsGroupedByTraceName = async (
     },
   });
   return res;
+};
+
+/**
+ * Get grouped trace tags from events table
+ * Used for filter options
+ *
+ * NOTE: Uses raw SQL instead of EventsAggQueryBuilder because:
+ * - arrayJoin() explodes arrays into rows, requiring DISTINCT (not GROUP BY)
+ * - EventsAggQueryBuilder always emits GROUP BY, which changes semantics
+ * - We want unique tag values, not tag occurrence counts
+ */
+export const getEventsGroupedByTraceTags = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const query = `
+    SELECT DISTINCT arrayJoin(e.tags) as tag
+    FROM events e
+    WHERE e.project_id = {projectId: String}
+    AND e.is_deleted = 0
+    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
+    AND notEmpty(e.tags)
+    ORDER BY tag ASC
+    LIMIT 1000
+  `;
+
+  return measureAndReturn({
+    operationName: "getEventsGroupedByTraceTags",
+    projectId,
+    input: { params: { projectId, ...appliedEventsFilter.params } },
+    fn: async (input) => {
+      return queryClickhouse<{ tag: string }>({
+        query,
+        params: input.params,
+        tags: {
+          feature: "tracing",
+          type: "events",
+          kind: "analytic",
+          projectId,
+        },
+      });
+    },
+  });
 };
 
 /**
@@ -2383,6 +2429,169 @@ export const hasAnyUserFromEventsTable = async (
       type: "events",
       kind: "hasAny",
       projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+/**
+ * Streams events from ClickHouse for blob storage export.
+ * Uses EventsQueryBuilder for consistent query construction.
+ */
+export const getEventsForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const queryBuilder = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("export")
+    .selectIO(false) // Full I/O, no truncation
+    .selectFieldSet("metadata")
+    .whereRaw(
+      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
+      {
+        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      },
+    )
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.span_id", "e.project_id");
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  return queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params,
+    tags: {
+      feature: "blobstorage",
+      type: "event",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
+  });
+};
+
+/**
+ * Streams events from ClickHouse for analytics integrations (PostHog, Mixpanel).
+ * Uses EventsQueryBuilder for consistent query construction.
+ * All fields come directly from the events table (which has denormalized trace-level data).
+ */
+export const getEventsForAnalyticsIntegrations = async function* (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  const queryBuilder = new EventsQueryBuilder({ projectId })
+    // Use export field set for most fields (id, traceId, name, type, level, version,
+    // environment, userId, sessionId, tags, release, traceName, totalCost, latency, etc.)
+    .selectFieldSet("export")
+    // Add analytics-specific computed fields
+    .selectRaw(
+      // Token counts from usage/cost details
+      "e.usage_details['input'] as input_tokens",
+      "e.usage_details['output'] as output_tokens",
+      "e.usage_details['total'] as total_tokens",
+      // Analytics integration session IDs from metadata (constructed from array columns)
+      "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$posthog_session_id'] as posthog_session_id",
+      "mapFromArrays(e.metadata_names, e.metadata_prefixes)['$mixpanel_session_id'] as mixpanel_session_id",
+    )
+    .whereRaw(
+      "e.start_time >= {minTimestamp: DateTime64(3)} AND e.start_time <= {maxTimestamp: DateTime64(3)}",
+      {
+        minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+        maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      },
+    )
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.span_id", "e.project_id");
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const records = queryClickhouseStream<Record<string, unknown>>({
+    query,
+    params,
+    tags: {
+      feature: "analytics-integration",
+      type: "event",
+      kind: "analytic",
+      projectId,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
+    },
+  });
+
+  const baseUrl = env.NEXTAUTH_URL?.replace("/api/auth", "");
+  for await (const record of records) {
+    yield {
+      timestamp: record.start_time,
+      langfuse_observation_name: record.name,
+      langfuse_trace_name: record.trace_name,
+      langfuse_trace_id: record.trace_id,
+      langfuse_url: `${baseUrl}/project/${projectId}/traces/${encodeURIComponent(record.trace_id as string)}?observation=${encodeURIComponent(record.id as string)}`,
+      langfuse_user_url: record.user_id
+        ? `${baseUrl}/project/${projectId}/users/${encodeURIComponent(record.user_id as string)}`
+        : undefined,
+      langfuse_id: record.id,
+      langfuse_cost_usd: record.total_cost,
+      langfuse_input_units: record.input_tokens,
+      langfuse_output_units: record.output_tokens,
+      langfuse_total_units: record.total_tokens,
+      langfuse_session_id: record.session_id,
+      langfuse_project_id: projectId,
+      langfuse_user_id: record.user_id || null,
+      langfuse_latency: record.latency,
+      langfuse_time_to_first_token: record.time_to_first_token,
+      langfuse_release: record.release,
+      langfuse_version: record.version,
+      langfuse_model: record.provided_model_name,
+      langfuse_level: record.level,
+      langfuse_type: record.type,
+      langfuse_tags: record.tags,
+      langfuse_environment: record.environment,
+      langfuse_event_version: "1.0.0",
+      posthog_session_id: record.posthog_session_id ?? null,
+      mixpanel_session_id: record.mixpanel_session_id ?? null,
+    } satisfies AnalyticsObservationEvent;
+  }
+};
+
+/*
+ * Check if any session exists in events table
+ * Filters for non-empty session_id
+ */
+export const hasAnySessionFromEventsTable = async (
+  projectId: string,
+): Promise<boolean> => {
+  const query = `
+    SELECT 1
+    FROM events
+    WHERE project_id = {projectId: String}
+    AND session_id IS NOT NULL
+    AND session_id != ''
+    AND is_deleted = 0
+    LIMIT 1
+  `;
+
+  const rows = await measureAndReturn({
+    operationName: "hasAnySessionFromEventsTable",
+    projectId,
+    input: { params: { projectId } },
+    fn: async (input) => {
+      return queryClickhouse<{ 1: number }>({
+        query,
+        params: input.params,
+        tags: {
+          feature: "sessions",
+          type: "events",
+          kind: "hasAny",
+          projectId,
+        },
+      });
     },
   });
 

@@ -5,10 +5,12 @@ import {
   TimeScopeSchema,
 } from "@langfuse/shared";
 import { wipVariableMapping } from "@langfuse/shared";
+import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
 
-export const isTraceTarget = (target: string): boolean => target === "trace";
-export const isTraceOrDatasetObject = (object: string): boolean =>
-  object === "trace" || object === "dataset_item";
+// Legacy eval targets (TRACE, DATASET) use full variable mapping UI with object selector
+// Modern eval targets (EVENT, EXPERIMENT) use simplified UI with just column selection
+export const isLegacyEvalTarget = (target: string): boolean =>
+  target === "trace" || target === "dataset";
 
 export const evalConfigFormSchema = z.object({
   scoreName: z.string(),
@@ -25,3 +27,39 @@ export type EvalFormType = z.infer<typeof evalConfigFormSchema>;
 export type LangfuseObject = (typeof langfuseObjects)[number];
 
 export type VariableMapping = z.infer<typeof wipVariableMapping>;
+
+export const inferDefaultMapping = (
+  variable: string,
+): Pick<VariableMapping, "selectedColumnId"> => {
+  return {
+    selectedColumnId: OUTPUT_MAPPING.includes(variable.toLowerCase())
+      ? "output"
+      : "input",
+  };
+};
+
+export const fieldHasJsonSelectorOption = (
+  selectedColumnId: string | undefined | null,
+): boolean =>
+  selectedColumnId === "input" ||
+  selectedColumnId === "output" ||
+  selectedColumnId === "metadata" ||
+  selectedColumnId === "expected_output" ||
+  selectedColumnId === "experiment_item_expected_output" ||
+  selectedColumnId === "expectedOutput" ||
+  selectedColumnId === "experimentItemExpectedOutput";
+
+export const getTargetDisplayName = (target: string): string => {
+  switch (target) {
+    case "trace":
+      return "traces";
+    case "event":
+      return "observations";
+    case "dataset":
+      return "dataset run items";
+    case "experiment":
+      return "experiments";
+    default:
+      return target;
+  }
+};

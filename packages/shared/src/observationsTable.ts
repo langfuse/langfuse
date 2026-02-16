@@ -33,6 +33,13 @@ export const observationsTableCols: ColumnDefinition[] = [
   },
   { name: "Trace ID", id: "traceId", type: "string", internal: 't."id"' },
   {
+    name: "Parent Observation ID",
+    id: "parentObservationId",
+    type: "string",
+    internal: 'o."parent_observation_id"',
+    nullable: true,
+  },
+  {
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",

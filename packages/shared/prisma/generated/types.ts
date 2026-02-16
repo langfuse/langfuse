@@ -136,6 +136,13 @@ export const BlobStorageExportMode = {
 } as const;
 export type BlobStorageExportMode =
   (typeof BlobStorageExportMode)[keyof typeof BlobStorageExportMode];
+export const AnalyticsIntegrationExportSource = {
+  TRACES_OBSERVATIONS: "TRACES_OBSERVATIONS",
+  TRACES_OBSERVATIONS_EVENTS: "TRACES_OBSERVATIONS_EVENTS",
+  EVENTS: "EVENTS",
+} as const;
+export type AnalyticsIntegrationExportSource =
+  (typeof AnalyticsIntegrationExportSource)[keyof typeof AnalyticsIntegrationExportSource];
 export const DashboardWidgetViews = {
   TRACES: "TRACES",
   OBSERVATIONS: "OBSERVATIONS",
@@ -146,6 +153,7 @@ export type DashboardWidgetViews =
   (typeof DashboardWidgetViews)[keyof typeof DashboardWidgetViews];
 export const DashboardWidgetChartType = {
   LINE_TIME_SERIES: "LINE_TIME_SERIES",
+  AREA_TIME_SERIES: "AREA_TIME_SERIES",
   BAR_TIME_SERIES: "BAR_TIME_SERIES",
   HORIZONTAL_BAR: "HORIZONTAL_BAR",
   VERTICAL_BAR: "VERTICAL_BAR",
@@ -359,6 +367,7 @@ export type BlobStorageIntegration = {
   file_type: Generated<BlobStorageIntegrationFileType>;
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -487,6 +496,15 @@ export type DefaultLlmModel = {
   model: string;
   model_params: unknown | null;
 };
+export type DefaultView = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  project_id: string;
+  user_id: string | null;
+  view_name: string;
+  view_id: string;
+};
 export type EvalTemplate = {
   id: string;
   created_at: Generated<Timestamp>;
@@ -533,6 +551,7 @@ export type JobExecution = {
   job_input_trace_timestamp: Timestamp | null;
   job_input_observation_id: string | null;
   job_input_dataset_item_id: string | null;
+  job_input_dataset_item_valid_from: Timestamp | null;
   job_output_score_id: string | null;
   execution_trace_id: string | null;
 };
@@ -673,6 +692,7 @@ export type MixpanelIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Model = {
   id: string;
@@ -746,6 +766,7 @@ export type PosthogIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Price = {
   id: string;
@@ -775,6 +796,7 @@ export type Project = {
   deleted_at: Timestamp | null;
   name: string;
   retention_days: number | null;
+  has_traces: Generated<boolean>;
   metadata: unknown | null;
 };
 export type ProjectMembership = {
@@ -950,6 +972,7 @@ export type DB = {
   dataset_runs: DatasetRuns;
   datasets: Dataset;
   default_llm_models: DefaultLlmModel;
+  default_views: DefaultView;
   eval_templates: EvalTemplate;
   job_configurations: JobConfiguration;
   job_executions: JobExecution;

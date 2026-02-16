@@ -21,7 +21,9 @@ service:
           type: string
       response: commons.DatasetItem
     list:
-      docs: Get dataset items
+      docs: |
+        Get dataset items. Optionally specify a version to get the items as they existed at that point in time.
+        Note: If version parameter is provided, datasetName must also be provided.
       method: GET
       path: /dataset-items
       request:
@@ -30,6 +32,12 @@ service:
           datasetName: optional<string>
           sourceTraceId: optional<string>
           sourceObservationId: optional<string>
+          version:
+            type: optional<datetime>
+            docs: |
+              ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g., "2026-01-21T14:35:42Z").
+              If provided, returns state of dataset at this timestamp.
+              If not provided, returns the latest version. Requires datasetName to be specified.
           page:
             type: optional<integer>
             docs: page number, starts at 1
