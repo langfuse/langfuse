@@ -96,6 +96,7 @@ export * from "./repositories";
 export * from "./repositories/traces";
 export * from "./repositories/dataset-items";
 export * from "./utils/rendering";
+export * from "./utils/sqlLike";
 export * from "./redis/evalExecutionQueue";
 export * from "./redis/llmAsJudgeExecutionQueue";
 export * from "./services/sessions-ui-table-service";
