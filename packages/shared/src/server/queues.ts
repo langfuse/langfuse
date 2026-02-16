@@ -7,6 +7,8 @@ import {
 import { BatchTableNames } from "../interfaces/tableNames";
 import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
+import { TraceDomain } from "../domain/traces";
+import { ObservationLevelDomain } from "../domain/observations";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 
@@ -218,11 +220,21 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
-  prompt: PromptDomainSchema,
-  action: EventActionSchema,
-  type: z.literal("prompt-version"),
-});
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("prompt-version"),
+    prompt: PromptDomainSchema,
+    action: EventActionSchema,
+  }),
+  z.object({
+    type: z.literal("trace"),
+    trace: TraceDomain,
+    action: EventActionSchema,
+    // Optional observation context when triggered by an observation-level event
+    observationLevel: ObservationLevelDomain.optional(),
+    observationId: z.string().optional(),
+  }),
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),
@@ -240,7 +252,16 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
     action: EventActionSchema,
     prompt: PromptDomainSchema,
   }),
-  // Add other entity types here in the future
+  z.object({
+    entityType: z.literal("trace"),
+    projectId: z.string(),
+    traceId: z.string(),
+    action: EventActionSchema,
+    trace: TraceDomain,
+    // Optional observation-level context when the event is triggered by an observation
+    observationLevel: ObservationLevelDomain.optional(),
+    observationId: z.string().optional(),
+  }),
 ]);
 export type EntityChangeEventType = z.infer<typeof EntityChangeEventSchema>;
 

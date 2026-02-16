@@ -36,6 +36,7 @@ import {
   type ActionTypes,
   type JobConfigState,
   webhookActionFilterOptions,
+  traceAutomationFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
@@ -64,6 +65,7 @@ const githubDispatchSchema = z.object({
 // Define the TriggerEventSource enum directly in this file to match the backend
 enum TriggerEventSource {
   Prompt = "prompt",
+  Trace = "trace",
 }
 
 // Define schemas for form validation
@@ -168,6 +170,9 @@ export const AutomationForm = ({
       filter: automation ? automation.trigger.filter || [] : [],
     };
 
+    // Preserve the event source from existing automation or default to Prompt
+    const eventSource = baseValues.eventSource;
+
     if (actionType === "WEBHOOK") {
       // Use action handler to get default values with proper typing
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
@@ -175,7 +180,7 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
-        eventSource: TriggerEventSource.Prompt,
+        eventSource,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
@@ -191,7 +196,7 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "SLACK" as const,
-        eventSource: TriggerEventSource.Prompt,
+        eventSource,
         slack: {
           channelId: slackDefaults.slack.channelId || "",
           channelName: slackDefaults.slack.channelName || "",
@@ -205,7 +210,7 @@ export const AutomationForm = ({
       return {
         ...baseValues,
         actionType: "GITHUB_DISPATCH" as const,
-        eventSource: TriggerEventSource.Prompt,
+        eventSource,
         githubDispatch: {
           url: githubDefaults.githubDispatch.url || "",
           eventType: githubDefaults.githubDispatch.eventType || "",
@@ -354,6 +359,48 @@ export const AutomationForm = ({
 
   const currentActionHandler = getCurrentActionHandler();
 
+  // Watch event source to dynamically update event actions and filter options
+  const watchedEventSource = form.watch("eventSource");
+
+  /** Returns available event action options for the selected event source */
+  const getEventActionOptions = () => {
+    if (watchedEventSource === TriggerEventSource.Trace) {
+      return [
+        {
+          value: "created",
+          description: "Whenever a new trace is created",
+        },
+        {
+          value: "updated",
+          description: "Whenever an existing trace is updated",
+        },
+      ];
+    }
+    // Default: prompt event actions
+    return [
+      {
+        value: "created",
+        description: "Whenever a new prompt version is created",
+      },
+      {
+        value: "updated",
+        description: "Whenever tags or labels on a prompt version are updated",
+      },
+      {
+        value: "deleted",
+        description: "Whenever a prompt version is deleted",
+      },
+    ];
+  };
+
+  /** Returns available filter column definitions for the selected event source */
+  const getFilterOptions = () => {
+    if (watchedEventSource === TriggerEventSource.Trace) {
+      return traceAutomationFilterOptions();
+    }
+    return webhookActionFilterOptions();
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -429,8 +476,8 @@ export const AutomationForm = ({
                       <SelectItem value={TriggerEventSource.Prompt}>
                         Prompt
                       </SelectItem>
-                      <SelectItem disabled={true} value="planned">
-                        More coming soon...
+                      <SelectItem value={TriggerEventSource.Trace}>
+                        Trace
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -453,22 +500,7 @@ export const AutomationForm = ({
                       label="Actions"
                       values={field.value}
                       onValueChange={field.onChange}
-                      options={[
-                        {
-                          value: "created",
-                          description:
-                            "Whenever a new prompt version is created",
-                        },
-                        {
-                          value: "updated",
-                          description:
-                            "Whenever tags or labels on a prompt version are updated",
-                        },
-                        {
-                          value: "deleted",
-                          description: "Whenever a prompt version is deleted",
-                        },
-                      ]}
+                      options={getEventActionOptions()}
                       className="my-0 w-auto overflow-hidden"
                       disabled={!hasAccess || !isEditing}
                       labelTruncateCutOff={4}
@@ -490,7 +522,7 @@ export const AutomationForm = ({
                   <FormLabel>Filter</FormLabel>
                   <FormControl>
                     <InlineFilterBuilder
-                      columns={webhookActionFilterOptions()}
+                      columns={getFilterOptions()}
                       filterState={field.value || []}
                       onChange={field.onChange}
                       disabled={

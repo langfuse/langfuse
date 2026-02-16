@@ -75,8 +75,8 @@ export class WebhookActionHandler
   }
 
   getDefaultValues(automation?: AutomationDomain): WebhookActionFormData {
-    // Extract apiVersion from existing config
-    let apiVersion = { prompt: "v1" } as const;
+    // Extract apiVersion from existing config, defaulting to prompt v1
+    let apiVersion: { prompt?: "v1"; trace?: "v1" } = { prompt: "v1" };
     if (
       automation?.action?.type === "WEBHOOK" &&
       automation?.action?.config &&

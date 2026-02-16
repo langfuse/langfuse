@@ -1,6 +1,7 @@
 import {
   InternalServerError,
   PromptWebhookOutboundSchema,
+  TraceWebhookOutboundSchema,
   WebhookDefaultHeaders,
   ActionExecutionStatus,
   LangfuseNotFoundError,
@@ -350,28 +351,59 @@ async function executeWebhookAction({
 
   const webhookConfig = actionConfig.config;
 
-  // Validate and prepare webhook payload
-  const validatedPayload = PromptWebhookOutboundSchema.safeParse({
-    id: input.executionId,
-    timestamp: new Date(),
-    type: input.payload.type,
-    apiVersion: "v1",
-    action: input.payload.action,
-    prompt: input.payload.prompt,
-  });
+  // Validate and prepare webhook payload based on event type
+  let webhookPayload: string;
 
-  if (!validatedPayload.success) {
+  if (input.payload.type === "prompt-version") {
+    const validatedPayload = PromptWebhookOutboundSchema.safeParse({
+      id: input.executionId,
+      timestamp: new Date(),
+      type: input.payload.type,
+      apiVersion: "v1",
+      action: input.payload.action,
+      prompt: input.payload.prompt,
+    });
+
+    if (!validatedPayload.success) {
+      throw new InternalServerError(
+        `Invalid webhook payload: ${validatedPayload.error.message}`,
+      );
+    }
+
+    // Prepare webhook payload with prompt always last
+    const { prompt, ...otherFields } = validatedPayload.data;
+    webhookPayload = JSON.stringify({ ...otherFields, prompt });
+  } else if (input.payload.type === "trace") {
+    const validatedPayload = TraceWebhookOutboundSchema.safeParse({
+      id: input.executionId,
+      timestamp: new Date(),
+      type: input.payload.type,
+      apiVersion: "v1",
+      action: input.payload.action,
+      trace: input.payload.trace,
+      // Include observation context if present (for error-triggered events)
+      ...(input.payload.observationLevel && {
+        observationLevel: input.payload.observationLevel,
+      }),
+      ...(input.payload.observationId && {
+        observationId: input.payload.observationId,
+      }),
+    });
+
+    if (!validatedPayload.success) {
+      throw new InternalServerError(
+        `Invalid webhook payload: ${validatedPayload.error.message}`,
+      );
+    }
+
+    // Prepare webhook payload with trace always last
+    const { trace, ...otherFields } = validatedPayload.data;
+    webhookPayload = JSON.stringify({ ...otherFields, trace });
+  } else {
     throw new InternalServerError(
-      `Invalid webhook payload: ${validatedPayload.error.message}`,
+      `Unsupported webhook event type: ${(input.payload as any).type}`,
     );
   }
-
-  // Prepare webhook payload with prompt always last
-  const { prompt, ...otherFields } = validatedPayload.data;
-  const webhookPayload = JSON.stringify({
-    ...otherFields,
-    prompt,
-  });
 
   // Prepare headers with signature if secret exists
   const requestHeaders: Record<string, string> = {};
@@ -448,34 +480,66 @@ async function executeGitHubDispatchAction({
 
   const githubConfig = actionConfig.config;
 
-  // Validate and prepare Langfuse payload
-  const validatedPayload = PromptWebhookOutboundSchema.safeParse({
-    id: input.executionId,
-    timestamp: new Date(),
-    type: input.payload.type,
-    apiVersion: "v1",
-    action: input.payload.action,
-    prompt: input.payload.prompt,
-  });
-
-  if (!validatedPayload.success) {
-    throw new InternalServerError(
-      `Invalid webhook payload: ${validatedPayload.error.message}`,
-    );
-  }
-
   // Use configured event_type (required field)
   const eventType = githubConfig.eventType;
 
-  // Transform to GitHub dispatch format
-  const { prompt, ...otherFields } = validatedPayload.data;
-  const githubPayload = JSON.stringify({
-    event_type: eventType,
-    client_payload: {
-      ...otherFields,
-      prompt,
-    },
-  });
+  // Validate and prepare Langfuse payload based on event type
+  let githubPayload: string;
+
+  if (input.payload.type === "prompt-version") {
+    const validatedPayload = PromptWebhookOutboundSchema.safeParse({
+      id: input.executionId,
+      timestamp: new Date(),
+      type: input.payload.type,
+      apiVersion: "v1",
+      action: input.payload.action,
+      prompt: input.payload.prompt,
+    });
+
+    if (!validatedPayload.success) {
+      throw new InternalServerError(
+        `Invalid webhook payload: ${validatedPayload.error.message}`,
+      );
+    }
+
+    const { prompt, ...otherFields } = validatedPayload.data;
+    githubPayload = JSON.stringify({
+      event_type: eventType,
+      client_payload: { ...otherFields, prompt },
+    });
+  } else if (input.payload.type === "trace") {
+    const validatedPayload = TraceWebhookOutboundSchema.safeParse({
+      id: input.executionId,
+      timestamp: new Date(),
+      type: input.payload.type,
+      apiVersion: "v1",
+      action: input.payload.action,
+      trace: input.payload.trace,
+      // Include observation context if present (for error-triggered events)
+      ...(input.payload.observationLevel && {
+        observationLevel: input.payload.observationLevel,
+      }),
+      ...(input.payload.observationId && {
+        observationId: input.payload.observationId,
+      }),
+    });
+
+    if (!validatedPayload.success) {
+      throw new InternalServerError(
+        `Invalid webhook payload: ${validatedPayload.error.message}`,
+      );
+    }
+
+    const { trace, ...otherFields } = validatedPayload.data;
+    githubPayload = JSON.stringify({
+      event_type: eventType,
+      client_payload: { ...otherFields, trace },
+    });
+  } else {
+    throw new InternalServerError(
+      `Unsupported GitHub dispatch event type: ${(input.payload as any).type}`,
+    );
+  }
 
   // Prepare headers with GitHub token
   const requestHeaders: Record<string, string> = {};

@@ -1,7 +1,8 @@
 import {
   type TriggerEventAction,
-  jsonSchemaNullable,
   InternalServerError,
+  type TraceDomain,
+  type ObservationLevelType,
 } from "@langfuse/shared";
 import {
   getTriggerConfigurations,
@@ -11,7 +12,6 @@ import {
   QueueName,
   QueueJobs,
   InMemoryFilterService,
-  type PromptResult,
   getAutomations,
   type EntityChangeEventType,
 } from "@langfuse/shared/src/server";
@@ -21,35 +21,36 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 
 /**
- * Extract the prompt-version entity change event type from the discriminated union.
- * This ensures type safety when accessing prompt-specific fields.
+ * Extract the trace entity change event type from the discriminated union.
+ * This ensures type safety when accessing trace-specific fields.
  */
-type PromptVersionEntityChangeEvent = Extract<
+type TraceEntityChangeEvent = Extract<
   EntityChangeEventType,
-  { entityType: "prompt-version" }
+  { entityType: "trace" }
 >;
 
 /**
- * Process prompt change events with in-memory filtering
+ * Process trace change events with in-memory filtering.
+ * Evaluates active trace triggers and enqueues matching automation actions.
  */
-export const promptVersionProcessor = async (
-  event: PromptVersionEntityChangeEvent,
+export const traceProcessor = async (
+  event: TraceEntityChangeEvent,
 ): Promise<void> => {
   try {
     logger.info(
-      `Processing prompt version change event for prompt ${event.promptId} for project ${event.projectId}`,
+      `Processing trace change event for trace ${event.traceId} in project ${event.projectId}`,
       { event: JSON.stringify(event, null, 2) },
     );
 
-    // Get active prompt triggers
+    // Get active trace triggers for the project
     const triggers = await getTriggerConfigurations({
       projectId: event.projectId,
-      eventSource: TriggerEventSource.Prompt,
+      eventSource: TriggerEventSource.Trace,
       status: JobConfigState.ACTIVE,
     });
 
-    logger.debug(`Found ${triggers.length} active prompt triggers`, {
-      promptId: event.promptId,
+    logger.debug(`Found ${triggers.length} active trace triggers`, {
+      traceId: event.traceId,
       projectId: event.projectId,
       action: event.action,
     });
@@ -57,19 +58,36 @@ export const promptVersionProcessor = async (
     // Process each trigger
     for (const trigger of triggers) {
       try {
-        // Create a unified data object that includes both prompt data and the action
+        // Build unified data object that includes trace data, action, and observation context
         const eventData = {
-          ...event.prompt,
+          ...event.trace,
           action: event.action,
+          // Observation-level context (present when triggered by an observation event)
+          level: event.observationLevel ?? null,
+          observationId: event.observationId ?? null,
         };
 
-        // Create a field mapper for all data including action
+        // Map filter columns to trace and observation data fields.
+        // NOTE: The column values stored in the DB match the display `name`
+        // from ColumnDefinition (e.g. "Observation Level"), not the `id`.
         const fieldMapper = (data: typeof eventData, column: string) => {
           switch (column) {
             case "action":
               return data.action;
             case "Name":
               return data.name;
+            case "Tags":
+              return data.tags;
+            case "Environment":
+              return data.environment;
+            case "User ID":
+              return data.userId;
+            case "Release":
+              return data.release;
+            case "Version":
+              return data.version;
+            case "Observation Level":
+              return data.level;
             default:
               return undefined;
           }
@@ -84,7 +102,7 @@ export const promptVersionProcessor = async (
 
         if (!eventMatches) {
           logger.debug(`Event doesn't match trigger ${trigger.id} filters`, {
-            promptId: event.promptId,
+            traceId: event.traceId,
             projectId: event.projectId,
             action: event.action,
           });
@@ -92,7 +110,7 @@ export const promptVersionProcessor = async (
         }
 
         logger.debug(`Trigger ${trigger.id} matches, executing actions`, {
-          promptId: event.promptId,
+          traceId: event.traceId,
           projectId: event.projectId,
           action: event.action,
         });
@@ -118,49 +136,53 @@ export const promptVersionProcessor = async (
               return;
             }
 
-            await enqueueAutomationAction({
-              promptData: {
-                ...event.prompt,
-                resolutionGraph: null,
-              },
+            await enqueueTraceAutomationAction({
+              traceData: event.trace,
               action: event.action,
               triggerId: trigger.id,
               actionId,
               projectId: event.projectId,
+              observationLevel: event.observationLevel,
+              observationId: event.observationId,
             });
           }),
         );
       } catch (error) {
         logger.error(
-          `Error processing trigger ${trigger.id} for prompt ${event.promptId} for project ${event.projectId}: ${error}`,
+          `Error processing trigger ${trigger.id} for trace ${event.traceId} in project ${event.projectId}: ${error}`,
         );
         // Continue processing other triggers instead of failing the entire operation
       }
     }
   } catch (error) {
     logger.error(
-      `Failed to process prompt version change event for prompt ${event.promptId} for project ${event.projectId}: ${error}`,
+      `Failed to process trace change event for trace ${event.traceId} in project ${event.projectId}: ${error}`,
     );
     throw error; // Re-throw to trigger retry mechanism
   }
 };
 
 /**
- * Enqueue an automation action for a prompt version change.
- * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
+ * Enqueue an automation action for a trace change.
+ * Handles both webhook and Slack actions by enqueueing to the shared webhook queue.
+ * Passes through optional observation-level context for error-triggered notifications.
  */
-async function enqueueAutomationAction({
-  promptData,
+async function enqueueTraceAutomationAction({
+  traceData,
   action,
   triggerId,
   actionId,
   projectId,
+  observationLevel,
+  observationId,
 }: {
-  promptData: PromptResult;
+  traceData: TraceDomain;
   action: string;
   triggerId: string;
   actionId: string;
   projectId: string;
+  observationLevel?: string;
+  observationId?: string;
 }): Promise<void> {
   // Get automations for this action
   const automations = await getAutomations({
@@ -185,13 +207,14 @@ async function enqueueAutomationAction({
       triggerId,
       actionId,
       status: ActionExecutionStatus.PENDING,
-      sourceId: promptData.id,
+      sourceId: traceData.id,
       input: {
-        promptName: promptData.name,
-        promptVersion: promptData.version,
-        promptId: promptData.id,
+        traceName: traceData.name,
+        traceId: traceData.id,
         automationId: automations[0].id,
-        type: "prompt-version",
+        type: "trace",
+        ...(observationLevel && { observationLevel }),
+        ...(observationId && { observationId }),
       },
     },
   });
@@ -210,12 +233,13 @@ async function enqueueAutomationAction({
       executionId,
       payload: {
         action: action as TriggerEventAction,
-        type: "prompt-version",
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
-        },
+        type: "trace" as const,
+        trace: traceData,
+        // Forward observation context for Slack message rendering
+        ...(observationLevel && {
+          observationLevel: observationLevel as ObservationLevelType,
+        }),
+        ...(observationId && { observationId }),
       },
     },
     name: QueueJobs.WebhookJob,
