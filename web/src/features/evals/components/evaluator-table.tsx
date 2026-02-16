@@ -73,7 +73,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
+import { useIsObservationEvalsFullyReleased } from "@/src/features/events/hooks/useObservationEvals";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -139,7 +139,7 @@ function LegacyBadgeCell({ status }: { status: string }) {
 }
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
-  const isBetaEnabled = useObservationEvals();
+  const isFullyReleased = useIsObservationEvalsFullyReleased();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
@@ -340,7 +340,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableSorting: true,
       size: 150,
     }),
-    ...(isBetaEnabled
+    ...(isFullyReleased
       ? [
           columnHelper.accessor("isLegacy", {
             id: "isLegacy",
@@ -508,7 +508,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        {isBetaEnabled && hasLegacyEvals && (
+        {isFullyReleased && hasLegacyEvals && (
           <div className="p-2 pb-0">
             <Callout
               id="eval-remapping-table"
