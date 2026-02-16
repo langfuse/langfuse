@@ -27,6 +27,7 @@ import {
   PromptService,
   redis,
   logger,
+  escapeSqlLikePattern,
   tableColumnsToSqlFilterAndPrefix,
   getObservationsWithPromptName,
   getObservationMetricsForPrompts,
@@ -62,6 +63,15 @@ const buildPromptSearchFilter = (
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
     : Prisma.empty;
+};
+
+const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
+  if (!pathPrefix) {
+    return Prisma.empty;
+  }
+
+  const escapedPathPrefix = escapeSqlLikePattern(pathPrefix);
+  return Prisma.sql` AND (p.name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\' OR p.name = ${pathPrefix})`;
 };
 
 const PromptFilterOptions = z.object({
@@ -119,17 +129,7 @@ export const promptRouter = createTRPCRouter({
       );
 
       // pathFilter: SQL WHERE clause to filter prompts by folder (e.g., "AND p.name LIKE 'folder/%'")
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            // Escape backslashes and other LIKE special characters for pattern matching
-            const escapedPrefix = prefix
-              .replace(/\\/g, "\\\\")
-              .replace(/%/g, "\\%")
-              .replace(/_/g, "\\_");
-            return Prisma.sql` AND (p.name LIKE ${`${escapedPrefix}/%`} OR p.name = ${escapedPrefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
       const searchFilter = buildPromptSearchFilter(
         input.searchQuery,
@@ -210,12 +210,7 @@ export const promptRouter = createTRPCRouter({
             )
           : Prisma.empty;
 
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            return Prisma.sql` AND (p.name LIKE ${`${prefix}/%`} OR p.name = ${prefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
       const searchFilter = buildPromptSearchFilter(
         input.searchQuery,
@@ -416,12 +411,19 @@ export const promptRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        promptName: z.string(),
+        promptName: z.string().optional(),
+        pathPrefix: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        const { projectId, promptName } = input;
+        const { projectId, promptName, pathPrefix } = input;
+        if (!promptName && !pathPrefix) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Either promptName or pathPrefix must be provided",
+          });
+        }
 
         throwIfNoProjectAccess({
           session: ctx.session,
@@ -429,11 +431,21 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
+        // Prisma translates `startsWith` to SQL LIKE on PostgreSQL, so `%` and `_`
+        // must be escaped when the prefix should be interpreted literally.
+        const escapedPathPrefix = pathPrefix
+          ? escapeSqlLikePattern(pathPrefix)
+          : undefined;
+
         // fetch prompts before deletion to enable audit logging
         const prompts = await ctx.prisma.prompt.findMany({
           where: {
             projectId,
-            name: input.promptName,
+            name: promptName
+              ? promptName
+              : {
+                  startsWith: `${escapedPathPrefix}/`,
+                },
           },
         });
 
@@ -441,6 +453,7 @@ export const promptRouter = createTRPCRouter({
           {
             parent_name: string;
             parent_version: number;
+            child_name: string;
             child_version: number;
             child_label: string;
           }[]
@@ -448,6 +461,7 @@ export const promptRouter = createTRPCRouter({
           SELECT
             p."name" AS "parent_name",
             p."version" AS "parent_version",
+            pd."child_name" AS "child_name",
             pd."child_version" AS "child_version",
             pd."child_label" AS "child_label"
           FROM
@@ -456,14 +470,23 @@ export const promptRouter = createTRPCRouter({
           WHERE
             p.project_id = ${projectId}
             AND pd.project_id = ${projectId}
-            AND pd.child_name = ${input.promptName}
+            AND ${
+              promptName
+                ? Prisma.sql`pd.child_name = ${promptName}`
+                : Prisma.sql`pd.child_name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\'`
+            }
+            ${
+              escapedPathPrefix
+                ? Prisma.sql`AND p."name" NOT LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\'`
+                : Prisma.empty
+            }
       `;
 
         if (dependents.length > 0) {
           const dependencyMessages = dependents
             .map(
               (d) =>
-                `${d.parent_name} v${d.parent_version} depends on ${promptName} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
+                `${d.parent_name} v${d.parent_version} depends on ${d.child_name} ${d.child_version ? `v${d.child_version}` : d.child_label}`,
             )
             .join("\n");
 
@@ -503,12 +526,16 @@ export const promptRouter = createTRPCRouter({
           );
         }
 
-        // Lock and invalidate cache for _all_ versions and labels of the prompt
+        // Lock and invalidate cache for all prompts
         const promptService = new PromptService(ctx.prisma, redis);
-        await promptService.lockCache({ projectId, promptName });
-        await promptService.invalidateCache({ projectId, promptName });
+        const promptNames = [...new Set(prompts.map((p) => p.name))];
 
-        // Delete all prompts with the given name
+        for (const name of promptNames) {
+          await promptService.lockCache({ projectId, promptName: name });
+          await promptService.invalidateCache({ projectId, promptName: name });
+        }
+
+        // Delete all prompts with the given id
         await ctx.prisma.prompt.deleteMany({
           where: {
             projectId,
@@ -519,7 +546,9 @@ export const promptRouter = createTRPCRouter({
         });
 
         // Unlock cache
-        await promptService.unlockCache({ projectId, promptName });
+        for (const name of promptNames) {
+          await promptService.unlockCache({ projectId, promptName: name });
+        }
 
         // Trigger webhooks for prompt deletion
         await Promise.all(
@@ -530,6 +559,8 @@ export const promptRouter = createTRPCRouter({
             ),
           ),
         );
+
+        return { deletedNames: promptNames };
       } catch (e) {
         logger.error(e);
         throw e;
