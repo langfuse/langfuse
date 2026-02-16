@@ -30,7 +30,10 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   subtleFill = false,
 }) => {
   return (
-    <ChartContainer config={config} className="min-h-0 w-full">
+    <ChartContainer
+      config={config}
+      className="min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30"
+    >
       <BarChart
         accessibilityLayer={accessibilityLayer}
         data={data}
@@ -99,6 +102,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           ) : null}
         </Bar>
         <ChartTooltip
+          cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           content={({ active, payload, label }) => (
             <ChartTooltipContent
