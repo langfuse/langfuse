@@ -6,7 +6,7 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
-import { useQueryParam, StringParam } from "use-query-params";
+import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import TableIdOrName from "@/src/components/table/table-id";
