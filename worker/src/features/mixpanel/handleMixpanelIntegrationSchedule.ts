@@ -34,27 +34,6 @@ export const handleMixpanelIntegrationSchedule = async () => {
     `[MIXPANEL] Scheduling ${mixpanelIntegrationProjects.length} Mixpanel integrations for sync`,
   );
 
-  // One-time migration: clean up jobs with the old hourly-key jobId format
-  // (e.g. "<projectId>--2026-02-11T08") that may have accumulated.
-  // Can be removed once all deployments have run this code.
-  const hourlyKeyPattern = /\d{4}-\d{2}-\d{2}T\d{2}$/;
-  const waitingJobs = await mixpanelIntegrationProcessingQueue.getWaiting(
-    0,
-    1000,
-  );
-  const failedJobs = await mixpanelIntegrationProcessingQueue.getFailed(
-    0,
-    1000,
-  );
-  const hasLegacyJobs = [...waitingJobs, ...failedJobs].some(
-    (job) => job.id && hourlyKeyPattern.test(job.id),
-  );
-  if (hasLegacyJobs) {
-    logger.info("[MIXPANEL] Cleaning up legacy hourly-key jobs");
-    await mixpanelIntegrationProcessingQueue.drain();
-    await mixpanelIntegrationProcessingQueue.clean(0, 1000, "failed");
-  }
-
   await mixpanelIntegrationProcessingQueue.addBulk(
     mixpanelIntegrationProjects.map(
       (integration: { projectId: string; lastSyncAt: Date | null }) => ({

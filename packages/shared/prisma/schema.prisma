@@ -85,6 +85,7 @@ model User {
   surveys                   Survey[]
   commentReactions          CommentReaction[]
   notificationPreferences   NotificationPreference[]
+  defaultViews              DefaultView[]               @relation("DefaultViewUser")
 
   @@map("users")
 }
@@ -175,6 +176,7 @@ model Project {
   PendingDeletion           PendingDeletion[]
   AnnotationQueueAssignment AnnotationQueueAssignment[]
   NotificationPreference    NotificationPreference[]
+  DefaultView               DefaultView[]
 
   @@index([orgId])
   @@map("projects")
@@ -1409,6 +1411,27 @@ model TableViewPreset {
 
   @@unique([projectId, tableName, name])
   @@map("table_view_presets")
+}
+
+model DefaultView {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId String? @map("user_id")
+  user   User?   @relation("DefaultViewUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  viewName String @map("view_name")
+  viewId   String @map("view_id") // no FK - to allow system presets (i.e. frontend defined starting in __langfuse_)
+
+  // Uniqueness enforced via partial indexes in migration (PostgreSQL 12+ compatible)
+  // - User defaults: UNIQUE(project_id, user_id, view_name) WHERE user_id IS NOT NULL
+  // - Project defaults: UNIQUE(project_id, view_name) WHERE user_id IS NULL
+  @@index([projectId, viewName])
+  @@map("default_views")
 }
 
 model Action {
