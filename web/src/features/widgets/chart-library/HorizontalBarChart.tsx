@@ -9,7 +9,6 @@ import { type ChartProps } from "@/src/features/widgets/chart-library/chart-prop
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 
-/** Approximate px width per character at font-size 12 for value labels */
 const CHAR_WIDTH_PX = 7;
 const LABEL_PADDING_PX = 16;
 
