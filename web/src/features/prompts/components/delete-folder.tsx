@@ -69,14 +69,15 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            Delete All Prompts in Folder &quot;{folderName}&quot;
+          <DialogTitle className="break-all">
+            Delete All Prompts in Folder &quot;
+            <i className="font-normal">{folderName}</i>&quot;
           </DialogTitle>
         </DialogHeader>
         <DialogBody>
           <p className="text-sm text-muted-foreground">
             This action permanently deletes the folder{" "}
-            <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+            <code className="relative break-all rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
               {folderPath}
             </code>{" "}
             and <b>all prompts inside it recursively</b>. This cannot be undone.
@@ -85,7 +86,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
           </p>
 
           <div className="rounded-md border bg-muted/50 p-4">
-            <h4 className="mb-2 text-sm font-medium">Prompts to be deleted:</h4>
+            <h4 className="mb-2 text-sm font-medium">Prompts to delete:</h4>
             {prompts.isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -99,14 +100,16 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
                 {prompts.data?.prompts.map((p) => (
                   <li
                     key={`${p.row_type}-${p.id}`}
-                    className="flex items-center gap-2 truncate text-muted-foreground"
+                    className="flex items-center gap-2 text-muted-foreground"
                   >
                     {p.row_type === "folder" ? (
                       <Folder className="h-3 w-3 text-blue-500" />
                     ) : (
                       <FileText className="h-3 w-3" />
                     )}
-                    <span>{p.name}</span>
+                    <span className="break-all">
+                      {folderPath}/{p.name}
+                    </span>
                   </li>
                 ))}
                 {(prompts.data?.totalCount ?? 0) > 100 && (
@@ -125,12 +128,12 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
 
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              To confirm, type the name of the folder you want to delete below:
+              To confirm, type the full path of the folder to delete:
             </label>
             <Input
               value={confirmName}
               onChange={(e) => setConfirmName(e.target.value)}
-              placeholder="folder to delete"
+              placeholder="folder to delete (full path)"
               className="h-9"
             />
           </div>
@@ -153,7 +156,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
           <Button
             type="button"
             variant="destructive"
-            disabled={confirmName !== folderName || mutDeleteFolder.isPending}
+            disabled={confirmName !== folderPath || mutDeleteFolder.isPending}
             loading={mutDeleteFolder.isPending}
             onClick={() => {
               if (!projectId) return;
