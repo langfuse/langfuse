@@ -11,6 +11,18 @@ import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
+/** Read a Langfuse header that may arrive with hyphens or underscores. */
+function getLangfuseHeader(
+  headers: Record<string, string | string[] | undefined>,
+  name: string,
+): string | undefined {
+  const hyphenVal = headers[name];
+  if (typeof hyphenVal === "string") return hyphenVal;
+  const underscoreVal = headers[name.replaceAll("-", "_")];
+  if (typeof underscoreVal === "string") return underscoreVal;
+  return undefined;
+}
+
 export const config = {
   api: {
     bodyParser: false,
@@ -104,19 +116,16 @@ export default withMiddlewares({
         return {};
       }
 
-      // Extract SDK headers for write path decision
-      const sdkName =
-        typeof req.headers["x-langfuse-sdk-name"] === "string"
-          ? req.headers["x-langfuse-sdk-name"]
-          : undefined;
-      const sdkVersion =
-        typeof req.headers["x-langfuse-sdk-version"] === "string"
-          ? req.headers["x-langfuse-sdk-version"]
-          : undefined;
-      const ingestionVersion =
-        typeof req.headers["x-langfuse-ingestion-version"] === "string"
-          ? req.headers["x-langfuse-ingestion-version"]
-          : undefined;
+      // Extract SDK headers for write path decision (supports both hyphen and underscore formats)
+      const sdkName = getLangfuseHeader(req.headers, "x-langfuse-sdk-name");
+      const sdkVersion = getLangfuseHeader(
+        req.headers,
+        "x-langfuse-sdk-version",
+      );
+      const ingestionVersion = getLangfuseHeader(
+        req.headers,
+        "x-langfuse-ingestion-version",
+      );
 
       // Reject unsupported future ingestion versions (> 4)
       // Lower versions are valid but use dual write (path A)
