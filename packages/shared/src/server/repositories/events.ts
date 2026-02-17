@@ -283,6 +283,61 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
   queryPrefix: "t", // Use 't' prefix because we're selecting from traces CTE
 }));
 
+// TODO: introduce pagination
+export const MAX_OBSERVATIONS_PER_TRACE = 10_000;
+
+export const getObservationsForTraceFromEventsTable = async (params: {
+  projectId: string;
+  traceId: string;
+  timestamp?: Date;
+}): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+  const { projectId, traceId, timestamp } = params;
+
+  const filter: FilterState = [
+    {
+      column: "traceId",
+      operator: "=" as const,
+      value: traceId,
+      type: "string" as const,
+    },
+  ];
+
+  if (timestamp) {
+    filter.push({
+      column: "startTime",
+      operator: ">=" as const,
+      // Equivalent to TRACE_TO_OBSERVATIONS_INTERVAL (INTERVAL 1 HOUR)
+      value: new Date(timestamp.getTime() - 60 * 60 * 1000),
+      type: "datetime" as const,
+    });
+  }
+
+  const records =
+    await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
+      {
+        projectId,
+        filter,
+        orderBy: { column: "startTime", order: "ASC" },
+        limit: MAX_OBSERVATIONS_PER_TRACE + 1,
+        offset: 0,
+        select: "rows",
+        tags: { kind: "byTraceId" },
+      },
+    );
+
+  const totalCount = records.length;
+
+  const withModelData = await enrichObservationsWithModelData(
+    records.slice(0, MAX_OBSERVATIONS_PER_TRACE),
+    projectId,
+    false,
+    null,
+  );
+  const observations = await enrichObservationsWithTraceFields(withModelData);
+
+  return { observations, totalCount };
+};
+
 export const getObservationsCountFromEventsTable = async (
   opts: ObservationTableQuery,
 ) => {
@@ -346,7 +401,6 @@ async function getObservationsFromEventsTableInternal<T>(
   const hasScoresFilter = filter.some((f) =>
     f.column.toLowerCase().includes("score"),
   );
-  const appliedObservationsFilter = observationsFilter.apply();
   const search = clickhouseSearchCondition(
     opts.searchQuery,
     opts.searchType,
@@ -403,7 +457,7 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(hasScoresFilter, (b) =>
       b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
     )
-    .where(appliedObservationsFilter)
+    .applyFilters(observationsFilter)
     .where(search)
     .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
     .limit(limit, offset);
@@ -430,6 +484,7 @@ async function getObservationsFromEventsTableInternal<T>(
         params: input.params,
         tags: input.tags,
         clickhouseConfigs,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
