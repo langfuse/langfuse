@@ -16,7 +16,6 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
-import { MAX_OBSERVATIONS_PER_TRACE } from "@langfuse/shared/src/server";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect } from "react";
 
@@ -83,7 +82,7 @@ export function TracePage({
     if (isBetaEnabled && eventsData.cutoffObservationsAfterMaxCount) {
       showErrorToast(
         "Trace truncated",
-        `This trace exceeds the maximum of ${MAX_OBSERVATIONS_PER_TRACE.toLocaleString()} observations for the detail view. Only the first ${MAX_OBSERVATIONS_PER_TRACE.toLocaleString()} are shown.`,
+        "This trace has too many observations for the detail view. Only a subset is shown.",
         "WARNING",
       );
     }
