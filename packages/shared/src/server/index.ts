@@ -41,6 +41,7 @@ export * from "../utils/IORepresentation/chatML/types";
 export * from "../server/ingestion/types";
 export * from "../server/ingestion/modelMatch";
 export * from "./ingestion/processEventBatch";
+export * from "./ingestion/userBlocking";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "./ingestion/extractToolsBackend";
 export * from "../server/queries/public-api-filter-builder";

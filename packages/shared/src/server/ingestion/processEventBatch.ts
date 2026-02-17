@@ -34,6 +34,8 @@ import {
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
+import { checkBlockedUsers } from "./userBlocking";
+import { prisma } from "../../db";
 
 let s3StorageServiceClient: StorageService;
 
@@ -80,6 +82,72 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
   // Values should be revisited based on a cost/performance trade-off.
   return Math.min(5000, env.LANGFUSE_INGESTION_QUEUE_DELAY_MS);
 };
+
+/**
+ * Propagate userId from traces to child events using hybrid approach.
+ * First try in-memory propagation from traces in current batch, then DB lookup if needed.
+ */
+async function propagateTraceUserIds(
+  batch: IngestionEventType[],
+  projectId: string,
+): Promise<void> {
+  // Build in-memory map from traces in current batch
+  const batchTraceUserIdMap = new Map<string, string>();
+
+  batch.forEach((event) => {
+    if (
+      event.type === eventTypes.TRACE_CREATE &&
+      event.body.userId &&
+      event.body.id
+    ) {
+      batchTraceUserIdMap.set(event.body.id, event.body.userId);
+    }
+  });
+
+  // Identify events needing propagation
+  const needsPropagation: IngestionEventType[] = [];
+  const needsDbLookup = new Set<string>();
+
+  batch.forEach((event) => {
+    if ("traceId" in event.body && event.body.traceId && !event.body.userId) {
+      const batchUserId = batchTraceUserIdMap.get(event.body.traceId);
+      if (batchUserId) {
+        // Propagate from current batch
+        event.body.userId = batchUserId;
+      } else {
+        // Need DB lookup for trace not in current batch
+        needsPropagation.push(event);
+        needsDbLookup.add(event.body.traceId);
+      }
+    }
+  });
+
+  // DB lookup only if needed
+  if (needsDbLookup.size === 0) return;
+
+  const tracesWithUserId = await prisma.legacyPrismaTrace.findMany({
+    where: {
+      id: { in: Array.from(needsDbLookup) },
+      projectId,
+      userId: { not: null },
+    },
+    select: { id: true, userId: true },
+  });
+
+  const dbTraceUserIdMap = new Map(
+    tracesWithUserId.map((trace) => [trace.id, trace.userId!]),
+  );
+
+  // Propagate from DB lookup
+  needsPropagation.forEach((event) => {
+    if ("traceId" in event.body && event.body.traceId) {
+      const userId = dbTraceUserIdMap.get(event.body.traceId);
+      if (userId) {
+        event.body.userId = userId;
+      }
+    }
+  });
+}
 
 /**
  * Options for event batch processing.
@@ -185,7 +253,50 @@ export const processEventBatch = async (
       return [event];
     });
 
-  const sortedBatch = sortBatch(batch);
+  // Propagate userId from traces to child events
+  await propagateTraceUserIds(batch, authCheck.scope.projectId);
+
+  // Collect userIds from ALL event types (not just traces)
+  // Note: Some event types (like SDK_LOG) don't have userId fields
+  const userIds = [
+    ...new Set(
+      batch
+        .map((event) => ("userId" in event.body ? event.body.userId : null))
+        .filter((userId): userId is string => Boolean(userId?.trim())),
+    ),
+  ];
+
+  let blocked = new Set<string>();
+  if (userIds.length > 0) {
+    blocked = await checkBlockedUsers({
+      projectId: authCheck.scope.projectId!,
+      userIds,
+    });
+  }
+
+  // Optimized bulk filtering - partition then filter
+  const [eventsWithUserId, eventsWithoutUserId] = batch.reduce(
+    (acc, event) => {
+      if ("userId" in event.body && event.body.userId) {
+        acc[0].push(event);
+      } else {
+        acc[1].push(event);
+      }
+      return acc;
+    },
+    [[] as IngestionEventType[], [] as IngestionEventType[]],
+  );
+
+  // Filter only events with userId (no conditionals in hot path)
+  const allowedEventsWithUserId = eventsWithUserId.filter((event) => {
+    const userId = "userId" in event.body ? event.body.userId : null;
+    return userId ? !blocked.has(userId) : true;
+  });
+
+  // Combine results (events without userId + allowed events with userId)
+  const filteredBatch = [...eventsWithoutUserId, ...allowedEventsWithUserId];
+
+  const sortedBatch = sortBatch(filteredBatch);
 
   // We group events by eventBodyId which allows us to store and process them
   // as one which reduces infra interactions per event. Only used in the S3 case.

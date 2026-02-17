@@ -15,6 +15,8 @@ export const projectScopes = [
 
   "traces:delete",
 
+  "users:block",
+
   "scores:CUD",
 
   "scoreConfigs:CUD",
@@ -96,6 +98,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "objects:bookmark",
     "objects:tag",
     "traces:delete",
+    "users:block",
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
@@ -149,6 +152,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "objects:bookmark",
     "objects:tag",
     "traces:delete",
+    "users:block",
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
