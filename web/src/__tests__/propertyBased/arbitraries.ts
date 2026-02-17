@@ -29,13 +29,15 @@ export const timeRangeArbitrary = fc
     }),
     fc.integer({ min: 1, max: 90 }), // days of range
   )
+  .filter(([startDate]) => !isNaN(startDate.getTime()))
   .map(([startDate, daysRange]) => {
-    const toDate = new Date(
-      startDate.getTime() + daysRange * 24 * 60 * 60 * 1000,
-    );
+    // Round to whole seconds to avoid DateTime64(3) vs DateTime64(6) precision
+    // mismatch between filter params and events table columns
+    const fromMs = Math.floor(startDate.getTime() / 1000) * 1000;
+    const toMs = fromMs + daysRange * 24 * 60 * 60 * 1000;
     return {
-      fromTimestamp: startDate.toISOString(),
-      toTimestamp: toDate.toISOString(),
+      fromTimestamp: new Date(fromMs).toISOString(),
+      toTimestamp: new Date(toMs).toISOString(),
     };
   });
 

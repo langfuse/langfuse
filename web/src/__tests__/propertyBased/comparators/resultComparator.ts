@@ -8,6 +8,18 @@ interface ComparisonResult {
   differences?: string[];
 }
 
+interface ComparisonOptions {
+  /**
+   * v2 events observations view includes trace-level events (no segment
+   * filter), so v2 may have extra dimension groups and count/avg metrics
+   * may differ. When true:
+   * - Match v1 rows to v2 rows by dimension + time key
+   * - Only compare sum-aggregated non-count metrics (trace events add 0)
+   * - Allow extra v2 rows
+   */
+  v2SupersetMode?: boolean;
+}
+
 /**
  * Compare results from v1 and v2 queries
  * Handles differences in:
@@ -20,7 +32,12 @@ export const compareResults = (
   v1Results: QueryResult,
   v2Results: QueryResult,
   query: QueryType,
+  options?: ComparisonOptions,
 ): ComparisonResult => {
+  if (options?.v2SupersetMode) {
+    return compareV2Superset(v1Results, v2Results, query);
+  }
+
   // Step 1: Check row counts
   if (v1Results.length !== v2Results.length) {
     return {
@@ -42,6 +59,109 @@ export const compareResults = (
     const diff = compareRows(v1Sorted[i], v2Sorted[i], i);
     if (diff) {
       differences.push(...diff);
+    }
+  }
+
+  return {
+    equal: differences.length === 0,
+    differences: differences.length > 0 ? differences : undefined,
+  };
+};
+
+/**
+ * Compare v1 and v2 results in superset mode.
+ * Every v1 dimension group must exist in v2. Sum-aggregated non-count
+ * metrics must match (trace-level events contribute 0). Count, avg, min,
+ * max, and percentile metrics are allowed to differ because trace-level
+ * events affect them.
+ */
+const compareV2Superset = (
+  v1Results: QueryResult,
+  v2Results: QueryResult,
+  query: QueryType,
+): ComparisonResult => {
+  const v1Norm = v1Results.map(normalizeRow);
+  const v2Norm = v2Results.map(normalizeRow);
+
+  // v2 events table stores root observation parents as 't-{traceId}'
+  // (the synthetic trace-level event), while v1 stores NULL.
+  // Normalize these to null for key matching.
+  const v2Normalized = v2Norm.map((row) => {
+    const val = row["parentObservationId"];
+    if (typeof val === "string" && val.startsWith("t-")) {
+      return { ...row, parentObservationId: null };
+    }
+    return row;
+  });
+
+  // Metric field names in query results: ${aggregation}_${measure}
+  // Also include "count" — the query builder always returns a count column
+  // even when no metrics are explicitly requested.
+  const metricFieldSet = new Set([
+    "count",
+    ...query.metrics.map((m) => `${m.aggregation}_${m.measure}`),
+  ]);
+
+  // Metrics where trace-level events contribute 0 and don't affect the
+  // result: sum-aggregated non-count measures
+  const comparableMetrics = query.metrics.filter(
+    (m) => m.aggregation === "sum" && m.measure !== "count",
+  );
+
+  const comparableMetricFields = new Set(
+    comparableMetrics.map((m) => `${m.aggregation}_${m.measure}`),
+  );
+
+  // Build key from dimension + time fields only (excludes metrics)
+  const dimKey = (row: Record<string, unknown>) => {
+    return Object.entries(row)
+      .filter(([k]) => !metricFieldSet.has(k))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+      .join("|");
+  };
+
+  // Index v2 rows by dimension key, merging rows that collapse to the same
+  // key after parentObservationId normalization (e.g. trace-level event and
+  // root observation in the same time bucket). Sum comparable metrics.
+  const v2ByKey = new Map<string, Record<string, unknown>>();
+  for (const row of v2Normalized) {
+    const key = dimKey(row);
+    const existing = v2ByKey.get(key);
+    if (existing) {
+      for (const field of comparableMetricFields) {
+        const a = typeof existing[field] === "number" ? existing[field] : 0;
+        const b = typeof row[field] === "number" ? row[field] : 0;
+        existing[field] = (a as number) + (b as number);
+      }
+    } else {
+      v2ByKey.set(key, { ...row });
+    }
+  }
+
+  const differences: string[] = [];
+
+  for (let i = 0; i < v1Norm.length; i++) {
+    const v1Row = v1Norm[i];
+    const key = dimKey(v1Row);
+    const v2Row = v2ByKey.get(key);
+
+    if (!v2Row) {
+      differences.push(`v1 row ${i} not found in v2 (key: ${key})`);
+      continue;
+    }
+
+    // Compare only sum-aggregated non-count metrics
+    for (const metric of comparableMetrics) {
+      const field = `${metric.aggregation}_${metric.measure}`;
+      const v1Val = v1Row[field];
+      const v2Val = v2Row[field];
+
+      if (!valuesEqual(v1Val, v2Val)) {
+        differences.push(
+          `Row ${i}, '${field}': v1=${JSON.stringify(v1Val)}, v2=${JSON.stringify(v2Val)}`,
+        );
+      }
     }
   }
 
@@ -95,6 +215,12 @@ const normalizeRow = (
     else if (value === null || value === undefined) {
       normalized[key] = null;
     }
+    // Normalize whitespace-only strings to null
+    // (v1 LEFT JOIN time filters in WHERE can eliminate rows, producing null
+    // fill values where v2 has whitespace-only dimension values)
+    else if (typeof value === "string" && value.trim() === "") {
+      normalized[key] = null;
+    }
     // Keep other values as-is
     else {
       normalized[key] = value;
@@ -142,6 +268,12 @@ const valuesEqual = (v1: unknown, v2: unknown): boolean => {
   if (v1 === "" && v2 === null) return true;
   if (v1 === undefined && v2 === "") return true;
   if (v1 === "" && v2 === undefined) return true;
+
+  // Handle null/0 equivalence for numeric values
+  // (v1 Nullable columns produce null fill values via WITH FILL,
+  // v2 non-nullable ALIAS columns produce 0)
+  if (v1 === null && v2 === 0) return true;
+  if (v1 === 0 && v2 === null) return true;
 
   // Handle numbers (including floating point tolerance)
   if (typeof v1 === "number" && typeof v2 === "number") {

@@ -4,19 +4,25 @@ import * as fc from "fast-check";
  * Data generation helpers for property-based testing using fc.gen()
  * Following fast-check best practices: https://fast-check.dev/docs/advanced/fake-data/
  *
+ * All entity IDs are accepted as parameters rather than generated internally.
+ * This allows callers to use fc.uniqueArray(fc.uuid(), ...) to guarantee
+ * uniqueness across entities — fast-check maintains the uniqueness invariant
+ * through shrinking, preventing dedup discrepancies between v1/v2 tables
+ * whose ORDER BY keys differ.
+ *
  * Usage:
  *   fc.asyncProperty(queryArbitrary("traces"), fc.gen(), async (query, g) => {
- *     const trace = generateTrace(g);
- *     const obs = generateObservation(g, trace.id);
+ *     const ids = g(fc.uniqueArray, fc.uuid(), { minLength: 3, maxLength: 3 });
+ *     const trace = generateTrace(g, ids[0]);
+ *     const obs = generateObservation(g, ids[1], trace.id, trace.timestamp);
  *     // ...
  *   })
  */
 
 /**
  * Generate a trace using fc.gen()
- * Usage: generateTrace(g) where g is the generator from fc.gen()
  */
-export const generateTrace = (g: any) => {
+export const generateTrace = (g: any, id: string) => {
   const traceNames = [
     "chat-completion",
     "text-generation",
@@ -36,7 +42,7 @@ export const generateTrace = (g: any) => {
   );
 
   return {
-    id: g(fc.uuid),
+    id,
     name: g(fc.constantFrom, ...traceNames),
     environment: g(fc.constantFrom, ...environments),
     userId: g(fc.string, { minLength: 5, maxLength: 20 }),
@@ -53,6 +59,7 @@ export const generateTrace = (g: any) => {
  */
 export const generateObservation = (
   g: any,
+  id: string,
   traceId: string,
   traceTimestamp: number,
 ) => {
@@ -66,7 +73,7 @@ export const generateObservation = (
   const totalCost = g(fc.double, { min: 0.0001, max: 1, noNaN: true });
 
   return {
-    id: g(fc.uuid),
+    id,
     traceId,
     type: g(fc.constantFrom, ...types),
     name: g(fc.string, { minLength: 1, maxLength: 50 }),
@@ -85,6 +92,7 @@ export const generateObservation = (
  */
 export const generateScore = (
   g: any,
+  id: string,
   traceId: string,
   traceTimestamp: number,
   isNumeric: boolean,
@@ -96,7 +104,7 @@ export const generateScore = (
   const timestampOffset = g(fc.integer, { min: 0, max: 100000 });
 
   return {
-    id: g(fc.uuid),
+    id,
     traceId,
     name: g(fc.constantFrom, ...scoreNames),
     source: g(fc.constantFrom, ...sources),

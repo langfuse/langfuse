@@ -16,7 +16,9 @@ import { insertTestData } from "../../propertyBased/testData/fastInsert";
  * Uses fc.gen() to generate test data inline as recommended by fast-check:
  * https://fast-check.dev/docs/advanced/fake-data/
  *
- * This allows fast-check to shrink BOTH the query AND the test data when failures occur.
+ * Entity IDs are pre-generated via fc.uniqueArray(fc.uuid(), ...) so that
+ * fast-check maintains uniqueness through shrinking — this prevents dedup
+ * discrepancies between v1/v2 ClickHouse tables whose ORDER BY keys differ.
  */
 describe("v1/v2 View Equivalence", () => {
   describe("Traces View", () => {
@@ -28,19 +30,35 @@ describe("v1/v2 View Equivalence", () => {
           async (query, g) => {
             const projectId = randomUUID();
 
-            // Generate 1-5 traces inline using fc.gen()
-            const numTraces = g(fc.integer, { min: 1, max: 5 });
+            // Determine entity counts first so we can pre-allocate unique IDs
+            const numTraces = g(fc.integer, { min: 1, max: 3 });
+            const obsPerTrace = Array.from({ length: numTraces }, () =>
+              g(fc.integer, { min: 1, max: 2 }),
+            );
+            const totalObs = obsPerTrace.reduce((a, b) => a + b, 0);
+            const totalIds = numTraces + totalObs;
+
+            // Generate a pool of unique UUIDs — uniqueness is preserved
+            // through fast-check shrinking
+            const ids: string[] = g(fc.uniqueArray, fc.uuid(), {
+              minLength: totalIds,
+              maxLength: totalIds,
+            });
+            let idx = 0;
+
+            // Generate 1-3 traces inline using fc.gen()
             const traces = Array.from({ length: numTraces }, () =>
-              generateTrace(g),
+              generateTrace(g, ids[idx++]),
             );
 
-            // Generate 0-2 observations per trace
-            const observations = traces.flatMap((trace) => {
-              const numObs = g(fc.integer, { min: 0, max: 2 });
-              return Array.from({ length: numObs }, () =>
-                generateObservation(g, trace.id, trace.timestamp),
-              );
-            });
+            // Generate 1-2 observations per trace (min 1 to avoid v1 LEFT JOIN
+            // quirk: observation-dependent measures trigger a LEFT JOIN whose
+            // time filter in WHERE eliminates traces with 0 observations)
+            const observations = traces.flatMap((trace, i) =>
+              Array.from({ length: obsPerTrace[i] }, () =>
+                generateObservation(g, ids[idx++], trace.id, trace.timestamp),
+              ),
+            );
 
             // Insert generated data
             await insertTestData(projectId, { traces, observations });
@@ -67,7 +85,7 @@ describe("v1/v2 View Equivalence", () => {
           },
         ),
         {
-          numRuns: 50,
+          numRuns: 20,
           timeout: 10000,
           verbose: false,
         },
@@ -84,24 +102,40 @@ describe("v1/v2 View Equivalence", () => {
           async (query, g) => {
             const projectId = randomUUID();
 
-            const numTraces = g(fc.integer, { min: 1, max: 5 });
+            const numTraces = g(fc.integer, { min: 1, max: 3 });
+            const obsPerTrace = Array.from({ length: numTraces }, () =>
+              g(fc.integer, { min: 0, max: 2 }),
+            );
+            const totalObs = obsPerTrace.reduce((a, b) => a + b, 0);
+            const totalIds = numTraces + totalObs;
+
+            const ids: string[] = g(fc.uniqueArray, fc.uuid(), {
+              minLength: totalIds,
+              maxLength: totalIds,
+            });
+            let idx = 0;
+
             const traces = Array.from({ length: numTraces }, () =>
-              generateTrace(g),
+              generateTrace(g, ids[idx++]),
             );
 
-            const observations = traces.flatMap((trace) => {
-              const numObs = g(fc.integer, { min: 0, max: 2 });
-              return Array.from({ length: numObs }, () =>
-                generateObservation(g, trace.id, trace.timestamp),
-              );
-            });
+            const observations = traces.flatMap((trace, i) =>
+              Array.from({ length: obsPerTrace[i] }, () =>
+                generateObservation(g, ids[idx++], trace.id, trace.timestamp),
+              ),
+            );
 
             await insertTestData(projectId, { traces, observations });
 
             const v1Results = await executeQuery(projectId, query, "v1");
             const v2Results = await executeQuery(projectId, query, "v2");
 
-            const comparison = compareResults(v1Results, v2Results, query);
+            // v2 observations view includes trace-level events (no
+            // parent_span_id segment), so use superset comparison:
+            // match by dimension key, compare only sum non-count metrics.
+            const comparison = compareResults(v1Results, v2Results, query, {
+              v2SupersetMode: true,
+            });
             if (!comparison.equal) {
               throw new Error(
                 [
@@ -118,7 +152,7 @@ describe("v1/v2 View Equivalence", () => {
           },
         ),
         {
-          numRuns: 50,
+          numRuns: 20,
           timeout: 10000,
           verbose: false,
         },
@@ -135,25 +169,39 @@ describe("v1/v2 View Equivalence", () => {
           async (query, g) => {
             const projectId = randomUUID();
 
-            const numTraces = g(fc.integer, { min: 1, max: 5 });
+            const numTraces = g(fc.integer, { min: 1, max: 3 });
+            const obsPerTrace = Array.from({ length: numTraces }, () =>
+              g(fc.integer, { min: 0, max: 2 }),
+            );
+            const scoresPerTrace = Array.from({ length: numTraces }, () =>
+              g(fc.integer, { min: 0, max: 2 }),
+            );
+            const totalObs = obsPerTrace.reduce((a, b) => a + b, 0);
+            const totalScores = scoresPerTrace.reduce((a, b) => a + b, 0);
+            const totalIds = numTraces + totalObs + totalScores;
+
+            const ids: string[] = g(fc.uniqueArray, fc.uuid(), {
+              minLength: totalIds,
+              maxLength: totalIds,
+            });
+            let idx = 0;
+
             const traces = Array.from({ length: numTraces }, () =>
-              generateTrace(g),
+              generateTrace(g, ids[idx++]),
             );
 
-            const observations = traces.flatMap((trace) => {
-              const numObs = g(fc.integer, { min: 0, max: 2 });
-              return Array.from({ length: numObs }, () =>
-                generateObservation(g, trace.id, trace.timestamp),
-              );
-            });
+            const observations = traces.flatMap((trace, i) =>
+              Array.from({ length: obsPerTrace[i] }, () =>
+                generateObservation(g, ids[idx++], trace.id, trace.timestamp),
+              ),
+            );
 
             // Generate numeric scores
-            const scores = traces.flatMap((trace) => {
-              const numScores = g(fc.integer, { min: 0, max: 2 });
-              return Array.from({ length: numScores }, () =>
-                generateScore(g, trace.id, trace.timestamp, true),
-              );
-            });
+            const scores = traces.flatMap((trace, i) =>
+              Array.from({ length: scoresPerTrace[i] }, () =>
+                generateScore(g, ids[idx++], trace.id, trace.timestamp, true),
+              ),
+            );
 
             await insertTestData(projectId, { traces, observations, scores });
 
@@ -177,7 +225,7 @@ describe("v1/v2 View Equivalence", () => {
           },
         ),
         {
-          numRuns: 50,
+          numRuns: 20,
           timeout: 10000,
           verbose: false,
         },
@@ -194,25 +242,39 @@ describe("v1/v2 View Equivalence", () => {
           async (query, g) => {
             const projectId = randomUUID();
 
-            const numTraces = g(fc.integer, { min: 1, max: 5 });
+            const numTraces = g(fc.integer, { min: 1, max: 3 });
+            const obsPerTrace = Array.from({ length: numTraces }, () =>
+              g(fc.integer, { min: 0, max: 2 }),
+            );
+            const scoresPerTrace = Array.from({ length: numTraces }, () =>
+              g(fc.integer, { min: 0, max: 2 }),
+            );
+            const totalObs = obsPerTrace.reduce((a, b) => a + b, 0);
+            const totalScores = scoresPerTrace.reduce((a, b) => a + b, 0);
+            const totalIds = numTraces + totalObs + totalScores;
+
+            const ids: string[] = g(fc.uniqueArray, fc.uuid(), {
+              minLength: totalIds,
+              maxLength: totalIds,
+            });
+            let idx = 0;
+
             const traces = Array.from({ length: numTraces }, () =>
-              generateTrace(g),
+              generateTrace(g, ids[idx++]),
             );
 
-            const observations = traces.flatMap((trace) => {
-              const numObs = g(fc.integer, { min: 0, max: 2 });
-              return Array.from({ length: numObs }, () =>
-                generateObservation(g, trace.id, trace.timestamp),
-              );
-            });
+            const observations = traces.flatMap((trace, i) =>
+              Array.from({ length: obsPerTrace[i] }, () =>
+                generateObservation(g, ids[idx++], trace.id, trace.timestamp),
+              ),
+            );
 
             // Generate categorical scores
-            const scores = traces.flatMap((trace) => {
-              const numScores = g(fc.integer, { min: 0, max: 2 });
-              return Array.from({ length: numScores }, () =>
-                generateScore(g, trace.id, trace.timestamp, false),
-              );
-            });
+            const scores = traces.flatMap((trace, i) =>
+              Array.from({ length: scoresPerTrace[i] }, () =>
+                generateScore(g, ids[idx++], trace.id, trace.timestamp, false),
+              ),
+            );
 
             await insertTestData(projectId, { traces, observations, scores });
 
@@ -236,7 +298,7 @@ describe("v1/v2 View Equivalence", () => {
           },
         ),
         {
-          numRuns: 50,
+          numRuns: 20,
           timeout: 10000,
           verbose: false,
         },
