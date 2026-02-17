@@ -11,6 +11,30 @@ import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
+// Helper to send response with correct Content-Type per OTLP/HTTP spec
+// See: https://opentelemetry.io/docs/specs/otlp/#otlphttp-response
+function sendOtlpResponse(
+  res: import("next").NextApiResponse,
+  contentType: string,
+  statusCode: number,
+  jsonResponse: object,
+) {
+  res.status(statusCode);
+  if (contentType.includes("application/x-protobuf")) {
+    // Per OTLP spec: response must use same Content-Type as request
+    res.setHeader("Content-Type", "application/x-protobuf");
+    // Encode empty ExportTraceServiceResponse (no partialSuccess = full success)
+    const protoResponse =
+      $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse.encode(
+        {},
+      ).finish();
+    res.send(Buffer.from(protoResponse));
+  } else {
+    res.setHeader("Content-Type", "application/json");
+    res.json(jsonResponse);
+  }
+}
+
 export const config = {
   api: {
     bodyParser: false,
@@ -24,6 +48,9 @@ export default withMiddlewares({
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
     fn: async ({ req, res, auth }) => {
+      const contentType = req.headers["content-type"]?.toLowerCase() ?? "";
+      const isProtobuf = contentType.includes("application/x-protobuf");
+
       // Check if ingestion is suspended due to usage threshold
       if (auth.scope.isIngestionSuspended) {
         throw new ForbiddenError(
@@ -44,8 +71,10 @@ export default withMiddlewares({
         });
       } catch (e) {
         logger.error(`Failed to read request body`, e);
-        res.status(400);
-        return { error: "Failed to read request body" };
+        sendOtlpResponse(res, contentType, 400, {
+          error: "Failed to read request body",
+        });
+        return;
       }
 
       if (req.headers["content-encoding"]?.includes("gzip")) {
@@ -57,24 +86,26 @@ export default withMiddlewares({
           });
         } catch (e) {
           logger.error(`Failed to decompress request body`, e);
-          res.status(400);
-          return { error: "Failed to decompress request body" };
+          sendOtlpResponse(res, contentType, 400, {
+            error: "Failed to decompress request body",
+          });
+          return;
         }
       }
 
       let resourceSpans: any;
-      const contentType = req.headers["content-type"]?.toLowerCase();
       // Strict content-type matching does not work if something like `content-type: text/javascript; charset=utf-8` is sent.
       if (
         !contentType ||
-        (!contentType.includes("application/json") &&
-          !contentType.includes("application/x-protobuf"))
+        (!contentType.includes("application/json") && !isProtobuf)
       ) {
         logger.error(`Invalid content type: ${contentType}`);
-        res.status(400);
-        return { error: "Invalid content type" };
+        sendOtlpResponse(res, contentType, 400, {
+          error: "Invalid content type",
+        });
+        return;
       }
-      if (contentType.includes("application/x-protobuf")) {
+      if (isProtobuf) {
         try {
           const parsed =
             $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
@@ -86,8 +117,10 @@ export default withMiddlewares({
             ).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel Protobuf`, e);
-          res.status(400);
-          return { error: "Failed to parse OTel Protobuf Trace" };
+          sendOtlpResponse(res, contentType, 400, {
+            error: "Failed to parse OTel Protobuf Trace",
+          });
+          return;
         }
       }
       if (contentType.includes("application/json")) {
@@ -95,13 +128,17 @@ export default withMiddlewares({
           resourceSpans = JSON.parse(body.toString()).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel JSON`, e);
-          res.status(400);
-          return { error: "Failed to parse OTel JSON Trace" };
+          sendOtlpResponse(res, contentType, 400, {
+            error: "Failed to parse OTel JSON Trace",
+          });
+          return;
         }
       }
 
       if (!resourceSpans || resourceSpans.length === 0) {
-        return {};
+        // Per OTLP spec: respond with same Content-Type as request
+        sendOtlpResponse(res, contentType, 200, {});
+        return;
       }
 
       // Extract headers to propagate for ingestion masking
@@ -127,7 +164,12 @@ export default withMiddlewares({
 
       // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
       // and the OtelIngestionProcessor logic will handle processing in the worker container.
-      return processor.publishToOtelIngestionQueue(resourceSpans);
+      const result = await processor.publishToOtelIngestionQueue(resourceSpans);
+
+      // Per OTLP/HTTP spec: response must use same Content-Type as request
+      // See: https://opentelemetry.io/docs/specs/otlp/#otlphttp-response
+      sendOtlpResponse(res, contentType, 200, result);
+      return;
     },
   }),
 });
