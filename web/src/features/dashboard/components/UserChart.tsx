@@ -1,20 +1,22 @@
 import { api } from "@/src/utils/api";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { BarList } from "@tremor/react";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 type BarChartDataPoint = {
   name: string;
@@ -28,7 +30,6 @@ export const UserChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
-  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -36,7 +37,6 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
@@ -67,11 +67,8 @@ export const UserChart = ({
       query: userCostQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -93,11 +90,8 @@ export const UserChart = ({
       query: traceCountQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -164,84 +158,83 @@ export const UserChart = ({
     },
   ];
 
+  const hasError = user.isError || traces.isError;
+  const isPending = user.isPending || traces.isPending;
+
   return (
     <DashboardCard
       className={className}
       title="User consumption"
-      isLoading={isLoading || user.isPending}
+      isLoading={isLoading || isPending}
     >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                {item.data.length > 0 ? (
-                  <div className="flex flex-col">
-                    <TotalMetric
-                      metric={item.totalMetric}
-                      description={item.metricDescription}
-                    />
-                    {isDashboardChartsBeta ? (
-                      <div
-                        className="mt-4 w-full"
-                        style={{
-                          minHeight: 200,
-                          height: Math.max(
-                            200,
-                            item.data.length * BAR_ROW_HEIGHT +
-                              CHART_AXIS_PADDING,
-                          ),
-                        }}
-                      >
-                        <Chart
-                          chartType="HORIZONTAL_BAR"
-                          data={barListToDataPoints(item.data)}
-                          rowLimit={maxNumberOfEntries.expanded}
-                          chartConfig={{
-                            type: "HORIZONTAL_BAR",
-                            row_limit: maxNumberOfEntries.expanded,
-                            show_value_labels: true,
-                            subtle_fill: true,
-                          }}
-                          valueFormatter={item.formatter}
+      {hasError ? (
+        <ChartErrorView error={user.isError ? user.error : traces.error} />
+      ) : isPending ? (
+        <ChartLoadingView />
+      ) : (
+        <>
+          <TabComponent
+            tabs={data.map((item) => {
+              return {
+                tabTitle: item.tabTitle,
+                content: (
+                  <>
+                    {item.data.length > 0 ? (
+                      <div className="flex flex-col">
+                        <TotalMetric
+                          metric={item.totalMetric}
+                          description={item.metricDescription}
                         />
+                        <div
+                          className="mt-4 w-full"
+                          style={{
+                            minHeight: 200,
+                            height: Math.max(
+                              200,
+                              item.data.length * BAR_ROW_HEIGHT +
+                                CHART_AXIS_PADDING,
+                            ),
+                          }}
+                        >
+                          <Chart
+                            chartType="HORIZONTAL_BAR"
+                            data={barListToDataPoints(item.data)}
+                            rowLimit={maxNumberOfEntries.expanded}
+                            chartConfig={{
+                              type: "HORIZONTAL_BAR",
+                              row_limit: maxNumberOfEntries.expanded,
+                              show_value_labels: true,
+                              subtle_fill: true,
+                            }}
+                            valueFormatter={item.formatter}
+                          />
+                        </div>
                       </div>
                     ) : (
-                      <div>
-                        <BarList
-                          data={item.data}
-                          valueFormatter={item.formatter}
-                          className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                          showAnimation={true}
-                          color={"indigo"}
-                        />
-                      </div>
+                      <NoDataOrLoading
+                        isLoading={false}
+                        description="Consumption per user is tracked by passing their ids on traces."
+                        href="https://langfuse.com/docs/observability/features/users"
+                      />
                     )}
-                  </div>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
-                    description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/observability/features/users"
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
-      />
-      <ExpandListButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={transformedCost.length}
-        maxLength={maxNumberOfEntries.collapsed}
-        expandText={
-          transformedCost.length > maxNumberOfEntries.expanded
-            ? `Show top ${maxNumberOfEntries.expanded}`
-            : "Show all"
-        }
-      />
+                  </>
+                ),
+              };
+            })}
+          />
+          <ExpandListButton
+            isExpanded={isExpanded}
+            setExpanded={setIsExpanded}
+            totalLength={transformedCost.length}
+            maxLength={maxNumberOfEntries.collapsed}
+            expandText={
+              transformedCost.length > maxNumberOfEntries.expanded
+                ? `Show top ${maxNumberOfEntries.expanded}`
+                : "Show all"
+            }
+          />
+        </>
+      )}
     </DashboardCard>
   );
 };

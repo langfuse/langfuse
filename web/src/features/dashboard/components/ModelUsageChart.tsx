@@ -1,5 +1,6 @@
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
   extractTimeSeriesData,
@@ -8,6 +9,7 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { api } from "@/src/utils/api";
 import {
@@ -26,7 +28,7 @@ import {
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export const ModelUsageChart = ({
   className,
@@ -37,7 +39,6 @@ export const ModelUsageChart = ({
   toTimestamp,
   userAndEnvFilterState,
   isLoading = false,
-  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -47,7 +48,6 @@ export const ModelUsageChart = ({
   toTimestamp: Date;
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
 }) => {
   const {
     allModels,
@@ -106,6 +106,7 @@ export const ModelUsageChart = ({
           skipBatch: true,
         },
       },
+      ...dashboardExecuteQueryOptions,
     },
   );
 
@@ -353,13 +354,13 @@ export const ModelUsageChart = ({
                   description={item.metricDescription}
                   className="mb-4"
                 />
-                {isEmptyTimeSeries({ data: item.data }) ||
-                isLoading ||
-                queryResult.isPending ? (
-                  <NoDataOrLoading
-                    isLoading={isLoading || queryResult.isPending}
-                  />
-                ) : isDashboardChartsBeta ? (
+                {queryResult.isError ? (
+                  <ChartErrorView error={queryResult.error} />
+                ) : isLoading || queryResult.isPending ? (
+                  <ChartLoadingView />
+                ) : isEmptyTimeSeries({ data: item.data }) ? (
+                  <NoDataOrLoading isLoading={false} />
+                ) : (
                   <div className="h-80 w-full shrink-0">
                     <Chart
                       chartType="AREA_TIME_SERIES"
@@ -374,15 +375,6 @@ export const ModelUsageChart = ({
                       legendPosition="above"
                     />
                   </div>
-                ) : (
-                  <BaseTimeSeriesChart
-                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                    agg={agg}
-                    data={item.data}
-                    showLegend={true}
-                    connectNulls={true}
-                    valueFormatter={item.formatter}
-                  />
                 )}
               </>
             ),

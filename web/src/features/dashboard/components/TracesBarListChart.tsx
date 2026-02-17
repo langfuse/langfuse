@@ -1,18 +1,20 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
+import { dashboardExecuteQueryOptions } from "@/src/features/dashboard/lib/dashboard-query-retry";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { BarList } from "@tremor/react";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingView } from "@/src/features/widgets/chart-library/ChartLoadingView";
+import { ChartErrorView } from "@/src/features/widgets/chart-library/ChartErrorView";
 import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export const TracesBarListChart = ({
   className,
@@ -21,7 +23,6 @@ export const TracesBarListChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
-  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -29,7 +30,6 @@ export const TracesBarListChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -51,11 +51,8 @@ export const TracesBarListChart = ({
       query: totalTracesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -78,11 +75,8 @@ export const TracesBarListChart = ({
       query: tracesQuery,
     },
     {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
+      trpc: { context: { skipBatch: true } },
+      ...dashboardExecuteQueryOptions,
       enabled: !isLoading,
     },
   );
@@ -105,26 +99,34 @@ export const TracesBarListChart = ({
   // Height scales with bar count so each bar keeps the same height when expanding, otherwise recharts chart would resize to fit into the container.
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;
+  const hasError = totalTraces.isError || traces.isError;
+  const isPending = totalTraces.isPending || traces.isPending;
 
   return (
     <DashboardCard
       className={className}
       title={"Traces"}
       description={null}
-      isLoading={isLoading || traces.isPending || totalTraces.isPending}
+      isLoading={isLoading || isPending}
     >
       <>
-        <TotalMetric
-          metric={compactNumberFormatter(
-            totalTraces.data?.[0]?.count_count
-              ? Number(totalTraces.data[0].count_count)
-              : 0,
-          )}
-          description={"Total traces tracked"}
-        />
-        {adjustedData.length > 0 ? (
+        {hasError ? (
+          <ChartErrorView
+            error={traces.isError ? traces.error : totalTraces.error}
+          />
+        ) : isPending ? (
+          <ChartLoadingView />
+        ) : (
           <>
-            {isDashboardChartsBeta ? (
+            <TotalMetric
+              metric={compactNumberFormatter(
+                totalTraces.data?.[0]?.count_count
+                  ? Number(totalTraces.data[0].count_count)
+                  : 0,
+              )}
+              description={"Total traces tracked"}
+            />
+            {adjustedData.length > 0 ? (
               <div
                 className="mt-4 w-full"
                 style={{
@@ -149,33 +151,25 @@ export const TracesBarListChart = ({
                 />
               </div>
             ) : (
-              <BarList
-                data={adjustedData}
-                valueFormatter={(number: number) => numberFormatter(number, 0)}
-                className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                showAnimation={true}
-                color={"indigo"}
+              <NoDataOrLoading
+                isLoading={false}
+                description="Traces contain details about LLM applications and can be created using the SDK."
+                href="https://langfuse.com/docs/get-started"
               />
             )}
+            <ExpandListButton
+              isExpanded={isExpanded}
+              setExpanded={setIsExpanded}
+              totalLength={transformedTraces.length}
+              maxLength={maxNumberOfEntries.collapsed}
+              expandText={
+                transformedTraces.length > maxNumberOfEntries.expanded
+                  ? `Show top ${maxNumberOfEntries.expanded}`
+                  : "Show all"
+              }
+            />
           </>
-        ) : (
-          <NoDataOrLoading
-            isLoading={isLoading || traces.isPending || totalTraces.isPending}
-            description="Traces contain details about LLM applications and can be created using the SDK."
-            href="https://langfuse.com/docs/get-started"
-          />
         )}
-        <ExpandListButton
-          isExpanded={isExpanded}
-          setExpanded={setIsExpanded}
-          totalLength={transformedTraces.length}
-          maxLength={maxNumberOfEntries.collapsed}
-          expandText={
-            transformedTraces.length > maxNumberOfEntries.expanded
-              ? `Show top ${maxNumberOfEntries.expanded}`
-              : "Show all"
-          }
-        />
       </>
     </DashboardCard>
   );
