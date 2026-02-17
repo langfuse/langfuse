@@ -388,10 +388,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
-    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST: z
-      .enum(["true", "false"])
-      .default("false"),
-
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
       .string()
@@ -746,8 +742,6 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
-    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST:
-      process.env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
