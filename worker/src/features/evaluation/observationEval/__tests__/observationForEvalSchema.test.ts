@@ -199,6 +199,7 @@ describe("observationForEvalSchema", () => {
       expect(columnIds).toContain("environment");
       expect(columnIds).toContain("level");
       expect(columnIds).toContain("version");
+      expect(columnIds).toContain("parentObservationId");
 
       // Trace-level properties
       expect(columnIds).toContain("traceName");

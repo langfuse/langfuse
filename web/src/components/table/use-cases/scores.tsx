@@ -33,7 +33,6 @@ import {
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -50,6 +49,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import TableIdOrName from "@/src/components/table/table-id";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 
 export type ScoresTableRow = {
   id: string;
@@ -112,9 +112,9 @@ export default function ScoresTable({
 }) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 

@@ -11,7 +11,7 @@ import {
   type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
 import { IOTableCell } from "../../ui/IOTableCell";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   isBooleanDataType,
   isCategoricalDataType,
@@ -74,9 +74,9 @@ function getConfigRange(
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const [createConfigOpen, setCreateConfigOpen] = useState(false);
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
 
   const hasAccess = useHasProjectAccess({

@@ -36,7 +36,10 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
 
   return (
-    <ChartContainer config={config}>
+    <ChartContainer
+      config={config}
+      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+    >
       <BarChart accessibilityLayer={accessibilityLayer} data={groupedData}>
         <XAxis
           dataKey="time_dimension"
@@ -59,11 +62,11 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
             fill={`hsl(var(--chart-${(index % 8) + 1}))`}
             fillOpacity={subtleFill ? 0.3 : 1}
-            // Stack bars if there are multiple dimensions
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
         ))}
         <ChartTooltip
+          cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           content={({ active, payload, label }) => (
             <ChartTooltipContent
