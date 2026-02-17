@@ -446,7 +446,7 @@ export class QueryBuilder {
         uiTableId: relation.timeDimension,
         clickhouseTableName: relation.name,
         clickhouseSelect: relation.timeDimension,
-        queryPrefix: relation.name,
+        queryPrefix: relationTableName,
         type: "datetime",
       };
 
@@ -571,9 +571,10 @@ export class QueryBuilder {
     );
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT)
-    const wrappedSql = wrapInAgg
-      ? `${wrapInAgg}(${timeDimensionSql})`
-      : timeDimensionSql;
+    const agg = wrapInAgg
+      ? (view.timeDimensionAggregation ?? wrapInAgg)
+      : undefined;
+    const wrappedSql = agg ? `${agg}(${timeDimensionSql})` : timeDimensionSql;
 
     return `${wrappedSql} as time_dimension`;
   }
