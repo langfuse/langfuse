@@ -237,14 +237,14 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "count(*)",
+      sql: "countIf(events_traces.parent_span_id = '')",
       alias: "count",
       type: "integer",
       description: "Total number of traces.",
       unit: "traces",
     },
     observationsCount: {
-      sql: "uniq(events_traces.span_id)",
+      sql: "uniqIf(events_traces.span_id, events_traces.parent_span_id != '')",
       alias: "observationsCount",
       type: "integer",
       description: "Unique observations linked to the trace.",
@@ -273,7 +273,7 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "sessions",
     },
     latency: {
-      sql: "date_diff('millisecond', min(events_traces.start_time), max(events_traces.end_time))",
+      sql: "date_diff('millisecond', minIf(events_traces.start_time, events_traces.parent_span_id != ''), maxIf(events_traces.end_time, events_traces.parent_span_id != ''))",
       alias: "latency",
       type: "integer",
       description:
@@ -281,14 +281,14 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "millisecond",
     },
     totalTokens: {
-      sql: "sumMap(events_traces.usage_details)['total']",
+      sql: "sumMapIf(events_traces.usage_details, events_traces.parent_span_id != '')['total']",
       alias: "totalTokens",
       type: "integer",
       description: "Sum of tokens consumed by all observations in the trace.",
       unit: "tokens",
     },
     totalCost: {
-      sql: "sum(events_traces.total_cost)",
+      sql: "sumIf(toNullable(events_traces.total_cost), events_traces.parent_span_id != '')",
       alias: "totalCost",
       type: "decimal",
       description: "Total cost accumulated across observations in the trace.",
@@ -305,6 +305,7 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   segments: [],
   timeDimension: "start_time",
+  timeDimensionAggregation: "min",
   baseCte: `events events_traces`,
 };
 
@@ -1187,7 +1188,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "USD",
     },
     totalCost: {
-      sql: "@@AGG1@@(total_cost)",
+      sql: "@@AGG1@@(toNullable(total_cost))",
       aggs: { agg1: "sum" },
       alias: "totalCost",
       type: "decimal",
