@@ -1,4 +1,5 @@
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
+import { FilterList, StringFilter } from "./clickhouse-filter";
 
 /**
  * Types for structured ORDER BY API
@@ -694,6 +695,28 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       .forEach((s) => {
         this.selectFields.add(s);
       });
+    return this;
+  }
+
+  /**
+   * Apply filters from a FilterList with automatic query optimizations.
+   * When a trace_id equality filter is detected, adds xxHash32 optimization
+   * for efficient ClickHouse partition pruning.
+   */
+  applyFilters(filterList: FilterList): this {
+    const traceIdFilter = filterList.find(
+      (f) =>
+        // events_full / events_core proof
+        f.clickhouseTable.startsWith("events") &&
+        f.field === 'e."trace_id"' &&
+        f.operator === "=",
+    );
+    if (traceIdFilter instanceof StringFilter) {
+      this.whereRaw("xxHash32(trace_id) = xxHash32({traceIdXxHash: String})", {
+        traceIdXxHash: traceIdFilter.value,
+      });
+    }
+    this.where(filterList.apply());
     return this;
   }
 
