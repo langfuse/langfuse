@@ -225,6 +225,13 @@ export const WebhookOutboundEnvelopeSchema = z.object({
   prompt: PromptDomainSchema,
   action: EventActionSchema,
   type: z.literal("prompt-version"),
+  user: z
+    .object({
+      id: z.string(),
+      name: z.string().nullable(),
+      email: z.string().nullable(),
+    })
+    .optional(),
 });
 
 export const WebhookInputSchema = z.object({
@@ -242,6 +249,13 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
     promptId: z.string(),
     action: EventActionSchema,
     prompt: PromptDomainSchema,
+    user: z
+      .object({
+        id: z.string(),
+        name: z.string().nullable(),
+        email: z.string().nullable(),
+      })
+      .optional(),
   }),
   // Add other entity types here in the future
 ]);

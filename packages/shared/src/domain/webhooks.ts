@@ -31,6 +31,13 @@ export const PromptWebhookOutboundSchema = z
       createdAt: z.coerce.date(),
       updatedAt: z.coerce.date(),
     }),
+    user: z
+      .object({
+        id: z.string(),
+        name: z.string().nullable(),
+        email: z.string().nullable(),
+      })
+      .optional(),
   })
   .and(WebhookOutboundBaseSchema);
 
