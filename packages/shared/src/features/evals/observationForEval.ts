@@ -273,7 +273,7 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
   },
   {
     name: "Parent Observation",
-    id: "parentSpanId",
+    id: "parentObservationId",
     type: "null",
     internal: "parent_span_id",
     nullable: true,

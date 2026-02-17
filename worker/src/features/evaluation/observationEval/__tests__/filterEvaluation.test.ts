@@ -961,8 +961,8 @@ describe("Filter Evaluation for Observation Evals", () => {
     });
   });
 
-  describe("null filters (parentSpanId)", () => {
-    it("should match observations where parentSpanId is null (root observations)", async () => {
+  describe("null filters (parentObservationId)", () => {
+    it("should match observations where parentObservationId is null (root observations)", async () => {
       const observation = createTestObservation({
         project_id: projectId,
         parent_span_id: null,
@@ -970,7 +970,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "parentSpanId",
+          column: "parentObservationId",
           type: "null",
           operator: "is null",
           value: "",
@@ -980,7 +980,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
-    it("should not match observations where parentSpanId is not null (child observations)", async () => {
+    it("should not match observations where parentObservationId is not null (child observations)", async () => {
       const observation = createTestObservation({
         project_id: projectId,
         parent_span_id: "some-parent-span-id",
@@ -988,7 +988,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "parentSpanId",
+          column: "parentObservationId",
           type: "null",
           operator: "is null",
           value: "",
@@ -998,7 +998,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(false);
     });
 
-    it("should match observations where parentSpanId is not null using 'is not null' operator", async () => {
+    it("should match observations where parentObservationId is not null using 'is not null' operator", async () => {
       const observation = createTestObservation({
         project_id: projectId,
         parent_span_id: "some-parent-span-id",
@@ -1006,7 +1006,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "parentSpanId",
+          column: "parentObservationId",
           type: "null",
           operator: "is not null",
           value: "",
@@ -1016,7 +1016,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(true);
     });
 
-    it("should not match root observations with 'is not null' operator", async () => {
+    it("should not match root observations with parentObservationId is not null using 'is not null' operator", async () => {
       const observation = createTestObservation({
         project_id: projectId,
         parent_span_id: null,
@@ -1024,7 +1024,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "parentSpanId",
+          column: "parentObservationId",
           type: "null",
           operator: "is not null",
           value: "",
@@ -1043,7 +1043,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "parentSpanId",
+          column: "parentObservationId",
           type: "null",
           operator: "is null",
           value: "",
@@ -1068,7 +1068,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "parentSpanId",
+          column: "parentObservationId",
           type: "null",
           operator: "is null",
           value: "",
