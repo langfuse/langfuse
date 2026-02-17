@@ -358,6 +358,7 @@ async function executeWebhookAction({
     apiVersion: "v1",
     action: input.payload.action,
     prompt: input.payload.prompt,
+    user: input.payload.user,
   });
 
   if (!validatedPayload.success) {
@@ -367,9 +368,10 @@ async function executeWebhookAction({
   }
 
   // Prepare webhook payload with prompt always last
-  const { prompt, ...otherFields } = validatedPayload.data;
+  const { prompt, user, ...otherFields } = validatedPayload.data;
   const webhookPayload = JSON.stringify({
     ...otherFields,
+    ...(user ? { user } : {}),
     prompt,
   });
 
@@ -456,6 +458,7 @@ async function executeGitHubDispatchAction({
     apiVersion: "v1",
     action: input.payload.action,
     prompt: input.payload.prompt,
+    user: input.payload.user,
   });
 
   if (!validatedPayload.success) {
@@ -468,11 +471,12 @@ async function executeGitHubDispatchAction({
   const eventType = githubConfig.eventType;
 
   // Transform to GitHub dispatch format
-  const { prompt, ...otherFields } = validatedPayload.data;
+  const { prompt, user, ...otherFields } = validatedPayload.data;
   const githubPayload = JSON.stringify({
     event_type: eventType,
     client_payload: {
       ...otherFields,
+      ...(user ? { user } : {}),
       prompt,
     },
   });
