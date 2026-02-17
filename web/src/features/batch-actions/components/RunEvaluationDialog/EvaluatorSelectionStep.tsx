@@ -2,13 +2,14 @@ import { useMemo } from "react";
 import { observationVariableMappingList } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { Card, CardContent } from "@/src/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
 import { renderPromptPreviewFromObservation } from "./utils";
 import { Eye, Plus, X } from "lucide-react";
+import { DialogTitle } from "@/src/components/ui/dialog";
 
 type Evaluator = RouterOutputs["evals"]["jobConfigsByTarget"][number];
 type ObservationPreview = RouterOutputs["observations"]["byId"];
@@ -49,6 +50,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
     const filtered = normalizedSearch
       ? eligibleEvaluators.filter((evaluator) => {
           const templateName = evaluator.evalTemplate?.name ?? "";
+
           return (
             evaluator.scoreName.toLowerCase().includes(normalizedSearch) ||
             templateName.toLowerCase().includes(normalizedSearch)
@@ -88,12 +90,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Choose which evaluator configuration to run on the selected
-        observations.
-      </p>
-
+    <div className="flex h-full flex-col gap-2">
       <div className="min-h-0 flex-1">
         {isQueryLoading ? (
           <p className="text-sm text-muted-foreground">Loading evaluators...</p>
@@ -106,17 +103,17 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
         ) : eligibleEvaluators.length === 0 ? (
           <Card>
             <CardContent className="p-4 text-sm text-muted-foreground">
-              No eligible event evaluators found. Create a new evaluator and it
-              will appear here.
+              No observation-scoped evaluators found. Create a new
+              observation-scoped evaluator and it will appear here.
             </CardContent>
           </Card>
         ) : (
-          <div className="flex h-full min-h-0 flex-col gap-3">
+          <div className="flex h-full min-h-0 flex-col gap-2">
             <div className="relative">
               <Input
                 autoFocus
                 className="pr-10"
-                placeholder="Search evaluators by name or template..."
+                placeholder="Search evaluators..."
                 value={evaluatorSearchQuery}
                 onChange={(event) =>
                   onSearchQueryChange(event.currentTarget.value)
@@ -136,7 +133,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
               ) : null}
             </div>
 
-            <div className="rounded-md border bg-muted/20 px-2 py-1.5">
+            <div className="px-1 pb-1">
               <div className="flex min-h-6 flex-wrap items-center gap-2">
                 {selectedEvaluators.length > 0 ? (
                   selectedEvaluators.map((evaluator) => (
@@ -165,7 +162,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                   ))
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    No evaluator selected
+                    No evaluators selected
                   </p>
                 )}
               </div>
@@ -233,11 +230,11 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
       <Button
         variant="outline"
         size="default"
-        className="h-10 w-full"
+        className="h-9 w-full"
         onClick={onCreateEvaluator}
       >
         <Plus className="mr-1 h-4 w-4" />
-        Create Evaluator
+        Create new Evaluator
       </Button>
     </div>
   );

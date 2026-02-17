@@ -34,6 +34,7 @@ interface ScheduleObservationEvalsParams {
  * @param params.observation - The ObservationForEval (converted from processToEvent() or ClickHouse)
  * @param params.configs - Pre-fetched observation eval configs for this project
  * @param params.schedulerDeps - Dependencies for scheduling (S3, job execution, queue)
+ * @param params.ignoreConfigTargeting - Skip applying filters and sampling from the job configuration. Necessary for batched evals that are only caring about variable mapping.
  */
 export async function scheduleObservationEvals(
   params: ScheduleObservationEvalsParams,

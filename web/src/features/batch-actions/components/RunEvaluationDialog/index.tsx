@@ -133,12 +133,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       await runEvaluationMutation.mutateAsync({
         projectId,
         query: finalQuery,
-        config: {
-          evaluators: selectedEvaluators.map((evaluator) => ({
-            evaluatorConfigId: evaluator.id,
-            evaluatorName: evaluator.scoreName,
-          })),
-        },
+        evaluatorIds: selectedEvaluators.map((evaluator) => evaluator.id),
       });
     } catch {
       return;
@@ -159,14 +154,14 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   return (
     <>
       <Dialog open onOpenChange={(open) => !open && props.onClose()}>
-        <DialogContent className="flex h-[78vh] max-h-[90vh] max-w-4xl flex-col">
+        <DialogContent className="flex max-h-[62vh] min-h-[38vh] max-w-2xl flex-col">
           <DialogHeader>
             <DialogTitle>
-              Evaluate {displayCount} Observation
+              Evaluate {displayCount} observation
               {displayCount === 1 ? "" : "s"}
             </DialogTitle>
             <DialogDescription>
-              Select one or more event-scoped evaluators.
+              Select one or more observation-scoped evaluators.
             </DialogDescription>
           </DialogHeader>
 
@@ -218,7 +213,10 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 onClick={() => setStep("confirm")}
                 disabled={selectedEvaluators.length === 0}
               >
-                Continue
+                Continue{" "}
+                {selectedEvaluators.length > 0
+                  ? `with ${selectedEvaluators.length} evaluator(s)`
+                  : null}
               </Button>
             ) : (
               <Button

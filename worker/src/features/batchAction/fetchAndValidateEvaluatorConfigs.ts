@@ -1,4 +1,4 @@
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, JobConfigState } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { type ObservationEvalConfig } from "../evaluation/observationEval";
 
@@ -13,7 +13,7 @@ import { type ObservationEvalConfig } from "../evaluation/observationEval";
  * - Verifies all requested evaluators exist and are active
  * - Returns them ordered to match the input `evaluatorIds` array
  *
- * @throws Error if any requested evaluator is missing, inactive, or not event-scoped
+ * @throws Error if any requested evaluator is missing, inactive, or not observation-scoped
  */
 export async function fetchAndValidateEvaluatorConfigs(params: {
   projectId: string;
@@ -26,7 +26,7 @@ export async function fetchAndValidateEvaluatorConfigs(params: {
       id: { in: evaluatorIds },
       projectId,
       targetObject: EvalTargetObject.EVENT,
-      status: "ACTIVE",
+      status: JobConfigState.ACTIVE,
     },
     select: {
       id: true,
@@ -46,13 +46,14 @@ export async function fetchAndValidateEvaluatorConfigs(params: {
 
     throw new Error(
       missingIds.length > 0
-        ? `Evaluators [${missingIds.join(", ")}] are missing, inactive, or not event-scoped for historical event evaluation.`
-        : "Selected evaluators are missing, inactive, or not event-scoped for historical event evaluation.",
+        ? `Evaluators [${missingIds.join(", ")}] are missing, inactive, or not observation-scoped for historical event evaluation.`
+        : "Selected evaluators are missing, inactive, or not observation-scoped for historical event evaluation.",
     );
   }
 
   // Return evaluators in the same order as the input evaluatorIds
   const evaluatorById = new Map(evaluators.map((e) => [e.id, e]));
+
   return evaluatorIds.map(
     (id) => evaluatorById.get(id) as ObservationEvalConfig,
   );

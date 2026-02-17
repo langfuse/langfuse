@@ -1,4 +1,4 @@
-import { Card, CardContent } from "@/src/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/src/components/ui/card";
 
 type ConfirmationStepProps = {
   displayCount: number;
@@ -15,13 +15,9 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
           <p>
             <span className="font-medium">Observations:</span> {displayCount}
           </p>
-          <p>
-            <span className="font-medium">Evaluators:</span>{" "}
-            {selectedEvaluatorNames.length}
-          </p>
           {selectedEvaluatorNames.length > 0 ? (
             <p>
-              <span className="font-medium">Selected:</span>{" "}
+              <span className="font-medium">Evaluators:</span>{" "}
               {selectedEvaluatorNames.join(", ")}
             </p>
           ) : null}

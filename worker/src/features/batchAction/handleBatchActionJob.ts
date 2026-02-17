@@ -32,10 +32,7 @@ import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDe
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import { getEventsStreamForEval } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
-import {
-  ObservationAddToDatasetConfigSchema,
-  ObservationBatchEvaluationConfigSchema,
-} from "@langfuse/shared";
+import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
 import { fetchAndValidateEvaluatorConfigs } from "./fetchAndValidateEvaluatorConfigs";
 
@@ -362,22 +359,17 @@ export const handleBatchActionJob = async (
       config: parsedConfig,
       observations,
     });
-  } else if (actionId === "observation-run-evaluation") {
-    const { projectId, query, cutoffCreatedAt, config, batchActionId } =
+  } else if (actionId === "observation-run-batched-evaluation") {
+    const { projectId, query, cutoffCreatedAt, evaluatorIds, batchActionId } =
       batchActionEvent;
 
     if (!batchActionId) {
       throw new Error(
-        "batchActionId is required for observation-run-evaluation action",
+        "batchActionId is required for observation-run-batched-evaluation action",
       );
     }
 
-    const parsedConfig = ObservationBatchEvaluationConfigSchema.parse(config);
-    const selectedEvaluatorIds = Array.from(
-      new Set(
-        parsedConfig.evaluators.map((evaluator) => evaluator.evaluatorConfigId),
-      ),
-    );
+    const selectedEvaluatorIds = Array.from(new Set(evaluatorIds));
 
     let orderedEvaluators;
     try {
@@ -397,9 +389,10 @@ export const handleBatchActionJob = async (
           log:
             error instanceof Error
               ? error.message
-              : "Selected evaluators are missing, inactive, or not event-scoped for historical event evaluation.",
+              : "Selected evaluators are missing, inactive, or not observation-scoped for historical event evaluation.",
         },
       });
+
       return;
     }
 
@@ -415,7 +408,6 @@ export const handleBatchActionJob = async (
     await processBatchedObservationEval({
       projectId,
       batchActionId,
-      config: parsedConfig,
       evaluators: orderedEvaluators,
       observationStream: dbReadStream,
     });

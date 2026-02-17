@@ -39,7 +39,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
-import { InfoIcon, PlusCircle } from "lucide-react";
+import { InfoIcon, LightbulbIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
@@ -559,9 +559,10 @@ export default function ObservationsEventsTable({
     {
       id: ActionId.ObservationBatchEvaluation,
       type: BatchActionType.Create,
-      label: "Run Evaluation",
-      description: "Run an evaluation on selected observations.",
+      label: "Evaluate",
+      description: "Run evaluations on selected observations.",
       customDialog: true,
+      icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
       accessCheck: {
         scope: "evalJob:CUD",
       },

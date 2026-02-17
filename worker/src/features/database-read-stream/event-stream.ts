@@ -344,7 +344,7 @@ export const getEventsStream = async (props: {
  * - Uses the "eval" field set (no time/latency/modelId columns)
  * - Skips scores CTE and JOIN
  * - Skips comment fetching
- * - Yields raw ClickHouse rows directly (no buffering or camelCase mapping)
+ * - Maps ClickHouse rows to ObservationForEval at the stream boundary
  */
 export const getEventsStreamForEval = async (props: {
   projectId: string;
@@ -368,6 +368,7 @@ export const getEventsStreamForEval = async (props: {
     const columnDef = eventsTableUiColumnDefinitions.find(
       (col) => col.uiTableName === f.column || col.uiTableId === f.column,
     );
+
     return (
       columnDef?.clickhouseTableName !== "scores" &&
       columnDef?.clickhouseTableName !== "comments"
@@ -412,7 +413,42 @@ export const getEventsStreamForEval = async (props: {
 
   const { query, params: queryParams } = eventsQuery.buildWithParams();
 
-  const asyncGenerator = queryClickhouseStream<Record<string, unknown>>({
+  // Matches the aliased columns from the "eval" field set + selectIO + selectMetadataDirect
+  type EvalEventRow = {
+    id: string; // aliased from span_id
+    trace_id: string;
+    project_id: string;
+    parent_observation_id: string | null; // aliased from parent_span_id
+    type: string;
+    name: string | null;
+    environment: string | null;
+    version: string | null;
+    level: string;
+    status_message: string | null;
+    trace_name: string | null;
+    user_id: string | null;
+    session_id: string | null;
+    tags: string[];
+    release: string | null;
+    provided_model_name: string | null;
+    model_parameters: unknown;
+    prompt_id: string | null;
+    prompt_name: string | null;
+    prompt_version: number | null;
+    provided_usage_details: Record<string, number>;
+    usage_details: Record<string, number>;
+    provided_cost_details: Record<string, number>;
+    cost_details: Record<string, number>;
+    total_cost: number | null;
+    tool_definitions: Record<string, unknown>;
+    tool_calls: unknown[];
+    tool_call_names: string[];
+    input: unknown;
+    output: unknown;
+    metadata: Record<string, unknown> | null;
+  };
+
+  const asyncGenerator = queryClickhouseStream<EvalEventRow>({
     query,
     params: queryParams,
     clickhouseConfigs: {
@@ -430,5 +466,28 @@ export const getEventsStreamForEval = async (props: {
     },
   });
 
-  return Readable.from(asyncGenerator);
+  // Remap ClickHouse aliases to schema field names and merge total_cost.
+  // Schema validation is left to the consumer so per-row errors can be handled gracefully.
+  return Readable.from(
+    (async function* () {
+      for await (const row of asyncGenerator) {
+        const totalCostPatch =
+          row.total_cost != null ? { total: row.total_cost } : {};
+
+        yield {
+          ...row,
+          span_id: row.id,
+          parent_span_id: row.parent_observation_id,
+          provided_cost_details: {
+            ...(row.provided_cost_details ?? row.cost_details ?? {}),
+            ...totalCostPatch,
+          },
+          cost_details: {
+            ...(row.cost_details ?? {}),
+            ...totalCostPatch,
+          },
+        };
+      }
+    })(),
+  );
 };
