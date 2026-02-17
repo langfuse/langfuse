@@ -221,6 +221,14 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
+    // OTel Masking
+    LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
+      .string()
+      .optional()
+      .transform((s) =>
+        s ? s.split(",").map((h) => h.toLowerCase().trim()) : [],
+      ),
+
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
@@ -590,6 +598,9 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
+
+    LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS:
+      process.env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
 
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:

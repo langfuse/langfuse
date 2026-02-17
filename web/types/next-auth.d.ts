@@ -49,6 +49,7 @@ declare module "next-auth" {
         name: PrismaProject["name"];
         deletedAt: PrismaProject["deletedAt"];
         retentionDays: PrismaProject["retentionDays"];
+        hasTraces: PrismaProject["hasTraces"];
         metadata: Record<string, unknown>;
         role: Role; // include only projects where user has a role
       }[];

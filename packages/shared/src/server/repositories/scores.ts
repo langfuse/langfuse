@@ -1575,6 +1575,7 @@ export const getScoresForBlobStorageExport = function (
 
 export const getScoresForAnalyticsIntegrations = async function* (
   projectId: string,
+  projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
@@ -1671,6 +1672,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       langfuse_id: record.id,
       langfuse_session_id: effectiveSessionId,
       langfuse_project_id: projectId,
+      langfuse_project_name: projectName,
       langfuse_user_id: record.trace_user_id || null,
       langfuse_release: record.trace_release,
       langfuse_tags: record.trace_tags,
