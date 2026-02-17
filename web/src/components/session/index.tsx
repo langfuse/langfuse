@@ -669,10 +669,17 @@ export const SessionEventsPage: React.FC<{
       ...observationEventsFilterConfig,
       tableName: "session-events",
       columnDefinitions: observationEventsFilterConfig.columnDefinitions,
-      facets: observationEventsFilterConfig.facets.filter(
-        (facet) =>
-          facet.column !== "sessionId" && facet.column !== "environment",
-      ),
+      facets: observationEventsFilterConfig.facets
+        .filter(
+          (facet) =>
+            facet.column !== "sessionId" && facet.column !== "environment",
+        )
+        .map((facet) => ({
+          ...facet,
+          // Session detail uses a different query path and should not inherit
+          // events-table mutual exclusion behavior.
+          mutuallyExclusiveWith: undefined,
+        })),
     };
   }, []);
 

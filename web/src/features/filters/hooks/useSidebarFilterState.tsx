@@ -85,6 +85,8 @@ export interface BaseUIFilter {
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
+  isDisabled: boolean;
+  disabledReason?: string;
   onReset: () => void;
 }
 
@@ -222,6 +224,57 @@ export type UIFilter =
   | PositionInTraceUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
+type MutualExclusionContext = {
+  facetsByColumn: Map<string, FilterConfig["facets"][number]>;
+};
+
+function buildMutualExclusionContext(
+  config: FilterConfig,
+): MutualExclusionContext {
+  return {
+    facetsByColumn: new Map(
+      config.facets.map((facet) => [facet.column, facet]),
+    ),
+  };
+}
+
+function areMutuallyExclusive(
+  firstColumn: string,
+  secondColumn: string,
+  context: MutualExclusionContext,
+): boolean {
+  if (firstColumn === secondColumn) return false;
+
+  const firstFacet = context.facetsByColumn.get(firstColumn);
+  const secondFacet = context.facetsByColumn.get(secondColumn);
+
+  if (!firstFacet || !secondFacet) return false;
+
+  const firstBlocksSecond =
+    firstFacet.mutuallyExclusiveWith?.includes(secondColumn) ?? false;
+  const secondBlocksFirst =
+    secondFacet.mutuallyExclusiveWith?.includes(firstColumn) ?? false;
+
+  return firstBlocksSecond || secondBlocksFirst;
+}
+
+function reconcileMutuallyExclusiveFilters(
+  filters: FilterState,
+  context: MutualExclusionContext,
+): FilterState {
+  // Last added filter wins: when a conflicting filter is added, drop the older side.
+  let reconciled: FilterState = [];
+
+  for (const filter of filters) {
+    reconciled = reconciled.filter(
+      (existing) =>
+        !areMutuallyExclusive(existing.column, filter.column, context),
+    );
+    reconciled.push(filter);
+  }
+
+  return reconciled;
+}
 
 // extract values and counts from options array
 // for both string[] and SingleValueOption[]
@@ -297,15 +350,37 @@ export function useSidebarFilterState(
     withDefault(StringParam, ""),
   );
 
+  const mutualExclusionContext = useMemo(
+    () => buildMutualExclusionContext(config),
+    [config],
+  );
+
+  // TODO: Canonicalize URL when reconciliation drops mutually exclusive filters.
+  // Why: links can still contain mutually exclusive filters while the effective in-memory state has one side removed,
+  // which makes shared URLs and debugging confusing because URL no longer matches the applied filter state.
   const urlFilterState: FilterState = useMemo(() => {
     // If URL persistence is disabled, return empty filter state
     if (disableUrlPersistence) return [];
-    return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
-  }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
+    return reconcileMutuallyExclusiveFilters(
+      decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions),
+      mutualExclusionContext,
+    );
+  }, [
+    filtersQuery,
+    config.columnDefinitions,
+    disableUrlPersistence,
+    mutualExclusionContext,
+  ]);
 
-  const filterState: FilterState = peekContext
+  const rawFilterState: FilterState = peekContext
     ? peekContext.tableState.filters
     : urlFilterState;
+
+  const filterState: FilterState = useMemo(
+    () =>
+      reconcileMutuallyExclusiveFilters(rawFilterState, mutualExclusionContext),
+    [rawFilterState, mutualExclusionContext],
+  );
 
   // Track if user has manually interacted with filters
   // This prevents default filters from overriding user's explicit "clear all" action
@@ -313,10 +388,17 @@ export function useSidebarFilterState(
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
+      // Keep mutual exclusion reconciliation canonicalized in one place.
+      // Any direct writes to peekContext.tableState.filters outside this hook can bypass this guard.
+      const reconciledFilters = reconcileMutuallyExclusiveFilters(
+        newFilters,
+        mutualExclusionContext,
+      );
+
       if (peekContext) {
         peekContext.setTableState({
           ...peekContext.tableState,
-          filters: newFilters,
+          filters: reconciledFilters,
         });
         return;
       }
@@ -326,14 +408,19 @@ export function useSidebarFilterState(
 
       // Mark that user has manually interacted with filters
       // Exception: Don't mark as interacted if this is the initial default filter application
-      if (userHasInteractedRef.current || newFilters.length > 0) {
+      if (userHasInteractedRef.current || reconciledFilters.length > 0) {
         userHasInteractedRef.current = true;
       }
 
-      const encoded = encodeFiltersGeneric(newFilters);
+      const encoded = encodeFiltersGeneric(reconciledFilters);
       setFiltersQuery(encoded || null);
     },
-    [setFiltersQuery, disableUrlPersistence, peekContext],
+    [
+      setFiltersQuery,
+      disableUrlPersistence,
+      peekContext,
+      mutualExclusionContext,
+    ],
   );
 
   // track if defaults have been applied before, versioned to support future changes
@@ -777,6 +864,7 @@ export function useSidebarFilterState(
   const filters: UIFilter[] = useMemo((): UIFilter[] => {
     const filterByColumn = new Map(filterState.map((f) => [f.column, f]));
     const expandedSet = new Set(expandedState);
+    const activeFilterColumns = new Set(filterState.map((f) => f.column));
 
     // Helper to determine if a filter should show loading state
     // Only filters that depend on options from the query should show loading
@@ -786,6 +874,43 @@ export function useSidebarFilterState(
       // Filters that use options: categorical, keyValue, numericKeyValue, stringKeyValue
       // Filters that don't use options: numeric (uses facet.min/max), string (static), boolean (static)
       return options[facetColumn] === undefined;
+    };
+
+    const getFacetDisabledState = (
+      facet: FilterConfig["facets"][number],
+      isActive: boolean,
+    ): { isDisabled: boolean; reason?: string } => {
+      const staticDisabled = facet.isDisabled ?? false;
+
+      if (staticDisabled) {
+        return {
+          isDisabled: true,
+          reason: facet.disabledReason ?? "This filter is currently disabled.",
+        };
+      }
+
+      // Keep currently active facets interactive so users can adjust or clear.
+      if (!isActive) {
+        for (const activeColumn of activeFilterColumns) {
+          if (
+            areMutuallyExclusive(
+              facet.column,
+              activeColumn,
+              mutualExclusionContext,
+            )
+          ) {
+            const blockingLabel =
+              mutualExclusionContext.facetsByColumn.get(activeColumn)?.label ??
+              activeColumn;
+            return {
+              isDisabled: true,
+              reason: `Disabled because "${facet.label}" cannot be used with "${blockingLabel}".`,
+            };
+          }
+        }
+      }
+
+      return { isDisabled: false };
     };
 
     return config.facets
@@ -805,6 +930,7 @@ export function useSidebarFilterState(
               ? existing.value
               : 1;
           const isActive = currentMode !== null;
+          const disableState = getFacetDisabledState(facet, isActive);
 
           return {
             type: "positionInTrace",
@@ -815,6 +941,8 @@ export function useSidebarFilterState(
             loading: false,
             expanded: expandedSet.has(facet.column),
             isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
             onModeChange: (mode: PositionInTraceMode | null) => {
               const withoutPosition = filterState.filter(
                 (f) =>
@@ -878,6 +1006,7 @@ export function useSidebarFilterState(
           const isActive = filterState.some(
             (f) => f.column === facet.column && f.type === "number",
           );
+          const disableState = getFacetDisabledState(facet, isActive);
           return {
             type: "numeric",
             column: facet.column,
@@ -890,6 +1019,8 @@ export function useSidebarFilterState(
             loading: false,
             expanded: expandedSet.has(facet.column),
             isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
             onChange: (value: [number, number]) =>
               updateNumericFilter(facet.column, value, facet.min, facet.max),
             onReset: () =>
@@ -907,6 +1038,7 @@ export function useSidebarFilterState(
               : "";
           const isActive = currentValue.trim() !== "";
 
+          const disableState = getFacetDisabledState(facet, isActive);
           return {
             type: "string",
             column: facet.column,
@@ -916,6 +1048,8 @@ export function useSidebarFilterState(
             loading: false,
             expanded: expandedSet.has(facet.column),
             isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
             onChange: (value: string) =>
               updateStringFilter(facet.column, value),
             onReset: () => updateStringFilter(facet.column, ""),
@@ -945,6 +1079,7 @@ export function useSidebarFilterState(
           );
 
           const isActive = activeFilters.length > 0;
+          const disableState = getFacetDisabledState(facet, isActive);
 
           // Get available values from options
           const availableValues = options[facet.column] ?? {};
@@ -972,6 +1107,8 @@ export function useSidebarFilterState(
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
             onChange: (filters: KeyValueFilterEntry[]) => {
               // Remove all existing categoryOptions filters for this column
               const withoutCategory = filterState.filter(
@@ -1031,6 +1168,7 @@ export function useSidebarFilterState(
             }));
 
           const isActive = activeFilters.length > 0;
+          const disableState = getFacetDisabledState(facet, isActive);
 
           // Get available keys from options (should be array of score names)
           const availableKeys = options[facet.column];
@@ -1052,6 +1190,8 @@ export function useSidebarFilterState(
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
             onChange: (filters: NumericKeyValueFilterEntry[]) => {
               // Remove all existing numberObject filters for this column
               const withoutNumeric = filterState.filter(
@@ -1111,6 +1251,7 @@ export function useSidebarFilterState(
           );
 
           const isActive = activeFilters.length > 0;
+          const disableState = getFacetDisabledState(facet, isActive);
 
           // Get available keys from options
           const availableKeys = options[facet.column];
@@ -1132,6 +1273,8 @@ export function useSidebarFilterState(
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
             onChange: (filters: StringKeyValueFilterEntry[]) => {
               // Remove all existing stringObject filters for this column
               const withoutString = filterState.filter(
@@ -1180,6 +1323,7 @@ export function useSidebarFilterState(
             selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
           }
           const isActive = selectedOptions.length === 1;
+          const disableState = getFacetDisabledState(facet, isActive);
 
           return {
             type: "categorical",
@@ -1192,6 +1336,8 @@ export function useSidebarFilterState(
             loading: false,
             expanded: expandedSet.has(facet.column),
             isActive,
+            isDisabled: disableState.isDisabled,
+            disabledReason: disableState.reason,
             onChange: (values: string[]) => {
               if (values.length === 0 || values.length === 2) {
                 updateFilter(facet.column, []);
@@ -1302,6 +1448,7 @@ export function useSidebarFilterState(
           (currentOperator === "all of" &&
             selectedValues.length === availableValues.length) ||
           hasCheckboxSelections;
+        const disableState = getFacetDisabledState(facet, isActive);
 
         return {
           type: "categorical",
@@ -1314,6 +1461,8 @@ export function useSidebarFilterState(
           loading: shouldShowLoading(facet.column),
           expanded: expandedSet.has(facet.column),
           isActive,
+          isDisabled: disableState.isDisabled,
+          disabledReason: disableState.reason,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {
@@ -1372,6 +1521,7 @@ export function useSidebarFilterState(
     removeTextFilter,
     expandedState,
     setFilterState,
+    mutualExclusionContext,
   ]);
 
   return {
