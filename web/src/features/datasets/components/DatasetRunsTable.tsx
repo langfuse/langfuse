@@ -646,7 +646,6 @@ export function DatasetRunsTable(props: {
                   );
                   const { chartData, chartLabels } = adapter.toChartData();
 
-                  const scoreData = scoreKeyToData.get(key);
                   const valueFormatter =
                     key === "latency"
                       ? latencyFormatter
