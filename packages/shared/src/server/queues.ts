@@ -40,6 +40,9 @@ export const OtelIngestionEvent = z.object({
     }),
   }),
   propagatedHeaders: z.record(z.string(), z.string()).optional(),
+  sdkName: z.string().optional(),
+  sdkVersion: z.string().optional(),
+  ingestionVersion: z.string().optional(),
 });
 
 export const BatchExportJobSchema = z.object({
