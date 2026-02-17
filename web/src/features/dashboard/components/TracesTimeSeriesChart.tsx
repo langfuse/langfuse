@@ -181,13 +181,12 @@ export const TracesAndObservationsTimeSeriesChart = ({
                 {!isEmptyTimeSeries({ data: item.data }) ? (
                   <div className="h-80 w-full shrink-0">
                     <Chart
-                      chartType="AREA_TIME_SERIES"
+                      chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
                       rowLimit={100}
                       chartConfig={{
-                        type: "AREA_TIME_SERIES",
+                        type: "LINE_TIME_SERIES",
                         show_data_point_dots: false,
-                        subtle_fill: true,
                       }}
                       legendPosition="above"
                     />
