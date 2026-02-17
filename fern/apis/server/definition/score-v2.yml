@@ -27,10 +27,10 @@ service:
             docs: Retrieve only scores with this name.
           fromTimestamp:
             type: optional<datetime>
-            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
+            docs: Optional filter to only include scores with a `timestamp` on or after a certain datetime (ISO 8601). For API-created scores, this is the client-supplied timestamp (defaults to the current time if not provided). For eval scores, this is when the evaluation completed.
           toTimestamp:
             type: optional<datetime>
-            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
+            docs: Optional filter to only include scores with a `timestamp` before a certain datetime (ISO 8601). For API-created scores, this is the client-supplied timestamp (defaults to the current time if not provided). For eval scores, this is when the evaluation completed.
           environment:
             type: optional<string>
             allow-multiple: true
