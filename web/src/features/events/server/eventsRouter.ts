@@ -25,7 +25,7 @@ import {
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
 } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
+
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
@@ -181,8 +181,8 @@ export const eventsRouter = createTRPCRouter({
     }),
   /**
    * Fetch all observations for a trace from the events table.
-   * returns up to MAX_OBSERVATIONS_PER_TRACE observations.
-   * Throws BAD_REQUEST if trace exceeds the cap.
+   * Returns up to MAX_OBSERVATIONS_PER_TRACE observations.
+   * Sets cutoffObservationsAfterMaxCount=true if trace exceeds the cap.
    */
   byTraceId: protectedProjectProcedure
     .input(
@@ -206,14 +206,11 @@ export const eventsRouter = createTRPCRouter({
               timestamp: input.timestamp,
             });
 
-          if (totalCount > MAX_OBSERVATIONS_PER_TRACE) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `Trace has ${totalCount} observations, exceeding the maximum of ${MAX_OBSERVATIONS_PER_TRACE} for the trace detail view.`,
-            });
-          }
-
-          return { observations };
+          return {
+            observations,
+            cutoffObservationsAfterMaxCount:
+              totalCount > MAX_OBSERVATIONS_PER_TRACE,
+          };
         },
       );
     }),

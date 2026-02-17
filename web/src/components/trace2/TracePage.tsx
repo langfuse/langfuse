@@ -16,6 +16,9 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { MAX_OBSERVATIONS_PER_TRACE } from "@langfuse/shared/src/server";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useEffect } from "react";
 
 export function TracePage({
   traceId,
@@ -76,6 +79,16 @@ export function TracePage({
     withDefault(StringParam, "details"),
   );
 
+  useEffect(() => {
+    if (isBetaEnabled && eventsData.cutoffObservationsAfterMaxCount) {
+      showErrorToast(
+        "Trace truncated",
+        `This trace exceeds the maximum of ${MAX_OBSERVATIONS_PER_TRACE.toLocaleString()} observations for the detail view. Only the first ${MAX_OBSERVATIONS_PER_TRACE.toLocaleString()} are shown.`,
+        "WARNING",
+      );
+    }
+  }, [isBetaEnabled, eventsData.cutoffObservationsAfterMaxCount]);
+
   // Handle errors - for events path, we check if there's no data after loading
   if (!isBetaEnabled && tracesQuery.error?.data?.code === "UNAUTHORIZED")
     return <ErrorPage message="You do not have access to this trace." />;
@@ -91,23 +104,6 @@ export function TracePage({
         }}
       />
     );
-
-  // show backend error to user if present (e.g., too many observations)
-  if (isBetaEnabled && !eventsData.isLoading && eventsData.error) {
-    const message =
-      (eventsData.error as { message?: string })?.message ??
-      "An error occurred loading this trace.";
-    return (
-      <ErrorPage
-        title="Error loading trace"
-        message={message}
-        additionalButton={{
-          label: "Retry",
-          onClick: () => void window.location.reload(),
-        }}
-      />
-    );
-  }
 
   // For events path: show not found if no observations found after loading
   if (isBetaEnabled && !eventsData.isLoading && !eventsData.data)

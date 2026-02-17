@@ -283,7 +283,7 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
   queryPrefix: "t", // Use 't' prefix because we're selecting from traces CTE
 }));
 
-// TODO: remove limit?
+// TODO: introduce pagination
 export const MAX_OBSERVATIONS_PER_TRACE = 10_000;
 
 export const getObservationsForTraceFromEventsTable = async (params: {

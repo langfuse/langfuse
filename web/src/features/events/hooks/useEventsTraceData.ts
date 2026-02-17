@@ -34,6 +34,7 @@ interface UseEventsTraceDataResult {
     | undefined;
   isLoading: boolean;
   error: unknown;
+  cutoffObservationsAfterMaxCount: boolean;
 }
 
 /**
@@ -62,11 +63,7 @@ export function useEventsTraceData(
     {
       enabled: enabled && !!traceId,
       retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "BAD_REQUEST"
-        )
-          return false;
+        if (error.data?.code === "UNAUTHORIZED") return false;
         return failureCount < 3;
       },
       staleTime: 60 * 1000, // 1 minute
@@ -157,9 +154,13 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
+  const cutoffObservationsAfterMaxCount =
+    eventsQuery.data?.cutoffObservationsAfterMaxCount ?? false;
+
   return {
     data: transformed ?? undefined,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
+    cutoffObservationsAfterMaxCount,
   };
 }

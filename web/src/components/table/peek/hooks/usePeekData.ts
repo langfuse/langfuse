@@ -46,6 +46,8 @@ export const usePeekData = ({
       data: eventsData.data,
       isLoading: eventsData.isLoading,
       error: eventsData.error,
+      cutoffObservationsAfterMaxCount:
+        eventsData.cutoffObservationsAfterMaxCount,
       // Provide stub for other fields to match tracesQuery return type
       isError: !!eventsData.error,
       isFetching: eventsData.isLoading,
