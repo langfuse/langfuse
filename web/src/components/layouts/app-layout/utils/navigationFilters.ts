@@ -78,10 +78,10 @@ export const filters = {
     if (route.featureFlag === undefined) return route;
 
     if (route.featureFlag && adminOnlyFlags.includes(route.featureFlag)) {
+      if (!ctx.isLangfuseCloud) return null;
+
       // Only check admin and user flag, skip experimental features
       return ctx.cloudAdmin ||
-        (ctx.isLangfuseCloud &&
-          ctx.session?.user?.email?.endsWith("@langfuse.com") === true) ||
         ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
         : null;
