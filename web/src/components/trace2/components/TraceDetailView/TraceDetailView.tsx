@@ -177,10 +177,9 @@ export function TraceDetailView({
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
   // Scores tab visibility: hide for public trace viewers and in peek mode (annotation queues)
-  const { isPeekMode } = useViewPreferences();
   const isAuthenticatedAndProjectMember =
     useIsAuthenticatedAndProjectMember(projectId);
-  const showScoresTab = isAuthenticatedAndProjectMember && !isPeekMode;
+  const showScoresTab = isAuthenticatedAndProjectMember;
 
   // Handle tab change
   const handleTabChange = (value: string) => {
