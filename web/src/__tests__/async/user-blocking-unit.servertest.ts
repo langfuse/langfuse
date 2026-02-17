@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
-import { blockUser, checkBlockedUsers, createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  blockUser,
+  checkBlockedUsers,
+  createOrgProjectAndApiKey,
+} from "@langfuse/shared/src/server";
 
 describe("User Blocking Unit Tests", () => {
   let projectId: string;
@@ -40,7 +44,5 @@ describe("User Blocking Unit Tests", () => {
 
       console.log("User blocking functionality works correctly");
     });
-
   });
-
 });

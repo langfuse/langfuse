@@ -198,9 +198,7 @@ describe("User Blocking Integration", () => {
         projectId: testProjectId,
         userIds: [testUserId],
       });
-      console.log(
-        `   - User blocked: ${blockedCheck.has(testUserId)}`,
-      );
+      console.log(`   - User blocked: ${blockedCheck.has(testUserId)}`);
 
       await unblockUser({ projectId: testProjectId, userId: testUserId });
       const unblockedCheck = await checkBlockedUsers({

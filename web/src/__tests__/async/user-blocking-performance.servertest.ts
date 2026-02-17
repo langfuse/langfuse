@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
-import { blockUser, createOrgProjectAndApiKey, processEventBatch } from "@langfuse/shared/src/server";
+import {
+  blockUser,
+  createOrgProjectAndApiKey,
+  processEventBatch,
+} from "@langfuse/shared/src/server";
 
 describe("User Blocking Performance Tests", () => {
   let projectId: string;
@@ -121,8 +125,12 @@ describe("User Blocking Performance Tests", () => {
       console.log(
         `- In-memory propagation batch: ${batchWithTrace.length} events queued`,
       );
-      console.log(`- Database lookup batch: ${laterBatch.length} events queued`);
-      console.log(`- Total events processed without errors: ${response1.successes.length + response2.successes.length}`);
+      console.log(
+        `- Database lookup batch: ${laterBatch.length} events queued`,
+      );
+      console.log(
+        `- Total events processed without errors: ${response1.successes.length + response2.successes.length}`,
+      );
     });
   });
 
@@ -133,7 +141,10 @@ describe("User Blocking Performance Tests", () => {
       const numBlockedUsers = 3; // Small percentage blocked (15%)
 
       // Pre-setup: Create consistent test data
-      const testUsers = Array.from({ length: numUniqueUsers }, (_, i) => `user-${i}`);
+      const testUsers = Array.from(
+        { length: numUniqueUsers },
+        (_, i) => `user-${i}`,
+      );
       const blockedUsers = testUsers.slice(0, numBlockedUsers);
 
       // Block some users
@@ -173,7 +184,9 @@ describe("User Blocking Performance Tests", () => {
 
       console.log(`\n🧪 CONTROLLED PERFORMANCE TEST`);
       console.log(`Batch size: ${batchSize} events`);
-      console.log(`Unique users: ${numUniqueUsers} (${numBlockedUsers} blocked)`);
+      console.log(
+        `Unique users: ${numUniqueUsers} (${numBlockedUsers} blocked)`,
+      );
       console.log(`Pre-created traces: ${preCreatedTraces.length}`);
 
       // TEST 1: Baseline - No user IDs (no blocking checks)
@@ -189,7 +202,10 @@ describe("User Blocking Performance Tests", () => {
       }));
 
       const baselineStart = performance.now();
-      const baselineResponse = await processEventBatch(baselineBatch, authCheck);
+      const baselineResponse = await processEventBatch(
+        baselineBatch,
+        authCheck,
+      );
       const baselineLatency = performance.now() - baselineStart;
       expect(baselineResponse.errors).toHaveLength(0);
       expect(baselineResponse.successes).toHaveLength(batchSize);
@@ -210,7 +226,10 @@ describe("User Blocking Performance Tests", () => {
       });
 
       const userBlockingStart = performance.now();
-      const userBlockingResponse = await processEventBatch(userBlockingBatch, authCheck);
+      const userBlockingResponse = await processEventBatch(
+        userBlockingBatch,
+        authCheck,
+      );
       const userBlockingLatency = performance.now() - userBlockingStart;
       expect(userBlockingResponse.errors).toHaveLength(0);
       // Some events should be filtered out due to blocked users
@@ -233,7 +252,10 @@ describe("User Blocking Performance Tests", () => {
       });
 
       const traceIdLookupStart = performance.now();
-      const traceIdLookupResponse = await processEventBatch(traceIdLookupBatch, authCheck);
+      const traceIdLookupResponse = await processEventBatch(
+        traceIdLookupBatch,
+        authCheck,
+      );
       const traceIdLookupLatency = performance.now() - traceIdLookupStart;
       expect(traceIdLookupResponse.errors).toHaveLength(0);
 
@@ -269,7 +291,10 @@ describe("User Blocking Performance Tests", () => {
       });
 
       const combinedStart = performance.now();
-      const combinedResponse = await processEventBatch(combinedBatch, authCheck);
+      const combinedResponse = await processEventBatch(
+        combinedBatch,
+        authCheck,
+      );
       const combinedLatency = performance.now() - combinedStart;
       expect(combinedResponse.errors).toHaveLength(0);
 
@@ -280,27 +305,57 @@ describe("User Blocking Performance Tests", () => {
 
       console.log(`\n📊 PERFORMANCE RESULTS:`);
       console.log(`=====================================`);
-      console.log(`1. Baseline (no userIds):           ${baselineLatency.toFixed(1)}ms`);
-      console.log(`2. User blocking checks:            ${userBlockingLatency.toFixed(1)}ms (+${userBlockingOverhead.toFixed(1)}ms)`);
-      console.log(`3. Trace ID lookups:                ${traceIdLookupLatency.toFixed(1)}ms (+${traceIdLookupOverhead.toFixed(1)}ms)`);
-      console.log(`4. Combined (blocking + lookups):   ${combinedLatency.toFixed(1)}ms (+${combinedOverhead.toFixed(1)}ms)`);
+      console.log(
+        `1. Baseline (no userIds):           ${baselineLatency.toFixed(1)}ms`,
+      );
+      console.log(
+        `2. User blocking checks:            ${userBlockingLatency.toFixed(1)}ms (+${userBlockingOverhead.toFixed(1)}ms)`,
+      );
+      console.log(
+        `3. Trace ID lookups:                ${traceIdLookupLatency.toFixed(1)}ms (+${traceIdLookupOverhead.toFixed(1)}ms)`,
+      );
+      console.log(
+        `4. Combined (blocking + lookups):   ${combinedLatency.toFixed(1)}ms (+${combinedOverhead.toFixed(1)}ms)`,
+      );
 
       console.log(`\n📈 OVERHEAD ANALYSIS:`);
-      console.log(`User blocking overhead:     +${userBlockingOverhead.toFixed(1)}ms (+${((userBlockingOverhead / baselineLatency) * 100).toFixed(1)}%)`);
-      console.log(`Trace lookup overhead:      +${traceIdLookupOverhead.toFixed(1)}ms (+${((traceIdLookupOverhead / baselineLatency) * 100).toFixed(1)}%)`);
-      console.log(`Combined overhead:          +${combinedOverhead.toFixed(1)}ms (+${((combinedOverhead / baselineLatency) * 100).toFixed(1)}%)`);
+      console.log(
+        `User blocking overhead:     +${userBlockingOverhead.toFixed(1)}ms (+${((userBlockingOverhead / baselineLatency) * 100).toFixed(1)}%)`,
+      );
+      console.log(
+        `Trace lookup overhead:      +${traceIdLookupOverhead.toFixed(1)}ms (+${((traceIdLookupOverhead / baselineLatency) * 100).toFixed(1)}%)`,
+      );
+      console.log(
+        `Combined overhead:          +${combinedOverhead.toFixed(1)}ms (+${((combinedOverhead / baselineLatency) * 100).toFixed(1)}%)`,
+      );
 
       console.log(`\n🎯 PER-EVENT METRICS:`);
-      console.log(`Baseline per event:         ${(baselineLatency / batchSize).toFixed(2)}ms`);
-      console.log(`User blocking per event:    ${(userBlockingLatency / batchSize).toFixed(2)}ms`);
-      console.log(`Trace lookup per event:     ${(traceIdLookupLatency / batchSize).toFixed(2)}ms`);
-      console.log(`Combined per event:         ${(combinedLatency / batchSize).toFixed(2)}ms`);
+      console.log(
+        `Baseline per event:         ${(baselineLatency / batchSize).toFixed(2)}ms`,
+      );
+      console.log(
+        `User blocking per event:    ${(userBlockingLatency / batchSize).toFixed(2)}ms`,
+      );
+      console.log(
+        `Trace lookup per event:     ${(traceIdLookupLatency / batchSize).toFixed(2)}ms`,
+      );
+      console.log(
+        `Combined per event:         ${(combinedLatency / batchSize).toFixed(2)}ms`,
+      );
 
       console.log(`\n🚫 FILTERING RESULTS:`);
-      console.log(`Events processed (baseline):    ${baselineResponse.successes.length}/${batchSize}`);
-      console.log(`Events processed (blocking):    ${userBlockingResponse.successes.length}/${batchSize} (${batchSize - userBlockingResponse.successes.length} blocked)`);
-      console.log(`Events processed (lookup):      ${traceIdLookupResponse.successes.length}/${batchSize}`);
-      console.log(`Events processed (combined):    ${combinedResponse.successes.length}/${batchSize}`);
+      console.log(
+        `Events processed (baseline):    ${baselineResponse.successes.length}/${batchSize}`,
+      );
+      console.log(
+        `Events processed (blocking):    ${userBlockingResponse.successes.length}/${batchSize} (${batchSize - userBlockingResponse.successes.length} blocked)`,
+      );
+      console.log(
+        `Events processed (lookup):      ${traceIdLookupResponse.successes.length}/${batchSize}`,
+      );
+      console.log(
+        `Events processed (combined):    ${combinedResponse.successes.length}/${batchSize}`,
+      );
 
       // Reasonable performance thresholds for production usage
       expect(userBlockingOverhead).toBeLessThan(50); // Less than 50ms overhead for user blocking
