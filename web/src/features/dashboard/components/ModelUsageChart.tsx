@@ -280,26 +280,20 @@ export const ModelUsageChart = ({
     0,
   );
 
-  // had to add this function as tremor under the hodd adds more variables
-  // to the function call which would break usdFormatter.
-  const oneValueUsdFormatter = (value: number) => {
-    return totalCostDashboardFormatted(value);
-  };
-
   const data = [
     {
       tabTitle: "Cost by model",
       data: costByModel,
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Cost`,
-      formatter: oneValueUsdFormatter,
+      formatter: totalCostDashboardFormatted,
     },
     {
       tabTitle: "Cost by type",
       data: costByType,
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Cost`,
-      formatter: oneValueUsdFormatter,
+      formatter: totalCostDashboardFormatted,
     },
     {
       tabTitle: "Usage by model",
