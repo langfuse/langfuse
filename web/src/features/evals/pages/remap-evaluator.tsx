@@ -21,6 +21,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING } from "@/src/features/evals/utils/evaluator-constants";
 
 type LegacyEvalAction = "keep-active" | "mark-inactive" | "delete";
 
@@ -87,7 +88,10 @@ export default function RemapEvaluatorPage() {
       scoreName: oldConfig.scoreName,
       targetObject: mapLegacyToModernTarget(oldConfig.targetObject),
       jobType: oldConfig.jobType,
-      filter: [],
+      filter:
+        oldConfig.targetObject === "trace"
+          ? DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING
+          : [],
       variableMapping: [],
       sampling: oldConfig.sampling,
       delay: oldConfig.delay,
