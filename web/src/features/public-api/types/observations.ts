@@ -318,11 +318,14 @@ export const GetObservationsV2Query = z.object({
   // Pagination
   limit: z.coerce.number().nonnegative().lte(1000).default(50),
   cursor: EncodedObservationsCursorV2.optional(),
-  // Parsing behavior
+  // Parsing behavior - parseIoAsJson=true is retired, IO is always returned as raw strings
   parseIoAsJson: z
     .union([z.literal("true"), z.literal("false")])
-    .transform((val) => val === "true")
-    .default(false),
+    .refine((val) => val !== "true", {
+      message:
+        "parseIoAsJson=true is no longer supported on the v2 observations endpoint. Input/output fields are always returned as raw strings. Remove the parseIoAsJson parameter or set it to false.",
+    })
+    .optional(),
   // Filters
   type: ObservationType.nullish(),
   name: z.string().nullish(),
