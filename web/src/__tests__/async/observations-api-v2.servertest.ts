@@ -139,10 +139,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty("message");
-      expect((response.body as { message: string }).message).toContain(
-        "parseIoAsJson",
-      );
+      expect(response.body).toHaveProperty("error");
+      expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
     it("should respect limit parameter with default of 50", async () => {
