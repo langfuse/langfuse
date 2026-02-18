@@ -252,6 +252,7 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  DeepSeek = "deepseek",
 }
 
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
@@ -431,6 +432,8 @@ export const anthropicModels = [
   "claude-instant-1.2",
 ] as const;
 
+export const deepSeekModels = ["deepseek-chat", "deepseek-reasoner"] as const;
+
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const vertexAIModels = [
   "gemini-2.5-flash",
@@ -473,6 +476,7 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.DeepSeek]: deepSeekModels,
 } as const;
 
 export type LLMFunctionCall = {

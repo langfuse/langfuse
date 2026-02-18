@@ -37,7 +37,7 @@ export const testModelCall = async ({
       ...modelConfig,
     },
     structuredOutputSchema: zodV3.object({
-      score: zodV3.string(),
+      score: zodV3.union([zodV3.string(), zodV3.number()]).transform(String),
       reasoning: zodV3.string(),
     }),
   });
