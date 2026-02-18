@@ -23,6 +23,7 @@ import {
   experimentEvalFilterColsWithOptions,
   type ColumnDefinition,
   type availableDatasetEvalVariables,
+  JobConfigState,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -390,7 +391,18 @@ export const InnerEvaluatorForm = (props: {
     ),
   );
 
-  function executeSubmit(values: z.infer<typeof evalConfigFormSchema>) {
+  function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
+    capture(
+      props.mode === "edit"
+        ? "eval_config:update"
+        : "eval_config:new_form_submit",
+    );
+
+    // Apply preprocessFormValues if it exists
+    if (props.preprocessFormValues) {
+      values = props.preprocessFormValues(values);
+    }
+
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
     if (
@@ -444,8 +456,8 @@ export const InnerEvaluatorForm = (props: {
     const isModern = !isLegacyEvalTarget(values.target);
     const status = isModern
       ? values.runOnLive
-        ? "ACTIVE"
-        : "INACTIVE"
+        ? JobConfigState.ACTIVE
+        : JobConfigState.INACTIVE
       : undefined;
 
     (props.mode === "edit" && props.existingEvaluator?.id
@@ -494,21 +506,6 @@ export const InnerEvaluatorForm = (props: {
           setFormError(JSON.stringify(error));
         }
       });
-  }
-
-  function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
-    capture(
-      props.mode === "edit"
-        ? "eval_config:update"
-        : "eval_config:new_form_submit",
-    );
-
-    // Apply preprocessFormValues if it exists
-    if (props.preprocessFormValues) {
-      values = props.preprocessFormValues(values);
-    }
-
-    executeSubmit(values);
   }
 
   function handleAndResolveTarget(value: string) {

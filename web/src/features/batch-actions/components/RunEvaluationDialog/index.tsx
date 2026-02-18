@@ -96,9 +96,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   const eligibleEvaluators = useMemo(() => {
     return (evaluatorsQuery.data ?? []).filter(
-      (evaluator) =>
-        evaluator.status === "ACTIVE" &&
-        evaluator.targetObject === EvalTargetObject.EVENT,
+      (evaluator) => evaluator.targetObject === EvalTargetObject.EVENT,
     );
   }, [evaluatorsQuery.data]);
 
