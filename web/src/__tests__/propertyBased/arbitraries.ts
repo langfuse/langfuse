@@ -92,6 +92,16 @@ const aggregationArbitrary = fc.constantFrom<
 >("sum", "avg", "count", "max", "min", "p50", "p75", "p90", "p95", "p99");
 
 /**
+ * Measures to exclude from v1/v2 equivalence testing per view.
+ * - traces: `count` uses `count(*)` in v1 which is inflated by the observations
+ *   LEFT JOIN (1 trace × 2 obs → count=2), while v2 uses
+ *   `countIf(parent_span_id='')` which correctly counts traces only.
+ */
+const excludedMeasures: Partial<Record<z.infer<typeof views>, Set<string>>> = {
+  traces: new Set(["count"]),
+};
+
+/**
  * Generate valid metric selections for a given view
  * Returns 0-3 metrics randomly selected from available measures
  * Each metric has a measure and an aggregation function
@@ -101,7 +111,10 @@ export const metricsArbitrary = (
 ): fc.Arbitrary<
   Array<{ measure: string; aggregation: z.infer<typeof metricAggregations> }>
 > => {
-  const availableMeasures = Object.keys(viewDeclarations.v1[viewName].measures);
+  const excluded = excludedMeasures[viewName];
+  const availableMeasures = Object.keys(
+    viewDeclarations.v1[viewName].measures,
+  ).filter((m) => !excluded?.has(m));
 
   return fc.array(
     fc.record({

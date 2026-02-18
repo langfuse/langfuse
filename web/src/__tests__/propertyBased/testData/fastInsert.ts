@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
-interface GeneratedTrace {
+export interface GeneratedTrace {
   id: string;
   name: string;
   environment: string;
@@ -255,7 +255,7 @@ export const insertTestData = async (
         );
       }
     },
-    5000,
-    100,
+    10000,
+    200,
   );
 };
