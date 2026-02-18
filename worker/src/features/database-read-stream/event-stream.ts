@@ -130,7 +130,7 @@ export const getEventsStream = async (props: {
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("export")
     .selectIO(false) // Full I/O, no truncation
-    .selectMetadataDirect() // Use direct JSON metadata column
+    .selectMetadataExpanded() // Full metadata values from events_full
     .selectRaw(
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",

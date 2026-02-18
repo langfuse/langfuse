@@ -22,6 +22,12 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
     return Math.max(Math.min(Math.exp(times), 20000), 1000);
   },
   reconnectOnError: (err) => {
+    // MOVED/ASK are normal cluster redirections handled by ioredis — not real errors.
+    if (err.message.includes("MOVED")) {
+      logger.debug(`Redis cluster redirect: ${err.message}`);
+      return false;
+    }
+
     // Reconnects on READONLY errors and auto-retries the command.
     logger.warn(`Redis connection error: ${err.message}`);
     return err.message.includes("READONLY") ? 2 : false;

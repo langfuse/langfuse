@@ -2,6 +2,45 @@ import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
 /**
+ * Extract the output column alias from a field expression (unquoted).
+ * E.g. "e.span_id as id" → "id", 'e.trace_id as "trace_id"' → "trace_id"
+ */
+function extractAlias(expr: string): string {
+  const asMatch = expr.match(/\bas\s+"?([\w]+)"?\s*$/i);
+  if (asMatch) return asMatch[1];
+  // No alias: use the expression after the last dot (e.g. "e.input" → "input")
+  const dotIdx = expr.lastIndexOf(".");
+  return dotIdx >= 0 ? expr.slice(dotIdx + 1) : expr;
+}
+
+/**
+ * Any query builder that can produce a final query string with parameters.
+ */
+export interface QueryWithParams {
+  buildWithParams(): { query: string; params: Record<string, any> };
+}
+
+/**
+ * Builder returned by buildEventsFullTableSplitQuery.
+ * Wraps CTEQueryBuilder with a simpler interface (no complex generics).
+ * Callers can chain additional CTEs, JOINs, SELECTs, and ORDER BY.
+ */
+export interface SplitQueryBuilder extends QueryWithParams {
+  withCTE(
+    name: string,
+    cteWithSchema: {
+      query: string;
+      params: Record<string, any>;
+      schema?: string[];
+    },
+  ): SplitQueryBuilder;
+  leftJoin(cteName: string, alias: string, onClause: string): SplitQueryBuilder;
+  select(...expressions: string[]): SplitQueryBuilder;
+  orderBy(clause: string): SplitQueryBuilder;
+  orderByColumns(entries: OrderByEntry[]): SplitQueryBuilder;
+}
+
+/**
  * Types for structured ORDER BY API
  */
 export type OrderByDirection = "ASC" | "DESC";
@@ -9,7 +48,7 @@ export type OrderByEntry = { column: string; direction: OrderByDirection };
 
 /**
  * Field mapping: each field defined once with its full SELECT expression
- * All queries use `FROM events e` with alias, so all fields use `e.` prefix
+ * All queries use `FROM events_<type> e` with alias, so all fields use `e.` prefix
  */
 const EVENTS_FIELDS = {
   // Aggregates
@@ -65,9 +104,7 @@ const EVENTS_FIELDS = {
   // I/O & metadata fields
   input: "e.input",
   output: "e.output",
-  metadata: "mapFromArrays(e.metadata_names, e.metadata_prefixes) as metadata",
-  metadataDirect: "e.metadata as metadata", // Direct JSON column access for exports
-
+  metadata: "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
   // Trace-level denormalized fields
   tags: "e.tags as tags",
   release: "e.release as release",
@@ -131,7 +168,7 @@ const FIELD_SETS = {
   tools: ["toolDefinitions", "toolCalls", "toolCallNames"],
   eventTs: ["eventTs"],
 
-  // getById field sets (reuse the same fields - all queries use `FROM events e`)
+  // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
     "id",
     "traceId",
@@ -246,12 +283,10 @@ const EVENTS_AGGREGATION_FIELDS = {
   user_id: "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
   input: "argMaxIf(input, event_ts, parent_span_id = '') AS input",
   output: "argMaxIf(output, event_ts, parent_span_id = '') AS output",
-  input_truncated:
-    "argMaxIf(input_truncated, event_ts, parent_span_id = '') AS input_truncated",
-  output_truncated:
-    "argMaxIf(output_truncated, event_ts, parent_span_id = '') AS output_truncated",
+  // Note: events_core/events_full tables don't have input_truncated/output_truncated columns.
+  // Truncation is handled by the materialized view for events_core, or by leftUTF8() at query time.
   metadata:
-    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_prefixes), event_ts, parent_span_id = '') AS metadata",
+    "argMaxIf(mapFromArrays(e.metadata_names, e.metadata_values), event_ts, parent_span_id = '') AS metadata",
   created_at: "min(created_at) AS created_at",
   updated_at: "max(updated_at) AS updated_at",
   total_cost: "sum(total_cost) AS total_cost",
@@ -344,6 +379,19 @@ abstract class AbstractQueryBuilder {
     if (clause.trim()) {
       this.orderByClause = clause;
     }
+    return this;
+  }
+
+  /**
+   * Add ORDER BY using OrderByEntry array for structured API
+   */
+  orderByColumns(entries: OrderByEntry[]): this {
+    if (!entries.length) {
+      return this;
+    }
+
+    const columns: string[] = entries.map((e) => `${e.column} ${e.direction}`);
+    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
   }
 
@@ -508,14 +556,21 @@ abstract class BaseEventsQueryBuilder<
       return this;
     }
 
-    // Use the direction of the first column for project_id
-    const primaryDirection = entries[0].direction;
+    // When ordering by start_time, prepend project_id and toStartOfMinute(e.start_time)
+    // to match the table PRIMARY KEY: (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
+    const startTimeEntry = entries.find((e) =>
+      e.column.replace(/"/g, "").endsWith("start_time"),
+    );
 
-    // Build ORDER BY clause with project_id prepended
-    const columns = [
-      `e.project_id ${primaryDirection}`,
-      ...entries.map((e) => `${e.column} ${e.direction}`),
-    ];
+    const columns: string[] = [];
+    if (startTimeEntry) {
+      columns.push(
+        `e.project_id ${startTimeEntry.direction}`,
+        `toStartOfMinute(e.start_time) ${startTimeEntry.direction}`,
+      );
+    }
+
+    columns.push(...entries.map((e) => `${e.column} ${e.direction}`));
 
     this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
@@ -541,6 +596,15 @@ abstract class BaseEventsQueryBuilder<
   protected abstract buildGroupByClause(): string;
 
   /**
+   * Get the table name to query from.
+   * Subclasses can override to implement dynamic table selection.
+   * Default: events_core (lightweight table with truncated I/O)
+   */
+  protected getTableName(): string {
+    return "events_core";
+  }
+
+  /**
    * Build the final query string
    */
   protected buildQuery(): string {
@@ -555,8 +619,9 @@ abstract class BaseEventsQueryBuilder<
     // SELECT
     parts.push(this.buildSelectClause());
 
-    // FROM
-    parts.push("FROM events e");
+    // FROM - choose table based on data requirements
+    const tableName = this.getTableName();
+    parts.push(`FROM ${tableName} e`);
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -619,8 +684,6 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   private ioFields: { truncated: boolean; charLimit?: number } | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
-  // Flag to use direct metadata JSON column instead of array-based metadata
-  private useDirectMetadata: boolean = false;
   // Raw SELECT expressions for custom columns (e.g., from CTEs)
   private rawSelectExpressions: string[] = [];
 
@@ -640,33 +703,17 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
-   * Select metadata with expanded values for specified keys.
-   * Expands truncated metadata values by coalescing with metadata_long_values.
+   * Select metadata with expanded (non-truncated) values from events_full.
    *
-   * @param keys - Keys to expand. Only the specified keys will have their full values returned.
+   * @param keys - Keys to expand. Empty array = expand all keys.
    *
    * @example
-   * // Expand specific keys only
-   * builder.selectMetadataExpanded(['transcript', 'transitions'])
+   * builder.selectMetadataExpanded(['transcript', 'transitions']) // specific keys
+   * builder.selectMetadataExpanded([]) // all keys
    */
-  selectMetadataExpanded(keys: string[]): this {
+  selectMetadataExpanded(keys: string[] = []): this {
     this.metadataExpansionKeys = keys;
-    // Also ensure metadata is in the select fields (will be replaced in buildSelectClause)
     this.selectFields.add("metadata");
-    return this;
-  }
-
-  /**
-   * Select metadata using direct JSON column access instead of array-based reconstruction.
-   * Use this for exports where full metadata values are needed without truncation.
-   *
-   * @example
-   * builder.selectMetadataDirect()
-   */
-  selectMetadataDirect(): this {
-    this.useDirectMetadata = true;
-    this.selectFields.add("metadataDirect");
-
     return this;
   }
 
@@ -738,11 +785,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     if (this.ioFields) {
       fieldsToExclude.push("input", "output");
     }
-    // Exclude array-based metadata if using direct JSON metadata or expanded metadata
+    // Exclude default metadata when specific expansion keys are provided (custom SELECT expression is added below)
     if (
-      this.useDirectMetadata ||
-      (this.metadataExpansionKeys !== null &&
-        this.metadataExpansionKeys.length > 0)
+      this.metadataExpansionKeys !== null &&
+      this.metadataExpansionKeys.length > 0
     ) {
       fieldsToExclude.push("metadata");
     }
@@ -757,10 +803,11 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     });
 
     // Add I/O fields if configured
+    // Note: needsFullTable() is responsible for choosing events_core/events_full (truncated vs full I/O)
     if (this.ioFields) {
       if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
         fieldExpressions.push(
-          `leftUTF8(input_truncated, ${this.ioFields.charLimit}) as input, leftUTF8(output_truncated, ${this.ioFields.charLimit}) as output`,
+          `leftUTF8(input, ${this.ioFields.charLimit}) as input, leftUTF8(output, ${this.ioFields.charLimit}) as output`,
         );
       } else {
         fieldExpressions.push("input, output");
@@ -768,27 +815,18 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     }
 
     // Add metadata field with expansion if configured
+    // Note: needsFullTable() is responsible for choosing events_core/events_full
+    // Metadata expansion is handled by querying events_full directly for full values.
     if (
       this.metadataExpansionKeys !== null &&
       this.metadataExpansionKeys.length > 0 &&
       this.selectFields.has("metadata")
     ) {
-      // Add keys to params for safe parameterized query
-      this.params.expandMetadataKeys = this.metadataExpansionKeys;
-
-      fieldExpressions.push(`mapFromArrays(
-        e.metadata_names,
-        arrayMap(
-          (name, prefix, hash) -> if(
-            has({expandMetadataKeys: Array(String)}, name) AND isNotNull(hash) AND mapContains(e.metadata_long_values, hash),
-            e.metadata_long_values[hash],
-            prefix
-          ),
-          e.metadata_names,
-          e.metadata_prefixes,
-          e.metadata_hashes
-        )
-      ) as metadata`);
+      // For events_core/events_full, just use mapFromArrays with metadata_values directly
+      // The caller should use events_full table if full metadata is needed
+      fieldExpressions.push(
+        `mapFromArrays(e.metadata_names, e.metadata_values) as metadata`,
+      );
     }
 
     // Add raw SELECT expressions (e.g., from CTE joins)
@@ -804,6 +842,44 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    */
   protected buildGroupByClause(): string {
     return "";
+  }
+
+  /**
+   * Determine if query needs events_full table (full I/O and metadata).
+   * - events_core: truncated I/O and metadata (faster for most queries)
+   * - events_full: full I/O and metadata (when full data is needed)
+   */
+  private needsFullTable(): boolean {
+    // Need full I/O? (truncated = false means we need full data)
+    const needsFullIO = this.ioFields !== null && !this.ioFields.truncated;
+
+    // Need full metadata? (any expansion requested — specific keys or all)
+    const needsFullMetadata =
+      this.metadataExpansionKeys !== null && this.selectFields.has("metadata");
+
+    return needsFullIO || needsFullMetadata;
+  }
+
+  /**
+   * Get the output column aliases for the currently selected fields.
+   * Used by buildEventsFullTableSplitQuery to construct explicit column
+   * references instead of b.* (which breaks in ClickHouse JOINs when
+   * joined CTEs have overlapping column names).
+   */
+  getSelectedAliases(): string[] {
+    return [...this.selectFields].flatMap((fieldKey) => {
+      const expr = EVENTS_FIELDS[fieldKey as keyof typeof EVENTS_FIELDS];
+      if (!expr) return [];
+      return [extractAlias(expr)];
+    });
+  }
+
+  /**
+   * Get table name based on data requirements.
+   * Uses events_full when full I/O or metadata expansion is needed.
+   */
+  protected override getTableName(): string {
+    return this.needsFullTable() ? "events_full" : "events_core";
   }
 }
 
@@ -855,8 +931,27 @@ type AliasedColumns<
 export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_AGGREGATION_FIELDS
 > {
+  private truncated: boolean = true;
+
   constructor(options: { projectId: string }) {
     super(EVENTS_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Set whether to use truncated I/O (events_core) or full I/O (events_full).
+   * Default is true (truncated).
+   */
+  withTruncated(truncated: boolean): this {
+    this.truncated = truncated;
+    return this;
+  }
+
+  /**
+   * Get table name based on truncated setting.
+   * Uses events_full when full I/O is needed (truncated = false).
+   */
+  protected override getTableName(): string {
+    return this.truncated ? "events_core" : "events_full";
   }
 
   /**
@@ -1155,8 +1250,8 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     // SELECT
     parts.push(`SELECT ${this.selectExpression}`);
 
-    // FROM
-    parts.push("FROM events e");
+    // FROM - use events_core for reads (lightweight table with truncated I/O)
+    parts.push("FROM events_core e");
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -1187,4 +1282,96 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
 
     return parts.join("\n");
   }
+}
+
+/**
+ * Build a CTE-based split query: filter/order on events_core, then fetch
+ * IO and/or metadata from events_full only for matched rows.
+ *
+ * Returns a SplitQueryBuilder that callers can chain onto for additional
+ * CTEs, JOINs, SELECTs, and ORDER BY.
+ *
+ * @example
+ * buildEventsFullTableSplitQuery({ projectId, baseBuilder, includeIO: true, includeMetadata: true })
+ *   .withCTE("scores_agg", { ...eventsScoresAggregation({ projectId }), schema: [] })
+ *   .leftJoin("scores_agg", "s", "ON s.trace_id = b.trace_id AND s.observation_id = b.id")
+ *   .select("s.scores_avg as scores_avg", "s.score_categories as score_categories")
+ *   .orderBy("ORDER BY b.start_time DESC");
+ */
+export function buildEventsFullTableSplitQuery(opts: {
+  projectId: string;
+  baseBuilder: EventsQueryBuilder;
+  includeIO: boolean;
+  includeMetadata: boolean;
+  externalCTEs?: Array<{
+    name: string;
+    queryWithParams: { query: string; params: Record<string, any> };
+  }>;
+}): SplitQueryBuilder {
+  const { query: baseQuery, params: baseParams } =
+    opts.baseBuilder.buildWithParams();
+
+  // Build IO CTE: fetch full IO/metadata from events_full for matched rows.
+  // Join key columns use _io_ prefix to avoid name clashes with base CTE
+  // (ClickHouse excludes duplicate column names from b.* in JOINs).
+  const ioSelectParts = [
+    "e.span_id as _io_id",
+    'e.trace_id as "_io_trace_id"',
+    'e.start_time as "_io_start_time"',
+  ];
+  if (opts.includeIO) {
+    ioSelectParts.push("e.input", "e.output");
+  }
+  if (opts.includeMetadata) {
+    ioSelectParts.push(
+      "mapFromArrays(e.metadata_names, e.metadata_values) as metadata",
+    );
+  }
+  const ioQuery = [
+    `SELECT ${ioSelectParts.join(", ")}`,
+    "FROM events_full e",
+    "WHERE e.project_id = {projectId: String}",
+    'AND (e.start_time, e.trace_id, e.span_id) IN (SELECT "start_time", "trace_id", id FROM base)',
+  ].join("\n");
+
+  // Compose final query using CTEQueryBuilder
+  let cteBuilder = new CTEQueryBuilder();
+
+  // Register external CTEs (referenced inside base query via JOINs)
+  for (const cte of opts.externalCTEs ?? []) {
+    cteBuilder = cteBuilder.withCTE(cte.name, {
+      ...cte.queryWithParams,
+      schema: [] as string[],
+    });
+  }
+
+  // Register base and io CTEs, set up FROM and JOIN
+  cteBuilder = cteBuilder
+    .withCTE("base", {
+      query: baseQuery,
+      params: baseParams,
+      schema: [] as string[],
+    })
+    .withCTE("io", {
+      query: ioQuery,
+      params: { projectId: opts.projectId },
+      schema: [] as string[],
+    })
+    .from("base", "b")
+    .leftJoin(
+      "io",
+      "i",
+      'ON b."start_time" = i."_io_start_time" AND b."trace_id" = i."_io_trace_id" AND b.id = i._io_id',
+    );
+
+  // SELECT: explicit base columns (not b.* — ClickHouse excludes columns
+  // from b.* that share names with joined CTEs, and b.col produces JSON
+  // keys with the table prefix). Use "b.col as col" for clean JSON keys.
+  const baseAliases = opts.baseBuilder.getSelectedAliases();
+  cteBuilder.select(...baseAliases.map((a) => `b.${a} as ${a}`));
+  if (opts.includeIO)
+    cteBuilder.select("i.input as input", "i.output as output");
+  if (opts.includeMetadata) cteBuilder.select("i.metadata as metadata");
+
+  return cteBuilder as unknown as SplitQueryBuilder;
 }
