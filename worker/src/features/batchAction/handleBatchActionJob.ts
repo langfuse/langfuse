@@ -34,7 +34,6 @@ import { getEventsStreamForEval } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
-import { fetchAndValidateEvaluatorConfigs } from "./fetchAndValidateEvaluatorConfigs";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -371,11 +370,25 @@ export const handleBatchActionJob = async (
 
     const selectedEvaluatorIds = Array.from(new Set(evaluatorIds));
 
-    let orderedEvaluators;
+    let evaluators;
     try {
-      orderedEvaluators = await fetchAndValidateEvaluatorConfigs({
-        projectId,
-        evaluatorIds: selectedEvaluatorIds,
+      evaluators = await prisma.jobConfiguration.findMany({
+        where: {
+          id: { in: selectedEvaluatorIds },
+          projectId,
+          targetObject: EvalTargetObject.EVENT,
+          // status may be both active or inactive, no need to filter
+        },
+        select: {
+          id: true,
+          projectId: true,
+          filter: true,
+          sampling: true,
+          evalTemplateId: true,
+          scoreName: true,
+          targetObject: true,
+          variableMapping: true,
+        },
       });
     } catch (error) {
       await prisma.batchAction.update({
@@ -389,7 +402,7 @@ export const handleBatchActionJob = async (
           log:
             error instanceof Error
               ? error.message
-              : "Selected evaluators are missing, inactive, or not observation-scoped for historical event evaluation.",
+              : "Selected evaluators are missing or not observation-scoped for historical event evaluation.",
         },
       });
 
@@ -408,7 +421,7 @@ export const handleBatchActionJob = async (
     await processBatchedObservationEval({
       projectId,
       batchActionId,
-      evaluators: orderedEvaluators,
+      evaluators,
       observationStream: dbReadStream,
     });
   }

@@ -17,8 +17,6 @@ interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
   configs: ObservationEvalConfig[];
   schedulerDeps: ObservationEvalSchedulerDeps;
-  // For historical batch runs, we already have an explicitly selected set of
-  // observations. In that mode, config filter/sampling must not exclude rows.
   ignoreConfigTargeting?: boolean;
 }
 

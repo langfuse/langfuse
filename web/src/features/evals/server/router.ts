@@ -143,7 +143,7 @@ const CreateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
   timeScope: TimeScopeSchema,
-  status: z.enum(EvaluatorStatus).optional().default("ACTIVE"),
+  status: z.enum(EvaluatorStatus).optional().default(JobConfigState.ACTIVE),
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -756,7 +756,7 @@ export const evalRouter = createTRPCRouter({
       });
 
       // Clear the "no job configs" caches only if the new config is ACTIVE
-      if (input.status === "ACTIVE") {
+      if (input.status === JobConfigState.ACTIVE) {
         await clearNoEvalConfigsCache(input.projectId, "traceBased");
         await clearNoEvalConfigsCache(input.projectId, "eventBased");
       }

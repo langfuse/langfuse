@@ -33,10 +33,7 @@ export const runEvaluationRouter = createTRPCRouter({
 
         const { projectId, query, evaluatorIds } = input;
 
-        if (
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS !== "true" ||
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS !== "true"
-        ) {
+        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS !== "true") {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "Events table is not enabled for this instance.",
@@ -45,22 +42,23 @@ export const runEvaluationRouter = createTRPCRouter({
 
         const requestedEvaluatorIds = Array.from(new Set(evaluatorIds));
 
-        const evaluators = await ctx.prisma.jobConfiguration.findMany({
-          where: {
-            id: {
-              in: requestedEvaluatorIds,
+        const evaluatorIds = (
+          await ctx.prisma.jobConfiguration.findMany({
+            where: {
+              id: {
+                in: requestedEvaluatorIds,
+              },
+              projectId,
+              targetObject: EvalTargetObject.EVENT,
             },
-            projectId,
-            targetObject: EvalTargetObject.EVENT,
-          },
-          select: {
-            id: true,
-            scoreName: true,
-          },
-        });
+            select: {
+              id: true,
+            },
+          })
+        ).map((e) => e.id);
 
-        if (evaluators.length !== requestedEvaluatorIds.length) {
-          const foundIds = new Set(evaluators.map((evaluator) => evaluator.id));
+        if (evaluatorIds.length !== requestedEvaluatorIds.length) {
+          const foundIds = new Set(evaluatorIds);
           const missingEvaluatorIds = requestedEvaluatorIds.filter(
             (id) => !foundIds.has(id),
           );
@@ -73,8 +71,6 @@ export const runEvaluationRouter = createTRPCRouter({
                 : "Selected evaluators are missing or not observation-scoped.",
           });
         }
-
-        const selectedEvaluators = evaluators.map((evaluator) => evaluator.id);
 
         const countQueryOpts = {
           projectId,
@@ -94,16 +90,14 @@ export const runEvaluationRouter = createTRPCRouter({
         }
 
         const userId = ctx.session.user.id;
-        const batchConfig = {
-          evaluatorIds: selectedEvaluators,
-        };
+        const batchConfig = { evaluatorIds };
 
         logger.info(
           "[TRPC] Creating observation-run-batched-evaluation action",
           {
             projectId,
-            evaluatorCount: selectedEvaluators.length,
-            evaluatorIds: selectedEvaluators,
+            evaluatorCount: evaluatorIds.length,
+            evaluatorIds,
           },
         );
 
@@ -124,7 +118,7 @@ export const runEvaluationRouter = createTRPCRouter({
           resourceType: "batchAction",
           resourceId: batchAction.id,
           projectId,
-          action: "create",
+          action: ActionId.ObservationBatchEvaluation,
           after: batchAction,
         });
 
