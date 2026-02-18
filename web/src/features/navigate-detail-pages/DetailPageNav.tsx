@@ -50,19 +50,17 @@ export const DetailPageNav = (props: {
       }
 
       if (event.key === "k" && previousPageEntry) {
-        void router.push(
-          props.path({
-            id: encodeURIComponent(previousPageEntry.id),
-            params: previousPageEntry.params,
-          }),
-        );
+        const newPath = props.path({
+          id: encodeURIComponent(previousPageEntry.id),
+          params: previousPageEntry.params,
+        });
+        void router.push(newPath);
       } else if (event.key === "j" && nextPageEntry) {
-        void router.push(
-          props.path({
-            id: encodeURIComponent(nextPageEntry.id),
-            params: nextPageEntry.params,
-          }),
-        );
+        const newPath = props.path({
+          id: encodeURIComponent(nextPageEntry.id),
+          params: nextPageEntry.params,
+        });
+        void router.push(newPath);
       }
     };
     window.addEventListener("keydown", handleKeyDown);

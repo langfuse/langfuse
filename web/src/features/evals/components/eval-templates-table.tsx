@@ -6,14 +6,9 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  useQueryParam,
-  StringParam,
-} from "use-query-params";
+import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useState } from "react";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -59,9 +54,9 @@ export default function EvalsTemplateTable({
 }) {
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",

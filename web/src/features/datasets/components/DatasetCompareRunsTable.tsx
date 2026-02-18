@@ -7,9 +7,8 @@ import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { NumberParam } from "use-query-params";
-import { useQueryParams, withDefault } from "use-query-params";
 import { useState, useEffect } from "react";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { LayoutList } from "lucide-react";
@@ -68,9 +67,9 @@ function DatasetCompareRunsTableInternal(props: {
     });
   }, [props.runIds, convertToColumnFilterList, updateRunFilters]);
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
 
   const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(

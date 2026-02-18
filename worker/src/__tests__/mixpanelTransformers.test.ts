@@ -32,6 +32,7 @@ describe("Mixpanel transformers", () => {
         langfuse_total_units: 150,
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_latency: 1.5,
         langfuse_time_to_first_token: 0.3,
@@ -72,6 +73,7 @@ describe("Mixpanel transformers", () => {
         timestamp: new Date("2024-01-15T10:00:00Z"),
         langfuse_observation_name: "anonymous-event",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
         posthog_session_id: null,
@@ -94,6 +96,7 @@ describe("Mixpanel transformers", () => {
         timestamp: new Date("2024-01-15T10:00:00Z"),
         langfuse_observation_name: "consistent-event",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: null,
         langfuse_event_version: "1.0.0",
         posthog_session_id: null,
@@ -113,6 +116,7 @@ describe("Mixpanel transformers", () => {
         langfuse_observation_name: "session-event",
         langfuse_session_id: "langfuse-session-123",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-456",
         langfuse_event_version: "1.0.0",
         posthog_session_id: null,
@@ -131,6 +135,7 @@ describe("Mixpanel transformers", () => {
         langfuse_observation_name: "session-event",
         langfuse_session_id: "langfuse-session-123",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-456",
         langfuse_event_version: "1.0.0",
         posthog_session_id: "posthog-session-789",
@@ -140,6 +145,26 @@ describe("Mixpanel transformers", () => {
       const result = transformEventForMixpanel(event, projectId);
 
       expect(result.properties.session_id).toBe("mixpanel-session-456");
+    });
+
+    it("should include langfuse_project_name in properties", () => {
+      const event: AnalyticsObservationEvent = {
+        langfuse_id: "event-with-project-name",
+        timestamp: new Date("2024-01-15T10:00:00Z"),
+        langfuse_observation_name: "test-event",
+        langfuse_project_id: projectId,
+        langfuse_project_name: "My Custom Project Name",
+        langfuse_user_id: "user-123",
+        langfuse_event_version: "1.0.0",
+        posthog_session_id: null,
+        mixpanel_session_id: null,
+      };
+
+      const result = transformEventForMixpanel(event, projectId);
+
+      expect(result.properties.langfuse_project_name).toBe(
+        "My Custom Project Name",
+      );
     });
   });
 
@@ -155,6 +180,7 @@ describe("Mixpanel transformers", () => {
         langfuse_count_observations: 5,
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_latency: 2.5,
         langfuse_release: "v1.0.0",
@@ -192,6 +218,7 @@ describe("Mixpanel transformers", () => {
         langfuse_total_units: 300,
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_latency: 1.2,
         langfuse_time_to_first_token: 0.2,
@@ -232,6 +259,7 @@ describe("Mixpanel transformers", () => {
         langfuse_user_url: "https://langfuse.com/project/test/users/user-789",
         langfuse_session_id: "session-abc",
         langfuse_project_id: projectId,
+        langfuse_project_name: "Test Project",
         langfuse_user_id: "user-789",
         langfuse_release: "v1.0.0",
         langfuse_tags: ["human-eval"],

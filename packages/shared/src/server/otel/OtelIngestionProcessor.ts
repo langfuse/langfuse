@@ -40,6 +40,9 @@ export interface OtelIngestionProcessorConfig {
   publicKey?: string;
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
+  sdkName?: string;
+  sdkVersion?: string;
+  ingestionVersion?: string;
 }
 
 interface CreateTraceEventParams {
@@ -118,12 +121,18 @@ export class OtelIngestionProcessor {
   private readonly publicKey?: string;
   private readonly orgId?: string;
   private readonly propagatedHeaders?: Record<string, string>;
+  private readonly sdkName?: string;
+  private readonly sdkVersion?: string;
+  private readonly ingestionVersion?: string;
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
     this.publicKey = config.publicKey;
     this.orgId = config.orgId;
     this.propagatedHeaders = config.propagatedHeaders;
+    this.sdkName = config.sdkName;
+    this.sdkVersion = config.sdkVersion;
+    this.ingestionVersion = config.ingestionVersion;
   }
 
   /**
@@ -167,6 +176,9 @@ export class OtelIngestionProcessor {
               },
             },
             propagatedHeaders: this.propagatedHeaders,
+            sdkName: this.sdkName,
+            sdkVersion: this.sdkVersion,
+            ingestionVersion: this.ingestionVersion,
           },
         })
       : Promise.reject("Failed to instantiate otel ingestion queue");

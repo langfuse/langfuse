@@ -11,6 +11,7 @@ export type AnalyticsTraceEvent = {
   langfuse_count_observations?: unknown;
   langfuse_session_id?: unknown;
   langfuse_project_id?: unknown;
+  langfuse_project_name?: unknown;
   langfuse_user_id?: unknown;
   langfuse_latency?: unknown;
   langfuse_release?: unknown;
@@ -36,6 +37,7 @@ export type AnalyticsGenerationEvent = {
   langfuse_total_units?: unknown;
   langfuse_session_id?: unknown;
   langfuse_project_id?: unknown;
+  langfuse_project_name?: unknown;
   langfuse_user_id?: unknown;
   langfuse_latency?: unknown;
   langfuse_time_to_first_token?: unknown;
@@ -64,6 +66,7 @@ export type AnalyticsScoreEvent = {
   langfuse_user_url?: unknown;
   langfuse_session_id?: unknown;
   langfuse_project_id?: unknown;
+  langfuse_project_name?: unknown;
   langfuse_user_id?: unknown;
   langfuse_release?: unknown;
   langfuse_tags?: unknown;
@@ -89,6 +92,7 @@ export type AnalyticsObservationEvent = {
   langfuse_total_units?: unknown;
   langfuse_session_id?: unknown;
   langfuse_project_id?: unknown;
+  langfuse_project_name?: unknown;
   langfuse_user_id?: unknown;
   langfuse_latency?: unknown;
   langfuse_time_to_first_token?: unknown;
