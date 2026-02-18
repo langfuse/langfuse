@@ -61,8 +61,8 @@ describe("fetchObservationEvalConfigs", () => {
     expect(setNoEvalConfigsCache).not.toHaveBeenCalled();
   });
 
-  it("filters by timeScope NEW when requireTimeScopeNew is true", async () => {
-    await fetchObservationEvalConfigs(projectId, { requireTimeScopeNew: true });
+  it("queries for ACTIVE EVENT and EXPERIMENT configs", async () => {
+    await fetchObservationEvalConfigs(projectId);
 
     expect(prisma.jobConfiguration.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -72,26 +72,15 @@ describe("fetchObservationEvalConfigs", () => {
             in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
           },
           status: "ACTIVE",
-          timeScope: { has: "NEW" },
         }),
       }),
     );
   });
 
-  it("does not filter by timeScope when requireTimeScopeNew is false", async () => {
-    await fetchObservationEvalConfigs(projectId);
-
-    const firstCallArgs = (prisma.jobConfiguration.findMany as Mock).mock
-      .calls[0][0];
-    expect(firstCallArgs.where.timeScope).toBeUndefined();
-  });
-
   it("writes no-config cache when no configs are found", async () => {
     (prisma.jobConfiguration.findMany as Mock).mockResolvedValue([]);
 
-    const result = await fetchObservationEvalConfigs(projectId, {
-      requireTimeScopeNew: true,
-    });
+    const result = await fetchObservationEvalConfigs(projectId);
 
     expect(result).toEqual([]);
     expect(setNoEvalConfigsCache).toHaveBeenCalledWith(projectId, "eventBased");

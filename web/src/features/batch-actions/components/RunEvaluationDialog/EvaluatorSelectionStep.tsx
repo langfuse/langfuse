@@ -214,6 +214,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                         aria-label={`Select ${item.scoreName}`}
                         onClick={(event) => event.stopPropagation()}
                         onCheckedChange={() => onToggleEvaluator(item.id)}
+                        className="mr-1"
                       />
                     </div>
                     {index < array.length - 1 ? (

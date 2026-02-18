@@ -169,7 +169,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         column: "status",
         type: "stringOptions",
         operator: "any of",
-        value: ["ACTIVE"],
+        value: ["ACTIVE", "INACTIVE"],
       },
     ],
   );

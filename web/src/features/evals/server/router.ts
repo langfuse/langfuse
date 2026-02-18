@@ -143,6 +143,7 @@ const CreateEvalJobSchema = z.object({
   sampling: z.number().gt(0).lte(1),
   delay: z.number().gte(0).default(DEFAULT_TRACE_JOB_DELAY), // 10 seconds default
   timeScope: TimeScopeSchema,
+  status: z.enum(EvaluatorStatus).optional().default("ACTIVE"),
 });
 
 const UpdateEvalJobSchema = z.object({
@@ -749,14 +750,16 @@ export const evalRouter = createTRPCRouter({
           variableMapping: input.mapping,
           sampling: input.sampling,
           delay: input.delay,
-          status: "ACTIVE",
+          status: input.status,
           timeScope: input.timeScope,
         },
       });
 
-      // Clear the "no job configs" caches since we just created a new job configuration
-      await clearNoEvalConfigsCache(input.projectId, "traceBased");
-      await clearNoEvalConfigsCache(input.projectId, "eventBased");
+      // Clear the "no job configs" caches only if the new config is ACTIVE
+      if (input.status === "ACTIVE") {
+        await clearNoEvalConfigsCache(input.projectId, "traceBased");
+        await clearNoEvalConfigsCache(input.projectId, "eventBased");
+      }
 
       // EVENT targets handle historical evaluation via the dedicated batch
       // "Run Evaluation" action (runEvaluationRouter), so we only schedule
@@ -1083,7 +1086,10 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
+      // Only enforce EXISTING-only deactivation rule for legacy targets (TRACE/DATASET)
       if (
+        (existingJob.targetObject === EvalTargetObject.TRACE ||
+          existingJob.targetObject === EvalTargetObject.DATASET) &&
         existingJob.timeScope.includes("EXISTING") &&
         !existingJob.timeScope.includes("NEW") &&
         config.status === "INACTIVE"

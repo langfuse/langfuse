@@ -7,6 +7,7 @@ export const CONFIG_BASE = {
   sampling: new Decimal(1),
   delay: 30000,
   timeScope: ["NEW"],
+  status: "ACTIVE" as const,
 };
 
 export function useEvaluatorDefaults() {

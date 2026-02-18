@@ -46,16 +46,17 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-screen-md">
+      <DialogContent className="max-h-[90vh] max-w-screen-md pb-0">
         <DialogHeader>
-          <DialogTitle>Create Event Evaluator for Historical Runs</DialogTitle>
+          <DialogTitle>
+            Create Evaluator for batched observation runs
+          </DialogTitle>
           <DialogDescription>
-            This form creates an event evaluator configured with time scope
-            EXISTING only.
+            This form creates an evaluator for batched observation runs.
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="max-h-[72vh] overflow-y-auto pr-1">
+        <DialogBody className="max-h-[72vh] overflow-y-auto pb-0 pr-1">
           {!templateId ? (
             <div className="space-y-4 px-1 pb-1">
               <p className="text-sm text-muted-foreground">
@@ -81,7 +82,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
               )}
             </div>
           ) : (
-            <div className="space-y-4 px-1 pb-1">
+            <div className="pb-1">
               <Button
                 variant="ghost"
                 size="sm"
@@ -95,7 +96,9 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                 projectId={projectId}
                 evalTemplates={templatesQuery.data?.templates ?? []}
                 templateId={templateId}
-                hideTargetSection
+                hideTargetSelection
+                hidePreviewTable
+                defaultRunOnLive={false}
                 onFormSuccess={() => {
                   handleClose(false);
                   void utils.evals.jobConfigsByTarget.invalidate({
@@ -111,10 +114,14 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                 preprocessFormValues={(values) => ({
                   ...values,
                   target: EvalTargetObject.EVENT,
-                  filter: [],
-                  sampling: 1,
-                  delay: 0,
-                  timeScope: ["EXISTING"],
+                  timeScope: ["NEW"],
+                  ...(values.runOnLive
+                    ? {}
+                    : {
+                        filter: [],
+                        sampling: 1,
+                        delay: 0,
+                      }),
                 })}
               />
             </div>

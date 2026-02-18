@@ -19,7 +19,6 @@ import {
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationBatchEvaluationActionSchema } from "../validation";
-import { JobConfigState } from "../../../../../packages/shared/dist/prisma/generated/types";
 
 export const runEvaluationRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -53,7 +52,6 @@ export const runEvaluationRouter = createTRPCRouter({
             },
             projectId,
             targetObject: EvalTargetObject.EVENT,
-            status: JobConfigState.ACTIVE,
           },
           select: {
             id: true,
@@ -71,8 +69,8 @@ export const runEvaluationRouter = createTRPCRouter({
             code: "BAD_REQUEST",
             message:
               missingEvaluatorIds.length > 0
-                ? `Evaluators [${missingEvaluatorIds.join(", ")}] are missing, inactive, or not observation-scoped.`
-                : "Selected evaluators are missing, inactive, or not observation-scoped.",
+                ? `Evaluators [${missingEvaluatorIds.join(", ")}] are missing or not observation-scoped.`
+                : "Selected evaluators are missing or not observation-scoped.",
           });
         }
 
