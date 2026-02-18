@@ -200,12 +200,28 @@ describe("v1/v2 View Equivalence", () => {
               ),
             );
 
-            // Generate numeric scores
-            const scores = traces.flatMap((trace, i) =>
-              Array.from({ length: scoresPerTrace[i] }, () =>
-                generateScore(g, ids[idx++], trace.id, trace.timestamp, true),
-              ),
-            );
+            // Generate numeric scores, randomly linking ~50% to observations
+            const scores = traces.flatMap((trace, i) => {
+              const traceObs = observations.filter(
+                (o) => o.traceId === trace.id,
+              );
+              return Array.from({ length: scoresPerTrace[i] }, () => {
+                const linkToObs = traceObs.length > 0 && g(fc.boolean);
+                const obsId = linkToObs
+                  ? traceObs[
+                      g(fc.integer, { min: 0, max: traceObs.length - 1 })
+                    ].id
+                  : null;
+                return generateScore(
+                  g,
+                  ids[idx++],
+                  trace.id,
+                  trace.timestamp,
+                  true,
+                  obsId,
+                );
+              });
+            });
 
             await insertTestData(projectId, { traces, observations, scores });
 
@@ -274,12 +290,28 @@ describe("v1/v2 View Equivalence", () => {
               ),
             );
 
-            // Generate categorical scores
-            const scores = traces.flatMap((trace, i) =>
-              Array.from({ length: scoresPerTrace[i] }, () =>
-                generateScore(g, ids[idx++], trace.id, trace.timestamp, false),
-              ),
-            );
+            // Generate categorical scores, randomly linking ~50% to observations
+            const scores = traces.flatMap((trace, i) => {
+              const traceObs = observations.filter(
+                (o) => o.traceId === trace.id,
+              );
+              return Array.from({ length: scoresPerTrace[i] }, () => {
+                const linkToObs = traceObs.length > 0 && g(fc.boolean);
+                const obsId = linkToObs
+                  ? traceObs[
+                      g(fc.integer, { min: 0, max: traceObs.length - 1 })
+                    ].id
+                  : null;
+                return generateScore(
+                  g,
+                  ids[idx++],
+                  trace.id,
+                  trace.timestamp,
+                  false,
+                  obsId,
+                );
+              });
+            });
 
             await insertTestData(projectId, { traces, observations, scores });
 

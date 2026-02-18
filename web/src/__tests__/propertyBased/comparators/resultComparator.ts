@@ -515,8 +515,91 @@ const getTraceEventDimValue = (
 };
 
 /**
+ * Check if a trace-level event (synthetic observation in v2) would pass a
+ * single query filter. Uses getTraceEventDimValue to resolve what value the
+ * trace event has for the filtered column.
+ */
+const traceEventPassesFilter = (
+  trace: GeneratedTrace,
+  filter: { column: string; type: string; operator: string; value: unknown },
+): boolean => {
+  const dimValue = getTraceEventDimValue(trace, filter.column);
+
+  // For array fields (tags), handle arrayOptions filters
+  if (filter.type === "arrayOptions") {
+    const arrVal = Array.isArray(dimValue) ? dimValue : [];
+    const filterValues = filter.value as string[];
+    switch (filter.operator) {
+      case "any of":
+        return filterValues.some((v) => arrVal.includes(v));
+      case "none of":
+        return !filterValues.some((v) => arrVal.includes(v));
+      case "all of":
+        return filterValues.every((v) => arrVal.includes(v));
+    }
+    return true;
+  }
+
+  // NULL dimension value: most filters exclude NULL rows
+  if (dimValue === null || dimValue === undefined) {
+    // "none of" includes rows where the value is NULL (NOT IN doesn't match NULL)
+    if (filter.operator === "none of") return true;
+    return false;
+  }
+
+  const strVal = String(dimValue);
+
+  switch (filter.type) {
+    case "string":
+      switch (filter.operator) {
+        case "=":
+          return strVal === filter.value;
+        case "contains":
+          return strVal.includes(filter.value as string);
+        case "does not contain":
+          return !strVal.includes(filter.value as string);
+        case "starts with":
+          return strVal.startsWith(filter.value as string);
+        case "ends with":
+          return strVal.endsWith(filter.value as string);
+      }
+      break;
+    case "stringOptions": {
+      const filterValues = filter.value as string[];
+      switch (filter.operator) {
+        case "any of":
+          return filterValues.includes(strVal);
+        case "none of":
+          return !filterValues.includes(strVal);
+      }
+      break;
+    }
+    case "number": {
+      const numVal = Number(dimValue);
+      const filterNum = filter.value as number;
+      switch (filter.operator) {
+        case "=":
+          return numVal === filterNum;
+        case ">":
+          return numVal > filterNum;
+        case "<":
+          return numVal < filterNum;
+        case ">=":
+          return numVal >= filterNum;
+        case "<=":
+          return numVal <= filterNum;
+      }
+      break;
+    }
+  }
+
+  return true; // Unknown filter type/operator, assume passes
+};
+
+/**
  * Compute how many trace-level events contribute to each dimension key.
- * Only includes traces whose timestamp falls within the query time range.
+ * Only includes traces whose timestamp falls within the query time range
+ * and that pass all query filters.
  */
 const computeTraceEventOffsets = (
   traces: GeneratedTrace[],
@@ -539,6 +622,21 @@ const computeTraceEventOffsets = (
   for (const trace of traces) {
     // Skip traces outside the query time range (matching >= and <= filters)
     if (trace.timestamp < fromMs || trace.timestamp > toMs) continue;
+
+    // Skip trace events that don't pass the query filters.
+    // e.g. a filter like type='GENERATION' excludes trace events (type='SPAN').
+    const passesFilters = query.filters.every((filter) =>
+      traceEventPassesFilter(
+        trace,
+        filter as {
+          column: string;
+          type: string;
+          operator: string;
+          value: unknown;
+        },
+      ),
+    );
+    if (!passesFilters) continue;
 
     // Build the dimension row for this trace event
     const row: Record<string, unknown> = {};

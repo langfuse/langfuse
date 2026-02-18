@@ -36,9 +36,10 @@ export const generateTrace = (g: any, id: string) => {
     max: new Date("2025-12-31T00:00:00.000Z"),
   });
 
+  const tagPool = ["alpha", "beta", "gamma", "delta", "epsilon"] as const;
   const numTags = g(fc.integer, { min: 0, max: 3 });
   const tags = Array.from({ length: numTags }, () =>
-    g(fc.string, { minLength: 1, maxLength: 10 }),
+    g(fc.constantFrom, ...tagPool),
   );
 
   return {
@@ -96,6 +97,7 @@ export const generateScore = (
   traceId: string,
   traceTimestamp: number,
   isNumeric: boolean,
+  observationId: string | null = null,
 ) => {
   const scoreNames = ["accuracy", "quality", "relevance"] as const;
   const sources = ["API", "ANNOTATION", "EVAL"] as const;
@@ -106,6 +108,7 @@ export const generateScore = (
   return {
     id,
     traceId,
+    observationId,
     name: g(fc.constantFrom, ...scoreNames),
     source: g(fc.constantFrom, ...sources),
     dataType: isNumeric ? ("NUMERIC" as const) : ("CATEGORICAL" as const),
