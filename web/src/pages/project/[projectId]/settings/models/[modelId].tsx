@@ -260,7 +260,6 @@ export default function ModelDetailPage() {
                               2,
                             )}
                             onChange={() => {}} // Read-only
-                            minHeight="none"
                             className="max-h-[250px] overflow-y-auto"
                             editable={false}
                           />

@@ -21,6 +21,7 @@ export const BATCH_DATA_RETENTION_TABLES = [
   "scores",
   "events_full",
   "events_core",
+  "events",
 ] as const;
 
 export type BatchDataRetentionTable =
@@ -37,6 +38,7 @@ export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {
   scores: "timestamp",
   events_full: "start_time",
   events_core: "start_time",
+  events: "start_time",
 };
 
 interface ProjectWorkload {
@@ -328,6 +330,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       HAVING count > 0
     `;
 
+    const isLegacyEventsTable = this.tableName === "events";
+
     const result = await queryClickhouse<{
       project_id: string;
       count: number;
@@ -340,6 +344,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         table: this.tableName,
         operation: "count-chunk",
       },
+      allowLegacyEventsRead: isLegacyEventsTable,
     });
 
     // Build maps from the result

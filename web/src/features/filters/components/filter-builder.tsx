@@ -304,7 +304,9 @@ export function InlineFilterState({
                 ? filter.value
                 : filter.type === "boolean"
                   ? `${filter.value}`
-                  : `"${filter.value}"`}
+                  : filter.type === "null"
+                    ? ""
+                    : `"${filter.value}"`}
       </span>
     );
   });
@@ -658,7 +660,10 @@ function FilterBuilderForm({
                                             column: col?.[columnIdentifier],
                                             type: col?.type,
                                             operator: defaultOperator,
-                                            value: undefined,
+                                            value:
+                                              col?.type === "null"
+                                                ? ""
+                                                : undefined,
                                             key:
                                               col?.type === "positionInTrace"
                                                 ? "last"
@@ -820,8 +825,12 @@ function FilterBuilderForm({
                           handleFilterChange(
                             {
                               ...filter,
-
                               operator: value as any,
+                              // Ensure null filters always have empty string value
+                              value:
+                                filter.type === "null"
+                                  ? ""
+                                  : (filter.value as any),
                             },
                             i,
                           );
@@ -986,7 +995,7 @@ function FilterBuilderForm({
                         ) : (
                           <Input disabled placeholder="-" />
                         )
-                      ) : (
+                      ) : filter.type === "null" ? null : (
                         <Input disabled />
                       )}
                     </td>

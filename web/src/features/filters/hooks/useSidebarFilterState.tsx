@@ -15,6 +15,7 @@ import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import type { FilterConfig } from "../lib/filter-config";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -257,6 +258,8 @@ export function useSidebarFilterState(
    */
   defaultFilters?: FilterState,
 ) {
+  const peekContext = usePeekTableState();
+
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
 
@@ -279,11 +282,15 @@ export function useSidebarFilterState(
     withDefault(StringParam, ""),
   );
 
-  const filterState: FilterState = useMemo(() => {
+  const urlFilterState: FilterState = useMemo(() => {
     // If URL persistence is disabled, return empty filter state
     if (disableUrlPersistence) return [];
     return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
   }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
+
+  const filterState: FilterState = peekContext
+    ? peekContext.tableState.filters
+    : urlFilterState;
 
   // Track if user has manually interacted with filters
   // This prevents default filters from overriding user's explicit "clear all" action
@@ -291,6 +298,14 @@ export function useSidebarFilterState(
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
+      if (peekContext) {
+        peekContext.setTableState({
+          ...peekContext.tableState,
+          filters: newFilters,
+        });
+        return;
+      }
+
       // Don't modify URL if persistence is disabled
       if (disableUrlPersistence) return;
 
@@ -303,7 +318,7 @@ export function useSidebarFilterState(
       const encoded = encodeFiltersGeneric(newFilters);
       setFiltersQuery(encoded || null);
     },
-    [setFiltersQuery, disableUrlPersistence],
+    [setFiltersQuery, disableUrlPersistence, peekContext],
   );
 
   // track if defaults have been applied before, versioned to support future changes

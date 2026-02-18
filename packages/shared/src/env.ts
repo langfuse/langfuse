@@ -284,6 +284,11 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
+  // Legacy events table (transitional deployment)
+  LANGFUSE_LEGACY_EVENTS_TABLE_EXISTS: z
+    .enum(["true", "false"])
+    .default("true"),
+
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
 

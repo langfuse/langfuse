@@ -188,10 +188,20 @@ export const createDatasetRunScore = (
 };
 
 export const createEvent = (
-  event: Partial<EventRecordInsertType>,
+  event: Partial<EventRecordInsertType> & {
+    metadata_values?: (string | null | undefined)[];
+  },
 ): EventRecordInsertType => {
   const spanId = v4();
   const now = Date.now() * 1000; // Convert to micro
+
+  // Extract metadata array overrides before spreading to prevent undefined from clobbering defaults
+  const {
+    metadata_values: metadataValuesAlias,
+    metadata_names: metadataNamesOverride,
+    metadata_raw_values: metadataRawValuesOverride,
+    ...eventOverrides
+  } = event;
 
   // Default metadata to populate arrays from
   const defaultMetadata: Record<string, string> = {
@@ -202,7 +212,7 @@ export const createEvent = (
   // Merge default metadata with any provided metadata
   const finalMetadata: Record<string, string> = {
     ...defaultMetadata,
-    ...event.metadata,
+    ...eventOverrides.metadata,
   };
 
   // Extract metadata keys and values in sorted order for deterministic array population
@@ -259,9 +269,11 @@ export const createEvent = (
     output: "Hello John",
 
     // Metadata - populate both JSON and array columns
+    // metadata_values alias maps to metadata_raw_values (events table column name)
     metadata: finalMetadata,
-    metadata_names: metadataNames,
-    metadata_values: metadataValues,
+    metadata_names: metadataNamesOverride ?? metadataNames,
+    metadata_raw_values:
+      metadataValuesAlias ?? metadataRawValuesOverride ?? metadataValues,
 
     // Experiment properties
     experiment_id: null,
@@ -300,6 +312,6 @@ export const createEvent = (
     updated_at: now,
     event_ts: now,
 
-    ...event,
+    ...eventOverrides,
   };
 };

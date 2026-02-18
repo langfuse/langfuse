@@ -15,7 +15,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import type Decimal from "decimal.js";
 import {
   compactNumberFormatter,
@@ -172,6 +172,7 @@ export default function TracesTable({
   );
 
   const [refreshTick, setRefreshTick] = useState(0);
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
   const { setDetailPageList } = useDetailPageLists();
 
   // Auto-increment refresh tick to force date range recalculation
@@ -181,10 +182,11 @@ export default function TracesTable({
       setRefreshTick((t) => t + 1);
     }, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval]);
+  }, [refreshInterval, manualRefreshTrigger]);
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
+    setManualRefreshTrigger((t) => t + 1);
     void Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
@@ -338,9 +340,9 @@ export default function TracesTable({
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 

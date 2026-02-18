@@ -412,6 +412,194 @@ describe("prompts trpc", () => {
         );
       });
     });
+
+    it("should delete prompts by pathPrefix (folder) including nested folders but preserving prompt with same name", async () => {
+      const { project, caller } = await prepare();
+
+      // Create test structure:
+      // folder1/prompt-1 (Prompt)
+      // folder1/folder2 (Prompt named folder1/folder2)
+      // folder1/folder2/prompt-2 (Prompt inside folder1/folder2)
+      // folder1/folder2/prompt-3 (Prompt inside folder1/folder2)
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder1/prompt-1",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world 1" },
+          createdBy: "test-user",
+        },
+      });
+
+      const promptNamedSameAsFolder = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder1/folder2",
+          version: 1,
+          type: "text",
+          prompt: { text: "This is a prompt named folder1/folder2" },
+          createdBy: "test-user",
+        },
+      });
+
+      const prompt2 = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder1/folder2/prompt-2",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world 2" },
+          createdBy: "test-user",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: "folder1/folder2/prompt-3",
+          version: 1,
+          type: "text",
+          prompt: { text: "Hello world 3" },
+          createdBy: "test-user",
+        },
+      });
+
+      // Add intra-folder dependency: prompt-2 depends on prompt-3
+      // This should NOT block folder deletion since both are inside the folder
+      await prisma.promptDependency.create({
+        data: {
+          projectId: project.id,
+          parentId: prompt2.id,
+          childName: "folder1/folder2/prompt-3",
+          childVersion: 1,
+        },
+      });
+
+      // Delete the folder "folder1/folder2"
+      await caller.prompts.delete({
+        projectId: project.id,
+        pathPrefix: "folder1/folder2",
+      });
+
+      // Verify nested items are deleted
+      const nestedPrompts = await prisma.prompt.findMany({
+        where: {
+          projectId: project.id,
+          name: { startsWith: "folder1/folder2/" },
+        },
+      });
+      expect(nestedPrompts).toHaveLength(0);
+
+      // Verify prompt named folder1/folder2 remains
+      const sameNamePrompt = await prisma.prompt.findUnique({
+        where: { id: promptNamedSameAsFolder.id },
+      });
+      expect(sameNamePrompt).not.toBeNull();
+      expect(sameNamePrompt?.name).toBe("folder1/folder2");
+
+      // Verify folder1/prompt-1 still exists
+      const unrelatedPrompt = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: "folder1/prompt-1",
+        },
+      });
+      expect(unrelatedPrompt).not.toBeNull();
+    });
+
+    it("should treat wildcard characters in pathPrefix as literals for all/count/delete", async () => {
+      const { project, caller } = await prepare();
+
+      const literalPathPrefix = "folder%_x";
+      const literalChildPromptName = `${literalPathPrefix}/inside`;
+      const wildcardMatchPromptName = "folderABx/decoy";
+
+      const promptNamedLikeFolder = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: literalPathPrefix,
+          version: 1,
+          type: "text",
+          prompt: { text: "Prompt with wildcard chars in the name" },
+          createdBy: "test-user",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: literalChildPromptName,
+          version: 1,
+          type: "text",
+          prompt: { text: "Prompt inside wildcard-like folder" },
+          createdBy: "test-user",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          name: wildcardMatchPromptName,
+          version: 1,
+          type: "text",
+          prompt: { text: "Should not match literal wildcard folder prefix" },
+          createdBy: "test-user",
+        },
+      });
+
+      const listResult = await caller.prompts.all({
+        projectId: project.id,
+        page: 0,
+        limit: 10,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        pathPrefix: literalPathPrefix,
+      });
+
+      expect(listResult.prompts).toHaveLength(1);
+      expect(listResult.prompts[0]?.name).toBe("inside");
+
+      const countResult = await caller.prompts.count({
+        projectId: project.id,
+        pathPrefix: literalPathPrefix,
+      });
+      expect(countResult.totalCount).toBe(BigInt(1));
+
+      await caller.prompts.delete({
+        projectId: project.id,
+        pathPrefix: literalPathPrefix,
+      });
+
+      const deletedChildPrompt = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: literalChildPromptName,
+        },
+      });
+      expect(deletedChildPrompt).toBeNull();
+
+      const remainingPromptNamedLikeFolder = await prisma.prompt.findUnique({
+        where: { id: promptNamedLikeFolder.id },
+      });
+      expect(remainingPromptNamedLikeFolder).not.toBeNull();
+
+      const remainingWildcardMatchPrompt = await prisma.prompt.findFirst({
+        where: {
+          projectId: project.id,
+          name: wildcardMatchPromptName,
+        },
+      });
+      expect(remainingWildcardMatchPrompt).not.toBeNull();
+    });
   });
 
   describe("prompts.deleteVersion", () => {

@@ -13,6 +13,7 @@ export const BATCH_DELETION_TABLES = [
   "scores",
   "events_full",
   "events_core",
+  "events",
   "dataset_run_items_rmt",
 ] as const;
 import { env } from "../../env";
@@ -226,6 +227,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         table: this.tableName,
         operation: "count",
       },
+      allowLegacyEventsRead: this.tableName === "events",
     });
 
     const counts = new Map<string, number>();

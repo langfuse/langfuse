@@ -159,6 +159,7 @@ export async function getDatasetRunItemsSinceLastRun(
       feature: "experiment-backfill",
       operation_name: "getDatasetRunItemsSinceLastRun",
     },
+    allowLegacyEventsRead: true,
   });
 
   logger.info(
