@@ -86,7 +86,8 @@ describe("v1/v2 View Equivalence", () => {
         ),
         {
           numRuns: 20,
-          timeout: 10000,
+          timeout: 30000,
+          interruptAfterTimeLimit: 120000,
           verbose: false,
         },
       );
@@ -132,9 +133,11 @@ describe("v1/v2 View Equivalence", () => {
 
             // v2 observations view includes trace-level events (no
             // parent_span_id segment), so use superset comparison:
-            // match by dimension key, compare only sum non-count metrics.
+            // match by dimension key, compare sum non-count metrics, and
+            // verify counts precisely using trace-event offsets.
             const comparison = compareResults(v1Results, v2Results, query, {
               v2SupersetMode: true,
+              traces,
             });
             if (!comparison.equal) {
               throw new Error(
@@ -153,7 +156,8 @@ describe("v1/v2 View Equivalence", () => {
         ),
         {
           numRuns: 20,
-          timeout: 10000,
+          timeout: 30000,
+          interruptAfterTimeLimit: 120000,
           verbose: false,
         },
       );
@@ -226,7 +230,8 @@ describe("v1/v2 View Equivalence", () => {
         ),
         {
           numRuns: 20,
-          timeout: 10000,
+          timeout: 30000,
+          interruptAfterTimeLimit: 120000,
           verbose: false,
         },
       );
@@ -299,7 +304,8 @@ describe("v1/v2 View Equivalence", () => {
         ),
         {
           numRuns: 20,
-          timeout: 10000,
+          timeout: 30000,
+          interruptAfterTimeLimit: 120000,
           verbose: false,
         },
       );

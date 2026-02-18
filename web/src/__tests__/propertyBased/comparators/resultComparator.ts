@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { type QueryType } from "@/src/features/query/types";
+import { type GeneratedTrace } from "../testData/fastInsert";
 
 type QueryResult = Array<Record<string, unknown>>;
 
@@ -16,8 +17,11 @@ interface ComparisonOptions {
    * - Match v1 rows to v2 rows by dimension + time key
    * - Only compare sum-aggregated non-count metrics (trace events add 0)
    * - Allow extra v2 rows
+   * - When traces are provided, also compare counts precisely
    */
   v2SupersetMode?: boolean;
+  /** Generated traces — used to compute exact trace-event count offsets */
+  traces?: GeneratedTrace[];
 }
 
 /**
@@ -35,7 +39,7 @@ export const compareResults = (
   options?: ComparisonOptions,
 ): ComparisonResult => {
   if (options?.v2SupersetMode) {
-    return compareV2Superset(v1Results, v2Results, query);
+    return compareV2Superset(v1Results, v2Results, query, options.traces);
   }
 
   // Step 1: Check row counts
@@ -71,14 +75,14 @@ export const compareResults = (
 /**
  * Compare v1 and v2 results in superset mode.
  * Every v1 dimension group must exist in v2. Sum-aggregated non-count
- * metrics must match (trace-level events contribute 0). Count, avg, min,
- * max, and percentile metrics are allowed to differ because trace-level
- * events affect them.
+ * metrics must match (trace-level events contribute 0). When traces are
+ * provided, counts are compared precisely using trace-event offsets.
  */
 const compareV2Superset = (
   v1Results: QueryResult,
   v2Results: QueryResult,
   query: QueryType,
+  traces?: GeneratedTrace[],
 ): ComparisonResult => {
   const v1Norm = v1Results.map(normalizeRow);
   const v2Norm = v2Results.map(normalizeRow);
@@ -112,6 +116,33 @@ const compareV2Superset = (
     comparableMetrics.map((m) => `${m.aggregation}_${m.measure}`),
   );
 
+  // Count-measure metrics with additive aggregations (sum/count of count).
+  // The count measure is defined as @@AGG@@(1), so each row contributes 1.
+  // A trace event is one extra row, so:
+  //   SUM(1) increases by 1  (sum_count offset = +1)
+  //   COUNT(1) increases by 1 (count_count offset = +1)
+  // Both share the same offset as the implicit count column.
+  //
+  // Non-additive count metrics (avg_count, min_count, max_count, p*_count)
+  // are intentionally not verified here — their values can't be predicted
+  // with a simple offset since avg(1)=1 always, min/max/percentiles depend
+  // on the full distribution.
+  const additiveCountMetrics = query.metrics.filter(
+    (m) =>
+      m.measure === "count" &&
+      (m.aggregation === "sum" || m.aggregation === "count"),
+  );
+  const additiveCountFields = new Set(
+    additiveCountMetrics.map((m) => `${m.aggregation}_${m.measure}`),
+  );
+
+  // All fields that should be summed when merging collapsed rows
+  const mergeFields = new Set([
+    "count",
+    ...comparableMetricFields,
+    ...additiveCountFields,
+  ]);
+
   // Build key from dimension + time fields only (excludes metrics)
   const dimKey = (row: Record<string, unknown>) => {
     return Object.entries(row)
@@ -121,15 +152,20 @@ const compareV2Superset = (
       .join("|");
   };
 
+  // Compute trace event count offsets per dimension key
+  const traceEventOffsets = traces
+    ? computeTraceEventOffsets(traces, query, dimKey)
+    : new Map<string, number>();
+
   // Index v2 rows by dimension key, merging rows that collapse to the same
   // key after parentObservationId normalization (e.g. trace-level event and
-  // root observation in the same time bucket). Sum comparable metrics.
+  // root observation in the same time bucket). Sum additive metric fields.
   const v2ByKey = new Map<string, Record<string, unknown>>();
   for (const row of v2Normalized) {
     const key = dimKey(row);
     const existing = v2ByKey.get(key);
     if (existing) {
-      for (const field of comparableMetricFields) {
+      for (const field of mergeFields) {
         const a = typeof existing[field] === "number" ? existing[field] : 0;
         const b = typeof row[field] === "number" ? row[field] : 0;
         existing[field] = (a as number) + (b as number);
@@ -151,7 +187,7 @@ const compareV2Superset = (
       continue;
     }
 
-    // Compare only sum-aggregated non-count metrics
+    // Compare sum-aggregated non-count metrics (trace events add 0)
     for (const metric of comparableMetrics) {
       const field = `${metric.aggregation}_${metric.measure}`;
       const v1Val = v1Row[field];
@@ -161,6 +197,34 @@ const compareV2Superset = (
         differences.push(
           `Row ${i}, '${field}': v1=${JSON.stringify(v1Val)}, v2=${JSON.stringify(v2Val)}`,
         );
+      }
+    }
+
+    // When traces are provided, compare counts precisely using offsets
+    if (traces) {
+      const offset = traceEventOffsets.get(key) ?? 0;
+
+      // Compare implicit count column (only if present in results)
+      if ("count" in v1Row || "count" in v2Row) {
+        const v1Count = toNum(v1Row["count"]);
+        const v2Count = toNum(v2Row["count"]);
+        if (!valuesEqual(v2Count - offset, v1Count)) {
+          differences.push(
+            `Row ${i}, 'count': v1=${v1Count}, v2=${v2Count}, traceOffset=${offset}, expected v2-offset=${v2Count - offset}`,
+          );
+        }
+      }
+
+      // Compare additive count-measure metrics (sum_count, count_count)
+      for (const metric of additiveCountMetrics) {
+        const field = `${metric.aggregation}_${metric.measure}`;
+        const v1Val = toNum(v1Row[field]);
+        const v2Val = toNum(v2Row[field]);
+        if (!valuesEqual(v2Val - offset, v1Val)) {
+          differences.push(
+            `Row ${i}, '${field}': v1=${v1Val}, v2=${v2Val}, traceOffset=${offset}, expected v2-offset=${v2Val - offset}`,
+          );
+        }
       }
     }
   }
@@ -321,4 +385,179 @@ const valuesEqual = (v1: unknown, v2: unknown): boolean => {
 
   // Default comparison
   return v1 === v2;
+};
+
+// ============================================================================
+// Trace event offset helpers (for v2 superset count comparison)
+// ============================================================================
+
+/** Convert unknown value to number, treating null/undefined as 0 */
+const toNum = (v: unknown): number => {
+  if (typeof v === "number") return v;
+  if (v === null || v === undefined) return 0;
+  return Number(v) || 0;
+};
+
+/**
+ * Replicate queryBuilder.determineTimeGranularity logic.
+ * Resolves 'auto' to an actual granularity based on the time range.
+ */
+const resolveGranularity = (
+  fromTimestamp: string,
+  toTimestamp: string,
+  granularity: string,
+): string => {
+  if (granularity !== "auto") return granularity;
+
+  const diffMs =
+    new Date(toTimestamp).getTime() - new Date(fromTimestamp).getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffHours < 2) return "minute";
+  if (diffHours < 72) return "hour";
+  if (diffHours < 1440) return "day";
+  if (diffHours < 8760) return "week";
+  return "month";
+};
+
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+/**
+ * Bucket a timestamp (ms) to match ClickHouse time dimension output format.
+ * ClickHouse DateTime columns return ISO-ish format: 'YYYY-MM-DDTHH:MM:SSZ'
+ * ClickHouse Date columns return: 'YYYY-MM-DD'
+ */
+const bucketTimestamp = (timestampMs: number, granularity: string): string => {
+  const d = new Date(timestampMs);
+  const Y = d.getUTCFullYear();
+  const M = pad2(d.getUTCMonth() + 1);
+  const D = pad2(d.getUTCDate());
+
+  switch (granularity) {
+    case "minute":
+      return `${Y}-${M}-${D}T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:00Z`;
+    case "hour":
+      return `${Y}-${M}-${D}T${pad2(d.getUTCHours())}:00:00Z`;
+    case "day":
+      return `${Y}-${M}-${D}`;
+    case "week": {
+      // toMonday: find the Monday of the ISO week.
+      // setUTCDate handles month rollback correctly (e.g. 2026-01-01 Thu → 2025-12-29 Mon).
+      const day = d.getUTCDay(); // 0=Sunday, 1=Monday, ...
+      const diff = day === 0 ? 6 : day - 1;
+      const monday = new Date(d);
+      monday.setUTCDate(monday.getUTCDate() - diff);
+      return `${monday.getUTCFullYear()}-${pad2(monday.getUTCMonth() + 1)}-${pad2(monday.getUTCDate())}`;
+    }
+    case "month":
+      return `${Y}-${M}-01`;
+    default:
+      throw new Error(`Unknown granularity: ${granularity}`);
+  }
+};
+
+/**
+ * Get the value a trace-level event would have for a given dimension field
+ * in the events_observations view.
+ */
+const getTraceEventDimValue = (
+  trace: GeneratedTrace,
+  field: string,
+): unknown => {
+  switch (field) {
+    case "id":
+      return `t-${trace.id}`;
+    case "traceId":
+      return trace.id;
+    case "environment":
+      return trace.environment;
+    case "parentObservationId":
+      return null;
+    case "type":
+      return "SPAN";
+    case "name":
+      return trace.name;
+    case "level":
+      return "DEFAULT";
+    case "version":
+      return trace.version;
+    case "userId":
+      return trace.userId;
+    case "sessionId":
+      return trace.sessionId;
+    case "tags":
+      return [...trace.tags].sort();
+    case "release":
+      return trace.release;
+    case "traceName":
+      return trace.name;
+    case "traceRelease":
+      return trace.release;
+    case "traceVersion":
+      return trace.version;
+    case "providedModelName":
+      return null;
+    case "promptName":
+      return null;
+    case "promptVersion":
+      return null;
+    case "startTimeMonth": {
+      const d = new Date(trace.timestamp);
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`;
+    }
+    case "toolNames":
+      return [];
+    case "calledToolNames":
+      return [];
+    default:
+      return null;
+  }
+};
+
+/**
+ * Compute how many trace-level events contribute to each dimension key.
+ * Only includes traces whose timestamp falls within the query time range.
+ */
+const computeTraceEventOffsets = (
+  traces: GeneratedTrace[],
+  query: QueryType,
+  dimKey: (row: Record<string, unknown>) => string,
+): Map<string, number> => {
+  const offsets = new Map<string, number>();
+  const fromMs = new Date(query.fromTimestamp).getTime();
+  const toMs = new Date(query.toTimestamp).getTime();
+
+  // Resolve time granularity if a time dimension is present
+  const resolvedGranularity = query.timeDimension
+    ? resolveGranularity(
+        query.fromTimestamp,
+        query.toTimestamp,
+        query.timeDimension.granularity,
+      )
+    : null;
+
+  for (const trace of traces) {
+    // Skip traces outside the query time range (matching >= and <= filters)
+    if (trace.timestamp < fromMs || trace.timestamp > toMs) continue;
+
+    // Build the dimension row for this trace event
+    const row: Record<string, unknown> = {};
+    for (const dim of query.dimensions) {
+      row[dim.field] = getTraceEventDimValue(trace, dim.field);
+    }
+
+    // Add time_dimension if present
+    if (resolvedGranularity) {
+      row["time_dimension"] = bucketTimestamp(
+        trace.timestamp,
+        resolvedGranularity,
+      );
+    }
+
+    const normalized = normalizeRow(row);
+    const key = dimKey(normalized);
+    offsets.set(key, (offsets.get(key) ?? 0) + 1);
+  }
+
+  return offsets;
 };
