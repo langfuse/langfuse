@@ -473,19 +473,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
         ],
       },
-      tableDataUpdatedAt: Math.max(
-        evaluators.dataUpdatedAt,
-        costs.dataUpdatedAt,
-      ),
       children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
       ...peekNavigationProps,
     }),
-    [
-      projectId,
-      evaluators.dataUpdatedAt,
-      costs.dataUpdatedAt,
-      peekNavigationProps,
-    ],
+    [projectId, peekNavigationProps],
   );
 
   const convertToTableRow = (

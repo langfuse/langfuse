@@ -302,11 +302,10 @@ export default function EvalsTemplateTable({
           "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
         ],
       },
-      tableDataUpdatedAt: templates.dataUpdatedAt,
       children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
       ...peekNavigationProps,
     }),
-    [projectId, templates.dataUpdatedAt, peekNavigationProps],
+    [projectId, peekNavigationProps],
   );
 
   const convertToTableRow = (

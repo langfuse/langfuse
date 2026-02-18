@@ -117,17 +117,11 @@ function DatasetCompareRunsTableInternal(props: {
     () => ({
       itemType: "TRACE" as const,
       children: <PeekViewTraceDetail projectId={props.projectId} />,
-      tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
       closePeek,
       expandPeek,
       // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
     }),
-    [
-      props.projectId,
-      datasetItemsWithRunData.dataUpdatedAt,
-      closePeek,
-      expandPeek,
-    ],
+    [props.projectId, closePeek, expandPeek],
   );
 
   const { runAggregateColumns, isLoading: cellsLoading } =

@@ -1168,10 +1168,9 @@ export default function ObservationsEventsTable({
       customTitlePrefix: "Observation ID:",
       detailNavigationKey: "observations",
       children: <PeekViewObservationDetail projectId={projectId} />,
-      tableDataUpdatedAt: dataUpdatedAt,
       ...peekNavigationProps,
     };
-  }, [projectId, dataUpdatedAt, peekNavigationProps, hideControls]);
+  }, [projectId, peekNavigationProps, hideControls]);
 
   const rows: EventsTableRow[] = useMemo(() => {
     const result =

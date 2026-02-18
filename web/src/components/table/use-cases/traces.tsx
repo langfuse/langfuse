@@ -1215,19 +1215,9 @@ export default function TracesTable({
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
       children: <PeekViewTraceDetail projectId={projectId} />,
-      tableDataUpdatedAt: Math.max(
-        traces.dataUpdatedAt,
-        traceMetrics.dataUpdatedAt,
-      ),
       ...peekNavigationProps,
     };
-  }, [
-    projectId,
-    hideControls,
-    peekNavigationProps,
-    traces.dataUpdatedAt,
-    traceMetrics.dataUpdatedAt,
-  ]);
+  }, [projectId, hideControls, peekNavigationProps]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
