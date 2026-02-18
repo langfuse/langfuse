@@ -221,9 +221,6 @@ const ObservationsPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm font-medium leading-none">
-            Preview sample matched observations
-          </span>
           <FormDescription>
             Sample over the last 24 hours that match filters
           </FormDescription>
@@ -935,7 +932,7 @@ export const InnerEvaluatorForm = (props: {
 
                     return (
                       <FormItem>
-                        <FormLabel>Where</FormLabel>
+                        <FormLabel>Filter</FormLabel>
                         <FormControl>
                           <div className="max-w-[500px]">
                             {props.disabled && !hasFilters ? (
