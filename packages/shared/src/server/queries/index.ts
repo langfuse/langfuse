@@ -36,8 +36,10 @@ export {
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
 export {
   eventsScoresAggregation,
