@@ -596,7 +596,9 @@ export const InnerEvaluatorForm = (props: {
                         value={userFacingTarget}
                         onValueChange={(value) => {
                           const actualTarget = handleAndResolveTarget(value);
-                          field.onChange(actualTarget);
+                          if (actualTarget) {
+                            field.onChange(actualTarget);
+                          }
                         }}
                       >
                         <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
