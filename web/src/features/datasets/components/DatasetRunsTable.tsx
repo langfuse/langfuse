@@ -636,7 +636,9 @@ export function DatasetRunsTable(props: {
                         <span className="shrink-0 text-sm font-medium">
                           {title}
                         </span>
-                        <NoDataOrLoading isLoading={true} />
+                        <NoDataOrLoading
+                          isLoading={runs.isPending || runsMetrics.isPending}
+                        />
                       </div>
                     );
                   }
