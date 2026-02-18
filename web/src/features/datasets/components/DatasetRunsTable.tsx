@@ -40,12 +40,9 @@ import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
-import { useDashboardChartsBeta } from "@/src/features/dashboard/hooks/useDashboardChartsBeta";
+import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { TimeseriesChart } from "@/src/features/scores/components/TimeseriesChart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
-import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import {
@@ -191,7 +188,6 @@ export function DatasetRunsTable(props: {
   selectedMetrics: string[];
   setScoreOptions: (options: { key: string; value: string }[]) => void;
 }) {
-  const { isDashboardChartsBeta } = useDashboardChartsBeta();
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -334,7 +330,7 @@ export function DatasetRunsTable(props: {
     );
   }, [runsMetrics.data, scoreIdToName]);
 
-  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
+  const { scoreAnalyticsOptions } = useMemo(
     () =>
       convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
     [scoreKeysAndProps.data?.scoreColumns],
@@ -636,7 +632,10 @@ export function DatasetRunsTable(props: {
                         <span className="shrink-0 text-sm font-medium">
                           {title}
                         </span>
-                        <NoDataOrLoading isLoading={true} />
+                        <NoDataOrLoading
+                          isLoading={runsMetrics.isPending}
+                          className="min-h-[200px]"
+                        />
                       </div>
                     );
                   }
@@ -647,7 +646,6 @@ export function DatasetRunsTable(props: {
                   );
                   const { chartData, chartLabels } = adapter.toChartData();
 
-                  const scoreData = scoreKeyToData.get(key);
                   const valueFormatter =
                     key === "latency"
                       ? latencyFormatter
@@ -655,22 +653,23 @@ export function DatasetRunsTable(props: {
                         ? usdFormatter
                         : compactNumberFormatter;
 
-                  if (isDashboardChartsBeta) {
-                    const dataPoints =
-                      chartLabels.length === 1
-                        ? chartData.map((d) => ({
-                            time_dimension: d.binLabel,
-                            dimension: chartLabels[0]!,
-                            metric: (d[chartLabels[0]!] as number) ?? 0,
-                          }))
-                        : compareViewChartDataToDataPoints(
-                            chartData,
-                            chartLabels,
-                          );
-                    const chartType =
-                      chartLabels.length === 1
-                        ? "LINE_TIME_SERIES"
-                        : "BAR_TIME_SERIES";
+                  const dataPoints =
+                    chartLabels.length === 1
+                      ? chartData.map((d) => ({
+                          time_dimension: d.binLabel,
+                          dimension: chartLabels[0]!,
+                          metric: (d[chartLabels[0]!] as number) ?? 0,
+                        }))
+                      : compareViewChartDataToDataPoints(
+                          chartData,
+                          chartLabels,
+                        );
+                  const chartType =
+                    chartLabels.length === 1
+                      ? "LINE_TIME_SERIES"
+                      : "BAR_TIME_SERIES";
+
+                  if (dataPoints.length === 0) {
                     return (
                       <div
                         key={key}
@@ -679,51 +678,35 @@ export function DatasetRunsTable(props: {
                         <span className="shrink-0 text-sm font-medium">
                           {title}
                         </span>
-                        <div className="min-h-0 flex-1">
-                          <Chart
-                            chartType={chartType}
-                            data={dataPoints}
-                            rowLimit={Math.max(dataPoints.length, 1)}
-                            chartConfig={{ type: chartType }}
-                            valueFormatter={valueFormatter}
-                            legendPosition={
-                              chartLabels.length > 1 ? "above" : "none"
-                            }
-                          />
-                        </div>
+                        <NoDataOrLoading
+                          isLoading={runsMetrics.isPending}
+                          description="No chart data available for the selected runs."
+                          className="min-h-[200px]"
+                        />
                       </div>
                     );
                   }
 
-                  if (!scoreData)
-                    return (
-                      <div key={key} className="h-full min-w-80 max-w-full">
-                        <TimeseriesChart
-                          chartData={chartData}
-                          chartLabels={chartLabels}
-                          title={title}
-                          type="numeric"
-                          maxFractionDigits={
-                            RESOURCE_METRICS.find(
-                              (metric) => metric.key === key,
-                            )?.maxFractionDigits
+                  return (
+                    <div
+                      key={key}
+                      className="flex h-full min-w-80 max-w-full flex-col gap-2"
+                    >
+                      <span className="shrink-0 text-sm font-medium">
+                        {title}
+                      </span>
+                      <div className="min-h-[200px] min-w-0 flex-1">
+                        <Chart
+                          chartType={chartType}
+                          data={dataPoints}
+                          rowLimit={Math.max(dataPoints.length, 1)}
+                          chartConfig={{ type: chartType }}
+                          valueFormatter={valueFormatter}
+                          legendPosition={
+                            chartLabels.length > 1 ? "above" : "none"
                           }
                         />
                       </div>
-                    );
-
-                  return (
-                    <div key={key} className="h-full min-w-80 max-w-full">
-                      <TimeseriesChart
-                        chartData={chartData}
-                        chartLabels={chartLabels}
-                        title={title}
-                        type={
-                          isNumericDataType(scoreData.dataType)
-                            ? "numeric"
-                            : "categorical"
-                        }
-                      />
                     </div>
                   );
                 })}
@@ -751,6 +734,7 @@ export function DatasetRunsTable(props: {
                   runs.data?.runs.map((run) => run.id).includes(runId),
                 ).length > 0 ? (
                   <DatasetRunTableMultiSelectAction
+                    key="multi-select-action"
                     // Exclude items that are not in the current page
                     selectedRunIds={Object.keys(selectedRows).filter((runId) =>
                       runs.data?.runs.map((run) => run.id).includes(runId),
