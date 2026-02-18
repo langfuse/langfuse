@@ -439,7 +439,6 @@ export const getEventsStreamForEval = async (props: {
     usage_details: Record<string, number>;
     provided_cost_details: Record<string, number>;
     cost_details: Record<string, number>;
-    total_cost: number | null;
     tool_definitions: Record<string, unknown>;
     tool_calls: unknown[];
     tool_call_names: string[];
@@ -466,26 +465,15 @@ export const getEventsStreamForEval = async (props: {
     },
   });
 
-  // Remap ClickHouse aliases to schema field names and merge total_cost.
+  // Remap ClickHouse aliases to schema field names.
   // Schema validation is left to the consumer so per-row errors can be handled gracefully.
   return Readable.from(
     (async function* () {
       for await (const row of asyncGenerator) {
-        const totalCostPatch =
-          row.total_cost != null ? { total: row.total_cost } : {};
-
         yield {
           ...row,
           span_id: row.id,
           parent_span_id: row.parent_observation_id,
-          provided_cost_details: {
-            ...(row.provided_cost_details ?? row.cost_details ?? {}),
-            ...totalCostPatch,
-          },
-          cost_details: {
-            ...(row.cost_details ?? {}),
-            ...totalCostPatch,
-          },
         };
       }
     })(),

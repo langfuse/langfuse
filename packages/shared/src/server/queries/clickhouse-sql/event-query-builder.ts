@@ -286,7 +286,6 @@ const FIELD_SETS = {
     "usageDetails",
     "providedCostDetails",
     "costDetails",
-    "totalCost",
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",

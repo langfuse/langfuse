@@ -45,7 +45,6 @@ export const observationForEvalSchema = z.object({
   provided_cost_details: flexibleUsageCostSchema,
   usage_details: flexibleUsageCostSchema,
   cost_details: flexibleUsageCostSchema,
-  total_cost: z.number().nullish(),
 
   // Tool calls
   tool_definitions: z.record(z.string(), z.unknown()).default({}),
