@@ -142,14 +142,12 @@ export const DeleteTraceV1Response = z
   .strict();
 
 // DELETE /api/public/traces
-export const DeleteTracesV1Body = z
-  .object({
-    traceIds: z
-      .array(z.string())
-      .min(1, "At least 1 traceId is required.")
-      .max(1000, "Cannot specify more than 1000 traces in a single request."),
-  })
-  .strict();
+export const DeleteTracesV1Body = z.object({
+  traceIds: z
+    .array(z.string())
+    .min(1, "At least 1 traceId is required.")
+    .max(1000, "Cannot specify more than 1000 traces in a single request."),
+});
 export const DeleteTracesV1Response = z
   .object({
     message: z.string(),

@@ -46,7 +46,6 @@ export const CreateBlobStorageIntegrationRequest = z
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable().optional(),
   })
-  .strict()
   .refine(
     (data) => {
       return !(data.exportMode === "FROM_CUSTOM_DATE" && !data.exportStartDate);

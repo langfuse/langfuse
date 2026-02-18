@@ -44,11 +44,9 @@ export type AnnotationQueue = z.infer<typeof AnnotationQueueSchema>;
  */
 
 // GET /annotation-queues
-export const GetAnnotationQueuesQuery = z
-  .object({
-    ...publicApiPaginationZod,
-  })
-  .strict();
+export const GetAnnotationQueuesQuery = z.object({
+  ...publicApiPaginationZod,
+});
 
 export const GetAnnotationQueuesResponse = z
   .object({
@@ -58,33 +56,27 @@ export const GetAnnotationQueuesResponse = z
   .strict();
 
 // POST /annotation-queues
-export const CreateAnnotationQueueBody = z
-  .object({
-    name: z.string(),
-    description: z.string().nullable(),
-    scoreConfigIds: z.array(z.string()).min(1),
-  })
-  .strict();
+export const CreateAnnotationQueueBody = z.object({
+  name: z.string(),
+  description: z.string().nullable(),
+  scoreConfigIds: z.array(z.string()).min(1),
+});
 
 export const CreateAnnotationQueueResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId
-export const GetAnnotationQueueByIdQuery = z
-  .object({
-    queueId: z.string(),
-  })
-  .strict();
+export const GetAnnotationQueueByIdQuery = z.object({
+  queueId: z.string(),
+});
 
 export const GetAnnotationQueueByIdResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId/items
-export const GetAnnotationQueueItemsQuery = z
-  .object({
-    ...publicApiPaginationZod,
-    queueId: z.string(),
-    status: z.enum(AnnotationQueueStatus).optional(),
-  })
-  .strict();
+export const GetAnnotationQueueItemsQuery = z.object({
+  ...publicApiPaginationZod,
+  queueId: z.string(),
+  status: z.enum(AnnotationQueueStatus).optional(),
+});
 
 export const GetAnnotationQueueItemsResponse = z
   .object({
@@ -94,45 +86,37 @@ export const GetAnnotationQueueItemsResponse = z
   .strict();
 
 // GET /annotation-queues/:queueId/items/:itemId
-export const GetAnnotationQueueItemByIdQuery = z
-  .object({
-    queueId: z.string(),
-    itemId: z.string(),
-  })
-  .strict();
+export const GetAnnotationQueueItemByIdQuery = z.object({
+  queueId: z.string(),
+  itemId: z.string(),
+});
 
 export const GetAnnotationQueueItemByIdResponse = AnnotationQueueItemSchema;
 
 // POST /annotation-queues/:queueId/items
-export const CreateAnnotationQueueItemBody = z
-  .object({
-    objectId: z.string(),
-    objectType: z.enum(AnnotationQueueObjectType),
-    status: z
-      .enum(AnnotationQueueStatus)
-      .optional()
-      .default(AnnotationQueueStatus.PENDING),
-  })
-  .strict();
+export const CreateAnnotationQueueItemBody = z.object({
+  objectId: z.string(),
+  objectType: z.enum(AnnotationQueueObjectType),
+  status: z
+    .enum(AnnotationQueueStatus)
+    .optional()
+    .default(AnnotationQueueStatus.PENDING),
+});
 
 export const CreateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 
 // PATCH /annotation-queues/:queueId/items/:itemId
-export const UpdateAnnotationQueueItemBody = z
-  .object({
-    status: z.enum(AnnotationQueueStatus).optional(),
-  })
-  .strict();
+export const UpdateAnnotationQueueItemBody = z.object({
+  status: z.enum(AnnotationQueueStatus).optional(),
+});
 
 export const UpdateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 
 // DELETE /annotation-queues/:queueId/items/:itemId
-export const DeleteAnnotationQueueItemQuery = z
-  .object({
-    queueId: z.string(),
-    itemId: z.string(),
-  })
-  .strict();
+export const DeleteAnnotationQueueItemQuery = z.object({
+  queueId: z.string(),
+  itemId: z.string(),
+});
 
 export const DeleteAnnotationQueueItemResponse = z
   .object({
@@ -150,28 +134,22 @@ export const AnnotationQueueAssignmentSchema = z
   })
   .strict();
 
-export const AnnotationQueueAssignmentQuery = z
-  .object({
-    queueId: z.string(),
-  })
-  .strict();
+export const AnnotationQueueAssignmentQuery = z.object({
+  queueId: z.string(),
+});
 
 // POST /annotation-queues/:queueId/assignments
-export const CreateAnnotationQueueAssignmentBody = z
-  .object({
-    userId: z.string(),
-  })
-  .strict();
+export const CreateAnnotationQueueAssignmentBody = z.object({
+  userId: z.string(),
+});
 
 export const CreateAnnotationQueueAssignmentResponse =
   AnnotationQueueAssignmentSchema;
 
 // DELETE /annotation-queues/:queueId/assignments
-export const DeleteAnnotationQueueAssignmentBody = z
-  .object({
-    userId: z.string(),
-  })
-  .strict();
+export const DeleteAnnotationQueueAssignmentBody = z.object({
+  userId: z.string(),
+});
 
 export const DeleteAnnotationQueueAssignmentResponse = z
   .object({

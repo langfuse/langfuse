@@ -20,11 +20,9 @@ export const LlmConnectionResponse = z
   .strict();
 
 // GET /api/public/llm-connections query parameters
-export const GetLlmConnectionsV1Query = z
-  .object({
-    ...paginationZod,
-  })
-  .strict();
+export const GetLlmConnectionsV1Query = z.object({
+  ...paginationZod,
+});
 
 // GET /api/public/llm-connections response
 export const GetLlmConnectionsV1Response = z

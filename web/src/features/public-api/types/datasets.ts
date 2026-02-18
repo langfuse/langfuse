@@ -234,7 +234,6 @@ export const PostDatasetRunItemsV1Body = z
     traceId: z.string().nullish(),
     datasetVersion: versionZod.nullish(),
   })
-  .strict()
   .refine((data) => data.observationId || data.traceId, {
     message: "observationId or traceId must be provided",
     path: ["observationId", "traceId"], // Specify the path of the error

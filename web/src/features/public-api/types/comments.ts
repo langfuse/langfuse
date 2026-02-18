@@ -34,11 +34,9 @@ export const PostCommentsV1Body = CreateCommentData.omit({
   path: true,
   rangeStart: true,
   rangeEnd: true,
-})
-  .extend({
-    authorUserId: z.string().nullish(),
-  })
-  .strict();
+}).extend({
+  authorUserId: z.string().nullish(),
+});
 export const PostCommentsV1Response = z.object({ id: z.string() }).strict();
 
 // GET /comments
@@ -49,7 +47,6 @@ export const GetCommentsV1Query = z
     authorUserId: z.string().nullish(),
     ...publicApiPaginationZod,
   })
-  .strict()
   .refine(
     ({ objectId, objectType }) => {
       return objectId ? !!objectType : true;
@@ -68,9 +65,7 @@ export const GetCommentsV1Response = z
   .strict();
 
 // GET /comments/:id
-export const GetCommentV1Query = z
-  .object({
-    commentId: z.string(),
-  })
-  .strict();
+export const GetCommentV1Query = z.object({
+  commentId: z.string(),
+});
 export const GetCommentV1Response = APIComment;
