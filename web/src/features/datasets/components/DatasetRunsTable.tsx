@@ -330,7 +330,7 @@ export function DatasetRunsTable(props: {
     );
   }, [runsMetrics.data, scoreIdToName]);
 
-  const { scoreAnalyticsOptions, scoreKeyToData } = useMemo(
+  const { scoreAnalyticsOptions } = useMemo(
     () =>
       convertScoreColumnsToAnalyticsData(scoreKeysAndProps.data?.scoreColumns),
     [scoreKeysAndProps.data?.scoreColumns],
