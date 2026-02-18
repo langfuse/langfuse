@@ -464,18 +464,29 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const peekNavigationProps = usePeekNavigation();
 
-  const peekConfig = {
-    itemType: "RUNNING_EVALUATOR" as const,
-    detailNavigationKey: "evals",
-    peekEventOptions: {
-      ignoredSelectors: [
-        "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-      ],
-    },
-    tableDataUpdatedAt: Math.max(evaluators.dataUpdatedAt, costs.dataUpdatedAt),
-    children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
-    ...peekNavigationProps,
-  };
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "RUNNING_EVALUATOR" as const,
+      detailNavigationKey: "evals",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+        ],
+      },
+      tableDataUpdatedAt: Math.max(
+        evaluators.dataUpdatedAt,
+        costs.dataUpdatedAt,
+      ),
+      children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+      ...peekNavigationProps,
+    }),
+    [
+      projectId,
+      evaluators.dataUpdatedAt,
+      costs.dataUpdatedAt,
+      peekNavigationProps,
+    ],
+  );
 
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],

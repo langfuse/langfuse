@@ -7,7 +7,7 @@ import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -113,14 +113,22 @@ function DatasetCompareRunsTableInternal(props: {
     },
   });
 
-  const peekConfig = {
-    itemType: "TRACE" as const,
-    children: <PeekViewTraceDetail projectId={props.projectId} />,
-    tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
-    closePeek,
-    expandPeek,
-    // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
-  };
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "TRACE" as const,
+      children: <PeekViewTraceDetail projectId={props.projectId} />,
+      tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
+      closePeek,
+      expandPeek,
+      // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
+    }),
+    [
+      props.projectId,
+      datasetItemsWithRunData.dataUpdatedAt,
+      closePeek,
+      expandPeek,
+    ],
+  );
 
   const { runAggregateColumns, isLoading: cellsLoading } =
     useDatasetRunAggregateColumns({

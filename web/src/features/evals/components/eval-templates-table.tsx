@@ -7,7 +7,7 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
@@ -293,18 +293,21 @@ export default function EvalsTemplateTable({
     },
   });
 
-  const peekConfig = {
-    itemType: "EVALUATOR" as const,
-    detailNavigationKey: "eval-templates",
-    peekEventOptions: {
-      ignoredSelectors: [
-        "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
-      ],
-    },
-    tableDataUpdatedAt: templates.dataUpdatedAt,
-    children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
-    ...peekNavigationProps,
-  };
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "EVALUATOR" as const,
+      detailNavigationKey: "eval-templates",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
+        ],
+      },
+      tableDataUpdatedAt: templates.dataUpdatedAt,
+      children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
+      ...peekNavigationProps,
+    }),
+    [projectId, templates.dataUpdatedAt, peekNavigationProps],
+  );
 
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
