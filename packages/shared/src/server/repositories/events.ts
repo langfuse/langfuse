@@ -1401,8 +1401,12 @@ export const updateEvents = async (
     ...updates,
   };
 
+  const useLightweightUpdate = env.CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE === "true";
+
   const updateOpts = (table: string) => ({
-    query: `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
+    query: useLightweightUpdate
+      ? `UPDATE ${table} SET ${setClauses.join(", ")} ${whereClause}`
+      : `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
     params,
     tags: { type: table, kind: "update", projectId },
   });
