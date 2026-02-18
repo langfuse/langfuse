@@ -7,6 +7,7 @@ import {
   scheduleObservationEvals,
   type ObservationEvalConfig,
 } from "../evaluation/observationEval";
+
 const BATCH_SIZE = 500;
 const CONCURRENCY_LIMIT = 50;
 const MAX_ERROR_LOG_LINES = 20;
@@ -56,6 +57,7 @@ export async function processBatchedObservationEval(params: {
 
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
+
       if (result.status === "fulfilled") {
         processedCount++;
       } else {
@@ -75,7 +77,7 @@ export async function processBatchedObservationEval(params: {
     }
 
     await prisma.batchAction.update({
-      where: { id: batchActionId },
+      where: { id: batchActionId, projectId },
       data: { totalCount, processedCount, failedCount },
     });
   };
@@ -108,7 +110,7 @@ export async function processBatchedObservationEval(params: {
       : null;
 
   await prisma.batchAction.update({
-    where: { id: batchActionId },
+    where: { id: batchActionId, projectId },
     data: {
       status: finalStatus,
       finishedAt: new Date(),
