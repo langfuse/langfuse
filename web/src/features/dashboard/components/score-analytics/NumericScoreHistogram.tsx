@@ -4,6 +4,7 @@ import {
   type FilterState,
   type ScoreDataTypeType,
 } from "@langfuse/shared";
+import { type ViewVersion } from "@/src/features/query";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -16,6 +17,7 @@ export function NumericScoreHistogram(props: {
   source: ScoreSourceType;
   dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   globalFilterState: FilterState;
+  metricsVersion?: ViewVersion;
 }) {
   const histogram = api.dashboard.scoreHistogram.useQuery(
     {

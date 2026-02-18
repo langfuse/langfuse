@@ -23,6 +23,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import {
   type QueryType,
   query as customQuery,
+  viewVersions,
 } from "@/src/features/query/types";
 import {
   paginationZod,
@@ -161,11 +162,16 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         query: customQuery,
+        version: viewVersions.optional().default("v1"),
       }),
     )
     .query(async ({ input }) => {
       try {
-        return executeQuery(input.projectId, input.query as QueryType);
+        return executeQuery(
+          input.projectId,
+          input.query as QueryType,
+          input.version,
+        );
       } catch (error) {
         if (error instanceof InvalidRequestError) {
           logger.warn("Bad request in query execution", error, {
