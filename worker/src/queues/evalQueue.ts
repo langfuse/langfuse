@@ -165,6 +165,13 @@ export const evalJobExecutorQueueProcessor = async (
 
     const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
 
+    if (isLLMCompletionError(e)) {
+      const span = getCurrentSpan();
+      if (span) {
+        span.setAttribute("http.response.status_code", e.responseStatusCode);
+      }
+    }
+
     if (isLLMCompletionError(e) && e.isRetryable) {
       await retryLLMRateLimitError(job, {
         table: "job_executions",
@@ -253,6 +260,13 @@ export const llmAsJudgeExecutionQueueProcessor = async (
     return true;
   } catch (e) {
     const executionTraceId = createW3CTraceId(job.data.payload.jobExecutionId);
+
+    if (isLLMCompletionError(e)) {
+      const span = getCurrentSpan();
+      if (span) {
+        span.setAttribute("http.response.status_code", e.responseStatusCode);
+      }
+    }
 
     if (isLLMCompletionError(e) && e.isRetryable) {
       await retryLLMRateLimitError(job, {
