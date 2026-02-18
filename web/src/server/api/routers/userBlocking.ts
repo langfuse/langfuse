@@ -9,7 +9,7 @@ import {
   blockUser,
   unblockUser,
   getBlockedUsers,
-} from "@langfuse/shared/src/server/ingestion/userBlocking";
+} from "@langfuse/shared/src/server";
 import { traceException } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
