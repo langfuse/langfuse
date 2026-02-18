@@ -190,7 +190,7 @@ export class QueryBuilder {
   }
 
   private actualTableName(view: ViewDeclarationType): string {
-    // Extract actual table name from baseCte (handles cases like "events-observations" -> "events")
+    // Extract actual table name from baseCte (e.g., "events_core events_traces" -> "events_core")
     return view.baseCte.split(" ")[0];
   }
 
@@ -446,7 +446,7 @@ export class QueryBuilder {
         uiTableId: relation.timeDimension,
         clickhouseTableName: relation.name,
         clickhouseSelect: relation.timeDimension,
-        queryPrefix: relation.name,
+        queryPrefix: relationTableName,
         type: "datetime",
       };
 
@@ -571,9 +571,10 @@ export class QueryBuilder {
     );
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT)
-    const wrappedSql = wrapInAgg
-      ? `${wrapInAgg}(${timeDimensionSql})`
-      : timeDimensionSql;
+    const agg = wrapInAgg
+      ? (view.timeDimensionAggregation ?? wrapInAgg)
+      : undefined;
+    const wrappedSql = agg ? `${agg}(${timeDimensionSql})` : timeDimensionSql;
 
     return `${wrappedSql} as time_dimension`;
   }
@@ -1043,7 +1044,7 @@ export class QueryBuilder {
 
     // Events table never needs FINAL modifier (already deduplicated)
     if (view.name === "events-observations") {
-      // baseCte already set to "events" in view definition (no FINAL)
+      // baseCte already set to "events_core" in view definition (no FINAL)
       // No changes needed, just using as-is
     }
     // Skip FINAL on observations base table if OTEL project

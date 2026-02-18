@@ -13,9 +13,13 @@ export const LineChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
 export const BarChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
   type: z.literal("BAR_TIME_SERIES"),
 });
+export const AreaChartTimeSeriesConfig = BaseTimeSeriesChartConfig.extend({
+  type: z.literal("AREA_TIME_SERIES"),
+});
 
 export const HorizontalBarChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("HORIZONTAL_BAR"),
+  show_value_labels: z.boolean().optional(),
 });
 export const VerticalBarChartConfig = BaseTotalValueChartConfig.extend({
   type: z.literal("VERTICAL_BAR"),
@@ -58,6 +62,7 @@ export const MetricSchema = z.object({
 export const ChartConfigSchema = z.discriminatedUnion("type", [
   LineChartTimeSeriesConfig,
   BarChartTimeSeriesConfig,
+  AreaChartTimeSeriesConfig,
   HorizontalBarChartConfig,
   VerticalBarChartConfig,
   PieChartConfig,

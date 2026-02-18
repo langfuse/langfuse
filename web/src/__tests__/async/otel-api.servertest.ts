@@ -330,6 +330,84 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     }, 25_000);
   }, 30_000);
 
+  it("should accept sdk headers in underscore format", async () => {
+    const traceId = randomBytes(16);
+    const spanId = randomBytes(8);
+
+    const payload = {
+      resourceSpans: [
+        {
+          resource: {
+            attributes: [],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "4.0.0",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId,
+                  spanId,
+                  name: "underscore-header-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 466848096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467248096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/otel/v1/traces",
+      payload,
+      undefined,
+      {
+        x_langfuse_sdk_name: "python",
+        x_langfuse_sdk_version: "4.0.0",
+        x_langfuse_ingestion_version: "4",
+      },
+    );
+
+    expect(response.status).toBe(200);
+
+    await waitForExpect(async () => {
+      const trace = await getTraceById({
+        projectId,
+        traceId: traceId.toString("hex"),
+      });
+      expect(trace).toBeDefined();
+
+      const observation = await getObservationById({
+        projectId,
+        id: spanId.toString("hex"),
+      });
+      expect(observation).toBeDefined();
+      expect(observation!.name).toBe("underscore-header-span");
+    }, 25_000);
+  }, 30_000);
+
   it("should transform deployment.environment to lowercase", async () => {
     const traceId = randomBytes(16);
     const spanId = randomBytes(8);

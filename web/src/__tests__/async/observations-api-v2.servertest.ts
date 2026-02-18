@@ -44,7 +44,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         output: "The capital of France is Paris.",
         metadata: { source: "API" },
         metadata_names: ["source"],
-        metadata_raw_values: ["API"],
+        metadata_values: ["API"],
         provided_model_name: "gpt-4",
       });
 
@@ -131,48 +131,16 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.output).toBe(jsonOutput);
     });
 
-    it("should parse input/output as JSON when parseIoAsJson=true", async () => {
-      const traceId = randomUUID();
-      const observationId = randomUUID();
-      const timestamp = new Date();
-      const timeValue = timestamp.getTime() * 1000;
-
-      // Create observation with JSON input/output
-      const inputData = { question: "What is 2+2?" };
-      const outputData = { answer: 4 };
-
-      const observation = createEvent({
-        id: observationId,
-        span_id: observationId,
-        trace_id: traceId,
-        project_id: projectId,
-        name: "test-observation",
-        type: "GENERATION",
-        level: "DEFAULT",
-        start_time: timeValue,
-        end_time: timeValue + 1000 * 1000,
-        input: JSON.stringify(inputData),
-        output: JSON.stringify(outputData),
-      });
-
-      await createEventsCh([observation]);
-
-      // Request with parseIoAsJson=true
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
+    it("should return 400 when parseIoAsJson=true", async () => {
+      const { makeAPICall } = await import("@/src/__tests__/test-utils");
+      const response = await makeAPICall(
         "GET",
-        `/api/public/v2/observations?fields=io&traceId=${traceId}&parseIoAsJson=true`,
+        `/api/public/v2/observations?fields=io&parseIoAsJson=true`,
       );
 
-      expect(response.status).toBe(200);
-      const obs = response.body.data.find((o: any) => o.id === observationId);
-      expect(obs).toBeDefined();
-
-      // Input and output should be parsed as objects
-      expect(typeof obs?.input).toBe("object");
-      expect(typeof obs?.output).toBe("object");
-      expect(obs?.input).toEqual(inputData);
-      expect(obs?.output).toEqual(outputData);
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("error");
+      expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
     it("should respect limit parameter with default of 50", async () => {
@@ -281,7 +249,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await waitForExpect(
         async () => {
           const result = await queryClickhouse<{ count: string }>({
-            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
             params: { projectId, ids: [observationId1, observationId2] },
           });
           expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
@@ -443,7 +411,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         // Nested metadata: { scope: { name: "api-server" }, region: "us-east" }
         metadata: { scope: { name: "api-server" }, region: "us-east" },
         metadata_names: ["scope.name", "region"],
-        metadata_raw_values: ["api-server", "us-east"],
+        metadata_values: ["api-server", "us-east"],
       });
 
       const observation2 = createEvent({
@@ -458,7 +426,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         // Nested metadata: { scope: { name: "ui-client" }, region: "us-west" }
         metadata: { scope: { name: "ui-client" }, region: "us-west" },
         metadata_names: ["scope.name", "region"],
-        metadata_raw_values: ["ui-client", "us-west"],
+        metadata_values: ["ui-client", "us-west"],
       });
 
       await createEventsCh([observation1, observation2]);
@@ -467,7 +435,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await waitForExpect(
         async () => {
           const result = await queryClickhouse<{ count: string }>({
-            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
             params: { projectId, ids: [observationId1, observationId2] },
           });
           expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
@@ -505,10 +473,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("Metadata expansion with expandMetadata parameter", () => {
-    // Cutoff is 200 chars - values longer than 200 chars are truncated by default
-    const METADATA_CUTOFF = 200;
-
-    it("should selectively expand only specified metadata keys", async () => {
+    it("should return full metadata values when expandMetadata is specified", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
       const timestamp = new Date();
@@ -529,11 +494,11 @@ describe("/api/public/v2/observations API Endpoint", () => {
         start_time: timeValue,
         metadata: {
           expandMe: longValue1,
-          keepTruncated: longValue2,
+          otherKey: longValue2,
           shortKey: "shortValue",
         },
-        metadata_names: ["expandMe", "keepTruncated", "shortKey"],
-        metadata_raw_values: [longValue1, longValue2, "shortValue"],
+        metadata_names: ["expandMe", "otherKey", "shortKey"],
+        metadata_values: [longValue1, longValue2, "shortValue"],
       });
 
       await createEventsCh([observation]);
@@ -542,7 +507,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await waitForExpect(
         async () => {
           const result = await queryClickhouse<{ count: string }>({
-            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id = {id: String}`,
             params: { projectId, id: observationId },
           });
           expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
@@ -551,7 +516,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         10,
       );
 
-      // Request metadata with expansion for only 'expandMe' key
+      // Request metadata with expansion - this switches to events_full table
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
@@ -562,15 +527,13 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const obs = response.body.data.find((o: any) => o.id === observationId);
       expect(obs).toBeDefined();
 
-      // 'expandMe' should be full (300 chars)
+      // When expandMetadata is specified, the query uses events_full table which has
+      // full (non-truncated) metadata values. All metadata values are returned in full.
       expect(obs?.metadata?.expandMe?.length).toBe(300);
       expect(obs?.metadata?.expandMe).toBe(longValue1);
 
-      // 'keepTruncated' should still be truncated (200 chars)
-      expect(obs?.metadata?.keepTruncated?.length).toBe(METADATA_CUTOFF);
-      expect(obs?.metadata?.keepTruncated).toBe(
-        longValue2.substring(0, METADATA_CUTOFF),
-      );
+      expect(obs?.metadata?.otherKey?.length).toBe(300);
+      expect(obs?.metadata?.otherKey).toBe(longValue2);
 
       // 'shortValue' should be present as is
       expect(obs?.metadata?.shortKey).toBe("shortValue");
@@ -593,7 +556,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         start_time: timeValue,
         metadata: { existingKey: "value" },
         metadata_names: ["existingKey"],
-        metadata_raw_values: ["value"],
+        metadata_values: ["value"],
       });
 
       await createEventsCh([observation]);
@@ -602,7 +565,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await waitForExpect(
         async () => {
           const result = await queryClickhouse<{ count: string }>({
-            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id = {id: String}`,
             params: { projectId, id: observationId },
           });
           expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
@@ -635,8 +598,10 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const timestamp = new Date();
       const timeValue = timestamp.getTime() * 1000;
 
-      // Create a long metadata value (> 200 chars)
+      // Create a long metadata value (> 200 chars, the MV truncation limit)
       const longValue = "z".repeat(300);
+      // events_core MV truncates metadata values to 200 chars
+      const METADATA_CUTOFF = 200;
 
       const observation = createEvent({
         id: observationId,
@@ -649,7 +614,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         start_time: timeValue,
         metadata: { longKey: longValue },
         metadata_names: ["longKey"],
-        metadata_raw_values: [longValue],
+        metadata_values: [longValue],
       });
 
       await createEventsCh([observation]);
@@ -658,7 +623,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await waitForExpect(
         async () => {
           const result = await queryClickhouse<{ count: string }>({
-            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id = {id: String}`,
             params: { projectId, id: observationId },
           });
           expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
@@ -667,7 +632,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         10,
       );
 
-      // Request metadata with empty expandMetadata - should use truncated
+      // Request metadata with empty expandMetadata - should use events_core (truncated)
       const response = await makeZodVerifiedAPICall(
         GetObservationsV2Response,
         "GET",
@@ -678,7 +643,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       const obs = response.body.data.find((o: any) => o.id === observationId);
       expect(obs).toBeDefined();
 
-      // Metadata should still be present but truncated (empty expandMetadata means no expansion)
+      // Metadata should still be present but truncated (empty expandMetadata uses events_core)
       expect(obs?.metadata?.longKey).toBeDefined();
       expect(obs?.metadata?.longKey?.length).toBe(METADATA_CUTOFF);
       expect(obs?.metadata?.longKey).toBe(
@@ -719,7 +684,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       await waitForExpect(
         async () => {
           const result = await queryClickhouse<{ count: string }>({
-            query: `SELECT count() as count FROM events WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
             params: { projectId, traceId },
           });
           expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(10);

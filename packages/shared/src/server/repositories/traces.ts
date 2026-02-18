@@ -1375,6 +1375,7 @@ export const getTracesForBlobStorageExport = function (
 
 export const getTracesForAnalyticsIntegrations = async function* (
   projectId: string,
+  projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
@@ -1453,6 +1454,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       langfuse_count_observations: record.observation_count,
       langfuse_session_id: record.session_id,
       langfuse_project_id: projectId,
+      langfuse_project_name: projectName,
       langfuse_user_id: record.user_id || null,
       langfuse_latency: record.latency,
       langfuse_release: record.release,

@@ -960,4 +960,128 @@ describe("Filter Evaluation for Observation Evals", () => {
       expect(matched).toBe(false);
     });
   });
+
+  describe("null filters (parentObservationId)", () => {
+    it("should match observations where parentObservationId is null (root observations)", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match observations where parentObservationId is not null (child observations)", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: "some-parent-span-id",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(false);
+    });
+
+    it("should match observations where parentObservationId is not null using 'is not null' operator", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: "some-parent-span-id",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match root observations with parentObservationId is not null using 'is not null' operator", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(false);
+    });
+
+    it("should combine null filter with other filters using AND logic", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+        type: "GENERATION",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "type",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match when null filter passes but other filter fails", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+        type: "SPAN",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "type",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+      ]);
+
+      expect(matched).toBe(false);
+    });
+  });
 });
