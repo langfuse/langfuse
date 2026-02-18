@@ -2,7 +2,6 @@ import z from "zod/v4";
 import {
   AddToDatasetMappingSchema,
   ObservationAddToDatasetConfigSchema,
-  ObservationBatchEvaluationConfigSchema,
   BatchActionQuerySchema,
 } from "@langfuse/shared";
 

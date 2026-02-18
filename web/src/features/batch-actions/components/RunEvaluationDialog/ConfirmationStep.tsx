@@ -1,4 +1,4 @@
-import { Card, CardContent, CardTitle } from "@/src/components/ui/card";
+import { Card, CardContent } from "@/src/components/ui/card";
 
 type ConfirmationStepProps = {
   displayCount: number;
