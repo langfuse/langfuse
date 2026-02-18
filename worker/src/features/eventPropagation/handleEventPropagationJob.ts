@@ -131,6 +131,9 @@ export const handleEventPropagationJob = async (
     await commandClickhouse({
       query: `SYSTEM SYNC REPLICA observations_batch_staging LIGHTWEIGHT`,
       session_id: sessionId,
+      clickhouseConfigs: {
+        request_timeout: 300000, // 5 minutes timeout
+      },
       tags: {
         feature: "ingestion",
         operation_name: "syncReplicaObservationsBatchStaging",
