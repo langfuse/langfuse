@@ -33,6 +33,10 @@ const BlobStorageIntegrationResponseSchema = z.object({
   lastSyncAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
+  exportTraces: z.boolean().nullable(),
+  exportObservations: z.boolean().nullable(),
+  exportScores: z.boolean().nullable(),
+  exportEvents: z.boolean().nullable(),
 });
 
 const BlobStorageIntegrationsResponseSchema = z.object({
@@ -464,6 +468,40 @@ describe("Blob Storage Integrations API", () => {
       expect(response.status).toBe(200);
       expect(response.body.exportMode).toBe("FROM_CUSTOM_DATE");
       expect(response.body.exportStartDate).toBeDefined();
+    });
+
+    it("should handle granular export flags", async () => {
+      const requestBody = {
+        ...validBlobStorageConfig,
+        projectId: testProject1Id,
+        exportTraces: true,
+        exportObservations: false,
+        exportScores: true,
+        exportEvents: null,
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        requestBody,
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.exportTraces).toBe(true);
+      expect(response.body.exportObservations).toBe(false);
+      expect(response.body.exportScores).toBe(true);
+      expect(response.body.exportEvents).toBeNull();
+
+      // Verify in database
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportTraces).toBe(true);
+      expect(saved?.exportObservations).toBe(false);
+      expect(saved?.exportScores).toBe(true);
+      expect(saved?.exportEvents).toBeNull();
     });
 
     it("should store secretAccessKey encrypted in database", async () => {
