@@ -40,6 +40,7 @@ interface GeneratedObservation {
 interface GeneratedScore {
   id: string;
   traceId: string;
+  observationId: string | null;
   name: string;
   source: "API" | "ANNOTATION" | "EVAL";
   dataType: "NUMERIC" | "CATEGORICAL";
@@ -185,14 +186,15 @@ export const insertTestData = async (
   });
 
   // Convert to score format
-  // Note: createTraceScore hardcodes session_id: null after spread,
-  // so we override it after the factory call.
+  // Note: createTraceScore hardcodes session_id: null and a random
+  // observation_id after spread, so we override both after the factory call.
   const v1Scores = scores.map((s) => {
     const trace = traces.find((t) => t.id === s.traceId);
     const score = createTraceScore({
       id: s.id,
       project_id: projectId,
       trace_id: s.traceId,
+      observation_id: s.observationId ?? undefined,
       name: s.name,
       source: s.source,
       data_type: s.dataType,
@@ -204,7 +206,11 @@ export const insertTestData = async (
       updated_at: s.timestamp,
       event_ts: s.timestamp,
     });
-    return { ...score, session_id: trace?.sessionId ?? null };
+    return {
+      ...score,
+      session_id: trace?.sessionId ?? null,
+      observation_id: s.observationId ?? null,
+    };
   });
 
   // Account for fast-check shrinking duplicate IDs to the same value
