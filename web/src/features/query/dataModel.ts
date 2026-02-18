@@ -306,7 +306,7 @@ export const eventsTracesView: ViewDeclarationType = {
   segments: [],
   timeDimension: "start_time",
   timeDimensionAggregation: "min",
-  baseCte: `events events_traces`,
+  baseCte: `events_core events_traces`,
 };
 
 export const observationsView: ViewDeclarationType = {
@@ -841,13 +841,13 @@ const createScoreTableRelations = (
   } else {
     return {
       events_traces: {
-        name: "events",
+        name: "events_core",
         joinConditionSql:
           "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
         timeDimension: "start_time",
       },
       events_observations: {
-        name: "events",
+        name: "events_core",
         joinConditionSql:
           "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
         timeDimension: "start_time",
@@ -1239,7 +1239,7 @@ export const eventsObservationsView: ViewDeclarationType = {
   },
   segments: [],
   timeDimension: "start_time",
-  baseCte: "events events_observations", // No FINAL modifier needed for events table
+  baseCte: "events_core events_observations", // No FINAL modifier needed for events_core table
 };
 
 // Define versioned structure type

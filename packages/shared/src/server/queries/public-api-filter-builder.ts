@@ -83,8 +83,8 @@ const TRACES_COLUMN_DEFINITIONS = [
  * Convenience function: Get just the simple filter mappings for public API
  */
 export function createPublicApiTracesColumnMapping(
-  tableName: "traces" | "events",
-  tablePrefix: "t" | "e",
+  tableName: "traces",
+  tablePrefix: "t",
 ): ApiColumnMapping[] {
   const timestampColumn = "timestamp";
   const simpleFilters: ApiColumnMapping[] = [];
@@ -128,7 +128,7 @@ export function createPublicApiTracesColumnMapping(
  * Eliminates duplication between events and observations filter mappings.
  */
 export function createPublicApiObservationsColumnMapping(
-  tableName: "events" | "observations",
+  tableName: "events_proto" | "observations",
   tablePrefix: "e" | "o",
   parentFieldName: "parent_span_id" | "parent_observation_id",
 ): ApiColumnMapping[] {

@@ -18,6 +18,7 @@ interface BooleanFacet extends BaseFacet {
   type: "boolean";
   trueLabel?: string;
   falseLabel?: string;
+  invertValue?: boolean; // When true, "True" label maps to filter value=false, used for parent_observation_id filter for is Root?
 }
 
 interface NumericFacet extends BaseFacet {
