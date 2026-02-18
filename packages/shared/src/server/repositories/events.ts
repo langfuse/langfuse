@@ -2034,6 +2034,44 @@ export const getEventsGroupedByExperimentName = async (
 };
 
 /**
+ * Get grouped hasParentObservation boolean from events table
+ * Used for filter options (counts for "Is Root Observation" facet)
+ */
+export const getEventsGroupedByHasParentObservation = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "(e.parent_span_id != '')",
+    selectExpression:
+      "(e.parent_span_id != '') as hasParentObservation, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY hasParentObservation ASC")
+    .limit(2, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  return queryClickhouse<{ hasParentObservation: boolean; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */
