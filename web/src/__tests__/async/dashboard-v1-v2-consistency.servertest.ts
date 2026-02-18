@@ -1,9 +1,19 @@
+import { v4 } from "uuid";
 import { type QueryType } from "@/src/features/query/types";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
 import {
+  createOrgProjectAndApiKey,
+  createTrace,
+  createObservation,
+  createEvent,
+  createTracesCh,
+  createObservationsCh,
+  createEventsCh,
   queryClickhouse,
   clickhouseClient,
-  createOrgProjectAndApiKey,
+  type TraceRecordInsertType,
+  type ObservationRecordInsertType,
+  type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { getGenerationLikeTypes } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -14,18 +24,330 @@ const maybe =
     ? describe
     : describe.skip;
 
+// ── Constants mirroring packages/shared/scripts/seeder/utils/clickhouse-seed-constants.ts ──
+
+const TRACE_NAMES = [
+  "LangGraph",
+  "ChatCompletion",
+  "DocumentAnalysis",
+  "CodeGeneration",
+  "DataProcessing",
+  "QueryExecution",
+];
+
+const GENERATION_NAMES = [
+  "ChatOpenAI",
+  "GPT-4",
+  "Claude-3",
+  "Gemini",
+  "Mistral",
+];
+
+const SPAN_NAMES = ["agent", "tools", "search", "retrieval", "preprocessing"];
+
+const MODELS = [
+  "gpt-4o-mini-2024-07-18",
+  "gpt-4-turbo-2024-04-09",
+  "claude-3-haiku-20240307",
+  "claude-3-sonnet-20240229",
+  "gemini-pro",
+];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Deterministic pick from an array using an integer index. */
+function pick<T>(arr: T[], i: number): T {
+  return arr[i % arr.length];
+}
+
+/**
+ * Derive v2 events from v1 traces + observations.
+ *
+ * Mirrors the logic in dev-tables.sh that populates events from
+ * traces/observations: one root event per trace (parent_span_id = ''),
+ * plus one event per observation with trace-level fields denormalized.
+ */
+function buildMatchingEvents(
+  traces: TraceRecordInsertType[],
+  observations: ObservationRecordInsertType[],
+): EventRecordInsertType[] {
+  const traceMap = new Map(traces.map((t) => [t.id, t]));
+  const events: EventRecordInsertType[] = [];
+
+  // Root events — one per trace.
+  for (const t of traces) {
+    events.push(
+      createEvent({
+        id: `t-${t.id}`,
+        span_id: `t-${t.id}`,
+        trace_id: t.id,
+        project_id: t.project_id,
+        parent_span_id: "",
+        name: t.name ?? "",
+        type: "SPAN",
+        environment: t.environment,
+        trace_name: t.name ?? "",
+        user_id: t.user_id ?? "",
+        session_id: t.session_id ?? null,
+        tags: t.tags ?? [],
+        release: t.release ?? null,
+        version: t.version ?? null,
+        public: t.public,
+        bookmarked: t.bookmarked,
+        input: t.input ?? null,
+        output: t.output ?? null,
+        metadata: t.metadata ?? {},
+        start_time: t.timestamp * 1000,
+        end_time: null,
+        cost_details: {},
+        provided_cost_details: {},
+        usage_details: {},
+        provided_usage_details: {},
+        created_at: t.created_at * 1000,
+        updated_at: t.updated_at * 1000,
+        event_ts: t.event_ts * 1000,
+      }),
+    );
+  }
+
+  // Observation events.
+  for (const o of observations) {
+    const traceId = o.trace_id!;
+    const t = traceMap.get(traceId)!;
+    events.push(
+      createEvent({
+        id: o.id,
+        span_id: o.id,
+        trace_id: traceId,
+        project_id: o.project_id,
+        // dev-tables.sh: coalesce(parent_observation_id, concat('t-', trace_id))
+        parent_span_id: o.parent_observation_id ?? `t-${traceId}`,
+        name: o.name ?? "",
+        type: o.type as string,
+        environment: o.environment,
+        trace_name: t.name ?? "",
+        user_id: t.user_id ?? "",
+        session_id: t.session_id ?? undefined,
+        tags: t.tags ?? [],
+        release: t.release ?? null,
+        version: o.version ?? null,
+        level: o.level ?? "DEFAULT",
+        status_message: o.status_message ?? null,
+        provided_model_name: o.provided_model_name ?? null,
+        model_parameters: o.model_parameters ?? "{}",
+        input: o.input ?? null,
+        output: o.output ?? null,
+        // dev-tables.sh: mapConcat(obs.metadata, trace.metadata)
+        metadata: { ...(t.metadata ?? {}), ...(o.metadata ?? {}) },
+        provided_usage_details: o.provided_usage_details ?? {},
+        usage_details: o.usage_details ?? {},
+        provided_cost_details: o.provided_cost_details ?? {},
+        cost_details: o.cost_details ?? {},
+        prompt_id: o.prompt_id ?? null,
+        prompt_name: o.prompt_name ?? null,
+        prompt_version: o.prompt_version ? String(o.prompt_version) : null,
+        tool_definitions: o.tool_definitions ?? {},
+        tool_calls: o.tool_calls ?? [],
+        tool_call_names: o.tool_call_names ?? [],
+        start_time: o.start_time * 1000,
+        end_time: o.end_time ? o.end_time * 1000 : null,
+        completion_start_time: o.completion_start_time
+          ? o.completion_start_time * 1000
+          : null,
+        created_at: o.created_at * 1000,
+        updated_at: o.updated_at * 1000,
+        event_ts: o.event_ts * 1000,
+      }),
+    );
+  }
+
+  return events;
+}
+
+// ── Data mode toggle ─────────────────────────────────────────────────────────
+// "synthetic" — generates isolated data from scratch (safe for parallel CI).
+// "seeder"    — copies real seed data into an isolated project (richer data,
+//               but the seed project must already be populated and not yet
+//               contaminated by other tests in the same run).
+type DataMode = "synthetic" | "seeder";
+const DATA_MODE = "synthetic" as DataMode;
+
+const SEED_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+// ── Seeder mode: copy seed data into an isolated project ─────────────────────
+
+async function seedFromSeeder(targetProjectId: string) {
+  const client = clickhouseClient();
+  for (const table of ["traces", "observations", "events"]) {
+    try {
+      await client.command({
+        query: `INSERT INTO ${table} SELECT * REPLACE({newProjectId: String} AS project_id) FROM ${table} FINAL WHERE project_id = {seedProjectId: String}`,
+        query_params: {
+          seedProjectId: SEED_PROJECT_ID,
+          newProjectId: targetProjectId,
+        },
+      });
+    } catch {
+      // events table may not exist when v2 APIs are disabled
+    }
+  }
+
+  const maxTsResult = await queryClickhouse<{ max_ts: string }>({
+    query: `SELECT max(timestamp) as max_ts FROM traces WHERE project_id = {projectId: String}`,
+    params: { projectId: targetProjectId },
+  });
+  const maxTs = new Date(maxTsResult[0]?.max_ts ?? Date.now());
+
+  let maxTsEvents = new Date(0);
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
+    const maxTsEventsResult = await queryClickhouse<{ max_ts: string }>({
+      query: `SELECT max(event_ts) as max_ts FROM events_core WHERE project_id = {projectId: String}`,
+      params: { projectId: targetProjectId },
+    });
+    maxTsEvents = new Date(maxTsEventsResult[0]?.max_ts ?? Date.now());
+  }
+
+  const effectiveMax =
+    maxTs.getTime() > maxTsEvents.getTime() ? maxTs : maxTsEvents;
+
+  return {
+    toTimestamp: new Date(
+      effectiveMax.getTime() + 60 * 60 * 1000,
+    ).toISOString(),
+    fromTimestamp1d: new Date(
+      effectiveMax.getTime() - 24 * 60 * 60 * 1000,
+    ).toISOString(),
+    fromTimestamp7d: new Date(
+      effectiveMax.getTime() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString(),
+  };
+}
+
+// ── Synthetic mode: build data from scratch ──────────────────────────────────
+
+async function seedSynthetic(targetProjectId: string) {
+  const baseTime = new Date("2024-06-15T12:00:00Z").getTime();
+  const TRACE_COUNT = 20;
+  const OBS_PER_TRACE = 5;
+
+  const traces: TraceRecordInsertType[] = [];
+  const observations: ObservationRecordInsertType[] = [];
+
+  for (let ti = 0; ti < TRACE_COUNT; ti++) {
+    const traceId = v4();
+    const traceName = pick(TRACE_NAMES, ti);
+    const userId = ti % 3 === 0 ? `user_${(ti % 10) + 1}` : null;
+    const sessionId = ti % 4 === 0 ? `session_${(ti % 5) + 1}` : null;
+    const dayOffset = Math.floor(ti / 7);
+    const traceTs = baseTime - dayOffset * 24 * 60 * 60 * 1000 + ti * 60_000;
+
+    traces.push(
+      createTrace({
+        id: traceId,
+        project_id: targetProjectId,
+        name: traceName,
+        user_id: userId,
+        session_id: sessionId,
+        timestamp: traceTs,
+        environment: "default",
+        tags: ti % 3 === 0 ? ["production", "ai-agent"] : [],
+        release: ti % 4 === 0 ? `v1.${ti % 10}` : null,
+        version: ti % 5 === 0 ? `v2.${ti % 20}` : null,
+        metadata: { generated: "synthetic", traceIndex: String(ti) },
+        created_at: traceTs,
+        updated_at: traceTs,
+        event_ts: traceTs,
+      }),
+    );
+
+    let prevObsId: string | undefined;
+    for (let oi = 0; oi < OBS_PER_TRACE; oi++) {
+      const obsId = v4();
+      const obsTypes = [
+        "GENERATION",
+        "SPAN",
+        "GENERATION",
+        "TOOL",
+        "GENERATION",
+      ] as const;
+      const obsType = obsTypes[oi % obsTypes.length];
+
+      const isGeneration = obsType === "GENERATION";
+      const obsName = isGeneration
+        ? pick(GENERATION_NAMES, ti * OBS_PER_TRACE + oi)
+        : pick(SPAN_NAMES, ti * OBS_PER_TRACE + oi);
+      const modelName = isGeneration
+        ? pick(MODELS, ti * OBS_PER_TRACE + oi)
+        : null;
+
+      const obsStart = traceTs + 100 + oi * 500;
+      const latencyMs = 200 + ((ti * OBS_PER_TRACE + oi) % 20) * 100;
+      const obsEnd = obsStart + latencyMs;
+
+      const inputTokens = isGeneration ? 50 + ti * 10 + oi * 5 : 0;
+      const outputTokens = isGeneration ? 30 + ti * 5 + oi * 3 : 0;
+      const totalTokens = inputTokens + outputTokens;
+      const inputCost = isGeneration ? inputTokens / 1_000_000 : 0;
+      const outputCost = isGeneration ? outputTokens / 500_000 : 0;
+      const totalCost = inputCost + outputCost;
+
+      observations.push(
+        createObservation({
+          id: obsId,
+          trace_id: traceId,
+          project_id: targetProjectId,
+          parent_observation_id: prevObsId ?? undefined,
+          type: obsType,
+          name: obsName,
+          start_time: obsStart,
+          end_time: obsEnd,
+          provided_model_name: modelName,
+          model_parameters: isGeneration
+            ? JSON.stringify({ temperature: 0.7 })
+            : null,
+          total_cost: isGeneration ? totalCost : null,
+          cost_details: isGeneration ? { total: totalCost } : {},
+          provided_cost_details: isGeneration ? { total: totalCost } : {},
+          usage_details: isGeneration ? { total: totalTokens } : {},
+          provided_usage_details: isGeneration ? { total: totalTokens } : {},
+          level: "DEFAULT",
+          environment: "default",
+          metadata: { generated: "synthetic" },
+          created_at: obsStart,
+          updated_at: obsEnd,
+          event_ts: obsEnd,
+        }),
+      );
+
+      prevObsId = obsId;
+    }
+  }
+
+  const events = buildMatchingEvents(traces, observations);
+
+  await Promise.all([
+    createTracesCh(traces),
+    createObservationsCh(observations),
+    createEventsCh(events),
+  ]);
+
+  return {
+    toTimestamp: new Date(baseTime + 60 * 60 * 1000).toISOString(),
+    fromTimestamp1d: new Date(baseTime - 24 * 60 * 60 * 1000).toISOString(),
+    fromTimestamp7d: new Date(baseTime - 7 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
 /**
  * Dashboard v1 vs v2 consistency tests.
  *
- * Runs the same dashboard queries against the seed project's data using both
- * v1 (traces/observations tables) and v2 (events_core table) and compares
- * results to ensure the dashboard "v4 Beta" toggle does not change metrics.
+ * Seeds an isolated project then runs the same dashboard queries via both
+ * v1 (traces/observations tables) and v2 (events_core table) code-paths.
  *
- * The v2 traces view uses a rootEventCondition subquery to select trace_ids
- * whose root event (parent_span_id = '') has start_time in the query window,
- * matching v1's behavior of filtering by traces.timestamp.
- *
- * Prerequisites: seed data must be loaded (pnpm run db:seed + dev-tables.sh).
+ * Two data modes (toggle via DATA_MODE):
+ * - "synthetic": generates data from scratch — safe for parallel CI.
+ * - "seeder":    copies real seed data — richer, but requires the seed project
+ *                to be populated before the test suite starts.
  */
 describe("dashboard v1 vs v2 consistency", () => {
   it("should not hang redis when events table is disabled", () => {
@@ -33,60 +355,26 @@ describe("dashboard v1 vs v2 consistency", () => {
     // when everything else is skipped via `maybe`.
   });
 
-  const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   let projectId: string;
 
-  // Time boundaries derived from actual seed data
   let fromTimestamp1d: string;
   let fromTimestamp7d: string;
   let toTimestamp: string;
 
   beforeAll(async () => {
-    // Create an isolated project so parallel tests cannot contaminate our data.
+    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+
     const org = await createOrgProjectAndApiKey();
     projectId = org.projectId;
 
-    // Copy seed data into the isolated project using INSERT...SELECT.
-    const client = clickhouseClient();
-    for (const table of ["traces", "observations", "events"]) {
-      try {
-        await client.command({
-          query: `INSERT INTO ${table} SELECT * REPLACE({newProjectId: String} AS project_id) FROM ${table} FINAL WHERE project_id = {seedProjectId: String}`,
-          query_params: { seedProjectId, newProjectId: projectId },
-        });
-      } catch {
-        // events table may not exist when v2 APIs are disabled
-      }
-    }
+    const timestamps =
+      DATA_MODE === "seeder"
+        ? await seedFromSeeder(projectId)
+        : await seedSynthetic(projectId);
 
-    const maxTsResult = await queryClickhouse<{ max_ts: string }>({
-      query: `SELECT max(timestamp) as max_ts FROM traces WHERE project_id = {projectId: String}`,
-      params: { projectId },
-    });
-
-    const maxTs = new Date(maxTsResult[0]?.max_ts ?? Date.now());
-
-    let maxTsEvents = new Date(0);
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
-      const maxTsEventsResult = await queryClickhouse<{ max_ts: string }>({
-        query: `SELECT max(event_ts) as max_ts FROM events_core WHERE project_id = {projectId: String}`,
-        params: { projectId },
-      });
-      maxTsEvents = new Date(maxTsEventsResult[0]?.max_ts ?? Date.now());
-    }
-
-    const effectiveMax =
-      maxTs.getTime() > maxTsEvents.getTime() ? maxTs : maxTsEvents;
-
-    toTimestamp = new Date(
-      effectiveMax.getTime() + 60 * 60 * 1000,
-    ).toISOString();
-    fromTimestamp1d = new Date(
-      effectiveMax.getTime() - 24 * 60 * 60 * 1000,
-    ).toISOString();
-    fromTimestamp7d = new Date(
-      effectiveMax.getTime() - 7 * 24 * 60 * 60 * 1000,
-    ).toISOString();
+    fromTimestamp1d = timestamps.fromTimestamp1d;
+    fromTimestamp7d = timestamps.fromTimestamp7d;
+    toTimestamp = timestamps.toTimestamp;
   });
 
   function fromFor(window: "1d" | "7d") {
