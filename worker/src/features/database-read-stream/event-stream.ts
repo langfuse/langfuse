@@ -403,7 +403,7 @@ export const getEventsStreamForEval = async (props: {
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("eval")
     .selectIO(false)
-    .selectMetadataDirect()
+    .selectFieldSet("metadata")
     .where(appliedEventsFilter)
     .where(search)
     .whereRaw("e.is_deleted = 0")
@@ -413,7 +413,7 @@ export const getEventsStreamForEval = async (props: {
 
   const { query, params: queryParams } = eventsQuery.buildWithParams();
 
-  // Matches the aliased columns from the "eval" field set + selectIO + selectMetadataDirect
+  // Matches the aliased columns from the "eval" field set + selectIO + selectFieldSet("metadata")
   type EvalEventRow = {
     id: string; // aliased from span_id
     trace_id: string;

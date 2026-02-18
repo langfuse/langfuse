@@ -564,6 +564,7 @@ export const InnerEvaluatorForm = (props: {
           : [],
     );
     form.setValue("mapping", newMapping);
+    form.setValue("runOnLive", props.defaultRunOnLive ?? true);
     setAvailableVariables(targetState.getAvailableVariables(actualTarget));
     return actualTarget;
   }
