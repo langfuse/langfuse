@@ -29,7 +29,6 @@ export function ScoreAnalytics(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -123,7 +122,6 @@ export function ScoreAnalytics(props: {
                         globalFilterState={props.globalFilterState}
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
-                        isDashboardChartsBeta={props.isDashboardChartsBeta}
                       />
                     )}
                     {(isNumericDataType(dataType) ||
@@ -139,7 +137,6 @@ export function ScoreAnalytics(props: {
                           >
                         }
                         globalFilterState={props.globalFilterState}
-                        isDashboardChartsBeta={props.isDashboardChartsBeta}
                       />
                     )}
                   </div>
@@ -158,7 +155,6 @@ export function ScoreAnalytics(props: {
                         globalFilterState={props.globalFilterState}
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
-                        isDashboardChartsBeta={props.isDashboardChartsBeta}
                       />
                     )}
                     {(isNumericDataType(dataType) ||
@@ -177,7 +173,6 @@ export function ScoreAnalytics(props: {
                         globalFilterState={props.globalFilterState}
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
-                        isDashboardChartsBeta={props.isDashboardChartsBeta}
                       />
                     )}
                   </div>

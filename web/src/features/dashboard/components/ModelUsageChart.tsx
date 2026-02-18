@@ -1,5 +1,4 @@
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
   extractTimeSeriesData,
@@ -26,7 +25,7 @@ import {
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export const ModelUsageChart = ({
   className,
@@ -37,7 +36,6 @@ export const ModelUsageChart = ({
   toTimestamp,
   userAndEnvFilterState,
   isLoading = false,
-  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -47,7 +45,6 @@ export const ModelUsageChart = ({
   toTimestamp: Date;
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
 }) => {
   const {
     allModels,
@@ -283,26 +280,20 @@ export const ModelUsageChart = ({
     0,
   );
 
-  // had to add this function as tremor under the hodd adds more variables
-  // to the function call which would break usdFormatter.
-  const oneValueUsdFormatter = (value: number) => {
-    return totalCostDashboardFormatted(value);
-  };
-
   const data = [
     {
       tabTitle: "Cost by model",
       data: costByModel,
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Cost`,
-      formatter: oneValueUsdFormatter,
+      formatter: totalCostDashboardFormatted,
     },
     {
       tabTitle: "Cost by type",
       data: costByType,
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Cost`,
-      formatter: oneValueUsdFormatter,
+      formatter: totalCostDashboardFormatted,
     },
     {
       tabTitle: "Usage by model",
@@ -359,30 +350,20 @@ export const ModelUsageChart = ({
                   <NoDataOrLoading
                     isLoading={isLoading || queryResult.isPending}
                   />
-                ) : isDashboardChartsBeta ? (
+                ) : (
                   <div className="h-80 w-full shrink-0">
                     <Chart
-                      chartType="AREA_TIME_SERIES"
+                      chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
                       rowLimit={100}
                       chartConfig={{
-                        type: "AREA_TIME_SERIES",
+                        type: "LINE_TIME_SERIES",
                         show_data_point_dots: false,
-                        subtle_fill: true,
                       }}
                       valueFormatter={item.formatter}
                       legendPosition="above"
                     />
                   </div>
-                ) : (
-                  <BaseTimeSeriesChart
-                    className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                    agg={agg}
-                    data={item.data}
-                    showLegend={true}
-                    connectNulls={true}
-                    valueFormatter={item.formatter}
-                  />
                 )}
               </>
             ),

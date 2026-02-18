@@ -1,6 +1,4 @@
-// We need to use Zod3 for structured outputs due to a bug in
-// ChatVertexAI. See issue: https://github.com/langfuse/langfuse/issues/7429
-import { type ZodSchema } from "zod/v3";
+import { type ZodSchema } from "zod/v4";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -42,7 +40,7 @@ import {
   TraceSinkParams,
 } from "./types";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import { ProxyAgent } from "undici";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import { decryptAndParseExtraHeaders } from "./utils";
@@ -224,7 +222,7 @@ export async function fetchLLMCompletion(
 
   // Common proxy configuration for all adapters
   const proxyUrl = env.HTTPS_PROXY;
-  const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+  const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
   let chatModel:
@@ -244,13 +242,15 @@ export async function fetchLLMCompletion(
     const chatOptions: Record<string, any> = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
-      modelName: modelParams.model,
+      model: modelParams.model,
       maxTokens: modelParams.max_tokens,
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
         timeout: timeoutMs,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
@@ -287,8 +287,8 @@ export async function fetchLLMCompletion(
     });
 
     chatModel = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: modelParams.model,
+      apiKey,
+      model: modelParams.model,
       temperature: modelParams.temperature,
       ...(isOpenAIReasoningModel(modelParams.model as OpenAIModel)
         ? { maxCompletionTokens: modelParams.max_tokens }
@@ -300,7 +300,9 @@ export async function fetchLLMCompletion(
       configuration: {
         baseURL: processedBaseURL,
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
@@ -319,7 +321,9 @@ export async function fetchLLMCompletion(
       timeout: timeoutMs,
       configuration: {
         defaultHeaders: extraHeaders,
-        ...(proxyAgent && { httpAgent: proxyAgent }),
+        ...(proxyDispatcher && {
+          fetchOptions: { dispatcher: proxyDispatcher },
+        }),
       },
       modelKwargs: modelParams.providerOptions,
     });
@@ -374,7 +378,7 @@ export async function fetchLLMCompletion(
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
     chatModel = new ChatVertexAI({
-      modelName: modelParams.model,
+      model: modelParams.model,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
@@ -420,7 +424,7 @@ export async function fetchLLMCompletion(
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
-      const structuredOutput = await (chatModel as ChatOpenAI) // Typecast necessary due to https://github.com/langchain-ai/langchainjs/issues/6795
+      const structuredOutput = await chatModel
         .withStructuredOutput(params.structuredOutputSchema)
         .invoke(finalMessages, runConfig);
 

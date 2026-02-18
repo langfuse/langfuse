@@ -15,6 +15,7 @@ import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import type { FilterConfig } from "../lib/filter-config";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
  * Decodes filters from URL query string and normalizes display names to column IDs.
@@ -257,6 +258,8 @@ export function useSidebarFilterState(
    */
   defaultFilters?: FilterState,
 ) {
+  const peekContext = usePeekTableState();
+
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
 
@@ -279,11 +282,15 @@ export function useSidebarFilterState(
     withDefault(StringParam, ""),
   );
 
-  const filterState: FilterState = useMemo(() => {
+  const urlFilterState: FilterState = useMemo(() => {
     // If URL persistence is disabled, return empty filter state
     if (disableUrlPersistence) return [];
     return decodeAndNormalizeFilters(filtersQuery, config.columnDefinitions);
   }, [filtersQuery, config.columnDefinitions, disableUrlPersistence]);
+
+  const filterState: FilterState = peekContext
+    ? peekContext.tableState.filters
+    : urlFilterState;
 
   // Track if user has manually interacted with filters
   // This prevents default filters from overriding user's explicit "clear all" action
@@ -291,6 +298,14 @@ export function useSidebarFilterState(
 
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
+      if (peekContext) {
+        peekContext.setTableState({
+          ...peekContext.tableState,
+          filters: newFilters,
+        });
+        return;
+      }
+
       // Don't modify URL if persistence is disabled
       if (disableUrlPersistence) return;
 
@@ -303,7 +318,7 @@ export function useSidebarFilterState(
       const encoded = encodeFiltersGeneric(newFilters);
       setFiltersQuery(encoded || null);
     },
-    [setFiltersQuery, disableUrlPersistence],
+    [setFiltersQuery, disableUrlPersistence, peekContext],
   );
 
   // track if defaults have been applied before, versioned to support future changes
@@ -413,6 +428,7 @@ export function useSidebarFilterState(
       if (facet.type === "boolean") {
         const trueLabel = facet.trueLabel ?? "True";
         const falseLabel = facet.falseLabel ?? "False";
+        const invert = facet.invertValue ?? false;
 
         if (values.length === 0 || values.length === 2) return other;
         if (values.includes(trueLabel)) {
@@ -422,7 +438,7 @@ export function useSidebarFilterState(
               column,
               type: "boolean" as const,
               operator: "=" as const,
-              value: true,
+              value: invert ? false : true,
             },
           ];
         }
@@ -433,7 +449,7 @@ export function useSidebarFilterState(
               column,
               type: "boolean" as const,
               operator: "=" as const,
-              value: false,
+              value: invert ? true : false,
             },
           ];
         }
@@ -1065,14 +1081,43 @@ export function useSidebarFilterState(
         if (facet.type === "boolean") {
           const trueLabel = facet.trueLabel ?? "True";
           const falseLabel = facet.falseLabel ?? "False";
+          const invert = facet.invertValue ?? false;
           const availableOptions = [trueLabel, falseLabel];
           const filterEntry = filterByColumn.get(facet.column);
+
           let selectedOptions = availableOptions;
           if (filterEntry) {
             const boolValue = filterEntry.value as boolean;
-            selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
+            if (invert) {
+              // Inverted: filter value=true means falseLabel selected, value=false means trueLabel selected
+              selectedOptions = boolValue === true ? [falseLabel] : [trueLabel];
+            } else {
+              selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
+            }
           }
           const isActive = selectedOptions.length === 1;
+
+          // Build counts from options
+          const rawOptions = options[facet.column];
+          let counts: Map<string, number> = EMPTY_MAP;
+          if (Array.isArray(rawOptions) && rawOptions.length > 0) {
+            const { counts: processedCounts } = processOptions(rawOptions);
+            if (processedCounts.size > 0) {
+              counts = new Map<string, number>();
+              if (invert) {
+                // Inverted: trueLabel count comes from "false", falseLabel count comes from "true"
+                const falseCount = processedCounts.get("false") ?? 0;
+                const trueCount = processedCounts.get("true") ?? 0;
+                if (falseCount > 0) counts.set(trueLabel, falseCount);
+                if (trueCount > 0) counts.set(falseLabel, trueCount);
+              } else {
+                const trueCount = processedCounts.get("true") ?? 0;
+                const falseCount = processedCounts.get("false") ?? 0;
+                if (trueCount > 0) counts.set(trueLabel, trueCount);
+                if (falseCount > 0) counts.set(falseLabel, falseCount);
+              }
+            }
+          }
 
           return {
             type: "categorical",
@@ -1081,8 +1126,8 @@ export function useSidebarFilterState(
 
             value: selectedOptions,
             options: availableOptions,
-            counts: EMPTY_MAP,
-            loading: false,
+            counts,
+            loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
             onChange: (values: string[]) => {

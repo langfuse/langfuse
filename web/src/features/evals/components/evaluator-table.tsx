@@ -18,13 +18,8 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { type FilterState, singleFilter } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  useQueryParam,
-  StringParam,
-} from "use-query-params";
+import { useQueryParam, StringParam, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { z } from "zod/v4";
 import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
 import {
@@ -42,6 +37,7 @@ import {
 } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { TablePeekView } from "@/src/components/table/peek";
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -142,9 +138,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const isFullyReleased = useIsObservationEvalsFullyReleased();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -468,6 +464,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const peekNavigationProps = usePeekNavigation();
 
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "RUNNING_EVALUATOR" as const,
+      detailNavigationKey: "evals",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+        ],
+      },
+      children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+      ...peekNavigationProps,
+    }),
+    [projectId, peekNavigationProps],
+  );
+
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
@@ -558,23 +569,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <DataTable
               tableName={"evalConfigs"}
               columns={columns}
-              peekView={{
-                itemType: "RUNNING_EVALUATOR",
-                detailNavigationKey: "evals",
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-                  ],
-                },
-                tableDataUpdatedAt: Math.max(
-                  evaluators.dataUpdatedAt,
-                  costs.dataUpdatedAt,
-                ),
-                children: (
-                  <PeekViewEvaluatorConfigDetail projectId={projectId} />
-                ),
-                ...peekNavigationProps,
-              }}
+              peekView={peekConfig}
               data={
                 evaluators.isLoading
                   ? { isLoading: true, isError: false }
@@ -604,6 +599,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
+        <TablePeekView peekView={peekConfig} />
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}
