@@ -40,10 +40,7 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
@@ -438,7 +435,6 @@ export function DataTable<TData extends object, TValue>({
           </Table>
         </div>
       </div>
-      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(

@@ -68,7 +68,10 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import {
+  type DataTablePeekViewProps,
+  TablePeekView,
+} from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
@@ -1437,6 +1440,7 @@ export default function ObservationsTable({
             />
           </div>
         </ResizableFilterLayout>
+        {peekConfig && <TablePeekView peekView={peekConfig} />}
       </div>
 
       {/* Add to Dataset Dialog */}

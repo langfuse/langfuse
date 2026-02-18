@@ -29,6 +29,7 @@ import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekView } from "@/src/components/table/peek";
 
 export type DatasetCompareRunRowData = {
   id: string;
@@ -111,6 +112,15 @@ function DatasetCompareRunsTableInternal(props: {
       basePath: `/project/${props.projectId}/traces`,
     },
   });
+
+  const peekConfig = {
+    itemType: "TRACE" as const,
+    children: <PeekViewTraceDetail projectId={props.projectId} />,
+    tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
+    closePeek,
+    expandPeek,
+    // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
+  };
 
   const { runAggregateColumns, isLoading: cellsLoading } =
     useDatasetRunAggregateColumns({
@@ -289,15 +299,9 @@ function DatasetCompareRunsTableInternal(props: {
           m: "h-64",
           l: "h-96",
         }}
-        peekView={{
-          itemType: "TRACE",
-          children: <PeekViewTraceDetail projectId={props.projectId} />,
-          tableDataUpdatedAt: datasetItemsWithRunData.dataUpdatedAt,
-          closePeek,
-          expandPeek,
-          // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
-        }}
+        peekView={peekConfig}
       />
+      <TablePeekView peekView={peekConfig} />
     </>
   );
 }

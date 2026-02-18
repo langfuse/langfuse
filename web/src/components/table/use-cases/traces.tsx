@@ -76,6 +76,7 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekView } from "@/src/components/table/peek";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -1425,6 +1426,7 @@ export default function TracesTable({
             />
           </div>
         </ResizableFilterLayout>
+        {peekConfig && <TablePeekView peekView={peekConfig} />}
       </div>
     </DataTableControlsProvider>
   );
