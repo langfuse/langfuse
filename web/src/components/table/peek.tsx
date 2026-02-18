@@ -13,6 +13,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import { useRouter } from "next/router";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -159,11 +160,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           </div>
         </SheetHeader>
         <Separator />
-        <div className="flex max-h-full min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-auto" key={itemId}>
-            {peekView.children}
+        <PeekTableStateProvider>
+          <div className="flex max-h-full min-h-0 flex-1 flex-col">
+            <div className="flex-1 overflow-auto" key={itemId}>
+              {peekView.children}
+            </div>
           </div>
-        </div>
+        </PeekTableStateProvider>
       </SheetContent>
     </Sheet>
   );

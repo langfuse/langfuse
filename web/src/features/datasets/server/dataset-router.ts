@@ -65,6 +65,7 @@ import {
   getDatasetItemChangesSinceVersion,
   getDatasetItemsCountGrouped,
   getDatasetVersionForRun,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -87,6 +88,15 @@ const resolveSearchCondition = (searchQuery?: string | null) => {
 
   // Add case-insensitive search condition
   return Prisma.sql`AND d.name ILIKE ${`%${searchQuery}%`}`;
+};
+
+const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
+  if (!pathPrefix) {
+    return Prisma.empty;
+  }
+
+  const escapedPathPrefix = escapeSqlLikePattern(pathPrefix);
+  return Prisma.sql` AND (d.name LIKE ${`${escapedPathPrefix}/%`} ESCAPE '\\' OR d.name = ${pathPrefix})`;
 };
 
 /**
@@ -305,17 +315,7 @@ export const datasetRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       // pathFilter: SQL WHERE clause to filter datasets by folder (e.g., "AND d.name LIKE 'folder/%'")
-      const pathFilter = input.pathPrefix
-        ? (() => {
-            const prefix = input.pathPrefix;
-            // Escape backslashes and other LIKE special characters for pattern matching
-            const escapedPrefix = prefix
-              .replace(/\\/g, "\\\\")
-              .replace(/%/g, "\\%")
-              .replace(/_/g, "\\_");
-            return Prisma.sql` AND (d.name LIKE ${`${escapedPrefix}/%`} OR d.name = ${escapedPrefix})`;
-          })()
-        : Prisma.empty;
+      const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
       const searchFilter = resolveSearchCondition(input.searchQuery);
 
@@ -1338,13 +1338,10 @@ export const datasetRouter = createTRPCRouter({
           projectId: input.projectId,
           datasetId: datasetId,
           filter,
-          // ensure consistent ordering with datasets.baseDatasetItemByDatasetId
-          // CH run items are created in reverse order as postgres execution path
-          // can be refactored once we switch to CH only implementation
           orderBy: [
             {
               column: "createdAt",
-              order: "ASC",
+              order: "DESC",
             },
             { column: "datasetItemId", order: "DESC" },
           ],
@@ -1437,7 +1434,7 @@ export const datasetRouter = createTRPCRouter({
           orderBy: [
             {
               column: "createdAt",
-              order: "ASC",
+              order: "DESC",
             },
             { column: "datasetItemId", order: "DESC" },
           ],

@@ -67,7 +67,10 @@ const HistogramChart = ({
   }
 
   return (
-    <ChartContainer config={config}>
+    <ChartContainer
+      config={config}
+      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+    >
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={histogramData}
@@ -96,6 +99,7 @@ const HistogramChart = ({
             fillOpacity={subtleFill ? 0.3 : 1}
           />
           <ChartTooltip
+            cursor={false}
             contentStyle={{ backgroundColor: "hsl(var(--background))" }}
             content={({ active, payload, label }) => (
               <ChartTooltipContent

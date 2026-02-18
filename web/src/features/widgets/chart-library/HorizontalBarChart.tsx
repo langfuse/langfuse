@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -8,6 +8,10 @@ import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+
+const CHAR_WIDTH_PX = 7;
+const LABEL_PADDING_PX = 16;
+
 /**
  * HorizontalBarChart component
  * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
@@ -29,13 +33,36 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   valueFormatter = compactNumberFormatter,
   subtleFill = false,
 }) => {
+  const rightMargin = useMemo(() => {
+    if (!showValueLabels || !data?.length) return 8;
+    const maxLabelLength = Math.max(
+      ...data.map((d) => {
+        const value =
+          typeof d.metric === "number" ? d.metric : Number(d.metric ?? 0);
+        return valueFormatter(value).length;
+      }),
+    );
+    return Math.min(
+      120,
+      Math.max(20, maxLabelLength * CHAR_WIDTH_PX + LABEL_PADDING_PX),
+    );
+  }, [showValueLabels, data, valueFormatter]);
+
   return (
-    <ChartContainer config={config} className="min-h-0 w-full">
+    <ChartContainer
+      config={config}
+      className="min-h-0 w-full [&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
+    >
       <BarChart
         accessibilityLayer={accessibilityLayer}
         data={data}
         layout="vertical"
-        margin={{ top: 4, right: 8, bottom: 4, left: 0 }}
+        margin={{
+          top: 4,
+          right: rightMargin,
+          bottom: 4,
+          left: 0,
+        }}
         barCategoryGap="12%"
         barGap={4}
       >
@@ -53,8 +80,28 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={formatAxisLabel}
-          width={100}
+          width={120}
+          tick={({ x, y, payload }) => {
+            const fullLabel =
+              typeof payload === "string"
+                ? payload
+                : ((payload as { value?: string })?.value ?? String(payload));
+            return (
+              <g transform={`translate(${x},${y})`}>
+                <title>{fullLabel}</title>
+                <text
+                  textAnchor="end"
+                  x={0}
+                  y={0}
+                  dy={4}
+                  fill="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                >
+                  {formatAxisLabel(fullLabel)}
+                </text>
+              </g>
+            );
+          }}
         />
         <Bar
           dataKey="metric"
@@ -74,6 +121,7 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           ) : null}
         </Bar>
         <ChartTooltip
+          cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
           content={({ active, payload, label }) => (
             <ChartTooltipContent

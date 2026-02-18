@@ -8,6 +8,11 @@ interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
   startTimeFrom?: string | null;
+  /**
+   * Whether to use truncated I/O (events_core) or full I/O (events_full).
+   * Default is false (full) for better compatibility.
+   */
+  truncated?: boolean;
 }
 
 /**
@@ -28,6 +33,7 @@ export const eventsTracesAggregation = (
       .selectFieldSet("all")
       .withTraceIds(params.traceIds)
       .withStartTimeFrom(params.startTimeFrom)
+      .withTruncated(params.truncated ?? false)
       .orderByColumns([{ column: "timestamp", direction: "DESC" }])
   );
 };
@@ -76,7 +82,7 @@ const buildScoresAggregationCTE = (
         trace_id,
         ${primaryKey},
         ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
-        groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
+        groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
         groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
       FROM (
         SELECT
