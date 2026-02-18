@@ -6,8 +6,8 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
   getEventsColumnName,
@@ -174,10 +174,7 @@ export default function ObservationsEventsTable({
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    page: withDefault(NumberParam, 1),
-    limit: withDefault(NumberParam, 50),
-  });
+  const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "observations",
@@ -240,7 +237,7 @@ export default function ObservationsEventsTable({
     (mode: EventsViewMode) => {
       setUserExplicitChoice(mode); // Track explicit choice
       setViewModeRaw(mode);
-      setPaginationState({ page: 1 });
+      setPaginationState({ page: 1, limit: 50 });
     },
     [setUserExplicitChoice, setViewModeRaw, setPaginationState],
   );

@@ -66,7 +66,6 @@ export function useEventsTableData({
     ],
   );
 
-  // Fetch observations
   const observations = api.events.all.useQuery(getAllPayload, {
     refetchOnWindowFocus: true,
   });
