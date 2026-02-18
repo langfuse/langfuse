@@ -3239,6 +3239,58 @@
     ]
   },
   {
+    "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed",
+    "modelName": "claude-sonnet-4-6",
+    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-6-v1(:0)?|claude-sonnet-4-6)$",
+    "createdAt": "2026-02-18T00:00:00.000Z",
+    "updatedAt": "2026-02-18T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 3e-6,
+          "input_tokens": 3e-6,
+          "output": 15e-6,
+          "output_tokens": 15e-6,
+          "cache_creation_input_tokens": 3.75e-6,
+          "input_cache_creation": 3.75e-6,
+          "cache_read_input_tokens": 3e-7,
+          "input_cache_read": 3e-7
+        }
+      },
+      {
+        "id": "7830bfc2-c464-4ffe-b9a2-6e741f6c5486",
+        "name": "Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 6e-6,
+          "input_tokens": 6e-6,
+          "output": 22.5e-6,
+          "output_tokens": 22.5e-6,
+          "cache_creation_input_tokens": 7.5e-6,
+          "input_cache_creation": 7.5e-6,
+          "cache_read_input_tokens": 6e-7,
+          "input_cache_read": 6e-7
+        }
+      }
+    ]
+  },
+  {
     "id": "13458bc0-1c20-44c2-8753-172f54b67647",
     "modelName": "claude-opus-4-6",
     "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
