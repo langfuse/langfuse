@@ -31,7 +31,7 @@ export const runEvaluationRouter = createTRPCRouter({
           scope: "evalJob:CUD",
         });
 
-        const { projectId, query, evaluatorIds } = input;
+        const { projectId, query, evaluatorIds: rawEvaluatorIds } = input;
 
         if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS !== "true") {
           throw new TRPCError({
@@ -40,7 +40,7 @@ export const runEvaluationRouter = createTRPCRouter({
           });
         }
 
-        const requestedEvaluatorIds = Array.from(new Set(evaluatorIds));
+        const requestedEvaluatorIds = Array.from(new Set(rawEvaluatorIds));
 
         const evaluatorIds = (
           await ctx.prisma.jobConfiguration.findMany({
