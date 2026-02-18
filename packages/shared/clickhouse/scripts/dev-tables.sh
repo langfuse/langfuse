@@ -545,9 +545,7 @@ SETTINGS
     enable_block_number_column = 1,
     enable_block_offset_column = 1;
 
-
-
--- Materialized view to populate events_green from events table
+-- Materialized view to populate events_core from events_full table
 CREATE MATERIALIZED VIEW IF NOT EXISTS events_core_mv TO events_core AS
 SELECT
     project_id,
