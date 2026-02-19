@@ -365,6 +365,7 @@ export const dashboardRouter = createTRPCRouter({
           input.projectId,
           input.query as QueryType,
           input.version,
+          input.version === "v2",
         );
       } catch (error) {
         if (error instanceof InvalidRequestError) {
