@@ -251,6 +251,20 @@ Support Channels:
 - [Report a Bug](https://github.com/langfuse/langfuse/issues) on GitHub Issues.
 - For time-sensitive queries, ping us via the in-app chat widget.
 
+## 🤖 Claude Code Hooks Setup
+
+This repo includes [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) in `.claude/hooks/` that enhance the development experience (skill auto-activation, file edit tracking, error handling reminders). To set them up after cloning:
+
+```bash
+# Install hook dependencies
+cd .claude/hooks && npm install && cd -
+
+# Set execute permissions on shell scripts
+chmod +x .claude/hooks/*.sh
+```
+
+The hooks are configured in `.claude/settings.json` (checked into the repo). See [`.claude/hooks/CONFIG.md`](.claude/hooks/CONFIG.md) for customization options.
+
 ## 🤝 Contributing
 
 Your contributions are welcome!

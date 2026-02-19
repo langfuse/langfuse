@@ -72,6 +72,65 @@
         ]
       }
     },
+    "vercel-react-best-practices": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "medium",
+      "description": "React and Next.js performance optimization guidelines from Vercel Engineering",
+      "promptTriggers": {
+        "keywords": [
+          "react performance",
+          "bundle size",
+          "suspense",
+          "data fetching",
+          "re-render",
+          "rerender",
+          "waterfall",
+          "dynamic import",
+          "server component",
+          "client component"
+        ],
+        "intentPatterns": [
+          "(optimize|improve|fix).*?(performance|bundle|render)",
+          "(reduce|minimize).*?(bundle|re-render|waterfall)",
+          "(add|use|implement).*?(suspense|dynamic import|lazy)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "web/src/components/**/*.tsx",
+          "web/src/features/**/*.tsx",
+          "web/src/pages/**/*.tsx"
+        ]
+      }
+    },
+    "vercel-composition-patterns": {
+      "type": "domain",
+      "enforcement": "suggest",
+      "priority": "medium",
+      "description": "React composition patterns that scale - compound components, context providers, avoiding boolean prop proliferation",
+      "promptTriggers": {
+        "keywords": [
+          "compound component",
+          "render prop",
+          "context provider",
+          "component composition",
+          "boolean prop",
+          "component architecture",
+          "component library"
+        ],
+        "intentPatterns": [
+          "(refactor|redesign|restructure).*?component",
+          "(too many|boolean).*?prop",
+          "(compound|composition).*?(component|pattern)"
+        ]
+      },
+      "fileTriggers": {
+        "pathPatterns": [
+          "web/src/components/**/*.tsx"
+        ]
+      }
+    },
     "backend-dev-guidelines": {
       "type": "domain",
       "enforcement": "suggest",
