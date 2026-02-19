@@ -10,6 +10,7 @@ import {
   recordGauge,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
+import { randomUUID } from "crypto";
 import { env } from "../../env";
 
 const LAST_PROCESSED_PARTITION_KEY =
@@ -131,6 +132,30 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
+
+    // Generate a session ID to ensure SYNC REPLICA and INSERT-SELECT
+    // are routed to the same ClickHouse node (sticky session via session_id).
+    // This is required per ClickHouse support guidance: SYNC REPLICA fetches
+    // all missing parts once upfront (unlike select_sequential_consistency=1
+    // which retries repeatedly), but both commands must hit the same replica.
+    const sessionId = randomUUID();
+
+    await commandClickhouse({
+      query: `SYSTEM SYNC REPLICA observations_batch_staging LIGHTWEIGHT`,
+      session_id: sessionId,
+      clickhouseConfigs: {
+        request_timeout: 300000, // 5 minutes timeout
+      },
+      tags: {
+        feature: "ingestion",
+        operation_name: "syncReplicaObservationsBatchStaging",
+      },
+    });
+
+    logger.info(
+      `[DUAL WRITE] Synced replica for observations_batch_staging before processing partition ${partitionToProcess}`,
+    );
+
     await commandClickhouse({
       query: `
         with batch_stats as (
@@ -289,6 +314,7 @@ export const handleEventPropagationJob = async (
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
       `,
+      session_id: sessionId,
       tags: {
         feature: "ingestion",
         partition: partitionToProcess,
