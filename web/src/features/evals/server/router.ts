@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared";
 import {
   getQueue,
+  getAvgCostByEvaluatorIds,
   getCostByEvaluatorIds,
   getScoresByIds,
   logger,
@@ -1423,6 +1424,34 @@ export const evalRouter = createTRPCRouter({
           return acc;
         },
         {} as Record<string, number>,
+      );
+    }),
+
+  avgCostByEvaluatorIds: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const costs = await getAvgCostByEvaluatorIds(
+        input.projectId,
+        input.evaluatorIds,
+      );
+
+      return costs.reduce(
+        (acc, { evaluatorId, avgCost, executionCount }) => {
+          acc[evaluatorId] = { avgCost, executionCount };
+          return acc;
+        },
+        {} as Record<string, { avgCost: number; executionCount: number }>,
       );
     }),
 });

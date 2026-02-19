@@ -159,7 +159,9 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               {displayCount === 1 ? "" : "s"}
             </DialogTitle>
             <DialogDescription>
-              Select one or more observation-scoped evaluators.
+              {step === "confirm"
+                ? "Review your evaluation configuration before running."
+                : "Select one or more observation-scoped evaluators."}
             </DialogDescription>
           </DialogHeader>
 
@@ -184,10 +186,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
               />
             ) : (
               <ConfirmationStep
+                projectId={projectId}
                 displayCount={displayCount}
-                selectedEvaluatorNames={selectedEvaluators.map(
-                  (e) => e.scoreName,
-                )}
+                evaluators={selectedEvaluators.map((e) => ({
+                  id: e.id,
+                  name: e.scoreName,
+                }))}
               />
             )}
           </DialogBody>
