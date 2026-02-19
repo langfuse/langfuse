@@ -937,6 +937,11 @@ export class IngestionService {
       release: null,
       version: observationRecord.version ?? null,
       input: observationRecord.input
+        ? (() => { try { return JSON.parse(observationRecord.input); } catch { return observationRecord.input; } })()
+        : null,
+      output: observationRecord.output
+        ? (() => { try { return JSON.parse(observationRecord.output); } catch { return observationRecord.output; } })()
+        : null,
         ? JSON.parse(observationRecord.input)
         : null,
       output: observationRecord.output
