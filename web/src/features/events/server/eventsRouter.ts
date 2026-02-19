@@ -31,6 +31,7 @@ import {
   type AgentGraphDataResponse,
 } from "@/src/features/trace-graph-view/types";
 import type * as opentelemetry from "@opentelemetry/api";
+import { TRPCError } from "@trpc/server";
 
 const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,

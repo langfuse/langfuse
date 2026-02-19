@@ -23,6 +23,7 @@ import {
   TableViewPresetTableName,
   BatchActionType,
   ActionId,
+  RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
@@ -407,6 +408,7 @@ export default function ObservationsEventsTable({
     handleAddToAnnotationQueue,
     dataUpdatedAt,
     ioLoading,
+    isSilencedError,
   } = useEventsTableData({
     projectId,
     filterState,
@@ -1266,16 +1268,29 @@ export default function ObservationsEventsTable({
                 observations.status === "loading" || isViewLoading
                   ? { isLoading: true, isError: false }
                   : observations.status === "error"
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: "",
-                      }
+                    ? isSilencedError
+                      ? {
+                          isLoading: false,
+                          isError: false,
+                          data: [],
+                        }
+                      : {
+                          isLoading: false,
+                          isError: true,
+                          error: "",
+                        }
                     : {
                         isLoading: false,
                         isError: false,
                         data: rows,
                       }
+              }
+              noResultsMessage={
+                isSilencedError ? (
+                  <span className="text-muted-foreground">
+                    {RESOURCE_LIMIT_ERROR_MESSAGE}
+                  </span>
+                ) : undefined
               }
               pagination={
                 limitRows

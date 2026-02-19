@@ -417,13 +417,19 @@ async function getObservationsFromEventsTableInternal<T>(
     clickhouseConfigs,
   } = opts;
 
-  // Build filter list
+  // Extract positionInTrace filter and build baseFilter without it
+  const positionFilter = filter.find((f) => f.type === "positionInTrace");
+  const baseFilter: typeof filter = [
+    ...filter.filter((f) => f.type !== "positionInTrace"),
+  ];
+
+  // Build filter list from baseFilter (without positionInTrace)
   const observationsFilter = new FilterList(
-    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+    createFilterFromFilterState(baseFilter, eventsTableUiColumnDefinitions),
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasScoresFilter = filter.some((f) =>
+  const hasScoresFilter = baseFilter.some((f) =>
     f.column.toLowerCase().includes("score"),
   );
   const search = clickhouseSearchCondition(
@@ -458,6 +464,50 @@ async function getObservationsFromEventsTableInternal<T>(
         )
         .selectFieldSet("metadata");
     }
+  }
+
+  // Handle positionInTrace via CTE with ROW_NUMBER()
+  // All modes use the same pattern: rank observations per trace, pick rn = N.
+  // root/nthFromStart → ORDER BY start_time ASC
+  // last/nthFromEnd   → ORDER BY start_time DESC
+  if (positionFilter && "key" in positionFilter) {
+    const key = positionFilter.key;
+    const isFromEnd = key === "last" || key === "nthFromEnd";
+    const direction = isFromEnd ? "DESC" : "ASC";
+    const position =
+      key === "last" || key === "root"
+        ? 1
+        : typeof positionFilter.value === "number"
+          ? positionFilter.value
+          : 1;
+
+    // Build observation-only filter for CTE (no s.* or t.* references)
+    const nativeFilter = new FilterList(
+      createFilterFromFilterState(
+        baseFilter,
+        eventsTableNativeUiColumnDefinitions,
+      ),
+    );
+    const appliedNativeFilter = nativeFilter.apply();
+
+    // Build CTE WHERE clause
+    const nativeFilterClause = appliedNativeFilter.query
+      .trim()
+      .replace(/^(AND|OR)\s+/i, "");
+    const searchClause = search.query.trim().replace(/^(AND|OR)\s+/i, "");
+    let cteWhere = "e.project_id = {projectId: String}";
+    if (nativeFilterClause) cteWhere += ` AND ${nativeFilterClause}`;
+    if (searchClause) cteWhere += ` AND ${searchClause}`;
+
+    queryBuilder.withCTE("qualifying_obs", {
+      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events e WHERE ${cteWhere}`,
+      params: { projectId, ...appliedNativeFilter.params, ...search.params },
+    });
+
+    queryBuilder.whereRaw(
+      "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
+      { _posRn: Math.max(1, position) },
+    );
   }
 
   queryBuilder

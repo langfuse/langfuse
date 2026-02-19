@@ -484,9 +484,9 @@ describe("dashboard v1 vs v2 consistency", () => {
 
   maybe("traces by time (day granularity)", () => {
     it.each(["1d", "7d"] as const)(
-      "should have matching totals for %s window",
+      "should have matching per-bucket counts for %s window",
       async (window) => {
-        await expectExactTotalCount({
+        const query: QueryType = {
           view: "traces",
           dimensions: [],
           metrics: [{ measure: "count", aggregation: "count" }],
@@ -495,7 +495,33 @@ describe("dashboard v1 vs v2 consistency", () => {
           orderBy: null,
           fromTimestamp: fromFor(window),
           toTimestamp,
-        });
+        };
+        const { v1, v2 } = await runBothVersions(query);
+
+        // Total must match (existing invariant)
+        const sum = (rows: Array<Record<string, unknown>>) =>
+          rows.reduce((s, r) => s + Number(r.count_count), 0);
+        expect(sum(v2)).toBe(sum(v1));
+
+        // Per-bucket counts must also match exactly.
+        // A mismatch here indicates traces are being assigned to wrong time
+        // buckets in v2 (e.g. due to using min(start_time) across all events
+        // instead of only the root event's timestamp).
+        const v1Map = toMap(
+          v1.filter((r) => Number(r.count_count) > 0),
+          "time_dimension",
+        );
+        const v2Map = toMap(
+          v2.filter((r) => Number(r.count_count) > 0),
+          "time_dimension",
+        );
+
+        expect(v2Map.size).toBe(v1Map.size);
+        for (const [ts, v1Row] of v1Map) {
+          const v2Row = v2Map.get(ts);
+          expect(v2Row).toBeDefined();
+          expect(Number(v2Row!.count_count)).toBe(Number(v1Row.count_count));
+        }
       },
     );
   });
@@ -547,10 +573,6 @@ describe("dashboard v1 vs v2 consistency", () => {
         const v2Row = v2Map.get(userId)!;
         expect(Number(v1Row.count_count)).toBe(Number(v2Row.count_count));
       }
-
-      // Note: totalCost may differ between v1 (observations.total_cost column)
-      // and v2 (events_core cost_details['total'] ALIAS) due to how costs are
-      // stored/computed in the two tables. This is a known data consistency gap.
     });
 
     it("should have overlapping users with counts within 3x for 1d window", async () => {
