@@ -1,6 +1,6 @@
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { EvalTargetObject } from "@langfuse/shared";
+import { EvalTargetObject, FilterState } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -20,6 +20,20 @@ export type PreviewData =
         | RouterOutputs["events"]["batchIO"][number]
         | undefined;
     };
+
+// Temporary workaround to make filter backwards compatible with generations table
+const transformFilterForGenerations = (filter: FilterState | null) => {
+  if (!filter) return [];
+  return filter.map((f) => {
+    if (f.column === "tags") {
+      return {
+        ...f,
+        column: "traceTags",
+      };
+    }
+    return f;
+  });
+};
 
 export function usePreviewData(
   projectId: string,
@@ -65,7 +79,7 @@ export function usePreviewData(
   const latestObservation = api.generations.all.useQuery(
     {
       projectId,
-      filter: form.watch("filter") ?? [],
+      filter: transformFilterForGenerations(form.watch("filter")) ?? [],
       searchQuery: "",
       searchType: [],
       limit: 1,
