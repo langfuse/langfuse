@@ -48,7 +48,6 @@ export const viewDeclaration = z.object({
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.
   segments: z.array(singleFilter),
   timeDimension: z.string(),
-  timeDimensionAggregation: z.string().optional(),
   // When set, adds a subquery filter to restrict rows to those whose "root event"
   // (matching the condition) has timeDimension in the query window.
   rootEventCondition: z
