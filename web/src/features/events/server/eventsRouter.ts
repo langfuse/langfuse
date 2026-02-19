@@ -78,10 +78,7 @@ export const eventsRouter = createTRPCRouter({
         },
         async (span) => {
           addAttributesToSpan({ span, input, orderBy: input.orderBy });
-          throw new TRPCError({
-            code: "UNPROCESSABLE_CONTENT",
-            message: "Test error",
-          });
+
           return getEventList({
             projectId: ctx.session.projectId,
             filter: input.filter ?? [],
