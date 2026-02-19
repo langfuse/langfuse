@@ -300,7 +300,7 @@ export const scoresRouter = createTRPCRouter({
       }));
     }),
   /**
-   * v4: Filter options using events_core instead of traces table.
+   * v4: Filter options via events-backed aggregations instead of traces table.
    */
   filterOptionsFromEvents: protectedProjectProcedure
     .input(

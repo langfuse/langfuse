@@ -1632,10 +1632,12 @@ export const getEventsGroupedByTraceName = async (
  * Get grouped trace tags from events table
  * Used for filter options
  *
- * NOTE: Uses raw SQL instead of EventsAggQueryBuilder because:
+ * NOTE:
  * - arrayJoin() explodes arrays into rows, requiring DISTINCT (not GROUP BY)
  * - EventsAggQueryBuilder always emits GROUP BY, which changes semantics
  * - We want unique tag values, not tag occurrence counts
+ * We therefore compose a row-level events query via EventsQueryBuilder and
+ * run arrayJoin() in an outer CTE query.
  */
 export const getEventsGroupedByTraceTags = async (
   projectId: string,
@@ -1647,21 +1649,32 @@ export const getEventsGroupedByTraceTags = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const query = `
-    SELECT DISTINCT arrayJoin(e.tags) as tag
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-    AND e.is_deleted = 0
-    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
-    AND notEmpty(e.tags)
-    ORDER BY tag ASC
-    LIMIT 1000
-  `;
+  const filteredEventsBuilder = new EventsQueryBuilder({ projectId })
+    .selectRaw("e.tags AS tags")
+    .where(appliedEventsFilter)
+    .whereRaw("e.is_deleted = 0")
+    .whereRaw("notEmpty(e.tags)");
+
+  const { query: filteredEventsQuery, params: filteredEventsParams } =
+    filteredEventsBuilder.buildWithParams();
+
+  const tagsQueryBuilder = new CTEQueryBuilder()
+    .withCTE("filtered_events", {
+      query: filteredEventsQuery,
+      params: filteredEventsParams,
+      schema: ["tags"],
+    })
+    .from("filtered_events", "fe")
+    .select("DISTINCT arrayJoin(fe.tags) AS tag")
+    .orderBy("ORDER BY tag ASC")
+    .limit(1000, 0);
+
+  const { query, params } = tagsQueryBuilder.buildWithParams();
 
   return measureAndReturn({
     operationName: "getEventsGroupedByTraceTags",
     projectId,
-    input: { params: { projectId, ...appliedEventsFilter.params } },
+    input: { params },
     fn: async (input) => {
       return queryClickhouse<{ tag: string }>({
         query,
