@@ -1,10 +1,9 @@
 /**
  * Adapters that transform data prepared for tremor-v4-chart to the recharts chart library data format.
- * This can be removed once we have removed the tremor charts completely and converted all data API
- * calls to the DataPoint format that recharts expects.
+ * This can be removed once we have converted all data API calls to the DataPoint format that recharts expects.
  */
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import type { TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
+import type { TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
 import type { ChartBin } from "@/src/features/scores/types";
 import {
   dashboardDateRangeAggregationSettings,

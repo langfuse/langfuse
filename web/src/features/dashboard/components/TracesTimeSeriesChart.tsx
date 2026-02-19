@@ -1,7 +1,6 @@
 import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
@@ -16,7 +15,7 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -26,7 +25,6 @@ export const TracesAndObservationsTimeSeriesChart = ({
   toTimestamp,
   agg,
   isLoading = false,
-  isDashboardChartsBeta = false,
 }: {
   className?: string;
   projectId: string;
@@ -35,7 +33,6 @@ export const TracesAndObservationsTimeSeriesChart = ({
   toTimestamp: Date;
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
 }) => {
   const tracesQuery: QueryType = {
     view: "traces",
@@ -182,31 +179,18 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   }
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
-                  isDashboardChartsBeta ? (
-                    <div className="h-80 w-full shrink-0">
-                      <Chart
-                        chartType="AREA_TIME_SERIES"
-                        data={timeSeriesToDataPoints(item.data, agg)}
-                        rowLimit={100}
-                        chartConfig={{
-                          type: "AREA_TIME_SERIES",
-                          show_data_point_dots: false,
-                          subtle_fill: true,
-                        }}
-                        legendPosition="above"
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-80 w-full shrink-0">
-                      <BaseTimeSeriesChart
-                        className="h-full [&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-                        agg={agg}
-                        data={item.data}
-                        connectNulls={true}
-                        chartType="area"
-                      />
-                    </div>
-                  )
+                  <div className="h-80 w-full shrink-0">
+                    <Chart
+                      chartType="LINE_TIME_SERIES"
+                      data={timeSeriesToDataPoints(item.data, agg)}
+                      rowLimit={100}
+                      chartConfig={{
+                        type: "LINE_TIME_SERIES",
+                        show_data_point_dots: false,
+                      }}
+                      legendPosition="above"
+                    />
+                  </div>
                 ) : (
                   <NoDataOrLoading
                     isLoading={isLoading || traces.isPending}

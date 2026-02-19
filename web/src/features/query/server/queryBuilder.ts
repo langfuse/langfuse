@@ -194,6 +194,18 @@ export class QueryBuilder {
     return view.baseCte.split(" ")[0];
   }
 
+  private tableAlias(view: ViewDeclarationType): string {
+    // Return the alias from baseCte if present, otherwise the table name.
+    // e.g., "events_core events_traces" -> "events_traces"
+    //       "traces FINAL"              -> "traces"  (FINAL is a modifier, not an alias)
+    const parts = view.baseCte.split(/\s+/);
+    const clickhouseModifiers = new Set(["FINAL", "SAMPLE", "PREWHERE"]);
+    if (parts.length >= 2 && !clickhouseModifiers.has(parts[1].toUpperCase())) {
+      return parts[1];
+    }
+    return parts[0];
+  }
+
   private mapFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
@@ -570,11 +582,20 @@ export class QueryBuilder {
       granularity,
     );
 
-    // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT)
-    const agg = wrapInAgg
-      ? (view.timeDimensionAggregation ?? wrapInAgg)
-      : undefined;
-    const wrappedSql = agg ? `${agg}(${timeDimensionSql})` : timeDimensionSql;
+    // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
+    // When the view has a rootEventCondition, use anyIf with that condition so that
+    // only the root event's timestamp is used for time bucketing (not observations).
+    // The condition column is prefixed with the table alias to avoid ambiguity in
+    // future views that may involve JOINs.
+    let wrappedSql: string;
+    if (wrapInAgg && view.rootEventCondition) {
+      const alias = this.tableAlias(view);
+      wrappedSql = `anyIf(${timeDimensionSql}, ${alias}.${view.rootEventCondition.condition})`;
+    } else if (wrapInAgg) {
+      wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
+    } else {
+      wrappedSql = timeDimensionSql;
+    }
 
     return `${wrappedSql} as time_dimension`;
   }
@@ -1094,6 +1115,28 @@ export class QueryBuilder {
 
     // Build WHERE clause with parameters
     fromClause += this.buildWhereClause(filterList, parameters);
+
+    // When rootEventCondition is set, add a subquery filter to restrict rows
+    // to traces whose root event has timeDimension in the query window.
+    // The existing start_time filter above is kept for ClickHouse partition pruning.
+    if (view.rootEventCondition) {
+      const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+      const fromP = `subFrom${uid}`;
+      const toP = `subTo${uid}`;
+      const projP = `subProj${uid}`;
+      const baseTable = this.actualTableName(view);
+      const { column, condition } = view.rootEventCondition;
+      fromClause +=
+        ` AND ${baseTable}.${column} IN (` +
+        `SELECT ${column} FROM ${baseTable} ` +
+        `WHERE project_id = {${projP}: String} ` +
+        `AND ${condition} ` +
+        `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
+        `AND ${view.timeDimension} <= {${toP}: DateTime64(3)})`;
+      parameters[fromP] = new Date(query.fromTimestamp).getTime();
+      parameters[toP] = new Date(query.toTimestamp).getTime();
+      parameters[projP] = projectId;
+    }
 
     // Check if single-level optimization is applicable
     // Note: Relation tables are OK as long as measures have aggs configuration
