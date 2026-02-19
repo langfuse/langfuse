@@ -33,7 +33,6 @@ import {
   InvalidRequestError,
   singleFilter,
   type FilterState,
-  type TimeFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
@@ -86,25 +85,96 @@ const UpdateDashboardFiltersInput = z.object({
   filters: z.array(singleFilter),
 });
 
+// Map camelCase legacy column names (used by scoreHistogram component)
+// to view-native field names before passing through the general mapper.
+const LEGACY_CAMEL_CASE_MAP: Record<string, string> = {
+  scoreName: "name",
+  scoreSource: "source",
+  scoreDataType: "dataType",
+};
+
+/**
+ * Shared filter preparation for scores-numeric v2 queries.
+ * Extracts time boundaries, strips time filters, and maps legacy UI column
+ * names to view-native field names.
+ */
+function prepareScoresNumericV2Params(filter: FilterState) {
+  const [from, to] = extractFromAndToTimestampsFromFilter(filter);
+  // Fallback to 2000-01-01 instead of epoch 0 — ClickHouse DateTimeFilter
+  // passes new Date(value).getTime() as the parameter, and the value 0
+  // (epoch) is rejected by ClickHouse's DateTime64(3) parameter parser.
+  const fromIso = from?.value
+    ? new Date(from.value as Date).toISOString()
+    : new Date("2000-01-01T00:00:00.000Z").toISOString();
+  const toIso = to?.value
+    ? new Date(to.value as Date).toISOString()
+    : new Date().toISOString();
+  const nonTimeFilters = filter.filter(
+    (f) => f.column !== "scoreTimestamp" && f.column !== "startTime",
+  );
+  const normalizedFilters = nonTimeFilters.map((f) => {
+    const mapped = LEGACY_CAMEL_CASE_MAP[f.column];
+    return mapped ? { ...f, column: mapped } : f;
+  });
+
+  const mappedFilters = mapLegacyUiTableFilterToView(
+    "scores-numeric",
+    normalizedFilters,
+  );
+  return { fromIso, toIso, mappedFilters };
+}
+
+/**
+ * Converts ClickHouse histogram(N)(...) output to the { chartData, chartLabels }
+ * shape returned by createHistogramData (used by the NumericScoreHistogram component).
+ *
+ * ClickHouse histogram() returns an Array(Tuple(Float64, Float64, Float64))
+ * where each tuple is (lower_bound, upper_bound, count).
+ * The result column is named "histogram_value" by QueryBuilder
+ * (pattern: `${aggregation}_${alias}`).
+ */
+function clickhouseHistogramToChartData(
+  result: Array<Record<string, unknown>>,
+): {
+  chartData: Array<{ binLabel: string; count: number }>;
+  chartLabels: string[];
+} {
+  if (result.length > 0 && !("histogram_value" in result[0])) {
+    throw new Error(
+      `Expected histogram_value column in QueryBuilder result, got: ${Object.keys(result[0]).join(", ")}`,
+    );
+  }
+  const histogramBins = result[0]?.histogram_value as
+    | Array<[number, number, number]>
+    | undefined;
+  if (!histogramBins?.length) return { chartData: [], chartLabels: [] };
+
+  const round = (v: number) => parseFloat(v.toFixed(2));
+  return {
+    chartLabels: ["count"],
+    chartData: histogramBins.map(([lower, upper, count]) => ({
+      binLabel: `[${round(lower)}, ${round(upper)}]`,
+      count: Math.round(count),
+    })),
+  };
+}
+
 async function getScoreAggregateV2({
   projectId,
   filter,
-  fromFilter,
-  toFilter,
 }: {
   projectId: string;
   filter: FilterState;
-  fromFilter: TimeFilter | undefined;
-  toFilter: TimeFilter | undefined;
 }): Promise<DatabaseRow[]> {
-  const fromIso = fromFilter?.value
-    ? new Date(fromFilter.value).toISOString()
-    : new Date(0).toISOString();
-  const toIso = toFilter?.value
-    ? new Date(toFilter.value).toISOString()
-    : new Date().toISOString();
+  // prepareScoresNumericV2Params also applies LEGACY_CAMEL_CASE_MAP for
+  // scoreHistogram callers. For score-aggregate calls, the only camelCase
+  // column is "scoreTimestamp" which is stripped as a time filter before
+  // LEGACY_CAMEL_CASE_MAP runs, making the normalization step a no-op here.
+  const { fromIso, toIso, mappedFilters } =
+    prepareScoresNumericV2Params(filter);
 
-  // Strip time filters, keep non-time filters
+  // Non-time filters in their original form — used for categorical query
+  // filter mapping and value filter detection below.
   const nonTimeFilters = filter.filter(
     (f) => f.column !== "scoreTimestamp" && f.column !== "startTime",
   );
@@ -124,7 +194,7 @@ async function getScoreAggregateV2({
       { measure: "count", aggregation: "sum" },
       { measure: "value", aggregation: "avg" },
     ],
-    filters: mapLegacyUiTableFilterToView("scores-numeric", nonTimeFilters),
+    filters: mappedFilters,
   };
 
   // The scores-categorical view has no "value" dimension, so we handle value
@@ -208,8 +278,6 @@ export const dashboardRouter = createTRPCRouter({
             return getScoreAggregateV2({
               projectId: input.projectId,
               filter: input.filter ?? [],
-              fromFilter: from as TimeFilter | undefined,
-              toFilter: to as TimeFilter | undefined,
             });
           }
           const scores = await getScoreAggregate(
@@ -247,9 +315,35 @@ export const dashboardRouter = createTRPCRouter({
       sqlInterface.extend({
         projectId: z.string(),
         filter: filterInterface.optional(),
+        version: viewVersions.optional().default("v1"),
       }),
     )
     .query(async ({ input }) => {
+      if (input.version === "v2") {
+        // v2: ClickHouse histogram() aggregates all matching rows server-side.
+        // `input.limit` is ignored — no row-level cap is needed.
+        const { fromIso, toIso, mappedFilters } = prepareScoresNumericV2Params(
+          input.filter ?? [],
+        );
+        const histogramQuery: QueryType = {
+          view: "scores-numeric",
+          dimensions: [],
+          metrics: [{ measure: "value", aggregation: "histogram" }],
+          filters: mappedFilters,
+          fromTimestamp: fromIso,
+          toTimestamp: toIso,
+          timeDimension: null,
+          orderBy: null,
+          chartConfig: { type: "HISTOGRAM", bins: 10 },
+        };
+        const result = await executeQuery(
+          input.projectId,
+          histogramQuery,
+          "v2",
+        );
+        return clickhouseHistogramToChartData(result);
+      }
+
       const data = await getNumericScoreHistogram(
         input.projectId,
         input.filter ?? [],

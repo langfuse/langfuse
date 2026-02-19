@@ -460,6 +460,49 @@ describe("dashboard v1 vs v2 consistency", () => {
     return window === "1d" ? fromTimestamp1d : fromTimestamp7d;
   }
 
+  function makeCaller() {
+    const session: Session = {
+      expires: "1",
+      user: {
+        id: "user-1",
+        canCreateOrganizations: true,
+        name: "Test User",
+        organizations: [
+          {
+            id: orgId,
+            name: "Test Organization",
+            role: "OWNER",
+            plan: "cloud:hobby",
+            cloudConfig: undefined,
+            metadata: {},
+            aiFeaturesEnabled: false,
+            projects: [
+              {
+                id: projectId,
+                role: "ADMIN",
+                retentionDays: 30,
+                deletedAt: null,
+                name: "Test Project",
+                hasTraces: true,
+                metadata: {},
+              },
+            ],
+          },
+        ],
+        featureFlags: {
+          excludeClickhouseRead: false,
+          templateFlag: true,
+          v4BetaToggleVisible: false,
+          observationEvals: false,
+        },
+        admin: true,
+      },
+      environment: {} as any,
+    };
+    const ctx = createInnerTRPCContext({ session, headers: {} });
+    return appRouter.createCaller({ ...ctx, prisma });
+  }
+
   async function runBothVersions(query: QueryType): Promise<{
     v1: Array<Record<string, unknown>>;
     v2: Array<Record<string, unknown>>;
@@ -777,49 +820,6 @@ describe("dashboard v1 vs v2 consistency", () => {
   // ─── 7. Score-aggregate tRPC endpoint (full getScoreAggregateV2 path) ─
 
   maybe("score-aggregate tRPC endpoint v2", () => {
-    function makeCaller() {
-      const session: Session = {
-        expires: "1",
-        user: {
-          id: "user-1",
-          canCreateOrganizations: true,
-          name: "Test User",
-          organizations: [
-            {
-              id: orgId,
-              name: "Test Organization",
-              role: "OWNER",
-              plan: "cloud:hobby",
-              cloudConfig: undefined,
-              metadata: {},
-              aiFeaturesEnabled: false,
-              projects: [
-                {
-                  id: projectId,
-                  role: "ADMIN",
-                  retentionDays: 30,
-                  deletedAt: null,
-                  name: "Test Project",
-                  hasTraces: true,
-                  metadata: {},
-                },
-              ],
-            },
-          ],
-          featureFlags: {
-            excludeClickhouseRead: false,
-            templateFlag: true,
-            v4BetaToggleVisible: false,
-            observationEvals: false,
-          },
-          admin: true,
-        },
-        environment: {} as any,
-      };
-      const ctx = createInnerTRPCContext({ session, headers: {} });
-      return appRouter.createCaller({ ...ctx, prisma });
-    }
-
     const chartInput = (
       version: "v1" | "v2",
       extraFilters: FilterCondition[] = [],
@@ -1084,6 +1084,224 @@ describe("dashboard v1 vs v2 consistency", () => {
         );
         expect(filteredTotal).toBeLessThan(unfilteredTotal);
       }
+    });
+  });
+
+  // ─── 8. ScoreHistogram tRPC endpoint (v2 via executeQuery histogram) ──
+
+  // Seed data uses "metric_*" names; synthetic data uses "accuracy"/"relevance".
+  const HIST_NUMERIC =
+    DATA_MODE === "seeder"
+      ? { name: "metric_46", source: "API", dataType: "NUMERIC" }
+      : { name: "accuracy", source: "API", dataType: "NUMERIC" };
+  const HIST_BOOLEAN =
+    DATA_MODE === "seeder"
+      ? { name: "metric_32", source: "API", dataType: "BOOLEAN" }
+      : { name: "relevance", source: "API", dataType: "BOOLEAN" };
+
+  maybe("scoreHistogram tRPC endpoint v2", () => {
+    const histInput = (
+      version: "v1" | "v2",
+      scoreName: string,
+      scoreSource: string,
+      scoreDataType: string,
+    ) => ({
+      projectId,
+      from: "traces_scores" as const,
+      select: [{ column: "value" }],
+      filter: [
+        {
+          column: "scoreTimestamp",
+          operator: ">=" as const,
+          value: new Date(fromTimestamp7d),
+          type: "datetime" as const,
+        },
+        {
+          column: "scoreTimestamp",
+          operator: "<" as const,
+          value: new Date(toTimestamp),
+          type: "datetime" as const,
+        },
+        {
+          type: "string" as const,
+          column: "scoreName",
+          value: scoreName,
+          operator: "=" as const,
+        },
+        {
+          type: "string" as const,
+          column: "scoreSource",
+          value: scoreSource,
+          operator: "=" as const,
+        },
+        {
+          type: "string" as const,
+          column: "scoreDataType",
+          value: scoreDataType,
+          operator: "=" as const,
+        },
+      ],
+      limit: 10000,
+      version,
+    });
+
+    /**
+     * Parse histogram bins into (lower, upper, count) tuples.
+     * Bin labels follow the format "[lower, upper]".
+     */
+    function parseBins(
+      chartData: Array<Record<string, unknown>>,
+    ): Array<{ lower: number; upper: number; count: number }> {
+      return chartData.map((bin) => {
+        const match = (bin.binLabel as string).match(
+          /\[(-?[\d.]+),\s*(-?[\d.]+)\]/,
+        );
+        expect(match).not.toBeNull();
+        return {
+          lower: Number(match![1]),
+          upper: Number(match![2]),
+          count: Number((bin as Record<string, number>).count ?? 0),
+        };
+      });
+    }
+
+    /**
+     * Sum bin counts whose midpoint falls below each threshold.
+     */
+    function cumulativeCountsAt(
+      bins: Array<{ lower: number; upper: number; count: number }>,
+      thresholds: number[],
+    ): number[] {
+      return thresholds.map((t) =>
+        bins
+          .filter((b) => (b.lower + b.upper) / 2 < t)
+          .reduce((s, b) => s + b.count, 0),
+      );
+    }
+
+    it("should return valid histogram data for v2", async () => {
+      const caller = makeCaller();
+      const result = await caller.dashboard.scoreHistogram(
+        histInput(
+          "v2",
+          HIST_NUMERIC.name,
+          HIST_NUMERIC.source,
+          HIST_NUMERIC.dataType,
+        ),
+      );
+
+      expect(result.chartLabels).toEqual(["count"]);
+      expect(result.chartData.length).toBeGreaterThan(0);
+
+      // Each bin should have binLabel and count
+      for (const bin of result.chartData) {
+        expect(bin).toHaveProperty("binLabel");
+        expect(bin).toHaveProperty("count");
+        expect(typeof bin.count).toBe("number");
+        expect(bin.count).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it("should return matching histogram shape between v1 and v2 for NUMERIC scores", async () => {
+      const caller = makeCaller();
+      const [v1Result, v2Result] = await Promise.all([
+        caller.dashboard.scoreHistogram(
+          histInput(
+            "v1",
+            HIST_NUMERIC.name,
+            HIST_NUMERIC.source,
+            HIST_NUMERIC.dataType,
+          ),
+        ),
+        caller.dashboard.scoreHistogram(
+          histInput(
+            "v2",
+            HIST_NUMERIC.name,
+            HIST_NUMERIC.source,
+            HIST_NUMERIC.dataType,
+          ),
+        ),
+      ]);
+
+      expect(v1Result.chartData.length).toBeGreaterThan(0);
+      expect(v2Result.chartData.length).toBeGreaterThan(0);
+
+      const v1Bins = parseBins(v1Result.chartData);
+      const v2Bins = parseBins(v2Result.chartData);
+
+      const v1Total = v1Bins.reduce((s, b) => s + b.count, 0);
+      const v2Total = v2Bins.reduce((s, b) => s + b.count, 0);
+
+      // Total count: allow ±1. ClickHouse histogram() returns float counts
+      // per bin (it distributes points across bins using an adaptive algorithm).
+      // Math.round() on each bin independently can shift the sum by ±1.
+      expect(Math.abs(v2Total - v1Total)).toBeLessThanOrEqual(1);
+
+      // Value range should be similar
+      const v1Min = Math.min(...v1Bins.map((b) => b.lower));
+      const v2Min = Math.min(...v2Bins.map((b) => b.lower));
+      const v1Max = Math.max(...v1Bins.map((b) => b.upper));
+      const v2Max = Math.max(...v2Bins.map((b) => b.upper));
+      expect(Math.abs(v1Min - v2Min)).toBeLessThan(0.5);
+      expect(Math.abs(v1Max - v2Max)).toBeLessThan(0.5);
+
+      // Cumulative distribution at data-relative quartile points.
+      const range = v1Max - v1Min;
+      const thresholds = [0.25, 0.5, 0.75].map((q) => v1Min + q * range);
+      const v1Cum = cumulativeCountsAt(v1Bins, thresholds);
+      const v2Cum = cumulativeCountsAt(v2Bins, thresholds);
+      const tolerance = Math.ceil(v1Total * 0.15);
+      for (let i = 0; i < thresholds.length; i++) {
+        expect(Math.abs(v1Cum[i] - v2Cum[i])).toBeLessThanOrEqual(tolerance);
+      }
+    });
+
+    it("should return matching histogram shape between v1 and v2 for BOOLEAN scores", async () => {
+      const caller = makeCaller();
+      const [v1Result, v2Result] = await Promise.all([
+        caller.dashboard.scoreHistogram(
+          histInput(
+            "v1",
+            HIST_BOOLEAN.name,
+            HIST_BOOLEAN.source,
+            HIST_BOOLEAN.dataType,
+          ),
+        ),
+        caller.dashboard.scoreHistogram(
+          histInput(
+            "v2",
+            HIST_BOOLEAN.name,
+            HIST_BOOLEAN.source,
+            HIST_BOOLEAN.dataType,
+          ),
+        ),
+      ]);
+
+      expect(v1Result.chartData.length).toBeGreaterThan(0);
+      expect(v2Result.chartData.length).toBeGreaterThan(0);
+
+      const v1Bins = parseBins(v1Result.chartData);
+      const v2Bins = parseBins(v2Result.chartData);
+
+      const v1Total = v1Bins.reduce((s, b) => s + b.count, 0);
+      const v2Total = v2Bins.reduce((s, b) => s + b.count, 0);
+
+      // Total count: allow ±1
+      expect(Math.abs(v2Total - v1Total)).toBeLessThanOrEqual(1);
+
+      // Value range: BOOLEAN scores are 0 or 1, both versions should span [0, 1]
+      const v1Min = Math.min(...v1Bins.map((b) => b.lower));
+      const v2Min = Math.min(...v2Bins.map((b) => b.lower));
+      const v1Max = Math.max(...v1Bins.map((b) => b.upper));
+      const v2Max = Math.max(...v2Bins.map((b) => b.upper));
+      expect(Math.abs(v1Min - v2Min)).toBeLessThan(0.5);
+      expect(Math.abs(v1Max - v2Max)).toBeLessThan(0.5);
+
+      // Cumulative distribution at midpoint should roughly agree.
+      const v1Lower = cumulativeCountsAt(v1Bins, [0.5])[0];
+      const v2Lower = cumulativeCountsAt(v2Bins, [0.5])[0];
+      const tolerance = Math.ceil(v1Total * 0.15);
+      expect(Math.abs(v1Lower - v2Lower)).toBeLessThanOrEqual(tolerance);
     });
   });
 });
