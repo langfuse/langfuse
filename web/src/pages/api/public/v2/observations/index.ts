@@ -42,7 +42,6 @@ export default withMiddlewares({
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
         advancedFilters: query.filter,
-        parseIoAsJson: query.parseIoAsJson ?? false,
         cursor: query.cursor ?? undefined,
         fields: fieldGroups,
         expandMetadataKeys,

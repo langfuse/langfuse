@@ -40,10 +40,7 @@ import {
   type VisibilityState,
   type Row,
 } from "@tanstack/react-table";
-import {
-  type DataTablePeekViewProps,
-  TablePeekView,
-} from "@/src/components/table/peek";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
@@ -74,6 +71,7 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  /** Used for row click handling and MemoizedTableBody snapshot only. Render <TablePeekView> as a sibling outside DataTable. */
   peekView?: DataTablePeekViewProps;
   hidePagination?: boolean;
   tableName: string;
@@ -416,7 +414,6 @@ export function DataTable<TData extends object, TValue>({
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 tableSnapshot={{
-                  tableDataUpdatedAt: peekView?.tableDataUpdatedAt,
                   columnVisibility,
                   columnOrder,
                   rowSelection,
@@ -438,7 +435,6 @@ export function DataTable<TData extends object, TValue>({
           </Table>
         </div>
       </div>
-      {peekView && <TablePeekView peekView={peekView} />}
       {!hidePagination && pagination !== undefined ? (
         <div
           className={cn(
@@ -480,7 +476,6 @@ interface TableBodyComponentProps<TData> {
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   tableSnapshot?: {
-    tableDataUpdatedAt?: number;
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
     rowSelection?: RowSelectionState;
@@ -642,12 +637,6 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
     return !prev.tableSnapshot && !next.tableSnapshot;
 
   // Check reference equality first (faster)
-  if (
-    prev.tableSnapshot.tableDataUpdatedAt !==
-    next.tableSnapshot.tableDataUpdatedAt
-  ) {
-    return false;
-  }
   if (prev.table.options.data !== next.table.options.data) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;

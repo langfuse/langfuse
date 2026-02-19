@@ -2128,6 +2128,141 @@ describe("/api/public/traces API Endpoint", () => {
     }
   });
 
+  describe.skip("GET /api/public/traces env var controls", () => {
+    const originalRejectNoDateRange =
+      env.LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE;
+    const originalDefaultDateRangeDays =
+      env.LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS;
+    const originalDefaultFields = env.LANGFUSE_API_TRACES_DEFAULT_FIELDS;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE =
+        originalRejectNoDateRange;
+      (env as any).LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS =
+        originalDefaultDateRangeDays;
+      (env as any).LANGFUSE_API_TRACES_DEFAULT_FIELDS = originalDefaultFields;
+    });
+
+    it("should return 400 when REJECT_NO_DATE_RANGE=true and no fromTimestamp", async () => {
+      (env as any).LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE = "true";
+
+      const response = await makeZodVerifiedAPICallSilent(
+        GetTracesV1Response,
+        "GET",
+        "/api/public/traces",
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should allow request when REJECT_NO_DATE_RANGE=true and fromTimestamp is provided", async () => {
+      (env as any).LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE = "true";
+
+      const fromTimestamp = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?fromTimestamp=${fromTimestamp}`,
+      );
+
+      expect(response.status).toBe(200);
+    });
+
+    it("should reject even when DEFAULT_DATE_RANGE_DAYS is also set (rejection takes precedence)", async () => {
+      (env as any).LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE = "true";
+      (env as any).LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS = 7;
+
+      const response = await makeZodVerifiedAPICallSilent(
+        GetTracesV1Response,
+        "GET",
+        "/api/public/traces",
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should apply DEFAULT_FIELDS when no fields query param is provided", async () => {
+      (env as any).LANGFUSE_API_TRACES_DEFAULT_FIELDS = "core";
+
+      const traceId = randomUUID();
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "default-fields-test",
+        project_id: projectId,
+        input: JSON.stringify({ prompt: "test" }),
+        output: JSON.stringify({ response: "test response" }),
+      });
+
+      const observation = createObservation({
+        trace_id: traceId,
+        project_id: projectId,
+        name: "test-obs",
+        start_time: new Date().getTime() - 1000,
+        end_time: new Date().getTime(),
+      });
+
+      const score = createTraceScore({
+        trace_id: traceId,
+        project_id: projectId,
+        name: "test-score",
+        value: 0.8,
+      });
+
+      await createTracesCh([createdTrace]);
+      await createObservationsCh([observation]);
+      await createScoresCh([score]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        "/api/public/traces",
+      );
+
+      const trace = response.body.data.find((t) => t.id === traceId);
+      expect(trace).toBeTruthy();
+      if (!trace) return;
+
+      // With core only, IO/scores/observations/metrics should be defaults
+      expect(trace.input).toBeNull();
+      expect(trace.output).toBeNull();
+      expect(trace.observations).toEqual([]);
+      expect(trace.scores).toEqual([]);
+      expect(trace.totalCost).toBe(-1);
+      expect(trace.latency).toBe(-1);
+    });
+
+    it("should override DEFAULT_FIELDS when explicit fields param is provided", async () => {
+      (env as any).LANGFUSE_API_TRACES_DEFAULT_FIELDS = "core";
+
+      const traceId = randomUUID();
+      const createdTrace = createTrace({
+        id: traceId,
+        name: "explicit-fields-test",
+        project_id: projectId,
+        input: JSON.stringify({ prompt: "test" }),
+        output: JSON.stringify({ response: "test response" }),
+      });
+
+      await createTracesCh([createdTrace]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        "/api/public/traces?fields=core,io",
+      );
+
+      const trace = response.body.data.find((t) => t.id === traceId);
+      expect(trace).toBeTruthy();
+      if (!trace) return;
+
+      // Explicit fields=core,io should override the env default of core-only
+      expect(trace.input).toEqual({ prompt: "test" });
+      expect(trace.output).toEqual({ response: "test response" });
+    });
+  });
+
   // Comprehensive filter column tests - verify all documented filter columns don't crash
   describe("Filter Columns - Doesn't Fail Tests", () => {
     const runFilterTests = (useEventsTable: boolean) => {

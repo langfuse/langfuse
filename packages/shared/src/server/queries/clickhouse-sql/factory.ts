@@ -118,10 +118,10 @@ export const createFilterFromFilterState = (
           tablePrefix: column.queryPrefix,
         });
       case "null":
-        // Events table uses empty string instead of NULL for parent_span_id
+        // Events_* table uses empty string instead of NULL for parent_span_id
         if (
           frontEndFilter.column === "parentObservationId" &&
-          column.clickhouseTableName === "events"
+          column.clickhouseTableName.startsWith("events")
         ) {
           const isNull = frontEndFilter.operator === "is null";
           const fieldWithPrefix = column.queryPrefix
