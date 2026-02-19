@@ -15,7 +15,10 @@ export type PreviewData =
       type: typeof EvalTargetObject.EVENT;
       traceId: string;
       observationId: string;
-      data: RouterOutputs["observations"]["byId"];
+      data:
+        | RouterOutputs["observations"]["byId"]
+        | RouterOutputs["events"]["batchIO"][number]
+        | undefined;
     };
 
 export function usePreviewData(
@@ -106,6 +109,12 @@ export function usePreviewData(
       ? latestObservationBeta.data?.observations[0]?.id
       : latestObservation.data?.generations[0]?.id;
 
+  const latestObservationStartTime =
+    latestObservationBeta.data?.observations[0]?.startTime ??
+    new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const latestObservationEndTime =
+    latestObservationBeta.data?.observations[0]?.endTime ?? new Date();
+
   // For event evals: fetch only the single observation
   const observationDetails = api.observations.byId.useQuery(
     {
@@ -119,19 +128,47 @@ export function usePreviewData(
         enabled &&
         !!latestObservationTraceId &&
         !!latestObservationObservationId &&
-        isEventEval,
+        isEventEval &&
+        !isBetaEnabled,
+    },
+  );
+
+  const observationDetailsBeta = api.events.batchIO.useQuery(
+    {
+      projectId,
+      observations: [
+        {
+          id: latestObservationObservationId as string,
+          traceId: latestObservationTraceId as string,
+        },
+      ],
+      minStartTime: latestObservationStartTime,
+      maxStartTime: latestObservationEndTime,
+      truncated: false,
+    },
+    {
+      enabled:
+        enabled &&
+        !!latestObservationTraceId &&
+        !!latestObservationObservationId &&
+        isEventEval &&
+        isBetaEnabled,
     },
   );
 
   const previewData: PreviewData | null = isEventEval
-    ? observationDetails.data &&
+    ? (isBetaEnabled
+        ? observationDetailsBeta.data?.[0]
+        : observationDetails.data) &&
       latestObservationTraceId &&
       latestObservationObservationId
       ? {
           type: EvalTargetObject.EVENT,
           traceId: latestObservationTraceId,
           observationId: latestObservationObservationId,
-          data: observationDetails.data,
+          data: isBetaEnabled
+            ? observationDetailsBeta.data?.[0]
+            : observationDetails.data,
         }
       : null
     : traceDetails.data && actualTraceId
@@ -145,7 +182,9 @@ export function usePreviewData(
   const isLoading =
     latestTrace.isLoading ||
     traceDetails.isLoading ||
-    observationDetails.isLoading;
+    (isBetaEnabled
+      ? observationDetailsBeta.isLoading
+      : observationDetails.isLoading);
 
   return {
     previewData,
