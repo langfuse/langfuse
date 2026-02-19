@@ -162,8 +162,10 @@ async function seedSessionData(
   await createTracesCh(traces);
   if (observations?.length) await createObservationsCh(observations);
 
-  const events = buildMatchingEvents(traces, observations ?? []);
-  await createEventsCh(events);
+  if (isEventsPath) {
+    const events = buildMatchingEvents(traces, observations ?? []);
+    await createEventsCh(events);
+  }
 }
 
 describe("trpc.sessions", () => {
