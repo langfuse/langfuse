@@ -1054,6 +1054,32 @@ const getScoresUiGeneric = async <T>(props: {
 };
 
 /**
+ * Trace column mapping without queryPrefix, for building HAVING filters
+ * inside the traces CTE. The CTE output aliases (name, user_id, tags) don't
+ * need a table prefix since HAVING references them directly.
+ */
+const scoresTraceFilterHavingMapping = [
+  {
+    uiTableName: "Trace Name",
+    uiTableId: "traceName",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "name",
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "user_id",
+  },
+  {
+    uiTableName: "Trace Tags",
+    uiTableId: "trace_tags",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "tags",
+  },
+];
+
+/**
  * v4 variant: scores query using eventsTracesAggregation CTE instead of
  * raw events_core SQL. Trace-level filters and sort use a "traces" CTE
  * built by the event query builder, joined as alias "e".
@@ -1126,6 +1152,28 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       projectId,
       truncated: true,
     }).whereRaw("e.is_deleted = 0");
+
+    // Build HAVING filters from the same user filter state, but using a
+    // prefix-free column mapping so conditions reference CTE output aliases
+    // directly (name, user_id, tags) instead of e.name, e.user_id, e.tags.
+    const traceHavingFilterState = filter.filter((filterEntry) =>
+      scoresTraceFilterHavingMapping.some(
+        (column) =>
+          column.uiTableName === filterEntry.column ||
+          column.uiTableId === filterEntry.column,
+      ),
+    );
+    const havingFilters = new FilterList(
+      createFilterFromFilterState(
+        traceHavingFilterState,
+        scoresTraceFilterHavingMapping,
+      ),
+    );
+    const havingFilterRes = havingFilters.apply();
+    if (havingFilterRes.query) {
+      tracesBuilder.having(havingFilterRes);
+    }
+
     const { query: cteQuery, params: cteParams } =
       tracesBuilder.buildWithParams();
     tracesCTEClause = `WITH traces AS (${cteQuery})`;

@@ -350,6 +350,9 @@ const AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_AGGREGATION_FIELDS
   >,
+  metadata: ["id", "name", "user_id", "tags"] as Array<
+    keyof typeof EVENTS_AGGREGATION_FIELDS
+  >,
 } as const;
 
 /**
@@ -626,6 +629,14 @@ abstract class BaseEventsQueryBuilder<
   protected abstract buildGroupByClause(): string;
 
   /**
+   * Build the HAVING clause. Only meaningful for aggregation queries.
+   * Default: no HAVING. Overridden by EventsAggregationQueryBuilder.
+   */
+  protected buildHavingClause(): string {
+    return "";
+  }
+
+  /**
    * Get the table name to query from.
    * Subclasses can override to implement dynamic table selection.
    * Default: events_core (lightweight table with truncated I/O)
@@ -674,6 +685,12 @@ abstract class BaseEventsQueryBuilder<
     const groupBy = this.buildGroupByClause();
     if (groupBy) {
       parts.push(groupBy);
+    }
+
+    // HAVING (only for aggregation queries, emitted by subclasses)
+    const having = this.buildHavingClause();
+    if (having) {
+      parts.push(having);
     }
 
     // ORDER BY
@@ -962,9 +979,44 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_AGGREGATION_FIELDS
 > {
   private truncated: boolean = true;
+  private havingClauses: string[] = [];
 
   constructor(options: { projectId: string }) {
     super(EVENTS_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Add raw HAVING condition with optional parameters.
+   * HAVING filters on aggregated output columns after GROUP BY.
+   */
+  private havingRaw(condition: string, params?: Record<string, any>): this {
+    if (condition.trim()) {
+      this.havingClauses.push(condition);
+    }
+    if (params) {
+      this.params = { ...this.params, ...params };
+    }
+    return this;
+  }
+
+  /**
+   * Add HAVING conditions from a compiled filter result.
+   * Strips leading AND/OR and wraps in parentheses.
+   */
+  having(condition: { query: string; params?: Record<string, any> }): this {
+    if (condition.query.trim()) {
+      const trimmedQuery = condition.query.trim().replace(/^(AND|OR)\s+/i, "");
+      this.havingRaw(`(${trimmedQuery})`, condition.params);
+    }
+    return this;
+  }
+
+  /**
+   * Build HAVING clause from accumulated conditions.
+   */
+  protected override buildHavingClause(): string {
+    if (this.havingClauses.length === 0) return "";
+    return `HAVING ${this.havingClauses.join("\n  AND ")}`;
   }
 
   /**

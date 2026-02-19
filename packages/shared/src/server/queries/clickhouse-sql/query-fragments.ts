@@ -17,6 +17,12 @@ interface EventsTracesAggregationParams {
    * Default is false (full) for better compatibility.
    */
   truncated?: boolean;
+  /**
+   * Which aggregation field set to select.
+   * "all" = all 27 aggregation fields (default).
+   * "metadata" = only id, projectId, name, user_id, tags (lightweight).
+   */
+  fieldSet?: "all" | "metadata";
 }
 
 /**
@@ -30,16 +36,21 @@ interface EventsTracesAggregationParams {
 export const eventsTracesAggregation = (
   params: EventsTracesAggregationParams,
 ): EventsAggregationQueryBuilder => {
-  return (
-    new EventsAggregationQueryBuilder({ projectId: params.projectId })
-      // we always use this as CTE, no need to be smart here.
-      // ClickHouse will optimize unused columns away.
-      .selectFieldSet("all")
-      .withTraceIds(params.traceIds)
-      .withStartTimeFrom(params.startTimeFrom)
-      .withTruncated(params.truncated ?? false)
-      .orderByColumns([{ column: "timestamp", direction: "DESC" }])
-  );
+  const builder = new EventsAggregationQueryBuilder({
+    projectId: params.projectId,
+  })
+    // we always use this as CTE, no need to be smart here.
+    // ClickHouse will optimize unused columns away.
+    .selectFieldSet(params.fieldSet ?? "all")
+    .withTraceIds(params.traceIds)
+    .withStartTimeFrom(params.startTimeFrom)
+    .withTruncated(params.truncated ?? false);
+
+  if (params.fieldSet !== "metadata") {
+    builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  }
+
+  return builder;
 };
 
 interface BaseScoresAggregationParams {

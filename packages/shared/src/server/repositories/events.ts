@@ -2881,6 +2881,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     projectId: props.projectId,
     traceIds: props.traceIds,
     truncated: true,
+    fieldSet: "metadata",
   }).whereRaw("e.is_deleted = 0");
 
   const cteResult = tracesBuilder.buildWithParams();
