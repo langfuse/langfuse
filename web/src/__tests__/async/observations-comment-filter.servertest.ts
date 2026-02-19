@@ -17,8 +17,7 @@ import { env } from "@/src/env.mjs";
 
 describe("Observations Comment Filtering", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-  const useEventsTable =
-    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true";
+  const useEventsTable = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
 
   const session: Session = {
     expires: "1",

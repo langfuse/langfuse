@@ -471,7 +471,7 @@ describe("/api/public/observations API Endpoint", () => {
   };
 
   // Run tests with both implementations
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
