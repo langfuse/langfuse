@@ -1195,6 +1195,17 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
   protected buildGroupByClause(): string {
     return "GROUP BY session_id";
   }
+
+  /**
+   * Build with schema for use in CTEQueryBuilder.
+   * Returns query, params, and list of column names this CTE exposes.
+   */
+  buildWithSchema(): CTEWithSchema {
+    return {
+      ...this.buildWithParams(),
+      schema: [...this.selectFields],
+    };
+  }
 }
 
 /**

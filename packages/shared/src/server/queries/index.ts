@@ -46,6 +46,7 @@ export {
 export {
   eventsScoresAggregation,
   eventsSessionsAggregation,
+  eventsSessionScoresAggregation,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "./clickhouse-sql/query-fragments";

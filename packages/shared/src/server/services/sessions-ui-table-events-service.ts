@@ -4,6 +4,7 @@ import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
+  CTEQueryBuilder,
   DateTimeFilter,
   FilterList,
   StringOptionsFilter,
@@ -12,6 +13,7 @@ import {
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   eventsSessionsAggregation,
+  eventsSessionScoresAggregation,
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
@@ -166,51 +168,6 @@ const getSessionsTableFromEventsGeneric = async <T>(
   const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
     props;
 
-  let sqlSelect: string;
-  switch (select) {
-    case "count":
-      sqlSelect = "count(s.session_id) as count";
-      break;
-    case "rows":
-      sqlSelect = `
-          s.session_id,
-          s.max_timestamp,
-          s.min_timestamp,
-          s.trace_ids,
-          s.user_ids,
-          s.trace_count,
-          s.trace_tags,
-          s.environment`;
-      break;
-    case "metrics":
-      sqlSelect = `
-        s.session_id,
-        s.max_timestamp,
-        s.min_timestamp,
-        s.trace_ids,
-        s.user_ids,
-        s.trace_count,
-        s.trace_tags,
-        s.environment,
-        s.total_observations,
-        s.duration,
-        s.session_usage_details,
-        s.session_cost_details,
-        s.session_input_cost,
-        s.session_output_cost,
-        s.session_total_cost,
-        s.session_input_usage,
-        s.session_output_usage,
-        s.session_total_usage,
-        sc.scores_avg,
-        sc.score_categories`;
-      break;
-    default: {
-      const exhaustiveCheckDefault: never = select;
-      throw new Error(`Unknown select type: ${exhaustiveCheckDefault}`);
-    }
-  }
-
   const sessionFilters = new FilterList(
     createFilterFromFilterState(filter, sessionCols),
   );
@@ -233,40 +190,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
         c.uiTableName === orderBy?.column || c.uiTableId === orderBy?.column,
     )?.clickhouseTableName === "scores";
 
-  const scoresCte = `scores_agg AS (
-    SELECT
-      project_id,
-      session_id AS score_session_id,
-      groupArrayIf(
-        tuple(name, avg_value),
-        data_type IN ('NUMERIC', 'BOOLEAN')
-      ) AS scores_avg,
-      groupArrayIf(
-        concat(name, ':', string_value),
-        data_type = 'CATEGORICAL' AND notEmpty(string_value)
-      ) AS score_categories
-    FROM (
-      SELECT
-        project_id,
-        session_id,
-        name,
-        data_type,
-        string_value,
-        avg(value) avg_value
-      FROM scores s FINAL
-      WHERE
-        project_id = {projectId: String}
-      GROUP BY
-        project_id,
-        session_id,
-        name,
-        data_type,
-        string_value
-      ) tmp
-    GROUP BY
-      project_id, session_id
-  )`;
-
+  // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
     projectId,
     sessionIds: sessionIdFilter?.values,
@@ -275,29 +199,92 @@ const getSessionsTableFromEventsGeneric = async <T>(
       : null,
   });
 
-  const sessionsCte = sessionsBuilder.buildWithParams();
+  // Compose query using CTEQueryBuilder
+  let queryBuilder = new CTEQueryBuilder()
+    .withCTEFromBuilder("session_data", sessionsBuilder)
+    .from("session_data", "s");
 
-  const query = `
-        WITH ${select === "metrics" || requiresScoresJoin ? `${scoresCte},` : ""}
-        session_data AS (${sessionsCte.query})
-        SELECT ${sqlSelect}
-        FROM session_data s
-        ${select === "metrics" || requiresScoresJoin ? `LEFT JOIN scores_agg sc ON sc.project_id = {projectId: String} AND sc.score_session_id = s.session_id` : ""}
-        ${sessionsFilterRes.query ? `WHERE ${sessionsFilterRes.query}` : ""}
-        ${orderByToClickhouseSql(orderBy ?? null, sessionCols)}
-        ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-        `;
+  // Conditionally add scores CTE
+  if (select === "metrics" || requiresScoresJoin) {
+    queryBuilder = queryBuilder
+      .withCTE("scores_agg", eventsSessionScoresAggregation({ projectId }))
+      .leftJoin(
+        "scores_agg",
+        "sc",
+        "ON sc.project_id = {projectId: String} AND sc.score_session_id = s.session_id",
+      );
+  }
+
+  // Select fields based on query type
+  switch (select) {
+    case "count":
+      queryBuilder.select("count(s.session_id) as count");
+      break;
+    case "rows":
+      queryBuilder.selectColumns(
+        "s.session_id",
+        "s.max_timestamp",
+        "s.min_timestamp",
+        "s.trace_ids",
+        "s.user_ids",
+        "s.trace_count",
+        "s.trace_tags",
+        "s.environment",
+      );
+      break;
+    case "metrics":
+      queryBuilder
+        .selectColumns(
+          "s.session_id",
+          "s.max_timestamp",
+          "s.min_timestamp",
+          "s.trace_ids",
+          "s.user_ids",
+          "s.trace_count",
+          "s.trace_tags",
+          "s.environment",
+          "s.total_observations",
+          "s.duration",
+          "s.session_usage_details",
+          "s.session_cost_details",
+          "s.session_input_cost",
+          "s.session_output_cost",
+          "s.session_total_cost",
+          "s.session_input_usage",
+          "s.session_output_usage",
+          "s.session_total_usage",
+        )
+        .select("sc.scores_avg", "sc.score_categories");
+      break;
+    default: {
+      const exhaustiveCheckDefault: never = select;
+      throw new Error(`Unknown select type: ${exhaustiveCheckDefault}`);
+    }
+  }
+
+  // Apply filters, ordering, and pagination
+  if (sessionsFilterRes.query) {
+    queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
+  }
+
+  const orderBySql = orderByToClickhouseSql(orderBy ?? null, sessionCols);
+  if (orderBySql) {
+    queryBuilder.orderBy(orderBySql);
+  }
+
+  if (limit !== undefined && page !== undefined) {
+    queryBuilder.limit(limit, limit * page);
+  }
+
+  const { query, params } = queryBuilder.buildWithParams();
 
   return measureAndReturn({
     operationName: "getSessionsTableFromEventsGeneric",
     projectId,
     input: {
       params: {
+        ...params,
         projectId,
-        limit: limit,
-        offset: limit && page ? limit * page : 0,
-        ...sessionsCte.params,
-        ...sessionsFilterRes.params,
       },
       tags: {
         ...(props.tags ?? {}),
