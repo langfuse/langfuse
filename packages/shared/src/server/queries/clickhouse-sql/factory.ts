@@ -39,6 +39,8 @@ export const createFilterFromFilterState = (
   return applicableFilters.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
     const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
+    // clickhouseTableName is used for logical filter routing/splitting by callers
+    // (e.g. score vs trace filters). SQL emission uses queryPrefix + clickhouseSelect.
 
     switch (frontEndFilter.type) {
       case "string":
@@ -160,7 +162,8 @@ const matchAndVerifyTracesUiColumn = (
   filter: z.infer<typeof singleFilter>,
   uiTableDefinitions: UiColumnMappings,
 ) => {
-  // tries to match the column name to the clickhouse table name
+  // Resolve the UI filter column to a mapping row and validate its table token.
+  // The token may represent a physical table OR a logical scope/CTE group.
   const uiTable = uiTableDefinitions.find(
     (col) =>
       col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.
@@ -196,6 +199,8 @@ export function getProjectIdDefaultFilter(
   observationsFilter: FilterList;
 } {
   return {
+    // "traces" here is a routing scope used by filter splitting logic.
+    // In events-backed paths this may map to a CTE alias via tracesPrefix.
     tracesFilter: new FilterList([
       new StringFilter({
         clickhouseTable: "traces",

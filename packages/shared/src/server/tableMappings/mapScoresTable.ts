@@ -88,18 +88,21 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
+    // v3 path: joined from physical traces table as alias "t".
     clickhouseTableName: "traces",
     clickhouseSelect: "t.name",
   },
   {
     uiTableName: "User ID",
     uiTableId: "userId",
+    // v3 path: joined from physical traces table as alias "t".
     clickhouseTableName: "traces",
     clickhouseSelect: "t.user_id",
   },
   {
     uiTableName: "Trace Tags",
     uiTableId: "trace_tags",
+    // v3 path: joined from physical traces table as alias "t".
     clickhouseTableName: "traces",
     clickhouseSelect: "t.tags",
   },
@@ -108,6 +111,8 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
 /**
  * v4 column definitions for scores table — trace columns reference the traces
  * CTE built by eventsTracesAggregation(). The CTE is joined as alias "e".
+ * Note: clickhouseTableName "traces" is used as a logical filter group key;
+ * in this v4 mapping it resolves to the CTE alias, not the physical table.
  */
 export const scoresTableUiColumnDefinitionsFromEvents: UiColumnMappings = [
   // All scores-native columns are identical to v3
