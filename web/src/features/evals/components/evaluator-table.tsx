@@ -165,14 +165,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     projectId,
     false,
     false,
-    [
-      {
-        column: "status",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["ACTIVE"],
-      },
-    ],
+    [],
   );
 
   const evaluators = api.evals.allConfigs.useQuery({

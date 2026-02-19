@@ -31,7 +31,6 @@ import {
   type AgentGraphDataResponse,
 } from "@/src/features/trace-graph-view/types";
 import type * as opentelemetry from "@opentelemetry/api";
-import { TRPCError } from "@trpc/server";
 
 const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
@@ -78,11 +77,6 @@ export const eventsRouter = createTRPCRouter({
         },
         async (span) => {
           addAttributesToSpan({ span, input, orderBy: input.orderBy });
-
-          throw new TRPCError({
-            code: "UNPROCESSABLE_CONTENT",
-            message: "Test error",
-          });
 
           return getEventList({
             projectId: ctx.session.projectId,

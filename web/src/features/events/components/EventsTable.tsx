@@ -40,7 +40,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
-import { InfoIcon, PlusCircle } from "lucide-react";
+import { InfoIcon, LightbulbIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
@@ -82,6 +82,7 @@ import {
 } from "@/src/components/table/data-table-refresh-button";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
+import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 
 export type EventsTableRow = {
   // Identity fields
@@ -178,6 +179,7 @@ export default function ObservationsEventsTable({
     useFullTextSearch();
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
+  const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
@@ -465,6 +467,17 @@ export default function ObservationsEventsTable({
       execute: handleAddToAnnotationQueue,
       accessCheck: {
         scope: "annotationQueues:CUD",
+      },
+    },
+    {
+      id: ActionId.ObservationBatchEvaluation,
+      type: BatchActionType.Create,
+      label: "Evaluate",
+      description: "Run evaluations on selected observations.",
+      customDialog: true,
+      icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
+      accessCheck: {
+        scope: "evalJob:CUD",
       },
     },
   ];
@@ -1215,6 +1228,11 @@ export default function ObservationsEventsTable({
                   projectId={projectId}
                   actions={tableActions}
                   tableName={BatchExportTableName.Observations}
+                  onCustomAction={(actionType) => {
+                    if (actionType === ActionId.ObservationBatchEvaluation) {
+                      setShowRunEvaluationDialog(true);
+                    }
+                  }}
                 />
               ) : null,
             ]}
@@ -1340,6 +1358,29 @@ export default function ObservationsEventsTable({
         </ResizableFilterLayout>
         {peekConfig && <TablePeekView peekView={peekConfig} />}
       </div>
+
+      {showRunEvaluationDialog && (
+        <RunEvaluationDialog
+          projectId={projectId}
+          selectedObservationIds={(() => {
+            const rowIds = new Set(observations.rows?.map((o) => o.id));
+            return Object.keys(selectedRows).filter((id) => rowIds.has(id));
+          })()}
+          query={{
+            filter: filterState,
+            orderBy: orderByState,
+            searchQuery: searchQuery ?? undefined,
+            searchType,
+          }}
+          selectAll={selectAll}
+          totalCount={totalCount ?? 0}
+          onClose={() => {
+            setShowRunEvaluationDialog(false);
+            setSelectedRows({});
+            setSelectAll(false);
+          }}
+        />
+      )}
     </DataTableControlsProvider>
   );
 }
