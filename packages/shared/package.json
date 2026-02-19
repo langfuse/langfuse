@@ -78,7 +78,7 @@
     "@langchain/aws": "^1.2.1",
     "@langchain/core": "^1.1.17",
     "@langchain/google-genai": "^2.1.13",
-    "@langchain/google-vertexai": "^2.1.13",
+    "@langchain/google-vertexai": "^2.1.19",
     "@langchain/openai": "^1.2.3",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "@prisma/client": "^6.17.1",
