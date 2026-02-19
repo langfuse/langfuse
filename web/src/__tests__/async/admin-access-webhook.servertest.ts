@@ -13,7 +13,8 @@ describe("sendAdminAccessWebhook", () => {
     jest.restoreAllMocks();
   });
 
-  afterAll(() => {
+  afterEach(() => {
+    jest.useRealTimers();
     (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = originalWebhook;
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
   });
@@ -78,8 +79,6 @@ describe("sendAdminAccessWebhook", () => {
         "Content-Type": "application/json",
       },
     });
-
-    jest.useRealTimers();
   });
 
   it("should dedupe repeated sends within 60 seconds for same email/project/org", async () => {
@@ -103,8 +102,6 @@ describe("sendAdminAccessWebhook", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-
-    jest.useRealTimers();
   });
 
   it("should send again after dedupe window has passed", async () => {
@@ -131,7 +128,60 @@ describe("sendAdminAccessWebhook", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 
-    jest.useRealTimers();
+  it("should not dedupe when email/project/org differ", async () => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    const fetchSpy = jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue({ ok: true } as Response);
+
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-1",
+      orgId: "org-1",
+    });
+    await sendAdminAccessWebhook({
+      email: "admin@langfuse.com",
+      projectId: "project-2",
+      orgId: "org-1",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("should not throw when fetch rejects", async () => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("network error"));
+
+    await expect(
+      sendAdminAccessWebhook({
+        email: "admin@langfuse.com",
+        projectId: "project-1",
+        orgId: "org-1",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should not throw when fetch returns non-ok response", async () => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+
+    jest.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+    } as Response);
+
+    await expect(
+      sendAdminAccessWebhook({
+        email: "admin@langfuse.com",
+        projectId: "project-1",
+        orgId: "org-1",
+      }),
+    ).resolves.toBeUndefined();
   });
 });
