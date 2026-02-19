@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { eventTypes } from "./ingestion/types";
 import {
+  ActionId,
   BatchActionQuerySchema,
   BatchActionType,
 } from "../features/batchAction/types";
@@ -188,6 +189,14 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       batchActionId: z.string(),
       config: ObservationAddToDatasetConfigSchema,
       type: z.enum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal(ActionId.ObservationBatchEvaluation),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      cutoffCreatedAt: z.date(),
+      batchActionId: z.string(),
+      evaluatorIds: z.array(z.string()),
     }),
   ],
 );

@@ -80,7 +80,6 @@ describe("scheduleObservationEvals", () => {
     scoreName: "quality",
     variableMapping: [],
     targetObject: EvalTargetObject.EVENT,
-    delay: 0,
     ...overrides,
   });
 

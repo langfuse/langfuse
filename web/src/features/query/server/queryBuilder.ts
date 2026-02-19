@@ -194,6 +194,18 @@ export class QueryBuilder {
     return view.baseCte.split(" ")[0];
   }
 
+  private tableAlias(view: ViewDeclarationType): string {
+    // Return the alias from baseCte if present, otherwise the table name.
+    // e.g., "events_core events_traces" -> "events_traces"
+    //       "traces FINAL"              -> "traces"  (FINAL is a modifier, not an alias)
+    const parts = view.baseCte.split(/\s+/);
+    const clickhouseModifiers = new Set(["FINAL", "SAMPLE", "PREWHERE"]);
+    if (parts.length >= 2 && !clickhouseModifiers.has(parts[1].toUpperCase())) {
+      return parts[1];
+    }
+    return parts[0];
+  }
+
   private mapFilters(
     filters: z.infer<typeof queryModel>["filters"],
     view: ViewDeclarationType,
@@ -570,11 +582,20 @@ export class QueryBuilder {
       granularity,
     );
 
-    // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT)
-    const agg = wrapInAgg
-      ? (view.timeDimensionAggregation ?? wrapInAgg)
-      : undefined;
-    const wrappedSql = agg ? `${agg}(${timeDimensionSql})` : timeDimensionSql;
+    // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
+    // When the view has a rootEventCondition, use anyIf with that condition so that
+    // only the root event's timestamp is used for time bucketing (not observations).
+    // The condition column is prefixed with the table alias to avoid ambiguity in
+    // future views that may involve JOINs.
+    let wrappedSql: string;
+    if (wrapInAgg && view.rootEventCondition) {
+      const alias = this.tableAlias(view);
+      wrappedSql = `anyIf(${timeDimensionSql}, ${alias}.${view.rootEventCondition.condition})`;
+    } else if (wrapInAgg) {
+      wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
+    } else {
+      wrappedSql = timeDimensionSql;
+    }
 
     return `${wrappedSql} as time_dimension`;
   }
