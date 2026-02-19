@@ -77,6 +77,18 @@ export const handleEventPropagationJob = async (
       `[DUAL WRITE] Last processed partition: ${lastProcessedPartition ?? "none"}`,
     );
 
+    // Track delay based on the Redis key so we have a reference even if no processing happens
+    if (lastProcessedPartition) {
+      const lastPartitionTime = new Date(lastProcessedPartition).getTime();
+      if (!isNaN(lastPartitionTime)) {
+        const delaySeconds = (Date.now() - lastPartitionTime) / 1000;
+        recordGauge(
+          "langfuse.event_propagation.last_processed_partition_delay_seconds",
+          delaySeconds,
+        );
+      }
+    }
+
     // Query for the next partition after the last processed one
     // Filter for partitions older than 6 minutes and order by partition ASC to get the oldest first
     const partitions = await queryClickhouse<{ partition: string }>({
@@ -293,6 +305,16 @@ export const handleEventPropagationJob = async (
     logger.info(
       `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
+
+    // Track delay of the partition we just processed
+    const processedPartitionTime = new Date(partitionToProcess).getTime();
+    if (!isNaN(processedPartitionTime)) {
+      const delaySeconds = (Date.now() - processedPartitionTime) / 1000;
+      recordGauge(
+        "langfuse.event_propagation.processed_partition_delay_seconds",
+        delaySeconds,
+      );
+    }
 
     // Step 3: Update the last processed partition cursor in Redis
     // This allows the next job to continue from where we left off
