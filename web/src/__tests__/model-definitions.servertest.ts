@@ -4,7 +4,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import {
   DeleteModelV1Response,
@@ -17,18 +16,21 @@ import { v4 } from "uuid";
 
 describe("/models API Endpoints", () => {
   let auth: string;
+  let defaultModelOneId: string;
+  let defaultModelTwoId: string;
 
   beforeEach(async () => {
-    await pruneDatabase();
-
     // Create authentication pairs
     const { auth: newAuth } = await createOrgProjectAndApiKey();
     auth = newAuth;
 
+    defaultModelOneId = v4();
+    defaultModelTwoId = v4();
+
     // create some default models that do not belong to a project
     await prisma.model.create({
       data: {
-        id: "model-1",
+        id: defaultModelOneId,
         modelName: "gpt-3.5-turbo",
         inputPrice: "0.0010",
         outputPrice: "0.0020",
@@ -47,27 +49,27 @@ describe("/models API Endpoints", () => {
         priority: 0,
         conditions: [],
         name: "Standard",
-        modelId: "model-1",
+        modelId: defaultModelOneId,
       },
     });
     await prisma.price.createMany({
       data: [
         {
-          modelId: "model-1",
+          modelId: defaultModelOneId,
           projectId: null,
           usageType: "input",
           price: 0.001,
           pricingTierId: pricingTierId1,
         },
         {
-          modelId: "model-1",
+          modelId: defaultModelOneId,
           projectId: null,
           usageType: "output",
           price: 0.002,
           pricingTierId: pricingTierId1,
         },
         {
-          modelId: "model-1",
+          modelId: defaultModelOneId,
           projectId: null,
           usageType: "total",
           price: 0.1,
@@ -78,7 +80,7 @@ describe("/models API Endpoints", () => {
 
     await prisma.model.create({
       data: {
-        id: "model-2",
+        id: defaultModelTwoId,
         modelName: "gpt-3.5-turbo",
         inputPrice: "0.0020",
         outputPrice: "0.0040",
@@ -97,20 +99,20 @@ describe("/models API Endpoints", () => {
         priority: 0,
         conditions: [],
         name: "Standard",
-        modelId: "model-2",
+        modelId: defaultModelTwoId,
       },
     });
     await prisma.price.createMany({
       data: [
         {
-          modelId: "model-2",
+          modelId: defaultModelTwoId,
           projectId: null,
           usageType: "input",
           price: 0.02,
           pricingTierId: pricingTierId2,
         },
         {
-          modelId: "model-2",
+          modelId: defaultModelTwoId,
           projectId: null,
           usageType: "output",
           price: 0.04,
@@ -119,7 +121,6 @@ describe("/models API Endpoints", () => {
       ],
     });
   });
-  afterEach(async () => await pruneDatabase());
 
   it("GET /models", async () => {
     const models = await makeZodVerifiedAPICall(
@@ -130,8 +131,11 @@ describe("/models API Endpoints", () => {
       auth,
     );
     expect(models.status).toBe(200);
-    expect(models.body.data.length).toBe(2);
-    expect(models.body.data[0]).toMatchObject({
+    expect(models.body.data.length).toBeGreaterThanOrEqual(2);
+    const defaultModelOne = models.body.data.find(
+      (model) => model.id === defaultModelOneId,
+    );
+    expect(defaultModelOne).toMatchObject({
       isLangfuseManaged: true,
       modelName: "gpt-3.5-turbo",
       prices: {
@@ -154,10 +158,10 @@ describe("/models API Endpoints", () => {
     expect(models.body.data.length).toBe(1);
     expect(models.body.meta).toMatchObject({
       page: 2,
-      totalPages: 2,
       limit: 1,
-      totalItems: 2,
     });
+    expect(models.body.meta.totalItems).toBeGreaterThanOrEqual(2);
+    expect(models.body.meta.totalPages).toBeGreaterThanOrEqual(2);
   });
 
   it("Create and get custom model", async () => {
@@ -189,7 +193,7 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(models.body.data.length).toBe(3);
+    expect(models.body.data.length).toBeGreaterThanOrEqual(3);
 
     const getModel = await makeZodVerifiedAPICall(
       GetModelV1Response,
@@ -293,11 +297,11 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(models.body.data.length).toBe(2);
+    expect(models.body.data.length).toBeGreaterThanOrEqual(2);
 
     const deleteModel = await makeAPICall(
       "DELETE",
-      `/api/public/models/${models.body.data[0].id}`,
+      `/api/public/models/${defaultModelOneId}`,
       undefined,
       auth,
     );
@@ -328,7 +332,7 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(models.body.data.length).toBe(3);
+    expect(models.body.data.length).toBeGreaterThanOrEqual(3);
 
     await makeZodVerifiedAPICall(
       DeleteModelV1Response,
@@ -345,6 +349,6 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(modelsAfterDelete.body.data.length).toBe(2);
+    expect(modelsAfterDelete.body.data.length).toBeGreaterThanOrEqual(2);
   });
 });

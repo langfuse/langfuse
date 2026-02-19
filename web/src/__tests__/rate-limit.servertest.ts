@@ -2,17 +2,28 @@ import {
   createHttpHeaderFromRateLimit,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
-import { Redis } from "ioredis";
+import type { Cluster, Redis } from "ioredis";
+import {
+  createNewRedisInstance,
+  createOrgProjectAndApiKey,
+  safeMultiDel,
+  scanKeys,
+} from "@langfuse/shared/src/server";
 
 describe("RateLimitService", () => {
-  const orgId = "seed-org-id";
-  let redis: Redis;
+  let orgId: string;
+  let projectId: string;
+  let redis: Redis | Cluster;
 
   beforeAll(() => {
-    redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+    const redisInstance = createNewRedisInstance({
       maxRetriesPerRequest: null,
       enableAutoPipelining: false, // Align with our settings overwrite for rate limit service
     });
+    if (!redisInstance) {
+      throw new Error("Failed to initialize Redis for rate limit tests");
+    }
+    redis = redisInstance;
   });
 
   afterAll(async () => {
@@ -20,17 +31,20 @@ describe("RateLimitService", () => {
   });
 
   beforeEach(async () => {
-    expect(redis).toBeDefined();
-    const keys = await redis?.keys("rate-limit*");
-    if (keys && keys?.length > 0) {
-      await redis?.del(keys);
+    const setup = await createOrgProjectAndApiKey();
+    orgId = setup.orgId;
+    projectId = setup.projectId;
+
+    const keys = await scanKeys(redis, "rate-limit*");
+    if (keys.length > 0) {
+      await safeMultiDel(redis, keys);
     }
   });
 
   afterEach(async () => {
-    const keys = await redis?.keys("rate-limit*");
-    if (keys && keys.length > 0) {
-      await redis?.del(keys);
+    const keys = await scanKeys(redis, "rate-limit*");
+    if (keys.length > 0) {
+      await safeMultiDel(redis, keys);
     }
   });
 
@@ -41,9 +55,9 @@ describe("RateLimitService", () => {
       msBeforeNext: 1000,
       resource: "public-api" as const,
       scope: {
-        orgId: orgId,
+        orgId,
         plan: "cloud:hobby" as const,
-        projectId: "test-project-id",
+        projectId,
         accessLevel: "project" as const,
         rateLimitOverrides: [],
       },
@@ -63,9 +77,9 @@ describe("RateLimitService", () => {
 
   it("should rate limit", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [],
     };
@@ -88,7 +102,7 @@ describe("RateLimitService", () => {
     expect(result?.isRateLimited()).toBe(false);
 
     // check redis for the rate limit key
-    const value = await redis.get("rate-limit:public-api:seed-org-id");
+    const value = await redis.get(`rate-limit:public-api:${orgId}`);
 
     expect(value).toBeDefined();
     expect(parseInt(value ?? "0")).toBeGreaterThan(0);
@@ -96,9 +110,9 @@ describe("RateLimitService", () => {
 
   it("should increment the rate limit count", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [],
     };
@@ -122,9 +136,9 @@ describe("RateLimitService", () => {
 
   it("should reset the rate limit count after the window expires", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 100, durationInSec: 2 },
@@ -172,9 +186,9 @@ describe("RateLimitService", () => {
 
   it("should return false when rate limit is exceeded", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 60 },
@@ -203,9 +217,9 @@ describe("RateLimitService", () => {
 
   it("should apply rate limits with override for specific resource", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 10 },
@@ -229,9 +243,9 @@ describe("RateLimitService", () => {
 
   it("should not apply rate limits for resource prompts", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "public-api" as const, points: 5, durationInSec: 10 },
@@ -248,9 +262,9 @@ describe("RateLimitService", () => {
 
   it("should not apply rate limits for ingestion when overridden to null in API key", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "cloud:hobby" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [
         { resource: "ingestion" as const, points: null, durationInSec: null },
@@ -286,9 +300,9 @@ describe("RateLimitService", () => {
 
   it("should not apply rate limits for OSS plan", async () => {
     const scope = {
-      orgId: orgId,
+      orgId,
       plan: "oss" as const,
-      projectId: "test-project-id",
+      projectId,
       accessLevel: "project" as const,
       rateLimitOverrides: [],
     };

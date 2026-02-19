@@ -3,7 +3,6 @@
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import {
   GetScoreConfigResponse,
@@ -61,29 +60,22 @@ describe("/api/public/score-configs API Endpoint", () => {
   let auth: string;
   let projectId: string;
 
-  beforeAll(
-    async () => {
-      await pruneDatabase();
+  beforeEach(async () => {
+    // Create authentication pairs
+    const { auth: newAuth, projectId: newProjectId } =
+      await createOrgProjectAndApiKey();
+    auth = newAuth;
+    projectId = newProjectId;
 
-      // Create authentication pairs
-      const { auth: newAuth, projectId: newProjectId } =
-        await createOrgProjectAndApiKey();
-      auth = newAuth;
-      projectId = newProjectId;
+    // Update the project IDs in configs to use the new project ID
+    configOne[0].projectId = projectId;
+    configTwo[0].projectId = projectId;
+    configThree[0].projectId = projectId;
 
-      // Update the project IDs in configs to use the new project ID
-      configOne[0].projectId = projectId;
-      configTwo[0].projectId = projectId;
-      configThree[0].projectId = projectId;
-
-      await prisma.scoreConfig.createMany({
-        data: [...configOne, ...configTwo, ...configThree],
-      });
-    },
-    afterAll(async () => {
-      await pruneDatabase();
-    }),
-  );
+    await prisma.scoreConfig.createMany({
+      data: [...configOne, ...configTwo, ...configThree],
+    });
+  });
 
   it("should GET a score config", async () => {
     const { id: configId } = (await prisma.scoreConfig.findFirst({

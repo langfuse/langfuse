@@ -1,19 +1,18 @@
 import {
   createObservation,
   createObservationsCh,
-} from "@langfuse/shared/src/server";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
-import {
+  createOrgProjectAndApiKey,
   getObservationMetricsForPrompts,
   getObservationsWithPromptName,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
-const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
-
 describe("UI Prompts Table", () => {
+  let projectId: string;
+
   beforeEach(async () => {
-    await pruneDatabase();
+    const setup = await createOrgProjectAndApiKey();
+    projectId = setup.projectId;
   });
 
   it("should count the observations which belong to a prompt", async () => {

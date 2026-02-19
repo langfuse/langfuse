@@ -17,10 +17,11 @@ import {
   prisma,
   type TraceMedia,
 } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey, redis } from "@langfuse/shared/src/server";
 
 describe("Media Upload API", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  let projectId: string;
+  let auth: string;
 
   // Read the image file once and reuse it for all tests
   const imagePathPNG = path.join(__dirname, "static/langfuse-logo.png");
@@ -116,6 +117,7 @@ describe("Media Upload API", () => {
           field,
           sha256Hash: claimedSha256Hash ?? sha256Hash,
         },
+        auth,
       );
       result.getUploadUrlResponse = getUploadUrlResponse;
 
@@ -156,6 +158,7 @@ describe("Media Upload API", () => {
           uploadHttpStatus: uploadFileResponse.status,
           uploadHttpError: await uploadFileResponse.text(),
         },
+        auth,
       );
       result.updateMediaResponse = updateMediaResponse;
 
@@ -164,6 +167,8 @@ describe("Media Upload API", () => {
         GetMediaResponseSchema,
         "GET",
         basePath + `/${mediaId}`,
+        undefined,
+        auth,
       );
       result.getDownloadUrlResponse = getDownloadUrlResponse;
 
@@ -218,11 +223,19 @@ describe("Media Upload API", () => {
   }
 
   beforeEach(async () => {
+    const setup = await createOrgProjectAndApiKey();
+    projectId = setup.projectId;
+    auth = setup.auth;
+
     if (!env.DATABASE_URL.includes("localhost:5432")) {
       throw new Error("You cannot prune database unless running on localhost.");
     }
 
-    await prisma.media.deleteMany();
+    await prisma.media.deleteMany({
+      where: {
+        projectId,
+      },
+    });
   });
 
   afterAll(async () => {
