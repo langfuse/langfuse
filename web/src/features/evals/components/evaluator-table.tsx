@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { PeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
+import { TablePeekView } from "@/src/components/table/peek";
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -456,6 +457,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
   const peekNavigationProps = usePeekNavigation();
 
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "RUNNING_EVALUATOR" as const,
+      detailNavigationKey: "evals",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+        ],
+      },
+      children: <PeekViewEvaluatorConfigDetail projectId={projectId} />,
+      ...peekNavigationProps,
+    }),
+    [projectId, peekNavigationProps],
+  );
+
   const convertToTableRow = (
     jobConfig: RouterOutputs["evals"]["allConfigs"]["configs"][number],
   ): EvaluatorDataRow => {
@@ -546,23 +562,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <DataTable
               tableName={"evalConfigs"}
               columns={columns}
-              peekView={{
-                itemType: "RUNNING_EVALUATOR",
-                detailNavigationKey: "evals",
-                peekEventOptions: {
-                  ignoredSelectors: [
-                    "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
-                  ],
-                },
-                tableDataUpdatedAt: Math.max(
-                  evaluators.dataUpdatedAt,
-                  costs.dataUpdatedAt,
-                ),
-                children: (
-                  <PeekViewEvaluatorConfigDetail projectId={projectId} />
-                ),
-                ...peekNavigationProps,
-              }}
+              peekView={peekConfig}
               data={
                 evaluators.isLoading
                   ? { isLoading: true, isError: false }
@@ -592,6 +592,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
+        <TablePeekView peekView={peekConfig} />
       </div>
       <Dialog
         open={!!editConfigId && existingEvaluator.isSuccess}

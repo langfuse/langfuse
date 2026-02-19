@@ -352,10 +352,14 @@ export default function SessionsTable({
   type SessionCoreOutput = RouterOutput["sessions"]["all"]["sessions"][number];
   type SessionMetricOutput = RouterOutput["sessions"]["metrics"][number];
 
-  const sessionRowData = joinTableCoreAndMetrics<
-    SessionCoreOutput,
-    SessionMetricOutput
-  >(sessions.data?.sessions, sessionMetrics.data);
+  const sessionRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
+        sessions.data?.sessions,
+        sessionMetrics.data,
+      ),
+    [sessions.data?.sessions, sessionMetrics.data],
+  );
 
   const totalCount = sessionCountQuery.data?.totalCount ?? null;
   useEffect(() => {
