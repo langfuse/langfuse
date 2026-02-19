@@ -284,6 +284,7 @@ describe("Webhook Integration Tests", () => {
       expect(payload.action).toBe("created");
       expect(payload.prompt.name).toBe("test-prompt");
       expect(payload.prompt.version).toBe(1);
+      expect(payload.prompt.createdBy).toBe("test-user");
       expect(payload.timestamp).toBeDefined();
       expect(payload.prompt.createdAt).toBeDefined();
       expect(payload.prompt.updatedAt).toBeDefined();
