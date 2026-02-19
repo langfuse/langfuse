@@ -16,6 +16,7 @@ import {
   SiOkta,
   SiAuthentik,
   SiAuth0,
+  SiClickhouse,
   SiAmazoncognito,
   SiKeycloak,
   SiGoogle,
@@ -341,7 +342,7 @@ export function SSOButtons({
           )}
           {authProviders.clickhouseCloud && (
             <AuthProviderButton
-              icon={<TbBrandOauth className="mr-3" size={18} />}
+              icon={<SiClickhouse className="mr-3" size={18} />}
               label="ClickHouse Cloud"
               onClick={() => handleSignIn("clickhouse-cloud")}
               loading={providerSigningIn === "clickhouse-cloud"}
