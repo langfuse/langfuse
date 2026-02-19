@@ -9,13 +9,20 @@ import {
   createTracesCh,
   createObservationsCh,
   createEventsCh,
+  createTraceScore,
+  createScoresCh,
   queryClickhouse,
   clickhouseClient,
   type TraceRecordInsertType,
   type ObservationRecordInsertType,
   type EventRecordInsertType,
+  type ScoreRecordInsertType,
 } from "@langfuse/shared/src/server";
-import { getGenerationLikeTypes } from "@langfuse/shared";
+import { getGenerationLikeTypes, type FilterCondition } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import type { Session } from "next-auth";
 import { env } from "@/src/env.mjs";
 
 // Skip when events table is not enabled (v2 queries require events_core).
@@ -178,7 +185,7 @@ const SEED_PROJECT_ID = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 async function seedFromSeeder(targetProjectId: string) {
   const client = clickhouseClient();
-  for (const table of ["traces", "observations", "events"]) {
+  for (const table of ["traces", "observations", "events", "scores"]) {
     try {
       await client.command({
         query: `INSERT INTO ${table} SELECT * REPLACE({newProjectId: String} AS project_id) FROM ${table} FINAL WHERE project_id = {seedProjectId: String}`,
@@ -325,10 +332,80 @@ async function seedSynthetic(targetProjectId: string) {
 
   const events = buildMatchingEvents(traces, observations);
 
+  // Build scores: 3 per trace (NUMERIC, BOOLEAN, CATEGORICAL) = 60 total
+  const SCORE_NAMES = ["accuracy", "relevance", "helpful"];
+  const scores: ScoreRecordInsertType[] = [];
+
+  for (let ti = 0; ti < TRACE_COUNT; ti++) {
+    const trace = traces[ti];
+    const traceTs =
+      baseTime - Math.floor(ti / 7) * 24 * 60 * 60 * 1000 + ti * 60_000 + 200;
+
+    // First 10 traces → "default", last 10 → "staging"
+    const scoreEnv = ti < 10 ? "default" : "staging";
+
+    // NUMERIC score — value varies: 0, 0.25, 0.5, 0.75, 0.9, 1
+    const numericValues = [0, 0.25, 0.5, 0.75, 0.9, 1];
+    scores.push(
+      createTraceScore({
+        project_id: targetProjectId,
+        trace_id: trace.id,
+        name: SCORE_NAMES[0],
+        source: "API",
+        data_type: "NUMERIC",
+        value: numericValues[ti % numericValues.length],
+        string_value: null,
+        timestamp: traceTs,
+        environment: scoreEnv,
+        created_at: traceTs,
+        updated_at: traceTs,
+        event_ts: traceTs,
+      }),
+    );
+
+    // BOOLEAN score — value is 0 or 1
+    scores.push(
+      createTraceScore({
+        project_id: targetProjectId,
+        trace_id: trace.id,
+        name: SCORE_NAMES[1],
+        source: "API",
+        data_type: "BOOLEAN",
+        value: ti % 2,
+        string_value: null,
+        timestamp: traceTs,
+        environment: scoreEnv,
+        created_at: traceTs,
+        updated_at: traceTs,
+        event_ts: traceTs,
+      }),
+    );
+
+    // CATEGORICAL score — value is 0, string_value is set
+    const categories = ["good", "bad", "neutral"];
+    scores.push(
+      createTraceScore({
+        project_id: targetProjectId,
+        trace_id: trace.id,
+        name: SCORE_NAMES[2],
+        source: "ANNOTATION",
+        data_type: "CATEGORICAL",
+        value: 0,
+        string_value: categories[ti % categories.length],
+        timestamp: traceTs,
+        environment: scoreEnv,
+        created_at: traceTs,
+        updated_at: traceTs,
+        event_ts: traceTs,
+      }),
+    );
+  }
+
   await Promise.all([
     createTracesCh(traces),
     createObservationsCh(observations),
     createEventsCh(events),
+    createScoresCh(scores),
   ]);
 
   return {
@@ -356,6 +433,7 @@ describe("dashboard v1 vs v2 consistency", () => {
   });
 
   let projectId: string;
+  let orgId: string;
 
   let fromTimestamp1d: string;
   let fromTimestamp7d: string;
@@ -366,6 +444,7 @@ describe("dashboard v1 vs v2 consistency", () => {
 
     const org = await createOrgProjectAndApiKey();
     projectId = org.projectId;
+    orgId = org.orgId;
 
     const timestamps =
       DATA_MODE === "seeder"
@@ -693,5 +772,318 @@ describe("dashboard v1 vs v2 consistency", () => {
         }
       },
     );
+  });
+
+  // ─── 7. Score-aggregate tRPC endpoint (full getScoreAggregateV2 path) ─
+
+  maybe("score-aggregate tRPC endpoint v2", () => {
+    function makeCaller() {
+      const session: Session = {
+        expires: "1",
+        user: {
+          id: "user-1",
+          canCreateOrganizations: true,
+          name: "Test User",
+          organizations: [
+            {
+              id: orgId,
+              name: "Test Organization",
+              role: "OWNER",
+              plan: "cloud:hobby",
+              cloudConfig: undefined,
+              metadata: {},
+              aiFeaturesEnabled: false,
+              projects: [
+                {
+                  id: projectId,
+                  role: "ADMIN",
+                  retentionDays: 30,
+                  deletedAt: null,
+                  name: "Test Project",
+                  hasTraces: true,
+                  metadata: {},
+                },
+              ],
+            },
+          ],
+          featureFlags: {
+            excludeClickhouseRead: false,
+            templateFlag: true,
+            v4BetaToggleVisible: false,
+            observationEvals: false,
+          },
+          admin: true,
+        },
+        environment: {} as any,
+      };
+      const ctx = createInnerTRPCContext({ session, headers: {} });
+      return appRouter.createCaller({ ...ctx, prisma });
+    }
+
+    const chartInput = (
+      version: "v1" | "v2",
+      extraFilters: FilterCondition[] = [],
+    ) => ({
+      projectId,
+      from: "traces_scores" as const,
+      select: [
+        { column: "scoreName" },
+        { column: "scoreId", agg: "COUNT" as const },
+        { column: "value", agg: "AVG" as const },
+        { column: "scoreSource" },
+        { column: "scoreDataType" },
+      ],
+      filter: [
+        {
+          column: "scoreTimestamp",
+          operator: ">=" as const,
+          value: new Date(fromTimestamp7d),
+          type: "datetime" as const,
+        },
+        {
+          column: "scoreTimestamp",
+          operator: "<" as const,
+          value: new Date(toTimestamp),
+          type: "datetime" as const,
+        },
+        ...extraFilters,
+      ],
+      groupBy: [
+        { type: "string" as const, column: "scoreName" },
+        { type: "string" as const, column: "scoreSource" },
+        { type: "string" as const, column: "scoreDataType" },
+      ],
+      orderBy: [
+        {
+          column: "scoreId",
+          direction: "DESC" as const,
+          agg: "COUNT" as const,
+        },
+      ],
+      queryName: "score-aggregate" as const,
+      version,
+    });
+
+    it("should return data with expected field names", async () => {
+      const caller = makeCaller();
+      const result = await caller.dashboard.chart(chartInput("v2"));
+
+      expect(result.length).toBeGreaterThan(0);
+      // Verify field renaming: v2 maps name→scoreName, source→scoreSource, etc.
+      for (const row of result) {
+        expect(row).toHaveProperty("scoreName");
+        expect(row).toHaveProperty("scoreSource");
+        expect(row).toHaveProperty("scoreDataType");
+        expect(row).toHaveProperty("countScoreId");
+        expect(row).toHaveProperty("avgValue");
+        // Should NOT have raw v2 field names
+        expect(row).not.toHaveProperty("name");
+        expect(row).not.toHaveProperty("source");
+        expect(row).not.toHaveProperty("sum_count");
+      }
+    });
+
+    it("should return matching counts, avgValue, and order between v1 and v2", async () => {
+      const caller = makeCaller();
+      const [v1Result, v2Result] = await Promise.all([
+        caller.dashboard.chart(chartInput("v1")),
+        caller.dashboard.chart(chartInput("v2")),
+      ]);
+
+      expect(v1Result.length).toBeGreaterThan(0);
+      expect(v1Result.length).toBe(v2Result.length);
+
+      // Check order: both should be sorted by countScoreId DESC
+      for (let i = 1; i < v1Result.length; i++) {
+        expect(Number(v1Result[i - 1].countScoreId)).toBeGreaterThanOrEqual(
+          Number(v1Result[i].countScoreId),
+        );
+      }
+      for (let i = 1; i < v2Result.length; i++) {
+        expect(Number(v2Result[i - 1].countScoreId)).toBeGreaterThanOrEqual(
+          Number(v2Result[i].countScoreId),
+        );
+      }
+
+      const toKey = (r: Record<string, unknown>) =>
+        `${r.scoreName}|${r.scoreSource}|${r.scoreDataType}`;
+      const v1Map = new Map(v1Result.map((r) => [toKey(r), r]));
+      const v2Map = new Map(v2Result.map((r) => [toKey(r), r]));
+
+      for (const [key, v1Row] of v1Map) {
+        const v2Row = v2Map.get(key);
+        expect(v2Row).toBeDefined();
+        // countScoreId must match exactly
+        expect(Number(v2Row!.countScoreId)).toBe(Number(v1Row.countScoreId));
+        // avgValue must match (both should be numeric)
+        expect(Number(v2Row!.avgValue)).toBeCloseTo(Number(v1Row.avgValue), 5);
+        // avgValue type: v2 returns number, v1 returns string from ClickHouse.
+        // Component uses: metric.avgValue ? (metric.avgValue as number) : 0
+        // Verify v2 avgValue behaves correctly with the truthiness guard
+        const v2Avg = v2Row!.avgValue;
+        expect(typeof v2Avg).toBe("number");
+      }
+    });
+
+    it("should handle value=0 filter correctly", async () => {
+      const caller = makeCaller();
+      const zeroFilter: FilterCondition[] = [
+        {
+          column: "value",
+          operator: "=" as const,
+          value: 0,
+          type: "number" as const,
+        },
+      ];
+      const [v1Result, v2Result] = await Promise.all([
+        caller.dashboard.chart(chartInput("v1", zeroFilter)),
+        caller.dashboard.chart(chartInput("v2", zeroFilter)),
+      ]);
+
+      expect(v1Result.length).toBe(v2Result.length);
+
+      const toKey = (r: Record<string, unknown>) =>
+        `${r.scoreName}|${r.scoreSource}|${r.scoreDataType}`;
+      const v1Map = new Map(v1Result.map((r) => [toKey(r), r]));
+      const v2Map = new Map(v2Result.map((r) => [toKey(r), r]));
+
+      for (const [key, v1Row] of v1Map) {
+        const v2Row = v2Map.get(key);
+        expect(v2Row).toBeDefined();
+        expect(Number(v2Row!.countScoreId)).toBe(Number(v1Row.countScoreId));
+      }
+    });
+
+    it("should produce identical joined table data (simulating ScoresTable component)", async () => {
+      const caller = makeCaller();
+      const valueFilter = (v: number): FilterCondition[] => [
+        {
+          column: "value",
+          operator: "=" as const,
+          value: v,
+          type: "number" as const,
+        },
+      ];
+
+      // Run all 3 queries for both versions (mirroring ScoresTable component)
+      const [v1Main, v1Zero, v1One, v2Main, v2Zero, v2One] = await Promise.all([
+        caller.dashboard.chart(chartInput("v1")),
+        caller.dashboard.chart(chartInput("v1", valueFilter(0))),
+        caller.dashboard.chart(chartInput("v1", valueFilter(1))),
+        caller.dashboard.chart(chartInput("v2")),
+        caller.dashboard.chart(chartInput("v2", valueFilter(0))),
+        caller.dashboard.chart(chartInput("v2", valueFilter(1))),
+      ]);
+
+      // Simulate joinRequestData from ScoresTable component
+      const joinData = (
+        main: Record<string, unknown>[],
+        zero: Record<string, unknown>[],
+        one: Record<string, unknown>[],
+      ) =>
+        main.map((metric) => {
+          const scoreName = metric.scoreName as string;
+          const scoreSource = metric.scoreSource as string;
+          const scoreDataType = metric.scoreDataType as string;
+          const match = (item: Record<string, unknown>) =>
+            item.scoreName === scoreName &&
+            item.scoreSource === scoreSource &&
+            item.scoreDataType === scoreDataType;
+          const zeroRow = zero.find(match);
+          const oneRow = one.find(match);
+          return {
+            scoreName,
+            scoreSource,
+            scoreDataType,
+            countScoreId: metric.countScoreId ? Number(metric.countScoreId) : 0,
+            avgValue: metric.avgValue ? Number(metric.avgValue) : 0,
+            zeroValueScore: zeroRow?.countScoreId
+              ? Number(zeroRow.countScoreId)
+              : 0,
+            oneValueScore: oneRow?.countScoreId
+              ? Number(oneRow.countScoreId)
+              : 0,
+          };
+        });
+
+      const v1Data = joinData(v1Main, v1Zero, v1One);
+      const v2Data = joinData(v2Main, v2Zero, v2One);
+
+      expect(v2Data.length).toBe(v1Data.length);
+
+      // Compare by key (order may differ due to tie-breaking)
+      const toKey = (r: {
+        scoreName: string;
+        scoreSource: string;
+        scoreDataType: string;
+      }) => `${r.scoreName}|${r.scoreSource}|${r.scoreDataType}`;
+      const v1Map = new Map(v1Data.map((r) => [toKey(r), r]));
+      const v2Map = new Map(v2Data.map((r) => [toKey(r), r]));
+
+      for (const [key, v1Row] of v1Map) {
+        const v2Row = v2Map.get(key);
+        expect(v2Row).toBeDefined();
+        expect(v2Row!.countScoreId).toBe(v1Row.countScoreId);
+        expect(v2Row!.avgValue).toBeCloseTo(v1Row.avgValue, 5);
+        expect(v2Row!.zeroValueScore).toBe(v1Row.zeroValueScore);
+        expect(v2Row!.oneValueScore).toBe(v1Row.oneValueScore);
+      }
+
+      // Verify ordering matches: both sorted by countScoreId DESC
+      expect(v2Data.map((r) => r.countScoreId)).toEqual(
+        v1Data.map((r) => r.countScoreId),
+      );
+    });
+
+    it("should return matching results when environment filter is applied", async () => {
+      const caller = makeCaller();
+
+      for (const env of ["default", "staging"]) {
+        const envFilter: FilterCondition[] = [
+          {
+            column: "Environment",
+            operator: "=" as const,
+            value: env,
+            type: "string" as const,
+          },
+        ];
+
+        const [v1Result, v2Result] = await Promise.all([
+          caller.dashboard.chart(chartInput("v1", envFilter)),
+          caller.dashboard.chart(chartInput("v2", envFilter)),
+        ]);
+
+        // Both should return data (10 traces per environment × 3 score types)
+        expect(v1Result.length).toBeGreaterThan(0);
+        expect(v1Result.length).toBe(v2Result.length);
+
+        const toKey = (r: Record<string, unknown>) =>
+          `${r.scoreName}|${r.scoreSource}|${r.scoreDataType}`;
+        const v1Map = new Map(v1Result.map((r) => [toKey(r), r]));
+        const v2Map = new Map(v2Result.map((r) => [toKey(r), r]));
+
+        for (const [key, v1Row] of v1Map) {
+          const v2Row = v2Map.get(key);
+          expect(v2Row).toBeDefined();
+          expect(Number(v2Row!.countScoreId)).toBe(Number(v1Row.countScoreId));
+          expect(Number(v2Row!.avgValue)).toBeCloseTo(
+            Number(v1Row.avgValue),
+            5,
+          );
+        }
+
+        // Filtered counts should be less than unfiltered
+        const unfilteredResult = await caller.dashboard.chart(chartInput("v2"));
+        const unfilteredTotal = unfilteredResult.reduce(
+          (s, r) => s + Number(r.countScoreId),
+          0,
+        );
+        const filteredTotal = v2Result.reduce(
+          (s, r) => s + Number(r.countScoreId),
+          0,
+        );
+        expect(filteredTotal).toBeLessThan(unfilteredTotal);
+      }
+    });
   });
 });

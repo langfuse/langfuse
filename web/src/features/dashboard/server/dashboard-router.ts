@@ -25,12 +25,15 @@ import {
   query as customQuery,
   viewVersions,
 } from "@/src/features/query/types";
+import { mapLegacyUiTableFilterToView } from "@/src/features/query/dashboardUiTableToViewMapping";
 import {
   paginationZod,
   orderBy,
   StringNoHTML,
   InvalidRequestError,
   singleFilter,
+  type FilterState,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { executeQuery } from "@/src/features/query/server/queryExecutor";
@@ -83,12 +86,101 @@ const UpdateDashboardFiltersInput = z.object({
   filters: z.array(singleFilter),
 });
 
+async function getScoreAggregateV2({
+  projectId,
+  filter,
+  fromFilter,
+  toFilter,
+}: {
+  projectId: string;
+  filter: FilterState;
+  fromFilter: TimeFilter | undefined;
+  toFilter: TimeFilter | undefined;
+}): Promise<DatabaseRow[]> {
+  const fromIso = fromFilter?.value
+    ? new Date(fromFilter.value).toISOString()
+    : new Date(0).toISOString();
+  const toIso = toFilter?.value
+    ? new Date(toFilter.value).toISOString()
+    : new Date().toISOString();
+
+  // Strip time filters, keep non-time filters
+  const nonTimeFilters = filter.filter(
+    (f) => f.column !== "scoreTimestamp" && f.column !== "startTime",
+  );
+
+  const baseQuery = {
+    dimensions: [{ field: "name" }, { field: "source" }, { field: "dataType" }],
+    timeDimension: null,
+    fromTimestamp: fromIso,
+    toTimestamp: toIso,
+    orderBy: [{ field: "sum_count", direction: "desc" as const }],
+  };
+
+  const numericQuery: QueryType = {
+    ...baseQuery,
+    view: "scores-numeric",
+    metrics: [
+      { measure: "count", aggregation: "sum" },
+      { measure: "value", aggregation: "avg" },
+    ],
+    filters: mapLegacyUiTableFilterToView("scores-numeric", nonTimeFilters),
+  };
+
+  // The scores-categorical view has no "value" dimension, so we handle value
+  // filters manually: categorical scores always have value=0 in ClickHouse, so
+  // value=0 should include all categoricals, while any other value filter
+  // (e.g. value=1) should exclude them. This matches v1 behavior where numeric
+  // and categorical scores are queried together in a single SQL statement.
+  const valueFilter = nonTimeFilters.find((f) => f.column === "value");
+  const skipCategorical =
+    valueFilter && "value" in valueFilter && valueFilter.value !== 0;
+  const categoricalFilters = nonTimeFilters.filter((f) => f.column !== "value");
+
+  const categoricalQuery: QueryType = {
+    ...baseQuery,
+    view: "scores-categorical",
+    metrics: [{ measure: "count", aggregation: "sum" }],
+    filters: mapLegacyUiTableFilterToView(
+      "scores-categorical",
+      categoricalFilters,
+    ),
+  };
+
+  const [numericResults, categoricalResults] = await Promise.all([
+    executeQuery(projectId, numericQuery, "v2"),
+    skipCategorical
+      ? Promise.resolve([])
+      : executeQuery(projectId, categoricalQuery, "v2"),
+  ]);
+
+  const merged = [
+    ...numericResults.map((r) => ({
+      scoreName: String(r.name),
+      countScoreId: Number(r.sum_count ?? 0),
+      avgValue: Number(r.avg_value ?? 0),
+      scoreSource: String(r.source),
+      scoreDataType: String(r.dataType),
+    })),
+    ...categoricalResults.map((r) => ({
+      scoreName: String(r.name),
+      countScoreId: Number(r.sum_count ?? 0),
+      avgValue: 0,
+      scoreSource: String(r.source),
+      scoreDataType: String(r.dataType),
+    })),
+  ].sort((a, b) => b.countScoreId - a.countScoreId);
+
+  return merged as DatabaseRow[];
+}
+
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
     .input(
       sqlInterface.extend({
         projectId: z.string(),
         filter: filterInterface.optional(),
+        version: viewVersions.optional().default("v1"),
         queryName: z
           .enum([
             // Current score table is weird and does not fit into new model. Keep around as is until we decide what to do with it.
@@ -112,6 +204,14 @@ export const dashboardRouter = createTRPCRouter({
 
       switch (input.queryName) {
         case "score-aggregate":
+          if (input.version === "v2") {
+            return getScoreAggregateV2({
+              projectId: input.projectId,
+              filter: input.filter ?? [],
+              fromFilter: from as TimeFilter | undefined,
+              toFilter: to as TimeFilter | undefined,
+            });
+          }
           const scores = await getScoreAggregate(
             input.projectId,
             input.filter ?? [],
