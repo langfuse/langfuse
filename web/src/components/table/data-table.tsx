@@ -599,7 +599,7 @@ function TableBodyComponent<TData>({
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-y-1/2 items-center justify-center">
+            <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
               {noResultsMessage ?? (
                 <>
                   No results.{" "}
