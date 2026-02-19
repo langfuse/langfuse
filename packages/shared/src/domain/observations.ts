@@ -93,6 +93,10 @@ export const ObservationSchema = z.object({
   // pricing tier information
   usagePricingTierId: z.string().nullable(),
   usagePricingTierName: z.string().nullable(),
+  // tool data
+  toolDefinitions: z.record(z.string(), z.string()).nullable(),
+  toolCalls: z.array(z.string()).nullable(),
+  toolCallNames: z.array(z.string()).nullable(),
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;
@@ -105,6 +109,7 @@ export type ObservationCoreFields = Pick<
 export const EventsObservationSchema = ObservationSchema.extend({
   userId: z.string().nullable(),
   sessionId: z.string().nullable(),
+  traceName: z.string().nullable(),
 });
 
 export type EventsObservation = z.infer<typeof EventsObservationSchema>;

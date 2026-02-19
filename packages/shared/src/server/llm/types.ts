@@ -6,7 +6,6 @@ import {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
 
-/* eslint-disable no-unused-vars */
 // disable lint as this is exported and used in web/worker
 
 export const LLMJSONSchema = z.record(z.string(), z.any());
@@ -68,7 +67,10 @@ const GoogleAIStudioMessageContentWithToolUse = z.object({
 export const LLMToolCallSchema = z.object({
   name: z.string(),
   id: z.string(),
-  args: z.record(z.string(), z.unknown()),
+  args: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .transform((val) => val ?? {}),
 });
 export type LLMToolCall = z.infer<typeof LLMToolCallSchema>;
 
@@ -281,6 +283,7 @@ export const ZodModelConfig = z.object({
   max_tokens: z.coerce.number().optional(),
   temperature: z.coerce.number().optional(),
   top_p: z.coerce.number().optional(),
+  maxReasoningTokens: z.coerce.number().optional(),
   providerOptions: JSONObjectSchema.optional(),
 });
 
@@ -295,6 +298,7 @@ export const ExperimentMetadataSchema = z
     experiment_name: z.string().optional(),
     experiment_run_name: z.string().optional(),
     error: z.string().optional(),
+    dataset_version: z.coerce.date().optional(),
   })
   .strict();
 export type ExperimentMetadata = z.infer<typeof ExperimentMetadataSchema>;
@@ -308,6 +312,7 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-5.2-2025-12-11",
   "gpt-5.1",
   "gpt-5.1-2025-11-13",
   "gpt-5",
@@ -350,6 +355,7 @@ export const openAIModels = [
 type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
 export const openAIModelToReasoning: OpenAIReasoningMap = {
   // reasoning models
+  "gpt-5.2-2025-12-11": true,
   "gpt-5.1": true,
   "gpt-5.1-2025-11-13": true,
   "gpt-5": true,
@@ -407,6 +413,8 @@ export type OpenAIModel = (typeof openAIModels)[number];
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-6",
+  "claude-opus-4-6",
   "claude-opus-4-5-20251101",
   "claude-sonnet-4-20250514",
   "claude-opus-4-1-20250805",
@@ -428,6 +436,7 @@ export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
   "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash-lite-preview-09-2025",
@@ -445,6 +454,7 @@ export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
   "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.0-flash",
@@ -502,6 +512,18 @@ export enum LangfuseInternalTraceEnvironment {
   LLMJudge = "langfuse-llm-as-a-judge",
 }
 
+/**
+ * Details of a generation extracted from traced events.
+ * Used to pass generation information from internal tracing to callbacks.
+ */
+export type GenerationDetails = {
+  observationId: string;
+  name: string;
+  input: unknown;
+  output: unknown;
+  metadata: Record<string, unknown>;
+};
+
 export type TraceSinkParams = {
   /**
    * IMPORTANT: This controls into what project the resulting traces are ingested.
@@ -517,4 +539,9 @@ export type TraceSinkParams = {
     name: string;
     version: number;
   };
+  /**
+   * Optional callback invoked after the generation events have been processed.
+   * Called with merged generation details (from create + update events).
+   */
+  onGenerationComplete?: (details: GenerationDetails) => void;
 };

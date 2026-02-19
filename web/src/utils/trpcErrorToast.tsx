@@ -22,7 +22,7 @@ const errorTitleMap = {
   TOO_MANY_REQUESTS: "Too Many Requests",
   CLIENT_CLOSED_REQUEST: "Client Closed Request",
   INTERNAL_SERVER_ERROR: "Internal Server Error",
-  SERVICE_UNAVAILABLE: "Backend Service Overloaded",
+  SERVICE_UNAVAILABLE: "Internal Server Error",
 } as const;
 
 const getErrorTitleAndHttpCode = (error: TRPCClientError<any>) => {

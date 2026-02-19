@@ -14,10 +14,9 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { type RouterOutput } from "@/src/utils/types";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
-import type { Prisma } from "@langfuse/shared";
+import type { DatasetItemDomain, Prisma } from "@langfuse/shared";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 
 const formSchema = z.object({
@@ -27,7 +26,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (error) {
+      } catch {
         return false;
       }
     },
@@ -42,7 +41,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (error) {
+      } catch {
         return false;
       }
     },
@@ -57,7 +56,7 @@ const formSchema = z.object({
       try {
         JSON.parse(value);
         return true;
-      } catch (error) {
+      } catch {
         return false;
       }
     },
@@ -81,7 +80,7 @@ export const EditDatasetItem = ({
   dataset,
 }: {
   projectId: string;
-  datasetItem: RouterOutput["datasets"]["itemById"];
+  datasetItem: DatasetItemDomain | null;
   dataset: Dataset | null;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
@@ -168,7 +167,6 @@ export const EditDatasetItem = ({
     <div className="flex h-full flex-col">
       <Form {...form}>
         <form
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex h-full flex-col"
           onChange={() => setHasChanges(true)}

@@ -125,10 +125,12 @@ describe("/api/public/llm-connections API Endpoints", () => {
       // Ensure no sensitive data is exposed
       expect(firstConnection).not.toHaveProperty("secretKey");
       expect(firstConnection).not.toHaveProperty("extraHeaders");
-      expect(firstConnection).not.toHaveProperty("config");
       expect(secondConnection).not.toHaveProperty("secretKey");
       expect(secondConnection).not.toHaveProperty("extraHeaders");
-      expect(secondConnection).not.toHaveProperty("config");
+
+      // Config is now a valid field (null for connections without config)
+      expect(firstConnection.config).toBeNull();
+      expect(secondConnection.config).toBeNull();
     });
 
     it("should handle pagination correctly", async () => {
@@ -310,7 +312,9 @@ describe("/api/public/llm-connections API Endpoints", () => {
       // Ensure no sensitive data is exposed
       expect(response.body).not.toHaveProperty("secretKey");
       expect(response.body).not.toHaveProperty("extraHeaders");
-      expect(response.body).not.toHaveProperty("config");
+
+      // Config should be null for adapters that don't use it
+      expect(response.body.config).toBeNull();
 
       // Verify database record was created
       const dbConnection = await prisma.llmApiKeys.findUnique({
@@ -493,7 +497,8 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should handle all LLM adapter types", async () => {
-      const adapters = [
+      // Adapters that don't require config
+      const adaptersWithoutConfig = [
         {
           adapter: LLMAdapter.OpenAI,
           provider: generateUniqueProvider("test-openai"),
@@ -507,20 +512,12 @@ describe("/api/public/llm-connections API Endpoints", () => {
           provider: generateUniqueProvider("test-azure"),
         },
         {
-          adapter: LLMAdapter.Bedrock,
-          provider: generateUniqueProvider("test-bedrock"),
-        },
-        {
-          adapter: LLMAdapter.VertexAI,
-          provider: generateUniqueProvider("test-vertex"),
-        },
-        {
           adapter: LLMAdapter.GoogleAIStudio,
           provider: generateUniqueProvider("test-studio"),
         },
       ];
 
-      for (const { adapter, provider } of adapters) {
+      for (const { adapter, provider } of adaptersWithoutConfig) {
         const response = await makeZodVerifiedAPICall(
           PutLlmConnectionV1Response,
           "PUT",
@@ -537,7 +534,60 @@ describe("/api/public/llm-connections API Endpoints", () => {
         expect(response.status).toBe(201);
         expect(response.body.adapter).toBe(adapter);
         expect(response.body.provider).toBe(provider);
+        expect(response.body.config).toBeNull();
       }
+
+      // Bedrock requires config with region
+      const bedrockResponse = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider: generateUniqueProvider("test-bedrock"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: JSON.stringify({
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          }),
+          config: { region: "us-east-1" },
+        },
+        auth,
+        201,
+      );
+      expect(bedrockResponse.status).toBe(201);
+      expect(bedrockResponse.body.adapter).toBe(LLMAdapter.Bedrock);
+      expect(bedrockResponse.body.config).toEqual({ region: "us-east-1" });
+
+      // VertexAI works with or without config
+      const vertexResponse = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider: generateUniqueProvider("test-vertex"),
+          adapter: LLMAdapter.VertexAI,
+          secretKey: JSON.stringify({
+            type: "service_account",
+            project_id: "test-project",
+            private_key_id: "key123",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
+            client_email: "test@test-project.iam.gserviceaccount.com",
+            client_id: "123456789",
+            auth_uri: "https://accounts.google.com/o/oauth2/auth",
+            token_uri: "https://oauth2.googleapis.com/token",
+            auth_provider_x509_cert_url:
+              "https://www.googleapis.com/oauth2/v1/certs",
+            client_x509_cert_url:
+              "https://www.googleapis.com/robot/v1/metadata/x509/test",
+          }),
+        },
+        auth,
+        201,
+      );
+      expect(vertexResponse.status).toBe(201);
+      expect(vertexResponse.body.adapter).toBe(LLMAdapter.VertexAI);
+      expect(vertexResponse.body.config).toBeNull();
     });
 
     it("should handle optional fields correctly", async () => {
@@ -794,6 +844,304 @@ describe("/api/public/llm-connections API Endpoints", () => {
       );
       // Ensure header values are not exposed
       expect(response.body).not.toHaveProperty("extraHeaders");
+    });
+
+    describe("Config validation", () => {
+      it("should create Bedrock connection with region config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("bedrock-config-test"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: JSON.stringify({
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          }),
+          config: {
+            region: "us-east-1",
+          },
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.adapter).toBe(LLMAdapter.Bedrock);
+        expect(response.body.config).toEqual({ region: "us-east-1" });
+
+        // Verify database persistence
+        const dbConnection = await prisma.llmApiKeys.findUnique({
+          where: {
+            projectId_provider: {
+              projectId,
+              provider: createData.provider,
+            },
+          },
+        });
+        expect(dbConnection?.config).toEqual({ region: "us-east-1" });
+      });
+
+      it("should reject Bedrock connection without config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("bedrock-no-config"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: JSON.stringify({
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          }),
+          // No config provided
+        };
+
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Config is required for Bedrock adapter",
+        );
+      });
+
+      it("should reject Bedrock connection with invalid config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("bedrock-bad-config"),
+          adapter: LLMAdapter.Bedrock,
+          secretKey: JSON.stringify({
+            accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+            secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+          }),
+          config: {
+            location: "us-central1", // Wrong key - should be 'region'
+          },
+        };
+
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Invalid Bedrock config",
+        );
+      });
+
+      it("should create VertexAI connection with location config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("vertexai-config-test"),
+          adapter: LLMAdapter.VertexAI,
+          secretKey: JSON.stringify({
+            type: "service_account",
+            project_id: "test-project",
+            private_key_id: "key123",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
+            client_email: "test@test-project.iam.gserviceaccount.com",
+            client_id: "123456789",
+            auth_uri: "https://accounts.google.com/o/oauth2/auth",
+            token_uri: "https://oauth2.googleapis.com/token",
+            auth_provider_x509_cert_url:
+              "https://www.googleapis.com/oauth2/v1/certs",
+            client_x509_cert_url:
+              "https://www.googleapis.com/robot/v1/metadata/x509/test",
+          }),
+          config: {
+            location: "us-central1",
+          },
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.config).toEqual({ location: "us-central1" });
+      });
+
+      it("should create VertexAI connection without config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("vertexai-no-config"),
+          adapter: LLMAdapter.VertexAI,
+          secretKey: JSON.stringify({
+            type: "service_account",
+            project_id: "test-project",
+            private_key_id: "key123",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
+            client_email: "test@test-project.iam.gserviceaccount.com",
+            client_id: "123456789",
+            auth_uri: "https://accounts.google.com/o/oauth2/auth",
+            token_uri: "https://oauth2.googleapis.com/token",
+            auth_provider_x509_cert_url:
+              "https://www.googleapis.com/oauth2/v1/certs",
+            client_x509_cert_url:
+              "https://www.googleapis.com/robot/v1/metadata/x509/test",
+          }),
+          // No config - allowed for VertexAI
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.config).toBeNull();
+      });
+
+      it("should reject OpenAI connection with config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("openai-with-config"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-test123",
+          config: {
+            region: "us-east-1", // OpenAI doesn't support config
+          },
+        };
+
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Config is not supported for openai adapter",
+        );
+      });
+
+      it("should update existing Bedrock connection config", async () => {
+        const provider = generateUniqueProvider("bedrock-update-config");
+
+        // Create with initial config
+        await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider,
+            adapter: LLMAdapter.Bedrock,
+            secretKey: JSON.stringify({
+              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+              secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            }),
+            config: { region: "us-east-1" },
+          },
+          auth,
+          201,
+        );
+
+        // Update config
+        const updateResponse = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider,
+            adapter: LLMAdapter.Bedrock,
+            secretKey: JSON.stringify({
+              accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+              secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            }),
+            config: { region: "eu-west-1" },
+          },
+          auth,
+          200,
+        );
+
+        expect(updateResponse.status).toBe(200);
+        expect(updateResponse.body.config).toEqual({ region: "eu-west-1" });
+      });
+
+      it("should return config in GET response", async () => {
+        const provider = generateUniqueProvider("bedrock-get-config");
+
+        await prisma.llmApiKeys.create({
+          data: {
+            projectId,
+            provider,
+            adapter: LLMAdapter.Bedrock,
+            secretKey: encrypt(
+              JSON.stringify({
+                accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+                secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+              }),
+            ),
+            displaySecretKey: "...KEY",
+            config: { region: "ap-southeast-1" },
+          },
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          GetLlmConnectionsV1Response,
+          "GET",
+          "/api/public/llm-connections?page=1&limit=10",
+          undefined,
+          auth,
+        );
+
+        const connection = response.body.data.find(
+          (c) => c.provider === provider,
+        );
+        expect(connection?.config).toEqual({ region: "ap-southeast-1" });
+      });
+
+      it("should reject VertexAI connection with invalid config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("vertexai-bad-config"),
+          adapter: LLMAdapter.VertexAI,
+          secretKey: JSON.stringify({
+            type: "service_account",
+            project_id: "test-project",
+            private_key_id: "key123",
+            private_key:
+              "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
+            client_email: "test@test-project.iam.gserviceaccount.com",
+            client_id: "123456789",
+            auth_uri: "https://accounts.google.com/o/oauth2/auth",
+            token_uri: "https://oauth2.googleapis.com/token",
+            auth_provider_x509_cert_url:
+              "https://www.googleapis.com/oauth2/v1/certs",
+            client_x509_cert_url:
+              "https://www.googleapis.com/robot/v1/metadata/x509/test",
+          }),
+          config: {
+            region: "us-east-1", // Wrong key - should be 'location'
+          },
+        };
+
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Invalid VertexAI config",
+        );
+      });
     });
   });
 

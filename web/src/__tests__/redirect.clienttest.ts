@@ -1,4 +1,4 @@
-import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import { env } from "@/src/env.mjs";
 
 describe("getSafeRedirectPath", () => {
@@ -169,6 +169,32 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath("http://evil.com")).toBe("/my-app/");
       expect(getSafeRedirectPath("javascript:alert(1)")).toBe("/my-app/");
     });
+
+    it("should not double-prepend basePath when path already includes it", () => {
+      // This prevents the bug where basePath gets added multiple times
+      // Scenario: path already includes basePath (e.g., from asPath in Next.js router)
+      expect(getSafeRedirectPath("/my-app")).toBe("/my-app");
+      expect(getSafeRedirectPath("/my-app/")).toBe("/my-app/");
+      expect(getSafeRedirectPath("/my-app/dashboard")).toBe(
+        "/my-app/dashboard",
+      );
+      expect(getSafeRedirectPath("/my-app/project/123")).toBe(
+        "/my-app/project/123",
+      );
+      expect(getSafeRedirectPath("/my-app/dashboard?tab=overview")).toBe(
+        "/my-app/dashboard?tab=overview",
+      );
+      expect(getSafeRedirectPath("/my-app/dashboard#section")).toBe(
+        "/my-app/dashboard#section",
+      );
+    });
+
+    it("should handle edge case where basePath appears in path but not at start", () => {
+      // Path contains basePath but doesn't start with it - should still prepend
+      expect(getSafeRedirectPath("/some/my-app/path")).toBe(
+        "/my-app/some/my-app/path",
+      );
+    });
   });
 
   describe("edge cases", () => {
@@ -209,6 +235,63 @@ describe("getSafeRedirectPath", () => {
       expect(getSafeRedirectPath({})).toBe("/");
       // @ts-expect-error Testing runtime behavior with invalid input
       expect(getSafeRedirectPath([])).toBe("/");
+    });
+  });
+});
+
+describe("stripBasePath", () => {
+  const originalBasePath = env.NEXT_PUBLIC_BASE_PATH;
+
+  afterAll(() => {
+    (env as any).NEXT_PUBLIC_BASE_PATH = originalBasePath;
+  });
+
+  describe("without basePath configured", () => {
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_BASE_PATH = undefined;
+    });
+
+    it("returns path unchanged", () => {
+      expect(stripBasePath("/dashboard")).toBe("/dashboard");
+    });
+
+    it("normalizes empty values to '/'", () => {
+      expect(stripBasePath("")).toBe("/");
+      expect(stripBasePath(undefined as unknown as string)).toBe("/");
+    });
+  });
+
+  describe("with basePath configured", () => {
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_BASE_PATH = "/apps";
+    });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_BASE_PATH = undefined;
+    });
+
+    it("strips the basePath prefix", () => {
+      expect(stripBasePath("/apps")).toBe("/");
+      expect(stripBasePath("/apps/")).toBe("/");
+      expect(stripBasePath("/apps/project/123")).toBe("/project/123");
+    });
+
+    it("handles query strings and hashes", () => {
+      expect(stripBasePath("/apps/project/123?foo=bar")).toBe(
+        "/project/123?foo=bar",
+      );
+      expect(stripBasePath("/apps/dashboard#section")).toBe(
+        "/dashboard#section",
+      );
+      expect(stripBasePath("/apps/?foo=bar#top")).toBe("/?foo=bar#top");
+    });
+
+    it("only strips the first occurrence", () => {
+      expect(stripBasePath("/apps/apps/dashboard")).toBe("/apps/dashboard");
+    });
+
+    it("leaves paths without basePath untouched", () => {
+      expect(stripBasePath("/no-base")).toBe("/no-base");
     });
   });
 });

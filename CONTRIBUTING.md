@@ -94,8 +94,6 @@ The diagram below may not show all relationships if the foreign key is not defin
 
 Full database schema: [packages/shared/prisma/schema.prisma](packages/shared/prisma/schema.prisma)
 
-<img src="./packages/shared/prisma/database.svg">
-
 ## Repository Structure
 
 We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https://turbo.build/repo/docs) to manage the dependencies and build process. The monorepo contains the following packages:
@@ -122,8 +120,8 @@ Requirements
 **Steps**
 
 1. Install development dependencies:
-	- [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
-	- [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
+   - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate#migrate-cli) as CLI
+   - [clickhouse binary](https://clickhouse.com/docs/install) on macOS with brew: `brew install --cask clickhouse`
 
 2. Fork the repository and clone it locally
 
@@ -182,6 +180,8 @@ pnpm run db:seed:examples
   pnpm install
   pnpm run dev
   pnpm --filter=web run dev # execute command only in one package
+  pnpm tc                   # fast typecheck all packages
+  pnpm build:check          # Full Next.js build to alternate dir (can run parallel with dev server)
   ```
 
   In the root `package.json`, you can find scripts which are executed with turbo e.g. `turbo run dev`. These scripts are executed with the help of Turbo. Turbo executes the commands in all packages taking care of the correct order of execution. Task definitions can be found in the `turbo.config.js` file.
@@ -254,9 +254,9 @@ To run a specific test, for example the test: `"should handle special characters
 
 ```sh
 cd web  # or with --filter=web
-pnpm test-sync --testPathPattern="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
+pnpm test-sync --testPathPatterns="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
 # for async folder tests:
-pnpm test -- --testPathPattern="observations-api" --testNamePattern="should fetch all observations"
+pnpm test -- --testPathPatterns="observations-api" --testNamePattern="should fetch all observations"
 ```
 
 To run all tests:
@@ -424,4 +424,3 @@ npx fern-api generate --api organizations  # for the organizations API
 Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
-

@@ -24,7 +24,7 @@ export interface RegisteredTool {
   definition: ToolDefinition;
 
   /** Tool handler function - accepts any input type */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   handler: ToolHandler<any>;
 }
 

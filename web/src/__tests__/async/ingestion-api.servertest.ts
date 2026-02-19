@@ -541,7 +541,7 @@ describe("/api/public/ingestion API Endpoint", () => {
 
     expect(response.status).toBe(207);
     expect("errors" in response.body).toBe(true);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
     expect(response.body.errors.length).toBe(1);
     expect(response.body.errors[0].message).toBe("Invalid request data");
     expect(response.body.errors[0].error).toContain(
@@ -577,12 +577,12 @@ describe("/api/public/ingestion API Endpoint", () => {
 
     expect(response.status).toBe(207);
     expect("errors" in response.body).toBe(true);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
     expect(response.body.errors.length).toBe(1);
     expect(response.body.errors[0].message).toBe("Invalid request data");
   });
 
-  it("should fail for float in usageDetails", async () => {
+  it("should silently drop invalid float values in usageDetails", async () => {
     const response = await makeAPICall("POST", "/api/public/ingestion", {
       batch: [
         {
@@ -598,18 +598,17 @@ describe("/api/public/ingestion API Endpoint", () => {
             input: { text: "input" },
             output: { text: "output" },
             usageDetails: {
-              key: 0.1,
+              key: 0.1, // invalid float - should be silently dropped
             },
           },
         },
       ],
     });
 
+    // Event should succeed, invalid usageDetails values are silently dropped
     expect(response.status).toBe(207);
-    expect("errors" in response.body).toBe(true);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    expect(response.body.errors.length).toBe(1);
-    expect(response.body.errors[0].message).toBe("Invalid request data");
+    expect(response.body.successes.length).toBe(1);
+    expect(response.body.errors.length).toBe(0);
   });
 
   it.each([

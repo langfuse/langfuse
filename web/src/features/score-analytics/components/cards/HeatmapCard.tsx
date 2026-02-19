@@ -13,12 +13,12 @@ import { HeatmapSkeleton } from "../charts/HeatmapSkeleton";
 import { getHeatmapCellColor } from "@/src/features/score-analytics/lib/color-scales";
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { useCallback } from "react";
-import type { ScoreDataType } from "@langfuse/shared";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
+import { type ScoreDataTypeType } from "@langfuse/shared";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   score1: { name: string; source: string };
   score2: { name: string; source: string } | undefined;
   score1Color: string;

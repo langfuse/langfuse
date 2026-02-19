@@ -1,5 +1,6 @@
 // Mock the problematic @langfuse/shared import before importing our functions
 jest.mock("@langfuse/shared", () => {
+  const actual = jest.requireActual("@langfuse/shared");
   const { z } = require("zod/v4");
 
   const OpenAITextContentPart = z.object({
@@ -19,6 +20,7 @@ jest.mock("@langfuse/shared", () => {
   });
 
   return {
+    ...actual,
     ChatMessageRole: {
       System: "system",
       Developer: "developer",
@@ -875,6 +877,94 @@ describe("Playground Jump Full Pipeline", () => {
     expect(firstMessage.tools!.length).toBe(2);
     expect(firstMessage.tools![0].name).toBe("get_weather");
     expect(firstMessage.tools![1].name).toBe("search_web");
+  });
+
+  it("should handle double-stringified messages array", () => {
+    // ClickHouse can store messages as double-stringified:
+    // { "messages": "[{\"role\":\"user\",\"content\":\"...\"}]" }
+    // instead of: { "messages": [{role: "user", ...}] }
+    //
+    // This caused validation to fail: expected array, received string
+    const input = {
+      messages: JSON.stringify([
+        // ← DOUBLE STRINGIFIED
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "Hello" },
+        { role: "assistant", content: "Hi there!" },
+        { role: "user", content: "How are you?" },
+      ]),
+    };
+
+    const ctx = {};
+    const inResult = normalizeInput(input, ctx);
+
+    expect(inResult.success).toBe(true);
+    if (!inResult.data) throw new Error("Expected data to be defined");
+
+    const playgroundMessages = inResult.data
+      .map(convertChatMlToPlayground)
+      .filter((msg) => msg !== null);
+
+    // Must have all 4 messages for playground button to be enabled
+    expect(playgroundMessages).toHaveLength(4);
+    expect(playgroundMessages[0]?.type).toBe("public-api-created");
+    if (playgroundMessages[0] && "role" in playgroundMessages[0]) {
+      expect(playgroundMessages[0].role).toBe("system");
+    }
+  });
+
+  it("should handle Semantic Kernel input and output formats", () => {
+    // Semantic Kernel (Microsoft.SemanticKernel.Diagnostics) uses OpenTelemetry GenAI semantic conventions
+    // where actual message content is stored in gen_ai.event.content as a JSON string
+    // This format is different from MS Agent Framework's parts[] format
+    const metadata = {
+      scope: { name: "Microsoft.SemanticKernel.Diagnostics", version: "" },
+    };
+
+    // Input: array format with flat message structure
+    const input = [
+      {
+        role: "user",
+        "gen_ai.event.content":
+          '{"role":"user","content":"What is the weather?","tool_calls":[]}',
+      },
+    ];
+    const inputResult = normalizeInput(input, { metadata });
+    expect(inputResult.success).toBe(true);
+
+    const inputMsg = inputResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((m) => m)[0]!;
+    expect(inputMsg).toBeDefined();
+    if ("role" in inputMsg) {
+      expect(inputMsg.role).toBe("user");
+      expect(inputMsg.content).toBe("What is the weather?");
+      // Ensure gen_ai.event.content was unwrapped, not passed through
+      expect(inputMsg).not.toHaveProperty("gen_ai.event.content");
+    } else {
+      throw new Error("Expected message with role property");
+    }
+
+    // Output: single object with nested message structure
+    const output = {
+      "gen_ai.event.content":
+        '{"message":{"role":"Assistant","content":"The answer is positive."}}',
+    };
+    const outputResult = normalizeOutput(output, { metadata });
+    expect(outputResult.success).toBe(true);
+
+    const outputMsg = outputResult
+      .data!.map(convertChatMlToPlayground)
+      .filter((m) => m)[0];
+    expect(outputMsg).toBeDefined();
+    if (outputMsg && "role" in outputMsg) {
+      expect(outputMsg.role).toBe("assistant");
+      expect(outputMsg.content).toBe("The answer is positive.");
+      // Ensure gen_ai.event.content was unwrapped, not passed through
+      expect(outputMsg).not.toHaveProperty("gen_ai.event.content");
+    } else {
+      throw new Error("Expected message with role property");
+    }
   });
 
   it("should respect includeOutput flag when jumping to playground, default to no output added", () => {

@@ -1,11 +1,9 @@
 import { api } from "@/src/utils/api";
 
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
-import { Card } from "@/src/components/ui/card";
 import {
   type ScoreSourceType,
   type FilterState,
-  type ScoreDataType,
+  type ScoreDataTypeType,
 } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
@@ -24,11 +22,13 @@ import {
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
   source: ScoreSourceType;
-  dataType: ScoreDataType;
+  dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   name: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
@@ -107,14 +107,19 @@ export function NumericScoreTimeSeriesChart(props: {
     data: extractedScores,
     isNullValueAllowed: true,
   }) ? (
-    <Card className="min-h-[9rem] w-full flex-1 rounded-tremor-default border">
-      <BaseTimeSeriesChart
-        className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-        agg={props.agg}
-        data={extractedScores}
-        connectNulls
+    <div className="h-80 w-full shrink-0">
+      <Chart
+        chartType="LINE_TIME_SERIES"
+        data={timeSeriesToDataPoints(extractedScores, props.agg)}
+        rowLimit={100}
+        chartConfig={{
+          type: "LINE_TIME_SERIES",
+          show_data_point_dots: false,
+          subtle_fill: true,
+        }}
+        legendPosition="above"
       />
-    </Card>
+    </div>
   ) : (
     <NoDataOrLoading isLoading={scores.isLoading} />
   );

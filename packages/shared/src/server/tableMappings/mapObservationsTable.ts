@@ -68,6 +68,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect: 'o."trace_id"',
   },
+  {
+    uiTableName: "Parent Observation ID",
+    uiTableId: "parentObservationId",
+    clickhouseTableName: "observations",
+    clickhouseSelect: 'o."parent_observation_id"',
+  },
 
   {
     uiTableName: "Start Time",
@@ -226,5 +232,29 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "promptVersion",
     clickhouseTableName: "observations",
     clickhouseSelect: "o.prompt_version",
+  },
+  {
+    uiTableName: "Available Tools",
+    uiTableId: "toolDefinitions",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "length(mapKeys(o.tool_definitions))",
+  },
+  {
+    uiTableName: "Tool Calls",
+    uiTableId: "toolCalls",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "length(o.tool_calls)",
+  },
+  {
+    uiTableName: "Tool Names",
+    uiTableId: "toolNames",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "mapKeys(o.tool_definitions)",
+  },
+  {
+    uiTableName: "Called Tool Names",
+    uiTableId: "calledToolNames",
+    clickhouseTableName: "observations",
+    clickhouseSelect: "o.tool_call_names",
   },
 ];

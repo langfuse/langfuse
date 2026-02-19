@@ -16,6 +16,7 @@ import {
   StorageServiceFactory,
 } from "../services/StorageService";
 import { ClickHouseSettings } from "@clickhouse/client";
+import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
 
 /**
  * Custom error class for ClickHouse resource-related errors
@@ -41,11 +42,7 @@ const ERROR_TYPE_CONFIG: Record<
 type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
 
 export class ClickHouseResourceError extends Error {
-  static ERROR_ADVICE_MESSAGE = [
-    "Database resource limit exceeded.",
-    "Please use more specific filters or a shorter time range.",
-    "We are continuously improving our API performance.",
-  ].join(" ");
+  static ERROR_ADVICE_MESSAGE = RESOURCE_LIMIT_ERROR_MESSAGE;
 
   public readonly errorType: ErrorType;
 
@@ -99,12 +96,28 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
   return s3StorageServiceClient;
 };
 
+/**
+ * Guard against reads from the legacy 'events' table.
+ * Reads must use events_core or events_full instead.
+ * Matches "FROM events" or "JOIN events" as a standalone table name
+ * (not events_core, events_full, or CTE aliases like filtered_events).
+ */
+const LEGACY_EVENTS_TABLE_PATTERN = /\b(?:from|join)\s+events\b(?!_)/i;
+
+function assertNoLegacyEventsRead(query: string): void {
+  if (LEGACY_EVENTS_TABLE_PATTERN.test(query)) {
+    throw new Error(
+      `Reading from legacy 'events' table is forbidden. Use events_core or events_full. Query: ${query.slice(0, 200)}`,
+    );
+  }
+}
+
 export async function upsertClickhouse<
   T extends Record<string, unknown>,
 >(opts: {
   table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
-  eventBodyMapper: (body: T) => Record<string, unknown>; // eslint-disable-line no-unused-vars
+  eventBodyMapper: (body: T) => Record<string, unknown>;
   tags?: Record<string, string>;
 }): Promise<void> {
   return await instrumentAsync(
@@ -212,7 +225,10 @@ export async function* queryClickhouseStream<T>(opts: {
   tags?: Record<string, string>;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
+  allowLegacyEventsRead?: boolean;
 }): AsyncGenerator<T> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
     kind: SpanKind.CLIENT,
@@ -311,6 +327,10 @@ function handleExceptionRow<T>(parsedRow: T): T {
   ) {
     const potentialException = (parsedRow as { exception: string }).exception;
     if (potentialException.match(/^Code: (\d+)/)) {
+      logger.error(
+        `[clickhouse] Exception row detected: ${potentialException}`,
+        parsedRow,
+      );
       throw new Error(potentialException);
     }
   }
@@ -318,7 +338,7 @@ function handleExceptionRow<T>(parsedRow: T): T {
 }
 
 /**
- * Determines if an error is retryable (socket hang up, connection reset, etc.)
+ * Determines if an error is retryable (socket hang up, connection reset, broken pipe, etc.)
  */
 function isRetryableError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -326,7 +346,17 @@ function isRetryableError(error: unknown): boolean {
   const errorMessage = (error as Error).message?.toLowerCase() || "";
 
   // Check for socket hang up and other network-related errors
-  return errorMessage.includes("socket hang up");
+  const retryablePatterns = [
+    "socket hang up",
+    "broken pipe",
+    "connection reset",
+    "econnreset",
+    "network_error",
+    "etimedout",
+    "econnrefused",
+  ];
+
+  return retryablePatterns.some((pattern) => errorMessage.includes(pattern));
 }
 
 export async function queryClickhouse<T>(opts: {
@@ -336,7 +366,10 @@ export async function queryClickhouse<T>(opts: {
   tags?: Record<string, string>;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
+  allowLegacyEventsRead?: boolean;
 }): Promise<T[]> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
@@ -436,6 +469,7 @@ export async function commandClickhouse(opts: {
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: Record<string, string>;
   clickhouseSettings?: ClickHouseSettings;
+  abortSignal?: AbortSignal;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -449,6 +483,10 @@ export async function commandClickhouse(opts: {
       const res = await clickhouseClient(opts.clickhouseConfigs).command({
         query: opts.query,
         query_params: opts.params,
+        ...(opts.tags?.queryId
+          ? { query_id: opts.tags.queryId as string }
+          : {}),
+        ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
           log_comment: JSON.stringify(opts.tags ?? {}),

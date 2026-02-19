@@ -201,11 +201,11 @@ export async function createPromptInDb(params: {
   return await prisma.prompt.create({
     data: {
       name: params.name,
-      //eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       prompt: params.prompt as any, // Prisma's JsonValue type - can be string or object
       labels: params.labels ?? [],
       version: params.version ?? 1,
-      //eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       config: (params.config ?? {}) as any, // Prisma's JsonValue type - safe because we control the input
       tags: params.tags ?? [],
       type: params.type ?? "text",

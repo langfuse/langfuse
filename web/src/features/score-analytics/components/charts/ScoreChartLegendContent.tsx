@@ -284,7 +284,6 @@ export const ScoreChartLegendContent = React.forwardRef<
         clearTimeout(timeoutId);
         resizeObserver.disconnect();
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [payload, buttonWidth]); // Include dependencies to recalculate when they change
 
     const handleItemClick = (key: string) => {

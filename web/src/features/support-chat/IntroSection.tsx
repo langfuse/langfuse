@@ -8,6 +8,7 @@ import {
   LibraryBig,
   LifeBuoy,
   Radio,
+  Calendar,
 } from "lucide-react";
 //eslint-disable-next-line no-restricted-imports
 import { SiDiscord } from "react-icons/si";
@@ -17,6 +18,7 @@ import { usePlan } from "@/src/features/entitlements/hooks";
 import { isCloudPlan } from "@langfuse/shared";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type SupportType = "in-app-support" | "custom" | "community";
 
@@ -28,6 +30,7 @@ export function IntroSection({
 }) {
   const uiCustomization = useUiCustomization();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const capture = usePostHogClientCapture();
 
   // Note: We previously added an entitlement for in-app support, but removed it for now.
   //       The issue was that on global routes e.g., https://langfuse.com/setup, the entitlement
@@ -246,6 +249,17 @@ export function IntroSection({
                 className="flex items-center"
               >
                 <SiDiscord className="mr-2 h-4 w-4" /> Discord ↗
+              </a>
+            </Button>
+            <Button asChild variant="ghost" className="justify-start px-1.5">
+              <a
+                href="https://lu.ma/langfuse"
+                target="_blank"
+                rel="noopener"
+                className="flex items-center"
+                onClick={() => capture("support_chat:community_hours_click")}
+              >
+                <Calendar className="mr-2 h-4 w-4" /> Community Hours ↗
               </a>
             </Button>
 

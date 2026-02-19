@@ -240,7 +240,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
     });
   else {
     // Type check to ensure we handle all providers
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     const _: never = provider;
     logger.error(
       `Unrecognized SSO provider for domain ${(provider as any).domain}`,

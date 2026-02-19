@@ -645,7 +645,42 @@ async doIt()
 async execute()
 ```
 
-### 3. Return Types
+### 3. Use Params Objects for Multiple Arguments
+
+When a function receives multiple arguments, use a single params object instead of positional arguments:
+
+```typescript
+// ❌ BAD - Positional arguments are unclear and can be swapped
+async function createTrace(
+  projectId: string,
+  userId: string,
+  sessionId: string,
+  name: string,
+) {}
+
+// Call site - which string is which?
+await createTrace(projectId, userId, sessionId, name);
+
+// ✅ GOOD - Params object makes intent clear
+async function createTrace(params: {
+  projectId: string;
+  userId: string;
+  sessionId: string;
+  name: string;
+}) {}
+
+// Call site - clear and prevents argument swapping bugs
+await createTrace({ projectId, userId, sessionId, name });
+```
+
+**Benefits:**
+
+- More readable at call sites
+- Prevents bugs when positional arguments of the same type are accidentally swapped
+- Easier to add optional parameters later
+- Self-documenting code
+
+### 4. Return Types
 
 Always use explicit return types:
 
@@ -659,7 +694,7 @@ async deleteUser(id: string): Promise<void> {}
 async createUser(data) {}  // No types!
 ```
 
-### 4. Error Handling
+### 5. Error Handling
 
 Services should throw meaningful errors:
 
@@ -679,7 +714,7 @@ if (!user) {
 }
 ```
 
-### 5. Avoid God Services
+### 6. Avoid God Services
 
 Don't create services that do everything:
 

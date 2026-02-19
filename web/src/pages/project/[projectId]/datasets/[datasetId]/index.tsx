@@ -38,6 +38,7 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { createBreadcrumbItems } from "@/src/features/folders/utils";
 
 export default function Dataset() {
   const router = useRouter();
@@ -48,7 +49,7 @@ export default function Dataset() {
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
-    `${projectId}-dataset-chart-metrics`,
+    `${projectId}-${datasetId}-chart-metrics`,
     RESOURCE_METRICS.map((metric) => metric.key),
   );
 
@@ -109,7 +110,7 @@ export default function Dataset() {
   });
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
-    { projectId, targetObject: "dataset" },
+    { projectId, targetObject: ["dataset", "experiment"] },
     {
       enabled: hasEvalReadAccess && !!datasetId,
     },
@@ -120,6 +121,7 @@ export default function Dataset() {
   const {
     activeEvaluators,
     pausedEvaluators,
+    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -134,20 +136,14 @@ export default function Dataset() {
     refetchEvaluators: evaluators.refetch,
   });
 
-  // This function will be passed to the EvaluatorForm to modify form values before submission
-  const preprocessFormValues = useCallback((values: any) => {
-    // Ask the user if they want to run on historic data
-    const shouldRunOnHistoric = confirm(
-      "Do you also want to execute this evaluator on historic data? If not, click cancel.",
-    );
+  // Callback for preprocessing evaluator form values
+  // For experiment evaluators, we only run on new data (not historic)
+  const preprocessFormValues = useCallback((values: any) => values, []);
 
-    // If the user confirms, include EXISTING in the timeScope
-    if (shouldRunOnHistoric && !values.timeScope.includes("EXISTING")) {
-      values.timeScope = [...values.timeScope, "EXISTING"];
-    }
-
-    return values;
-  }, []);
+  const datasetName = dataset.data?.name ?? "";
+  const segments = datasetName.split("/").filter((s) => s.trim());
+  const folderPath = segments.length > 1 ? segments.slice(0, -1).join("/") : "";
+  const breadcrumbItems = folderPath ? createBreadcrumbItems(folderPath) : [];
 
   return (
     <Page
@@ -156,6 +152,10 @@ export default function Dataset() {
         itemType: "DATASET",
         breadcrumb: [
           { name: "Datasets", href: `/project/${projectId}/datasets` },
+          ...breadcrumbItems.map((item) => ({
+            name: item.name,
+            href: `/project/${projectId}/datasets?folder=${encodeURIComponent(item.folderPath)}`,
+          })),
         ],
         help: dataset.data?.description
           ? {
@@ -205,6 +205,7 @@ export default function Dataset() {
                   onSelectEvaluator={handleSelectEvaluator}
                   activeTemplateIds={activeEvaluators}
                   inactiveTemplateIds={pausedEvaluators}
+                  evaluatorTargetObjects={evaluatorTargetObjects}
                   disabled={!hasEvalWriteAccess}
                 />
               </div>

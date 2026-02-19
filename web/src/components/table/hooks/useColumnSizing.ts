@@ -1,6 +1,6 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { type ColumnSizingState } from "@tanstack/react-table";
-import { debounce } from "lodash";
+import debounce from "lodash/debounce";
 import { useEffect, useMemo, useState } from "react";
 
 /**

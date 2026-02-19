@@ -13,6 +13,7 @@ import { type CommentObjectType } from "@langfuse/shared";
 import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
+import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
 
 export function CommentDrawerButton({
   projectId,
@@ -22,6 +23,10 @@ export function CommentDrawerButton({
   variant = "secondary",
   className,
   size = "default",
+  pendingSelection,
+  onSelectionUsed,
+  isOpen: controlledIsOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   projectId: string;
   objectId: string;
@@ -30,11 +35,18 @@ export function CommentDrawerButton({
   variant?: "secondary" | "outline";
   className?: string;
   size?: "default" | "sm" | "xs" | "lg" | "icon" | "icon-xs" | "icon-sm";
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Note: We manually control to keep the drawer open on ESC press when the mention dropdown is open
+  const [internalIsDrawerOpen, setInternalIsDrawerOpen] = useState(false);
   const hasAutoOpenedRef = useRef(false); // Track if we've already auto-opened for current deep link
+
+  const isDrawerOpen = controlledIsOpen ?? internalIsDrawerOpen;
+  const setIsDrawerOpen = controlledOnOpenChange ?? setInternalIsDrawerOpen;
   const hasFocusedRef = useRef(false); // Track if we've already focused the drawer
 
   const hasReadAccess = useHasProjectAccess({
@@ -87,6 +99,7 @@ export function CommentDrawerButton({
     objectType,
     objectId,
     isDrawerOpen,
+    setIsDrawerOpen,
   ]);
 
   if (!hasReadAccess || (!hasWriteAccess && !count))
@@ -126,7 +139,6 @@ export function CommentDrawerButton({
 
         // Clear URL parameters and hash when drawer is closed
         if (!open && router.query.comments === "open") {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { comments, commentObjectType, commentObjectId, ...rest } =
             router.query;
           router.replace(
@@ -153,14 +165,18 @@ export function CommentDrawerButton({
               <MessageCircleIcon
                 className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               />
+              <span>Add comment</span>
               <span className="flex h-3.5 w-fit items-center justify-center rounded-sm bg-primary/50 px-1 text-xs text-primary-foreground shadow-sm">
                 {count > 99 ? "99+" : count}
               </span>
             </div>
           ) : (
-            <MessageCircleIcon
-              className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
-            />
+            <div className="flex items-center gap-1">
+              <MessageCircleIcon
+                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
+              />
+              <span>Add comment</span>
+            </div>
           )}
         </Button>
       </DrawerTrigger>
@@ -188,6 +204,8 @@ export function CommentDrawerButton({
               objectType={objectType}
               onMentionDropdownChange={setIsMentionDropdownOpen}
               isDrawerOpen={isDrawerOpen}
+              pendingSelection={pendingSelection}
+              onSelectionUsed={onSelectionUsed}
             />
           </div>
         </div>

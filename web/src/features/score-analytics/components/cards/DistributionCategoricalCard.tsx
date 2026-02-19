@@ -321,10 +321,8 @@ export function DistributionCategoricalCard() {
             categories={chartData.categories}
             score1Name={
               activeTab === "score2" && score2
-                ? score2.name
-                : activeTab === "score1"
-                  ? score1.name
-                  : score1.name
+                ? `${score2.name} (${score2.source})`
+                : `${score1.name} (${score1.source})`
             }
             stackedDistribution={chartData.stackedDistribution}
             score2Categories={chartData.score2Categories}
@@ -332,7 +330,7 @@ export function DistributionCategoricalCard() {
               activeTab === "score1" || activeTab === "score2"
                 ? undefined
                 : mode === "two" && score2
-                  ? score2.name
+                  ? `${score2.name} (${score2.source})`
                   : undefined
             }
             score2Source={

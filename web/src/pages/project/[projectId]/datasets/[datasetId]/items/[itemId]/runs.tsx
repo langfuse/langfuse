@@ -3,7 +3,7 @@ import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/D
 import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
 
-export default function Dataset() {
+function DatasetItemRuns() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -22,3 +22,5 @@ export default function Dataset() {
     </DatasetItemDetailPage>
   );
 }
+
+export default DatasetItemRuns;

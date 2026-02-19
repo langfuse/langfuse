@@ -20,6 +20,7 @@ import {
 import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -219,6 +220,16 @@ export const membersRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Org not found" });
       }
 
+      // Count current members + pending invitations for limit check
+      const [currentMemberCount, pendingInviteCount] = await Promise.all([
+        ctx.prisma.organizationMembership.count({
+          where: { orgId: input.orgId },
+        }),
+        ctx.prisma.membershipInvitation.count({
+          where: { orgId: input.orgId },
+        }),
+      ]);
+
       if (user) {
         const existingOrgMembership =
           await ctx.prisma.organizationMembership.findFirst({
@@ -265,6 +276,14 @@ export const membersRouter = createTRPCRouter({
           }
         }
 
+        // Check member limit before creating new membership
+        throwIfExceedsLimit({
+          entitlementLimit: "organization-member-count",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+          currentUsage: currentMemberCount + pendingInviteCount,
+        });
+
         // create org membership as user is not a member yet
         const orgMembership = await ctx.prisma.organizationMembership.create({
           data: {
@@ -308,6 +327,14 @@ export const membersRouter = createTRPCRouter({
           env: env,
         });
       } else {
+        // Check member limit before creating invitation
+        throwIfExceedsLimit({
+          entitlementLimit: "organization-member-count",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+          currentUsage: currentMemberCount + pendingInviteCount,
+        });
+
         try {
           const invitation = await ctx.prisma.membershipInvitation.create({
             data: {

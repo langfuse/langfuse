@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { CardContent } from "@/src/components/ui/card";
 import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
 import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
 import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
 import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
@@ -22,6 +23,9 @@ export const Chart = ({
   sortState,
   onSortChange,
   isLoading = false,
+  valueFormatter,
+  legendPosition,
+  overrideWarning = false,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -33,45 +37,113 @@ export const Chart = ({
     dimensions?: string[];
     metrics?: string[];
     defaultSort?: OrderByState;
+    show_value_labels?: boolean;
+    show_data_point_dots?: boolean;
+    subtle_fill?: boolean;
   };
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
+  valueFormatter?: (value: number) => string;
+  legendPosition?: "above" | "none";
+  overrideWarning?: boolean;
 }) => {
-  const [forceRender, setForceRender] = useState(false);
+  const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
 
   const renderedData = useMemo(() => {
     return data.map((item) => {
-      return {
-        ...item,
-        time_dimension: item.time_dimension
-          ? new Date(item.time_dimension).toLocaleTimeString("en-US", {
-              year: "2-digit",
-              month: "numeric",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : undefined,
-      };
+      if (!item.time_dimension) return { ...item, time_dimension: undefined };
+      const value = item.time_dimension;
+      const looksLikeIso =
+        value.includes("T") || /^\d{4}-\d{2}-\d{2}$/.test(value);
+      if (!looksLikeIso) {
+        return { ...item, time_dimension: value };
+      }
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return { ...item };
+      const isMidnight =
+        parsed.getUTCHours() === 0 &&
+        parsed.getUTCMinutes() === 0 &&
+        parsed.getUTCSeconds() === 0 &&
+        parsed.getUTCMilliseconds() === 0;
+      const time_dimension = isMidnight
+        ? parsed.toLocaleDateString("en-US", {
+            year: "2-digit",
+            month: "numeric",
+            day: "numeric",
+          })
+        : parsed.toLocaleTimeString("en-US", {
+            year: "2-digit",
+            month: "numeric",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+      return { ...item, time_dimension };
     });
   }, [data]);
 
   const renderChart = () => {
     switch (chartType) {
       case "LINE_TIME_SERIES":
-        return <LineChartTimeSeries data={renderedData} />;
+        return (
+          <LineChartTimeSeries
+            data={renderedData}
+            valueFormatter={valueFormatter}
+            legendPosition={legendPosition}
+            showDataPointDots={chartConfig?.show_data_point_dots ?? true}
+          />
+        );
+      case "AREA_TIME_SERIES":
+        return (
+          <AreaChartTimeSeries
+            data={renderedData}
+            valueFormatter={valueFormatter}
+            legendPosition={legendPosition}
+            subtleFill={chartConfig?.subtle_fill}
+          />
+        );
       case "BAR_TIME_SERIES":
-        return <VerticalBarChartTimeSeries data={renderedData} />;
+        return (
+          <VerticalBarChartTimeSeries
+            data={renderedData}
+            valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
+          />
+        );
       case "HORIZONTAL_BAR":
-        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <HorizontalBarChart
+            data={renderedData.slice(0, rowLimit)}
+            showValueLabels={chartConfig?.show_value_labels}
+            valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
+          />
+        );
       case "VERTICAL_BAR":
-        return <VerticalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <VerticalBarChart
+            data={renderedData.slice(0, rowLimit)}
+            valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
+          />
+        );
       case "PIE":
-        return <PieChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <PieChart
+            data={renderedData.slice(0, rowLimit)}
+            valueFormatter={valueFormatter}
+            subtleFill={chartConfig?.subtle_fill}
+          />
+        );
       case "HISTOGRAM":
-        return <HistogramChart data={renderedData} />;
+        return (
+          <HistogramChart
+            data={renderedData}
+            subtleFill={chartConfig?.subtle_fill}
+          />
+        );
       case "NUMBER": {
         return <BigNumber data={renderedData} />;
       }
@@ -94,7 +166,13 @@ export const Chart = ({
         );
       }
       default:
-        return <HorizontalBarChart data={renderedData.slice(0, rowLimit)} />;
+        return (
+          <HorizontalBarChart
+            data={renderedData.slice(0, rowLimit)}
+            showValueLabels={chartConfig?.show_value_labels}
+            valueFormatter={valueFormatter}
+          />
+        );
     }
   };
 

@@ -32,6 +32,10 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
     scope: "scores:CUD",
   });
 
+  const hasNonAnnotationScores = scores.some(
+    (score) => score.source !== "ANNOTATION",
+  );
+
   return (
     <Drawer>
       <DrawerTrigger asChild>
@@ -68,6 +72,11 @@ export function AnnotateDrawer<Target extends ScoreTarget>({
           analyticsData={analyticsData}
           scoreMetadata={scoreMetadata}
         />
+        {hasNonAnnotationScores && (
+          <div className="mt-4 text-xs text-muted-foreground">
+            API and eval scores visible on left. Add manual annotations above.
+          </div>
+        )}
       </DrawerContent>
     </Drawer>
   );

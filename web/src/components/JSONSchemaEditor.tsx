@@ -51,7 +51,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({
       const parsedJson = JSON.parse(value);
       const prettified = JSON.stringify(parsedJson, null, 2);
       onChange(prettified);
-    } catch (error) {
+    } catch {
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",

@@ -123,9 +123,11 @@ describe("Webhook URL Validation", () => {
     });
 
     it("should reject internal/intranet hostnames", async () => {
+      // Note: "internal.company.com" would require DNS resolution which can timeout
+      // Using domains that match blocked patterns directly for faster tests
       await expect(
-        validateWebhookURL("http://internal.company.com/hook"),
-      ).rejects.toThrow(/Blocked hostname detected|DNS lookup failed/);
+        validateWebhookURL("http://service.internal/hook"),
+      ).rejects.toThrow("Blocked hostname detected");
       await expect(
         validateWebhookURL("http://app.internal/hook"),
       ).rejects.toThrow("Blocked hostname detected");

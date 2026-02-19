@@ -1,7 +1,12 @@
 import CodeMirror, {
   EditorView,
   type ReactCodeMirrorRef,
+  Decoration,
+  type DecorationSet,
+  ViewPlugin,
+  type ViewUpdate,
 } from "@uiw/react-codemirror";
+import { RangeSetBuilder } from "@codemirror/state";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
@@ -106,7 +111,7 @@ const promptLinter = linter((view) => {
           message: "Malformed prompt dependency tag",
         });
       }
-    } catch (error) {
+    } catch {
       diagnostics.push({
         from: match.index,
         to: match.index + match[0].length,
@@ -122,6 +127,38 @@ const promptLinter = linter((view) => {
 // Create a language support instance that combines the language and its configuration
 const promptSupport = new LanguageSupport(promptLanguage);
 
+// RTL/bidirectional text support
+const dirAutoDecoration = Decoration.line({ attributes: { dir: "auto" } });
+
+const bidiSupport = [
+  EditorView.perLineTextDirection.of(true),
+  ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = this.build(view);
+      }
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.build(update.view);
+        }
+      }
+      build(view: EditorView) {
+        const builder = new RangeSetBuilder<Decoration>();
+        for (const { from, to } of view.visibleRanges) {
+          for (let pos = from; pos <= to; ) {
+            const line = view.state.doc.lineAt(pos);
+            builder.add(line.from, line.from, dirAutoDecoration);
+            pos = line.to + 1;
+          }
+        }
+        return builder.finish();
+      }
+    },
+    { decorations: (v) => v.decorations },
+  ),
+];
+
 export function CodeMirrorEditor({
   value,
   onChange,
@@ -132,6 +169,7 @@ export function CodeMirrorEditor({
   onBlur,
   mode,
   minHeight,
+  maxHeight,
   placeholder,
   editorRef,
 }: {
@@ -143,13 +181,13 @@ export function CodeMirrorEditor({
   lineWrapping?: boolean;
   className?: string;
   mode: "json" | "text" | "prompt";
-  minHeight: "none" | 30 | 100 | 200;
+  minHeight?: number | string;
+  maxHeight?: number | string;
   placeholder?: string;
   editorRef?: React.RefObject<ReactCodeMirrorRef | null>;
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
-
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!value && value !== "",
@@ -167,6 +205,8 @@ export function CodeMirrorEditor({
       }}
       lang={mode === "json" ? "json" : undefined}
       extensions={[
+        // RTL/bidi support - must be early for proper line decoration
+        ...bidiSupport,
         // Remove outline if field is focussed
         EditorView.theme({
           "&.cm-focused": {
@@ -188,14 +228,32 @@ export function CodeMirrorEditor({
             ]),
         // Extend gutter to full height when minHeight > content height
         // This also enlarges the text area to minHeight
-        ...(minHeight === "none"
-          ? []
-          : [
+        ...(!!minHeight
+          ? [
               EditorView.theme({
-                ".cm-gutter,.cm-content": { minHeight: `${minHeight}px` },
+                ".cm-gutter,.cm-content": {
+                  minHeight:
+                    typeof minHeight === "number"
+                      ? `${minHeight}px`
+                      : minHeight,
+                },
                 ".cm-scroller": { overflow: "auto" },
               }),
-            ]),
+            ]
+          : []),
+        // Add max height support for very long bodies of text
+        ...(!!maxHeight
+          ? [
+              EditorView.theme({
+                ".cm-scroller": {
+                  maxHeight:
+                    typeof maxHeight === "number"
+                      ? `${maxHeight}px`
+                      : maxHeight,
+                },
+              }),
+            ]
+          : []),
         ...(mode === "json" ? [json()] : []),
         ...(mode === "json" && linterEnabled
           ? [linter(jsonParseLinter())]

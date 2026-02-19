@@ -8,7 +8,7 @@ import { SessionIO } from "@/src/components/session";
 import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/components/trace/CopyIdsPopover";
+import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
 import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
@@ -126,6 +126,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceId={trace.id}
                   projectId={projectId}
                   timestamp={trace.timestamp}
+                  showCorrections
                 />
               </Card>
             ))}

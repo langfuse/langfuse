@@ -6,12 +6,12 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
 import {
-  type ScoreDataType,
+  type ScoreConfigDataType,
   type Prisma,
   type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
 import { IOTableCell } from "../../ui/IOTableCell";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   isBooleanDataType,
   isCategoricalDataType,
@@ -34,7 +34,7 @@ import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components
 type ScoreConfigTableRow = {
   id: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreConfigDataType;
   createdAt: string;
   updatedAt: string;
   range: {
@@ -74,9 +74,9 @@ function getConfigRange(
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const [createConfigOpen, setCreateConfigOpen] = useState(false);
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
 
   const hasAccess = useHasProjectAccess({

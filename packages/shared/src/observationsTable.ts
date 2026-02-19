@@ -33,6 +33,13 @@ export const observationsTableCols: ColumnDefinition[] = [
   },
   { name: "Trace ID", id: "traceId", type: "string", internal: 't."id"' },
   {
+    name: "Parent Observation ID",
+    id: "parentObservationId",
+    type: "string",
+    internal: 'o."parent_observation_id"',
+    nullable: true,
+  },
+  {
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
@@ -232,6 +239,36 @@ export const observationsTableCols: ColumnDefinition[] = [
     type: "string",
     internal: "", // handled by comment filter helpers
   },
+  {
+    name: "Available Tool Names",
+    id: "toolNames",
+    type: "arrayOptions",
+    internal: "", // ClickHouse only - uses mapKeys(tool_definitions)
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "", // ClickHouse only - uses tool_call_names
+    options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Available Tools",
+    id: "toolDefinitions",
+    type: "number",
+    internal: "", // ClickHouse only
+    nullable: true,
+  },
+  {
+    name: "Tool Calls",
+    id: "toolCalls",
+    type: "number",
+    internal: "", // ClickHouse only
+    nullable: true,
+  },
 ];
 
 // to be used client side, insert options for use in filter-builder
@@ -247,6 +284,8 @@ export type ObservationOptions = {
   promptName: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
   type: Array<SingleValueOption>;
+  toolNames: Array<SingleValueOption>;
+  calledToolNames: Array<SingleValueOption>;
 };
 
 export function observationsTableColsWithOptions(
@@ -282,6 +321,12 @@ export function observationsTableColsWithOptions(
     }
     if (col.id === "type") {
       return formatColumnOptions(col, options?.type ?? []);
+    }
+    if (col.id === "toolNames") {
+      return formatColumnOptions(col, options?.toolNames ?? []);
+    }
+    if (col.id === "calledToolNames") {
+      return formatColumnOptions(col, options?.calledToolNames ?? []);
     }
     return col;
   });

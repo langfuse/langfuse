@@ -53,12 +53,33 @@ export const env = createEnv({
       required_error:
         "A strong Salt is required to encrypt API keys securely. See: https://langfuse.com/self-hosting#deploy-the-container",
     }),
-    // Add newly signed up users to default org and/or project with role
-    LANGFUSE_DEFAULT_ORG_ID: z.string().optional(),
+    // Add newly signed up users to default org(s) and/or project(s) with role
+    // Supports comma-separated IDs for multiple orgs/projects (e.g., "org1,org2,org3")
+    LANGFUSE_DEFAULT_ORG_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_ORG_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"])
       .optional(),
-    LANGFUSE_DEFAULT_PROJECT_ID: z.string().optional(),
+    LANGFUSE_DEFAULT_PROJECT_ID: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : undefined,
+      ),
     LANGFUSE_DEFAULT_PROJECT_ROLE: z
       .enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"])
       .optional(),
@@ -148,6 +169,7 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
+    AUTH_KEYCLOAK_NAME: z.string().optional(),
     AUTH_JUMPCLOUD_CLIENT_ID: z.string().optional(),
     AUTH_JUMPCLOUD_CLIENT_SECRET: z.string().optional(),
     AUTH_JUMPCLOUD_ISSUER: z.string().url().optional(),
@@ -199,6 +221,14 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
+    // OTel Masking
+    LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
+      .string()
+      .optional()
+      .transform((s) =>
+        s ? s.split(",").map((h) => h.toLowerCase().trim()) : [],
+      ),
+
     // clickhouse
     CLICKHOUSE_URL: z.string().url(),
     CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
@@ -206,6 +236,9 @@ export const env = createEnv({
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
+      .number()
+      .default(32_000_000_000), // ~32GB
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
@@ -330,6 +363,17 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // API Traces endpoint controls (may induce breaking changes on API when changed!)
+    LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
+
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
       .enum(["true", "false"])
@@ -338,6 +382,27 @@ export const env = createEnv({
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
       .enum(["true", "false"])
       .default("false"),
+
+    // v2 APIs (events table based) - disabled by default for self-hosters
+    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS: z
+      .enum(["true", "false"])
+      .default("false"),
+
+    // Blocked users for chat completion API (userId:reason format)
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
+      .string()
+      .optional()
+      .transform((val) => {
+        if (!val) return new Map();
+        const map = new Map();
+        for (const part of val.split(",")) {
+          const [userId, ...noteParts] = part.split(":");
+          if (userId?.trim()) {
+            map.set(userId.trim(), noteParts.join(":").trim() || "blocked");
+          }
+        }
+        return map;
+      }),
   },
 
   /**
@@ -491,6 +556,7 @@ export const env = createEnv({
     AUTH_KEYCLOAK_CHECKS: process.env.AUTH_KEYCLOAK_CHECKS,
     AUTH_KEYCLOAK_SCOPE: process.env.AUTH_KEYCLOAK_SCOPE,
     AUTH_KEYCLOAK_ID_TOKEN: process.env.AUTH_KEYCLOAK_ID_TOKEN,
+    AUTH_KEYCLOAK_NAME: process.env.AUTH_KEYCLOAK_NAME,
     AUTH_JUMPCLOUD_CLIENT_ID: process.env.AUTH_JUMPCLOUD_CLIENT_ID,
     AUTH_JUMPCLOUD_CLIENT_SECRET: process.env.AUTH_JUMPCLOUD_CLIENT_SECRET,
     AUTH_JUMPCLOUD_ISSUER: process.env.AUTH_JUMPCLOUD_ISSUER,
@@ -540,6 +606,9 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
 
+    LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS:
+      process.env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,
+
     // S3 media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH:
       process.env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH,
@@ -577,6 +646,8 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
+    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY:
+      process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
@@ -657,11 +728,22 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
     LANGFUSE_AI_FEATURES_PROJECT_ID:
       process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
+    // API Traces endpoint controls
+    LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS:
+      process.env.LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS,
+    LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE:
+      process.env.LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE,
+    LANGFUSE_API_TRACES_DEFAULT_FIELDS:
+      process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
     LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
+    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
+      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
+      process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
   // Skip validation in Docker builds
   // DOCKER_BUILD is set in Dockerfile

@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { getSsoAuthProviderIdForDomain } from "@/src/ee/features/multi-tenant-sso/utils";
+import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 
@@ -63,8 +64,7 @@ export async function signupApiHandler(
   const multiTenantSsoProvider = await getSsoAuthProviderIdForDomain(domain);
   if (multiTenantSsoProvider) {
     res.status(422).json({
-      message:
-        "You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.",
+      message: ENTERPRISE_SSO_REQUIRED_MESSAGE,
     });
     return;
   }

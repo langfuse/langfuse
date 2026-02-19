@@ -40,10 +40,10 @@ describe.sequential("handle redis events", () => {
         expect(jobState).toEqual("completed");
       },
       {
-        timeout: 20_000,
+        timeout: 35_000,
       },
     );
-  }, 20_000);
+  }, 35_000);
 
   test("handle no matching queue worker", async () => {
     // IngestionQueue worker vs TraceUpsert producer

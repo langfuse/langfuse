@@ -98,6 +98,9 @@ export const createObservation = (
     prompt_version: 1,
     end_time: Date.now(),
     completion_start_time: Date.now(),
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
     ...observation,
   };
 };
@@ -115,6 +118,7 @@ export const createTraceScore = (
     timestamp: Date.now(),
     value: 100.5,
     string_value: null,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -140,6 +144,7 @@ export const createSessionScore = (
     name: "test-session-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -166,6 +171,7 @@ export const createDatasetRunScore = (
     name: "test-run-score" + v4(),
     timestamp: Date.now(),
     value: 100.5,
+    long_string_value: "",
     source: "API",
     comment: "comment",
     metadata: { "test-key": "test-value" },
@@ -182,10 +188,20 @@ export const createDatasetRunScore = (
 };
 
 export const createEvent = (
-  event: Partial<EventRecordInsertType>,
+  event: Partial<EventRecordInsertType> & {
+    metadata_values?: (string | null | undefined)[];
+  },
 ): EventRecordInsertType => {
   const spanId = v4();
   const now = Date.now() * 1000; // Convert to micro
+
+  // Extract metadata array overrides before spreading to prevent undefined from clobbering defaults
+  const {
+    metadata_values: metadataValuesAlias,
+    metadata_names: metadataNamesOverride,
+    metadata_raw_values: metadataRawValuesOverride,
+    ...eventOverrides
+  } = event;
 
   // Default metadata to populate arrays from
   const defaultMetadata: Record<string, string> = {
@@ -196,7 +212,7 @@ export const createEvent = (
   // Merge default metadata with any provided metadata
   const finalMetadata: Record<string, string> = {
     ...defaultMetadata,
-    ...event.metadata,
+    ...eventOverrides.metadata,
   };
 
   // Extract metadata keys and values in sorted order for deterministic array population
@@ -243,14 +259,21 @@ export const createEvent = (
     provided_cost_details: { input: 100, output: 200, total: 300 },
     cost_details: { input: 100, output: 200, total: 300 },
 
+    // Tool calls
+    tool_definitions: {},
+    tool_calls: [],
+    tool_call_names: [],
+
     // I/O
     input: "Hello World",
     output: "Hello John",
 
     // Metadata - populate both JSON and array columns
+    // metadata_values alias maps to metadata_raw_values (events table column name)
     metadata: finalMetadata,
-    metadata_names: metadataNames,
-    metadata_raw_values: metadataValues,
+    metadata_names: metadataNamesOverride ?? metadataNames,
+    metadata_raw_values:
+      metadataValuesAlias ?? metadataRawValuesOverride ?? metadataValues,
 
     // Experiment properties
     experiment_id: null,
@@ -260,6 +283,7 @@ export const createEvent = (
     experiment_description: null,
     experiment_dataset_id: null,
     experiment_item_id: null,
+    experiment_item_version: null,
     experiment_item_expected_output: null,
     experiment_item_metadata_names: [],
     experiment_item_metadata_values: [],
@@ -288,6 +312,6 @@ export const createEvent = (
     updated_at: now,
     event_ts: now,
 
-    ...event,
+    ...eventOverrides,
   };
 };

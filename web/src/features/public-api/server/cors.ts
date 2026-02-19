@@ -4,7 +4,7 @@ import Cors from "cors";
 export function runMiddleware(
   req: NextApiRequest,
   res: NextApiResponse,
-  // eslint-disable-next-line @typescript-eslint/ban-types
+
   fn: Function,
 ) {
   return new Promise((resolve, reject) => {

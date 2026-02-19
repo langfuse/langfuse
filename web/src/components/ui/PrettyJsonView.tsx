@@ -741,10 +741,12 @@ function JsonPrettyTable({
 
 export function PrettyJsonView(props: {
   json?: unknown;
+  parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
+  isParsing?: boolean;
   codeClassName?: string;
   collapseStringsAfterLength?: number | null;
   media?: MediaReturnType[];
@@ -759,22 +761,68 @@ export function PrettyJsonView(props: {
   showNullValues?: boolean;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
+  /** Content to render between header and main content (e.g., thinking blocks) */
+  afterHeader?: React.ReactNode;
 }) {
-  const jsonDependency = useMemo(
-    () =>
-      typeof props.json === "string" ? props.json : JSON.stringify(props.json),
-    [props.json],
-  );
-
+  // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
-    return deepParseJson(props.json);
-    // We want to use jsonDependency as dep because it's more stable than props.json
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jsonDependency]);
+    // If pre-parsed data is provided, use it directly (skip parsing)
+    if (props.parsedJson !== undefined) {
+      return props.parsedJson;
+    }
+
+    // If still parsing in Web Worker, return null (will show loading state)
+    if (props.isParsing) {
+      return null;
+    }
+
+    // Fast path: if already an object, likely no parsing needed
+    if (typeof props.json !== "string") {
+      return props.json;
+    }
+
+    // Only parse strings, with size/depth limits
+    const result = deepParseJson(props.json, {
+      maxSize: 500_000,
+      maxDepth: 2,
+    });
+
+    return result;
+  }, [props.json, props.parsedJson, props.isParsing]);
   const actualCurrentView = props.currentView ?? "pretty";
   const expandAllRef = useRef<(() => void) | null>(null);
   const [allRowsExpanded, setAllRowsExpanded] = useState(false);
-  const [jsonIsCollapsed, setJsonIsCollapsed] = useState(false);
+
+  // For JSON view: derive collapsed state from external expansion state
+  // false or empty object = collapsed, true or object with keys = expanded
+  const deriveJsonCollapsedFromExternal = useCallback(
+    (extState: Record<string, boolean> | boolean | undefined): boolean => {
+      if (extState === undefined) return false; // default: not collapsed
+      if (extState === false) return true; // explicitly collapsed
+      if (extState === true) return false; // explicitly expanded
+      // empty object = collapsed (user collapsed all)
+      if (typeof extState === "object" && Object.keys(extState).length === 0)
+        return true;
+      return false; // has keys = not collapsed
+    },
+    [],
+  );
+
+  const [jsonIsCollapsed, setJsonIsCollapsed] = useState(() =>
+    deriveJsonCollapsedFromExternal(props.externalExpansionState),
+  );
+
+  // Sync jsonIsCollapsed when external state changes (e.g., navigating between observations)
+  const prevExternalStateRef = useRef(props.externalExpansionState);
+  useEffect(() => {
+    if (prevExternalStateRef.current !== props.externalExpansionState) {
+      const newCollapsed = deriveJsonCollapsedFromExternal(
+        props.externalExpansionState,
+      );
+      prevExternalStateRef.current = props.externalExpansionState;
+      setJsonIsCollapsed(newCollapsed);
+    }
+  }, [props.externalExpansionState, deriveJsonCollapsedFromExternal]);
   const [expandedRowsWithChildren, setExpandedRowsWithChildren] = useState<
     Set<string>
   >(new Set());
@@ -841,13 +889,18 @@ export function PrettyJsonView(props: {
           return rows;
         };
 
+        let result: JsonTableRow[];
+
         // top-level is an object, start with its properties directly
         if (parsedJson?.constructor === Object) {
-          return createTopLevelRows(parsedJson as Record<string, unknown>);
+          result = createTopLevelRows(parsedJson as Record<string, unknown>);
+        } else {
+          result = transformJsonToTableData(parsedJson, "", 0, "", true);
         }
 
-        return transformJsonToTableData(parsedJson, "", 0, "", true);
+        return result;
       }
+
       return [];
     } catch (error) {
       console.error("Error transforming JSON to table data:", error);
@@ -872,8 +925,32 @@ export function PrettyJsonView(props: {
       props.externalExpansionState !== null &&
       Object.keys(props.externalExpansionState).length > 0
     ) {
-      // user set specific expansions
-      return props.externalExpansionState;
+      // user set specific expansions - apply with prefix matching
+
+      // Extract expanded paths for prefix matching
+      const expandedPaths = Object.entries(props.externalExpansionState)
+        .filter(([, isExpanded]) => isExpanded)
+        .map(([path]) => path);
+
+      // Apply prefix matching: for each expanded path, expand all its ancestors
+      // Example: if "messages.0.content.text" is expanded, also expand:
+      // "messages", "messages.0", "messages.0.content"
+      const enhancedState: Record<string, boolean> = {
+        ...props.externalExpansionState,
+      };
+
+      expandedPaths.forEach((path) => {
+        const parts = path.split(".");
+        // Generate all ancestor paths
+        for (let i = 1; i < parts.length; i++) {
+          const ancestorPath = parts.slice(0, i).join(".");
+          if (enhancedState[ancestorPath] === undefined) {
+            enhancedState[ancestorPath] = true;
+          }
+        }
+      });
+
+      return enhancedState;
     }
 
     // No external state -> use smart expansion
@@ -884,6 +961,7 @@ export function PrettyJsonView(props: {
 
     if (optimalLevel > 0) {
       const smartExpanded: ExpandedState = {};
+
       const expandRowsToLevel = (
         rows: JsonTableRow[],
         currentLevel: number,
@@ -901,6 +979,7 @@ export function PrettyJsonView(props: {
         });
       };
       expandRowsToLevel(baseTableData, 0);
+
       return smartExpanded;
     }
 
@@ -1074,7 +1153,11 @@ export function PrettyJsonView(props: {
   };
 
   const handleJsonToggleCollapse = () => {
-    setJsonIsCollapsed(!jsonIsCollapsed);
+    const newCollapsed = !jsonIsCollapsed;
+    setJsonIsCollapsed(newCollapsed);
+    if (props.onExternalExpansionChange) {
+      props.onExternalExpansionChange(!newCollapsed);
+    }
   };
 
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
@@ -1093,7 +1176,30 @@ export function PrettyJsonView(props: {
 
   const body = (
     <>
-      {emptyValueDisplay && isPrettyView ? (
+      {props.isLoading || props.isParsing ? (
+        <div className="io-message-content">
+          <div
+            className={cn(
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                props.codeClassName,
+              ),
+            )}
+          >
+            <div className="space-y-2 p-3">
+              <Skeleton className="h-3 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-2/3" />
+              {props.isParsing && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Parsing in background...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : emptyValueDisplay && isPrettyView ? (
         <div className="io-message-content">
           <div
             className={cn(
@@ -1105,22 +1211,14 @@ export function PrettyJsonView(props: {
               ),
             )}
           >
-            {props.isLoading ? (
-              <Skeleton className="h-3 w-3/4" />
-            ) : (
-              <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
-                {emptyValueDisplay}
-              </span>
-            )}
+            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
+              {emptyValueDisplay}
+            </span>
           </div>
         </div>
       ) : isMarkdownMode ? (
         <div className="io-message-content">
-          {props.isLoading ? (
-            <Skeleton className="h-3 w-3/4" />
-          ) : (
-            <MarkdownView markdown={markdownContent || ""} />
-          )}
+          <MarkdownView markdown={markdownContent || ""} />
         </div>
       ) : (
         <>
@@ -1185,7 +1283,7 @@ export function PrettyJsonView(props: {
       )}
       {props.media && props.media.length > 0 && isPrettyView && (
         <>
-          <div className="mx-3 border-t px-2 py-1 text-xs text-muted-foreground">
+          <div className="my-1 px-2 py-1 text-xs text-muted-foreground">
             Media
           </div>
           <div className="flex flex-wrap gap-2 p-4 pt-1">
@@ -1256,6 +1354,7 @@ export function PrettyJsonView(props: {
           }
         />
       ) : null}
+      {props.afterHeader}
       {props.scrollable ? (
         <div
           className={cn(

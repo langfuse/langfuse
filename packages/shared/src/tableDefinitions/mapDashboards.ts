@@ -94,6 +94,12 @@ export const dashboardColumnDefinitions: UiColumnMappings = [
     uiTableName: "Model",
   },
   {
+    clickhouseTableName: "observations",
+    clickhouseSelect: "mapKeys(tool_definitions)",
+    uiTableId: "toolNames",
+    uiTableName: "Tool Names",
+  },
+  {
     clickhouseTableName: "traces",
     clickhouseSelect: "environment",
     uiTableId: "environment",

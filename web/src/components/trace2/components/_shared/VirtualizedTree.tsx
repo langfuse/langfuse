@@ -12,7 +12,7 @@ import { cn } from "@/src/utils/tailwind";
 import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
 
 interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
-  tree: T;
+  roots: T[];
   collapsedNodes: Set<string>;
   selectedNodeId: string | null;
   renderNode: (params: {
@@ -32,7 +32,7 @@ interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
 }
 
 export function VirtualizedTree<T extends { id: string; children: T[] }>({
-  tree,
+  roots,
   collapsedNodes,
   selectedNodeId,
   renderNode,
@@ -46,8 +46,8 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   const parentRef = useRef<HTMLDivElement>(null);
 
   const flattenedItems = useMemo(
-    () => flattenTree(tree, collapsedNodes, 0, [], true),
-    [tree, collapsedNodes],
+    () => flattenTree(roots, collapsedNodes),
+    [roots, collapsedNodes],
   );
 
   const defaultEstimateSize = () => defaultRowHeight;

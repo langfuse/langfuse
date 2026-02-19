@@ -71,7 +71,7 @@ const getSafeUrl = (href: string | undefined | null): string | null => {
     });
 
     return sanitized || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -282,7 +282,7 @@ function MarkdownRenderer({
         </MemoizedReactMarkdown>
       </div>
     );
-  } catch (error) {
+  } catch {
     // fallback to JSON view if markdown parsing fails
 
     return (
@@ -321,6 +321,7 @@ export function MarkdownView({
   media,
   className,
   controlButtons,
+  afterHeader,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
@@ -330,6 +331,8 @@ export function MarkdownView({
   media?: MediaReturnType[];
   className?: string;
   controlButtons?: React.ReactNode;
+  /** Content to render between header and main content (e.g., thinking blocks) */
+  afterHeader?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -373,6 +376,7 @@ export function MarkdownView({
           <div className="border-t" />
         </>
       ) : null}
+      {afterHeader}
       <div
         className={cn(
           "io-message-content grid grid-flow-row gap-2 px-1 py-2",

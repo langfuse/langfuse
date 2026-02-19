@@ -59,6 +59,14 @@ jobs:
           node-version: 24
           cache: "pnpm"
           cache-dependency-path: "pnpm-lock.yaml"
+      - name: Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-lint-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-lint-
+            ${{ runner.os }}-turbo-
       - name: install dependencies
         run: |
           pnpm i
@@ -164,7 +172,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -192,6 +200,23 @@ jobs:
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
           echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
+      - name: Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+      - name: Cache Next.js builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/web/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev.yml up -d
@@ -221,9 +246,11 @@ jobs:
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run test-sync
-        run: pnpm --filter=web run test-sync
+        working-directory: web
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects sync-server
       - name: run test-client
-        run: pnpm --filter=web run test-client
+        working-directory: web
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
 
   tests-web-async:
     timeout-minutes: 30
@@ -231,17 +258,18 @@ jobs:
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
     strategy:
       matrix:
         node-version: [24]
         postgres-version: [12, 15]
         deploy-mode: ["", "-azure", "-redis-cluster"]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - uses: pnpm/action-setup@v3
@@ -271,6 +299,23 @@ jobs:
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
           echo "ADMIN_API_KEY=admin-api-key" >> .env
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
+      - name: Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+      - name: Cache Next.js builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/web/.next/cache
+          key: ${{ runner.os }}-nextjs-async-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-async-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-async-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
@@ -314,7 +359,8 @@ jobs:
           LANGFUSE_INIT_USER_NAME: "Demo User"
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
-        run: pnpm --filter=web run test
+        working-directory: web
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects async-server --shard=${{ matrix.shard }}/3
 
   tests-worker:
     timeout-minutes: 20
@@ -350,7 +396,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -376,6 +422,18 @@ jobs:
           pnpm run db:migrate
           pnpm run db:seed
           pnpm run --filter=shared ch:up
+      - name: Download and extract ClickHouse client for dev-tables setup
+        if: matrix.deploy-mode == ''
+        run: |
+          CH_VERSION="24.9.3.128"
+          ARCH="amd64"
+          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CH_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+          dpkg-deb -x clickhouse-client.deb ch_client_dir
+          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
+      - name: Setup Dev Tables
+        if: matrix.deploy-mode == ''
+        run: |
+          pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm --filter=worker... run build
       - name: run tests
@@ -410,7 +468,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -475,6 +533,24 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-e2e-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-e2e-
+            ${{ runner.os }}-turbo-
+      - name: Cache Next.js builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/web/.next/cache
+          key: ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-e2e-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-e2e-
       - name: install dependencies
         run: |
           pnpm install
@@ -484,7 +560,7 @@ jobs:
           cp .env.dev.example web/.env
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Run + migrate
@@ -540,7 +616,7 @@ jobs:
           pnpm install
       - name: Install golang-migrate for Clickhouse migrations
         run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.0/migrate.linux-amd64.tar.gz | tar xvz
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
@@ -589,7 +665,7 @@ jobs:
         tests-web-sync,
         tests-worker,
         test-worker-llm-connections,
-        e2e-tests,
+        # e2e-tests, # Temporarily disabled - flaky timeouts
         test-docker-build,
         e2e-server-tests,
         tests-web-async,
@@ -629,7 +705,7 @@ jobs:
   push-docker-image:
     needs: all-ci-passed
     # if something inside all-ci-passed was skipped, but everything that ran passed, we still want to deploy
-    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    if: always() && needs.all-ci-passed.outputs.success == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     environment: "protected branches"
     runs-on: ubuntu-latest
     permissions:

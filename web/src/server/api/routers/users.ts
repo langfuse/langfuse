@@ -9,7 +9,11 @@ import {
   getTotalUserCount,
   getTracesGroupedByUsers,
   getUserMetrics,
+  getUserMetricsFromEventsTable,
+  getUsersCountFromEventsTable,
+  getUsersFromEventsTable,
   hasAnyUser,
+  hasAnyUserFromEventsTable,
 } from "@langfuse/shared/src/server";
 
 const UserFilterOptions = z.object({
@@ -106,6 +110,101 @@ export const userRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const result = (
         await getUserMetrics(input.projectId, [input.userId], [])
+      ).shift();
+
+      return {
+        userId: input.userId,
+        firstTrace: result?.minTimestamp,
+        lastTrace: result?.maxTimestamp,
+        totalTraces: result?.traceCount ?? 0,
+        totalPromptTokens: result?.inputUsage ?? 0,
+        totalCompletionTokens: result?.outputUsage ?? 0,
+        totalTokens: result?.totalUsage ?? 0,
+        totalObservations: result?.observationCount ?? 0,
+        sumCalculatedTotalCost: result?.totalCost ?? 0,
+      };
+    }),
+
+  // Events-based endpoints (Beta)
+  hasAnyFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      return await hasAnyUserFromEventsTable(input.projectId);
+    }),
+
+  allFromEvents: protectedProjectProcedure
+    .input(UserAllOptions)
+    .query(async ({ input, ctx }) => {
+      const [users, totalUsers] = await Promise.all([
+        getUsersFromEventsTable(
+          ctx.session.projectId,
+          input.filter ?? [],
+          input.searchQuery ?? undefined,
+          input.limit,
+          input.page * input.limit,
+        ),
+        getUsersCountFromEventsTable(
+          ctx.session.projectId,
+          input.filter ?? [],
+          input.searchQuery ?? undefined,
+        ),
+      ]);
+
+      return {
+        totalUsers: totalUsers.shift()?.totalCount ?? 0,
+        users: users.map((user) => ({
+          userId: user.user,
+          totalTraces: BigInt(user.count),
+        })),
+      };
+    }),
+
+  metricsFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        userIds: z.array(z.string().min(1)),
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
+    .query(async ({ input }) => {
+      if (input.userIds.length === 0) {
+        return [];
+      }
+      const metrics = await getUserMetricsFromEventsTable(
+        input.projectId,
+        input.userIds,
+        input.filter ?? [],
+      );
+
+      return metrics.map((metric) => ({
+        userId: metric.userId,
+        environment: metric.environment,
+        firstTrace: metric.minTimestamp,
+        lastTrace: metric.maxTimestamp,
+        totalPromptTokens: BigInt(metric.inputUsage),
+        totalCompletionTokens: BigInt(metric.outputUsage),
+        totalTokens: BigInt(metric.totalUsage),
+        totalObservations: BigInt(metric.observationCount),
+        totalTraces: BigInt(metric.traceCount),
+        sumCalculatedTotalCost: metric.totalCost,
+      }));
+    }),
+
+  byIdFromEvents: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        userId: z.string().min(1),
+      }),
+    )
+    .query(async ({ input }) => {
+      const result = (
+        await getUserMetricsFromEventsTable(input.projectId, [input.userId], [])
       ).shift();
 
       return {

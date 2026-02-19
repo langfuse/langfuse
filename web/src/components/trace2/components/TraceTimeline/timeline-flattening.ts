@@ -17,35 +17,45 @@ import {
  *
  * Uses iterative approach to avoid stack overflow with deep trees.
  *
- * @param node - Root node to flatten
+ * @param roots - Root nodes to flatten (supports multiple roots)
  * @param collapsedNodes - Set of node IDs that are collapsed
  * @param traceStartTime - When the trace started (for offset calculation)
  * @param totalScaleSpan - Total duration of the trace in seconds
  * @param scaleWidth - Width of the timeline scale in pixels (default: SCALE_WIDTH)
- * @param depth - Current depth (0 for root)
- * @param treeLines - Which ancestor levels have vertical lines
- * @param isLastSibling - Whether this node is the last child of its parent
  * @returns Flat list of nodes with timeline metrics
  */
 export function flattenTreeWithTimelineMetrics(
-  node: TreeNode,
+  roots: TreeNode[],
   collapsedNodes: Set<string>,
   traceStartTime: Date,
   totalScaleSpan: number,
   scaleWidth: number = SCALE_WIDTH,
-  depth = 0,
-  treeLines: boolean[] = [],
-  isLastSibling = true,
 ): FlatTimelineItem[] {
+  if (roots.length === 0) return [];
+
   const flatList: FlatTimelineItem[] = [];
 
-  // Initialize stack with root node
+  // Sort roots by startTime
+  const sortedRoots = [...roots].sort(
+    (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+  );
+
+  // Initialize stack with all roots at depth 0 (in reverse order for correct DFS)
   const stack: Array<{
     node: TreeNode;
     depth: number;
     treeLines: boolean[];
     isLastSibling: boolean;
-  }> = [{ node, depth, treeLines, isLastSibling }];
+  }> = [];
+
+  for (let i = sortedRoots.length - 1; i >= 0; i--) {
+    stack.push({
+      node: sortedRoots[i]!,
+      depth: 0,
+      treeLines: [],
+      isLastSibling: i === sortedRoots.length - 1,
+    });
+  }
 
   // Process stack (LIFO - depth-first traversal)
   while (stack.length > 0) {

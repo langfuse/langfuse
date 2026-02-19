@@ -1,13 +1,18 @@
-import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  queryClickhouse,
+} from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
     ? describe
     : describe.skip;
 
@@ -39,7 +44,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         output: "The capital of France is Paris.",
         metadata: { source: "API" },
         metadata_names: ["source"],
-        metadata_raw_values: ["API"],
+        metadata_values: ["API"],
         provided_model_name: "gpt-4",
       });
 
@@ -126,48 +131,16 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.output).toBe(jsonOutput);
     });
 
-    it("should parse input/output as JSON when parseIoAsJson=true", async () => {
-      const traceId = randomUUID();
-      const observationId = randomUUID();
-      const timestamp = new Date();
-      const timeValue = timestamp.getTime() * 1000;
-
-      // Create observation with JSON input/output
-      const inputData = { question: "What is 2+2?" };
-      const outputData = { answer: 4 };
-
-      const observation = createEvent({
-        id: observationId,
-        span_id: observationId,
-        trace_id: traceId,
-        project_id: projectId,
-        name: "test-observation",
-        type: "GENERATION",
-        level: "DEFAULT",
-        start_time: timeValue,
-        end_time: timeValue + 1000 * 1000,
-        input: JSON.stringify(inputData),
-        output: JSON.stringify(outputData),
-      });
-
-      await createEventsCh([observation]);
-
-      // Request with parseIoAsJson=true
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
+    it("should return 400 when parseIoAsJson=true", async () => {
+      const { makeAPICall } = await import("@/src/__tests__/test-utils");
+      const response = await makeAPICall(
         "GET",
-        `/api/public/v2/observations?fields=io&traceId=${traceId}&parseIoAsJson=true`,
+        `/api/public/v2/observations?fields=io&parseIoAsJson=true`,
       );
 
-      expect(response.status).toBe(200);
-      const obs = response.body.data.find((o: any) => o.id === observationId);
-      expect(obs).toBeDefined();
-
-      // Input and output should be parsed as objects
-      expect(typeof obs?.input).toBe("object");
-      expect(typeof obs?.output).toBe("object");
-      expect(obs?.input).toEqual(inputData);
-      expect(obs?.output).toEqual(outputData);
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("error");
+      expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
     it("should respect limit parameter with default of 50", async () => {
@@ -272,11 +245,24 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation1, observation2]);
 
-      // Focus on testing columns that require joins to other tables
-      // (columns from traces table: userId, traceName, sessionId, traceTags, traceEnvironment)
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: { projectId, ids: [observationId1, observationId2] },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
+        },
+        5000,
+        10,
+      );
+
+      // Focus on testing filter columns that may have complex handling
+      // (trace-level fields now read directly from events table: userId, traceName, sessionId, traceTags, traceEnvironment)
       // and score-related columns that may require special handling
       const filterTestCases = [
-        // Trace table columns (require join)
+        // Trace-level fields (now read directly from events table)
         {
           description: "trace field: userId",
           filter: [
@@ -379,6 +365,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
       );
 
       expect(userIdFilterResponse.status).toBe(200);
+      // Only observation1 has user_id: "test-user-123"
+      expect(userIdFilterResponse.body.data.length).toEqual(1);
       const userFilteredObs = userIdFilterResponse.body.data.find(
         (obs: any) => obs.id === observationId1,
       );
@@ -402,9 +390,324 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(traceNameResponse.status).toBe(200);
       expect(traceNameResponse.body.data.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("should support nested metadata field filtering with stringObject", async () => {
+      const traceId = randomUUID();
+      const observationId1 = randomUUID();
+      const observationId2 = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create observations with nested metadata
+      const observation1 = createEvent({
+        id: observationId1,
+        span_id: observationId1,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "nested-metadata-obs-1",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        // Nested metadata: { scope: { name: "api-server" }, region: "us-east" }
+        metadata: { scope: { name: "api-server" }, region: "us-east" },
+        metadata_names: ["scope.name", "region"],
+        metadata_values: ["api-server", "us-east"],
+      });
+
+      const observation2 = createEvent({
+        id: observationId2,
+        span_id: observationId2,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "nested-metadata-obs-2",
+        type: "SPAN",
+        level: "DEFAULT",
+        start_time: timeValue + 1000 * 1000,
+        // Nested metadata: { scope: { name: "ui-client" }, region: "us-west" }
+        metadata: { scope: { name: "ui-client" }, region: "us-west" },
+        metadata_names: ["scope.name", "region"],
+        metadata_values: ["ui-client", "us-west"],
+      });
+
+      await createEventsCh([observation1, observation2]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: { projectId, ids: [observationId1, observationId2] },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
+        },
+        5000,
+        10,
+      );
+
+      // Filter using dot-notation key for nested metadata: scope.name contains "api"
+      const filterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "contains",
+          key: "scope.name",
+          value: "api",
+        },
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+      // Only observation1 should match (scope.name contains "api")
+      expect(response.body.data.length).toBe(1);
+      const matchedObs = response.body.data.find(
+        (obs: any) => obs.id === observationId1,
+      );
+      expect(matchedObs).toBeDefined();
+      expect(matchedObs?.name).toBe("nested-metadata-obs-1");
+    });
+  });
+
+  maybe("Metadata expansion with expandMetadata parameter", () => {
+    it("should return full metadata values when expandMetadata is specified", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create two long metadata values
+      const longValue1 = "a".repeat(300);
+      const longValue2 = "b".repeat(300);
+
+      const observation = createEvent({
+        id: observationId,
+        span_id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "selective-expansion-test",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        metadata: {
+          expandMe: longValue1,
+          otherKey: longValue2,
+          shortKey: "shortValue",
+        },
+        metadata_names: ["expandMe", "otherKey", "shortKey"],
+        metadata_values: [longValue1, longValue2, "shortValue"],
+      });
+
+      await createEventsCh([observation]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            params: { projectId, id: observationId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
+
+      // Request metadata with expansion - this switches to events_full table
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=expandMe`,
+      );
+
+      expect(response.status).toBe(200);
+      const obs = response.body.data.find((o: any) => o.id === observationId);
+      expect(obs).toBeDefined();
+
+      // When expandMetadata is specified, the query uses events_full table which has
+      // full (non-truncated) metadata values. All metadata values are returned in full.
+      expect(obs?.metadata?.expandMe?.length).toBe(300);
+      expect(obs?.metadata?.expandMe).toBe(longValue1);
+
+      expect(obs?.metadata?.otherKey?.length).toBe(300);
+      expect(obs?.metadata?.otherKey).toBe(longValue2);
+
+      // 'shortValue' should be present as is
+      expect(obs?.metadata?.shortKey).toBe("shortValue");
+    });
+
+    it("should handle expansion of non-existent metadata key gracefully", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      const observation = createEvent({
+        id: observationId,
+        span_id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "non-existent-key-test",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        metadata: { existingKey: "value" },
+        metadata_names: ["existingKey"],
+        metadata_values: ["value"],
+      });
+
+      await createEventsCh([observation]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            params: { projectId, id: observationId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
+
+      // Request expansion for a key that doesn't exist
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=nonExistentKey`,
+      );
+
+      // Should not error, just return metadata without the non-existent key
+      expect(response.status).toBe(200);
+      const obs = response.body.data.find((o: any) => o.id === observationId);
+      expect(obs).toBeDefined();
+
+      // Existing key should still be present
+      expect(obs?.metadata?.existingKey).toBe("value");
+      // Non-existent key should not be in metadata
+      expect(obs?.metadata?.nonExistentKey).toBeUndefined();
+    });
+
+    it("should return truncated metadata when expandMetadata is empty string", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create a long metadata value (> 200 chars, the MV truncation limit)
+      const longValue = "z".repeat(300);
+      // events_core MV truncates metadata values to 200 chars
+      const METADATA_CUTOFF = 200;
+
+      const observation = createEvent({
+        id: observationId,
+        span_id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        name: "empty-expansion-test",
+        type: "GENERATION",
+        level: "DEFAULT",
+        start_time: timeValue,
+        metadata: { longKey: longValue },
+        metadata_names: ["longKey"],
+        metadata_values: [longValue],
+      });
+
+      await createEventsCh([observation]);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id = {id: String}`,
+            params: { projectId, id: observationId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(1);
+        },
+        5000,
+        10,
+      );
+
+      // Request metadata with empty expandMetadata - should use events_core (truncated)
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=`,
+      );
+
+      expect(response.status).toBe(200);
+      const obs = response.body.data.find((o: any) => o.id === observationId);
+      expect(obs).toBeDefined();
+
+      // Metadata should still be present but truncated (empty expandMetadata uses events_core)
+      expect(obs?.metadata?.longKey).toBeDefined();
+      expect(obs?.metadata?.longKey?.length).toBe(METADATA_CUTOFF);
+      expect(obs?.metadata?.longKey).toBe(
+        longValue.substring(0, METADATA_CUTOFF),
+      );
+    });
   });
 
   maybe("Cursor-based pagination", () => {
+    it("should apply LIMIT to query even on first request (no cursor)", async () => {
+      // This test verifies the bug fix - the v2 API should respect limit
+      // even on the first request without a cursor
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      // Create more observations than the limit
+      const observations = [];
+      for (let i = 0; i < 10; i++) {
+        const obsId = randomUUID();
+        observations.push(
+          createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `limit-test-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: timeValue + i * 1000 * 1000,
+          }),
+        );
+      }
+
+      await createEventsCh(observations);
+
+      // Wait for ClickHouse to process
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(10);
+        },
+        5000,
+        10,
+      );
+
+      // Request with limit=5 - should return exactly 5, not all 10
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        `/api/public/v2/observations?traceId=${traceId}&limit=5`,
+      );
+
+      expect(response.status).toBe(200);
+      // With the bug, this returns all 10 (no LIMIT applied)
+      // After fix, this should return exactly 5
+      expect(response.body.data.length).toBe(5);
+      // Should have cursor since there are more results
+      expect(response.body.meta.cursor).toBeDefined();
+    });
+
     it("should return cursor when results equal limit", async () => {
       const traceId = randomUUID();
       const timestamp = new Date();
@@ -429,7 +732,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch with limit=2 (should have cursor since we have 3 observations)
       const response = await makeZodVerifiedAPICall(
@@ -468,7 +770,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch with limit=5 (should not have cursor since we only have 2)
       const response = await makeZodVerifiedAPICall(
@@ -506,7 +807,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page with limit=2
       const page1 = await makeZodVerifiedAPICall(
@@ -598,7 +898,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       });
 
       await createEventsCh([obs1, obs2, obs3]);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page
       const page1 = await makeZodVerifiedAPICall(
@@ -658,7 +957,6 @@ describe("/api/public/v2/observations API Endpoint", () => {
       }
 
       await createEventsCh(observations);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Fetch first page with type filter
       const page1 = await makeZodVerifiedAPICall(

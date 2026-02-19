@@ -1,68 +1,92 @@
-const { resolve } = require("node:path");
+import tseslint from "typescript-eslint";
+import { FlatCompat } from "@eslint/eslintrc";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import turboConfig from "eslint-config-turbo/flat";
+import "eslint-plugin-only-warn";
 
-const project = resolve(process.cwd(), "tsconfig.json");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const turboConfig = require("eslint-config-turbo");
-const turboConfigToUse = turboConfig.default || turboConfig;
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
 
-/*
- * This is a custom ESLint configuration for use with
- * Next.js apps.
- *
- * This config extends the Vercel Engineering Style Guide.
- * For more information, see https://github.com/vercel/style-guide
- *
- */
-
-module.exports = {
-  parser: "@typescript-eslint/parser", // Set the parser to @typescript-eslint/parser
-  extends: [
-    "plugin:@typescript-eslint/recommended",
-    "plugin:@typescript-eslint/strict-type-checked",
-  ],
-  rules: {
-    "@typescript-eslint/no-non-null-assertion": "off",
-    "@typescript-eslint/no-confusing-void-expression": "off",
+export default tseslint.config(
+  // Global ignores - include config files
+  {
+    name: "langfuse/ignores",
+    ignores: [
+      "**/node_modules/",
+      "**/dist/",
+      "**/.next/",
+      "**/coverage/",
+      "eslint.config.mjs",
+    ],
   },
-  parser: "@typescript-eslint/parser",
 
-  parserOptions: {
-    project,
-  },
-  globals: {
-    React: true,
-    JSX: true,
-  },
-  plugins: ["@typescript-eslint"],
-  extends: ["next/core-web-vitals"],
-  env: {
-    es6: true,
-    jest: true,
-  },
-  settings: {
-    "import/resolver": {
-      typescript: {
-        project,
-      },
+  // Next.js rules via FlatCompat (applies to all files)
+  ...compat.extends("next/core-web-vitals"),
+
+  // Turbo rules
+  ...turboConfig,
+
+  // Disable noisy turbo env var rule - project has many env vars not in turbo.json
+  {
+    name: "langfuse/next/turbo-overrides",
+    rules: {
+      "turbo/no-undeclared-env-vars": "off",
     },
   },
-  ignorePatterns: ["node_modules/", "dist/"],
-  // add rules configurations here
-  rules: {
-    ...(turboConfigToUse.rules || {}),
-    "@typescript-eslint/consistent-type-imports": [
-      "warn",
-      {
-        prefer: "type-imports",
-        fixStyle: "inline-type-imports",
+
+  // Prettier (last)
+  eslintPluginPrettierRecommended,
+
+  // TypeScript config for TS files
+  // Note: The old config had a bug (duplicate extends) that prevented TS rules from applying
+  // Only adding parser + plugin + custom rules to match old behavior
+  {
+    name: "langfuse/next/typescript",
+    files: ["**/*.ts", "**/*.tsx"],
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+    },
+    languageOptions: {
+      parser: tseslint.parser,
+      globals: {
+        React: "readonly",
+        JSX: "readonly",
       },
-    ],
-    "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-    "react/jsx-key": [
-      "error",
-      {
-        warnOnDuplicates: true,
+    },
+    settings: {
+      "import/resolver": {
+        typescript: {
+          project: "./tsconfig.json",
+        },
       },
-    ],
+    },
+    rules: {
+      "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
+      // Custom rules from old config
+      "@typescript-eslint/consistent-type-imports": [
+        "warn",
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+        },
+      ],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+      "react/jsx-key": ["error", { warnOnDuplicates: true }],
+    },
   },
-};
+);

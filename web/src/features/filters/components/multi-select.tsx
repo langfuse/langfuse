@@ -63,9 +63,19 @@ export function MultiSelect({
   );
   const [freeText, setFreeText] = useState(freeTextInput || "");
 
+  // Merge options with selected values that might not be in options
+  // This ensures selected values are always visible and removable
+  const mergedOptions = useMemo(() => {
+    const optionSet = new Set(options.map((o) => o.value));
+    const missingSelectedOptions: FilterOption[] = values
+      .filter((v) => !optionSet.has(v) && v.length > 0)
+      .map((v) => ({ value: v }));
+    return [...options, ...missingSelectedOptions];
+  }, [options, values]);
+
   const selectableOptions = useMemo(
-    () => options.filter((option) => option.value.length > 0),
-    [options],
+    () => mergedOptions.filter((option) => option.value.length > 0),
+    [mergedOptions],
   );
 
   const allSelectedState = useMemo(() => {
@@ -155,15 +165,23 @@ export function MultiSelect({
                     {selectedValues.size} selected
                   </Badge>
                 ) : (
-                  getSelectedOptions().map((option) => (
-                    <Badge
-                      variant="secondary"
-                      key={option.value}
-                      className="rounded-sm px-1 font-normal"
-                    >
-                      {option.displayValue ?? option.value}
-                    </Badge>
-                  ))
+                  getSelectedOptions().map((option) => {
+                    const displayValue =
+                      option.displayValue ??
+                      (option.value === "" ? "(empty)" : option.value);
+                    return (
+                      <Badge
+                        variant="secondary"
+                        key={option.value}
+                        className={cn(
+                          "rounded-sm px-1 font-normal",
+                          option.value === "" && "italic",
+                        )}
+                      >
+                        {displayValue}
+                      </Badge>
+                    );
+                  })
                 )}
               </div>
             </>
@@ -199,9 +217,16 @@ export function MultiSelect({
                   <InputCommandSeparator />
                 </>
               )}
-              {options.map((option) => {
+              {mergedOptions.map((option) => {
                 if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
+                const displayValue =
+                  option.displayValue ??
+                  (option.value === "" ? "(empty)" : option.value);
+                const displayTitle =
+                  option.displayValue ??
+                  (option.value === "" ? "(empty)" : option.value);
+
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
@@ -226,10 +251,13 @@ export function MultiSelect({
                       <Check className={cn("h-4 w-4")} />
                     </div>
                     <div
-                      className="overflow-x-hidden text-ellipsis whitespace-nowrap"
-                      title={option.displayValue ?? option.value}
+                      className={cn(
+                        "overflow-x-hidden text-ellipsis whitespace-nowrap",
+                        option.value === "" && "italic text-muted-foreground",
+                      )}
+                      title={displayTitle}
                     >
-                      {option.displayValue ?? option.value}
+                      {displayValue}
                     </div>
                     {option.count !== undefined ? (
                       <span className="ml-auto flex h-4 w-4 items-center justify-center pl-1 font-mono text-xs">
@@ -242,7 +270,7 @@ export function MultiSelect({
                 return option.description ? (
                   <PropertyHoverCard
                     key={option.value}
-                    label={option.displayValue ?? option.value}
+                    label={displayValue}
                     description={option.description}
                   >
                     {commandItem}

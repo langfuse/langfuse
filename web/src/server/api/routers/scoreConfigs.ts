@@ -11,7 +11,7 @@ import {
   LangfuseNotFoundError,
   optionalPaginationZod,
   ScoreConfigCategory,
-  ScoreDataType,
+  ScoreConfigDataType,
   validateDbScoreConfig,
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
@@ -29,7 +29,7 @@ const ScoreConfigAllInputPaginated = ScoreConfigAllInput.extend({
 const ScoreConfigCreateInput = z.object({
   projectId: z.string(),
   name: z.string().min(1).max(35),
-  dataType: z.enum(ScoreDataType),
+  dataType: z.enum(ScoreConfigDataType),
   minValue: z.number().optional(),
   maxValue: z.number().optional(),
   categories: z.array(ScoreConfigCategory).optional(),

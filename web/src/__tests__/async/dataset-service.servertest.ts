@@ -10,6 +10,8 @@ import {
   getDatasetRunItemsWithoutIOByItemIds,
   createDatasetRunItem,
   getDatasetItemIdsWithRunData,
+  createDatasetItem,
+  createManyDatasetItems,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
@@ -28,6 +30,10 @@ import {
 } from "@/src/features/scores/lib/aggregateScores";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+  "true";
+process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 describe("Fetch datasets for UI presentation", () => {
   it("should fetch dataset runs for UI", async () => {
@@ -71,40 +77,14 @@ describe("Fetch datasets for UI presentation", () => {
     const datasetItemId3 = v4();
     const datasetItemId4 = v4();
 
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
-    });
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId2,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
-    });
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId3,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
-    });
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId4,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    await createManyDatasetItems({
+      projectId,
+      items: [
+        { id: datasetItemId, datasetId, metadata: {} },
+        { id: datasetItemId2, datasetId, metadata: {} },
+        { id: datasetItemId3, datasetId, metadata: {} },
+        { id: datasetItemId4, datasetId, metadata: {} },
+      ],
     });
 
     const datasetRunItemId = v4();
@@ -383,16 +363,15 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
-    const datasetItemId = v4();
-
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    const res = await createDatasetItem({
+      datasetId,
+      metadata: {},
+      projectId,
     });
+    if (!res.success) {
+      throw new Error("Failed to create dataset item");
+    }
+    const datasetItemId = res.datasetItem.id;
 
     const datasetRunItemId = v4();
     const datasetRunItemId2 = v4();
@@ -566,11 +545,12 @@ describe("Fetch datasets for UI presentation", () => {
       const itemId2 = v4();
       const itemId3 = v4();
 
-      await prisma.datasetItem.createMany({
-        data: [
-          { id: itemId1, datasetId, metadata: {}, projectId },
-          { id: itemId2, datasetId, metadata: {}, projectId },
-          { id: itemId3, datasetId, metadata: {}, projectId },
+      await createManyDatasetItems({
+        projectId,
+        items: [
+          { id: itemId1, datasetId, metadata: {} },
+          { id: itemId2, datasetId, metadata: {} },
+          { id: itemId3, datasetId, metadata: {} },
         ],
       });
 
@@ -776,8 +756,13 @@ describe("Fetch datasets for UI presentation", () => {
       const itemIds = [v4(), v4(), v4()];
       const traceIds = [v4(), v4(), v4()];
 
-      await prisma.datasetItem.createMany({
-        data: itemIds.map((id) => ({ id, datasetId, metadata: {}, projectId })),
+      await createManyDatasetItems({
+        projectId,
+        items: itemIds.map((id) => ({
+          id,
+          datasetId,
+          metadata: {},
+        })),
       });
 
       // Create dataset run items
@@ -989,8 +974,13 @@ describe("Fetch datasets for UI presentation", () => {
       const itemIds = [v4(), v4()];
       const traceIds = [v4(), v4()];
 
-      await prisma.datasetItem.createMany({
-        data: itemIds.map((id) => ({ id, datasetId, metadata: {}, projectId })),
+      await createManyDatasetItems({
+        projectId,
+        items: itemIds.map((id) => ({
+          id,
+          datasetId,
+          metadata: {},
+        })),
       });
 
       // Create dataset run items
@@ -1138,26 +1128,23 @@ describe("Fetch datasets for UI presentation", () => {
       },
     });
 
-    const datasetItemId = v4();
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    const res = await createDatasetItem({
+      datasetId,
+      metadata: {},
+      projectId,
     });
 
-    const datasetItemId2 = v4();
-    await prisma.datasetItem.create({
-      data: {
-        id: datasetItemId2,
-        datasetId,
-        metadata: {},
-        projectId,
-      },
+    const res2 = await createDatasetItem({
+      datasetId,
+      metadata: {},
+      projectId,
     });
 
+    if (!res.success || !res2.success) {
+      throw new Error("Failed to create dataset item");
+    }
+    const datasetItemId = res.datasetItem.id;
+    const datasetItemId2 = res2.datasetItem.id;
     const datasetRunItemId1 = v4();
     const traceId1 = v4();
 
@@ -1353,9 +1340,9 @@ describe("Fetch datasets for UI presentation", () => {
         });
 
         // Create dataset items with same timestamp but different IDs for pagination testing
-        const baseTime = new Date();
-        await prisma.datasetItem.createMany({
-          data: itemIds.map((id, index) => ({
+        await createManyDatasetItems({
+          projectId,
+          items: itemIds.map((id, index) => ({
             id,
             datasetId,
             input: { prompt: `Test input ${index + 1}` },
@@ -1364,8 +1351,6 @@ describe("Fetch datasets for UI presentation", () => {
               category: index < 2 ? "category-a" : "category-b",
               difficulty: index % 2 === 0 ? "easy" : "hard",
             },
-            projectId,
-            createdAt: baseTime,
           })),
         });
 
@@ -2053,14 +2038,14 @@ describe("Fetch datasets for UI presentation", () => {
         });
 
         // Create dataset items
-        await prisma.datasetItem.createMany({
-          data: itemIds.map((id, index) => ({
+        await createManyDatasetItems({
+          projectId,
+          items: itemIds.map((id, index) => ({
             id,
             datasetId,
             input: { prompt: `Test prompt ${index + 1}` },
             expectedOutput: { response: `Expected response ${index + 1}` },
             metadata: { category: `category-${index % 3}` },
-            projectId,
           })),
         });
 

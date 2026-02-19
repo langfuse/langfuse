@@ -22,6 +22,7 @@ export const PromptWebhookOutboundSchema = z
       name: z.string(),
       version: z.number(),
       projectId: z.string(),
+      createdBy: z.string(),
       labels: z.array(z.string()),
       prompt: jsonSchema.nullable(),
       type: z.string(),
@@ -35,3 +36,12 @@ export const PromptWebhookOutboundSchema = z
   .and(WebhookOutboundBaseSchema);
 
 export type PromptWebhookOutput = z.infer<typeof PromptWebhookOutboundSchema>;
+
+export const GitHubDispatchWebhookOutboundSchema = z.object({
+  event_type: z.string(),
+  client_payload: PromptWebhookOutboundSchema,
+});
+
+export type GitHubDispatchWebhookOutput = z.infer<
+  typeof GitHubDispatchWebhookOutboundSchema
+>;

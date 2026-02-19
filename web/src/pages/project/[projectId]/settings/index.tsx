@@ -21,6 +21,7 @@ import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
+import { BatchActionsSettingsPage } from "@/src/features/batch-actions/components/BatchActionsSettingsPage";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
 import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
@@ -157,7 +158,7 @@ export const getProjectSettingsPages = ({
     show: showLLMConnectionsSettings,
   },
   {
-    title: "Models",
+    title: "Model Definitions",
     slug: "models",
     cmdKKeywords: ["cost", "token"],
     content: <ModelsSettings projectId={project.id} />,
@@ -170,7 +171,7 @@ export const getProjectSettingsPages = ({
     show: showProtectedLabelsSettings,
   },
   {
-    title: "Scores / Evaluation",
+    title: "Scores Configs",
     slug: "scores",
     cmdKKeywords: ["config"],
     content: <ScoreConfigSettings projectId={project.id} />,
@@ -207,6 +208,12 @@ export const getProjectSettingsPages = ({
     slug: "exports",
     cmdKKeywords: ["csv", "download", "json", "batch"],
     content: <BatchExportsSettingsPage projectId={project.id} />,
+  },
+  {
+    title: "Batch Actions",
+    slug: "batch-actions",
+    cmdKKeywords: ["bulk", "batch", "action", "dataset", "delete"],
+    content: <BatchActionsSettingsPage projectId={project.id} />,
   },
   {
     title: "Audit Logs",
@@ -269,7 +276,7 @@ const Integrations = (props: { projectId: string }) => {
       <Header title="Integrations" />
       <div className="space-y-6">
         <Card className="p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {}
           <PostHogLogo className="mb-4 w-40 text-foreground" />
           <p className="mb-4 text-sm text-primary">
             We have teamed up with PostHog (OSS product analytics) to make

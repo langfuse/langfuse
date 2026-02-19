@@ -34,6 +34,9 @@ import { recordDistribution } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
+import { logger } from "../logger";
+import { traceException } from "../instrumentation";
+import { prisma } from "../../db";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -310,7 +313,24 @@ export const getTracesBySessionId = async (
 };
 
 export const hasAnyTrace = async (projectId: string) => {
-  return measureAndReturn({
+  // Check PostgreSQL flag first — once set, it's never reverted
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { hasTraces: true },
+    });
+    if (project?.hasTraces) {
+      return true;
+    }
+  } catch (error) {
+    traceException(error);
+    logger.error("Failed to read hasTraces flag from PostgreSQL", {
+      projectId,
+      error,
+    });
+  }
+
+  const result = await measureAndReturn({
     operationName: "hasAnyTrace",
     projectId,
     input: {
@@ -337,11 +357,33 @@ export const hasAnyTrace = async (projectId: string) => {
           projectId: input.projectId,
         },
         tags: input.tags,
+        clickhouseSettings: {
+          max_threads: 1,
+        },
       });
 
       return rows.length > 0;
     },
   });
+
+  // Persist positive result in PostgreSQL — once a project has traces, it stays true
+  // Only update if not already set to avoid unnecessary writes
+  if (result) {
+    try {
+      await prisma.project.updateMany({
+        where: { id: projectId, hasTraces: false },
+        data: { hasTraces: true },
+      });
+    } catch (error) {
+      traceException(error);
+      logger.error("Failed to persist hasTraces flag to PostgreSQL", {
+        projectId,
+        error,
+      });
+    }
+  }
+
+  return result;
 };
 
 export const getTraceCountsByProjectInCreationInterval = async ({
@@ -452,6 +494,7 @@ export const getTraceById = async ({
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
   preferredClickhouseService,
+  excludeInputOutput = false,
 }: {
   traceId: string;
   projectId: string;
@@ -460,6 +503,8 @@ export const getTraceById = async ({
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
   preferredClickhouseService?: PreferredClickhouseService;
+  /** When true, sets input/output columns to empty in the query to reduce database load */
+  excludeInputOutput?: boolean;
 }) => {
   const records = await measureAndReturn({
     operationName: "getTraceById",
@@ -484,6 +529,17 @@ export const getTraceById = async ({
       },
     },
     fn: (input) => {
+      const inputColumn = excludeInputOutput
+        ? "''"
+        : renderingProps.truncated
+          ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+          : "input";
+      const outputColumn = excludeInputOutput
+        ? "''"
+        : renderingProps.truncated
+          ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+          : "output";
+
       const query = `
         SELECT
           id,
@@ -497,8 +553,8 @@ export const getTraceById = async ({
           public as public,
           bookmarked as bookmarked,
           tags,
-          ${renderingProps.truncated ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "input"} as input,
-          ${renderingProps.truncated ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})` : "output"} as output,
+          ${inputColumn} as input,
+          ${outputColumn} as output,
           session_id as session_id,
           0 as is_deleted,
           timestamp,
@@ -866,23 +922,48 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
       },
     },
     fn: async (input) => {
-      const query = `
-        DELETE FROM traces
-        WHERE project_id = {projectId: String}
-        AND id IN ({traceIds: Array(String)})
-        AND (project_id, timestamp, id) IN  (
-	        SELECT
-	          project_id,
-	          timestamp,
-	          id
-	        FROM traces
-	        WHERE project_id = {projectId: String}
-	        AND id IN ({traceIds: Array(String)})
-        );
-      `;
-      await commandClickhouse({
-        query: query,
+      // Pre-flight query with time bounds computed
+      const preflight = await queryClickhouse<{
+        min_ts: string;
+        max_ts: string;
+        cnt: string;
+      }>({
+        query: `
+          SELECT
+            min(timestamp) - INTERVAL 1 HOUR as min_ts,
+            max(timestamp) + INTERVAL 1 HOUR as max_ts,
+            count(*) as cnt
+          FROM traces
+          WHERE project_id = {projectId: String} AND id IN ({traceIds: Array(String)})
+        `,
         params: input.params,
+        clickhouseConfigs: {
+          request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+        },
+        tags: { ...input.tags, kind: "delete-preflight" },
+      });
+
+      const count = Number(preflight[0]?.cnt ?? 0);
+      if (count === 0) {
+        logger.info(
+          `deleteTraces: no rows found for project ${projectId}, skipping DELETE`,
+        );
+        return;
+      }
+
+      await commandClickhouse({
+        query: `
+          DELETE FROM traces
+          WHERE project_id = {projectId: String}
+          AND id IN ({traceIds: Array(String)})
+          AND timestamp >= {minTs: String}::DateTime64(3)
+          AND timestamp <= {maxTs: String}::DateTime64(3)
+        `,
+        params: {
+          ...input.params,
+          minTs: preflight[0].min_ts,
+          maxTs: preflight[0].max_ts,
+        },
         clickhouseConfigs: {
           request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
         },
@@ -892,10 +973,44 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   });
 };
 
-export const deleteTracesOlderThanDays = async (
+export const hasAnyTraceOlderThan = async (
   projectId: string,
   beforeDate: Date,
 ) => {
+  const query = `
+    SELECT 1
+    FROM traces
+    WHERE project_id = {projectId: String}
+    AND timestamp < {cutoffDate: DateTime64(3)}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: {
+      projectId,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: {
+      feature: "tracing",
+      type: "trace",
+      kind: "hasAnyOlderThan",
+      projectId,
+    },
+  });
+
+  return rows.length > 0;
+};
+
+export const deleteTracesOlderThanDays = async (
+  projectId: string,
+  beforeDate: Date,
+): Promise<boolean> => {
+  const hasData = await hasAnyTraceOlderThan(projectId, beforeDate);
+  if (!hasData) {
+    return false;
+  }
+
   await measureAndReturn({
     operationName: "deleteTracesOlderThanDays",
     projectId,
@@ -927,9 +1042,18 @@ export const deleteTracesOlderThanDays = async (
       });
     },
   });
+
+  return true;
 };
 
-export const deleteTracesByProjectId = async (projectId: string) => {
+export const deleteTracesByProjectId = async (
+  projectId: string,
+): Promise<boolean> => {
+  const hasData = await hasAnyTrace(projectId);
+  if (!hasData) {
+    return false;
+  }
+
   await measureAndReturn({
     operationName: "deleteTracesByProjectId",
     projectId,
@@ -949,8 +1073,9 @@ export const deleteTracesByProjectId = async (projectId: string) => {
         DELETE FROM traces
         WHERE project_id = {projectId: String};
       `;
+
       await commandClickhouse({
-        query: query,
+        query,
         params: input.params,
         clickhouseConfigs: {
           request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
@@ -959,6 +1084,8 @@ export const deleteTracesByProjectId = async (projectId: string) => {
       });
     },
   });
+
+  return true;
 };
 
 export const hasAnyUser = async (projectId: string) => {
@@ -1248,6 +1375,7 @@ export const getTracesForBlobStorageExport = function (
 
 export const getTracesForAnalyticsIntegrations = async function* (
   projectId: string,
+  projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
 ) {
@@ -1326,6 +1454,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       langfuse_count_observations: record.observation_count,
       langfuse_session_id: record.session_id,
       langfuse_project_id: projectId,
+      langfuse_project_name: projectName,
       langfuse_user_id: record.user_id || null,
       langfuse_latency: record.latency,
       langfuse_release: record.release,

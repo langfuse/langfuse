@@ -13,14 +13,6 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-generator erd {
-  provider     = "prisma-erd-generator"
-  ignoreTables = ["_prisma_migrations", "Session", "Account", "Example"]
-  disabled     = true
-  ignoreEnums  = true
-  output       = "database.svg"
-}
-
 generator kysely {
   provider = "prisma-kysely"
 
@@ -72,6 +64,7 @@ model User {
   password                  String?
   image                     String?
   admin                     Boolean                     @default(false)
+  v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
   accounts                  Account[]
   sessions                  Session[]
   organizationMemberships   OrganizationMembership[]
@@ -92,6 +85,7 @@ model User {
   surveys                   Survey[]
   commentReactions          CommentReaction[]
   notificationPreferences   NotificationPreference[]
+  defaultViews              DefaultView[]               @relation("DefaultViewUser")
 
   @@map("users")
 }
@@ -135,6 +129,7 @@ model Project {
   deletedAt                 DateTime?                   @map("deleted_at")
   name                      String
   retentionDays             Int?                        @map("retention_days")
+  hasTraces                 Boolean                     @default(false) @map("has_traces")
   metadata                  Json?
   projectMembers            ProjectMembership[]
   organization              Organization                @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
@@ -153,6 +148,7 @@ model Project {
   BlobStorageIntegration    BlobStorageIntegration[]
   scoreConfig               ScoreConfig[]
   BatchExport               BatchExport[]
+  BatchAction               BatchAction[]
   comment                   Comment[]
   commentReactions          CommentReaction[]
   annotationQueue           AnnotationQueue[]
@@ -180,6 +176,7 @@ model Project {
   PendingDeletion           PendingDeletion[]
   AnnotationQueueAssignment AnnotationQueueAssignment[]
   NotificationPreference    NotificationPreference[]
+  DefaultView               DefaultView[]
 
   @@index([orgId])
   @@map("projects")
@@ -456,7 +453,7 @@ model LegacyPrismaScore {
   queueId       String?                 @map("queue_id")
   createdAt     DateTime                @default(now()) @map("created_at")
   updatedAt     DateTime                @default(now()) @updatedAt @map("updated_at")
-  dataType      ScoreDataType           @default(NUMERIC) @map("data_type")
+  dataType      ScoreConfigDataType     @default(NUMERIC) @map("data_type")
   scoreConfig   ScoreConfig?            @relation(fields: [configId], references: [id], onDelete: SetNull)
 
   @@unique([id, projectId]) // used for upserts via prisma
@@ -487,7 +484,7 @@ model ScoreConfig {
   projectId   String              @map("project_id")
   project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
-  dataType    ScoreDataType       @map("data_type")
+  dataType    ScoreConfigDataType @map("data_type")
   isArchived  Boolean             @default(false) @map("is_archived")
   minValue    Float?              @map("min_value")
   maxValue    Float?              @map("max_value")
@@ -505,7 +502,7 @@ model ScoreConfig {
   @@map("score_configs")
 }
 
-enum ScoreDataType {
+enum ScoreConfigDataType {
   CATEGORICAL
   NUMERIC
   BOOLEAN
@@ -591,21 +588,20 @@ model CronJobs {
 }
 
 model Dataset {
-  id                      String             @default(cuid())
-  projectId               String             @map("project_id")
+  id                      String        @default(cuid())
+  projectId               String        @map("project_id")
   name                    String
   description             String?
   metadata                Json?
-  remoteExperimentUrl     String?            @map("remote_experiment_url")
-  remoteExperimentPayload Json?              @map("remote_experiment_payload")
-  inputSchema             Json?              @map("input_schema") @db.Json
-  expectedOutputSchema    Json?              @map("expected_output_schema") @db.Json
-  project                 Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt               DateTime           @default(now()) @map("created_at")
-  updatedAt               DateTime           @default(now()) @updatedAt @map("updated_at")
+  remoteExperimentUrl     String?       @map("remote_experiment_url")
+  remoteExperimentPayload Json?         @map("remote_experiment_payload")
+  inputSchema             Json?         @map("input_schema") @db.Json
+  expectedOutputSchema    Json?         @map("expected_output_schema") @db.Json
+  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @default(now()) @updatedAt @map("updated_at")
   datasetItems            DatasetItem[]
   datasetRuns             DatasetRuns[]
-  datasetItemEvents       DatasetItemEvent[]
 
   @@id([id, projectId])
   @@unique([projectId, name])
@@ -615,46 +611,32 @@ model Dataset {
 }
 
 model DatasetItem {
-  id                  String            @default(cuid())
-  projectId           String            @map("project_id")
-  status              DatasetStatus     @default(ACTIVE)
+  id                  String         @default(cuid())
+  projectId           String         @map("project_id")
+  status              DatasetStatus? @default(ACTIVE)
   input               Json?
-  expectedOutput      Json?             @map("expected_output")
+  expectedOutput      Json?          @map("expected_output")
   metadata            Json?
-  sourceTraceId       String?           @map("source_trace_id")
-  sourceObservationId String?           @map("source_observation_id")
-  datasetId           String            @map("dataset_id")
-  dataset             Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
-  createdAt           DateTime          @default(now()) @map("created_at")
-  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
-  datasetRunItems     DatasetRunItems[]
+  sourceTraceId       String?        @map("source_trace_id")
+  sourceObservationId String?        @map("source_observation_id")
+  datasetId           String         @map("dataset_id")
+  dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at")
+  // dataset version cols
+  validFrom           DateTime       @default(now()) @map("valid_from")
+  validTo             DateTime?      @map("valid_to")
+  isDeleted           Boolean        @default(false) @map("is_deleted")
 
-  @@id([id, projectId])
+  @@id([id, projectId, validFrom])
+  @@index([projectId, validTo])
+  @@index([projectId, id, validFrom])
   @@index([sourceTraceId], type: Hash)
   @@index([sourceObservationId], type: Hash)
   @@index([datasetId], type: Hash)
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_items")
-}
-
-model DatasetItemEvent {
-  id                  String         @id @default(cuid())
-  itemId              String         @map("item_id")
-  projectId           String         @map("project_id")
-  datasetId           String         @map("dataset_id")
-  dataset             Dataset        @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
-  status              DatasetStatus?
-  input               Json?
-  expectedOutput      Json?          @map("expected_output")
-  metadata            Json?
-  sourceTraceId       String?        @map("source_trace_id")
-  sourceObservationId String?        @map("source_observation_id")
-  createdAt           DateTime?      @map("created_at")
-  deletedAt           DateTime?      @map("deleted_at")
-
-  @@index([projectId, datasetId, itemId, createdAt])
-  @@map("dataset_item_events")
 }
 
 enum DatasetStatus {
@@ -688,7 +670,6 @@ model DatasetRunItems {
   datasetRunId  String      @map("dataset_run_id")
   datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
   datasetItemId String      @map("dataset_item_id")
-  datasetItem   DatasetItem @relation(fields: [datasetItemId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId       String      @map("trace_id")
   observationId String?     @map("observation_id")
   createdAt     DateTime    @default(now()) @map("created_at")
@@ -715,6 +696,15 @@ model Comment {
   content      String
   authorUserId String?           @map("author_user_id") // no fk constraint, user can be deleted
   reactions    CommentReaction[]
+
+  // Inline comment positioning (all must be set together or all null/empty)
+  // dataField: which IO field the comment is on ('input' | 'output' | 'metadata')
+  // path: Array of JSON Path expressions, e.g., ["$.messages[1].text"]
+  // rangeStart/rangeEnd: parallel arrays for start/end offsets per path (exclusive end, UTF-16 code units)
+  dataField  String?  @map("data_field")
+  path       String[] @default([]) @map("path")
+  rangeStart Int[]    @default([]) @map("range_start")
+  rangeEnd   Int[]    @default([]) @map("range_end")
 
   @@index([projectId, objectType, objectId])
   @@map("comments")
@@ -840,15 +830,15 @@ model Model {
   projectId String?  @map("project_id")
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  modelName       String    @map("model_name")
-  matchPattern    String    @map("match_pattern")
-  startDate       DateTime? @map("start_date")
-  inputPrice      Decimal?  @map("input_price")
-  outputPrice     Decimal?  @map("output_price")
-  totalPrice      Decimal?  @map("total_price")
+  modelName       String        @map("model_name")
+  matchPattern    String        @map("match_pattern")
+  startDate       DateTime?     @map("start_date")
+  inputPrice      Decimal?      @map("input_price")
+  outputPrice     Decimal?      @map("output_price")
+  totalPrice      Decimal?      @map("total_price")
   unit            String? // TOKENS, CHARACTERS, MILLISECONDS, SECONDS, REQUESTS, or IMAGES
-  tokenizerId     String?   @map("tokenizer_id")
-  tokenizerConfig Json?     @map("tokenizer_config")
+  tokenizerId     String?       @map("tokenizer_id")
+  tokenizerConfig Json?         @map("tokenizer_config")
   Price           Price[]
   pricingTiers    PricingTier[]
 
@@ -858,17 +848,17 @@ model Model {
 }
 
 model Price {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-  modelId   String   @map("model_id") // Model is already linked to project (or default), so we don't need projectId here
-  Model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  projectId String?  @map("project_id")
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  pricingTierId String  @map("pricing_tier_id")
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+  modelId       String      @map("model_id") // Model is already linked to project (or default), so we don't need projectId here
+  Model         Model       @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  projectId     String?     @map("project_id")
+  project       Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pricingTierId String      @map("pricing_tier_id")
   pricingTier   PricingTier @relation(fields: [pricingTierId], references: [id], onDelete: Cascade)
-  usageType String   @map("usage_type")
-  price     Decimal
+  usageType     String      @map("usage_type")
+  price         Decimal
 
   @@unique([modelId, usageType, pricingTierId])
   @@index(pricingTierId)
@@ -880,13 +870,13 @@ model PricingTier {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  modelId   String   @map("model_id")
-  model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  modelId String @map("model_id")
+  model   Model  @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
-  name       String   @map("name")
-  isDefault  Boolean  @default(false) @map("is_default")
-  priority   Int      @map("priority")
-  conditions Json     @map("conditions") @db.JsonB
+  name       String  @map("name")
+  isDefault  Boolean @default(false) @map("is_default")
+  priority   Int     @map("priority")
+  conditions Json    @map("conditions") @db.JsonB
 
   prices Price[]
 
@@ -1026,6 +1016,8 @@ model JobExecution {
 
   jobInputDatasetItemId String? @map("job_input_dataset_item_id") // no fk constraint - job execution sensible standalone
 
+  jobInputDatasetItemValidFrom DateTime? @map("job_input_dataset_item_valid_from")
+
   jobOutputScoreId String? @map("job_output_score_id")
 
   executionTraceId String? @map("execution_trace_id")
@@ -1073,25 +1065,27 @@ model SsoConfig {
 }
 
 model PosthogIntegration {
-  projectId              String    @id @map("project_id")
-  project                Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  encryptedPosthogApiKey String    @map("encrypted_posthog_api_key")
-  posthogHostName        String    @map("posthog_host_name")
-  lastSyncAt             DateTime? @map("last_sync_at")
+  projectId              String                            @id @map("project_id")
+  project                Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedPosthogApiKey String                            @map("encrypted_posthog_api_key")
+  posthogHostName        String                            @map("posthog_host_name")
+  lastSyncAt             DateTime?                         @map("last_sync_at")
   enabled                Boolean
-  createdAt              DateTime  @default(now()) @map("created_at")
+  createdAt              DateTime                          @default(now()) @map("created_at")
+  exportSource           AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
 
   @@map("posthog_integrations")
 }
 
 model MixpanelIntegration {
-  projectId                     String    @id @map("project_id")
-  project                       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  encryptedMixpanelProjectToken String    @map("encrypted_mixpanel_project_token")
-  mixpanelRegion                String    @map("mixpanel_region")
-  lastSyncAt                    DateTime? @map("last_sync_at")
+  projectId                     String                            @id @map("project_id")
+  project                       Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  encryptedMixpanelProjectToken String                            @map("encrypted_mixpanel_project_token")
+  mixpanelRegion                String                            @map("mixpanel_region")
+  lastSyncAt                    DateTime?                         @map("last_sync_at")
   enabled                       Boolean
-  createdAt                     DateTime  @default(now()) @map("created_at")
+  createdAt                     DateTime                          @default(now()) @map("created_at")
+  exportSource                  AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
 
   @@map("mixpanel_integrations")
 }
@@ -1111,13 +1105,14 @@ model BlobStorageIntegration {
   forcePathStyle  Boolean                    @map("force_path_style")
 
   // Integration Config
-  nextSyncAt      DateTime?                      @map("next_sync_at")
-  lastSyncAt      DateTime?                      @map("last_sync_at")
+  nextSyncAt      DateTime?                         @map("next_sync_at")
+  lastSyncAt      DateTime?                         @map("last_sync_at")
   enabled         Boolean
-  exportFrequency String                         @map("export_frequency")
-  fileType        BlobStorageIntegrationFileType @default(CSV) @map("file_type")
-  exportMode      BlobStorageExportMode          @default(FULL_HISTORY) @map("export_mode")
-  exportStartDate DateTime?                      @map("export_start_date")
+  exportFrequency String                            @map("export_frequency")
+  fileType        BlobStorageIntegrationFileType    @default(CSV) @map("file_type")
+  exportMode      BlobStorageExportMode             @default(FULL_HISTORY) @map("export_mode")
+  exportStartDate DateTime?                         @map("export_start_date")
+  exportSource    AnalyticsIntegrationExportSource  @default(TRACES_OBSERVATIONS) @map("export_source")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
@@ -1149,6 +1144,14 @@ enum BlobStorageExportMode {
   @@map("BlobStorageExportMode")
 }
 
+enum AnalyticsIntegrationExportSource {
+  TRACES_OBSERVATIONS
+  TRACES_OBSERVATIONS_EVENTS
+  EVENTS
+
+  @@map("AnalyticsIntegrationExportSource")
+}
+
 model BatchExport {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
@@ -1173,6 +1176,35 @@ model BatchExport {
   @@map("batch_exports")
 }
 
+model BatchAction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String  @map("user_id")
+
+  actionType String @map("action_type")
+  tableName  String @map("table_name")
+
+  status     String
+  finishedAt DateTime? @map("finished_at")
+
+  query  Json
+  config Json?
+
+  totalCount     Int?    @map("total_count")
+  processedCount Int?    @map("processed_count")
+  failedCount    Int?    @map("failed_count")
+  log            String?
+
+  @@index([projectId, userId])
+  @@index([status])
+  @@index([projectId, actionType])
+  @@map("batch_actions")
+}
+
 model Media {
   id               String
   sha256Hash       String             @map("sha_256_hash") @db.Char(44)
@@ -1192,6 +1224,7 @@ model Media {
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
+  @@index([projectId, createdAt])
   @@map("media")
 }
 
@@ -1315,6 +1348,7 @@ enum DashboardWidgetViews {
 
 enum DashboardWidgetChartType {
   LINE_TIME_SERIES
+  AREA_TIME_SERIES
   BAR_TIME_SERIES
   HORIZONTAL_BAR
   VERTICAL_BAR
@@ -1377,6 +1411,27 @@ model TableViewPreset {
 
   @@unique([projectId, tableName, name])
   @@map("table_view_presets")
+}
+
+model DefaultView {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId String? @map("user_id")
+  user   User?   @relation("DefaultViewUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  viewName String @map("view_name")
+  viewId   String @map("view_id") // no FK - to allow system presets (i.e. frontend defined starting in __langfuse_)
+
+  // Uniqueness enforced via partial indexes in migration (PostgreSQL 12+ compatible)
+  // - User defaults: UNIQUE(project_id, user_id, view_name) WHERE user_id IS NOT NULL
+  // - Project defaults: UNIQUE(project_id, view_name) WHERE user_id IS NULL
+  @@index([projectId, viewName])
+  @@map("default_views")
 }
 
 model Action {
@@ -1445,6 +1500,7 @@ model Automation {
 enum ActionType {
   WEBHOOK
   SLACK
+  GITHUB_DISPATCH
   // More action types can be added as needed
 }
 
@@ -1519,7 +1575,7 @@ model PendingDeletion {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  @@index([projectId, object, isDeleted])
+  @@index([projectId, object, isDeleted, objectId, id])
   @@index([objectId, object])
   @@map("pending_deletions")
 }

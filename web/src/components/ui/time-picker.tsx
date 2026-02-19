@@ -30,6 +30,11 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
   const secondRef = React.useRef<HTMLInputElement>(null);
   const periodRef = React.useRef<HTMLButtonElement>(null);
 
+  // Sync period state when date prop changes externally (e.g., preset selection)
+  React.useEffect(() => {
+    setPeriod(getInitialPeriod(date));
+  }, [date]);
+
   const shortTimezone = React.useMemo(() => getShortLocalTimezone(), []);
   const timezoneDetails = React.useMemo(() => getTimezoneDetails(), []);
 

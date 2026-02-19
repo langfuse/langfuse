@@ -31,6 +31,7 @@ export interface TimelineBarProps {
   metrics: TimelineMetrics;
   isSelected: boolean;
   onSelect: () => void;
+  onHover?: () => void;
   // View preferences
   showDuration: boolean;
   showCostTokens: boolean;
@@ -67,6 +68,7 @@ export interface TimelineRowProps {
   item: FlatTimelineItem;
   isSelected: boolean;
   onSelect: () => void;
+  onHover?: () => void;
   onToggleCollapse: () => void;
   hasChildren: boolean;
   isCollapsed: boolean;

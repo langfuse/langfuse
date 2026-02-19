@@ -50,6 +50,7 @@ Automatically activates when working on:
 - [ ] **Authentication**: Authorization via basic auth
 - [ ] **Validation**: Zod schemas for query/body/response
 - [ ] **Versioning**: Versioning in API path and Zod schemas for query/body/response
+- [ ] **Fern API Docs**: Update `fern/apis/server/definition/` to match TypeScript types
 - [ ] **Tests**: Add end-to-end test in `__tests__/async/`
 
 ### New Queue Processor Checklist (Worker)
@@ -421,6 +422,32 @@ const traces = await queryClickhouse({
   `,
   params: { projectId, startTime },
 });
+```
+
+### 9. Keep Fern API Definitions in Sync with TypeScript Types
+
+When modifying public API types in `web/src/features/public-api/types/`, the corresponding Fern API definitions in `fern/apis/server/definition/` must be updated to match.
+
+**Zod to Fern Type Mapping:**
+
+| Zod Type | Fern Type | Example |
+| -------- | --------- | ------- |
+| `.nullish()` | `optional<nullable<T>>` | `z.string().nullish()` → `optional<nullable<string>>` |
+| `.nullable()` | `nullable<T>` | `z.string().nullable()` → `nullable<string>` |
+| `.optional()` | `optional<T>` | `z.string().optional()` → `optional<string>` |
+| Always present | `T` | `z.string()` → `string` |
+
+**Source References:**
+
+Add a comment at the top of each Fern type referencing the TypeScript source file:
+
+```yaml
+# Source: web/src/features/public-api/types/traces.ts - APITrace
+Trace:
+  properties:
+    id: string
+    name:
+      type: nullable<string>
 ```
 
 ---

@@ -16,7 +16,7 @@ services:
       - postgres
 
   minio:
-    image: docker.io/minio/minio
+    image: cgr.dev/chainguard/minio
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'

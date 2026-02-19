@@ -20,7 +20,7 @@ describe("PromptService", () => {
     labels: ["test"],
     createdBy: "API",
     type: "text",
-    isActive: null,
+    isActive: false, // Computed from labels (no "production" label)
     config: {},
     tags: [],
     commitMessage: null,

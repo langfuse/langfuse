@@ -18,6 +18,10 @@ const ProjectResponseSchema = z.object({
     z.object({
       id: z.string(),
       name: z.string(),
+      organization: z.object({
+        id: z.string(),
+        name: z.string(),
+      }),
       metadata: z.object({}).optional(),
       retentionDays: z.number().nullable().optional(),
     }),
@@ -116,6 +120,10 @@ describe("Projects API", () => {
       expect(response.body.data[0]).toMatchObject({
         id: projectId,
         name: projectName,
+        organization: {
+          id: expect.any(String),
+          name: expect.any(String),
+        },
         metadata: {},
       });
     });
@@ -897,7 +905,7 @@ describe("Projects API", () => {
             id: deleteTestApiKeyId,
           },
         });
-      } catch (error) {
+      } catch {
         // Ignore errors if the API key was already deleted by the test
       }
     });

@@ -102,7 +102,7 @@ export const dashboardRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const [from, to] = extractFromAndToTimestampsFromFilter(input.filter);
 
-      if (from.value > to.value) {
+      if (from.value && to.value && from.value > to.value) {
         logger.error(
           `from > to, returning empty result: from=${from}, to=${to}`,
         );

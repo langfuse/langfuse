@@ -29,6 +29,7 @@ export function DatasetRunItemsByRunTable(props: {
   projectId: string;
   datasetId: string;
   datasetRunId: string;
+  datasetVersion?: Date | null;
 }) {
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = useQueryParams({
@@ -102,9 +103,12 @@ export function DatasetRunItemsByRunTable(props: {
       isPinnedLeft: true,
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
+        const versionParam = props.datasetVersion
+          ? `?version=${props.datasetVersion.toISOString()}`
+          : "";
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${datasetItemId}`}
+            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${datasetItemId}${versionParam}`}
             value={datasetItemId}
           />
         );
@@ -239,6 +243,7 @@ export function DatasetRunItemsByRunTable(props: {
             projectId={props.projectId}
             datasetId={props.datasetId}
             datasetItemId={datasetItemId}
+            datasetItemVersion={row.original.datasetItemVersion}
             io="expectedOutput"
             singleLine={rowHeight === "s"}
           />

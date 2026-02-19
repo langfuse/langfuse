@@ -10,21 +10,27 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     },
     "strictNullChecks": true
   },
-  "exclude": ["node_modules", "sdk"],
+  "exclude": [
+    "node_modules",
+    "sdk"
+  ],
   "include": [
-    "src",
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    ".eslintrc.js",
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
     "**/*.cjs",
     "**/*.mjs",
-    "types/global.d.ts"
+    "**/*.ts",
+    "**/*.tsx",
+    ".eslintrc.js",
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    "next-env.d.ts",
+    "src",
+    "types/global.d.ts",
+    ".next-check/types/**/*.ts"
   ]
 }

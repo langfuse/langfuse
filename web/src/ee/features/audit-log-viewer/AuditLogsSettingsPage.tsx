@@ -24,7 +24,7 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
       </AlertDescription>
     </Alert>
   ) : (
-    <AuditLogsTable projectId={props.projectId} />
+    <AuditLogsTable scope="project" projectId={props.projectId} />
   );
 
   return (

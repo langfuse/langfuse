@@ -7,7 +7,10 @@ import {
 
 export const LlmApiKeySchema = z.object({
   projectId: z.string(),
-  provider: z.string().min(1),
+  provider: z
+    .string()
+    .min(1)
+    .regex(/^[^:]+$/, "Provider name cannot contain colons"),
   adapter: z.enum(LLMAdapter),
   baseURL: z.string().url().optional(),
   withDefaultModels: z.boolean().optional(),

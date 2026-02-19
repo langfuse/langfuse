@@ -26,7 +26,14 @@ export type ColumnDefinition =
   | {
       name: string;
       id: string;
-      type: "number" | "string" | "datetime" | "boolean";
+      type: "number" | "string" | "datetime" | "boolean" | "null";
+      internal: string;
+      nullable?: boolean;
+    }
+  | {
+      name: string;
+      id: string;
+      type: "positionInTrace";
       internal: string;
       nullable?: boolean;
     }
@@ -78,6 +85,7 @@ export const tableNames = [
   "job_executions",
   "dataset_items",
   "annotation_queue_assignments",
+  "dataset_item_events",
 ] as const;
 
 export type TableNames = (typeof tableNames)[number];

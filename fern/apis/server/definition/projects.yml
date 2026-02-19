@@ -7,7 +7,7 @@ service:
   base-path: /api/public
   endpoints:
     get:
-      docs: Get Project associated with API key
+      docs: Get Project associated with API key (requires project-scoped API key). You can use GET /api/public/organizations/projects to get all projects with an organization-scoped key.
       method: GET
       path: /projects
       response: Projects
@@ -44,8 +44,12 @@ service:
               type: optional<map<string, unknown>>
               docs: Optional metadata for the project
             retention:
-              type: integer
-              docs: Number of days to retain data. Must be 0 or at least 3 days. Requires data-retention entitlement for non-zero values. Optional.
+              type: optional<integer>
+              docs: |
+                Number of days to retain data.
+                Must be 0 or at least 3 days.
+                Requires data-retention entitlement for non-zero values.
+                Optional. Will retain existing retention setting if omitted.
       response: Project
 
     delete:
@@ -102,10 +106,22 @@ types:
     properties:
       data: list<Project>
 
+  Organization:
+    properties:
+      id:
+        type: string
+        docs: The unique identifier of the organization
+      name:
+        type: string
+        docs: The name of the organization
+
   Project:
     properties:
       id: string
       name: string
+      organization:
+        type: Organization
+        docs: The organization this project belongs to
       metadata:
         type: map<string, unknown>
         docs: Metadata for the project

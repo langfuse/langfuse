@@ -18,7 +18,10 @@ export {
   NullFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
-export { orderByToClickhouseSql } from "./clickhouse-sql/orderby-factory";
+export {
+  orderByToClickhouseSql,
+  orderByToEntries,
+} from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";
 export { clickhouseSearchCondition } from "./clickhouse-sql/search";
 export {
@@ -32,6 +35,14 @@ export {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   EventsAggregationQueryBuilder,
+  EventsQueryBuilder,
+  buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export {
+  eventsScoresAggregation,
+  eventsTracesAggregation,
+  eventsTracesScoresAggregation,
+} from "./clickhouse-sql/query-fragments";

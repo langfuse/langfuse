@@ -20,6 +20,9 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggregationFunction: z.string().optional(),
+      highCardinality: z.boolean().optional(),
+      explodeArray: z.boolean().optional(),
     }),
   ),
   measures: z.record(
@@ -31,6 +34,7 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      aggs: z.record(z.string(), z.string()).optional(),
     }),
   ),
   tableRelations: z.record(
@@ -44,6 +48,16 @@ export const viewDeclaration = z.object({
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.
   segments: z.array(singleFilter),
   timeDimension: z.string(),
+  // When set, adds a subquery filter to restrict rows to those whose "root event"
+  // (matching the condition) has timeDimension in the query window.
+  rootEventCondition: z
+    .object({
+      // The column used to match root entities between outer query and subquery (e.g., "trace_id").
+      column: z.string(),
+      // SQL condition identifying root events (e.g., "parent_span_id = ''").
+      condition: z.string(),
+    })
+    .optional(),
 });
 
 export const stringDateTime = z.string().datetime({ offset: true });
@@ -56,6 +70,16 @@ export const views = z.enum([
   // "sessions",
   // "users",
 ]);
+
+// V2 views - excludes "traces" which is not supported in v2 API
+export const viewsV2 = z.enum([
+  "observations",
+  "scores-numeric",
+  "scores-categorical",
+]);
+
+export const viewVersions = z.enum(["v1", "v2"]);
+export type ViewVersion = z.infer<typeof viewVersions>;
 
 export const dimension = z.object({
   field: z.string(),

@@ -17,11 +17,17 @@ function buildStepGroups(
   let currentGroup = [observations[0]];
   const remainingObs = observations.slice(1);
 
+  // Track max end time for early termination optimization
+  let maxGroupEndTime = timestampCache.get(observations[0].id)!.end;
+
   // loop through all remaining observations that are not added to any group yet
   for (const obs of remainingObs) {
     const obsStart = timestampCache.get(obs.id)!.start;
 
-    // TODO: perf, could break early if current observation starts after all current group members finish
+    // Optimization: early break if current observation starts after all current group members finish
+    if (obsStart >= maxGroupEndTime) {
+      break;
+    }
 
     // if observation starts before any observations in current group finished, add it to the current group
     const startsBeforeAnyFinishes = currentGroup.some((groupObs) => {
@@ -31,10 +37,17 @@ function buildStepGroups(
 
     if (startsBeforeAnyFinishes) {
       currentGroup.push(obs);
+      // Update max end time for this group
+      const obsEnd = timestampCache.get(obs.id)!.end;
+      if (obsEnd > maxGroupEndTime) {
+        maxGroupEndTime = obsEnd;
+      }
     }
   }
 
   const cleanedGroup: AgentGraphDataResponse[] = [];
+  // Track unprocessed incrementally during cleanup phase
+  const processedIds = new Set<string>();
 
   // build final current group. check if observation doesn't start after any finishes, only then add it
   currentGroup.forEach((obs) => {
@@ -49,14 +62,13 @@ function buildStepGroups(
 
     if (!startsAfterAnyOtherFinishes) {
       cleanedGroup.push(obs);
+      processedIds.add(obs.id);
     }
   });
 
   stepGroups.push(cleanedGroup);
 
-  // Find unprocessed by checking what's not in cleanedGroup
-  // TODO: perf, can track unprocessed while building cleanedGroup
-  const processedIds = new Set(cleanedGroup.map((obs) => obs.id));
+  // Optimization: use incrementally built processedIds set
   const unprocessed = observations.filter((obs) => !processedIds.has(obs.id));
 
   // process remaining observations in recursion

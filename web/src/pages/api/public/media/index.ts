@@ -193,7 +193,7 @@ export default withMiddlewares({
               mediaId,
               uploadUrl,
             };
-          } catch (error) {
+          } catch {
             logger.error(
               `Failed to get media upload URL for trace ${traceId} and observation ${observationId}.`,
             );

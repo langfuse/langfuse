@@ -95,7 +95,7 @@ export const RemoteExperimentTriggerModal = ({
     if (data.payload.trim()) {
       try {
         JSON.parse(data.payload);
-      } catch (error) {
+      } catch {
         form.setError("payload", {
           message: "Invalid JSON format",
         });

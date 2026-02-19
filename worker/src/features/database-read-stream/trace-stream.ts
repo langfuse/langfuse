@@ -1,7 +1,8 @@
 import {
   FilterCondition,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
   TracingSearchType,
-  ScoreDataType,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
@@ -46,6 +47,10 @@ export const getTraceStream = async (props: {
     request_timeout: 180_000,
     clickhouse_settings: {
       join_algorithm: "partial_merge" as const,
+      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
+      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
+      http_send_timeout: 300,
+      http_receive_timeout: 300,
     },
   };
 
@@ -188,7 +193,7 @@ export const getTraceStream = async (props: {
       | {
           name: string;
           avg_value: number;
-          data_type: ScoreDataType;
+          data_type: ScoreDataTypeType;
           string_value: string;
         }[]
       | undefined;
@@ -231,7 +236,7 @@ export const getTraceStream = async (props: {
         return {
           name,
           value: null,
-          dataType: "CATEGORICAL" as ScoreDataType,
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
           stringValue: valueParts.join(":"),
         };
       },

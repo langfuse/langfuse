@@ -12,7 +12,7 @@ import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import { GetObservationV1Response } from "@/src/features/public-api/types/observations";
 import { v4 as uuidv4 } from "uuid";
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
-import { snakeCase } from "lodash";
+import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";

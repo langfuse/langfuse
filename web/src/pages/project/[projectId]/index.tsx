@@ -36,11 +36,11 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
-
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { timeRange, setTimeRange } = useDashboardDateRange();
+
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],

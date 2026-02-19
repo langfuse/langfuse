@@ -91,7 +91,7 @@ export function useSurveyForm() {
           response: transformedResponse,
           orgId: session?.user?.organizations?.[0]?.id,
         });
-      } catch (error) {
+      } catch {
         // Error handling is done in the mutation callbacks
         // This catch block is for any additional error handling if needed
       }

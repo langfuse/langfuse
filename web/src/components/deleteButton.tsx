@@ -119,8 +119,8 @@ export function DeleteButton({
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 max-w-72 text-sm">
           {customDeletePrompt ??
-            `This action cannot be undone and removes all the data associated with
-            this ${entityToDeleteName}.`}
+            `This action cannot be undone. It removes all the data associated with
+            this ${entityToDeleteName}. If this is the project default, it will be deleted for all users.`}
         </p>
         {deleteConfirmation && (
           <div className="mb-4 grid w-full gap-1.5">
@@ -179,7 +179,7 @@ export function DeleteTraceButton(props: DeleteButtonProps) {
     showSuccessToast({
       title: "Trace deleted",
       description:
-        "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
+        "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
     });
     onSuccess();
   };

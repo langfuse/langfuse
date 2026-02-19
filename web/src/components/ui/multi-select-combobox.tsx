@@ -20,6 +20,7 @@ interface MultiSelectComboboxProps<T> {
   renderSelectedItem: (item: T, onRemove: () => void) => React.ReactNode;
   getItemKey: (item: T) => string;
   disabled?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function MultiSelectCombobox<T>({
@@ -35,6 +36,7 @@ export function MultiSelectCombobox<T>({
   renderSelectedItem,
   getItemKey,
   disabled = false,
+  onOpenChange,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -47,6 +49,7 @@ export function MultiSelectCombobox<T>({
   const handleInputFocus = () => {
     setIsInputFocused(true);
     setShowDropdown(true);
+    onOpenChange?.(true);
   };
 
   const handleInputBlur = () => {
@@ -55,6 +58,7 @@ export function MultiSelectCombobox<T>({
     setTimeout(() => {
       if (!isInputFocused) {
         setShowDropdown(false);
+        onOpenChange?.(false);
       }
     }, 200);
   };
@@ -84,6 +88,7 @@ export function MultiSelectCombobox<T>({
       ) {
         setShowDropdown(false);
         setIsInputFocused(false);
+        onOpenChange?.(false);
       }
     };
 
@@ -93,7 +98,7 @@ export function MultiSelectCombobox<T>({
         document.removeEventListener("mousedown", handleClickOutside);
       };
     }
-  }, [showDropdown]);
+  }, [showDropdown, onOpenChange]);
 
   const handleItemToggle = (item: T) => {
     const itemKey = getItemKey(item);

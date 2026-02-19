@@ -4,18 +4,21 @@
  * Contains:
  * - Title row with ItemBadge, trace name, CopyIdsPopover
  * - Action buttons (Dataset, Annotate, Queue, Comments)
- * - Metadata badges (timestamp, session, user, environment, release, version)
+ * - Metadata badges (timestamp, latency, session, user, environment, release, version, cost, usage)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   type TraceDomain,
   type ScoreDomain,
   AnnotationQueueObjectType,
+  LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { CopyIdsPopover } from "@/src/components/trace2/components/_shared/CopyIdsPopover";
@@ -29,7 +32,15 @@ import {
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
+  TargetTraceBadge,
 } from "./TraceMetadataBadges";
+import { LatencyBadge } from "../ObservationDetailView/ObservationMetadataBadgesSimple";
+import {
+  CostBadge,
+  UsageBadge,
+} from "../ObservationDetailView/ObservationMetadataBadgesTooltip";
+import { aggregateTraceMetrics } from "@/src/components/trace2/lib/trace-aggregation";
+import { resolveEvalExecutionMetadata } from "@/src/components/trace2/lib/resolve-metadata";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -37,19 +48,42 @@ export interface TraceDetailViewHeaderProps {
     input: string | null;
     output: string | null;
   };
+  observations: ObservationReturnTypeWithMetadata[];
+  parsedMetadata: unknown;
   projectId: string;
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
+  // Inline comment props
+  pendingSelection?: SelectionData | null;
+  onSelectionUsed?: () => void;
+  isCommentDrawerOpen?: boolean;
+  onCommentDrawerOpenChange?: (open: boolean) => void;
 }
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   trace,
+  observations,
+  parsedMetadata,
   projectId,
   traceScores,
   commentCount,
+  pendingSelection,
+  onSelectionUsed,
+  isCommentDrawerOpen,
+  onCommentDrawerOpenChange,
 }: TraceDetailViewHeaderProps) {
+  const aggregatedMetrics = useMemo(
+    () => aggregateTraceMetrics(observations),
+    [observations],
+  );
+
+  const targetTraceId =
+    trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
+      ? resolveEvalExecutionMetadata(parsedMetadata)
+      : null;
+
   return (
-    <div className="flex-shrink-0 space-y-2 border-b p-4 @container">
+    <div className="flex-shrink-0 space-y-2 border-b p-2 @container">
       {/* Title row with actions */}
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto,auto] @2xl:justify-between">
         <div className="flex w-full flex-row items-start gap-1">
@@ -100,6 +134,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             objectType="TRACE"
             count={commentCount}
             size="sm"
+            pendingSelection={pendingSelection}
+            onSelectionUsed={onSelectionUsed}
+            isOpen={isCommentDrawerOpen}
+            onOpenChange={onCommentDrawerOpenChange}
           />
         </div>
       </div>
@@ -117,11 +155,30 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
 
         {/* Other badges */}
         <div className="flex flex-wrap items-center gap-1">
+          <LatencyBadge latencySeconds={trace.latency ?? null} />
           <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
           <UserIdBadge userId={trace.userId} projectId={projectId} />
+          <TargetTraceBadge
+            targetTraceId={targetTraceId}
+            projectId={projectId}
+          />
           <EnvironmentBadge environment={trace.environment} />
           <ReleaseBadge release={trace.release} />
           <VersionBadge version={trace.version} />
+          <CostBadge
+            totalCost={aggregatedMetrics.totalCost}
+            costDetails={aggregatedMetrics.costDetails}
+          />
+          {aggregatedMetrics.hasGenerationLike &&
+            aggregatedMetrics.usageDetails && (
+              <UsageBadge
+                type="GENERATION"
+                inputUsage={aggregatedMetrics.inputUsage}
+                outputUsage={aggregatedMetrics.outputUsage}
+                totalUsage={aggregatedMetrics.totalUsage}
+                usageDetails={aggregatedMetrics.usageDetails}
+              />
+            )}
         </div>
       </div>
     </div>

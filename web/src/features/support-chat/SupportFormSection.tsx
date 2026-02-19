@@ -184,7 +184,6 @@ export function SupportFormSection({
 
   const selectedTopic = form.watch("topic");
   const isProductFeatureTopic = TopicGroups["Product Features"].includes(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     selectedTopic as any,
   );
 

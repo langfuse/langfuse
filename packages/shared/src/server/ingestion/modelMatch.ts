@@ -32,7 +32,9 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
       traceScope: "model-match",
     },
     async (span) => {
-      logger.debug(`Finding model for ${JSON.stringify(p)}`);
+      if (logger.isLevelEnabled("debug")) {
+        logger.debug(`Finding model for ${JSON.stringify(p)}`);
+      }
       const cachedResult = await getModelWithPricesFromRedis(p);
       if (cachedResult) {
         span.setAttribute("model_match_source", "redis");
@@ -290,9 +292,9 @@ const getModelMatchKeyPrefix = () => {
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     // Use hash tags for Redis cluster compatibility
     // This ensures all model cache keys are placed on the same hash slot
-    return "{model-match}";
+    return "{model-price-tiers}";
   }
-  return "model-match";
+  return "model-price-tiers";
 };
 
 export const redisModelToPrismaModel = (redisModel: Model): Model => {

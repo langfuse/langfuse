@@ -423,6 +423,50 @@ describe("Slack Integration", () => {
     });
   });
 
+  describe("Slack Install Endpoint Authentication", () => {
+    it("should reject unauthenticated requests with 401", async () => {
+      const { project } = await prepare();
+
+      // Make request without any session/auth
+      const response = await fetch(
+        `http://localhost:3000/api/public/slack/install?projectId=${project.id}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          // No cookies/session - simulating unauthenticated request
+        },
+      );
+
+      expect(response.status).toBe(401);
+
+      const body = await response.json();
+      expect(body).toMatchObject({
+        error: "Authentication required",
+      });
+    });
+
+    it("should reject requests without projectId with 400", async () => {
+      const response = await fetch(
+        `http://localhost:3000/api/public/slack/install`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        },
+      );
+
+      expect(response.status).toBe(400);
+
+      const body = await response.json();
+      expect(body).toMatchObject({
+        error: "Missing projectId parameter",
+      });
+    });
+  });
+
   describe("Slack Security", () => {
     it("should encrypt bot tokens in database", async () => {
       const { project } = await prepare();

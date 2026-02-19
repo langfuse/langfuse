@@ -15,6 +15,10 @@ type AdditionalObservationFields = {
   traceName: string | null;
   traceTags: Array<string>;
   traceTimestamp: Date | null;
+  // Tool counts for list view performance
+  // (actual data fields: toolDefinitions, toolCalls, toolCallNames come from Observation domain type)
+  toolDefinitionsCount: number | null;
+  toolCallsCount: number | null;
 } & ObservationPriceFields;
 
 export type FullObservation = AdditionalObservationFields & Observation;

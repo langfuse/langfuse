@@ -1,4 +1,5 @@
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
@@ -11,18 +12,11 @@ import {
   BaseError,
   MethodNotAllowedError,
   ForbiddenError,
-  type Prompt,
   GetPromptSchema,
   LegacyCreatePromptSchema,
   PRODUCTION_LABEL,
 } from "@langfuse/shared";
-import {
-  PromptService,
-  redis,
-  recordIncrement,
-  traceException,
-  logger,
-} from "@langfuse/shared/src/server";
+import { redis, traceException, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { telemetry } from "@/src/features/telemetry";
 
@@ -57,6 +51,7 @@ export default async function handler(
       const projectId = authCheck.scope.projectId;
       const promptName = searchParams.name;
       const version = searchParams.version ?? undefined;
+      const shouldResolve = searchParams.resolve ?? true; // Default to true for backward compatibility
 
       const rateLimitCheck =
         await RateLimitService.getInstance().rateLimitRequest(
@@ -68,25 +63,12 @@ export default async function handler(
         return rateLimitCheck.sendRestResponseIfLimited(res);
       }
 
-      const promptService = new PromptService(prisma, redis, recordIncrement);
-
-      let prompt: Prompt | null = null;
-
-      if (version) {
-        prompt = await promptService.getPrompt({
-          projectId,
-          promptName,
-          version,
-          label: undefined,
-        });
-      } else {
-        prompt = await promptService.getPrompt({
-          projectId,
-          promptName,
-          label: PRODUCTION_LABEL,
-          version: undefined,
-        });
-      }
+      const prompt = await getPromptByName({
+        promptName,
+        projectId,
+        version,
+        resolve: shouldResolve,
+      });
 
       if (!prompt) throw new LangfuseNotFoundError("Prompt not found");
 

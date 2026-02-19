@@ -24,7 +24,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name"],
+  defaultExpanded: ["environment", "name", "hasParentObservation"],
 
   facets: [
     {
@@ -38,6 +38,17 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("type"),
     },
     {
+      type: "boolean" as const,
+      column: "hasParentObservation",
+      label: "Is Root Observation",
+      invertValue: true, // "True" = hasParentObservation=false (is root)
+    },
+    {
+      type: "categorical" as const,
+      column: "traceName",
+      label: getEventsColumnName("traceName"),
+    },
+    {
       type: "categorical" as const,
       column: "name",
       label: getEventsColumnName("name"),
@@ -46,6 +57,12 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "level",
       label: getEventsColumnName("level"),
+    },
+    {
+      type: "positionInTrace" as const,
+      column: "positionInTrace",
+      label: getEventsColumnName("positionInTrace"),
+      mutuallyExclusiveWith: ["score_categories", "scores_avg"],
     },
     {
       type: "categorical" as const,
@@ -83,14 +100,34 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("statusMessage"),
     },
     {
+      type: "string" as const,
+      column: "traceId",
+      label: getEventsColumnName("traceId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "sessionId",
+      label: getEventsColumnName("sessionId"),
+    },
+    {
       type: "categorical" as const,
       column: "userId",
       label: getEventsColumnName("userId"),
     },
     {
       type: "categorical" as const,
-      column: "sessionId",
-      label: getEventsColumnName("sessionId"),
+      column: "experimentDatasetId",
+      label: getEventsColumnName("experimentDatasetId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "experimentId",
+      label: getEventsColumnName("experimentId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "experimentName",
+      label: getEventsColumnName("experimentName"),
     },
     {
       type: "numeric" as const,

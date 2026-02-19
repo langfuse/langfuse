@@ -195,7 +195,7 @@ export function MappingCard({
         {/* OUTPUT SECTION */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold tracking-wide text-muted-foreground">
-            Output
+            Expected Output
           </h3>
           {expectedOutput.type === "schema" ? (
             <div className="space-y-2">

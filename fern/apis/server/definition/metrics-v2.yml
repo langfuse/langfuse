@@ -1,0 +1,178 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+  commons: ./commons.yml
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    metrics:
+      docs: |
+        Get metrics from the Langfuse project using a query object. V2 endpoint with optimized performance.
+
+        ## V2 Differences
+        - Supports `observations`, `scores-numeric`, and `scores-categorical` views only (traces view not supported)
+        - Direct access to tags and release fields on observations
+        - Backwards-compatible: traceName, traceRelease, traceVersion dimensions are still available on observations view
+        - High cardinality dimensions are not supported and will return a 400 error (see below)
+
+        For more details, see the [Metrics API documentation](https://langfuse.com/docs/metrics/features/metrics-api).
+
+        ## Available Views
+
+        ### observations
+        Query observation-level data (spans, generations, events).
+
+        **Dimensions:**
+        - `environment` - Deployment environment (e.g., production, staging)
+        - `type` - Type of observation (SPAN, GENERATION, EVENT)
+        - `name` - Name of the observation
+        - `level` - Logging level of the observation
+        - `version` - Version of the observation
+        - `tags` - User-defined tags
+        - `release` - Release version
+        - `traceName` - Name of the parent trace (backwards-compatible)
+        - `traceRelease` - Release version of the parent trace (backwards-compatible, maps to release)
+        - `traceVersion` - Version of the parent trace (backwards-compatible, maps to version)
+        - `providedModelName` - Name of the model used
+        - `promptName` - Name of the prompt used
+        - `promptVersion` - Version of the prompt used
+        - `startTimeMonth` - Month of start_time in YYYY-MM format
+
+        **Measures:**
+        - `count` - Total number of observations
+        - `latency` - Observation latency (milliseconds)
+        - `streamingLatency` - Generation latency from completion start to end (milliseconds)
+        - `inputTokens` - Sum of input tokens consumed
+        - `outputTokens` - Sum of output tokens produced
+        - `totalTokens` - Sum of all tokens consumed
+        - `outputTokensPerSecond` - Output tokens per second
+        - `tokensPerSecond` - Total tokens per second
+        - `inputCost` - Input cost (USD)
+        - `outputCost` - Output cost (USD)
+        - `totalCost` - Total cost (USD)
+        - `timeToFirstToken` - Time to first token (milliseconds)
+        - `countScores` - Number of scores attached to the observation
+
+        ### scores-numeric
+        Query numeric and boolean score data.
+
+        **Dimensions:**
+        - `environment` - Deployment environment
+        - `name` - Name of the score (e.g., accuracy, toxicity)
+        - `source` - Origin of the score (API, ANNOTATION, EVAL)
+        - `dataType` - Data type (NUMERIC, BOOLEAN)
+        - `configId` - Identifier of the score config
+        - `timestampMonth` - Month in YYYY-MM format
+        - `timestampDay` - Day in YYYY-MM-DD format
+        - `value` - Numeric value of the score
+        - `traceName` - Name of the parent trace
+        - `tags` - Tags
+        - `traceRelease` - Release version
+        - `traceVersion` - Version
+        - `observationName` - Name of the associated observation
+        - `observationModelName` - Model name of the associated observation
+        - `observationPromptName` - Prompt name of the associated observation
+        - `observationPromptVersion` - Prompt version of the associated observation
+
+        **Measures:**
+        - `count` - Total number of scores
+        - `value` - Score value (for aggregations)
+
+        ### scores-categorical
+        Query categorical score data. Same dimensions as scores-numeric except uses `stringValue` instead of `value`.
+
+        **Measures:**
+        - `count` - Total number of scores
+
+        ## High Cardinality Dimensions
+        The following dimensions cannot be used as grouping dimensions in v2 metrics API as they can cause performance issues.
+        Use them in filters instead.
+
+        **observations view:**
+        - `id` - Use traceId filter to narrow down results
+        - `traceId` - Use traceId filter instead
+        - `userId` - Use userId filter instead
+        - `sessionId` - Use sessionId filter instead
+        - `parentObservationId` - Use parentObservationId filter instead
+
+        **scores-numeric / scores-categorical views:**
+        - `id` - Use specific filters to narrow down results
+        - `traceId` - Use traceId filter instead
+        - `userId` - Use userId filter instead
+        - `sessionId` - Use sessionId filter instead
+        - `observationId` - Use observationId filter instead
+
+        ## Aggregations
+        Available aggregation functions: `sum`, `avg`, `count`, `max`, `min`, `p50`, `p75`, `p90`, `p95`, `p99`, `histogram`
+
+        ## Time Granularities
+        Available granularities for timeDimension: `auto`, `minute`, `hour`, `day`, `week`, `month`
+        - `auto` bins the data into approximately 50 buckets based on the time range
+      method: GET
+      path: /v2/metrics
+      request:
+        name: GetMetricsV2Request
+        query-parameters:
+          query:
+            type: string
+            docs: |
+              JSON string containing the query parameters with the following structure:
+              ```json
+              {
+                "view": string,           // Required. One of "observations", "scores-numeric", "scores-categorical"
+                "dimensions": [           // Optional. Default: []
+                  {
+                    "field": string       // Field to group by (see available dimensions above)
+                  }
+                ],
+                "metrics": [              // Required. At least one metric must be provided
+                  {
+                    "measure": string,    // What to measure (see available measures above)
+                    "aggregation": string // How to aggregate: "sum", "avg", "count", "max", "min", "p50", "p75", "p90", "p95", "p99", "histogram"
+                  }
+                ],
+                "filters": [              // Optional. Default: []
+                  {
+                    "column": string,     // Column to filter on (any dimension field)
+                    "operator": string,   // Operator based on type:
+                                          // - datetime: ">", "<", ">=", "<="
+                                          // - string: "=", "contains", "does not contain", "starts with", "ends with"
+                                          // - stringOptions: "any of", "none of"
+                                          // - arrayOptions: "any of", "none of", "all of"
+                                          // - number: "=", ">", "<", ">=", "<="
+                                          // - stringObject/numberObject: same as string/number with required "key"
+                                          // - boolean: "=", "<>"
+                                          // - null: "is null", "is not null"
+                    "value": any,         // Value to compare against
+                    "type": string,       // Data type: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                    "key": string         // Required only for stringObject/numberObject types (e.g., metadata filtering)
+                  }
+                ],
+                "timeDimension": {        // Optional. Default: null. If provided, results will be grouped by time
+                  "granularity": string   // One of "auto", "minute", "hour", "day", "week", "month"
+                },
+                "fromTimestamp": string,  // Required. ISO datetime string for start of time range
+                "toTimestamp": string,    // Required. ISO datetime string for end of time range (must be after fromTimestamp)
+                "orderBy": [              // Optional. Default: null
+                  {
+                    "field": string,      // Field to order by (dimension or metric alias)
+                    "direction": string   // "asc" or "desc"
+                  }
+                ],
+                "config": {               // Optional. Query-specific configuration
+                  "bins": number,         // Optional. Number of bins for histogram aggregation (1-100), default: 10
+                  "row_limit": number     // Optional. Maximum number of rows to return (1-1000), default: 100
+                }
+              }
+              ```
+      response: MetricsV2Response
+types:
+  MetricsV2Response:
+    properties:
+      data:
+        type: list<map<string, unknown>>
+        docs: |
+          The metrics data. Each item in the list contains the metric values and dimensions requested in the query.
+          Format varies based on the query parameters.
+          Histograms will return an array with [lower, upper, height] tuples.

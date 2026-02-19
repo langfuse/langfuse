@@ -33,6 +33,11 @@ const EnvSchema = z.object({
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_CLUSTER_SLOTS_REFRESH_TIMEOUT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
@@ -51,6 +56,7 @@ const EnvSchema = z.object({
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(300), // 5 minutes
   CLICKHOUSE_URL: z.string().url(),
   CLICKHOUSE_READ_ONLY_URL: z.string().url().optional(),
+  CLICKHOUSE_EVENTS_READ_ONLY_URL: z.string().url().optional(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
@@ -60,9 +66,18 @@ const EnvSchema = z.object({
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
+  CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS: z.coerce
+    .number()
+    .int()
+    .min(50)
+    .optional(),
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
+  CLICKHOUSE_UPDATE_PARALLEL_MODE: z
+    .enum(["sync", "async", "auto"])
+    .default("auto"),
 
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
@@ -77,10 +92,15 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_TRACE_UPSERT_QUEUE_ATTEMPTS: z.coerce.number().positive().default(2),
   LANGFUSE_TRACE_DELETE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
   SALT: z.string().optional(), // used by components imported by web package
   LANGFUSE_LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
@@ -131,6 +151,13 @@ const EnvSchema = z.object({
     .default("true"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_S3_RATE_ERROR_SLOWDOWN_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(3600), // 1 hour
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -177,7 +204,7 @@ const EnvSchema = z.object({
         }
 
         return map;
-      } catch (err) {
+      } catch {
         return new Map<string, number>();
       }
     }),
@@ -258,13 +285,43 @@ const EnvSchema = z.object({
   // Dataset Service
   LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
+    .default("true"),
+
+  // Legacy events table (transitional deployment)
+  LANGFUSE_LEGACY_EVENTS_TABLE_EXISTS: z
+    .enum(["true", "false"])
+    .default("true"),
+
+  // EE License
+  LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
+
+  // Ingestion Masking (EE feature)
+  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.string().url().optional(),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(500),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_FAIL_CLOSED: z
+    .enum(["true", "false"])
     .default("false"),
+  LANGFUSE_INGESTION_MASKING_MAX_RETRIES: z.coerce
+    .number()
+    .nonnegative()
+    .default(1),
+  LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((h) => h.toLowerCase().trim()) : [],
+    ),
 });
 
-export const env: z.infer<typeof EnvSchema> =
+export type SharedEnv = z.infer<typeof EnvSchema>;
+
+export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
     : EnvSchema.parse(removeEmptyEnvVariables(process.env));

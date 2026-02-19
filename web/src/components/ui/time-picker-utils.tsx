@@ -87,28 +87,32 @@ export function getValidArrowMinuteOrSecond(value: string, step: number) {
 }
 
 export function setMinutes(date: Date, value: string) {
+  const newDate = new Date(date);
   const minutes = getValidMinuteOrSecond(value);
-  date.setMinutes(parseInt(minutes, 10));
-  return date;
+  newDate.setMinutes(parseInt(minutes, 10));
+  return newDate;
 }
 
 export function setSeconds(date: Date, value: string) {
+  const newDate = new Date(date);
   const seconds = getValidMinuteOrSecond(value);
-  date.setSeconds(parseInt(seconds, 10));
-  return date;
+  newDate.setSeconds(parseInt(seconds, 10));
+  return newDate;
 }
 
 export function setHours(date: Date, value: string) {
+  const newDate = new Date(date);
   const hours = getValidHour(value);
-  date.setHours(parseInt(hours, 10));
-  return date;
+  newDate.setHours(parseInt(hours, 10));
+  return newDate;
 }
 
 export function set12Hours(date: Date, value: string, period: Period) {
+  const newDate = new Date(date);
   const hours = parseInt(getValid12Hour(value), 10);
   const convertedHours = convert12HourTo24Hour(hours, period);
-  date.setHours(convertedHours);
-  return date;
+  newDate.setHours(convertedHours);
+  return newDate;
 }
 
 export type TimePickerType = "minutes" | "seconds" | "hours" | "12hours";

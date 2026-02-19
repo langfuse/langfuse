@@ -1,12 +1,17 @@
 import {
   createDatasetRunItem,
   createDatasetRunItemsCh,
+  createManyDatasetItems,
   createOrgProjectAndApiKey,
   getDatasetRunItemsCountCh,
 } from "@langfuse/shared/src/server";
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import { type FilterState } from "@langfuse/shared";
+
+process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
+  "true";
+process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 const generateFilter = (datasetIds: string[]): FilterState => {
   return [
@@ -38,8 +43,9 @@ describe("trpc.datasets", () => {
       })),
     });
 
-    await prisma.datasetItem.createMany({
-      data: datasetIds.map((datasetId, index) => ({
+    await createManyDatasetItems({
+      projectId,
+      items: datasetIds.map((datasetId, index) => ({
         id: datasetItemIds[index],
         projectId: projectId,
         datasetId: datasetId,

@@ -18,6 +18,7 @@ export interface ChatMessageListProps {
   messageToToolCallNumbers: Map<number, number[]>;
   collapseLongHistory?: boolean;
   projectIdForPromptButtons?: string;
+  inputMessageCount?: number;
 }
 
 /**
@@ -38,6 +39,7 @@ export function ChatMessageList({
   messageToToolCallNumbers,
   collapseLongHistory = true,
   projectIdForPromptButtons,
+  inputMessageCount,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -74,6 +76,7 @@ export function ChatMessageList({
                   currentView={currentView}
                   toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
                   projectIdForPromptButtons={projectIdForPromptButtons}
+                  isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
                 />
                 {/* Show collapse/expand button after first message */}
                 {isCollapsed !== null && originalIndex === 0 && (

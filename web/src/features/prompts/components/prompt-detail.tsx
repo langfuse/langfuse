@@ -7,7 +7,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod/v4";
-import { OpenAiMessageView } from "@/src/components/trace/IOPreview";
+import { OpenAiMessageView } from "@/src/components/trace2/components/IOPreview/components/ChatMessageList";
 import {
   TabsBar,
   TabsBarList,
@@ -61,6 +61,7 @@ import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { renderRichPromptContent } from "@/src/features/prompts/components/prompt-content-utils";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { createBreadcrumbItems } from "@/src/features/folders/utils";
 
 const getPythonCode = (
   name: string,
@@ -275,6 +276,10 @@ export const PromptDetail = ({
       )
     : [];
 
+  const segments = promptName.split("/").filter((s) => s.trim());
+  const folderPath = segments.length > 1 ? segments.slice(0, -1).join("/") : "";
+  const breadcrumbItems = folderPath ? createBreadcrumbItems(folderPath) : [];
+
   return (
     <Page
       headerProps={{
@@ -292,6 +297,10 @@ export const PromptDetail = ({
             name: "Prompts",
             href: `/project/${projectId}/prompts/`,
           },
+          ...breadcrumbItems.map((item) => ({
+            name: item.name,
+            href: `/project/${projectId}/prompts?folder=${encodeURIComponent(item.folderPath)}`,
+          })),
         ],
         tabsProps: {
           tabs: getPromptTabs(projectId as string, promptName as string),
@@ -528,6 +537,9 @@ export const PromptDetail = ({
                   <div className="w-full">
                     <OpenAiMessageView
                       messages={chatMessages}
+                      shouldRenderMarkdown={true}
+                      currentView="pretty"
+                      messageToToolCallNumbers={new Map()}
                       collapseLongHistory={false}
                       projectIdForPromptButtons={projectId}
                     />

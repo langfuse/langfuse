@@ -417,6 +417,7 @@ export class ClickhouseWriter {
       logger.error(`ClickhouseWriter.flush ${tableName}`, err);
 
       // Re-add the records to the queue with incremented attempts
+      let droppedCount = 0;
       queueItems.forEach((item) => {
         if (item.attempts < this.maxAttempts) {
           entityQueue.push({
@@ -426,12 +427,15 @@ export class ClickhouseWriter {
         } else {
           // TODO - Add to a dead letter queue in Redis rather than dropping
           recordIncrement("langfuse.queue.clickhouse_writer.error");
-          logger.error(
-            `Max attempts reached for ${tableName} record. Dropping record.`,
-            { item: this.truncateOversizedRecord(tableName, item.data) },
-          );
+          droppedCount++;
         }
       });
+
+      if (droppedCount > 0) {
+        logger.error(
+          `ClickhouseWriter: Max attempts reached, dropped ${droppedCount} ${tableName} record(s)`,
+        );
+      }
     }
   }
 
@@ -493,14 +497,14 @@ export class ClickhouseWriter {
 }
 
 export enum TableName {
-  Traces = "traces", // eslint-disable-line no-unused-vars
-  TracesNull = "traces_null", // eslint-disable-line no-unused-vars
-  Scores = "scores", // eslint-disable-line no-unused-vars
-  Observations = "observations", // eslint-disable-line no-unused-vars
-  ObservationsBatchStaging = "observations_batch_staging", // eslint-disable-line no-unused-vars
-  BlobStorageFileLog = "blob_storage_file_log", // eslint-disable-line no-unused-vars
-  DatasetRunItems = "dataset_run_items_rmt", // eslint-disable-line no-unused-vars
-  Events = "events", // eslint-disable-line no-unused-vars
+  Traces = "traces",
+  TracesNull = "traces_null",
+  Scores = "scores",
+  Observations = "observations",
+  ObservationsBatchStaging = "observations_batch_staging",
+  BlobStorageFileLog = "blob_storage_file_log",
+  DatasetRunItems = "dataset_run_items_rmt",
+  Events = "events",
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores

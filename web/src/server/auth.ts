@@ -40,6 +40,7 @@ import {
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
+import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import { z } from "zod/v4";
 import { CloudConfigSchema } from "@langfuse/shared";
 import {
@@ -111,9 +112,7 @@ const staticProviders: Provider[] = [
       const multiTenantSsoProvider =
         await getSsoAuthProviderIdForDomain(domain);
       if (multiTenantSsoProvider) {
-        throw new Error(
-          `Sign in with SSO is required for this domain. Please enter your email address and click continue to proceed.`,
-        );
+        throw new Error(ENTERPRISE_SSO_REQUIRED_MESSAGE);
       }
 
       const dbUser = await prisma.user.findUnique({
@@ -512,6 +511,16 @@ const extendedPrismaAdapter: Adapter = {
     }
 
     await prismaAdapter.linkAccount(data);
+
+    // Assign default memberships for existing users logging in via SSO
+    // This is idempotent - won't duplicate or overwrite existing memberships
+    const user = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { id: true, email: true },
+    });
+    if (user) {
+      await createProjectMembershipsOnSignup(user);
+    }
   },
 
   // Make email-OTP login that is used for password reset safer
@@ -602,10 +611,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     },
     callbacks: {
       async session({ session, token }): Promise<Session> {
-        return instrumentAsync({ name: "next-auth-session" }, async () => {
+        return instrumentAsync({ name: "next-auth-session" }, async (span) => {
           const dbUser = await prisma.user.findUnique({
             where: {
-              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
               email: token.email!.toLowerCase(),
             },
             select: {
@@ -616,6 +624,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               emailVerified: true,
               featureFlags: true,
               admin: true,
+              v4BetaEnabled: true,
               organizationMemberships: {
                 include: {
                   organization: {
@@ -639,6 +648,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             },
           });
 
+          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
+          span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+
           return {
             ...session,
             environment: {
@@ -660,6 +672,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
+                    v4BetaEnabled: dbUser.v4BetaEnabled,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
@@ -693,6 +706,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                 name: project.name,
                                 role: projectRole,
                                 retentionDays: project.retentionDays,
+                                hasTraces: project.hasTraces,
                                 deletedAt: project.deletedAt,
                                 metadata:
                                   (project.metadata as Record<
@@ -748,12 +762,17 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             multiTenantSsoProvider &&
             account?.provider !== multiTenantSsoProvider
           ) {
-            console.log(
+            logger.info(
               "Custom SSO provider enforced for domain, user signed in with other provider",
+              { email, attemptedProvider: account?.provider },
             );
-            throw new Error(
-              `You must sign in via SSO for this domain. Enter your email on the sign-in page and press Continue.`,
-            );
+            const params = new URLSearchParams({
+              reason: "sso_enforced_domain",
+            });
+            if (email) params.set("email", email);
+            if (account?.provider)
+              params.set("attemptedProvider", account.provider);
+            return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
           }
 
           // EE: Check that provider is only used for the associated domain

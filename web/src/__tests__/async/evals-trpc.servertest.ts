@@ -1,10 +1,10 @@
 /** @jest-environment node */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { EvalTargetObject } from "@langfuse/shared";
 import type { Session } from "next-auth";
 
 const __orgIds: string[] = [];
@@ -77,7 +77,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -115,7 +115,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -176,7 +176,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -218,7 +218,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -249,7 +249,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -280,7 +280,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -325,7 +325,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -440,7 +440,7 @@ describe("evals trpc", () => {
           jobType: "EVAL",
           scoreName: "test-score",
           filter: [],
-          targetObject: "trace",
+          targetObject: EvalTargetObject.TRACE,
           variableMapping: [],
           sampling: 1,
           delay: 0,
@@ -525,7 +525,7 @@ describe("evals trpc", () => {
   //         jobType: "EVAL",
   //         scoreName: "test-score",
   //         filter: [],
-  //         targetObject: "trace",
+  //         targetObject: EvalTargetObject.TRACE,
   //         variableMapping: [],
   //         sampling: 1,
   //         delay: 0,

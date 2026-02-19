@@ -27,13 +27,12 @@ import type { RouterOutput } from "@/src/utils/types";
 import {
   isPresent,
   type FilterState,
-  type ScoreDataType,
+  type ScoreDataTypeType,
   BatchExportTableName,
   BatchActionType,
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
-import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -50,6 +49,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import TableIdOrName from "@/src/components/table/table-id";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 
 export type ScoresTableRow = {
   id: string;
@@ -58,7 +58,7 @@ export type ScoresTableRow = {
   timestamp: Date;
   source: string;
   name: string;
-  dataType: ScoreDataType;
+  dataType: ScoreDataTypeType;
   value: string;
   author: {
     userId?: string;
@@ -99,6 +99,7 @@ export default function ScoresTable({
   observationId,
   hiddenColumns = [],
   localStorageSuffix = "",
+  disableUrlPersistence = false,
 }: {
   projectId: string;
   userId?: string;
@@ -107,12 +108,13 @@ export default function ScoresTable({
   omittedFilter?: string[];
   hiddenColumns?: string[];
   localStorageSuffix?: string;
+  disableUrlPersistence?: boolean;
 }) {
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
@@ -261,6 +263,7 @@ export default function ScoresTable({
     newFilterOptions,
     projectId,
     filterOptions.isPending || environmentFilterOptions.isPending,
+    disableUrlPersistence,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -764,6 +767,19 @@ export default function ScoresTable({
             <DataTable
               tableName={"scores"}
               columns={columns}
+              noResultsMessage={
+                <div className="flex flex-col items-center">
+                  <span>No scores found.</span>
+                  <a
+                    href="https://langfuse.com/faq/all/what-are-scores"
+                    className="pointer-events-auto italic text-primary underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    What are scores?
+                  </a>
+                </div>
+              }
               data={
                 scores.isPending || isViewLoading
                   ? { isLoading: true, isError: false }

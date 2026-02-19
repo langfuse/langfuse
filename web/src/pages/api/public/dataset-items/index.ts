@@ -6,10 +6,16 @@ import {
   GetDatasetItemsV1Response,
   PostDatasetItemsV1Body,
   PostDatasetItemsV1Response,
-  transformDbDatasetItemToAPIDatasetItem,
+  transformDbDatasetItemDomainToAPIDatasetItem,
 } from "@/src/features/public-api/types/datasets";
 import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
-import { logger, upsertDatasetItem } from "@langfuse/shared/src/server";
+import {
+  createDatasetItemFilterState,
+  getDatasetItems,
+  getDatasetItemsCount,
+  logger,
+  upsertDatasetItem,
+} from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const config = {
@@ -63,9 +69,10 @@ export default withMiddlewares({
           after: datasetItem,
         });
 
-        return transformDbDatasetItemToAPIDatasetItem({
+        return transformDbDatasetItemDomainToAPIDatasetItem({
           ...datasetItem,
           datasetName: datasetName,
+          status: datasetItem.status ?? "ACTIVE",
         });
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError) {
@@ -92,8 +99,14 @@ export default withMiddlewares({
     responseSchema: GetDatasetItemsV1Response,
     rateLimitResource: "datasets",
     fn: async ({ query, auth }) => {
-      const { datasetName, sourceTraceId, sourceObservationId, page, limit } =
-        query;
+      const {
+        datasetName,
+        sourceTraceId,
+        sourceObservationId,
+        version,
+        page,
+        limit,
+      } = query;
 
       let datasetId: string | undefined = undefined;
       if (datasetName) {
@@ -109,46 +122,30 @@ export default withMiddlewares({
         datasetId = dataset.id;
       }
 
-      const items = (
-        await prisma.datasetItem.findMany({
-          where: {
-            projectId: auth.scope.projectId,
-            dataset: {
-              projectId: auth.scope.projectId,
-              ...(datasetId ? { id: datasetId } : {}),
-            },
-            sourceTraceId: sourceTraceId ?? undefined,
-            sourceObservationId: sourceObservationId ?? undefined,
-          },
-          take: limit,
-          skip: (page - 1) * limit,
-          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          include: {
-            dataset: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        })
-      ).map(({ dataset, ...other }) => ({
-        ...other,
-        datasetName: dataset.name,
-      }));
+      const filterState = createDatasetItemFilterState({
+        ...(datasetId && { datasetIds: [datasetId] }),
+        sourceTraceId: sourceTraceId ?? undefined,
+        sourceObservationId: sourceObservationId ?? undefined,
+      });
+      const items = await getDatasetItems({
+        projectId: auth.scope.projectId,
+        filterState,
+        version: version ?? undefined,
+        includeDatasetName: true,
+        limit: limit,
+        page: page - 1,
+      });
 
-      const totalItems = await prisma.datasetItem.count({
-        where: {
-          dataset: {
-            projectId: auth.scope.projectId,
-            ...(datasetId ? { id: datasetId } : {}),
-          },
-          sourceTraceId: sourceTraceId ?? undefined,
-          sourceObservationId: sourceObservationId ?? undefined,
-        },
+      const totalItems = await getDatasetItemsCount({
+        projectId: auth.scope.projectId,
+        filterState,
+        version: version ?? undefined,
       });
 
       return {
-        data: items.map(transformDbDatasetItemToAPIDatasetItem),
+        data: items.map((item) =>
+          transformDbDatasetItemDomainToAPIDatasetItem(item),
+        ),
         meta: {
           page,
           limit,

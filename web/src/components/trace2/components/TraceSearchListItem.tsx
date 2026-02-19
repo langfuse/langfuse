@@ -17,12 +17,14 @@ interface TraceSearchListItemProps {
   item: TraceSearchListItem;
   isSelected: boolean;
   onSelect: () => void;
+  onHover?: () => void;
 }
 
 export function TraceSearchListItem({
   item,
   isSelected,
   onSelect,
+  onHover,
 }: TraceSearchListItemProps) {
   const { node, parentTotalCost, parentTotalDuration } = item;
   const { comments } = useTraceData();
@@ -39,6 +41,7 @@ export function TraceSearchListItem({
   return (
     <div
       onClick={onSelect}
+      onMouseEnter={onHover}
       className={cn(
         "flex cursor-pointer items-start gap-2 px-2 py-1.5 transition-colors hover:bg-muted/50",
         isSelected && "bg-muted",

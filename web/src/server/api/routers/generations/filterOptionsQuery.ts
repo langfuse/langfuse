@@ -1,6 +1,10 @@
 import { z } from "zod/v4";
 
-import { timeFilter, type ObservationOptions } from "@langfuse/shared";
+import {
+  ObservationType,
+  timeFilter,
+  type ObservationOptions,
+} from "@langfuse/shared";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
 import {
   getCategoricalScoresGroupedByName,
@@ -8,6 +12,8 @@ import {
   getObservationsGroupedByModelId,
   getObservationsGroupedByName,
   getObservationsGroupedByPromptName,
+  getObservationsGroupedByToolName,
+  getObservationsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
@@ -19,6 +25,9 @@ export const filterOptionsQuery = protectedProjectProcedure
     z.object({
       projectId: z.string(),
       startTimeFilter: z.array(timeFilter).optional(),
+      observationType: z
+        .union([z.enum(ObservationType), z.literal("ALL")])
+        .default("GENERATION"),
     }),
   )
   .query(async ({ input }) => {
@@ -65,6 +74,8 @@ export const filterOptionsQuery = protectedProjectProcedure
       traceNames,
       tags,
       modelId,
+      toolNames,
+      calledToolNames,
     ] = await Promise.all([
       // numeric scores
       getNumericScoresGroupedByName(input.projectId, traceTimestampFilters),
@@ -73,7 +84,11 @@ export const filterOptionsQuery = protectedProjectProcedure
       //model
       getObservationsGroupedByModel(input.projectId, startTimeFilter ?? []),
       //name
-      getObservationsGroupedByName(input.projectId, startTimeFilter ?? []),
+      getObservationsGroupedByName(
+        input.projectId,
+        startTimeFilter ?? [],
+        input.observationType === "ALL" ? null : input.observationType,
+      ),
       //prompt name
       getObservationsGroupedByPromptName(
         input.projectId,
@@ -85,6 +100,13 @@ export const filterOptionsQuery = protectedProjectProcedure
       getClickhouseTraceTags(),
       // modelId
       getObservationsGroupedByModelId(input.projectId, startTimeFilter ?? []),
+      // available tool names (from tool_definitions)
+      getObservationsGroupedByToolName(input.projectId, startTimeFilter ?? []),
+      // called tool names (from tool_call_names)
+      getObservationsGroupedByCalledToolName(
+        input.projectId,
+        startTimeFilter ?? [],
+      ),
     ]);
 
     // typecheck filter options, needs to include all columns with options
@@ -116,6 +138,16 @@ export const filterOptionsQuery = protectedProjectProcedure
         .filter((i) => i.tag !== null)
         .map((i) => ({
           value: i.tag as string,
+        })),
+      toolNames: toolNames
+        .filter((i) => i.toolName !== null)
+        .map((i) => ({
+          value: i.toolName as string,
+        })),
+      calledToolNames: calledToolNames
+        .filter((i) => i.calledToolName !== null)
+        .map((i) => ({
+          value: i.calledToolName as string,
         })),
       type: [
         "GENERATION",

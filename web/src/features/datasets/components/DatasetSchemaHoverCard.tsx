@@ -78,7 +78,6 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
             mode="json"
             value={schemaString}
             onChange={() => {}} // Read-only
-            minHeight="none"
             className="max-h-[250px] overflow-y-auto"
             editable={false}
           />
@@ -106,7 +105,6 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
               <CodeMirrorEditor
                 mode="json"
                 value={exampleObject}
-                minHeight="none"
                 className="max-h-[250px] overflow-y-auto"
                 editable={false}
               />

@@ -38,6 +38,9 @@ export const getClickhouseEntityType = (
     case eventTypes.SCORE_CREATE:
       return "score";
     case eventTypes.DATASET_RUN_ITEM_CREATE:
+    // Replay compatibility: s3-ingestion-event-replay.ts reconstructs event types from S3 paths containing entity types
+    // eslint-disable-next-line no-fallthrough
+    case "dataset_run_item-create":
       return "dataset_run_item";
     case eventTypes.SDK_LOG:
       return "sdk_log";

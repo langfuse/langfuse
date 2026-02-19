@@ -21,7 +21,7 @@ services:
       - default
 
   minio:
-    image: docker.io/minio/minio
+    image: cgr.dev/chainguard/minio
     container_name: ${MINIO_CONTAINER_NAME:-langfuse-minio}
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
@@ -49,6 +49,7 @@ services:
     restart: always
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
+      --maxmemory-policy noeviction
     ports:
       - ${HOST_IP:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379
     networks:

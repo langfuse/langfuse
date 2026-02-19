@@ -12,12 +12,11 @@ export const FolderBreadcrumbLink = ({
     <TableLink
       path={""}
       value={name} // To satisfy table-link, fallback
-      className="flex items-center gap-2"
       icon={
-        <>
+        <div className="flex flex-row items-center gap-1">
           <Folder className="h-4 w-4" />
           {name}
-        </>
+        </div>
       }
       onClick={onClick}
       title={name || ""}

@@ -1,5 +1,4 @@
-import { Divider } from "@tremor/react";
-
+import { Separator } from "@/src/components/ui/separator";
 import { usePlaygroundContext } from "../context";
 import { PromptVariableComponent } from "./PromptVariableComponent";
 
@@ -10,7 +9,7 @@ export const Variables = () => {
     <div className="text-xs">
       <p className="mb-2">No variables defined.</p>
       <p>
-        Use handlebars in your prompts to add a variable:
+        Use double curly braces in your prompts to add a variable:
         &#123;&#123;exampleVariable&#125;&#125;
       </p>
     </div>
@@ -29,7 +28,7 @@ export const Variables = () => {
           <div key={promptVariable.name}>
             <PromptVariableComponent promptVariable={promptVariable} />
             {index !== promptVariables.length - 1 && (
-              <Divider className="my-2 text-muted-foreground" />
+              <Separator className="my-2" />
             )}
           </div>
         ))}

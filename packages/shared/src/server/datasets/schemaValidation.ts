@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../../db";
+import { createDatasetItemFilterState, getDatasetItems } from "../repositories";
 import { DatasetSchemaValidator } from "../services/DatasetService/DatasetSchemaValidator";
 import type { DatasetSchemaValidationError } from "./schemaTypes";
 
@@ -20,7 +20,7 @@ export type ValidationResult = {
  *
  * **When NOT to use:**
  * - DO NOT use for validating new items during creation/update
- * - Use DatasetItemManager methods instead, which handle per-item validation
+ * - Use  dataset-items repository methods instead, which handle per-item validation
  *
  * **Performance:**
  * - Batched validation: processes 5000 items at a time
@@ -30,7 +30,7 @@ export type ValidationResult = {
  * @example
  * // User tries to add schema to dataset with existing items
  * const result = await validateAllDatasetItems({
- *   datasetId, projectId, inputSchema, expectedOutputSchema, prisma
+ *   datasetId, projectId, inputSchema, expectedOutputSchema
  * });
  * if (!result.isValid) {
  *   throw new Error(`Cannot add schema: ${result.errors.length} items fail validation`);
@@ -41,32 +41,24 @@ export async function validateAllDatasetItems(params: {
   projectId: string;
   inputSchema: Record<string, unknown> | null;
   expectedOutputSchema: Record<string, unknown> | null;
-  prisma: PrismaClient;
 }): Promise<ValidationResult> {
-  const { datasetId, projectId, inputSchema, expectedOutputSchema, prisma } =
-    params;
+  const { datasetId, projectId, inputSchema, expectedOutputSchema } = params;
 
   const BATCH_SIZE = 5_000;
   const MAX_ERRORS = 10;
 
-  let offset = 0;
+  let page = 0;
   const errors: DatasetSchemaValidationError[] = [];
 
   while (errors.length < MAX_ERRORS) {
     // Fetch batch
-    const items = await prisma.datasetItem.findMany({
-      where: {
-        datasetId,
-        projectId,
-      },
-      select: {
-        id: true,
-        input: true,
-        expectedOutput: true,
-      },
-      skip: offset,
-      take: BATCH_SIZE,
-      orderBy: { id: "asc" }, // Consistent ordering for pagination
+    const items = await getDatasetItems({
+      projectId,
+      filterState: createDatasetItemFilterState({
+        datasetIds: [datasetId],
+      }),
+      limit: BATCH_SIZE,
+      page,
     });
 
     // No more items
@@ -113,7 +105,7 @@ export async function validateAllDatasetItems(params: {
     }
 
     // Move to next batch
-    offset += BATCH_SIZE;
+    page++;
 
     // Last batch was incomplete - we've processed all items
     if (items.length < BATCH_SIZE) break;

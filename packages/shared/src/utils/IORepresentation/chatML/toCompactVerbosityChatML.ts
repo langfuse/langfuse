@@ -62,7 +62,7 @@ export function toCompactVerbosityChatML(io: unknown): {
     }
 
     return { success: false, data: null };
-  } catch (error) {
+  } catch {
     // Schema validation can throw on malformed data (e.g., invalid media references in transforms)
     return { success: false, data: null };
   }

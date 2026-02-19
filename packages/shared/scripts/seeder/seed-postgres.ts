@@ -9,7 +9,8 @@ import {
   PrismaClient,
   type Project,
   ScoreConfigCategoryDomain,
-  ScoreDataType,
+  ScoreDataTypeEnum,
+  type ScoreDataTypeType,
 } from "../../src/index";
 import { getDisplaySecretKey, hashSecretKey, logger } from "../../src/server";
 import { redis } from "../../src/server/redis/redis";
@@ -30,6 +31,7 @@ import {
   generateEvalTraceId,
 } from "./utils/seed-helpers";
 import { seedDatasetVersions } from "./seed-dataset-versions";
+import { seedMediaTraces } from "./seed-media";
 
 const options = {
   environment: { type: "string" },
@@ -349,6 +351,9 @@ async function main() {
     await createDashboardsAndWidgets([project1, project2]);
     await seedDatasetVersions(prisma, [project1.id, project2.id]);
 
+    // Seed media test traces (uploads to MinIO + creates Media/TraceMedia records)
+    await seedMediaTraces(project1.id);
+
     await prisma.llmSchema.createMany({
       data: [
         {
@@ -523,6 +528,8 @@ export async function createDatasets(
         }));
 
       const datasetItemIds: string[] = [];
+      const itemsToCreate = [];
+
       for (let index = 0; index < data.items.length; index++) {
         const item = data.items[index];
         const sourceTraceId =
@@ -530,27 +537,33 @@ export async function createDatasets(
             ? `${Math.floor(Math.random() * 100)}`
             : undefined;
 
-        // Use upsert to prevent duplicates
-        const datasetItem = await prisma.datasetItem.upsert({
-          where: {
-            id_projectId: {
-              id: generateDatasetItemId(datasetName, index, projectId),
-              projectId,
-            },
-          },
-          create: {
-            projectId,
-            id: generateDatasetItemId(datasetName, index, projectId),
-            datasetId: dataset.id,
-            sourceTraceId: sourceTraceId ?? null,
-            sourceObservationId: null,
-            input: item.input,
-            expectedOutput: item.output,
-            metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
-          },
-          update: {}, // Don't update if it exists
+        const itemId = generateDatasetItemId(datasetName, index, projectId);
+        datasetItemIds.push(itemId);
+
+        // Create dataset items in versioned format with all required fields
+        // Set validFrom to 30 days ago so experiment runs can reference this version
+        const validFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        itemsToCreate.push({
+          id: itemId,
+          projectId,
+          datasetId: dataset.id,
+          sourceTraceId: sourceTraceId ?? null,
+          sourceObservationId: null,
+          input: item.input,
+          expectedOutput: item.output,
+          metadata: Math.random() > 0.5 ? { key: "value" } : undefined,
+          status: "ACTIVE" as const,
+          validFrom,
+          isDeleted: false,
         });
-        datasetItemIds.push(datasetItem.id);
+      }
+
+      // Bulk insert all items (use createMany for better performance)
+      if (itemsToCreate.length > 0) {
+        await prisma.datasetItem.createMany({
+          data: itemsToCreate,
+          skipDuplicates: true, // Skip if already exists (handles re-runs)
+        });
       }
 
       for (let datasetRunNumber = 0; datasetRunNumber < 3; datasetRunNumber++) {
@@ -579,6 +592,121 @@ export async function createDatasets(
           },
           update: {},
         });
+      }
+
+      // Create multiple versions for test-dataset-versioning
+      if (datasetName === "test-dataset-versioning") {
+        const itemId = `test-version-item-${projectId.slice(-8)}`;
+        const baseTime = new Date("2025-01-20T10:00:00Z");
+
+        // Version 1: Initial version
+        const v1Time = new Date(baseTime.getTime());
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "red" },
+            expectedOutput: "#FF0000",
+            metadata: { version: "1", description: "Initial version" },
+            status: "ACTIVE",
+            validFrom: v1Time,
+            isDeleted: false,
+          },
+        });
+
+        // Version 2: Updated output (2 hours later)
+        const v2Time = new Date(baseTime.getTime() + 2 * 60 * 60 * 1000);
+        await prisma.$executeRaw`
+          UPDATE dataset_items
+          SET valid_to = ${v2Time}
+          WHERE project_id = ${projectId}
+            AND dataset_id = ${dataset.id}
+            AND id = ${itemId}
+            AND valid_from = ${v1Time}
+        `;
+
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "red" },
+            expectedOutput: "#FF0001", // Slightly different
+            metadata: {
+              version: "2",
+              description: "Fixed hex value precision",
+            },
+            status: "ACTIVE",
+            validFrom: v2Time,
+            isDeleted: false,
+          },
+        });
+
+        // Version 3: Updated input and output (1 day later)
+        const v3Time = new Date(baseTime.getTime() + 24 * 60 * 60 * 1000);
+        await prisma.$executeRaw`
+          UPDATE dataset_items
+          SET valid_to = ${v3Time}
+          WHERE project_id = ${projectId}
+            AND dataset_id = ${dataset.id}
+            AND id = ${itemId}
+            AND valid_from = ${v2Time}
+        `;
+
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "crimson" }, // Changed input
+            expectedOutput: "#DC143C",
+            metadata: {
+              version: "3",
+              description: "Changed to crimson color",
+            },
+            status: "ACTIVE",
+            validFrom: v3Time,
+            isDeleted: false,
+          },
+        });
+
+        // Version 4: Current version (2 days after initial)
+        const v4Time = new Date(baseTime.getTime() + 2 * 24 * 60 * 60 * 1000);
+        await prisma.$executeRaw`
+          UPDATE dataset_items
+          SET valid_to = ${v4Time}
+          WHERE project_id = ${projectId}
+            AND dataset_id = ${dataset.id}
+            AND id = ${itemId}
+            AND valid_from = ${v3Time}
+        `;
+
+        await prisma.datasetItem.create({
+          data: {
+            id: itemId,
+            projectId,
+            datasetId: dataset.id,
+            sourceTraceId: null,
+            sourceObservationId: null,
+            input: { color: "blue" }, // Changed to blue
+            expectedOutput: "#0000FF",
+            metadata: { version: "4", description: "Changed to blue color" },
+            status: "ACTIVE",
+            validFrom: v4Time,
+            isDeleted: false,
+          },
+        });
+
+        logger.info(
+          `Created 4 versions for test-dataset-versioning in project ${projectId}`,
+        );
       }
     }
   }
@@ -747,7 +875,7 @@ async function generateConfigsForProject(projects: Project[]) {
     {
       name: string;
       id: string;
-      dataType: ScoreDataType;
+      dataType: ScoreDataTypeType;
       categories: ScoreConfigCategoryDomain[] | null;
     }[]
   > = new Map();
@@ -797,7 +925,7 @@ async function generateConfigs(project: Project) {
   const configNameAndId: {
     name: string;
     id: string;
-    dataType: ScoreDataType;
+    dataType: ScoreDataTypeType;
     categories: ScoreConfigCategoryDomain[] | null;
   }[] = [];
 
@@ -805,7 +933,7 @@ async function generateConfigs(project: Project) {
     {
       id: `config-${v4()}`,
       name: "manual-score",
-      dataType: ScoreDataType.NUMERIC,
+      dataType: ScoreDataTypeEnum.NUMERIC,
       projectId: project.id,
       isArchived: false,
     },
@@ -813,7 +941,7 @@ async function generateConfigs(project: Project) {
       id: `config-${v4()}`,
       projectId: project.id,
       name: "Accuracy",
-      dataType: ScoreDataType.CATEGORICAL,
+      dataType: ScoreDataTypeEnum.CATEGORICAL,
       categories: [
         { label: "Incorrect", value: 0 },
         { label: "Partially Correct", value: 1 },
@@ -825,7 +953,7 @@ async function generateConfigs(project: Project) {
       id: `config-${v4()}`,
       projectId: project.id,
       name: "Toxicity",
-      dataType: ScoreDataType.BOOLEAN,
+      dataType: ScoreDataTypeEnum.BOOLEAN,
       categories: [
         { label: "True", value: 1 },
         { label: "False", value: 0 },
@@ -874,7 +1002,7 @@ async function generateQueuesForProject(
     {
       name: string;
       id: string;
-      dataType: ScoreDataType;
+      dataType: ScoreDataTypeType;
       categories: ScoreConfigCategoryDomain[] | null;
     }[]
   >,
@@ -898,7 +1026,7 @@ async function generateQueues(
   configIdsAndNames: {
     name: string;
     id: string;
-    dataType: ScoreDataType;
+    dataType: ScoreDataTypeType;
     categories: ScoreConfigCategoryDomain[] | null;
   }[],
 ) {

@@ -8,7 +8,10 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { ChevronDown, Trash } from "lucide-react";
 import { Plus } from "lucide-react";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  type TableAction,
+  type CustomDialogTableAction,
+} from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
 
@@ -16,6 +19,7 @@ type TableActionMenuProps = {
   projectId: string;
   actions: TableAction[];
   tableName: BatchExportTableName;
+  onCustomAction?: (actionType: CustomDialogTableAction["id"]) => void;
 };
 
 const getDefaultIcon = (type: TableAction["type"]) => {
@@ -29,6 +33,7 @@ export function TableActionMenu({
   projectId,
   actions,
   tableName,
+  onCustomAction,
 }: TableActionMenuProps) {
   const [selectedAction, setSelectedAction] = useState<TableAction | null>(
     null,
@@ -36,6 +41,10 @@ export function TableActionMenu({
   const [isDialogOpen, setDialogOpen] = useState(false);
 
   const handleActionSelect = (action: TableAction) => {
+    if ("customDialog" in action && action.customDialog) {
+      onCustomAction?.(action.id);
+      return;
+    }
     setSelectedAction(action);
     setDialogOpen(true);
   };

@@ -21,13 +21,15 @@ export const utcDate = (localDateTime: Date) =>
   );
 
 export const setBeginningOfDay = (date: Date) => {
-  date.setHours(0, 0, 0, 0);
-  return date;
+  const newDate = new Date(date);
+  newDate.setHours(0, 0, 0, 0);
+  return newDate;
 };
 
 export const setEndOfDay = (date: Date) => {
-  date.setHours(23, 59, 59, 999);
-  return date;
+  const newDate = new Date(date);
+  newDate.setHours(23, 59, 59, 999);
+  return newDate;
 };
 
 export const intervalInSeconds = (start: Date, end: Date | null) =>

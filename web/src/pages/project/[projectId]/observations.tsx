@@ -8,12 +8,18 @@ import {
   getTracingTabs,
   TRACING_TABS,
 } from "@/src/features/navigation/utils/tracing-tabs";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const { isBetaEnabled } = useV4Beta();
+  const { project } = useQueryProject();
 
   // Check if the user has tracing configured
+  // Skip polling entirely if the project flag is already set in the session
   const { data: hasTracingConfigured, isLoading } =
     api.traces.hasTracingConfigured.useQuery(
       { projectId },
@@ -24,7 +30,9 @@ export default function Generations() {
             skipBatch: true,
           },
         },
-        refetchInterval: 10_000,
+        refetchInterval: project?.hasTraces ? false : 10_000,
+        initialData: project?.hasTraces ? true : undefined,
+        staleTime: project?.hasTraces ? Infinity : 0,
       },
     );
 
@@ -39,16 +47,20 @@ export default function Generations() {
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        tabsProps: {
-          tabs: getTracingTabs(projectId),
-          activeTab: TRACING_TABS.OBSERVATIONS,
-        },
+        tabsProps: isBetaEnabled
+          ? undefined
+          : {
+              tabs: getTracingTabs(projectId),
+              activeTab: TRACING_TABS.OBSERVATIONS,
+            },
       }}
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if user has no traces */}
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
+      ) : isBetaEnabled ? (
+        <ObservationsEventsTable projectId={projectId} />
       ) : (
         <ObservationsTable projectId={projectId} />
       )}

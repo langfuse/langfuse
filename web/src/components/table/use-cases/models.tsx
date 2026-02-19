@@ -4,12 +4,8 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared/src/db";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  StringParam,
-} from "use-query-params";
+import { useQueryParams, withDefault, StringParam } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { IOTableCell } from "../../ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -25,6 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
@@ -44,7 +41,6 @@ export type ModelTableRow = {
   prices?: Record<string, number>;
   tokenizerId?: string;
   config?: Prisma.JsonValue;
-  lastUsed?: Date | null;
   serverResponse: GetModelResult;
 };
 
@@ -68,9 +64,9 @@ const modelConfigDescriptions = {
 export default function ModelTable({ projectId }: { projectId: string }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const [queryParams, setQueryParams] = useQueryParams({
     search: withDefault(StringParam, ""),
@@ -91,6 +87,18 @@ export default function ModelTable({ projectId }: { projectId: string }) {
     },
   );
   const totalCount = models.data?.totalCount ?? null;
+
+  const modelIds = models.data?.models.map((m) => m.id) ?? [];
+  const lastUsed = api.models.lastUsedByModelIds.useQuery(
+    { projectId, modelIds },
+    {
+      enabled: models.isSuccess && modelIds.length > 0,
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: false,
+      staleTime: 1000 * 60 * 10,
+    },
+  );
   const { priceUnit } = usePriceUnitMultiplier();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("models", "m");
 
@@ -224,7 +232,8 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       size: 120,
       cell: ({ row }) => {
-        const value: Date | null | undefined = row.getValue("lastUsed");
+        if (!lastUsed.data) return <Skeleton className="h-4 w-20" />;
+        const value = lastUsed.data[row.original.modelId];
         return value?.toLocaleString() ?? "";
       },
     },
@@ -280,7 +289,6 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       prices,
       tokenizerId: model.tokenizerId ?? undefined,
       config: model.tokenizerConfig,
-      lastUsed: model.lastUsed,
       serverResponse: model,
     };
   };

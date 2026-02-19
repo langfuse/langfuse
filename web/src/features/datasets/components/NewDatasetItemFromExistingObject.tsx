@@ -110,16 +110,16 @@ export const NewDatasetItemFromExistingObject = (props: {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {observationInDatasets.data.map(
-                ({ id: datasetItemId, dataset }) => (
+                ({ id: datasetItemId, datasetName, datasetId }) => (
                   <DropdownMenuItem
                     key={datasetItemId}
                     className="capitalize"
                     asChild
                   >
                     <Link
-                      href={`/project/${props.projectId}/datasets/${dataset.id}/items/${datasetItemId}`}
+                      href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
                     >
-                      {dataset.name}
+                      {datasetName}
                     </Link>
                   </DropdownMenuItem>
                 ),

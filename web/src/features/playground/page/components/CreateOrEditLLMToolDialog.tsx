@@ -140,7 +140,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
       const parsedJson = JSON.parse(currentValue);
       const prettified = JSON.stringify(parsedJson, null, 2);
       form.setValue("parameters", prettified);
-    } catch (error) {
+    } catch {
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",

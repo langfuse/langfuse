@@ -102,35 +102,51 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt
       const datasetRunItems = await prisma.$queryRaw<
         Array<Record<string, any>>
       >(Prisma.sql`
-        SELECT 
+        WITH latest_dataset_items AS (
+          SELECT DISTINCT ON (id, project_id)
+            id,
+            project_id,
+            dataset_id,
+            input,
+            expected_output,
+            metadata,
+            created_at,
+            valid_from,
+            is_deleted
+          FROM dataset_items
+          WHERE valid_to IS NULL 
+          ORDER BY id, project_id, valid_from DESC  -- Pick the most recent version
+        )
+        SELECT
           dri.id as id,
           dri.project_id as project_id,
           dri.dataset_run_id as dataset_run_id,
-          dri.dataset_item_id as dataset_item_id, 
+          dri.dataset_item_id as dataset_item_id,
           dri.trace_id as trace_id,
           dri.observation_id as observation_id,
           dri.created_at as created_at,
           dri.updated_at as updated_at,
-          
+
           -- Denormalized dataset run fields
           dr.name as dataset_run_name,
           dr.description as dataset_run_description,
           dr.metadata as dataset_run_metadata,
           dr.created_at as dataset_run_created_at,
-          
-          -- Denormalized dataset item fields  
-          di.input as dataset_item_input,
-          di.expected_output as dataset_item_expected_output,
-          di.metadata as dataset_item_metadata,
-          
+
+          -- Denormalized dataset item fields
+          ldi.input as dataset_item_input,
+          ldi.expected_output as dataset_item_expected_output,
+          ldi.metadata as dataset_item_metadata,
+
           -- Dataset ID
           d.id as dataset_id
 
         FROM dataset_run_items dri
         JOIN dataset_runs dr ON dri.dataset_run_id = dr.id
-        JOIN dataset_items di ON dri.dataset_item_id = di.id  
-        JOIN datasets d ON di.dataset_id = d.id
+        JOIN latest_dataset_items ldi ON dri.dataset_item_id = ldi.id AND dri.project_id = ldi.project_id
+        JOIN datasets d ON ldi.dataset_id = d.id
         WHERE dri.created_at <= ${new Date(migrationState.state.maxDate)}
+          AND (ldi.is_deleted IS NULL OR ldi.is_deleted = false)
         ORDER BY dri.created_at DESC
         LIMIT ${batchSize};
       `);

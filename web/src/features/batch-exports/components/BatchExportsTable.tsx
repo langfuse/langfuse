@@ -14,17 +14,45 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/src/components/ui/alert-dialog";
+import { useState } from "react";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function BatchExportsTable(props: { projectId: string }) {
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 10),
   });
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [selectedExportId, setSelectedExportId] = useState<string | null>(null);
 
   const batchExports = api.batchExport.all.useQuery({
     projectId: props.projectId,
     limit: paginationState.pageSize,
     page: paginationState.pageIndex,
+  });
+
+  const cancelBatchExport = api.batchExport.cancel.useMutation({
+    onSuccess: () => {
+      void batchExports.refetch();
+      setCancelDialogOpen(false);
+      setSelectedExportId(null);
+    },
+  });
+
+  const hasAccess = useHasProjectAccess({
+    projectId: props.projectId,
+    scope: "batchExports:create",
   });
 
   const columns = [
@@ -128,6 +156,68 @@ export function BatchExportsTable(props: { projectId: string }) {
       cell: (row) => {
         const log = row.getValue() as string | null;
         return log ?? null;
+      },
+    },
+    {
+      accessorKey: "actions",
+      id: "actions",
+      header: "Actions",
+      size: 100,
+      cell: ({ row }) => {
+        const id = row.original.id;
+        const status = row.getValue("status") as string;
+
+        // Only show cancel button for queued or processing exports
+        if (status !== "QUEUED" && status !== "PROCESSING") {
+          return null;
+        }
+
+        return (
+          <AlertDialog
+            open={cancelDialogOpen && selectedExportId === id}
+            onOpenChange={(open) => {
+              if (!open) {
+                setCancelDialogOpen(false);
+                setSelectedExportId(null);
+              }
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <ActionButton
+                hasAccess={hasAccess}
+                size="sm"
+                onClick={() => {
+                  setSelectedExportId(id);
+                  setCancelDialogOpen(true);
+                }}
+              >
+                Cancel
+              </ActionButton>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel batch export?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to cancel this batch export? This action
+                  cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>No, keep it</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    cancelBatchExport.mutate({
+                      projectId: props.projectId,
+                      batchExportId: id,
+                    });
+                  }}
+                >
+                  Yes, cancel export
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        );
       },
     },
   ] as LangfuseColumnDef<BatchExport>[];

@@ -6,6 +6,7 @@ import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { useUserSearch } from "@/src/hooks/useUserSearch";
 import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useRef } from "react";
 
 interface UserAssignmentSectionProps {
   projectId: string;
@@ -20,6 +21,7 @@ export const UserAssignmentSection = ({
   onChange,
   queueId,
 }: UserAssignmentSectionProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const hasQueueAssignmentsReadAccess = useHasProjectAccess({
     projectId: projectId,
     scope: "annotationQueueAssignments:read",
@@ -87,7 +89,7 @@ export const UserAssignmentSection = ({
       queueAssignmentsQuery.data.assignments.length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={containerRef}>
       {/* User Selection Combobox */}
       <MultiSelectCombobox
         selectedItems={selectedUsers}
@@ -100,6 +102,16 @@ export const UserAssignmentSection = ({
         placeholder="Search users to add..."
         hasMoreResults={userSearch.hasMoreResults}
         getItemKey={(user) => user.id}
+        onOpenChange={(open) => {
+          if (open) {
+            setTimeout(() => {
+              containerRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }, 100);
+          }
+        }}
         renderSelectedItem={(user, onRemove) => (
           <div className="flex flex-shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
             <span className="max-w-32 truncate">{user.name || user.email}</span>

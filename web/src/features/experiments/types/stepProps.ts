@@ -43,7 +43,7 @@ export type PromptModelState = {
   selectedPromptVersion: number | null;
   setSelectedPromptVersion: (version: number | null) => void;
   promptsByName:
-    | Record<string, Array<{ id: string; version: number }>>
+    | Record<string, Array<{ id: string; version: number; labels: string[] }>>
     | undefined;
 };
 
@@ -67,6 +67,7 @@ export type DatasetState = {
   datasets: Array<{ id: string; name: string }> | undefined;
   selectedDatasetId: string | null;
   selectedDataset: { id: string; name: string } | undefined;
+  selectedDatasetVersion: Date | undefined;
   validationResult: ValidationResult;
   expectedColumnsForDataset: {
     inputVariables: string[];
@@ -78,6 +79,7 @@ export type DatasetState = {
 export type EvaluatorState = {
   activeEvaluators: string[];
   pausedEvaluators: string[];
+  evaluatorTargetObjects: Record<string, string>;
   evalTemplates: EvalTemplate[];
   activeEvaluatorNames: string[];
   selectedEvaluatorData: EvaluatorData | null;
@@ -100,6 +102,7 @@ export interface PromptModelStepProps {
 }
 
 export interface DatasetStepProps {
+  projectId: string;
   formState: FormState;
   datasetState: DatasetState;
   promptInfo: {

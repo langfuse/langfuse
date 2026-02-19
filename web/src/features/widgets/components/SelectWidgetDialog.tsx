@@ -19,7 +19,7 @@ import {
   TableBody,
   TableCell,
 } from "@/src/components/ui/table";
-import { startCase } from "lodash";
+import startCase from "lodash/startCase";
 import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 

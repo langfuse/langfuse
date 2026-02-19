@@ -9,7 +9,6 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
-import { type ScoreDataType } from "@langfuse/shared";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +23,7 @@ import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { type ScoreConfigDataType } from "@langfuse/shared";
 
 type RowData = {
   key: {
@@ -33,7 +33,7 @@ type RowData = {
   description?: string;
   countCompletedItems: number;
   countPendingItems: number;
-  scoreConfigs: { id: string; name: string; dataType: ScoreDataType }[];
+  scoreConfigs: { id: string; name: string; dataType: ScoreConfigDataType }[];
   createdAt: string;
   isAssigned: boolean;
 };

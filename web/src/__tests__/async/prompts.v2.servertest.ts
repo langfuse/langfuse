@@ -22,6 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
+import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -1627,6 +1628,240 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
     expect(body3.meta.totalItems).toBe(3);
   });
+
+  describe("Unresolved prompt fetching via public API (resolve parameter)", () => {
+    it("should return resolved prompt by default (backward compatibility)", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "I am a child prompt",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent prompt with dependency
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent prompt with dependency: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Fetch without resolve parameter (default should be resolved)
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      // Should be resolved (no @@@langfusePrompt tags)
+      expect(body.prompt).not.toContain("@@@langfusePrompt");
+      expect(body.prompt).toContain("I am a child prompt");
+    });
+
+    it("should return resolved prompt when resolve=true", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "Child content",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent prompt with dependency
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Explicitly set resolve=true
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=true`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.prompt).not.toContain("@@@langfusePrompt");
+      expect(body.prompt).toContain("Child content");
+    });
+
+    it("should return unresolved prompt when resolve=false", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt (doesn't matter, we won't resolve)
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "Child content",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent prompt with dependency
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Fetch with resolve=false
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      // Should be unresolved (keep @@@langfusePrompt tags)
+      expect(body.prompt).toContain("@@@langfusePrompt");
+      expect(body.prompt).toContain(
+        `@@@langfusePrompt:name=${childPromptName}|label=production@@@`,
+      );
+      expect(body.prompt).not.toContain("Child content");
+    });
+
+    it("should return unresolved chat prompt when resolve=false", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPrompt({
+        name: childPromptName,
+        prompt: "Base instructions",
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        prisma,
+      });
+
+      // Create parent chat prompt with dependency
+      const parentPromptName = "parent-chat-prompt-" + nanoid();
+      const chatMessages = [
+        {
+          role: "system",
+          content: `System: @@@langfusePrompt:name=${childPromptName}|label=production@@@`,
+        },
+        { role: "user", content: "User message" },
+      ];
+
+      await createPrompt({
+        name: parentPromptName,
+        prompt: chatMessages,
+        labels: ["production"],
+        config: {},
+        projectId,
+        createdBy: "user-1",
+        type: PromptType.Chat,
+        prisma,
+      });
+
+      // Fetch with resolve=false
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.type).toBe("chat");
+      // Verify the chat messages still contain unresolved tags
+      const messages = body.prompt as Array<{ role: string; content: string }>;
+      expect(messages[0].content).toContain("@@@langfusePrompt");
+      expect(messages[0].content).toContain(
+        `@@@langfusePrompt:name=${childPromptName}|label=production@@@`,
+      );
+    });
+
+    it("should work with production label when no version specified and resolve=false", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      // Create child prompt
+      const childPromptName = "child-prompt-" + nanoid();
+      await createPromptInDB({
+        name: childPromptName,
+        prompt: "Child",
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      // Create parent prompt with production label
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${childPromptName}|label=production@@@`;
+
+      await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      // Fetch without version (should get production label) with resolve=false
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as Prompt;
+      expect(body.labels).toContain("production");
+      expect(body.prompt).toContain("@@@langfusePrompt");
+    });
+  });
 });
 
 describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
@@ -2811,6 +3046,410 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         "Maximum nesting depth exceeded",
       );
     }, 10_000);
+  });
+
+  describe("DELETE /api/public/v2/prompts/:promptName", () => {
+    it("deletes all versions of a prompt", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePrompt" + uuidv4();
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p1",
+            labels: ["production"],
+            version: 1,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p2",
+            labels: [],
+            version: 2,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+        ],
+      });
+
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("deletes by label and version", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePromptFiltered" + uuidv4();
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p1",
+            labels: ["production"],
+            version: 1,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p2",
+            labels: ["dev"],
+            version: 2,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+        ],
+      });
+
+      const res1 = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}?version=1`,
+        undefined,
+        auth,
+      );
+      expect(res1.status).toBe(204);
+
+      let remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(1);
+
+      const res2 = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}?label=dev`,
+        undefined,
+        auth,
+      );
+      expect(res2.status).toBe(204);
+
+      remaining = await prisma.prompt.findMany({ where: { projectId, name } });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("deletes a prompt with slashes in name (folder structure)", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "folder/subfolder/deletePrompt" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "prompt in folder",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(name)}`,
+        undefined,
+        auth,
+      );
+      expect(res.status).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("returns 400 when deleting prompt with dependencies", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const childName = "childPrompt" + uuidv4();
+      const parentName = "parentPrompt" + uuidv4();
+
+      // Create child prompt
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: childName,
+          prompt: "I am a child prompt",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Create parent prompt that depends on child
+      const parentPrompt = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parentName,
+          prompt: `Parent with dependency: @@@langfusePrompt:name=${childName}|version=1@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Create dependency relationship
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parentPrompt.id,
+          childName: childName,
+          childVersion: 1,
+          projectId,
+        },
+      });
+
+      // Try to delete child prompt (should fail because parent depends on it)
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(childName)}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty("error");
+      // @ts-expect-error
+      expect(res.body.message).toContain("depending on");
+      // @ts-expect-error
+      expect(res.body.message).toContain(parentName);
+
+      // Verify child was NOT deleted
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name: childName },
+      });
+      expect(remaining.length).toBe(1);
+    });
+
+    it("handles mixed version and label dependencies correctly", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const childName = "childPrompt" + uuidv4();
+      const parent1Name = "parent1" + uuidv4();
+      const parent2Name = "parent2" + uuidv4();
+      const parent3Name = "parent3" + uuidv4();
+
+      // Create child prompt with 2 versions
+      // v1: labels ["production", "latest"]
+      // v2: labels ["production"]
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: childName,
+          prompt: "child v1",
+          labels: ["production", "latest"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: childName,
+          prompt: "child v2",
+          labels: ["production"],
+          version: 2,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // parent1: depends on childPrompt v1 (version-based - SHOULD BLOCK)
+      const parent1 = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parent1Name,
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|version=1@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parent1.id,
+          childName,
+          childVersion: 1,
+          projectId,
+        },
+      });
+
+      // parent2: depends on childPrompt|label=production (label-based - should NOT block, v2 has it)
+      const parent2 = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parent2Name,
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|label=production@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parent2.id,
+          childName,
+          childLabel: "production",
+          projectId,
+        },
+      });
+
+      // parent3: depends on childPrompt|label=latest (label-based - SHOULD BLOCK, only v1 has it)
+      const parent3 = await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: parent3Name,
+          prompt: `Depends on @@@langfusePrompt:name=${childName}|label=latest@@@`,
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+      await prisma.promptDependency.create({
+        data: {
+          parentId: parent3.id,
+          childName,
+          childLabel: "latest",
+          projectId,
+        },
+      });
+
+      // Try to delete v1 - should fail because:
+      // - parent1 depends on v1 specifically (version-based) ✓ BLOCKS
+      // - parent3 depends on "latest" label (only v1 has it) ✓ BLOCKS
+      // - parent2 depends on "production" label (v2 also has it) ✓ DOES NOT BLOCK
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(childName)}?version=1`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      // @ts-expect-error
+      expect(res.body.message).toContain("depending on");
+      // @ts-expect-error - Should mention blocking parent names
+      expect(res.body.message).toContain(parent1Name);
+      // @ts-expect-error
+      expect(res.body.message).toContain(parent3Name);
+      // @ts-expect-error - Should NOT mention parent2 (its dependency still satisfied)
+      expect(res.body.message).not.toContain(parent2Name);
+    });
+
+    it('reattaches "latest" label to highest remaining version when deleted', async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const promptName = "testPrompt" + uuidv4();
+
+      // Create 3 versions: v1 (dev), v2 (production, latest), v3 (dev)
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: promptName,
+          prompt: "version 1",
+          labels: ["dev"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: promptName,
+          prompt: "version 2",
+          labels: ["production", "latest"],
+          version: 2,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name: promptName,
+          prompt: "version 3",
+          labels: ["dev"],
+          version: 3,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      // Delete v2 (which has "latest" label)
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent(promptName)}?version=2`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(204);
+
+      // Verify v2 was deleted
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name: promptName },
+        orderBy: { version: "asc" },
+      });
+
+      expect(remaining.length).toBe(2);
+      expect(remaining.map((p) => p.version)).toEqual([1, 3]);
+
+      // Verify "latest" label was moved to v3 (highest remaining version)
+      const v3 = remaining.find((p) => p.version === 3);
+      expect(v3?.labels).toContain("latest");
+      expect(v3?.labels).toContain("dev");
+
+      // Verify v1 still only has "dev" label
+      const v1 = remaining.find((p) => p.version === 1);
+      expect(v1?.labels).toEqual(["dev"]);
+    });
   });
 
   describe("Parsing prompt dependency tags", () => {

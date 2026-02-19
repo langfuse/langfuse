@@ -14,6 +14,7 @@ import {
 } from "./types";
 
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
+import { PRODUCTION_LABEL } from "../../../features/prompts/constants";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
 
@@ -22,12 +23,11 @@ export class PromptService {
   private ttlSeconds: number;
 
   constructor(
-    // eslint-disable-next-line no-unused-vars
     private prisma: PrismaClient,
     private redis: Redis | Cluster | null,
-    // eslint-disable-next-line no-unused-vars
+
     private metricIncrementer?: // used for otel metrics
-    // eslint-disable-next-line no-unused-vars
+
     (name: string, value?: number) => void,
     cacheEnabled?: boolean, // used for testing
   ) {
@@ -121,6 +121,8 @@ export class PromptService {
       ...prompt,
       prompt: promptGraph.resolvedPrompt,
       resolutionGraph: promptGraph.graph,
+      // Compute isActive based on labels (deprecated field in DB)
+      isActive: prompt.labels.includes(PRODUCTION_LABEL),
     };
   }
 

@@ -10,12 +10,14 @@ import {
 
 import { numberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { BracesIcon, MessageCircleMore } from "lucide-react";
+import { BracesIcon, MessageCircleMore, Copy, Check } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import React from "react";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { Button } from "@/src/components/ui/button";
 
 const COLOR_MAP = new Map([
   ["True", "bg-light-green p-0.5 text-dark-green"],
@@ -31,13 +33,13 @@ const ScoreValueCounts = ({
   wrap: boolean;
 }) => {
   return valueCounts.map(({ value, count }, index) => (
-    <div key={value} className="flex flex-row">
+    <span key={value} className="inline-block">
       <span className="truncate">{value}</span>
       <span>{`: ${numberFormatter(count, 0)}`}</span>
-      {!wrap && index < valueCounts.length - 1 && (
-        <span className="mr-1">{";"}</span>
+      {index < valueCounts.length - 1 && (
+        <span className="mr-1">{wrap ? "" : "; "}</span>
       )}
-    </div>
+    </span>
   ));
 };
 
@@ -53,6 +55,16 @@ export const ScoresTableCell = ({
   hasMetadata?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (aggregate.comment) {
+      await copyTextToClipboard(aggregate.comment);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   if (displayFormat === "smart" && aggregate.values.length === 1 && projectId) {
     const value =
@@ -70,8 +82,25 @@ export const ScoresTableCell = ({
             <HoverCardTrigger className="inline-block cursor-pointer">
               <MessageCircleMore size={12} />
             </HoverCardTrigger>
-            <HoverCardContent className="overflow-hidden whitespace-normal break-normal text-xs">
-              <p className="whitespace-pre-wrap">{aggregate.comment}</p>
+            <HoverCardContent className="flex flex-col whitespace-normal break-normal p-0 text-xs">
+              <div className="sticky top-0 z-10 flex h-8 items-center justify-end bg-popover px-1">
+                <Button
+                  onClick={handleCopy}
+                  variant="ghost"
+                  size="icon-xs"
+                  className="rounded p-1 hover:bg-accent"
+                  aria-label={copied ? "Copied" : "Copy to clipboard"}
+                >
+                  {copied ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
+              <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">
+                <p className="whitespace-pre-wrap">{aggregate.comment}</p>
+              </div>
             </HoverCardContent>
           </HoverCard>
         )}
@@ -95,11 +124,11 @@ export const ScoresTableCell = ({
     <div className="group">
       {aggregate.valueCounts.length > COLLAPSE_CATEGORICAL_SCORES_AFTER ? (
         <HoverCard>
-          <HoverCardTrigger>
+          <HoverCardTrigger asChild>
             <div
               className={cn(
-                "flex cursor-pointer group-hover:text-accent-dark-blue/55",
-                wrap ? "flex-col" : "flex-row",
+                "cursor-pointer overflow-hidden group-hover:text-accent-dark-blue/55",
+                wrap ? "line-clamp-5" : "text-ellipsis whitespace-nowrap",
               )}
             >
               <ScoreValueCounts
@@ -112,7 +141,7 @@ export const ScoresTableCell = ({
             </div>
           </HoverCardTrigger>
           <HoverCardContent className="z-20 flex max-h-[40vh] max-w-64 flex-col overflow-y-auto whitespace-normal break-normal text-xs">
-            <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap={wrap} />
+            <ScoreValueCounts valueCounts={aggregate.valueCounts} wrap />
           </HoverCardContent>
         </HoverCard>
       ) : (

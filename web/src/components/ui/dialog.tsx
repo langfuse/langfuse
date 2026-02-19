@@ -38,6 +38,7 @@ const dialogContentVariants = cva(
         default: "max-w-lg max-h-[85vh]",
         lg: "max-w-4xl max-h-[85vh]",
         xl: "max-w-7xl h-[90vh]",
+        xxl: "max-w-[95vw] h-[90vh]",
       },
     },
     defaultVariants: {
@@ -160,7 +161,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("mt-1 text-sm text-muted-foreground", className)}
     {...props}
   />
 ));

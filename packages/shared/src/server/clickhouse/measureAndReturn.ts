@@ -3,7 +3,7 @@ import { instrumentAsync } from "../instrumentation";
 
 const executionWrapper = async <T, Y>(
   input: T,
-  fn: (input: T) => Promise<Y>, // eslint-disable-line no-unused-vars
+  fn: (input: T) => Promise<Y>,
   span?: opentelemetry.Span,
   attributePrefix?: string,
 ): Promise<[Y, number]> => {
@@ -26,7 +26,7 @@ export const measureAndReturn = async <T, Y>(args: {
   operationName: string;
   projectId: string;
   input: T;
-  fn: (input: T) => Promise<Y>; // eslint-disable-line no-unused-vars
+  fn: (input: T) => Promise<Y>;
 }): Promise<Y> => {
   return instrumentAsync(
     {
@@ -39,10 +39,9 @@ export const measureAndReturn = async <T, Y>(args: {
       // When we want do to multiple executions for A/B testing or canary releases,
       // or some other form of a more complex wrapper we used to try-catch
       // using the wrapper function and fallback to a simple f(input) when it failed.
-      const [[existingResult, _existingDuration]] = // eslint-disable-line no-unused-vars
-        await Promise.all([
-          executionWrapper(input, fn, currentSpan, "existing"),
-        ]);
+      const [[existingResult, _existingDuration]] = await Promise.all([
+        executionWrapper(input, fn, currentSpan, "existing"),
+      ]);
 
       return existingResult;
     },
