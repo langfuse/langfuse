@@ -53,6 +53,15 @@ service:
           status:
             type: optional<AnnotationQueueStatus>
             docs: Filter by status
+          traceIds:
+            type: optional<list<string>>
+            docs: Filter by trace IDs
+          observationIds:
+            type: optional<list<string>>
+            docs: Filter by observation IDs
+          sessionIds:
+            type: optional<list<string>>
+            docs: Filter by session IDs
           page:
             type: optional<integer>
             docs: page number, starts at 1
