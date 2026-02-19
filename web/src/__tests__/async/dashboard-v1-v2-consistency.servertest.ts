@@ -509,7 +509,7 @@ describe("dashboard v1 vs v2 consistency", () => {
   }> {
     const [v1, v2] = await Promise.all([
       executeQuery(projectId, query, "v1"),
-      executeQuery(projectId, query, "v2"),
+      executeQuery(projectId, query, "v2", true),
     ]);
     return { v1, v2 };
   }
