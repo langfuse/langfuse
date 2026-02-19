@@ -406,8 +406,6 @@ export default function ObservationsEventsTable({
     handleAddToAnnotationQueue,
     dataUpdatedAt,
     ioLoading,
-    error,
-    errorHttpStatus,
     isSilencedError,
   } = useEventsTableData({
     projectId,
