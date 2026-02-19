@@ -296,6 +296,12 @@ if (
       clientId: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
       clientSecret: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
       issuer: env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+      authorization: {
+        params: {
+          scope: "openid email profile",
+          audience: `${env.AUTH_CLICKHOUSE_CLOUD_ISSUER}/userinfo`,
+        },
+      },
       allowDangerousEmailAccountLinking:
         env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING === "true",
       client: {
