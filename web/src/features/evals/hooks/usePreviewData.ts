@@ -124,10 +124,9 @@ export function usePreviewData(
       : latestObservation.data?.generations[0]?.id;
 
   const latestObservationStartTime =
-    latestObservationBeta.data?.observations[0]?.startTime ??
-    new Date(Date.now() - 2 * 60 * 60 * 1000);
+    latestObservationBeta.data?.observations[0]?.startTime;
   const latestObservationEndTime =
-    latestObservationBeta.data?.observations[0]?.endTime ?? new Date();
+    latestObservationBeta.data?.observations[0]?.endTime;
 
   // For event evals: fetch only the single observation
   const observationDetails = api.observations.byId.useQuery(
@@ -156,8 +155,8 @@ export function usePreviewData(
           traceId: latestObservationTraceId as string,
         },
       ],
-      minStartTime: latestObservationStartTime,
-      maxStartTime: latestObservationEndTime,
+      minStartTime: latestObservationStartTime as Date,
+      maxStartTime: latestObservationEndTime as Date,
       truncated: false,
     },
     {
@@ -165,6 +164,8 @@ export function usePreviewData(
         enabled &&
         !!latestObservationTraceId &&
         !!latestObservationObservationId &&
+        !!latestObservationStartTime &&
+        !!latestObservationEndTime &&
         isEventEval &&
         isBetaEnabled,
     },
