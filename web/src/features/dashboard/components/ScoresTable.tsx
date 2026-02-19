@@ -48,7 +48,7 @@ export const ScoresTable = ({
   projectId,
   globalFilterState,
   isLoading = false,
-  metricsVersion: _metricsVersion,
+  metricsVersion,
 }: {
   className: string;
   projectId: string;
@@ -86,6 +86,7 @@ export const ScoresTable = ({
       ],
       orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
       queryName: "score-aggregate",
+      version: metricsVersion ?? "v1",
     },
     {
       trpc: {
@@ -130,6 +131,7 @@ export const ScoresTable = ({
         ],
         orderBy: [{ column: "scoreId", direction: "DESC", agg: "COUNT" }],
         queryName: "score-aggregate",
+        version: metricsVersion ?? "v1",
       },
       {
         trpc: {
