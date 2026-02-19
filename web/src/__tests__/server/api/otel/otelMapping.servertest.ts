@@ -1380,6 +1380,287 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolObservation?.body.name).toBe("correct_tool_name");
     });
 
+    it("should map LiveKit agent_turn span to AGENT observation type", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const livekitAgentTurnSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "agent_turn",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "lk.input_text",
+                    value: { stringValue: "What is the weather today?" },
+                  },
+                  {
+                    key: "lk.response.text",
+                    value: { stringValue: "The weather is sunny." },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        livekitAgentTurnSpan,
+        new Set([traceId]),
+      );
+
+      const agentObservation = events.find((e) => e.type === "agent-create");
+      expect(agentObservation).toBeDefined();
+      expect(agentObservation?.type).toBe("agent-create");
+      expect(agentObservation?.body.name).toBe("agent_turn");
+    });
+
+    it("should map LiveKit function_tool span to TOOL observation type", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const livekitFunctionToolSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "function_tool",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "lk.function_tool.output",
+                    value: {
+                      stringValue: '{"temperature": 75, "condition": "sunny"}',
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        livekitFunctionToolSpan,
+        new Set([traceId]),
+      );
+
+      const toolObservation = events.find((e) => e.type === "tool-create");
+      expect(toolObservation).toBeDefined();
+      expect(toolObservation?.type).toBe("tool-create");
+      expect(toolObservation?.body.name).toBe("function_tool");
+    });
+
+    it("should set level to DEBUG for LiveKit spans ending with _fallback_adapter", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const livekitFallbackSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "stt_fallback_adapter",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        livekitFallbackSpan,
+        new Set([traceId]),
+      );
+
+      const observation = events.find(
+        (e) => e.type !== "trace-create" && e.type.endsWith("-create"),
+      );
+      expect(observation).toBeDefined();
+      expect(observation?.body.level).toBe("DEBUG");
+    });
+
+    it("should map LiveKit start_agent_activity span to AGENT observation type", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                name: "start_agent_activity",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+      );
+
+      const agentObservation = events.find((e) => e.type === "agent-create");
+      expect(agentObservation).toBeDefined();
+      expect(agentObservation?.type).toBe("agent-create");
+      expect(agentObservation?.body.name).toBe("start_agent_activity");
+    });
+
+    it.each([
+      "user_speaking",
+      "eou_detection",
+      "llm_request_run",
+      "tts_node",
+      "tts_request_run",
+      "tts_stream_adapter",
+      "agent_speaking",
+      "drain_agent_activity",
+      "on_exit",
+    ])(
+      "should set level to DEBUG for LiveKit span named %s",
+      async (spanName) => {
+        const traceId = "abcdef1234567890abcdef1234567890";
+
+        const resourceSpan = {
+          resource: {
+            attributes: [
+              {
+                key: "telemetry.sdk.language",
+                value: { stringValue: "python" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: Buffer.from(traceId, "hex"),
+                  spanId: Buffer.from("1234567890abcdef", "hex"),
+                  name: spanName,
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 2000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [],
+                  events: [],
+                  status: { code: 1 },
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set([traceId]),
+        );
+
+        const observation = events.find(
+          (e) => e.type !== "trace-create" && e.type.endsWith("-create"),
+        );
+        expect(observation).toBeDefined();
+        expect(observation?.body.level).toBe("DEBUG");
+      },
+    );
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
