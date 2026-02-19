@@ -16,6 +16,7 @@ import { NumericScoreHistogram } from "@/src/features/dashboard/components/score
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { type ViewVersion } from "@/src/features/query";
 import {
   convertScoreColumnsToAnalyticsData,
   getScoreDataTypeIcon,
@@ -29,6 +30,7 @@ export function ScoreAnalytics(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) {
   // Stale score selections in localStorage are ignored as we only show scores that exist in scoreAnalyticsOptions
   const [selectedDashboardScoreKeys, setSelectedDashboardScoreKeys] =
@@ -122,6 +124,7 @@ export function ScoreAnalytics(props: {
                         globalFilterState={props.globalFilterState}
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
+                        metricsVersion={props.metricsVersion}
                       />
                     )}
                     {(isNumericDataType(dataType) ||
@@ -137,6 +140,7 @@ export function ScoreAnalytics(props: {
                           >
                         }
                         globalFilterState={props.globalFilterState}
+                        metricsVersion={props.metricsVersion}
                       />
                     )}
                   </div>
@@ -155,6 +159,7 @@ export function ScoreAnalytics(props: {
                         globalFilterState={props.globalFilterState}
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
+                        metricsVersion={props.metricsVersion}
                       />
                     )}
                     {(isNumericDataType(dataType) ||
@@ -173,6 +178,7 @@ export function ScoreAnalytics(props: {
                         globalFilterState={props.globalFilterState}
                         fromTimestamp={props.fromTimestamp}
                         toTimestamp={props.toTimestamp}
+                        metricsVersion={props.metricsVersion}
                       />
                     )}
                   </div>

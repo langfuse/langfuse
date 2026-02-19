@@ -10,6 +10,7 @@ import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashbo
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
@@ -27,6 +28,7 @@ export const UserChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -34,6 +36,7 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
@@ -62,6 +65,7 @@ export const UserChart = ({
     {
       projectId,
       query: userCostQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -88,6 +92,7 @@ export const UserChart = ({
     {
       projectId,
       query: traceCountQuery,
+      version: metricsVersion,
     },
     {
       trpc: {

@@ -8,6 +8,7 @@ import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
@@ -20,6 +21,7 @@ export const TracesBarListChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -27,6 +29,7 @@ export const TracesBarListChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -46,6 +49,7 @@ export const TracesBarListChart = ({
     {
       projectId,
       query: totalTracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -73,6 +77,7 @@ export const TracesBarListChart = ({
     {
       projectId,
       query: tracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {

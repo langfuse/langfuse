@@ -19,6 +19,7 @@ import {
 } from "@/src/features/dashboard/components/ModelSelector";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
@@ -33,6 +34,7 @@ export const GenerationLatencyChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -41,6 +43,7 @@ export const GenerationLatencyChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const {
     allModels,
@@ -54,6 +57,7 @@ export const GenerationLatencyChart = ({
     globalFilterState,
     fromTimestamp,
     toTimestamp,
+    metricsVersion,
   );
 
   const latenciesQuery: QueryType = {
@@ -94,6 +98,7 @@ export const GenerationLatencyChart = ({
     {
       projectId,
       query: latenciesQuery,
+      version: metricsVersion,
     },
     {
       enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
