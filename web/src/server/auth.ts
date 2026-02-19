@@ -299,7 +299,7 @@ if (
       authorization: {
         params: {
           scope: "openid email profile",
-          audience: `${env.AUTH_CLICKHOUSE_CLOUD_ISSUER}/userinfo`,
+          audience: "langfuse",
         },
       },
       allowDangerousEmailAccountLinking:
