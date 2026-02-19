@@ -4,6 +4,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
+  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import {
   DeleteModelV1Response,
@@ -16,21 +17,18 @@ import { v4 } from "uuid";
 
 describe("/models API Endpoints", () => {
   let auth: string;
-  let defaultModelOneId: string;
-  let defaultModelTwoId: string;
 
   beforeEach(async () => {
+    await pruneDatabase();
+
     // Create authentication pairs
     const { auth: newAuth } = await createOrgProjectAndApiKey();
     auth = newAuth;
 
-    defaultModelOneId = v4();
-    defaultModelTwoId = v4();
-
     // create some default models that do not belong to a project
     await prisma.model.create({
       data: {
-        id: defaultModelOneId,
+        id: "model-1",
         modelName: "gpt-3.5-turbo",
         inputPrice: "0.0010",
         outputPrice: "0.0020",
@@ -49,27 +47,27 @@ describe("/models API Endpoints", () => {
         priority: 0,
         conditions: [],
         name: "Standard",
-        modelId: defaultModelOneId,
+        modelId: "model-1",
       },
     });
     await prisma.price.createMany({
       data: [
         {
-          modelId: defaultModelOneId,
+          modelId: "model-1",
           projectId: null,
           usageType: "input",
           price: 0.001,
           pricingTierId: pricingTierId1,
         },
         {
-          modelId: defaultModelOneId,
+          modelId: "model-1",
           projectId: null,
           usageType: "output",
           price: 0.002,
           pricingTierId: pricingTierId1,
         },
         {
-          modelId: defaultModelOneId,
+          modelId: "model-1",
           projectId: null,
           usageType: "total",
           price: 0.1,
@@ -80,7 +78,7 @@ describe("/models API Endpoints", () => {
 
     await prisma.model.create({
       data: {
-        id: defaultModelTwoId,
+        id: "model-2",
         modelName: "gpt-3.5-turbo",
         inputPrice: "0.0020",
         outputPrice: "0.0040",
@@ -99,20 +97,20 @@ describe("/models API Endpoints", () => {
         priority: 0,
         conditions: [],
         name: "Standard",
-        modelId: defaultModelTwoId,
+        modelId: "model-2",
       },
     });
     await prisma.price.createMany({
       data: [
         {
-          modelId: defaultModelTwoId,
+          modelId: "model-2",
           projectId: null,
           usageType: "input",
           price: 0.02,
           pricingTierId: pricingTierId2,
         },
         {
-          modelId: defaultModelTwoId,
+          modelId: "model-2",
           projectId: null,
           usageType: "output",
           price: 0.04,
@@ -121,6 +119,7 @@ describe("/models API Endpoints", () => {
       ],
     });
   });
+  afterEach(async () => await pruneDatabase());
 
   it("GET /models", async () => {
     const models = await makeZodVerifiedAPICall(
@@ -132,18 +131,19 @@ describe("/models API Endpoints", () => {
     );
     expect(models.status).toBe(200);
     expect(models.body.data.length).toBeGreaterThanOrEqual(2);
-    const defaultModelOne = models.body.data.find(
-      (model) => model.id === defaultModelOneId,
+    expect(models.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          isLangfuseManaged: true,
+          modelName: "gpt-3.5-turbo",
+          prices: {
+            input: { price: 0.001 },
+            output: { price: 0.002 },
+            total: { price: 0.1 },
+          },
+        }),
+      ]),
     );
-    expect(defaultModelOne).toMatchObject({
-      isLangfuseManaged: true,
-      modelName: "gpt-3.5-turbo",
-      prices: {
-        input: { price: 0.001 },
-        output: { price: 0.002 },
-        total: { price: 0.1 },
-      },
-    });
   });
 
   it("GET /models pagination", async () => {
@@ -160,8 +160,8 @@ describe("/models API Endpoints", () => {
       page: 2,
       limit: 1,
     });
-    expect(models.body.meta.totalItems).toBeGreaterThanOrEqual(2);
     expect(models.body.meta.totalPages).toBeGreaterThanOrEqual(2);
+    expect(models.body.meta.totalItems).toBeGreaterThanOrEqual(2);
   });
 
   it("Create and get custom model", async () => {
@@ -301,7 +301,7 @@ describe("/models API Endpoints", () => {
 
     const deleteModel = await makeAPICall(
       "DELETE",
-      `/api/public/models/${defaultModelOneId}`,
+      `/api/public/models/${models.body.data[0].id}`,
       undefined,
       auth,
     );
