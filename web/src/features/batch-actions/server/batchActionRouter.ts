@@ -8,9 +8,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 import { GetBatchActionByIdSchema } from "../validation";
 import { addToDatasetRouter } from "./addToDatasetRouter";
+import { runEvaluationRouter } from "./runEvaluationRouter";
 
 export const batchActionRouter = createTRPCRouter({
   addToDataset: addToDatasetRouter,
+  runEvaluation: runEvaluationRouter,
   byId: protectedProjectProcedure
     .input(GetBatchActionByIdSchema)
     .query(async ({ input, ctx }) => {

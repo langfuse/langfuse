@@ -9,6 +9,7 @@ import { truncate } from "@/src/utils/string";
 import { Popup } from "@/src/components/layouts/doc-popup";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 
@@ -18,12 +19,14 @@ export const LatencyTables = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
 }: {
   projectId: string;
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const generationsLatenciesQuery: QueryType = {
     view: "observations",
@@ -53,6 +56,7 @@ export const LatencyTables = ({
     {
       projectId,
       query: generationsLatenciesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -92,6 +96,7 @@ export const LatencyTables = ({
     {
       projectId,
       query: spansLatenciesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -123,6 +128,7 @@ export const LatencyTables = ({
     {
       projectId,
       query: tracesLatenciesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {

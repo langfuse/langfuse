@@ -305,7 +305,6 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   segments: [],
   timeDimension: "start_time",
-  timeDimensionAggregation: "min",
   rootEventCondition: {
     column: "trace_id",
     condition: "parent_span_id = ''",

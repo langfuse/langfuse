@@ -599,7 +599,7 @@ function TableBodyComponent<TData>({
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-y-1/2 items-center justify-center">
+            <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
               {noResultsMessage ?? (
                 <>
                   No results.{" "}
@@ -636,8 +636,13 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (!prev.tableSnapshot || !next.tableSnapshot)
     return !prev.tableSnapshot && !next.tableSnapshot;
 
-  // Check reference equality first (faster)
-  if (prev.table.options.data !== next.table.options.data) return false;
+  // Compare actual data arrays from the AsyncTableData prop.
+  // prev.table.options.data won't work — TanStack Table returns a stable mutable instance.
+  const prevDataArr =
+    !prev.data.isLoading && !prev.data.isError ? prev.data.data : undefined;
+  const nextDataArr =
+    !next.data.isLoading && !next.data.isError ? next.data.data : undefined;
+  if (prevDataArr !== nextDataArr) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;

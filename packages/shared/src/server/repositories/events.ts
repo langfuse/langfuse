@@ -29,6 +29,7 @@ import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
+  eventsSessionsAggregation,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -65,6 +66,7 @@ import {
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
+  type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
@@ -417,13 +419,19 @@ async function getObservationsFromEventsTableInternal<T>(
     clickhouseConfigs,
   } = opts;
 
-  // Build filter list
+  // Extract positionInTrace filter and build baseFilter without it
+  const positionFilter = filter.find((f) => f.type === "positionInTrace");
+  const baseFilter: typeof filter = [
+    ...filter.filter((f) => f.type !== "positionInTrace"),
+  ];
+
+  // Build filter list from baseFilter (without positionInTrace)
   const observationsFilter = new FilterList(
-    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+    createFilterFromFilterState(baseFilter, eventsTableUiColumnDefinitions),
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasScoresFilter = filter.some((f) =>
+  const hasScoresFilter = baseFilter.some((f) =>
     f.column.toLowerCase().includes("score"),
   );
   const search = clickhouseSearchCondition(
@@ -458,6 +466,50 @@ async function getObservationsFromEventsTableInternal<T>(
         )
         .selectFieldSet("metadata");
     }
+  }
+
+  // Handle positionInTrace via CTE with ROW_NUMBER()
+  // All modes use the same pattern: rank observations per trace, pick rn = N.
+  // root/nthFromStart → ORDER BY start_time ASC
+  // last/nthFromEnd   → ORDER BY start_time DESC
+  if (positionFilter && "key" in positionFilter) {
+    const key = positionFilter.key;
+    const isFromEnd = key === "last" || key === "nthFromEnd";
+    const direction = isFromEnd ? "DESC" : "ASC";
+    const position =
+      key === "last" || key === "root"
+        ? 1
+        : typeof positionFilter.value === "number"
+          ? positionFilter.value
+          : 1;
+
+    // Build observation-only filter for CTE (no s.* or t.* references)
+    const nativeFilter = new FilterList(
+      createFilterFromFilterState(
+        baseFilter,
+        eventsTableNativeUiColumnDefinitions,
+      ),
+    );
+    const appliedNativeFilter = nativeFilter.apply();
+
+    // Build CTE WHERE clause
+    const nativeFilterClause = appliedNativeFilter.query
+      .trim()
+      .replace(/^(AND|OR)\s+/i, "");
+    const searchClause = search.query.trim().replace(/^(AND|OR)\s+/i, "");
+    let cteWhere = "e.project_id = {projectId: String}";
+    if (nativeFilterClause) cteWhere += ` AND ${nativeFilterClause}`;
+    if (searchClause) cteWhere += ` AND ${searchClause}`;
+
+    queryBuilder.withCTE("qualifying_obs", {
+      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events e WHERE ${cteWhere}`,
+      params: { projectId, ...appliedNativeFilter.params, ...search.params },
+    });
+
+    queryBuilder.whereRaw(
+      "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
+      { _posRn: Math.max(1, position) },
+    );
   }
 
   queryBuilder
@@ -2799,4 +2851,97 @@ export const hasAnySessionFromEventsTable = async (
   });
 
   return rows.length > 0;
+};
+
+export const getAvgCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+): Promise<
+  Array<{ evaluatorId: string; avgCost: number; executionCount: number }>
+> => {
+  if (evaluatorIds.length === 0) return [];
+
+  const builder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn:
+      "mapFromArrays(e.metadata_names, e.metadata_values)['job_configuration_id']",
+    selectExpression: [
+      "mapFromArrays(e.metadata_names, e.metadata_values)['job_configuration_id'] as evaluator_id",
+      "avg(e.total_cost) as avg_cost",
+      "count(*) as execution_count",
+    ].join(", "),
+  })
+    .whereRaw("e.type = 'GENERATION'")
+    .whereRaw("has(e.metadata_names, 'job_configuration_id')")
+    .whereRaw(
+      "mapFromArrays(e.metadata_names, e.metadata_values)['job_configuration_id'] IN ({evaluatorIds: Array(String)})",
+      { evaluatorIds },
+    )
+    .whereRaw("e.start_time > today() - 7");
+
+  const { query, params } = builder.buildWithParams();
+
+  const rows = await queryClickhouse<{
+    evaluator_id: string;
+    avg_cost: string;
+    execution_count: string;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "evals",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    evaluatorId: row.evaluator_id,
+    avgCost: Number(row.avg_cost),
+    executionCount: Number(row.execution_count),
+  }));
+};
+
+export const getSessionMetricsFromEvents = async (props: {
+  projectId: string;
+  sessionIds: string[];
+  queryFromTimestamp?: Date;
+}) => {
+  if (props.sessionIds.length === 0) return [];
+
+  const builder = eventsSessionsAggregation({
+    projectId: props.projectId,
+    sessionIds: props.sessionIds,
+    startTimeFrom: props.queryFromTimestamp
+      ? convertDateToClickhouseDateTime(props.queryFromTimestamp)
+      : undefined,
+  }).limit(props.sessionIds.length);
+
+  const { query, params } = builder.buildWithParams();
+
+  const rows = await measureAndReturn({
+    operationName: "getSessionMetricsFromEvents",
+    projectId: props.projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "session-metrics-direct",
+        projectId: props.projectId,
+      },
+    },
+    fn: async (input) =>
+      queryClickhouse<SessionEventsMetricsRow>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
+    total_observations: Number(row.total_observations),
+  }));
 };

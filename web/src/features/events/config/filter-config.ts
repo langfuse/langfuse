@@ -59,6 +59,12 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("level"),
     },
     {
+      type: "positionInTrace" as const,
+      column: "positionInTrace",
+      label: getEventsColumnName("positionInTrace"),
+      mutuallyExclusiveWith: ["score_categories", "scores_avg"],
+    },
+    {
       type: "categorical" as const,
       column: "providedModelName",
       label: getEventsColumnName("providedModelName"),

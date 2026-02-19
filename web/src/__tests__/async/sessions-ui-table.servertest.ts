@@ -8,9 +8,165 @@ import {
   createSessionScore,
   createTracesCh,
   getSessionsWithMetrics,
+  getSessionMetricsFromEvents,
+  getSessionsTable,
+  getSessionsTableFromEvents,
+  createEvent,
+  createEventsCh,
+  type TraceRecordInsertType,
+  type ObservationRecordInsertType,
+  type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
-import { createTrace, getSessionsTable } from "@langfuse/shared/src/server";
+import { createTrace } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
+
+const isEventsPath = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
+
+// Pick the right listing function based on env flag
+const sessionsTable = isEventsPath
+  ? getSessionsTableFromEvents
+  : getSessionsTable;
+
+// Adapter for metrics: legacy takes filter/orderBy, events-based takes sessionIds
+async function sessionsWithMetrics(props: {
+  projectId: string;
+  filter: FilterState;
+}) {
+  if (!isEventsPath) {
+    return getSessionsWithMetrics(props);
+  }
+  const idFilter = props.filter.find(
+    (f): f is Extract<FilterState[number], { column: "id" }> =>
+      f.column === "id",
+  );
+  const sessionIds =
+    idFilter && "value" in idFilter ? (idFilter.value as string[]) : [];
+  return getSessionMetricsFromEvents({
+    projectId: props.projectId,
+    sessionIds,
+  });
+}
+
+/**
+ * Derive v2 events from v1 traces + observations.
+ * Reused from dashboard-v1-v2-consistency.servertest.ts.
+ *
+ * One root event per trace (parent_span_id = ''), plus one event per
+ * observation with trace-level fields denormalized.
+ * Timestamps are converted from ms to µs (* 1000).
+ */
+function buildMatchingEvents(
+  traces: TraceRecordInsertType[],
+  observations: ObservationRecordInsertType[],
+): EventRecordInsertType[] {
+  const traceMap = new Map(traces.map((t) => [t.id, t]));
+  const events: EventRecordInsertType[] = [];
+
+  // Root events — one per trace.
+  for (const t of traces) {
+    events.push(
+      createEvent({
+        id: `t-${t.id}`,
+        span_id: `t-${t.id}`,
+        trace_id: t.id,
+        project_id: t.project_id,
+        parent_span_id: "",
+        name: t.name ?? "",
+        type: "SPAN",
+        environment: t.environment,
+        trace_name: t.name ?? "",
+        user_id: t.user_id ?? "",
+        session_id: t.session_id ?? null,
+        tags: t.tags ?? [],
+        release: t.release ?? null,
+        version: t.version ?? null,
+        public: t.public,
+        bookmarked: t.bookmarked,
+        input: t.input ?? null,
+        output: t.output ?? null,
+        metadata: t.metadata ?? {},
+        start_time: t.timestamp * 1000,
+        end_time: null,
+        cost_details: {},
+        provided_cost_details: {},
+        usage_details: {},
+        provided_usage_details: {},
+        created_at: t.created_at * 1000,
+        updated_at: t.updated_at * 1000,
+        event_ts: t.event_ts * 1000,
+      }),
+    );
+  }
+
+  // Observation events.
+  for (const o of observations) {
+    const traceId = o.trace_id!;
+    const t = traceMap.get(traceId)!;
+    events.push(
+      createEvent({
+        id: o.id,
+        span_id: o.id,
+        trace_id: traceId,
+        project_id: o.project_id,
+        parent_span_id: o.parent_observation_id ?? `t-${traceId}`,
+        name: o.name ?? "",
+        type: o.type as string,
+        environment: o.environment,
+        trace_name: t.name ?? "",
+        user_id: t.user_id ?? "",
+        session_id: t.session_id ?? undefined,
+        tags: t.tags ?? [],
+        release: t.release ?? null,
+        version: o.version ?? null,
+        level: o.level ?? "DEFAULT",
+        status_message: o.status_message ?? null,
+        provided_model_name: o.provided_model_name ?? null,
+        model_parameters: o.model_parameters ?? "{}",
+        input: o.input ?? null,
+        output: o.output ?? null,
+        metadata: { ...(t.metadata ?? {}), ...(o.metadata ?? {}) },
+        provided_usage_details: o.provided_usage_details ?? {},
+        usage_details: o.usage_details ?? {},
+        provided_cost_details: o.provided_cost_details ?? {},
+        cost_details: o.cost_details ?? {},
+        prompt_id: o.prompt_id ?? null,
+        prompt_name: o.prompt_name ?? null,
+        prompt_version: o.prompt_version ? String(o.prompt_version) : null,
+        tool_definitions: o.tool_definitions ?? {},
+        tool_calls: o.tool_calls ?? [],
+        tool_call_names: o.tool_call_names ?? [],
+        start_time: o.start_time * 1000,
+        end_time: o.end_time ? o.end_time * 1000 : null,
+        completion_start_time: o.completion_start_time
+          ? o.completion_start_time * 1000
+          : null,
+        created_at: o.created_at * 1000,
+        updated_at: o.updated_at * 1000,
+        event_ts: o.event_ts * 1000,
+      }),
+    );
+  }
+
+  return events;
+}
+
+/**
+ * Seed both legacy tables (traces + observations) and events table.
+ * This ensures the same test data is available for both code paths.
+ */
+async function seedSessionData(
+  traces: TraceRecordInsertType[],
+  observations?: ObservationRecordInsertType[],
+) {
+  await createTracesCh(traces);
+  if (observations?.length) await createObservationsCh(observations);
+
+  if (isEventsPath) {
+    const events = buildMatchingEvents(traces, observations ?? []);
+    await createEventsCh(events);
+  }
+}
 
 describe("trpc.sessions", () => {
   describe("GET sessions.all", () => {
@@ -30,9 +186,9 @@ describe("trpc.sessions", () => {
         createTrace({ session_id: sessionId, project_id: projectId }),
       ];
 
-      await createTracesCh(traces);
+      await seedSessionData(traces);
 
-      const uiSessions = await getSessionsTable({
+      const uiSessions = await sessionsTable({
         projectId: projectId,
         filter: [],
         orderBy: null,
@@ -71,9 +227,9 @@ describe("trpc.sessions", () => {
       }),
     ];
 
-    await createTracesCh(traces);
+    await seedSessionData(traces);
 
-    const uiSessions = await getSessionsTable({
+    const uiSessions = await sessionsTable({
       projectId: projectId,
       filter: [
         {
@@ -147,10 +303,9 @@ describe("trpc.sessions", () => {
       }),
     ];
 
-    await createTracesCh(traces);
-    await createObservationsCh(observations);
+    await seedSessionData(traces, observations);
 
-    const uiSessions = await getSessionsTable({
+    const uiSessions = await sessionsTable({
       projectId: projectId,
       filter: [],
       orderBy: {
@@ -188,10 +343,12 @@ describe("trpc.sessions", () => {
       createTrace({
         session_id: sessionId1,
         project_id: projectId,
+        timestamp: new Date("2024-01-01T00:00:00Z").getTime(),
       }),
       createTrace({
         session_id: sessionId2,
         project_id: projectId,
+        timestamp: new Date("2024-01-01T00:00:00Z").getTime(),
       }),
     ];
     const observations = [
@@ -209,10 +366,9 @@ describe("trpc.sessions", () => {
       }),
     ];
 
-    await createTracesCh(traces);
-    await createObservationsCh(observations);
+    await seedSessionData(traces, observations);
 
-    const uiSessions = await getSessionsTable({
+    const uiSessions = await sessionsTable({
       projectId: projectId,
       filter: [],
       orderBy: {
@@ -275,11 +431,9 @@ describe("trpc.sessions", () => {
       }),
     ]);
 
-    await createObservationsCh(observations);
+    await seedSessionData(traces, observations);
 
-    await createTracesCh(traces);
-
-    const sessions = await getSessionsWithMetrics({
+    const sessions = await sessionsWithMetrics({
       projectId: projectId,
       filter: [
         {
@@ -352,8 +506,6 @@ describe("trpc.sessions", () => {
       }),
     ];
 
-    await createTracesCh(traces);
-
     // Only trace 2 has observations
     const observations = [
       createObservation({
@@ -368,9 +520,9 @@ describe("trpc.sessions", () => {
       }),
     ];
 
-    await createObservationsCh(observations);
+    await seedSessionData(traces, observations);
 
-    const sessions = await getSessionsWithMetrics({
+    const sessions = await sessionsWithMetrics({
       projectId: projectId,
       filter: [
         {
@@ -388,6 +540,7 @@ describe("trpc.sessions", () => {
     expect(sessions[0]?.trace_count).toBe(2);
     expect(parseInt(sessions[0]?.duration as any)).toBe(1);
   });
+
   it("should GET correct session data with filters", async () => {
     const project_id = v4();
     const trace_id_with_score = v4();
@@ -415,7 +568,7 @@ describe("trpc.sessions", () => {
       project_id,
       session_id: session_id_without_score,
     });
-    await createTracesCh([trace_with_score, trace_without_score]);
+    await seedSessionData([trace_with_score, trace_without_score]);
 
     const score = createSessionScore({
       project_id,
@@ -426,7 +579,7 @@ describe("trpc.sessions", () => {
     });
     await createScoresCh([score]);
 
-    const tableRows = await getSessionsTable({
+    const tableRows = await sessionsTable({
       projectId: project_id,
       filter: filterState,
       limit: 10,
