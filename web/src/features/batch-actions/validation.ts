@@ -11,6 +11,12 @@ export const CreateObservationAddToDatasetActionSchema = z.object({
   config: ObservationAddToDatasetConfigSchema,
 });
 
+export const CreateObservationBatchEvaluationActionSchema = z.object({
+  projectId: z.string(),
+  query: BatchActionQuerySchema,
+  evaluatorIds: z.array(z.string()).min(1),
+});
+
 export const ValidateBatchAddToDatasetMappingSchema = z.object({
   projectId: z.string(),
   observationId: z.string(),
