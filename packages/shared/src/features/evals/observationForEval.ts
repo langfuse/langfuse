@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
+import { parseMetadataCHRecordToDomain } from "../../server/utils/metadata_conversion";
 import { ObservationLevel, ObservationType } from "../../domain";
 import { SingleValueOption } from "../../tableDefinitions";
 import { ColumnDefinition } from "../../tableDefinitions";
@@ -71,7 +72,12 @@ export type ObservationForEval = z.infer<typeof observationForEvalSchema>;
 export function convertEventRecordToObservationForEval(
   record: EventRecordBaseType,
 ): ObservationForEval {
-  return observationForEvalSchema.parse(record);
+  return observationForEvalSchema.parse({
+    ...record,
+    metadata: record.metadata
+      ? parseMetadataCHRecordToDomain(record.metadata as Record<string, string>)
+      : record.metadata,
+  });
 }
 
 export type ObservationEvalFilterColumnInternal =
