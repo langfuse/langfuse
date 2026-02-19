@@ -10,10 +10,12 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
+  BatchActionStatus,
   BatchTableNames,
   FilterCondition,
   EvalTargetObject,
 } from "@langfuse/shared";
+import Decimal from "decimal.js";
 import {
   getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
@@ -29,8 +31,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
+import { getEventsStreamForEval } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
+import { processBatchedObservationEval } from "./processBatchedObservationEval";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -354,6 +358,79 @@ export const handleBatchActionJob = async (
       batchActionId: batchActionId as string,
       config: parsedConfig,
       observations,
+    });
+  } else if (actionId === "observation-run-batched-evaluation") {
+    const { projectId, query, cutoffCreatedAt, evaluatorIds, batchActionId } =
+      batchActionEvent;
+
+    if (!batchActionId) {
+      throw new Error(
+        "batchActionId is required for observation-run-batched-evaluation action",
+      );
+    }
+
+    const selectedEvaluatorIds = Array.from(new Set(evaluatorIds));
+
+    let evaluators;
+    try {
+      const rawEvaluators = await prisma.jobConfiguration.findMany({
+        where: {
+          id: { in: selectedEvaluatorIds },
+          projectId,
+          targetObject: EvalTargetObject.EVENT,
+          // status may be both active or inactive, no need to filter
+        },
+        select: {
+          id: true,
+          projectId: true,
+          evalTemplateId: true,
+          scoreName: true,
+          targetObject: true,
+          variableMapping: true,
+        },
+      });
+
+      // For batch evaluation the user's table-level selection determines which
+      // observations to evaluate, so we intentionally set filter=[] and
+      // sampling=1 to ensure every streamed observation is evaluated.
+      evaluators = rawEvaluators.map((e) => ({
+        ...e,
+        filter: [] as [],
+        sampling: new Decimal(1),
+      }));
+    } catch (error) {
+      await prisma.batchAction.update({
+        where: { id: batchActionId },
+        data: {
+          status: BatchActionStatus.Failed,
+          finishedAt: new Date(),
+          totalCount: 0,
+          processedCount: 0,
+          failedCount: 0,
+          log:
+            error instanceof Error
+              ? error.message
+              : "Selected evaluators are missing or not observation-scoped for historical event evaluation.",
+        },
+      });
+
+      return;
+    }
+
+    const dbReadStream = await getEventsStreamForEval({
+      projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      searchQuery: query.searchQuery ?? undefined,
+      searchType: query.searchType ?? ["id", "content"],
+      rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+    });
+
+    await processBatchedObservationEval({
+      projectId,
+      batchActionId,
+      evaluators,
+      observationStream: dbReadStream,
     });
   }
 
