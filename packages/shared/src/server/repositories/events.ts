@@ -2851,6 +2851,56 @@ export const hasAnySessionFromEventsTable = async (
   return rows.length > 0;
 };
 
+/**
+ * Fetch trace metadata (name, user_id, tags) for a list of trace IDs
+ * using the eventsTracesAggregation builder. Used by the scores table
+ * to enrich score rows with trace-level data.
+ */
+export const getTraceMetadataByIdsFromEvents = async (props: {
+  projectId: string;
+  traceIds: string[];
+}) => {
+  if (props.traceIds.length === 0) return [];
+
+  const tracesBuilder = eventsTracesAggregation({
+    projectId: props.projectId,
+    traceIds: props.traceIds,
+    truncated: true,
+  });
+
+  const cteResult = tracesBuilder.buildWithParams();
+
+  const query = `
+    WITH traces AS (${cteResult.query})
+    SELECT id, name, user_id, tags
+    FROM traces
+  `;
+
+  return measureAndReturn({
+    operationName: "getTraceMetadataByIdsFromEvents",
+    projectId: props.projectId,
+    input: {
+      params: cteResult.params,
+      tags: {
+        feature: "tracing",
+        type: "trace-metadata",
+        projectId: props.projectId,
+      },
+    },
+    fn: async (input) =>
+      queryClickhouse<{
+        id: string;
+        name: string;
+        user_id: string;
+        tags: string[];
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
+};
+
 export const getAvgCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],

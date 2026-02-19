@@ -43,6 +43,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
+import { eventsTracesAggregation } from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -1053,9 +1054,9 @@ const getScoresUiGeneric = async <T>(props: {
 };
 
 /**
- * v4 variant: scores query using events_core instead of traces table.
- * Trace-level filters use IN subqueries against events_core.
- * When sorting by trace columns, adds LEFT ANY JOIN with events_core subquery.
+ * v4 variant: scores query using eventsTracesAggregation CTE instead of
+ * raw events_core SQL. Trace-level filters and sort use a "traces" CTE
+ * built by the event query builder, joined as alias "e".
  * Does NOT select trace metadata (that comes via metricsFromEvents).
  */
 const getScoresUiGenericFromEvents = async <T>(props: {
@@ -1091,58 +1092,47 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     ),
   );
 
-  // Separate trace filters (events_core) from score filters
+  // Separate trace filters (traces CTE) from score filters
   const traceFilters = scoresFilter.filter(
-    (f) => f.clickhouseTable === "events_core",
+    (f) => f.clickhouseTable === "traces",
   );
   const scoreOnlyFilters = scoresFilter.filter(
-    (f) => f.clickhouseTable !== "events_core",
+    (f) => f.clickhouseTable !== "traces",
   );
 
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
-
-  // Build IN subqueries for trace-level filters
-  const traceFilterSubqueries: string[] = [];
-  const traceFilterParams: Record<string, unknown> = {};
-
-  if (traceFilters.find(() => true)) {
-    const traceFilterRes = traceFilters.apply();
-    if (traceFilterRes.query) {
-      traceFilterSubqueries.push(
-        `s.trace_id IN (
-          SELECT DISTINCT trace_id FROM events_core
-          WHERE project_id = {projectId: String}
-          AND is_deleted = 0
-          AND ${traceFilterRes.query}
-        )`,
-      );
-      Object.assign(traceFilterParams, traceFilterRes.params);
-    }
-  }
+  const traceFilterRes = traceFilters.find(() => true)
+    ? traceFilters.apply()
+    : null;
 
   const orderByColumn = orderBy
     ? scoresTableUiColumnDefinitionsFromEvents.find(
         (c) =>
           (c.uiTableName === orderBy.column ||
             c.uiTableId === orderBy.column) &&
-          c.clickhouseTableName === "events_core",
+          c.clickhouseTableName === "traces",
       )
     : null;
 
-  const needsEventsJoinForSort = !!orderByColumn;
+  const needsTracesCTE = !!traceFilterRes?.query || !!orderByColumn;
 
-  const eventsSubqueryJoin = needsEventsJoinForSort
-    ? `LEFT ANY JOIN (
-        SELECT
-          trace_id,
-          anyIf(trace_name, trace_name <> '') as trace_name,
-          anyIf(user_id, user_id <> '') as user_id,
-          anyIf(tags, notEmpty(tags)) as tags
-        FROM events_core
-        WHERE project_id = {projectId: String}
-        AND is_deleted = 0
-        GROUP BY trace_id
-      ) e ON s.trace_id = e.trace_id`
+  // Build traces CTE using the event query builder when needed
+  let tracesCTEClause = "";
+  const tracesCTEParams: Record<string, unknown> = {};
+
+  if (needsTracesCTE) {
+    const tracesBuilder = eventsTracesAggregation({
+      projectId,
+      truncated: true,
+    });
+    const { query: cteQuery, params: cteParams } =
+      tracesBuilder.buildWithParams();
+    tracesCTEClause = `WITH traces AS (${cteQuery})`;
+    Object.assign(tracesCTEParams, cteParams);
+  }
+
+  const eventsJoin = needsTracesCTE
+    ? `LEFT ANY JOIN traces e ON s.trace_id = e.id`
     : "";
 
   const select =
@@ -1175,14 +1165,15 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       `;
 
   const query = `
+      ${tracesCTEClause}
       SELECT
           ${select}
       FROM scores s final
-      ${eventsSubqueryJoin}
+      ${eventsJoin}
       WHERE s.project_id = {projectId: String}
       AND s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
-      ${traceFilterSubqueries.map((sq) => `AND ${sq}`).join("\n")}
+      ${traceFilterRes?.query ? `AND ${traceFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
@@ -1195,7 +1186,8 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         projectId,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
-        ...traceFilterParams,
+        ...(traceFilterRes ? traceFilterRes.params : {}),
+        ...tracesCTEParams,
         limit,
         offset,
       },
@@ -2066,47 +2058,3 @@ export const getScoreCountsByProjectAndDay = async ({
     date: row.date,
   }));
 };
-
-export async function getScoresTraceMetricsFromEvents(params: {
-  projectId: string;
-  traceIds: string[];
-}) {
-  const { projectId, traceIds } = params;
-  if (traceIds.length === 0) return [];
-
-  const query = `
-    SELECT
-      trace_id,
-      anyIf(trace_name, trace_name <> '') as trace_name,
-      anyIf(user_id, user_id <> '') as user_id,
-      anyIf(tags, notEmpty(tags)) as tags
-    FROM events_core
-    WHERE project_id = {projectId: String}
-    AND trace_id IN ({traceIds: Array(String)})
-    AND is_deleted = 0
-    GROUP BY trace_id
-  `;
-
-  const rows = await queryClickhouse<{
-    trace_id: string;
-    trace_name: string | null;
-    user_id: string | null;
-    tags: string[] | null;
-  }>({
-    query,
-    params: { projectId, traceIds },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "metrics",
-      projectId,
-    },
-  });
-
-  return rows.map((row) => ({
-    traceId: row.trace_id,
-    traceName: row.trace_name || null,
-    userId: row.user_id || null,
-    tags: row.tags && row.tags.length > 0 ? row.tags : null,
-  }));
-}

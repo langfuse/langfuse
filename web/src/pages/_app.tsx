@@ -16,7 +16,6 @@ import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
-// some change
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 import prexit from "prexit";
