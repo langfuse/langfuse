@@ -4,7 +4,7 @@ import {
   TRACE_TO_OBSERVATIONS_INTERVAL,
   orderByToClickhouseSql,
   type DateTimeFilter,
-  convertClickhouseTracesListToDomain,
+  convertClickhouseTracesListToDomainAsync,
   type TraceRecordReadType,
   measureAndReturn,
   deriveFilters,
@@ -369,7 +369,7 @@ export const generateTracesForPublicApi = async ({
     },
   });
 
-  return convertClickhouseTracesListToDomain(result, {
+  return convertClickhouseTracesListToDomainAsync(result, {
     metrics: includeMetrics,
     scores: includeScores,
     observations: includeObservations,

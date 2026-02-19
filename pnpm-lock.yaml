@@ -283,6 +283,9 @@ importers:
       winston:
         specifier: ^3.15.0
         version: 3.15.0
+      yieldable-json:
+        specifier: ^2.1.0
+        version: 2.1.0
       zod:
         specifier: ^3.25.62
         version: 3.25.62
@@ -314,6 +317,9 @@ importers:
       '@types/uuid':
         specifier: ^9.0.8
         version: 9.0.8
+      '@types/yieldable-json':
+        specifier: ^2.0.2
+        version: 2.0.2
       '@typescript-eslint/parser':
         specifier: ^8.50.1
         version: 8.50.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)
@@ -6107,6 +6113,9 @@ packages:
 
   '@types/yargs@17.0.35':
     resolution: {integrity: sha512-qUHkeCyQFxMXg79wQfTtfndEC+N9ZZg76HJftDJp+qH2tV7Gj4OJi7l+PiWwJ+pWtW8GwSmqsDj/oymhrTWXjg==}
+
+  '@types/yieldable-json@2.0.2':
+    resolution: {integrity: sha512-4Z1pTM2qrQjBtT2wNUvwR7oHW/efgVZKcNiNHOC0zvd9hcSr33CSzdlSSdiLySJwE0V+7P5+0RFtAnuYon5ZQg==}
 
   '@typescript-eslint/eslint-plugin@8.50.1':
     resolution: {integrity: sha512-PKhLGDq3JAg0Jk/aK890knnqduuI/Qj+udH7wCf0217IGi4gt+acgCyPVe79qoT+qKUvHMDQkwJeKW9fwl8Cyw==}
@@ -12524,6 +12533,10 @@ packages:
   yargs@17.7.2:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
+
+  yieldable-json@2.1.0:
+    resolution: {integrity: sha512-yi7ehVd4UPvdmD9xf/8DCsdGAo4yC6kYZ9mxNYgXk/b24+s3FIn9Vevfb2qjs4KNUe8BmL/Ci8FHsn174uvcYA==}
+    engines: {node: '>= 4.0.0'}
 
   yn@3.1.1:
     resolution: {integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==}
@@ -19723,6 +19736,8 @@ snapshots:
   '@types/yargs@17.0.35':
     dependencies:
       '@types/yargs-parser': 21.0.3
+
+  '@types/yieldable-json@2.0.2': {}
 
   '@typescript-eslint/eslint-plugin@8.50.1(@typescript-eslint/parser@8.50.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.2)':
     dependencies:
@@ -27257,6 +27272,8 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  yieldable-json@2.1.0: {}
 
   yn@3.1.1: {}
 

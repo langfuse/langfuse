@@ -31,6 +31,7 @@ import {
 } from "../clickhouse/client";
 import {
   convertObservation,
+  convertObservationAsync,
   enrichObservationWithModelData,
 } from "./observations_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
@@ -235,20 +236,22 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     }
   }
 
-  return records.map((r) => {
-    const observation = convertObservation({
-      ...r,
-      metadata: r.metadata ?? {},
-    });
-    recordDistribution(
-      "langfuse.query_by_id_age",
-      new Date().getTime() - observation.startTime.getTime(),
-      {
-        table: "observations",
-      },
-    );
-    return observation;
-  });
+  return Promise.all(
+    records.map(async (r) => {
+      const observation = await convertObservationAsync({
+        ...r,
+        metadata: r.metadata ?? {},
+      });
+      recordDistribution(
+        "langfuse.query_by_id_age",
+        new Date().getTime() - observation.startTime.getTime(),
+        {
+          table: "observations",
+        },
+      );
+      return observation;
+    }),
+  );
 };
 
 export const getObservationForTraceIdByName = async ({
@@ -325,7 +328,7 @@ export const getObservationForTraceIdByName = async ({
     },
   });
 
-  return records.map((record) => convertObservation(record));
+  return Promise.all(records.map((record) => convertObservationAsync(record)));
 };
 
 export const getObservationById = async ({
@@ -357,8 +360,8 @@ export const getObservationById = async ({
     renderingProps,
     preferredClickhouseService,
   });
-  const mapped = records.map((record) =>
-    convertObservation(record, renderingProps),
+  const mapped = await Promise.all(
+    records.map((record) => convertObservationAsync(record, renderingProps)),
   );
 
   mapped.forEach((observation) => {
@@ -434,7 +437,7 @@ export const getObservationsById = async (
     query,
     params: { ids, projectId },
   });
-  return records.map((record) => convertObservation(record));
+  return Promise.all(records.map((record) => convertObservationAsync(record)));
 };
 
 const getObservationByIdInternal = async ({
@@ -602,27 +605,29 @@ export const getObservationsTableWithModelData = async (
     ),
   ]);
 
-  return observationRecords.map((o) => {
-    const trace = traces.find((t) => t.id === o.trace_id);
-    const model = models.find((m) => m.id === o.internal_model_id);
-    return {
-      ...convertObservation(o),
-      latency: o.latency ? Number(o.latency) / 1000 : null,
-      timeToFirstToken: o.time_to_first_token
-        ? Number(o.time_to_first_token) / 1000
-        : null,
-      traceName: trace?.name ?? null,
-      traceTags: trace?.tags ?? [],
-      traceTimestamp: trace?.timestamp ?? null,
-      userId: trace?.userId ?? null,
-      // Tool counts for list view (actual data in toolDefinitions/toolCalls from domain)
-      toolDefinitionsCount: o.tool_definitions_count
-        ? Number(o.tool_definitions_count)
-        : null,
-      toolCallsCount: o.tool_calls_count ? Number(o.tool_calls_count) : null,
-      ...enrichObservationWithModelData(model),
-    };
-  });
+  return Promise.all(
+    observationRecords.map(async (o) => {
+      const trace = traces.find((t) => t.id === o.trace_id);
+      const model = models.find((m) => m.id === o.internal_model_id);
+      return {
+        ...(await convertObservationAsync(o)),
+        latency: o.latency ? Number(o.latency) / 1000 : null,
+        timeToFirstToken: o.time_to_first_token
+          ? Number(o.time_to_first_token) / 1000
+          : null,
+        traceName: trace?.name ?? null,
+        traceTags: trace?.tags ?? [],
+        traceTimestamp: trace?.timestamp ?? null,
+        userId: trace?.userId ?? null,
+        // Tool counts for list view (actual data in toolDefinitions/toolCalls from domain)
+        toolDefinitionsCount: o.tool_definitions_count
+          ? Number(o.tool_definitions_count)
+          : null,
+        toolCallsCount: o.tool_calls_count ? Number(o.tool_calls_count) : null,
+        ...enrichObservationWithModelData(model),
+      };
+    }),
+  );
 };
 
 const getObservationsTableInternal = async <T>(

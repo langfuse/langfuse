@@ -1,5 +1,6 @@
 import { JsonNested } from "./zod";
 import { parse, isSafeNumber, isNumber } from "lossless-json";
+import { parseAsync, type Reviver } from "yieldable-json";
 
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -382,37 +383,144 @@ export function deepParseJsonIterative(
 }
 
 /**
- * Pattern to detect JSON numbers that might lose precision with native JSON.parse.
- *
- * Catches:
- * 1. [\d.]{13,} - 13+ characters of digits/dots (conservative threshold for ~12+ significant digits)
- * 2. \d[eE] - scientific notation (always use lossless-json for safety)
+ * Quick pattern to detect JSON numbers that might lose precision with native JSON.parse.
+ * Used as a fast pre-filter — matches anywhere in the string including inside string values.
  */
 const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
+
+/**
+ * Standalone unsafe number: the entire string (modulo whitespace) is a number with
+ * 13+ digit/dot chars or scientific notation.
+ */
+const UNSAFE_STANDALONE_NUMBER =
+  /^\s*-?(?:\d[\d.]{12,}(?:[eE][+-]?\d+)?|\d+(?:\.\d*)?[eE][+-]?\d+)\s*$/;
+
+/**
+ * Unsafe number inside a JSON structure: 13+ digit/dot chars or scientific notation,
+ * followed by optional whitespace then a JSON structural character (, ] }).
+ * Per JSON grammar, number values must be followed by these characters.
+ * Digit sequences inside string values are followed by other characters (", letters, etc.).
+ */
+const UNSAFE_JSON_NUMBER =
+  /-?(?:\d[\d.]{12,}(?:[eE][+-]?\d+)?|\d+(?:\.\d*)?[eE][+-]?\d+)\s*(?=[,\]}])/;
+
+/**
+ * Detects digit/dot sequences long enough to cause O(n²) backtracking in UNSAFE_JSON_NUMBER.
+ * For sequences under this length, worst-case backtracking is ~3K steps (negligible).
+ */
+const LONG_DIGIT_SEQUENCE = /[\d.]{80}/;
+
+/**
+ * Checks whether a JSON string contains number values (not inside string literals)
+ * that might lose precision with native JSON.parse.
+ *
+ * Uses JSON grammar context: a number value must be followed by whitespace then
+ * one of , ] } or end of string. Gives up and returns true
+ * on very long digit sequences to avoid expensive check with
+ * quadratic complexity.
+ */
+function containsUnsafeNumber(json: string): boolean {
+  // Case 1: standalone numeric value — O(n), anchored
+  if (UNSAFE_STANDALONE_NUMBER.test(json)) return true;
+
+  // Quick pre-filter: if no potentially unsafe sequences at all, skip
+  if (!UNSAFE_NUMBER_PATTERN.test(json)) return false;
+
+  // Case 2: number inside JSON structure
+  // Guard: if string has very long digit sequences give up and say it's unsafe
+  if (LONG_DIGIT_SEQUENCE.test(json)) {
+    return true;
+  }
+
+  // Normal case: grammar-based regex (fast, no allocation)
+  return UNSAFE_JSON_NUMBER.test(json);
+}
 
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
-    // Fast path: use native JSON.parse if no potentially unsafe numbers detected
-    if (!UNSAFE_NUMBER_PATTERN.test(json)) {
+    // Fast path: use JSON.parse if no potentially unsafe numbers
+    if (!containsUnsafeNumber(json)) {
       return JSON.parse(json) as JsonNested;
     }
-
-    // Slow path: use lossless-json to preserve precision
-    return parse(json, null, (value) => {
-      if (isNumber(value)) {
-        if (isSafeNumber(value)) {
-          // Safe numbers (integers and decimals) can be converted to Number
-          return Number(value.valueOf());
-        } else {
-          // For large integers beyond safe limits, preserve string representation
-          return value.toString();
-        }
-      }
-      return value;
-    }) as JsonNested;
+    // Slow path
+    return parseJsonLosslessPrioritized(json);
   } catch {
     return json;
   }
 };
+
+/** Size threshold above which we use yieldable-json to avoid blocking the event loop */
+const LARGE_JSON_THRESHOLD = 10_000; // 10KB
+
+class PrototypePollutionError extends Error {}
+
+/**
+ * Async version of parseJsonPrioritised.
+ * - Small strings (< 10KB): uses JSON.parse (fast, negligible event loop impact)
+ * - Large strings (>=10KB): uses yieldable-json (non-blocking, yields to event loop)
+ * - Strings with large numbers: uses lossless-json (preserves precision)
+ */
+export const parseJsonPrioritisedAsync = async (
+  json: string,
+): Promise<JsonNested | string | undefined> => {
+  try {
+    // Precision path: use lossless-json for strings with potentially unsafe numbers
+    if (containsUnsafeNumber(json)) {
+      return parseJsonLosslessPrioritized(json);
+    }
+
+    // Large strings: use yieldable-json to avoid blocking the event loop
+    // yieldable-json is vulnerable to prototype pollution, so we use a reviver
+    // to detect dangerous keys and fall back to sync parseJsonPrioritised
+    if (json.length >= LARGE_JSON_THRESHOLD) {
+      try {
+        return await new Promise<JsonNested>((resolve, reject) => {
+          parseAsync(
+            json,
+            // @types/yieldable-json incorrectly types key as number; it's actually string
+            ((key: string, value: unknown) => {
+              if (DANGEROUS_KEYS.has(key)) {
+                throw new PrototypePollutionError();
+              }
+              return value;
+            }) as unknown as Reviver,
+            (err: Error | null, data: unknown) => {
+              if (err) reject(err);
+              else resolve(data as JsonNested);
+            },
+          );
+        });
+      } catch (e) {
+        if (e instanceof PrototypePollutionError) {
+          return parseJsonPrioritised(json);
+        }
+        throw e;
+      }
+    }
+
+    // Small strings: JSON.parse is fast enough
+    return JSON.parse(json) as JsonNested;
+  } catch {
+    return json;
+  }
+};
+
+/**
+ * Slow path: use lossless-json to preserve precision for large numbers
+ */
+function parseJsonLosslessPrioritized(
+  json: string,
+): JsonNested | string | undefined {
+  return parse(json, null, (value) => {
+    if (isNumber(value)) {
+      if (isSafeNumber(value)) {
+        return Number(value.valueOf());
+      } else {
+        return value.toString();
+      }
+    }
+    return value;
+  }) as JsonNested;
+}

@@ -10,8 +10,8 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import {
-  convertClickhouseToDomain,
-  convertClickhouseTracesListToDomain,
+  convertClickhouseToDomainAsync,
+  convertClickhouseTracesListToDomainAsync,
 } from "./traces_converters";
 import {
   DateTimeFilter,
@@ -39,7 +39,7 @@ import {
 } from "../tableMappings/mapEventsTable";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import {
-  applyInputOutputRendering,
+  applyInputOutputRenderingAsync,
   DEFAULT_RENDERING_PROPS,
   RenderingProps,
 } from "../utils/rendering";
@@ -785,8 +785,10 @@ export const getTraceByIdFromEventsTable = async ({
     },
   });
 
-  const res = records.map((record) =>
-    convertClickhouseToDomain(record, renderingProps),
+  const res = await Promise.all(
+    records.map((record) =>
+      convertClickhouseToDomainAsync(record, renderingProps),
+    ),
   );
 
   res.forEach((trace) => {
@@ -1383,7 +1385,7 @@ export const getTracesFromEventsTableForPublicApi = async (
   });
 
   // Convert ClickHouse format to domain format and handle field groups
-  return convertClickhouseTracesListToDomain(result, {
+  return convertClickhouseTracesListToDomainAsync(result, {
     scores: includeScores,
     observations: includeObservations,
     metrics: includeMetrics,
@@ -2439,19 +2441,27 @@ export const getObservationsBatchIOFromEventsTable = async (opts: {
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return results.map((r) => ({
-    id: r.id,
-    input:
-      r.input !== undefined
-        ? applyInputOutputRendering(r.input, DEFAULT_RENDERING_PROPS)
-        : null,
-    output:
-      r.output !== undefined
-        ? applyInputOutputRendering(r.output, DEFAULT_RENDERING_PROPS)
-        : null,
-    metadata:
-      r.metadata !== undefined ? parseMetadataCHRecordToDomain(r.metadata) : {},
-  }));
+  return Promise.all(
+    results.map(async (r) => {
+      const [input, output] = await Promise.all([
+        r.input !== undefined
+          ? applyInputOutputRenderingAsync(r.input, DEFAULT_RENDERING_PROPS)
+          : Promise.resolve(null),
+        r.output !== undefined
+          ? applyInputOutputRenderingAsync(r.output, DEFAULT_RENDERING_PROPS)
+          : Promise.resolve(null),
+      ]);
+      return {
+        id: r.id,
+        input,
+        output,
+        metadata:
+          r.metadata !== undefined
+            ? parseMetadataCHRecordToDomain(r.metadata)
+            : {},
+      };
+    }),
+  );
 };
 
 /**

@@ -22,7 +22,10 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { convertClickhouseToDomain } from "./traces_converters";
+import {
+  convertClickhouseToDomain,
+  convertClickhouseToDomainAsync,
+} from "./traces_converters";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -250,8 +253,10 @@ export const getTracesByIds = async (
     },
   });
 
-  return records.map((record) =>
-    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
+  return Promise.all(
+    records.map((record) =>
+      convertClickhouseToDomainAsync(record, DEFAULT_RENDERING_PROPS),
+    ),
   );
 };
 
@@ -298,8 +303,10 @@ export const getTracesBySessionId = async (
     },
   });
 
-  const traces = records.map((record) =>
-    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
+  const traces = await Promise.all(
+    records.map((record) =>
+      convertClickhouseToDomainAsync(record, DEFAULT_RENDERING_PROPS),
+    ),
   );
 
   traces.forEach((trace) => {
@@ -578,8 +585,10 @@ export const getTraceById = async ({
     },
   });
 
-  const res = records.map((record) =>
-    convertClickhouseToDomain(record, renderingProps),
+  const res = await Promise.all(
+    records.map((record) =>
+      convertClickhouseToDomainAsync(record, renderingProps),
+    ),
   );
 
   res.forEach((trace) => {

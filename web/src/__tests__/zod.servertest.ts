@@ -1,4 +1,8 @@
-import { paginationZod, parseJsonPrioritised } from "@langfuse/shared";
+import {
+  paginationZod,
+  parseJsonPrioritised,
+  parseJsonPrioritisedAsync,
+} from "@langfuse/shared";
 import { ZodError } from "zod/v4";
 
 // Create test cases
@@ -25,33 +29,54 @@ describe("Pagination Zod Schema", () => {
   });
 });
 
+const jsonTestCases: [string, unknown][] = [
+  ["test", "test"], // Raw string
+  ['{"hello": "world"}', { hello: "world" }], // Simple object
+  ["[1, 2, 3]", [1, 2, 3]], // Array
+  ['{"nested": {"key": "value"}}', { nested: { key: "value" } }], // Nested object
+  ["[]", []], // Empty array
+  ["{}", {}], // Empty object
+  ['"simple string"', "simple string"], // Quoted string
+  ["42", 42], // Number
+  ["true", true], // Boolean true
+  ["false", false], // Boolean false
+  ["null", null], // Null
+  ["", ""], // Empty string
+  ["invalid{json}", "invalid{json}"], // Invalid JSON string
+  ['{"hello": "world"', '{"hello": "world"'], // Invalid JSON string
+  ['[null, 123, "abc"]', [null, 123, "abc"]], // Mixed array
+  [
+    '{"array": [1, 2], "nested": {"key": "value"}}',
+    { array: [1, 2], nested: { key: "value" } },
+  ], // Complex object
+  ["1983516295378495150", "1983516295378495150"], // Large number (standalone)
+  ["3.4", 3.4], // Decimal number
+  // Large numbers inside string values — should use fast path, not lossless
+  ['{"traceId": "1983516295378495150"}', { traceId: "1983516295378495150" }],
+  ['["1983516295378495150"]', ["1983516295378495150"]],
+  // Actual large number values — must be preserved as strings
+  ['{"count": 1983516295378495150}', { count: "1983516295378495150" }],
+  // Mixed: string value has digits, number value is safe
+  ['{"id": "9876543210123", "count": 42}', { id: "9876543210123", count: 42 }],
+  // Scientific notation inside string vs as value
+  ['{"k": "1.5e20"}', { k: "1.5e20" }],
+  ['{"k": 1.5e20}', { k: 1.5e20 }],
+];
+
 describe("parseJsonPrioritised", () => {
-  it.each([
-    ["test", "test"], // Raw string
-    ['{"hello": "world"}', { hello: "world" }], // Simple object
-    ["[1, 2, 3]", [1, 2, 3]], // Array
-    ['{"nested": {"key": "value"}}', { nested: { key: "value" } }], // Nested object
-    ["[]", []], // Empty array
-    ["{}", {}], // Empty object
-    ['"simple string"', "simple string"], // Quoted string
-    ["42", 42], // Number
-    ["true", true], // Boolean true
-    ["false", false], // Boolean false
-    ["null", null], // Null
-    ["", ""], // Empty string
-    ["invalid{json}", "invalid{json}"], // Invalid JSON string
-    ['{"hello": "world"', '{"hello": "world"'], // Invalid JSON string
-    ['[null, 123, "abc"]', [null, 123, "abc"]], // Mixed array
-    [
-      '{"array": [1, 2], "nested": {"key": "value"}}',
-      { array: [1, 2], nested: { key: "value" } },
-    ], // Complex object
-    ["1983516295378495150", "1983516295378495150"], // Large number
-    ["3.4", 3.4], // Decimal number
-  ])(
+  it.each(jsonTestCases)(
     "should parse input correctly  (%s, %s)",
-    (input: string, expectedOutput: any) => {
+    (input: string, expectedOutput: unknown) => {
       expect(parseJsonPrioritised(input)).toEqual(expectedOutput);
+    },
+  );
+});
+
+describe("parseJsonPrioritisedAsync", () => {
+  it.each(jsonTestCases)(
+    "should parse input correctly  (%s, %s)",
+    async (input: string, expectedOutput: unknown) => {
+      expect(await parseJsonPrioritisedAsync(input)).toEqual(expectedOutput);
     },
   );
 });
