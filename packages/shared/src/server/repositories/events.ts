@@ -2124,6 +2124,89 @@ export const getEventsGroupedByHasParentObservation = async (
 };
 
 /**
+ * Get grouped available tool names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(mapKeys(e.tool_definitions))",
+    selectExpression:
+      "arrayJoin(mapKeys(e.tool_definitions)) as toolName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(mapKeys(e.tool_definitions)) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ toolName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped called tool names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByCalledToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(e.tool_call_names)",
+    selectExpression:
+      "arrayJoin(e.tool_call_names) as calledToolName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(e.tool_call_names) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    calledToolName: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */
