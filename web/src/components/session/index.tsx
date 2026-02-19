@@ -541,7 +541,6 @@ export const SessionPage: React.FC<{
           expandPeek,
           resolveDetailNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
-          tableDataUpdatedAt: session.dataUpdatedAt,
         }}
       />
     </Page>
@@ -1050,7 +1049,6 @@ export const SessionEventsPage: React.FC<{
           expandPeek,
           resolveDetailNavigationPath,
           children: <PeekViewTraceDetail projectId={projectId} />,
-          tableDataUpdatedAt: tracesQuery.dataUpdatedAt,
         }}
       />
     </Page>
