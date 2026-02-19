@@ -24,7 +24,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name"],
+  defaultExpanded: ["environment", "name", "hasParentObservation"],
 
   facets: [
     {
@@ -36,6 +36,12 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
+    },
+    {
+      type: "boolean" as const,
+      column: "hasParentObservation",
+      label: "Is Root Observation",
+      invertValue: true, // "True" = hasParentObservation=false (is root)
     },
     {
       type: "categorical" as const,

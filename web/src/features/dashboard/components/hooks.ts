@@ -1,5 +1,9 @@
-import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+
+export type TimeSeriesChartDataPoint = {
+  ts: number;
+  values: { label: string; value?: number }[];
+};
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { api } from "@/src/utils/api";
 import { mapLegacyUiTableFilterToView } from "@/src/features/query";
