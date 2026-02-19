@@ -188,6 +188,7 @@ export default function ScoresTable({
     onSettled: () => {
       void utils.scores.all.invalidate();
       void utils.scores.allFromEvents.invalidate();
+      void utils.scores.countAllFromEvents.invalidate();
     },
   });
 
@@ -753,7 +754,7 @@ export default function ScoresTable({
   // Merge v4 metrics into table rows
   const enrichedScores = useMemo(() => {
     if (!isBetaEnabled) {
-      return scores.data?.scores.map(convertToTableRow);
+      return scoresV3.data?.scores.map(convertToTableRow);
     }
 
     const v4Data = scoresV4.data?.scores;

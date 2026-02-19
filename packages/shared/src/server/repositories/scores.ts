@@ -1105,7 +1105,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   const traceFilterSubqueries: string[] = [];
   const traceFilterParams: Record<string, unknown> = {};
 
-  if (traceFilters.some(() => true)) {
+  if (traceFilters.find(() => true)) {
     const traceFilterRes = traceFilters.apply();
     if (traceFilterRes.query) {
       traceFilterSubqueries.push(
@@ -1166,7 +1166,6 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         s.author_user_id,
         s.created_at,
         s.updated_at,
-        s.source,
         s.config_id,
         s.queue_id,
         s.execution_trace_id,
