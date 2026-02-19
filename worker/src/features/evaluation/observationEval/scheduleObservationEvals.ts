@@ -17,7 +17,6 @@ interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
   configs: ObservationEvalConfig[];
   schedulerDeps: ObservationEvalSchedulerDeps;
-  ignoreConfigTargeting?: boolean;
 }
 
 /**
@@ -32,54 +31,45 @@ interface ScheduleObservationEvalsParams {
  * @param params.observation - The ObservationForEval (converted from processToEvent() or ClickHouse)
  * @param params.configs - Pre-fetched observation eval configs for this project
  * @param params.schedulerDeps - Dependencies for scheduling (S3, job execution, queue)
- * @param params.ignoreConfigTargeting - Skip applying filters and sampling from the job configuration. Necessary for batched evals that are only caring about variable mapping.
  */
 export async function scheduleObservationEvals(
   params: ScheduleObservationEvalsParams,
 ): Promise<void> {
-  const {
-    observation,
-    configs,
-    schedulerDeps,
-    ignoreConfigTargeting = false,
-  } = params;
+  const { observation, configs, schedulerDeps } = params;
 
   // Early return if no configs
   if (configs.length === 0) {
     return;
   }
 
-  // Filter configs that match this observation (filter + sampling), unless
-  // explicitly bypassed for historical batch runs.
+  // Filter configs that match this observation (filter + sampling).
   // This is done before S3 upload to avoid unnecessary uploads.
-  const matchingConfigs = ignoreConfigTargeting
-    ? configs
-    : configs.filter((config) => {
-        // Check filter
-        const isTargeted = evaluateFilter(observation, config);
-        if (!isTargeted) {
-          logger.debug("Observation does not match eval config filter", {
-            configId: config.id,
-            observationId: observation.span_id,
-          });
-
-          return false;
-        }
-
-        // Check sampling
-        const samplingRate = config.sampling.toNumber();
-        if (!shouldSampleObservation({ samplingRate })) {
-          logger.debug("Observation sampled out for eval config", {
-            configId: config.id,
-            observationId: observation.span_id,
-            samplingRate,
-          });
-
-          return false;
-        }
-
-        return true;
+  const matchingConfigs = configs.filter((config) => {
+    // Check filter
+    const isTargeted = evaluateFilter(observation, config);
+    if (!isTargeted) {
+      logger.debug("Observation does not match eval config filter", {
+        configId: config.id,
+        observationId: observation.span_id,
       });
+
+      return false;
+    }
+
+    // Check sampling
+    const samplingRate = config.sampling.toNumber();
+    if (!shouldSampleObservation({ samplingRate })) {
+      logger.debug("Observation sampled out for eval config", {
+        configId: config.id,
+        observationId: observation.span_id,
+        samplingRate,
+      });
+
+      return false;
+    }
+
+    return true;
+  });
 
   // Early return if no configs match - no S3 upload needed
   if (matchingConfigs.length === 0) return;

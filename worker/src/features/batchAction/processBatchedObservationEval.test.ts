@@ -24,23 +24,19 @@ describe("processBatchedObservationEval", () => {
     vi.clearAllMocks();
   });
 
-  it("bypasses evaluator filter and sampling when scheduling historical rows", async () => {
+  it("passes evaluators with match-all filter and sampling to the scheduler", async () => {
     const projectId = "project-1";
     const batchActionId = "batch-action-1";
 
+    // Evaluators should already have filter=[] and sampling=1 set by the
+    // caller (handleBatchActionJob), so the scheduler applies its normal
+    // targeting logic and every observation matches.
     const evaluators: ObservationEvalConfig[] = [
       {
         id: "config-1",
         projectId,
-        filter: [
-          {
-            column: "type",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["SPAN"],
-          },
-        ],
-        sampling: { toNumber: () => 0 } as ObservationEvalConfig["sampling"],
+        filter: [],
+        sampling: { toNumber: () => 1 } as ObservationEvalConfig["sampling"],
         evalTemplateId: "template-1",
         scoreName: "quality",
         targetObject: EvalTargetObject.EVENT,
@@ -48,7 +44,6 @@ describe("processBatchedObservationEval", () => {
       },
     ];
 
-    // Mimics a remapped row from getEventsStreamForEval (column aliases resolved, not yet schema-validated)
     const remappedRow: Record<string, unknown> = {
       span_id: "obs-1",
       trace_id: "trace-1",
@@ -80,7 +75,7 @@ describe("processBatchedObservationEval", () => {
     expect(scheduleObservationEvals).toHaveBeenCalledTimes(1);
     expect(scheduleObservationEvals).toHaveBeenCalledWith(
       expect.objectContaining({
-        ignoreConfigTargeting: true,
+        configs: evaluators,
       }),
     );
     expect(

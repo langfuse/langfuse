@@ -71,7 +71,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                   Failed to load templates: {templatesQuery.error.message}
                 </p>
               ) : (
-                <div className="max-h-[55vh] overflow-hidden rounded-md border p-2">
+                <div className="max-h-[55vh] overflow-y-auto rounded-md border p-2">
                   <EvaluatorSelector
                     projectId={projectId}
                     evalTemplates={templatesQuery.data?.templates ?? []}

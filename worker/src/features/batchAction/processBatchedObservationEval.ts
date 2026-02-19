@@ -49,7 +49,6 @@ export async function processBatchedObservationEval(params: {
             observation,
             configs: evaluators,
             schedulerDeps,
-            ignoreConfigTargeting: true,
           });
         }),
       ),

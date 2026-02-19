@@ -15,6 +15,7 @@ import {
   FilterCondition,
   EvalTargetObject,
 } from "@langfuse/shared";
+import Decimal from "decimal.js";
 import {
   getDatabaseReadStreamPaginated,
   getTraceIdentifierStream,
@@ -372,7 +373,7 @@ export const handleBatchActionJob = async (
 
     let evaluators;
     try {
-      evaluators = await prisma.jobConfiguration.findMany({
+      const rawEvaluators = await prisma.jobConfiguration.findMany({
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
@@ -382,14 +383,21 @@ export const handleBatchActionJob = async (
         select: {
           id: true,
           projectId: true,
-          filter: true,
-          sampling: true,
           evalTemplateId: true,
           scoreName: true,
           targetObject: true,
           variableMapping: true,
         },
       });
+
+      // For batch evaluation the user's table-level selection determines which
+      // observations to evaluate, so we intentionally set filter=[] and
+      // sampling=1 to ensure every streamed observation is evaluated.
+      evaluators = rawEvaluators.map((e) => ({
+        ...e,
+        filter: [] as [],
+        sampling: new Decimal(1),
+      }));
     } catch (error) {
       await prisma.batchAction.update({
         where: { id: batchActionId },
