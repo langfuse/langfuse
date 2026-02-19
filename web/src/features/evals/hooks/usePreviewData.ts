@@ -1,6 +1,6 @@
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { EvalTargetObject, FilterState } from "@langfuse/shared";
+import { EvalTargetObject, type FilterState } from "@langfuse/shared";
 import { type UseFormReturn } from "react-hook-form";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
