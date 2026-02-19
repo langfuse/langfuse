@@ -395,10 +395,14 @@ export default function TracesTable({
   type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
   type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
 
-  const traceRowData = joinTableCoreAndMetrics<
-    TracesCoreOutput,
-    TraceMetricOutput
-  >(traces.data?.traces, traceMetrics.data);
+  const traceRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<TracesCoreOutput, TraceMetricOutput>(
+        traces.data?.traces,
+        traceMetrics.data,
+      ),
+    [traces.data?.traces, traceMetrics.data],
+  );
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
