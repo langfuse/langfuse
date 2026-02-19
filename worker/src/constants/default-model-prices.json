@@ -3439,6 +3439,66 @@
     ]
   },
   {
+    "id": "55106bba-a5dd-441b-bc0d-5652582b349d",
+    "modelName": "gemini-3.1-pro-preview",
+    "matchPattern": "(?i)^(google\/)?(gemini-3.1-pro-preview(-customtools)?)$",
+    "createdAt": "2026-02-19T00:00:00.000Z",
+    "updatedAt": "2026-02-19T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "55106bba-a5dd-441b-bc0d-5652582b349d_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_modality_1": 2e-6,
+          "prompt_token_count": 2e-6,
+          "promptTokenCount": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "cached_content_token_count": 0.2e-6,
+          "output": 12e-6,
+          "output_modality_1": 12e-6,
+          "candidates_token_count": 12e-6,
+          "candidatesTokenCount": 12e-6,
+          "thoughtsTokenCount": 12e-6,
+          "thoughts_token_count": 12e-6,
+          "output_reasoning": 12e-6
+        }
+      },
+      {
+        "id": "ada11e9f-fe0d-465a-92af-ce334d0eedeb",
+        "name": "Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|prompt|cached)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_modality_1": 4e-6,
+          "prompt_token_count": 4e-6,
+          "promptTokenCount": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "cached_content_token_count": 0.4e-6,
+          "output": 18e-6,
+          "output_modality_1": 18e-6,
+          "candidates_token_count": 18e-6,
+          "candidatesTokenCount": 18e-6,
+          "thoughtsTokenCount": 18e-6,
+          "thoughts_token_count": 18e-6,
+          "output_reasoning": 18e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "cmj2n4f2a000304kz49g4c43u",
     "modelName": "gpt-5.2",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.2)$",

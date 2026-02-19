@@ -19,9 +19,11 @@ export function NumericScoreHistogram(props: {
   globalFilterState: FilterState;
   metricsVersion?: ViewVersion;
 }) {
+  const version = props.metricsVersion ?? "v1";
   const histogram = api.dashboard.scoreHistogram.useQuery(
     {
       projectId: props.projectId,
+      version,
       from: "traces_scores",
       select: [{ column: "value" }],
       filter: [
@@ -45,7 +47,9 @@ export function NumericScoreHistogram(props: {
           operator: "=",
         },
       ],
-      limit: 10000,
+      // v1 fetches raw values client-side (capped at 10k rows).
+      // v2 aggregates server-side via histogram() — limit is unused.
+      ...(version === "v1" ? { limit: 10000 } : {}),
     },
     {
       trpc: {
