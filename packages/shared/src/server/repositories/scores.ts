@@ -1082,8 +1082,9 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     includeHasMetadataFlag = false,
   } = props;
 
+  // tracesPrefix is required by the function signature but unused here (only scoresFilter is needed)
   const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
-    tracesPrefix: "e",
+    tracesPrefix: "t",
   });
   scoresFilter.push(
     ...createFilterFromFilterState(

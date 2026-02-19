@@ -2872,11 +2872,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
 
   const cteResult = tracesBuilder.buildWithParams();
 
-  const query = `
-    WITH traces AS (${cteResult.query})
-    SELECT id, name, user_id, tags
-    FROM traces
-  `;
+  const query = `${cteResult.query}`;
 
   return measureAndReturn({
     operationName: "getTraceMetadataByIdsFromEvents",
