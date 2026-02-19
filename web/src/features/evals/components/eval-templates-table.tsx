@@ -7,11 +7,12 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekView } from "@/src/components/table/peek";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
@@ -292,6 +293,21 @@ export default function EvalsTemplateTable({
     },
   });
 
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "EVALUATOR" as const,
+      detailNavigationKey: "eval-templates",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
+        ],
+      },
+      children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
+      ...peekNavigationProps,
+    }),
+    [projectId, peekNavigationProps],
+  );
+
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
   ): EvalsTemplateRow => {
@@ -325,18 +341,7 @@ export default function EvalsTemplateTable({
       <DataTable
         tableName={"evalTemplates"}
         columns={columns}
-        peekView={{
-          itemType: "EVALUATOR",
-          detailNavigationKey: "eval-templates",
-          peekEventOptions: {
-            ignoredSelectors: [
-              "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
-            ],
-          },
-          tableDataUpdatedAt: templates.dataUpdatedAt,
-          children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
-          ...peekNavigationProps,
-        }}
+        peekView={peekConfig}
         data={
           templates.isLoading
             ? { isLoading: true, isError: false }
@@ -362,6 +367,7 @@ export default function EvalsTemplateTable({
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />
+      <TablePeekView peekView={peekConfig} />
       <Dialog
         open={!!editTemplateId && template.isSuccess}
         onOpenChange={(open) => {

@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.153.0",
+  "version": "3.154.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -56,6 +56,7 @@
     "jsonpath-plus": "10.3.0",
     "kysely": "^0.27.4",
     "lodash": "^4.17.23",
+    "p-limit": "^7.3.0",
     "pg": "^8.13.0",
     "posthog-node": "^5.8.4",
     "stripe": "^17.4.0",

@@ -24,7 +24,7 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   columnDefinitions: eventsTableCols,
 
-  defaultExpanded: ["environment", "name"],
+  defaultExpanded: ["environment", "name", "hasParentObservation"],
 
   facets: [
     {
@@ -36,6 +36,12 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
+    },
+    {
+      type: "boolean" as const,
+      column: "hasParentObservation",
+      label: "Is Root Observation",
+      invertValue: true, // "True" = hasParentObservation=false (is root)
     },
     {
       type: "categorical" as const,
@@ -51,6 +57,12 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "level",
       label: getEventsColumnName("level"),
+    },
+    {
+      type: "positionInTrace" as const,
+      column: "positionInTrace",
+      label: getEventsColumnName("positionInTrace"),
+      mutuallyExclusiveWith: ["score_categories", "scores_avg"],
     },
     {
       type: "categorical" as const,

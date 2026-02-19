@@ -33,6 +33,11 @@ const EnvSchema = z.object({
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
+  REDIS_CLUSTER_SLOTS_REFRESH_TIMEOUT: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
@@ -69,6 +74,7 @@ const EnvSchema = z.object({
   CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE: z
     .enum(["alter_update", "lightweight_update", "lightweight_update_force"])
     .default("alter_update"),
+  CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE: z.enum(["true", "false"]).default("false"),
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
@@ -281,6 +287,11 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
+    .enum(["true", "false"])
+    .default("true"),
+
+  // Legacy events table (transitional deployment)
+  LANGFUSE_LEGACY_EVENTS_TABLE_EXISTS: z
     .enum(["true", "false"])
     .default("true"),
 

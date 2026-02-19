@@ -21,7 +21,28 @@ jobs:
         with:
           image: langfuse/langfuse-worker
           args: --sarif-file-output=snyk.sarif
+      - name: Fix SARIF file
+        if: always()
+        run: |
+          if [ -f snyk.sarif ]; then
+            # Fix undefined security severity values in SARIF file
+            sed -i 's/"security-severity": "undefined"/"security-severity": "0"/g' snyk.sarif
+            echo "SARIF file fixed"
+          else
+            echo "No SARIF file found"
+          fi
+      - name: Echo SARIF file for debugging
+        if: always()
+        run: |
+          if [ -f snyk.sarif ]; then
+            echo "=== SARIF File Contents ==="
+            cat snyk.sarif
+            echo "=== End of SARIF File ==="
+          else
+            echo "No SARIF file found to display"
+          fi
       - name: Upload result to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v4
+        if: always()
         with:
           sarif_file: snyk.sarif

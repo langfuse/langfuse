@@ -48,6 +48,16 @@ export const viewDeclaration = z.object({
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.
   segments: z.array(singleFilter),
   timeDimension: z.string(),
+  // When set, adds a subquery filter to restrict rows to those whose "root event"
+  // (matching the condition) has timeDimension in the query window.
+  rootEventCondition: z
+    .object({
+      // The column used to match root entities between outer query and subquery (e.g., "trace_id").
+      column: z.string(),
+      // SQL condition identifying root events (e.g., "parent_span_id = ''").
+      condition: z.string(),
+    })
+    .optional(),
 });
 
 export const stringDateTime = z.string().datetime({ offset: true });
