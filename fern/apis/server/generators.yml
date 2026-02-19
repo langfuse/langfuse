@@ -38,10 +38,3 @@ groups:
           streamType: web
           omitFernHeaders: true
         smart-casing: false
-
-      - name: fernapi/fern-postman
-        version: 0.0.45
-        output:
-          location: local-file-system
-          path: ../../../web/public/generated/postman
-        smart-casing: false

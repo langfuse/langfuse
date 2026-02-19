@@ -20,9 +20,6 @@ info:
 
 
     - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
-
-    - Postman collection:
-    https://cloud.langfuse.com/generated/postman/collection.json
 paths:
   /api/public/annotation-queues:
     get:
