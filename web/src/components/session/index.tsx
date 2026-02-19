@@ -663,30 +663,24 @@ export const SessionEventsPage: React.FC<{
     oldFilterState: timeFiltersForOptions,
   });
 
-  const positionInTraceColumn: ColumnDefinition = React.useMemo(
-    () => ({
-      name: "Position in Trace",
-      id: "positionInTrace",
-      type: "positionInTrace",
-      internal: "positionInTrace",
-    }),
-    [],
-  );
-
   const sessionEventsFilterConfig = React.useMemo(() => {
     return {
       ...observationEventsFilterConfig,
       tableName: "session-events",
-      columnDefinitions: [
-        ...observationEventsFilterConfig.columnDefinitions,
-        positionInTraceColumn,
-      ],
-      facets: observationEventsFilterConfig.facets.filter(
-        (facet) =>
-          facet.column !== "sessionId" && facet.column !== "environment",
-      ),
+      columnDefinitions: observationEventsFilterConfig.columnDefinitions,
+      facets: observationEventsFilterConfig.facets
+        .filter(
+          (facet) =>
+            facet.column !== "sessionId" && facet.column !== "environment",
+        )
+        .map((facet) => ({
+          ...facet,
+          // Session detail uses a different query path and should not inherit
+          // events-table mutual exclusion behavior.
+          mutuallyExclusiveWith: undefined,
+        })),
     };
-  }, [positionInTraceColumn]);
+  }, []);
 
   const filterColumns = React.useMemo<ColumnDefinition[]>(() => {
     const scoreCategoryOptions = filterOptions.score_categories
