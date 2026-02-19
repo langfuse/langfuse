@@ -1104,8 +1104,8 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   return await enrichObservationsWithModelData(
     records,
     projectId,
-    Boolean(opts.parseIoAsJson),
-    opts.fields,
+    false, // V2 API: IO fields are always returned as raw strings
+    opts.fields, // V2 API: field groups specified, return partial observations
   );
 };
 
@@ -1401,8 +1401,12 @@ export const updateEvents = async (
     ...updates,
   };
 
+  const useLightweightUpdate = env.CLICKHOUSE_USE_LIGHTWEIGHT_UPDATE === "true";
+
   const updateOpts = (table: string) => ({
-    query: `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
+    query: useLightweightUpdate
+      ? `UPDATE ${table} SET ${setClauses.join(", ")} ${whereClause}`
+      : `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
     params,
     tags: { type: table, kind: "update", projectId },
   });
@@ -2027,6 +2031,44 @@ export const getEventsGroupedByExperimentName = async (
     },
   });
   return res;
+};
+
+/**
+ * Get grouped hasParentObservation boolean from events table
+ * Used for filter options (counts for "Is Root Observation" facet)
+ */
+export const getEventsGroupedByHasParentObservation = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "(e.parent_span_id != '')",
+    selectExpression:
+      "(e.parent_span_id != '') as hasParentObservation, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .orderBy("ORDER BY hasParentObservation ASC")
+    .limit(2, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  return queryClickhouse<{ hasParentObservation: boolean; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
 };
 
 /**

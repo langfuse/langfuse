@@ -131,48 +131,16 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.output).toBe(jsonOutput);
     });
 
-    it("should parse input/output as JSON when parseIoAsJson=true", async () => {
-      const traceId = randomUUID();
-      const observationId = randomUUID();
-      const timestamp = new Date();
-      const timeValue = timestamp.getTime() * 1000;
-
-      // Create observation with JSON input/output
-      const inputData = { question: "What is 2+2?" };
-      const outputData = { answer: 4 };
-
-      const observation = createEvent({
-        id: observationId,
-        span_id: observationId,
-        trace_id: traceId,
-        project_id: projectId,
-        name: "test-observation",
-        type: "GENERATION",
-        level: "DEFAULT",
-        start_time: timeValue,
-        end_time: timeValue + 1000 * 1000,
-        input: JSON.stringify(inputData),
-        output: JSON.stringify(outputData),
-      });
-
-      await createEventsCh([observation]);
-
-      // Request with parseIoAsJson=true
-      const response = await makeZodVerifiedAPICall(
-        GetObservationsV2Response,
+    it("should return 400 when parseIoAsJson=true", async () => {
+      const { makeAPICall } = await import("@/src/__tests__/test-utils");
+      const response = await makeAPICall(
         "GET",
-        `/api/public/v2/observations?fields=io&traceId=${traceId}&parseIoAsJson=true`,
+        `/api/public/v2/observations?fields=io&parseIoAsJson=true`,
       );
 
-      expect(response.status).toBe(200);
-      const obs = response.body.data.find((o: any) => o.id === observationId);
-      expect(obs).toBeDefined();
-
-      // Input and output should be parsed as objects
-      expect(typeof obs?.input).toBe("object");
-      expect(typeof obs?.output).toBe("object");
-      expect(obs?.input).toEqual(inputData);
-      expect(obs?.output).toEqual(outputData);
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("error");
+      expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
     });
 
     it("should respect limit parameter with default of 50", async () => {
