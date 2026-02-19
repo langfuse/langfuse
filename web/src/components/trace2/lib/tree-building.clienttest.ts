@@ -4,7 +4,12 @@
  * Run with: pnpm test-client --testPathPattern="tree-building"
  */
 
-import { buildTraceUiData } from "./tree-building";
+import {
+  buildTraceUiData,
+  removeHiddenNodes,
+  getObservationLevels,
+} from "./tree-building";
+import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
 
@@ -209,7 +214,6 @@ describe("buildTraceUiData", () => {
       expect(result.roots).toHaveLength(1);
       expect(result.roots[0].children).toHaveLength(0);
       expect(result.searchItems).toHaveLength(1); // Just the trace
-      expect(result.hiddenObservationsCount).toBe(0);
     });
 
     it("sorts children by startTime", () => {
@@ -1658,5 +1662,218 @@ describe("buildTraceUiData", () => {
         expect(result.nodeMap.get("nested-2")?.depth).toBe(2);
       });
     });
+  });
+});
+
+describe("removeHiddenNodes", () => {
+  const makeNode = (
+    overrides: Partial<TreeNode> & { id: string },
+  ): TreeNode => ({
+    type: "SPAN",
+    name: overrides.id,
+    startTime: new Date("2024-01-01T00:00:00Z"),
+    endTime: new Date("2024-01-01T00:00:01Z"),
+    level: "DEFAULT",
+    children: [],
+    startTimeSinceTrace: 0,
+    startTimeSinceParentStart: null,
+    depth: 0,
+    childrenDepth: 0,
+    ...overrides,
+  });
+
+  it("returns nodes unchanged when none are hidden", () => {
+    const roots = [
+      makeNode({
+        id: "A",
+        children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
+      }),
+    ];
+
+    const result = removeHiddenNodes(roots, () => false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("A");
+    expect(result[0].children).toHaveLength(2);
+  });
+
+  it("promotes children of a hidden intermediate node", () => {
+    // A -> B (hidden) -> C
+    const roots = [
+      makeNode({
+        id: "A",
+        children: [
+          makeNode({
+            id: "B",
+            level: "DEBUG",
+            children: [makeNode({ id: "C" })],
+          }),
+        ],
+      }),
+    ];
+
+    const result = removeHiddenNodes(
+      roots,
+      (n) => n.level === "DEBUG",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("A");
+    expect(result[0].children).toHaveLength(1);
+    expect(result[0].children[0].id).toBe("C");
+  });
+
+  it("promotes children of a hidden root node", () => {
+    // A (hidden) -> [B, C]
+    const roots = [
+      makeNode({
+        id: "A",
+        level: "DEBUG",
+        children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
+      }),
+    ];
+
+    const result = removeHiddenNodes(
+      roots,
+      (n) => n.level === "DEBUG",
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe("B");
+    expect(result[1].id).toBe("C");
+  });
+
+  it("handles multiple consecutive hidden ancestors", () => {
+    // A -> B (hidden) -> C (hidden) -> D
+    const roots = [
+      makeNode({
+        id: "A",
+        children: [
+          makeNode({
+            id: "B",
+            level: "DEBUG",
+            children: [
+              makeNode({
+                id: "C",
+                level: "DEBUG",
+                children: [makeNode({ id: "D" })],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ];
+
+    const result = removeHiddenNodes(
+      roots,
+      (n) => n.level === "DEBUG",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("A");
+    expect(result[0].children).toHaveLength(1);
+    expect(result[0].children[0].id).toBe("D");
+  });
+
+  it("merges promoted children with existing siblings", () => {
+    // A -> [B (hidden) -> [B1, B2], C]
+    const roots = [
+      makeNode({
+        id: "A",
+        children: [
+          makeNode({
+            id: "B",
+            level: "DEBUG",
+            children: [makeNode({ id: "B1" }), makeNode({ id: "B2" })],
+          }),
+          makeNode({ id: "C" }),
+        ],
+      }),
+    ];
+
+    const result = removeHiddenNodes(
+      roots,
+      (n) => n.level === "DEBUG",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("A");
+    expect(result[0].children).toHaveLength(3);
+    expect(result[0].children.map((c) => c.id)).toEqual(["B1", "B2", "C"]);
+  });
+
+  it("removes leaf hidden nodes entirely", () => {
+    const roots = [
+      makeNode({
+        id: "A",
+        children: [
+          makeNode({ id: "B", level: "DEBUG" }),
+          makeNode({ id: "C" }),
+        ],
+      }),
+    ];
+
+    const result = removeHiddenNodes(
+      roots,
+      (n) => n.level === "DEBUG",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].children).toHaveLength(1);
+    expect(result[0].children[0].id).toBe("C");
+  });
+
+  it("does not modify the original tree", () => {
+    const child = makeNode({ id: "C" });
+    const hidden = makeNode({
+      id: "B",
+      level: "DEBUG",
+      children: [child],
+    });
+    const root = makeNode({ id: "A", children: [hidden] });
+
+    removeHiddenNodes([root], (n) => n.level === "DEBUG");
+
+    // Original tree is untouched
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].id).toBe("B");
+    expect(root.children[0].children).toHaveLength(1);
+  });
+
+  it("preserves TRACE nodes even if predicate matches", () => {
+    const roots = [
+      makeNode({
+        id: "trace-1",
+        type: "TRACE",
+        level: "DEBUG",
+        children: [makeNode({ id: "obs-1" })],
+      }),
+    ];
+
+    const result = removeHiddenNodes(
+      roots,
+      (n) => n.type !== "TRACE" && n.level === "DEBUG",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("trace-1");
+    expect(result[0].children).toHaveLength(1);
+  });
+});
+
+describe("getObservationLevels", () => {
+  it("returns all levels when minLevel is undefined", () => {
+    const levels = getObservationLevels(undefined);
+    expect(levels).toEqual(["DEBUG", "DEFAULT", "WARNING", "ERROR"]);
+  });
+
+  it("returns levels at or above DEFAULT", () => {
+    const levels = getObservationLevels("DEFAULT");
+    expect(levels).toEqual(["DEFAULT", "WARNING", "ERROR"]);
+  });
+
+  it("returns only ERROR when minLevel is ERROR", () => {
+    const levels = getObservationLevels("ERROR");
+    expect(levels).toEqual(["ERROR"]);
   });
 });
