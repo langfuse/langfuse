@@ -2,7 +2,10 @@
  * Reusable ClickHouse query fragments and CTEs
  */
 
-import { EventsAggregationQueryBuilder } from "./event-query-builder";
+import {
+  EventsAggregationQueryBuilder,
+  EventsSessionAggregationQueryBuilder,
+} from "./event-query-builder";
 
 interface EventsTracesAggregationParams {
   projectId: string;
@@ -181,4 +184,25 @@ export const eventsTracesScoresAggregation = (
   `.trim();
 
   return { query, params: queryParams };
+};
+
+/**
+ * Aggregates events directly by session_id in a single step.
+ * Mirrors eventsTracesAggregation but groups by session_id instead of trace_id.
+ *
+ * Use this for session-level queries instead of the two-step
+ * eventsTracesAggregation → re-aggregate by session_id approach.
+ */
+export const eventsSessionsAggregation = (params: {
+  projectId: string;
+  sessionIds?: string[];
+  startTimeFrom?: string | null;
+}): EventsSessionAggregationQueryBuilder => {
+  return new EventsSessionAggregationQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectFieldSet("all")
+    .withSessionIds(params.sessionIds)
+    .withStartTimeFrom(params.startTimeFrom)
+    .whereRaw("session_id != ''");
 };
