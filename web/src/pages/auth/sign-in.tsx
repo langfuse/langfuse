@@ -64,6 +64,7 @@ export type PageProps = {
     onelogin: boolean;
     azureAd: boolean;
     auth0: boolean;
+    clickhouseCloud: boolean;
     cognito: boolean;
     keycloak:
       | {
@@ -131,6 +132,12 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
           env.AUTH_AUTH0_CLIENT_ID !== undefined &&
           env.AUTH_AUTH0_CLIENT_SECRET !== undefined &&
           env.AUTH_AUTH0_ISSUER !== undefined,
+        // Langfuse Cloud only — NOT for self-hosted Langfuse
+        clickhouseCloud:
+          env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID !== undefined &&
+          env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET !== undefined &&
+          env.AUTH_CLICKHOUSE_CLOUD_ISSUER !== undefined &&
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined,
         cognito:
           env.AUTH_COGNITO_CLIENT_ID !== undefined &&
           env.AUTH_COGNITO_CLIENT_SECRET !== undefined &&
@@ -329,6 +336,17 @@ export function SSOButtons({
               loading={providerSigningIn === "auth0"}
               showLastUsedBadge={
                 hasMultipleAuthMethods && lastUsedMethod === "auth0"
+              }
+            />
+          )}
+          {authProviders.clickhouseCloud && (
+            <AuthProviderButton
+              icon={<TbBrandOauth className="mr-3" size={18} />}
+              label="ClickHouse Cloud"
+              onClick={() => handleSignIn("clickhouse-cloud")}
+              loading={providerSigningIn === "clickhouse-cloud"}
+              showLastUsedBadge={
+                hasMultipleAuthMethods && lastUsedMethod === "clickhouse-cloud"
               }
             />
           )}
