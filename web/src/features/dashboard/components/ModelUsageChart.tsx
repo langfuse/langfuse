@@ -21,6 +21,7 @@ import {
 } from "@/src/features/dashboard/components/ModelSelector";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
@@ -36,6 +37,7 @@ export const ModelUsageChart = ({
   toTimestamp,
   userAndEnvFilterState,
   isLoading = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -45,6 +47,7 @@ export const ModelUsageChart = ({
   toTimestamp: Date;
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const {
     allModels,
@@ -58,6 +61,7 @@ export const ModelUsageChart = ({
     userAndEnvFilterState,
     fromTimestamp,
     toTimestamp,
+    metricsVersion,
   );
 
   const modelUsageQuery: QueryType = {
@@ -95,6 +99,7 @@ export const ModelUsageChart = ({
     {
       projectId,
       query: modelUsageQuery,
+      version: metricsVersion,
     },
     {
       enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,

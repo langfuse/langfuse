@@ -400,7 +400,8 @@ CREATE TABLE IF NOT EXISTS events_full
       -- Indexes
       INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
       INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_type type TYPE set(50) GRANULARITY 1,
+      INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
       INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
       INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
 
@@ -532,7 +533,8 @@ CREATE TABLE IF NOT EXISTS events_core
     -- Indexes
     INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_type type TYPE set(50) GRANULARITY 1,
+    INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
     INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1
 )
