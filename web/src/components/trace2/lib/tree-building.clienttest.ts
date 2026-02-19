@@ -1712,10 +1712,7 @@ describe("removeHiddenNodes", () => {
       }),
     ];
 
-    const result = removeHiddenNodes(
-      roots,
-      (n) => n.level === "DEBUG",
-    );
+    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("A");
@@ -1733,10 +1730,7 @@ describe("removeHiddenNodes", () => {
       }),
     ];
 
-    const result = removeHiddenNodes(
-      roots,
-      (n) => n.level === "DEBUG",
-    );
+    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
 
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe("B");
@@ -1764,10 +1758,7 @@ describe("removeHiddenNodes", () => {
       }),
     ];
 
-    const result = removeHiddenNodes(
-      roots,
-      (n) => n.level === "DEBUG",
-    );
+    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("A");
@@ -1791,10 +1782,7 @@ describe("removeHiddenNodes", () => {
       }),
     ];
 
-    const result = removeHiddenNodes(
-      roots,
-      (n) => n.level === "DEBUG",
-    );
+    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("A");
@@ -1813,10 +1801,7 @@ describe("removeHiddenNodes", () => {
       }),
     ];
 
-    const result = removeHiddenNodes(
-      roots,
-      (n) => n.level === "DEBUG",
-    );
+    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
 
     expect(result).toHaveLength(1);
     expect(result[0].children).toHaveLength(1);
