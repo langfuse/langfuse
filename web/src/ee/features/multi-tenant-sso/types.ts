@@ -6,6 +6,10 @@ const base = z.object({
   }),
 });
 
+const authChecks = z
+  .array(z.enum(["nonce", "none", "pkce", "state"]))
+  .optional();
+
 export const GoogleProviderSchema = base.extend({
   authProvider: z.literal("google"),
   authConfig: z
@@ -13,6 +17,7 @@ export const GoogleProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -24,6 +29,7 @@ export const GithubProviderSchema = base.extend({
       clientId: z.string(),
       clientSecret: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -38,6 +44,7 @@ export const GithubEnterpriseProviderSchema = base.extend({
         baseUrl: z.string().url(),
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -50,6 +57,7 @@ export const GitlabProviderSchema = base.extend({
       clientSecret: z.string(),
       issuer: z.string().optional(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -62,6 +70,7 @@ export const Auth0ProviderSchema = base.extend({
       clientSecret: z.string(),
       issuer: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -76,6 +85,7 @@ export const OktaProviderSchema = base.extend({
         message: "Okta issuer must start with https://",
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -91,6 +101,7 @@ export const AuthentikProviderSchema = base.extend({
           "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
       }),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -103,6 +114,7 @@ export const OneLoginProviderSchema = base.extend({
       clientSecret: z.string(),
       issuer: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -115,6 +127,7 @@ export const AzureAdProviderSchema = base.extend({
       clientSecret: z.string(),
       tenantId: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -127,6 +140,7 @@ export const CognitoProviderSchema = base.extend({
       clientSecret: z.string(),
       issuer: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -140,6 +154,7 @@ export const KeycloakProviderSchema = base.extend({
       clientSecret: z.string(),
       issuer: z.string(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -155,6 +170,7 @@ export const CustomProviderSchema = base.extend({
       scope: z.string().nullish(),
       idToken: z.boolean().optional().default(true),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
@@ -168,6 +184,7 @@ export const JumpCloudProviderSchema = base.extend({
       issuer: z.url(),
       scope: z.string().nullish(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
+      checks: authChecks,
     })
     .nullish(),
 });
