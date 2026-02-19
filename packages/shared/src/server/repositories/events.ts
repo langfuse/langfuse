@@ -29,6 +29,7 @@ import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
+  eventsSessionsAggregation,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -65,6 +66,7 @@ import {
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
+  type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
@@ -2898,5 +2900,48 @@ export const getAvgCostByEvaluatorIds = async (
     evaluatorId: row.evaluator_id,
     avgCost: Number(row.avg_cost),
     executionCount: Number(row.execution_count),
+  }));
+};
+
+export const getSessionMetricsFromEvents = async (props: {
+  projectId: string;
+  sessionIds: string[];
+  queryFromTimestamp?: Date;
+}) => {
+  if (props.sessionIds.length === 0) return [];
+
+  const builder = eventsSessionsAggregation({
+    projectId: props.projectId,
+    sessionIds: props.sessionIds,
+    startTimeFrom: props.queryFromTimestamp
+      ? convertDateToClickhouseDateTime(props.queryFromTimestamp)
+      : undefined,
+  }).limit(props.sessionIds.length);
+
+  const { query, params } = builder.buildWithParams();
+
+  const rows = await measureAndReturn({
+    operationName: "getSessionMetricsFromEvents",
+    projectId: props.projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "session-metrics-direct",
+        projectId: props.projectId,
+      },
+    },
+    fn: async (input) =>
+      queryClickhouse<SessionEventsMetricsRow>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
+    total_observations: Number(row.total_observations),
   }));
 };
