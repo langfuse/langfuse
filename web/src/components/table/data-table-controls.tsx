@@ -1524,7 +1524,7 @@ export function FilterValueCheckbox({
         )}
         onClick={onLabelClick}
       >
-        {icon}
+        {icon ? <span className="mr-2">{icon}</span> : null}
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-xs",
