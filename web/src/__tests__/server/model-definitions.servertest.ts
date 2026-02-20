@@ -13,13 +13,50 @@ import {
 } from "@/src/features/public-api/types/models";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import type { z } from "zod/v4";
 
 describe("/models API Endpoints", () => {
+  type PublicModel = z.infer<typeof GetModelsV1Response>["data"][number];
+
   let auth: string;
   let projectId: string;
   let modelOneId: string;
   let modelTwoId: string;
   let fixtureModelName: string;
+
+  const findModelsInPaginatedList = async (
+    authHeader: string,
+    modelIds: string[],
+  ): Promise<Map<string, PublicModel>> => {
+    const limit = 100;
+    const pending = new Set(modelIds);
+    const found = new Map<string, PublicModel>();
+    let page = 1;
+    let totalPages = 1;
+
+    while (page <= totalPages && pending.size > 0) {
+      const models = await makeZodVerifiedAPICall(
+        GetModelsV1Response,
+        "GET",
+        `/api/public/models?page=${page}&limit=${limit}`,
+        undefined,
+        authHeader,
+      );
+
+      totalPages = models.body.meta.totalPages;
+
+      for (const model of models.body.data) {
+        if (pending.has(model.id)) {
+          found.set(model.id, model);
+          pending.delete(model.id);
+        }
+      }
+
+      page += 1;
+    }
+
+    return found;
+  };
 
   beforeEach(async () => {
     // Create authentication pairs
@@ -155,11 +192,15 @@ describe("/models API Endpoints", () => {
       auth,
     );
     expect(models.status).toBe(200);
-    const fixtureModels = models.body.data.filter(
-      (model) => model.modelName === fixtureModelName,
-    );
-    expect(fixtureModels).toHaveLength(2);
-    expect(fixtureModels[0]).toMatchObject({
+
+    const foundModels = await findModelsInPaginatedList(auth, [
+      modelOneId,
+      modelTwoId,
+    ]);
+    expect(foundModels.size).toBe(2);
+
+    const fixtureModel = foundModels.get(modelOneId);
+    expect(fixtureModel).toMatchObject({
       isLangfuseManaged: true,
       modelName: fixtureModelName,
       prices: {
@@ -214,7 +255,12 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(models.body.data.map((m) => m.id)).toContain(customModel.body.id);
+    expect(models.status).toBe(200);
+
+    const foundModels = await findModelsInPaginatedList(auth, [
+      customModel.body.id,
+    ]);
+    expect(foundModels.has(customModel.body.id)).toBe(true);
 
     const getModel = await makeZodVerifiedAPICall(
       GetModelV1Response,
@@ -311,19 +357,19 @@ describe("/models API Endpoints", () => {
   });
 
   it("Cannot delete built-in models", async () => {
-    const models = await makeZodVerifiedAPICall(
-      GetModelsV1Response,
+    const getBuiltInModel = await makeZodVerifiedAPICall(
+      GetModelV1Response,
       "GET",
-      "/api/public/models",
+      `/api/public/models/${modelOneId}`,
       undefined,
       auth,
     );
-    const builtInModel = models.body.data.find((m) => m.id === modelOneId);
-    expect(builtInModel).toBeDefined();
+    expect(getBuiltInModel.status).toBe(200);
+    expect(getBuiltInModel.body.id).toBe(modelOneId);
 
     const deleteModel = await makeAPICall(
       "DELETE",
-      `/api/public/models/${builtInModel!.id}`,
+      `/api/public/models/${modelOneId}`,
       undefined,
       auth,
     );
