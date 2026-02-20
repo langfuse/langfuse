@@ -443,12 +443,6 @@ export const dashboardRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       try {
-        // wait for 2 seconds
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        throw new TRPCError({
-          code: "UNPROCESSABLE_CONTENT",
-          message: "Test error",
-        });
         return executeQuery(
           input.projectId,
           input.query as QueryType,
