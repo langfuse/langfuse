@@ -1496,7 +1496,7 @@ describe("OTel Resource Span Mapping", () => {
       expect(toolObservation?.body.name).toBe("function_tool");
     });
 
-    it("should set level to DEBUG for LiveKit spans ending with _fallback_adapter", async () => {
+    it("should set level to DEBUG for LiveKit fallback_adapter spans", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
 
       const livekitFallbackSpan = {
@@ -1510,11 +1510,12 @@ describe("OTel Resource Span Mapping", () => {
         },
         scopeSpans: [
           {
+            scope: { name: "livekit-agents" },
             spans: [
               {
                 traceId: Buffer.from(traceId, "hex"),
                 spanId: Buffer.from("1234567890abcdef", "hex"),
-                name: "stt_fallback_adapter",
+                name: "tts_fallback_adapter",
                 kind: 1,
                 startTimeUnixNano: {
                   low: 1000000,
@@ -1623,6 +1624,7 @@ describe("OTel Resource Span Mapping", () => {
           },
           scopeSpans: [
             {
+              scope: { name: "livekit-agents" },
               spans: [
                 {
                   traceId: Buffer.from(traceId, "hex"),
