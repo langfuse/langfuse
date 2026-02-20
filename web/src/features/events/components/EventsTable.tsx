@@ -472,6 +472,16 @@ export default function ObservationsEventsTable({
       },
     },
     {
+      id: ActionId.ObservationAddToDataset,
+      type: BatchActionType.Create,
+      label: "Add to Dataset",
+      description: "Add selected observations to a dataset",
+      customDialog: true,
+      accessCheck: {
+        scope: "datasets:CUD",
+      },
+    },
+    {
       id: ActionId.ObservationBatchEvaluation,
       type: BatchActionType.Create,
       label: "Evaluate",
@@ -480,16 +490,6 @@ export default function ObservationsEventsTable({
       icon: <LightbulbIcon className="mr-2 h-4 w-4" />,
       accessCheck: {
         scope: "evalJob:CUD",
-      },
-    },
-    {
-      id: ActionId.ObservationAddToDataset,
-      type: BatchActionType.Create,
-      label: "Add to Dataset",
-      description: "Add selected observations to a dataset",
-      customDialog: true,
-      accessCheck: {
-        scope: "datasets:CUD",
       },
     },
   ];
