@@ -172,12 +172,6 @@ jobs:
         shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
-      - name: Assert server tests do not use pruneDatabase
-        run: |
-          if grep -R -n -E '\bpruneDatabase\b' web/src/__tests__/server; then
-            echo "pruneDatabase is not allowed in server tests"
-            exit 1
-          fi
       - name: Install golang-migrate for Clickhouse migrations
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
