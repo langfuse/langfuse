@@ -15,6 +15,7 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
@@ -29,6 +30,7 @@ export function ChartScores(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -51,6 +53,7 @@ export function ChartScores(props: {
     {
       projectId: props.projectId,
       query: scoresQuery,
+      version: props.metricsVersion,
     },
     {
       trpc: {

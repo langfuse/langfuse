@@ -19,6 +19,7 @@ import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
@@ -34,6 +35,7 @@ export function NumericScoreTimeSeriesChart(props: {
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
+  metricsVersion?: ViewVersion;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -76,6 +78,7 @@ export function NumericScoreTimeSeriesChart(props: {
     {
       projectId: props.projectId,
       query: scoresQuery,
+      version: props.metricsVersion,
     },
     {
       trpc: {

@@ -1054,6 +1054,161 @@ export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
 }
 
 /**
+ * ClickHouse row type for session-level metrics queries from the events table.
+ * Matches the columns produced by EVENTS_SESSION_AGGREGATION_FIELDS below.
+ */
+export type SessionEventsMetricsRow = {
+  session_id: string;
+  max_timestamp: string;
+  min_timestamp: string;
+  trace_ids: string[];
+  user_ids: string[];
+  trace_count: number;
+  trace_tags: string[];
+  environment?: string;
+  total_observations: number;
+  duration: number;
+  session_usage_details: Record<string, number>;
+  session_cost_details: Record<string, number>;
+  session_input_cost: string;
+  session_output_cost: string;
+  session_total_cost: string;
+  session_input_usage: string;
+  session_output_usage: string;
+  session_total_usage: string;
+};
+
+/**
+ * Aggregation fields for session-level queries.
+ * These fields use ClickHouse aggregation functions and require GROUP BY session_id.
+ */
+const EVENTS_SESSION_AGGREGATION_FIELDS = {
+  session_id: "session_id",
+  max_timestamp: "max(start_time) AS max_timestamp",
+  min_timestamp: "min(start_time) AS min_timestamp",
+  trace_ids: "groupUniqArray(trace_id) AS trace_ids",
+  user_ids:
+    "groupUniqArrayIf(user_id, user_id IS NOT NULL AND user_id != '') AS user_ids",
+  trace_count: "uniq(trace_id) AS trace_count",
+  trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
+  environment:
+    "argMaxIf(environment, event_ts, environment <> '') AS environment",
+  total_observations:
+    "uniqIf(span_id, parent_span_id != '') AS total_observations",
+  duration:
+    "date_diff('second', min(start_time), max(if(isNull(end_time), start_time, end_time))) AS duration",
+  session_usage_details: "sumMap(usage_details) AS session_usage_details",
+  session_cost_details: "sumMap(cost_details) AS session_cost_details",
+  session_input_cost:
+    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(cost_details)))) AS session_input_cost",
+  session_output_cost:
+    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(cost_details)))) AS session_output_cost",
+  session_total_cost: "sumMap(cost_details)['total'] AS session_total_cost",
+  session_input_usage:
+    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(usage_details)))) AS session_input_usage",
+  session_output_usage:
+    "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sumMap(usage_details)))) AS session_output_usage",
+  session_total_usage: "sumMap(usage_details)['total'] AS session_total_usage",
+} as const;
+
+/**
+ * Field sets for session aggregation queries
+ */
+const SESSION_AGGREGATION_FIELD_SETS = {
+  all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
+    keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
+  >,
+} as const;
+
+/**
+ * EventsSessionAggregationQueryBuilder - A fluent query builder for session-level
+ * aggregated events table queries.
+ *
+ * This builder aggregates events directly by session_id in a single step,
+ * avoiding the two-step trace→session aggregation.
+ *
+ * @example
+ * const builder = new EventsSessionAggregationQueryBuilder({ projectId: "my-project-id" })
+ *   .selectFieldSet("all")
+ *   .withSessionIds(["session-1", "session-2"])
+ *   .withStartTimeFrom(startTimeFrom);
+ *
+ * const { query, params } = builder.buildWithParams();
+ */
+export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder<
+  typeof EVENTS_SESSION_AGGREGATION_FIELDS
+> {
+  constructor(options: { projectId: string }) {
+    super(EVENTS_SESSION_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Add SELECT fields from predefined session aggregation field sets
+   */
+  selectFieldSet(
+    ...setNames: Array<keyof typeof SESSION_AGGREGATION_FIELD_SETS>
+  ): this {
+    setNames
+      .flatMap((s) => SESSION_AGGREGATION_FIELD_SETS[s])
+      .forEach((field) => this.selectFields.add(field));
+    return this;
+  }
+
+  /**
+   * Add session ID filter
+   */
+  withSessionIds(sessionIds?: string[]): this {
+    return this.when(Boolean(sessionIds && sessionIds.length > 0), (b) =>
+      b.whereRaw("session_id IN ({sessionIds: Array(String)})", { sessionIds }),
+    );
+  }
+
+  /**
+   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
+   */
+  withStartTimeFrom(startTimeFrom?: string | null): this {
+    return this.when(Boolean(startTimeFrom), (b) =>
+      b.whereRaw(
+        `start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        { startTimeFrom },
+      ),
+    );
+  }
+
+  /**
+   * Build the SELECT clause for session aggregation queries
+   */
+  protected buildSelectClause(): string {
+    const fieldExpressions = [...this.selectFields]
+      .map((key) => {
+        return this.fields[
+          key as keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
+        ];
+      })
+      .filter(Boolean);
+    return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
+  }
+
+  /**
+   * Build the GROUP BY clause for session aggregations
+   */
+  protected buildGroupByClause(): string {
+    return "GROUP BY session_id";
+  }
+
+  /**
+   * Build with schema for use in CTEQueryBuilder.
+   * Returns query, params, and list of column names this CTE exposes.
+   */
+  buildWithSchema(): CTEWithSchema {
+    return {
+      ...this.buildWithParams(),
+      schema: [...this.selectFields],
+    };
+  }
+}
+
+/**
  * Query builder that composes CTEs with type-safe CTE name tracking.
  *
  * Generic type parameters:

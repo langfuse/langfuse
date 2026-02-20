@@ -10,6 +10,7 @@ import { DashboardCategoricalScoreAdapter } from "@/src/features/scores/adapters
 import { type ScoreData } from "@/src/features/scores/types";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
@@ -25,6 +26,7 @@ export function CategoricalScoreChart(props: {
   fromTimestamp: Date;
   toTimestamp: Date;
   agg?: DashboardDateRangeAggregationOption;
+  metricsVersion?: ViewVersion;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-categorical",
@@ -69,6 +71,7 @@ export function CategoricalScoreChart(props: {
     {
       projectId: props.projectId,
       query: scoresQuery,
+      version: props.metricsVersion,
     },
     {
       trpc: {
