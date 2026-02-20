@@ -13,8 +13,10 @@ import {
   getPayloadConfigFromPayload,
 } from "@/src/components/ui/chart";
 
-export interface ScoreChartLegendContentProps
-  extends Pick<LegendProps, "payload" | "verticalAlign"> {
+export interface ScoreChartLegendContentProps extends Pick<
+  LegendProps,
+  "payload" | "verticalAlign"
+> {
   /** Enable interactive click-to-toggle functionality */
   interactive?: boolean;
   /** Visibility state for each legend item (key -> visible) */
