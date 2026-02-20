@@ -10,7 +10,6 @@ import {
   recordGauge,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
-import { randomUUID } from "crypto";
 import { env } from "../../env";
 
 const LAST_PROCESSED_PARTITION_KEY =
