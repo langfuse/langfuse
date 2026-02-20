@@ -251,6 +251,30 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."experiment_name"',
   },
+  {
+    uiTableName: "Available Tools",
+    uiTableId: "toolDefinitions",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "length(mapKeys(e.tool_definitions))",
+  },
+  {
+    uiTableName: "Tool Calls",
+    uiTableId: "toolCalls",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "length(e.tool_calls)",
+  },
+  {
+    uiTableName: "Tool Names",
+    uiTableId: "toolNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "mapKeys(e.tool_definitions)",
+  },
+  {
+    uiTableName: "Called Tool Names",
+    uiTableId: "calledToolNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.tool_call_names",
+  },
 ];
 
 export const eventsTableUiColumnDefinitions: UiColumnMappings = [

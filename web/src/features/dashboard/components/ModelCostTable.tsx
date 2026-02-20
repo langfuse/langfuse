@@ -51,7 +51,8 @@ export const ModelCostTable = ({
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+    chartConfig: { type: "table", row_limit: 20 },
   };
 
   const metrics = api.dashboard.executeQuery.useQuery(
