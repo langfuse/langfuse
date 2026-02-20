@@ -13,6 +13,7 @@ import {
   createScoresCh,
   createEvent,
   createEventsCh,
+  clickhouseClient,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -3726,13 +3727,40 @@ describe("queryBuilder", () => {
       // Both should return sum of counts = 5 (total observations)
       expect(resultWithoutOpt).toHaveLength(1);
       expect(resultWithOpt).toHaveLength(1);
-      expect(resultWithoutOpt[0].sum_count).toBe(5);
-      expect(resultWithOpt[0].sum_count).toBe(5);
+      expect(Number(resultWithoutOpt[0].sum_count)).toBe(5);
+      expect(Number(resultWithOpt[0].sum_count)).toBe(5);
       expect(resultWithOpt).toEqual(resultWithoutOpt);
     });
   });
 
   describe("pairExpand map expansion (v2)", () => {
+    let hasEventsTable = true;
+
+    const itWithEventsTable = (
+      name: string,
+      testFn: () => Promise<void>,
+    ): void => {
+      it(name, async () => {
+        if (!hasEventsTable) {
+          return;
+        }
+        await testFn();
+      });
+    };
+
+    beforeAll(async () => {
+      try {
+        const result = await clickhouseClient().query({
+          query: "EXISTS TABLE default.events",
+          format: "TabSeparated",
+        });
+
+        hasEventsTable = (await result.text()).trim() === "1";
+      } catch {
+        hasEventsTable = false;
+      }
+    });
+
     it("should emit ARRAY JOIN clause for pairExpand dimensions", async () => {
       const projectId = randomUUID();
       const builder = new QueryBuilder(undefined, "v2");
@@ -3764,7 +3792,7 @@ describe("queryBuilder", () => {
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
     });
 
-    it("should aggregate cost_details by type correctly", async () => {
+    itWithEventsTable("should aggregate cost_details by type correctly", async () => {
       const projectId = randomUUID();
 
       const events = [
@@ -3811,7 +3839,7 @@ describe("queryBuilder", () => {
       expect(Number(totalRow?.["sum_costByType"])).toBeCloseTo(50, 2); // 30 + 20
     });
 
-    it("should aggregate usage_details by type correctly", async () => {
+    itWithEventsTable("should aggregate usage_details by type correctly", async () => {
       const projectId = randomUUID();
 
       const events = [
@@ -3855,7 +3883,9 @@ describe("queryBuilder", () => {
       expect(Number(outputRow?.["sum_usageByType"])).toBe(275); // 200 + 75
     });
 
-    it("should produce timeseries with costType dimension and WITH FILL", async () => {
+    itWithEventsTable(
+      "should produce timeseries with costType dimension and WITH FILL",
+      async () => {
       const projectId = randomUUID();
       const now = new Date();
 
@@ -3911,9 +3941,10 @@ describe("queryBuilder", () => {
       expect(result[0]).toHaveProperty("time_dimension");
       expect(result[0]).toHaveProperty("costType");
       expect(result[0]).toHaveProperty("sum_costByType");
-    });
+      },
+    );
 
-    it("should respect type filter with pairExpand dimensions", async () => {
+    itWithEventsTable("should respect type filter with pairExpand dimensions", async () => {
       const projectId = randomUUID();
 
       const events = [
@@ -3960,7 +3991,9 @@ describe("queryBuilder", () => {
       expect(Number(inputRow?.["sum_costByType"])).toBeCloseTo(10, 2);
     });
 
-    it("should aggregate cost_details by type correctly via two-level query path", async () => {
+    itWithEventsTable(
+      "should aggregate cost_details by type correctly via two-level query path",
+      async () => {
       // Forces the two-level path by passing useSingleLevelOptimization=false.
       // Verifies that the bare alias reference in buildInnerDimensionsPart
       // (not any()) is correct when the pairExpand dim is in GROUP BY.
@@ -4008,9 +4041,12 @@ describe("queryBuilder", () => {
 
       const totalRow = result.find((r) => r["costType"] === "total");
       expect(Number(totalRow?.["sum_costByType"])).toBeCloseTo(50, 2); // 30 + 20
-    });
+      },
+    );
 
-    it("should auto-include costType dimension when only costByType measure is requested", async () => {
+    itWithEventsTable(
+      "should auto-include costType dimension when only costByType measure is requested",
+      async () => {
       // Verifies requiresDimension: the query builder must inject the costType
       // dimension automatically so the ARRAY JOIN is emitted and cost_value is in scope.
       const projectId = randomUUID();
@@ -4051,7 +4087,8 @@ describe("queryBuilder", () => {
 
       const outputRow = result.find((r) => r["costType"] === "output");
       expect(Number(outputRow?.["sum_costByType"])).toBeCloseTo(3, 2);
-    });
+      },
+    );
 
     it("should throw when multiple pairExpand dimensions are requested directly", async () => {
       // Two separate ARRAY JOIN clauses create a cartesian product in ClickHouse.

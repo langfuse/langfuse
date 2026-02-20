@@ -347,14 +347,15 @@ describe("/models API Endpoints", () => {
       auth,
     );
 
-    const models = await makeZodVerifiedAPICall(
-      GetModelsV1Response,
+    const createdModel = await makeZodVerifiedAPICall(
+      GetModelV1Response,
       "GET",
-      "/api/public/models",
+      `/api/public/models/${customModel.body.id}`,
       undefined,
       auth,
     );
-    expect(models.body.data.map((m) => m.id)).toContain(customModel.body.id);
+    expect(createdModel.status).toBe(200);
+    expect(createdModel.body.id).toBe(customModel.body.id);
 
     await makeZodVerifiedAPICall(
       DeleteModelV1Response,
@@ -364,15 +365,20 @@ describe("/models API Endpoints", () => {
       auth,
     );
 
-    const modelsAfterDelete = await makeZodVerifiedAPICall(
-      GetModelsV1Response,
+    const deletedModel = await makeAPICall(
+      "GET",
+      `/api/public/models/${customModel.body.id}`,
+      undefined,
+      auth,
+    );
+    expect(deletedModel.status).toBe(404);
+
+    const modelsAfterDelete = await makeAPICall(
       "GET",
       "/api/public/models",
       undefined,
       auth,
     );
-    expect(modelsAfterDelete.body.data.map((m) => m.id)).not.toContain(
-      customModel.body.id,
-    );
+    expect(modelsAfterDelete.status).toBe(200);
   });
 });
