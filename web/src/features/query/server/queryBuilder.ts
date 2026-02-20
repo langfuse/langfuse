@@ -641,8 +641,14 @@ export class QueryBuilder {
           if (dimension.aggregationFunction) {
             return `${dimension.aggregationFunction} as ${dimension.alias ?? dimension.sql}`;
           }
-          // pairExpand dimensions: key column is in GROUP BY (see buildInnerSelect),
-          // so use a bare reference — wrapping in any() would be semantically misleading.
+          // pairExpand key columns (e.g. costType) are added to the inner GROUP BY in
+          // buildInnerSelect, so they are already deterministic grouping keys here.
+          // Unlike regular dimensions (which are not in GROUP BY and need any() to satisfy
+          // ClickHouse's aggregation rules), wrapping in any() would be wrong: it implies
+          // the value is non-deterministic within the group when it's actually the axis
+          // being grouped on. Use a bare reference instead.
+          // Note: the paired value column (e.g. cost_value) is NOT in GROUP BY and IS
+          // wrapped in any() in buildInnerMetricsPart, so the outer query can re-aggregate it.
           if (dimension.pairExpand) {
             return `${dimension.alias} as ${dimension.alias ?? dimension.sql}`;
           }
