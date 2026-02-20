@@ -58,6 +58,23 @@ export const traceProcessor = async (
     // Process each trigger
     for (const trigger of triggers) {
       try {
+        // Validate that the event action is authorized by this trigger
+        if (!trigger.eventActions.includes(event.action)) {
+          logger.debug(
+            `Action ${event.action} not in trigger ${trigger.id} eventActions`,
+            {
+              traceId: event.traceId,
+              projectId: event.projectId,
+              action: event.action,
+              allowedActions: trigger.eventActions,
+            },
+          );
+          continue;
+        }
+
+        // Build unified data object that includes trace data, action, and observation context
+        const eventData = {
+      try {
         // Build unified data object that includes trace data, action, and observation context
         const eventData = {
           ...event.trace,
