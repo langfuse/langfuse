@@ -34,7 +34,7 @@ import {
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
-import { checkBlockedUsers } from "./userBlocking";
+import { filterEventsForBlockedUsers } from "./userBlocking";
 import { prisma } from "../../db";
 
 let s3StorageServiceClient: StorageService;
@@ -256,45 +256,11 @@ export const processEventBatch = async (
   // Propagate userId from traces to child events
   await propagateTraceUserIds(batch, authCheck.scope.projectId);
 
-  // Collect userIds from ALL event types (not just traces)
-  // Note: Some event types (like SDK_LOG) don't have userId fields
-  const userIds = [
-    ...new Set(
-      batch
-        .map((event) => ("userId" in event.body ? event.body.userId : null))
-        .filter((userId): userId is string => Boolean(userId?.trim())),
-    ),
-  ];
-
-  let blocked = new Set<string>();
-  if (userIds.length > 0) {
-    blocked = await checkBlockedUsers({
-      projectId: authCheck.scope.projectId!,
-      userIds,
-    });
-  }
-
-  // Optimized bulk filtering - partition then filter
-  const [eventsWithUserId, eventsWithoutUserId] = batch.reduce(
-    (acc, event) => {
-      if ("userId" in event.body && event.body.userId) {
-        acc[0].push(event);
-      } else {
-        acc[1].push(event);
-      }
-      return acc;
-    },
-    [[] as IngestionEventType[], [] as IngestionEventType[]],
+  // Apply user blocking filter
+  const filteredBatch = await filterEventsForBlockedUsers(
+    batch,
+    authCheck.scope.projectId,
   );
-
-  // Filter only events with userId (no conditionals in hot path)
-  const allowedEventsWithUserId = eventsWithUserId.filter((event) => {
-    const userId = "userId" in event.body ? event.body.userId : null;
-    return userId ? !blocked.has(userId) : true;
-  });
-
-  // Combine results (events without userId + allowed events with userId)
-  const filteredBatch = [...eventsWithoutUserId, ...allowedEventsWithUserId];
 
   const sortedBatch = sortBatch(filteredBatch);
 

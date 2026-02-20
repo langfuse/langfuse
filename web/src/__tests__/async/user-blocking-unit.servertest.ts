@@ -1,6 +1,4 @@
-import { v4 as uuidv4 } from "uuid";
 import { pruneDatabase } from "@/src/__tests__/test-utils";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   blockUser,
   checkBlockedUsers,

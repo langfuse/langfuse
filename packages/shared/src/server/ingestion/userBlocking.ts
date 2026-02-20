@@ -1,5 +1,6 @@
 import { prisma } from "../../db";
-import { traceException } from "../instrumentation";
+import { traceException, recordIncrement } from "../instrumentation";
+import { logger } from "../logger";
 
 export async function blockUser(params: {
   projectId: string;
@@ -132,4 +133,99 @@ export async function checkBlockedUsers(params: {
     traceException(error);
     return new Set();
   }
+}
+
+/**
+ * Shared service to filter events for blocked users across all ingestion pathways.
+ * Follows the same optimized pattern as processEventBatch.ts for consistency.
+ */
+export async function filterEventsForBlockedUsers<T extends { body: any }>(
+  events: T[],
+  projectId: string,
+): Promise<T[]> {
+  if (events.length === 0) return events;
+
+  // Collect userIds from ALL event types that have userId fields
+  const userIds = [
+    ...new Set(
+      events
+        .map((event) => event.body?.userId)
+        .filter((userId): userId is string => Boolean(userId?.trim())),
+    ),
+  ];
+
+  // If no userIds found, return all events unfiltered
+  if (userIds.length === 0) return events;
+
+  // Check which users are blocked
+  let blocked = new Set<string>();
+  try {
+    blocked = await checkBlockedUsers({
+      projectId,
+      userIds,
+    });
+  } catch (error) {
+    // Log error but don't throw to avoid breaking the ingestion pipeline
+    traceException(error);
+    // Return all events unfiltered if blocking check fails (fail-safe behavior)
+    return events;
+  }
+
+  // If no blocked users, return all events unfiltered
+  if (blocked.size === 0) return events;
+
+  // Partition events by userId presence for optimized filtering
+  const [eventsWithUserId, eventsWithoutUserId] = events.reduce(
+    (acc, event) => {
+      if (event.body?.userId) {
+        acc[0].push(event);
+      } else {
+        acc[1].push(event);
+      }
+      return acc;
+    },
+    [[] as T[], [] as T[]],
+  );
+
+  // Filter only events with userId (no conditionals in hot path)
+  const allowedEventsWithUserId = eventsWithUserId.filter((event) => {
+    const userId = event.body?.userId;
+    return userId ? !blocked.has(userId) : true;
+  });
+
+  // Record metrics and log blocking activity
+  const blockedEventCount =
+    eventsWithUserId.length - allowedEventsWithUserId.length;
+  if (blockedEventCount > 0) {
+    const blockedUserIds = Array.from(blocked).filter((userId) =>
+      eventsWithUserId.some((event) => event.body?.userId === userId),
+    );
+
+    // Record metrics
+    recordIncrement(
+      "langfuse.user_blocking.events_blocked",
+      blockedEventCount,
+      {
+        projectId,
+      },
+    );
+    recordIncrement(
+      "langfuse.user_blocking.users_blocked",
+      blockedUserIds.length,
+      {
+        projectId,
+      },
+    );
+
+    // Structured logging with condensed context
+    logger.info("Events filtered for blocked users", {
+      projectId,
+      blockedEvents: blockedEventCount,
+      blockedUsers: blockedUserIds.length,
+      totalEvents: events.length,
+    });
+  }
+
+  // Combine results (events without userId + allowed events with userId)
+  return [...eventsWithoutUserId, ...allowedEventsWithUserId];
 }
