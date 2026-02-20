@@ -23,6 +23,7 @@ import {
   applyIngestionMasking,
   isIngestionMaskingEnabled,
 } from "@langfuse/shared/src/server/ee/ingestionMasking";
+import { propagateTraceUserIds } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
@@ -243,6 +244,10 @@ export const otelIngestionQueueProcessor: Processor = async (
     });
     const events: IngestionEventType[] =
       await processor.processToIngestionEvents(parsedSpans);
+
+    // Apply user ID propagation to ensure child spans inherit userId from their parent traces
+    await propagateTraceUserIds(events, projectId);
+
     // Here, we split the events into observations and non-observations.
     // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
     const traces = events.filter(
