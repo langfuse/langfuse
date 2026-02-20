@@ -1753,7 +1753,7 @@ export function WidgetForm({
       </div>
       {/* Right column - Chart */}
       <div className="w-2/3">
-        <Card className={"aspect-video"}>
+        <Card className="flex aspect-video flex-col">
           <CardHeader>
             <CardTitle className="truncate" title={widgetName}>
               {widgetName}
@@ -1763,7 +1763,7 @@ export function WidgetForm({
             </CardDescription>
           </CardHeader>
           {queryResult.data ? (
-            <div className="relative">
+            <div className="relative min-h-0 flex-1">
               <Chart
                 chartType={selectedChartType as DashboardWidgetChartType}
                 data={transformedData}
