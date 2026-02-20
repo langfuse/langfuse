@@ -1,3 +1,4 @@
+import type React from "react";
 import { useCallback, useMemo, useEffect, useRef } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import {
@@ -107,6 +108,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   counts: Map<string, number>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  /** Optional function to render an icon next to filter option labels */
+  renderIcon?: (value: string) => React.ReactNode;
   /**
    * Current operator for arrayOptions columns (tags, labels, etc.)
    * - "any of": OR logic - match if item has ANY selected value
@@ -1501,6 +1504,8 @@ export function useSidebarFilterState(
           isActive,
           isDisabled: disableState.isDisabled,
           disabledReason: disableState.reason,
+          renderIcon:
+            facet.type === "categorical" ? facet.renderIcon : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {

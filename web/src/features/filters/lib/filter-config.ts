@@ -1,3 +1,4 @@
+import type React from "react";
 import type { ColumnDefinition } from "@langfuse/shared";
 
 interface BaseFacet {
@@ -13,6 +14,8 @@ interface BaseFacet {
 
 interface CategoricalFacet extends BaseFacet {
   type: "categorical";
+  /** Optional function to render an icon next to filter option labels */
+  renderIcon?: (value: string) => React.ReactNode;
 }
 
 interface BooleanFacet extends BaseFacet {

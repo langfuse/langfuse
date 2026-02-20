@@ -1,3 +1,4 @@
+import type React from "react";
 import { Badge } from "@/src/components/ui/badge";
 import {
   CircleDot,
@@ -87,6 +88,15 @@ const iconVariants = cva(cn("h-4 w-4"), {
     },
   },
 });
+
+export function renderFilterIcon(value: string): React.ReactNode {
+  const type = value as LangfuseItemType;
+  const Icon = iconMap[type];
+  if (!Icon) return null;
+  return (
+    <Icon className={cn("h-3.5 w-3.5 shrink-0", iconVariants({ type }))} />
+  );
+}
 
 export function ItemBadge({
   type,

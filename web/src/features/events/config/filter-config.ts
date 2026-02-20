@@ -1,6 +1,7 @@
 import { eventsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {
@@ -36,6 +37,7 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
+      renderIcon: renderFilterIcon,
     },
     {
       type: "boolean" as const,
