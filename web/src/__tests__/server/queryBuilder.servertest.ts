@@ -4,6 +4,7 @@ import {
   executeQuery,
   validateQuery,
 } from "@/src/features/query/server/queryExecutor";
+import { env } from "@/src/env.mjs";
 import {
   createTrace,
   createObservation,
@@ -13,7 +14,6 @@ import {
   createScoresCh,
   createEvent,
   createEventsCh,
-  clickhouseClient,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 
@@ -3734,32 +3734,8 @@ describe("queryBuilder", () => {
   });
 
   describe("pairExpand map expansion (v2)", () => {
-    let hasEventsTable = true;
-
-    const itWithEventsTable = (
-      name: string,
-      testFn: () => Promise<void>,
-    ): void => {
-      it(name, async () => {
-        if (!hasEventsTable) {
-          return;
-        }
-        await testFn();
-      });
-    };
-
-    beforeAll(async () => {
-      try {
-        const result = await clickhouseClient().query({
-          query: "EXISTS TABLE default.events",
-          format: "TabSeparated",
-        });
-
-        hasEventsTable = (await result.text()).trim() === "1";
-      } catch {
-        hasEventsTable = false;
-      }
-    });
+    const maybeIt =
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
 
     it("should emit ARRAY JOIN clause for pairExpand dimensions", async () => {
       const projectId = randomUUID();
@@ -3792,7 +3768,7 @@ describe("queryBuilder", () => {
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
     });
 
-    itWithEventsTable("should aggregate cost_details by type correctly", async () => {
+    maybeIt("should aggregate cost_details by type correctly", async () => {
       const projectId = randomUUID();
 
       const events = [
@@ -3839,7 +3815,7 @@ describe("queryBuilder", () => {
       expect(Number(totalRow?.["sum_costByType"])).toBeCloseTo(50, 2); // 30 + 20
     });
 
-    itWithEventsTable("should aggregate usage_details by type correctly", async () => {
+    maybeIt("should aggregate usage_details by type correctly", async () => {
       const projectId = randomUUID();
 
       const events = [
@@ -3883,210 +3859,213 @@ describe("queryBuilder", () => {
       expect(Number(outputRow?.["sum_usageByType"])).toBe(275); // 200 + 75
     });
 
-    itWithEventsTable(
+    maybeIt(
       "should produce timeseries with costType dimension and WITH FILL",
       async () => {
-      const projectId = randomUUID();
-      const now = new Date();
+        const projectId = randomUUID();
+        const now = new Date();
 
-      const events = [
-        createEvent({
-          project_id: projectId,
-          type: "GENERATION",
-          cost_details: { input: 10, output: 20 },
-          start_time: now.getTime() * 1000,
-        }),
-      ];
-      await createEventsCh(events);
+        const events = [
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            cost_details: { input: 10, output: 20 },
+            start_time: now.getTime() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
 
-      const builder = new QueryBuilder(undefined, "v2");
-      const { query: sql } = await builder.build(
-        {
-          view: "observations",
-          dimensions: [{ field: "costType" }],
-          metrics: [{ measure: "costByType", aggregation: "sum" }],
-          filters: [],
-          timeDimension: { granularity: "day" },
-          fromTimestamp: new Date(now.getTime() - 2 * 86400000).toISOString(),
-          toTimestamp: new Date(now.getTime() + 86400000).toISOString(),
-          orderBy: null,
-        },
-        projectId,
-        true,
-      );
+        const builder = new QueryBuilder(undefined, "v2");
+        const { query: sql } = await builder.build(
+          {
+            view: "observations",
+            dimensions: [{ field: "costType" }],
+            metrics: [{ measure: "costByType", aggregation: "sum" }],
+            filters: [],
+            timeDimension: { granularity: "day" },
+            fromTimestamp: new Date(now.getTime() - 2 * 86400000).toISOString(),
+            toTimestamp: new Date(now.getTime() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          projectId,
+          true,
+        );
 
-      expect(sql).toContain("WITH FILL");
-      expect(sql).toContain("time_dimension");
-      // GROUP BY parts may be newline-separated in the generated SQL
-      expect(sql).toContain("GROUP BY costType");
-      expect(sql).toMatch(/GROUP BY costType[\s,]+time_dimension/);
+        expect(sql).toContain("WITH FILL");
+        expect(sql).toContain("time_dimension");
+        // GROUP BY parts may be newline-separated in the generated SQL
+        expect(sql).toContain("GROUP BY costType");
+        expect(sql).toMatch(/GROUP BY costType[\s,]+time_dimension/);
 
-      const result = await executeQuery(
-        projectId,
-        {
-          view: "observations",
-          dimensions: [{ field: "costType" }],
-          metrics: [{ measure: "costByType", aggregation: "sum" }],
-          filters: [],
-          timeDimension: { granularity: "day" },
-          fromTimestamp: new Date(now.getTime() - 2 * 86400000).toISOString(),
-          toTimestamp: new Date(now.getTime() + 86400000).toISOString(),
-          orderBy: null,
-        },
-        "v2",
-        true,
-      );
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "costType" }],
+            metrics: [{ measure: "costByType", aggregation: "sum" }],
+            filters: [],
+            timeDimension: { granularity: "day" },
+            fromTimestamp: new Date(now.getTime() - 2 * 86400000).toISOString(),
+            toTimestamp: new Date(now.getTime() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
 
-      expect(result.length).toBeGreaterThan(0);
-      expect(result[0]).toHaveProperty("time_dimension");
-      expect(result[0]).toHaveProperty("costType");
-      expect(result[0]).toHaveProperty("sum_costByType");
+        expect(result.length).toBeGreaterThan(0);
+        expect(result[0]).toHaveProperty("time_dimension");
+        expect(result[0]).toHaveProperty("costType");
+        expect(result[0]).toHaveProperty("sum_costByType");
       },
     );
 
-    itWithEventsTable("should respect type filter with pairExpand dimensions", async () => {
-      const projectId = randomUUID();
+    maybeIt(
+      "should respect type filter with pairExpand dimensions",
+      async () => {
+        const projectId = randomUUID();
 
-      const events = [
-        createEvent({
-          project_id: projectId,
-          type: "GENERATION",
-          cost_details: { input: 10 },
-          start_time: Date.now() * 1000,
-        }),
-        createEvent({
-          project_id: projectId,
-          type: "SPAN",
-          cost_details: { input: 999 },
-          start_time: Date.now() * 1000,
-        }),
-      ];
-      await createEventsCh(events);
+        const events = [
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            cost_details: { input: 10 },
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            type: "SPAN",
+            cost_details: { input: 999 },
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
 
-      const result = await executeQuery(
-        projectId,
-        {
-          view: "observations",
-          dimensions: [{ field: "costType" }],
-          metrics: [{ measure: "costByType", aggregation: "sum" }],
-          filters: [
-            {
-              column: "type",
-              operator: "=",
-              value: "GENERATION",
-              type: "string",
-            },
-          ],
-          timeDimension: null,
-          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-          toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-          orderBy: null,
-        },
-        "v2",
-        true,
-      );
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "costType" }],
+            metrics: [{ measure: "costByType", aggregation: "sum" }],
+            filters: [
+              {
+                column: "type",
+                operator: "=",
+                value: "GENERATION",
+                type: "string",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
 
-      const inputRow = result.find((r) => r["costType"] === "input");
-      // Only GENERATION row contributes: 10, not 999
-      expect(Number(inputRow?.["sum_costByType"])).toBeCloseTo(10, 2);
-    });
+        const inputRow = result.find((r) => r["costType"] === "input");
+        // Only GENERATION row contributes: 10, not 999
+        expect(Number(inputRow?.["sum_costByType"])).toBeCloseTo(10, 2);
+      },
+    );
 
-    itWithEventsTable(
+    maybeIt(
       "should aggregate cost_details by type correctly via two-level query path",
       async () => {
-      // Forces the two-level path by passing useSingleLevelOptimization=false.
-      // Verifies that the bare alias reference in buildInnerDimensionsPart
-      // (not any()) is correct when the pairExpand dim is in GROUP BY.
-      const projectId = randomUUID();
+        // Forces the two-level path by passing useSingleLevelOptimization=false.
+        // Verifies that the bare alias reference in buildInnerDimensionsPart
+        // (not any()) is correct when the pairExpand dim is in GROUP BY.
+        const projectId = randomUUID();
 
-      const events = [
-        createEvent({
-          project_id: projectId,
-          type: "GENERATION",
-          cost_details: { input: 10, output: 20, total: 30 },
-          start_time: Date.now() * 1000,
-        }),
-        createEvent({
-          project_id: projectId,
-          type: "GENERATION",
-          cost_details: { input: 5, output: 15, total: 20 },
-          start_time: Date.now() * 1000,
-        }),
-      ];
-      await createEventsCh(events);
+        const events = [
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            cost_details: { input: 10, output: 20, total: 30 },
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            cost_details: { input: 5, output: 15, total: 20 },
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
 
-      const result = await executeQuery(
-        projectId,
-        {
-          view: "observations",
-          dimensions: [{ field: "costType" }],
-          metrics: [{ measure: "costByType", aggregation: "sum" }],
-          filters: [],
-          timeDimension: null,
-          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-          toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-          orderBy: null,
-        },
-        "v2",
-        false, // force two-level path
-      );
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "costType" }],
+            metrics: [{ measure: "costByType", aggregation: "sum" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          false, // force two-level path
+        );
 
-      expect(result).toHaveLength(3);
+        expect(result).toHaveLength(3);
 
-      const inputRow = result.find((r) => r["costType"] === "input");
-      expect(Number(inputRow?.["sum_costByType"])).toBeCloseTo(15, 2); // 10 + 5
+        const inputRow = result.find((r) => r["costType"] === "input");
+        expect(Number(inputRow?.["sum_costByType"])).toBeCloseTo(15, 2); // 10 + 5
 
-      const outputRow = result.find((r) => r["costType"] === "output");
-      expect(Number(outputRow?.["sum_costByType"])).toBeCloseTo(35, 2); // 20 + 15
+        const outputRow = result.find((r) => r["costType"] === "output");
+        expect(Number(outputRow?.["sum_costByType"])).toBeCloseTo(35, 2); // 20 + 15
 
-      const totalRow = result.find((r) => r["costType"] === "total");
-      expect(Number(totalRow?.["sum_costByType"])).toBeCloseTo(50, 2); // 30 + 20
+        const totalRow = result.find((r) => r["costType"] === "total");
+        expect(Number(totalRow?.["sum_costByType"])).toBeCloseTo(50, 2); // 30 + 20
       },
     );
 
-    itWithEventsTable(
+    maybeIt(
       "should auto-include costType dimension when only costByType measure is requested",
       async () => {
-      // Verifies requiresDimension: the query builder must inject the costType
-      // dimension automatically so the ARRAY JOIN is emitted and cost_value is in scope.
-      const projectId = randomUUID();
+        // Verifies requiresDimension: the query builder must inject the costType
+        // dimension automatically so the ARRAY JOIN is emitted and cost_value is in scope.
+        const projectId = randomUUID();
 
-      const events = [
-        createEvent({
-          project_id: projectId,
-          type: "GENERATION",
-          cost_details: { input: 7, output: 3 },
-          start_time: Date.now() * 1000,
-        }),
-      ];
-      await createEventsCh(events);
+        const events = [
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            cost_details: { input: 7, output: 3 },
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
 
-      // No costType dimension requested — the builder should add it automatically.
-      const result = await executeQuery(
-        projectId,
-        {
-          view: "observations",
-          dimensions: [], // intentionally empty
-          metrics: [{ measure: "costByType", aggregation: "sum" }],
-          filters: [],
-          timeDimension: null,
-          fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-          toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-          orderBy: null,
-        },
-        "v2",
-        true,
-      );
+        // No costType dimension requested — the builder should add it automatically.
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [], // intentionally empty
+            metrics: [{ measure: "costByType", aggregation: "sum" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
 
-      // costType should appear in results even though it was not explicitly requested
-      expect(result.length).toBeGreaterThan(0);
-      expect(result[0]).toHaveProperty("costType");
+        // costType should appear in results even though it was not explicitly requested
+        expect(result.length).toBeGreaterThan(0);
+        expect(result[0]).toHaveProperty("costType");
 
-      const inputRow = result.find((r) => r["costType"] === "input");
-      expect(Number(inputRow?.["sum_costByType"])).toBeCloseTo(7, 2);
+        const inputRow = result.find((r) => r["costType"] === "input");
+        expect(Number(inputRow?.["sum_costByType"])).toBeCloseTo(7, 2);
 
-      const outputRow = result.find((r) => r["costType"] === "output");
-      expect(Number(outputRow?.["sum_costByType"])).toBeCloseTo(3, 2);
+        const outputRow = result.find((r) => r["costType"] === "output");
+        expect(Number(outputRow?.["sum_costByType"])).toBeCloseTo(3, 2);
       },
     );
 
