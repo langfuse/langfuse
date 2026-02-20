@@ -70,7 +70,8 @@ export const TracesBarListChart = ({
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: "count_count", direction: "desc" }],
+    chartConfig: { type: "table", row_limit: 20 },
   };
 
   const traces = api.dashboard.executeQuery.useQuery(
