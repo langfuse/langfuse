@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import {
-  createNewRedisInstance,
+  createNewRedisQueueInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
@@ -17,7 +17,7 @@ export class NotificationQueue {
   > | null {
     if (NotificationQueue.instance) return NotificationQueue.instance;
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });

@@ -1,7 +1,7 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
 import {
-  createNewRedisInstance,
+  createNewRedisQueueInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
@@ -16,7 +16,7 @@ export class ScoreDeleteQueue {
   > | null {
     if (ScoreDeleteQueue.instance) return ScoreDeleteQueue.instance;
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });

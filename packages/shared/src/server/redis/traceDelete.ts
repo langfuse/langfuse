@@ -1,7 +1,7 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
 import {
-  createNewRedisInstance,
+  createNewRedisQueueInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
@@ -16,7 +16,7 @@ export class TraceDeleteQueue {
   > | null {
     if (TraceDeleteQueue.instance) return TraceDeleteQueue.instance;
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });

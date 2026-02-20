@@ -2,7 +2,7 @@ import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
 import {
-  createNewRedisInstance,
+  createNewRedisQueueInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
@@ -20,7 +20,7 @@ export class CloudUsageMeteringQueue {
       return CloudUsageMeteringQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });

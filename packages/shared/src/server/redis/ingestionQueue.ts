@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import {
-  createNewRedisInstance,
+  createNewRedisQueueInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
@@ -60,7 +60,7 @@ export class IngestionQueue {
       return IngestionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
@@ -103,7 +103,7 @@ export class SecondaryIngestionQueue {
     if (SecondaryIngestionQueue.instance)
       return SecondaryIngestionQueue.instance;
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });

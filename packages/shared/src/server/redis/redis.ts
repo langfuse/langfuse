@@ -10,6 +10,11 @@ const defaultRedisOptions: Partial<RedisOptions> = {
   keyPrefix: env.REDIS_KEY_PREFIX ?? undefined,
 };
 
+const defaultRedisQueueOptions: Partial<RedisOptions> = {
+  ...defaultRedisOptions,
+  keyPrefix: undefined, // BullMQ handles its own prefixing
+};
+
 const REDIS_SCAN_COUNT = 1000;
 
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
@@ -179,6 +184,15 @@ const createRedisSentinelInstance = (
   return instance;
 };
 
+export const createNewRedisQueueInstance = (
+  additionalOptions: Partial<RedisOptions> = {},
+): Redis | Cluster | null => {
+  return createNewRedisInstance({
+    ...defaultRedisQueueOptions,
+    ...additionalOptions,
+  });
+};
+
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ): Redis | Cluster | null => {
@@ -230,15 +244,19 @@ export const createNewRedisInstance = (
 /**
  * Get the queue prefix for BullMQ cluster compatibility
  * In cluster mode, uses hash tags to ensure queue keys are on the same node
- * In single-node mode, returns undefined (no prefix needed)
+ * In single-node mode, returns the global REDIS_KEY_PREFIX if set
  */
 export const getQueuePrefix = (queueName: string): string | undefined => {
+  const basePrefix = env.REDIS_KEY_PREFIX
+    ? `${env.REDIS_KEY_PREFIX}:bull`
+    : undefined;
+
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     // Use hash tags for Redis cluster compatibility
     // This ensures all keys for a queue are placed on the same hash slot
-    return `{${queueName}}`;
+    return `{${basePrefix ?? "bull"}}`;
   }
-  return undefined;
+  return basePrefix;
 };
 
 /**

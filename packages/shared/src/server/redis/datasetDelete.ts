@@ -1,7 +1,7 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
 import {
-  createNewRedisInstance,
+  createNewRedisQueueInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
@@ -17,7 +17,7 @@ export class DatasetDeleteQueue {
   > | null {
     if (DatasetDeleteQueue.instance) return DatasetDeleteQueue.instance;
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });

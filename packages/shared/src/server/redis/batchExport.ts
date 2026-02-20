@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
 import {
-  createNewRedisInstance,
+  createNewRedisQueueInstance,
   redisQueueRetryOptions,
   getQueuePrefix,
 } from "./redis";
@@ -16,7 +16,7 @@ export class BatchExportQueue {
   > | null {
     if (BatchExportQueue.instance) return BatchExportQueue.instance;
 
-    const newRedis = createNewRedisInstance({
+    const newRedis = createNewRedisQueueInstance({
       enableOfflineQueue: false,
       ...redisQueueRetryOptions,
     });
