@@ -12,7 +12,6 @@ overrides:
   '@types/node-fetch': ^2.6.13
   glob: ^10.5.0
   qs: 6.14.1
-  ioredis: 5.9.2
 
 patchedDependencies:
   next-auth@4.24.13:
@@ -237,7 +236,7 @@ importers:
         specifier: ^3.1.2
         version: 3.1.3
       ioredis:
-        specifier: 5.9.2
+        specifier: ^5.8.2
         version: 5.9.2
       ipaddr.js:
         specifier: ^2.2.0
@@ -640,7 +639,7 @@ importers:
         specifier: ^7.0.6
         version: 7.0.6
       ioredis:
-        specifier: 5.9.2
+        specifier: ^5.8.2
         version: 5.9.2
       ip-address:
         specifier: ^9.0.5
@@ -983,7 +982,7 @@ importers:
         specifier: ^7.1.0
         version: 7.2.0
       ioredis:
-        specifier: 5.9.2
+        specifier: ^5.8.2
         version: 5.9.2
       jsonpath-plus:
         specifier: 10.3.0
