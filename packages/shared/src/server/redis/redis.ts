@@ -247,16 +247,16 @@ export const createNewRedisInstance = (
  * In single-node mode, returns the global REDIS_KEY_PREFIX if set
  */
 export const getQueuePrefix = (queueName: string): string | undefined => {
-  const basePrefix = env.REDIS_KEY_PREFIX
-    ? `${env.REDIS_KEY_PREFIX}:bull`
-    : undefined;
-
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     // Use hash tags for Redis cluster compatibility
     // This ensures all keys for a queue are placed on the same hash slot
-    return `{${basePrefix ?? "bull"}}`;
+    // We include queueName to avoid all queues being on the same hash slot (bottleneck)
+    return env.REDIS_KEY_PREFIX
+      ? `{${env.REDIS_KEY_PREFIX}:bull}:${queueName}`
+      : `{${queueName}}`;
   }
-  return basePrefix;
+
+  return env.REDIS_KEY_PREFIX ? `${env.REDIS_KEY_PREFIX}:bull` : undefined;
 };
 
 /**
