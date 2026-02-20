@@ -3,7 +3,6 @@
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -21,7 +20,7 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
   let testUserId: string;
   let secondTestUserId: string;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const {
       auth: newAuth,
       projectId: newProjectId,
@@ -102,10 +101,6 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
         },
       ],
     });
-  });
-
-  afterAll(async () => {
-    await pruneDatabase();
   });
 
   describe("POST /api/public/annotation-queues/:queueId/assignments", () => {

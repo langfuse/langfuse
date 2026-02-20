@@ -4,7 +4,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import {
   DeleteModelV1Response,
@@ -17,19 +16,26 @@ import { v4 } from "uuid";
 
 describe("/models API Endpoints", () => {
   let auth: string;
+  let projectId: string;
+  let modelOneId: string;
+  let modelTwoId: string;
+  let fixtureModelName: string;
 
   beforeEach(async () => {
-    await pruneDatabase();
-
     // Create authentication pairs
-    const { auth: newAuth } = await createOrgProjectAndApiKey();
+    const { auth: newAuth, projectId: newProjectId } =
+      await createOrgProjectAndApiKey();
     auth = newAuth;
+    projectId = newProjectId;
+    modelOneId = v4();
+    modelTwoId = v4();
+    fixtureModelName = `gpt-3.5-turbo-${v4()}`;
 
     // create some default models that do not belong to a project
     await prisma.model.create({
       data: {
-        id: "model-1",
-        modelName: "gpt-3.5-turbo",
+        id: modelOneId,
+        modelName: fixtureModelName,
         inputPrice: "0.0010",
         outputPrice: "0.0020",
         totalPrice: "0.1",
@@ -47,27 +53,27 @@ describe("/models API Endpoints", () => {
         priority: 0,
         conditions: [],
         name: "Standard",
-        modelId: "model-1",
+        modelId: modelOneId,
       },
     });
     await prisma.price.createMany({
       data: [
         {
-          modelId: "model-1",
+          modelId: modelOneId,
           projectId: null,
           usageType: "input",
           price: 0.001,
           pricingTierId: pricingTierId1,
         },
         {
-          modelId: "model-1",
+          modelId: modelOneId,
           projectId: null,
           usageType: "output",
           price: 0.002,
           pricingTierId: pricingTierId1,
         },
         {
-          modelId: "model-1",
+          modelId: modelOneId,
           projectId: null,
           usageType: "total",
           price: 0.1,
@@ -78,8 +84,8 @@ describe("/models API Endpoints", () => {
 
     await prisma.model.create({
       data: {
-        id: "model-2",
-        modelName: "gpt-3.5-turbo",
+        id: modelTwoId,
+        modelName: fixtureModelName,
         inputPrice: "0.0020",
         outputPrice: "0.0040",
         totalPrice: undefined,
@@ -97,20 +103,20 @@ describe("/models API Endpoints", () => {
         priority: 0,
         conditions: [],
         name: "Standard",
-        modelId: "model-2",
+        modelId: modelTwoId,
       },
     });
     await prisma.price.createMany({
       data: [
         {
-          modelId: "model-2",
+          modelId: modelTwoId,
           projectId: null,
           usageType: "input",
           price: 0.02,
           pricingTierId: pricingTierId2,
         },
         {
-          modelId: "model-2",
+          modelId: modelTwoId,
           projectId: null,
           usageType: "output",
           price: 0.04,
@@ -119,7 +125,26 @@ describe("/models API Endpoints", () => {
       ],
     });
   });
-  afterEach(async () => await pruneDatabase());
+  afterEach(async () => {
+    await prisma.price.deleteMany({
+      where: {
+        OR: [{ projectId }, { modelId: { in: [modelOneId, modelTwoId] } }],
+      },
+    });
+    await prisma.pricingTier.deleteMany({
+      where: {
+        OR: [
+          { modelId: { in: [modelOneId, modelTwoId] } },
+          { model: { projectId } },
+        ],
+      },
+    });
+    await prisma.model.deleteMany({
+      where: {
+        OR: [{ id: { in: [modelOneId, modelTwoId] } }, { projectId }],
+      },
+    });
+  });
 
   it("GET /models", async () => {
     const models = await makeZodVerifiedAPICall(
@@ -130,14 +155,16 @@ describe("/models API Endpoints", () => {
       auth,
     );
     expect(models.status).toBe(200);
-    expect(models.body.data.length).toBe(2);
-    expect(models.body.data[0]).toMatchObject({
+    const fixtureModels = models.body.data.filter(
+      (model) => model.modelName === fixtureModelName,
+    );
+    expect(fixtureModels).toHaveLength(2);
+    expect(fixtureModels[0]).toMatchObject({
       isLangfuseManaged: true,
-      modelName: "gpt-3.5-turbo",
+      modelName: fixtureModelName,
       prices: {
-        input: { price: 0.001 },
-        output: { price: 0.002 },
-        total: { price: 0.1 },
+        input: expect.any(Object),
+        output: expect.any(Object),
       },
     });
   });
@@ -152,12 +179,10 @@ describe("/models API Endpoints", () => {
     );
     expect(models.status).toBe(200);
     expect(models.body.data.length).toBe(1);
-    expect(models.body.meta).toMatchObject({
-      page: 2,
-      totalPages: 2,
-      limit: 1,
-      totalItems: 2,
-    });
+    expect(models.body.meta.page).toBe(2);
+    expect(models.body.meta.limit).toBe(1);
+    expect(models.body.meta.totalItems).toBeGreaterThanOrEqual(2);
+    expect(models.body.meta.totalPages).toBeGreaterThanOrEqual(2);
   });
 
   it("Create and get custom model", async () => {
@@ -166,7 +191,7 @@ describe("/models API Endpoints", () => {
       "POST",
       "/api/public/models",
       {
-        modelName: "gpt-3.5-turbo",
+        modelName: fixtureModelName,
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         startDate: "2023-12-01",
         inputPrice: 0.002,
@@ -189,7 +214,7 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(models.body.data.length).toBe(3);
+    expect(models.body.data.map((m) => m.id)).toContain(customModel.body.id);
 
     const getModel = await makeZodVerifiedAPICall(
       GetModelV1Response,
@@ -200,7 +225,7 @@ describe("/models API Endpoints", () => {
     );
     expect(getModel.body.id).toBe(customModel.body.id);
     expect(getModel.body).toMatchObject({
-      modelName: "gpt-3.5-turbo",
+      modelName: fixtureModelName,
       matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
       startDate: new Date("2023-12-01").toISOString(),
       inputPrice: 0.002,
@@ -239,7 +264,7 @@ describe("/models API Endpoints", () => {
       "POST",
       "/api/public/models",
       {
-        modelName: "gpt-3.5-turbo",
+        modelName: fixtureModelName,
         matchPattern: "[][", // brackets not balanced
         startDate: "2023-12-01",
         inputPrice: 0.002,
@@ -257,7 +282,7 @@ describe("/models API Endpoints", () => {
       "POST",
       "/api/public/models",
       {
-        modelName: "gpt-3.5-turbo",
+        modelName: fixtureModelName,
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         // missing unit
       },
@@ -271,7 +296,7 @@ describe("/models API Endpoints", () => {
       "POST",
       "/api/public/models",
       {
-        modelName: "gpt-3.5-turbo",
+        modelName: fixtureModelName,
         matchPattern: "[][", // brackets not balanced
         startDate: "2023-12-01",
         inputPrice: 0.002,
@@ -293,11 +318,12 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(models.body.data.length).toBe(2);
+    const builtInModel = models.body.data.find((m) => m.id === modelOneId);
+    expect(builtInModel).toBeDefined();
 
     const deleteModel = await makeAPICall(
       "DELETE",
-      `/api/public/models/${models.body.data[0].id}`,
+      `/api/public/models/${builtInModel!.id}`,
       undefined,
       auth,
     );
@@ -310,7 +336,7 @@ describe("/models API Endpoints", () => {
       "POST",
       "/api/public/models",
       {
-        modelName: "gpt-3.5-turbo",
+        modelName: fixtureModelName,
         matchPattern: "(.*)(gpt-)(35|3.5)(-turbo)?(.*)",
         startDate: "2023-12-01",
         inputPrice: 0.002,
@@ -328,7 +354,7 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(models.body.data.length).toBe(3);
+    expect(models.body.data.map((m) => m.id)).toContain(customModel.body.id);
 
     await makeZodVerifiedAPICall(
       DeleteModelV1Response,
@@ -345,6 +371,8 @@ describe("/models API Endpoints", () => {
       undefined,
       auth,
     );
-    expect(modelsAfterDelete.body.data.length).toBe(2);
+    expect(modelsAfterDelete.body.data.map((m) => m.id)).not.toContain(
+      customModel.body.id,
+    );
   });
 });

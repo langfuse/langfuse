@@ -244,19 +244,16 @@ Tests automatically create the PostgreSQL test database if it doesn't exist and 
 
 We're using Jest with in the `web` package. Therefore, if you want to provide an argument to the test runner, do it directly without an intermittent `--`.
 
-There are three types of unit tests:
+There are two types of unit tests:
 
-- `test-sync`
-- `test` (for async folder tests)
+- `test` (server tests)
 - `test-client`
 
 To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
 
 ```sh
 cd web  # or with --filter=web
-pnpm test-sync --testPathPatterns="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
-# for async folder tests:
-pnpm test -- --testPathPatterns="observations-api" --testNamePattern="should fetch all observations"
+pnpm test --testPathPatterns="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
 ```
 
 To run all tests:
