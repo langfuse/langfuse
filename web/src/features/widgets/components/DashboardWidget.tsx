@@ -21,6 +21,8 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import { formatMetricName } from "@/src/features/widgets/utils";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type ViewVersion } from "@/src/features/query";
 
 export interface WidgetPlacement {
   id: string;
@@ -51,6 +53,8 @@ export function DashboardWidget({
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const { isBetaEnabled } = useV4Beta();
+  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -94,6 +98,7 @@ export function DashboardWidget({
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
+      version: metricsVersion,
       query: {
         view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
         dimensions: widget.data?.dimensions ?? [],
