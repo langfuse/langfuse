@@ -77,6 +77,8 @@ export class QueryBuilder {
         // Get histogram bins from chart config, fallback to 10
         const bins = this.chartConfig?.bins ?? 10;
         return `histogram(${bins})(toFloat64(${metric.alias || metric.sql}))`;
+      case "uniq":
+        return `uniq(${metric.alias || metric.sql})`;
       default:
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const exhaustiveCheck: never = metric.aggregation;
@@ -1018,7 +1020,7 @@ export class QueryBuilder {
 
       // Check if the field is a metric (with aggregation prefix)
       const metricNamePattern =
-        /^(sum|avg|count|max|min|p50|p75|p90|p95|p99)_(.+)$/;
+        /^(sum|avg|count|max|min|p50|p75|p90|p95|p99|uniq)_(.+)$/;
       const metricMatch = item.field.match(metricNamePattern);
 
       if (metricMatch) {

@@ -31,14 +31,13 @@ export const TracesBarListChart = ({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const isV2 = metricsVersion === "v2";
-  const traceBase = traceViewQuery(metricsVersion, globalFilterState);
   const traceNameField = isV2 ? "traceName" : "name";
+  const countField = isV2 ? "uniq_traceId" : "count_count";
 
   // Total traces query using executeQuery
   const totalTracesQuery: QueryType = {
-    ...traceBase,
+    ...traceViewQuery({ metricsVersion, globalFilterState }),
     dimensions: [],
-    metrics: [{ measure: "count", aggregation: "count" }],
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -63,13 +62,16 @@ export const TracesBarListChart = ({
 
   // Traces grouped by name query using executeQuery
   const tracesQuery: QueryType = {
-    ...traceBase,
+    ...traceViewQuery({
+      metricsVersion,
+      globalFilterState,
+      groupedByName: true,
+    }),
     dimensions: [{ field: traceNameField }],
-    metrics: [{ measure: "count", aggregation: "count" }],
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: [{ field: "count_count", direction: "desc" }],
+    orderBy: [{ field: countField, direction: "desc" }],
     chartConfig: { type: "table", row_limit: 20 },
   };
 
@@ -96,7 +98,7 @@ export const TracesBarListChart = ({
         name: item[traceNameField]
           ? (item[traceNameField] as string)
           : "Unknown",
-        value: Number(item.count_count),
+        value: Number(item[countField]),
       };
     }) ?? [];
 
@@ -120,8 +122,8 @@ export const TracesBarListChart = ({
       <>
         <TotalMetric
           metric={compactNumberFormatter(
-            totalTraces.data?.[0]?.count_count
-              ? Number(totalTraces.data[0].count_count)
+            totalTraces.data?.[0]?.[countField]
+              ? Number(totalTraces.data[0][countField])
               : 0,
           )}
           description={"Total traces tracked"}
