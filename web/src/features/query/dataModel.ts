@@ -1104,6 +1104,28 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Names of tools that were called by the observation.",
       explodeArray: true,
     },
+    costType: {
+      sql: "mapKeys(events_observations.cost_details)",
+      alias: "costType",
+      type: "string",
+      description:
+        "Cost category key from cost_details map (e.g. 'input', 'output', 'total').",
+      pairExpand: {
+        valuesSql: "mapValues(events_observations.cost_details)",
+        valueAlias: "cost_value",
+      },
+    },
+    usageType: {
+      sql: "mapKeys(events_observations.usage_details)",
+      alias: "usageType",
+      type: "string",
+      description:
+        "Token usage category key from usage_details map (e.g. 'input', 'output', 'total').",
+      pairExpand: {
+        valuesSql: "mapValues(events_observations.usage_details)",
+        valueAlias: "usage_value",
+      },
+    },
   },
   measures: {
     count: {
@@ -1229,6 +1251,24 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "integer",
       description: "Number of tool calls per observation.",
       unit: "calls",
+    },
+    costByType: {
+      sql: "cost_value",
+      alias: "costByType",
+      type: "decimal",
+      unit: "USD",
+      requiresDimension: "costType",
+      description:
+        "Sum of cost per category. The costType dimension is auto-included to emit the ARRAY JOIN that brings cost_value into scope.",
+    },
+    usageByType: {
+      sql: "usage_value",
+      alias: "usageByType",
+      type: "integer",
+      unit: "tokens",
+      requiresDimension: "usageType",
+      description:
+        "Sum of token usage per category. The usageType dimension is auto-included to emit the ARRAY JOIN that brings usage_value into scope.",
     },
   },
   tableRelations: {

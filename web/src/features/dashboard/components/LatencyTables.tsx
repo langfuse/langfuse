@@ -50,6 +50,7 @@ export const LatencyTables = ({
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: [{ field: "p95_latency", direction: "desc" }],
+    chartConfig: { type: "table", row_limit: 20 },
   };
 
   const generationsLatencies = api.dashboard.executeQuery.useQuery(
@@ -90,6 +91,7 @@ export const LatencyTables = ({
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: [{ field: "p95_latency", direction: "desc" }],
+    chartConfig: { type: "table", row_limit: 20 },
   };
 
   const spansLatencies = api.dashboard.executeQuery.useQuery(
@@ -122,6 +124,7 @@ export const LatencyTables = ({
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: [{ field: "p95_latency", direction: "desc" }],
+    chartConfig: { type: "table", row_limit: 20 },
   };
 
   const tracesLatencies = api.dashboard.executeQuery.useQuery(

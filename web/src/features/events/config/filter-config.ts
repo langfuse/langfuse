@@ -41,6 +41,8 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "boolean" as const,
       column: "hasParentObservation",
       label: "Is Root Observation",
+      tooltip:
+        "A root observation is the top-level observation in a trace. It has no parent observation ID. Filter to 'True' to see only root-level observations.",
       invertValue: true, // "True" = hasParentObservation=false (is root)
     },
     {
@@ -191,6 +193,30 @@ export const observationEventsFilterConfig: FilterConfig = {
       unit: "$",
     },
     {
+      type: "categorical" as const,
+      column: "toolNames",
+      label: "Tool Names (Available)",
+    },
+    {
+      type: "categorical" as const,
+      column: "calledToolNames",
+      label: "Tool Names (Called)",
+    },
+    {
+      type: "numeric" as const,
+      column: "toolDefinitions",
+      label: "Available Tools",
+      min: 0,
+      max: 25,
+    },
+    {
+      type: "numeric" as const,
+      column: "toolCalls",
+      label: "Tool Calls",
+      min: 0,
+      max: 25,
+    },
+    {
       type: "keyValue" as const,
       column: "score_categories",
       label: "Categorical Scores",
@@ -199,6 +225,18 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "scores_avg",
       label: "Numeric Scores",
+    },
+    {
+      type: "numeric" as const,
+      column: "commentCount",
+      label: "Comment Count",
+      min: 0,
+      max: 100,
+    },
+    {
+      type: "string" as const,
+      column: "commentContent",
+      label: "Comment Content",
     },
   ],
 };
