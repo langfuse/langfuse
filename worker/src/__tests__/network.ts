@@ -1,5 +1,5 @@
 import { setupServer } from "msw/node";
-import { HttpResponse, http, passthrough } from "msw";
+import { DefaultBodyType, HttpResponse, http, passthrough } from "msw";
 import { logger } from "@langfuse/shared/src/server";
 
 const DEFAULT_RESPONSE = {
@@ -40,7 +40,7 @@ const DEFAULT_RESPONSE = {
   system_fingerprint: null,
 };
 
-function CompletionHandler(response: HttpResponse) {
+function CompletionHandler(response: HttpResponse<DefaultBodyType>) {
   return http.post("https://api.openai.com/v1/chat/completions", async () => {
     logger.info("openai handler");
     return response;
