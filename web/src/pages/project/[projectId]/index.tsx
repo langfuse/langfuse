@@ -17,7 +17,7 @@ import { type FilterState } from "@langfuse/shared";
 import { type ColumnDefinition } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import {
   findClosestDashboardInterval,
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -36,40 +36,15 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/use-environment-filter";
-import { useDashboardChartsBeta } from "@/src/features/dashboard/hooks/useDashboardChartsBeta";
-import { Label } from "@/src/components/ui/label";
-import { Switch } from "@/src/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { useSession } from "next-auth/react";
-
-const isLangfuseEmail = (email: string | null | undefined) =>
-  Boolean(email?.toLowerCase().endsWith("@langfuse.com"));
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type ViewVersion } from "@/src/features/query";
 
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const utils = api.useUtils();
-  const { data: session } = useSession();
   const { timeRange, setTimeRange } = useDashboardDateRange();
-  const { isDashboardChartsBeta, setDashboardChartsBeta } =
-    useDashboardChartsBeta();
-  const prevBetaRef = useRef<boolean | null>(null);
-  const showChartsBetaToggle = isLangfuseEmail(session?.user?.email ?? null);
-
-  // Reload all dashboard data when the charts beta toggle is switched
-  useEffect(() => {
-    if (
-      prevBetaRef.current !== null &&
-      prevBetaRef.current !== isDashboardChartsBeta
-    ) {
-      void utils.dashboard.invalidate();
-    }
-    prevBetaRef.current = isDashboardChartsBeta;
-  }, [isDashboardChartsBeta, utils.dashboard]);
+  const { isBetaEnabled } = useV4Beta();
+  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
 
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange),
@@ -216,30 +191,6 @@ export default function Dashboard() {
       scrollable
       headerProps={{
         title: "Home",
-        titleBadges: showChartsBetaToggle ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="dashboard-charts-beta-toggle"
-                  size="sm"
-                  checked={isDashboardChartsBeta}
-                  onCheckedChange={setDashboardChartsBeta}
-                  className="shrink-0"
-                />
-                <Label
-                  htmlFor="dashboard-charts-beta-toggle"
-                  className="cursor-pointer text-sm font-normal text-muted-foreground"
-                >
-                  Charts (beta)
-                </Label>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs text-xs">
-              Unified Recharts charts. Toggle to compare with previous charts.
-            </TooltipContent>
-          </Tooltip>
-        ) : undefined,
         actionButtonsLeft: (
           <>
             <TimeRangePicker
@@ -311,7 +262,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
+          metricsVersion={metricsVersion}
         />
         <ModelCostTable
           className="col-span-1 xl:col-span-2"
@@ -320,12 +271,14 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isPending}
+          metricsVersion={metricsVersion}
         />
         <ScoresTable
           className="col-span-1 xl:col-span-2"
           projectId={projectId}
           globalFilterState={mergedFilterState}
           isLoading={environmentFilterOptions.isPending}
+          metricsVersion={metricsVersion}
         />
         <TracesAndObservationsTimeSeriesChart
           className="col-span-1 xl:col-span-3"
@@ -335,7 +288,7 @@ export default function Dashboard() {
           toTimestamp={toTimestamp}
           agg={agg}
           isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
+          metricsVersion={metricsVersion}
         />
         <ModelUsageChart
           className="col-span-1 min-h-24 xl:col-span-3"
@@ -346,7 +299,7 @@ export default function Dashboard() {
           userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
           agg={agg}
           isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
+          metricsVersion={metricsVersion}
         />
         <UserChart
           className="col-span-1 xl:col-span-3"
@@ -355,7 +308,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
+          metricsVersion={metricsVersion}
         />
         <ChartScores
           className="col-span-1 xl:col-span-3"
@@ -365,7 +318,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
+          metricsVersion={metricsVersion}
         />
         <LatencyTables
           projectId={projectId}
@@ -373,6 +326,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isPending}
+          metricsVersion={metricsVersion}
         />
         <GenerationLatencyChart
           className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -382,7 +336,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
+          metricsVersion={metricsVersion}
         />
         <ScoreAnalytics
           className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -392,7 +346,7 @@ export default function Dashboard() {
           fromTimestamp={fromTimestamp}
           toTimestamp={toTimestamp}
           isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
+          metricsVersion={metricsVersion}
         />
       </div>
     </Page>

@@ -1,54 +1,55 @@
 import type { ColumnDefinition } from "@langfuse/shared";
 
-interface CategoricalFacet {
-  type: "categorical";
+interface BaseFacet {
   column: string;
   label: string;
+  isDisabled?: boolean;
+  disabledReason?: string;
+  // Mutually exclusive with these facet columns. If both are active,
+  // the last added filter wins and the other facet is disabled.
+  mutuallyExclusiveWith?: string[];
 }
 
-interface BooleanFacet {
+interface CategoricalFacet extends BaseFacet {
+  type: "categorical";
+}
+
+interface BooleanFacet extends BaseFacet {
   type: "boolean";
-  column: string;
-  label: string;
   trueLabel?: string;
   falseLabel?: string;
+  invertValue?: boolean; // When true, "True" label maps to filter value=false, used for parent_observation_id filter for is Root?
 }
 
-interface NumericFacet {
+interface NumericFacet extends BaseFacet {
   type: "numeric";
-  column: string;
-  label: string;
   min: number;
   max: number;
   step?: number;
   unit?: string;
 }
 
-interface StringFacet {
+interface StringFacet extends BaseFacet {
   type: "string";
-  column: string;
-  label: string;
 }
 
-interface KeyValueFacet {
+interface KeyValueFacet extends BaseFacet {
   type: "keyValue";
-  column: string;
-  label: string;
   keyOptions?: string[];
 }
 
-interface NumericKeyValueFacet {
+interface NumericKeyValueFacet extends BaseFacet {
   type: "numericKeyValue";
-  column: string;
-  label: string;
   keyOptions?: string[];
 }
 
-interface StringKeyValueFacet {
+interface StringKeyValueFacet extends BaseFacet {
   type: "stringKeyValue";
-  column: string;
-  label: string;
   keyOptions?: string[];
+}
+
+interface PositionInTraceFacet extends BaseFacet {
+  type: "positionInTrace";
 }
 
 export type Facet =
@@ -58,7 +59,8 @@ export type Facet =
   | StringFacet
   | KeyValueFacet
   | NumericKeyValueFacet
-  | StringKeyValueFacet;
+  | StringKeyValueFacet
+  | PositionInTraceFacet;
 
 export interface FilterConfig {
   tableName: string;

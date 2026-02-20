@@ -23,6 +23,7 @@ import {
   experimentEvalFilterColsWithOptions,
   type ColumnDefinition,
   type availableDatasetEvalVariables,
+  JobConfigState,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 import { useEffect, useMemo, useState, memo } from "react";
@@ -41,6 +42,7 @@ import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import { Switch } from "@/src/components/ui/switch";
 import {
   evalConfigFormSchema,
   type EvalFormType,
@@ -220,9 +222,6 @@ const ObservationsPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm font-medium leading-none">
-            Preview sample matched observations
-          </span>
           <FormDescription>
             Sample over the last 24 hours that match filters
           </FormDescription>
@@ -269,7 +268,9 @@ export const InnerEvaluatorForm = (props: {
   preprocessFormValues?: (values: any) => any;
   hideAdvancedSettings?: boolean;
   hideTargetSelection?: boolean;
+  hidePreviewTable?: boolean;
   evalCapabilities: EvalCapabilities;
+  defaultRunOnLive?: boolean;
   renderFooter?: (params: {
     isLoading: boolean;
     formError: string | null;
@@ -350,6 +351,9 @@ export const InnerEvaluatorForm = (props: {
         (option): option is "NEW" | "EXISTING" =>
           ["NEW", "EXISTING"].includes(option),
       ),
+      runOnLive: props.existingEvaluator
+        ? props.existingEvaluator.status === "ACTIVE"
+        : (props.defaultRunOnLive ?? true),
     },
   }) as UseFormReturn<EvalFormType>;
 
@@ -448,6 +452,14 @@ export const InnerEvaluatorForm = (props: {
     const filter = validatedFilter.data;
     const scoreName = values.scoreName;
 
+    // For modern targets, derive status from runOnLive
+    const isModern = !isLegacyEvalTarget(values.target);
+    const status = isModern
+      ? values.runOnLive
+        ? JobConfigState.ACTIVE
+        : JobConfigState.INACTIVE
+      : undefined;
+
     (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
           projectId: props.projectId,
@@ -458,7 +470,8 @@ export const InnerEvaluatorForm = (props: {
             variableMapping: mapping,
             sampling,
             scoreName,
-            timeScope: values.timeScope,
+            timeScope: isModern ? ["NEW"] : values.timeScope,
+            ...(status ? { status } : {}),
           },
         })
       : createJobMutation.mutateAsync({
@@ -470,7 +483,8 @@ export const InnerEvaluatorForm = (props: {
           mapping,
           sampling,
           delay,
-          timeScope: values.timeScope,
+          timeScope: isModern ? ["NEW"] : values.timeScope,
+          ...(status ? { status } : {}),
         })
     )
       .then(() => {
@@ -547,6 +561,7 @@ export const InnerEvaluatorForm = (props: {
           : [],
     );
     form.setValue("mapping", newMapping);
+    form.setValue("runOnLive", props.defaultRunOnLive ?? true);
     setAvailableVariables(targetState.getAvailableVariables(actualTarget));
     return actualTarget;
   }
@@ -596,7 +611,9 @@ export const InnerEvaluatorForm = (props: {
                         value={userFacingTarget}
                         onValueChange={(value) => {
                           const actualTarget = handleAndResolveTarget(value);
-                          field.onChange(actualTarget);
+                          if (actualTarget) {
+                            field.onChange(actualTarget);
+                          }
                         }}
                       >
                         <TabsList className="grid w-fit max-w-fit grid-flow-col gap-4">
@@ -606,7 +623,7 @@ export const InnerEvaluatorForm = (props: {
                             className="min-w-[100px] gap-1.5"
                           >
                             <CircleDot className="h-3.5 w-3.5" />
-                            Live Observations
+                            Observations
                             <Badge
                               variant="secondary"
                               size="sm"
@@ -622,7 +639,7 @@ export const InnerEvaluatorForm = (props: {
                               className="min-w-[100px] gap-1.5"
                             >
                               <ListTree className="h-3.5 w-3.5" />
-                              Live Traces
+                              Traces
                               {isFullyReleased && (
                                 <Badge
                                   variant="secondary"
@@ -831,163 +848,216 @@ export const InnerEvaluatorForm = (props: {
                 />
               )}
 
-            <FormField
-              control={form.control}
-              name="filter"
-              render={({ field }) => {
-                const target = form.watch("target");
-
-                // Get appropriate columns based on target type
-                const getFilterColumns = () => {
-                  if (isEventTarget(target)) {
-                    // Event evaluators - use observation columns with propagation warnings
-                    const baseColumns = observationEvalFilterColsWithOptions(
-                      observationEvalFilterOptions,
-                    );
-                    return addPropagationWarnings(
-                      baseColumns,
-                      allowPropagationFilters,
-                    );
-                  } else if (isTraceTarget(target)) {
-                    return tracesTableColsWithOptions(traceFilterOptions);
-                  } else if (isExperimentTarget(target)) {
-                    // Experiment evaluators - only dataset filter
-                    return experimentEvalFilterColsWithOptions(
-                      experimentEvalFilterOptions,
-                    );
-                  } else {
-                    // dataset (legacy non-OTEL experiments)
-                    return datasetFormFilterColsWithOptions(
-                      datasetFilterOptions,
-                    );
-                  }
-                };
-
-                const hasFilters = field.value && field.value.length > 0;
-
-                return (
-                  <FormItem>
-                    <FormLabel>Where</FormLabel>
-                    <FormControl>
-                      <div className="max-w-[500px]">
-                        {props.disabled && !hasFilters ? (
+            {/* Run on Live toggle for modern (non-legacy) targets */}
+            {!props.hideAdvancedSettings &&
+              !isLegacyEvalTarget(form.watch("target")) && (
+                <FormField
+                  control={form.control}
+                  name="runOnLive"
+                  render={({ field }) => {
+                    const target = form.watch("target");
+                    return (
+                      <div className="flex max-w-4xl flex-col gap-2">
+                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>
+                              {isEventTarget(target)
+                                ? "Run on live incoming observations"
+                                : "Run on new experiments"}
+                            </FormLabel>
+                            <FormDescription>
+                              Automatically evaluate new incoming{" "}
+                              {getTargetDisplayName(target)}.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={props.disabled}
+                            />
+                          </FormControl>
+                        </FormItem>
+                        {!field.value && isEventTarget(target) && (
                           <p className="text-xs text-muted-foreground">
-                            All {getTargetDisplayName(target)} will be evaluated
+                            This evaluator can still be used for batched
+                            evaluation of historic observations.
                           </p>
-                        ) : (
-                          <InlineFilterBuilder
-                            columnIdentifier={
-                              isDatasetTarget(target) || isTraceTarget(target)
-                                ? "name"
-                                : "id"
-                            }
-                            columns={getFilterColumns()}
-                            filterState={field.value ?? []}
-                            onChange={(
-                              value: z.infer<typeof singleFilter>[],
-                            ) => {
-                              field.onChange(value);
-                              if (router.query.traceId) {
-                                const { traceId, ...otherParams } =
-                                  router.query;
-                                router.replace(
-                                  {
-                                    pathname: router.pathname,
-                                    query: otherParams,
-                                  },
-                                  undefined,
-                                  { shallow: true },
-                                );
-                              }
-                            }}
-                            disabled={props.disabled}
-                            columnsWithCustomSelect={
-                              isEventTarget(target) || isTraceTarget(target)
-                                ? ["tags", "name"]
-                                : undefined
-                            }
-                          />
                         )}
                       </div>
-                    </FormControl>
-                    {!props.disabled && !hasFilters && (
-                      <div className="align-center flex max-w-[500px] gap-1">
-                        <AlertTriangle className="h-4 w-4 text-dark-yellow" />
-                        <AlertDescription className="text-dark-yellow">
-                          No filters set. This evaluator will run on all{" "}
-                          {getTargetDisplayName(target)}.
-                        </AlertDescription>
-                      </div>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
+                    );
+                  }}
+                />
+              )}
 
-            {/* Preview based on target type */}
-            {!props.disabled && (
-              <>
-                {isTraceTarget(form.watch("target")) && (
-                  <TracesPreview
-                    projectId={props.projectId}
-                    filterState={form.watch("filter") ?? []}
-                  />
-                )}
-
-                {isEventTarget(form.watch("target")) && (
-                  <ObservationsPreview
-                    projectId={props.projectId}
-                    filterState={form.watch("filter") ?? []}
-                  />
-                )}
-              </>
-            )}
-
-            {!props.hideAdvancedSettings && (
+            {(isLegacyEvalTarget(form.watch("target")) ||
+              form.watch("runOnLive")) && (
               <>
                 <FormField
                   control={form.control}
-                  name="sampling"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sampling</FormLabel>
-                      <FormControl>
-                        <div className="max-w-[500px]">
-                          <Slider
-                            disabled={props.disabled}
-                            min={0}
-                            max={1}
-                            step={0.0001}
-                            value={[field.value]}
-                            onValueChange={(value) => field.onChange(value[0])}
-                            showInput={true}
-                            displayAsPercentage={true}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {isLegacyEvalTarget(form.watch("target")) && (
-                  <FormField
-                    control={form.control}
-                    name="delay"
-                    render={({ field }) => (
+                  name="filter"
+                  render={({ field }) => {
+                    const target = form.watch("target");
+
+                    // Get appropriate columns based on target type
+                    const getFilterColumns = () => {
+                      if (isEventTarget(target)) {
+                        // Event evaluators - use observation columns with propagation warnings
+                        const baseColumns =
+                          observationEvalFilterColsWithOptions(
+                            observationEvalFilterOptions,
+                          );
+                        return addPropagationWarnings(
+                          baseColumns,
+                          allowPropagationFilters,
+                        );
+                      } else if (isTraceTarget(target)) {
+                        return tracesTableColsWithOptions(traceFilterOptions);
+                      } else if (isExperimentTarget(target)) {
+                        // Experiment evaluators - only dataset filter
+                        return experimentEvalFilterColsWithOptions(
+                          experimentEvalFilterOptions,
+                        );
+                      } else {
+                        // dataset (legacy non-OTEL experiments)
+                        return datasetFormFilterColsWithOptions(
+                          datasetFilterOptions,
+                        );
+                      }
+                    };
+
+                    const hasFilters = field.value && field.value.length > 0;
+
+                    return (
                       <FormItem>
-                        <FormLabel>Delay (seconds)</FormLabel>
+                        <FormLabel>Filter</FormLabel>
                         <FormControl>
-                          <Input {...field} type="number" min={0} />
+                          <div className="max-w-[500px]">
+                            {props.disabled && !hasFilters ? (
+                              <p className="text-xs text-muted-foreground">
+                                All {getTargetDisplayName(target)} will be
+                                evaluated
+                              </p>
+                            ) : (
+                              <InlineFilterBuilder
+                                columnIdentifier={
+                                  isDatasetTarget(target) ||
+                                  isTraceTarget(target)
+                                    ? "name"
+                                    : "id"
+                                }
+                                columns={getFilterColumns()}
+                                filterState={field.value ?? []}
+                                onChange={(
+                                  value: z.infer<typeof singleFilter>[],
+                                ) => {
+                                  field.onChange(value);
+                                  if (router.query.traceId) {
+                                    const { traceId, ...otherParams } =
+                                      router.query;
+                                    router.replace(
+                                      {
+                                        pathname: router.pathname,
+                                        query: otherParams,
+                                      },
+                                      undefined,
+                                      { shallow: true },
+                                    );
+                                  }
+                                }}
+                                disabled={props.disabled}
+                                columnsWithCustomSelect={
+                                  isEventTarget(target) || isTraceTarget(target)
+                                    ? ["tags", "name"]
+                                    : undefined
+                                }
+                              />
+                            )}
+                          </div>
                         </FormControl>
-                        <FormDescription>
-                          Time between first Trace/Dataset run event and
-                          evaluation execution to ensure all data is available
-                        </FormDescription>
+                        {!props.disabled && !hasFilters && (
+                          <div className="align-center flex max-w-[500px] gap-1">
+                            <AlertTriangle className="h-4 w-4 text-dark-yellow" />
+                            <AlertDescription className="text-dark-yellow">
+                              No filters set. This evaluator will run on all{" "}
+                              {getTargetDisplayName(target)}.
+                            </AlertDescription>
+                          </div>
+                        )}
                         <FormMessage />
                       </FormItem>
+                    );
+                  }}
+                />
+
+                {/* Preview based on target type */}
+                {!props.disabled && !props.hidePreviewTable && (
+                  <>
+                    {isTraceTarget(form.watch("target")) && (
+                      <TracesPreview
+                        projectId={props.projectId}
+                        filterState={form.watch("filter") ?? []}
+                      />
                     )}
-                  />
+
+                    {isEventTarget(form.watch("target")) && (
+                      <ObservationsPreview
+                        projectId={props.projectId}
+                        filterState={form.watch("filter") ?? []}
+                      />
+                    )}
+                  </>
+                )}
+
+                {!props.hideAdvancedSettings && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="sampling"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sampling</FormLabel>
+                          <FormControl>
+                            <div className="max-w-[500px]">
+                              <Slider
+                                disabled={props.disabled}
+                                min={0}
+                                max={1}
+                                step={0.0001}
+                                value={[field.value]}
+                                onValueChange={(value) =>
+                                  field.onChange(value[0])
+                                }
+                                showInput={true}
+                                displayAsPercentage={true}
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {isLegacyEvalTarget(form.watch("target")) && (
+                      <FormField
+                        control={form.control}
+                        name="delay"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Delay (seconds)</FormLabel>
+                            <FormControl>
+                              <Input {...field} type="number" min={0} />
+                            </FormControl>
+                            <FormDescription>
+                              Time between first Trace/Dataset run event and
+                              evaluation execution to ensure all data is
+                              available
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -1066,9 +1136,9 @@ export const InnerEvaluatorForm = (props: {
             <DialogTitle>You selected a legacy evaluator</DialogTitle>
           </DialogHeader>
           <DialogBody className="text-sm">
-            We strongly recommend using live observations evaluators. Trace
-            evaluators will be deprecated in the future. Only proceed if you are
-            sure you cannot upgrade your SDK version now.
+            We strongly recommend using observation evaluators. Trace evaluators
+            will be deprecated in the future. Only proceed if you are sure you
+            cannot upgrade your SDK version now.
           </DialogBody>
           <DialogFooter>
             <Button

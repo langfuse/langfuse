@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.153.0",
+  "version": "3.154.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -42,7 +42,7 @@
     "@headlessui/tailwindcss": "0.2.1",
     "@heroicons/react": "^2.1.5",
     "@hookform/resolvers": "^5.1.1",
-    "@langchain/core": "^0.3.80",
+    "@langchain/core": "^1.1.17",
     "@langfuse/ee": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
@@ -97,7 +97,6 @@
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.13.12",
     "@team-plain/typescript-sdk": "^5.10.3",
-    "@tremor/react": "4.0.0-beta-tremor-v4.4",
     "@trpc/client": "^11.8.0",
     "@trpc/next": "^11.8.0",
     "@trpc/react-query": "^11.8.0",
@@ -126,7 +125,7 @@
     "ip-address": "^9.0.5",
     "json-schema-faker": "^0.5.9",
     "kysely": "^0.27.4",
-    "langchain": "^0.3.37",
+    "langchain": "^1.2.15",
     "langfuse": "3.38.4",
     "lodash": "^4.17.23",
     "lucide-react": "^0.552.0",

@@ -20,6 +20,7 @@ export const evalConfigFormSchema = z.object({
   sampling: z.coerce.number().gt(0).lte(1),
   delay: z.coerce.number().min(0).optional().default(10),
   timeScope: TimeScopeSchema,
+  runOnLive: z.boolean().optional().default(true),
 });
 
 export type EvalFormType = z.infer<typeof evalConfigFormSchema>;

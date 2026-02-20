@@ -17,6 +17,9 @@ import {
   getEventsGroupedByExperimentDatasetId,
   getEventsGroupedByExperimentId,
   getEventsGroupedByExperimentName,
+  getEventsGroupedByHasParentObservation,
+  getEventsGroupedByToolName,
+  getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
   getTracesGroupedByTags,
   getObservationsBatchIOFromEventsTable,
@@ -151,6 +154,9 @@ export async function getEventFilterOptions(
     experimentDatasetIds,
     experimentIds,
     experimentNames,
+    hasParentObservationResults,
+    toolNames,
+    calledToolNames,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
@@ -169,6 +175,9 @@ export async function getEventFilterOptions(
     getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
     getEventsGroupedByExperimentId(projectId, eventsFilter),
     getEventsGroupedByExperimentName(projectId, eventsFilter),
+    getEventsGroupedByHasParentObservation(projectId, eventsFilter),
+    getEventsGroupedByToolName(projectId, eventsFilter),
+    getEventsGroupedByCalledToolName(projectId, eventsFilter),
   ]);
 
   return {
@@ -257,6 +266,17 @@ export async function getEventFilterOptions(
         value: i.experimentName as string,
         count: i.count,
       })),
+    hasParentObservation: hasParentObservationResults.map((i) => ({
+      // ClickHouse returns UInt8 (0/1) for computed boolean; normalize to "true"/"false"
+      value: i.hasParentObservation ? "true" : "false",
+      count: i.count,
+    })),
+    toolNames: toolNames
+      .filter((i) => i.toolName !== null)
+      .map((i) => ({ value: i.toolName as string })),
+    calledToolNames: calledToolNames
+      .filter((i) => i.calledToolName !== null)
+      .map((i) => ({ value: i.calledToolName as string })),
   };
 }
 

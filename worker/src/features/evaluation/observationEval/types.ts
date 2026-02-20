@@ -28,7 +28,6 @@ export type ObservationEvalConfig = Pick<
   | "scoreName"
   | "targetObject"
   | "variableMapping"
-  | "delay"
 >;
 
 /**

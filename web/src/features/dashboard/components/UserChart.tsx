@@ -3,7 +3,6 @@ import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { BarList } from "@tremor/react";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
 import { useState } from "react";
@@ -11,10 +10,11 @@ import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashbo
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 type BarChartDataPoint = {
   name: string;
@@ -28,7 +28,7 @@ export const UserChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
-  isDashboardChartsBeta = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -36,7 +36,7 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
@@ -65,6 +65,7 @@ export const UserChart = ({
     {
       projectId,
       query: userCostQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -91,6 +92,7 @@ export const UserChart = ({
     {
       projectId,
       query: traceCountQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -182,42 +184,30 @@ export const UserChart = ({
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
-                    {isDashboardChartsBeta ? (
-                      <div
-                        className="mt-4 w-full"
-                        style={{
-                          minHeight: 200,
-                          height: Math.max(
-                            200,
-                            item.data.length * BAR_ROW_HEIGHT +
-                              CHART_AXIS_PADDING,
-                          ),
+                    <div
+                      className="mt-4 w-full"
+                      style={{
+                        minHeight: 200,
+                        height: Math.max(
+                          200,
+                          item.data.length * BAR_ROW_HEIGHT +
+                            CHART_AXIS_PADDING,
+                        ),
+                      }}
+                    >
+                      <Chart
+                        chartType="HORIZONTAL_BAR"
+                        data={barListToDataPoints(item.data)}
+                        rowLimit={maxNumberOfEntries.expanded}
+                        chartConfig={{
+                          type: "HORIZONTAL_BAR",
+                          row_limit: maxNumberOfEntries.expanded,
+                          show_value_labels: true,
+                          subtle_fill: true,
                         }}
-                      >
-                        <Chart
-                          chartType="HORIZONTAL_BAR"
-                          data={barListToDataPoints(item.data)}
-                          rowLimit={maxNumberOfEntries.expanded}
-                          chartConfig={{
-                            type: "HORIZONTAL_BAR",
-                            row_limit: maxNumberOfEntries.expanded,
-                            show_value_labels: true,
-                            subtle_fill: true,
-                          }}
-                          valueFormatter={item.formatter}
-                        />
-                      </div>
-                    ) : (
-                      <div>
-                        <BarList
-                          data={item.data}
-                          valueFormatter={item.formatter}
-                          className="mt-2 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                          showAnimation={true}
-                          color={"indigo"}
-                        />
-                      </div>
-                    )}
+                        valueFormatter={item.formatter}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <NoDataOrLoading
