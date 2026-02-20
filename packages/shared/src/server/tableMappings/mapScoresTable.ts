@@ -80,6 +80,12 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "string_value",
   },
   {
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "metadata",
+  },
+  {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",
@@ -96,5 +102,34 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "trace_tags",
     clickhouseTableName: "traces",
     clickhouseSelect: "t.tags",
+  },
+];
+
+/**
+ * v4 column definitions for scores table — trace columns reference events_core
+ * instead of traces table. Used with the events_core subquery JOIN (alias e).
+ */
+export const scoresTableUiColumnDefinitionsFromEvents: UiColumnMappings = [
+  // All scores-native columns are identical to v3
+  ...scoresTableUiColumnDefinitions.filter(
+    (c) => c.clickhouseTableName === "scores",
+  ),
+  {
+    uiTableName: "Trace Name",
+    uiTableId: "traceName",
+    clickhouseTableName: "events_core",
+    clickhouseSelect: "trace_name",
+  },
+  {
+    uiTableName: "User ID",
+    uiTableId: "userId",
+    clickhouseTableName: "events_core",
+    clickhouseSelect: "user_id",
+  },
+  {
+    uiTableName: "Trace Tags",
+    uiTableId: "trace_tags",
+    clickhouseTableName: "events_core",
+    clickhouseSelect: "tags",
   },
 ];

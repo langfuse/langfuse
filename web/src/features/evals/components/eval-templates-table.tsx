@@ -6,17 +6,13 @@ import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Copy, Pen } from "lucide-react";
-import {
-  useQueryParams,
-  withDefault,
-  NumberParam,
-  useQueryParam,
-  StringParam,
-} from "use-query-params";
-import { useEffect, useState } from "react";
+import { useQueryParam, StringParam, withDefault } from "use-query-params";
+import { useEffect, useMemo, useState } from "react";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { PeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekView } from "@/src/components/table/peek";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useRouter } from "next/router";
@@ -59,9 +55,9 @@ export default function EvalsTemplateTable({
 }) {
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -297,6 +293,21 @@ export default function EvalsTemplateTable({
     },
   });
 
+  const peekConfig = useMemo(
+    () => ({
+      itemType: "EVALUATOR" as const,
+      detailNavigationKey: "eval-templates",
+      peekEventOptions: {
+        ignoredSelectors: [
+          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
+        ],
+      },
+      children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
+      ...peekNavigationProps,
+    }),
+    [projectId, peekNavigationProps],
+  );
+
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
   ): EvalsTemplateRow => {
@@ -330,18 +341,7 @@ export default function EvalsTemplateTable({
       <DataTable
         tableName={"evalTemplates"}
         columns={columns}
-        peekView={{
-          itemType: "EVALUATOR",
-          detailNavigationKey: "eval-templates",
-          peekEventOptions: {
-            ignoredSelectors: [
-              "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
-            ],
-          },
-          tableDataUpdatedAt: templates.dataUpdatedAt,
-          children: <PeekViewEvaluatorTemplateDetail projectId={projectId} />,
-          ...peekNavigationProps,
-        }}
+        peekView={peekConfig}
         data={
           templates.isLoading
             ? { isLoading: true, isError: false }
@@ -367,6 +367,7 @@ export default function EvalsTemplateTable({
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
       />
+      <TablePeekView peekView={peekConfig} />
       <Dialog
         open={!!editTemplateId && template.isSuccess}
         onOpenChange={(open) => {

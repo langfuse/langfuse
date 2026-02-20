@@ -22,7 +22,10 @@ import {
   getScoresAndCorrectionsForTraces,
   convertDateToClickhouseDateTime,
   getAgentGraphDataFromEventsTable,
+  getObservationsForTraceFromEventsTable,
+  MAX_OBSERVATIONS_PER_TRACE,
 } from "@langfuse/shared/src/server";
+
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
@@ -177,6 +180,41 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   /**
+   * Fetch all observations for a trace from the events table.
+   * Returns up to MAX_OBSERVATIONS_PER_TRACE observations.
+   * Sets cutoffObservationsAfterMaxCount=true if trace exceeds the cap.
+   */
+  byTraceId: protectedProjectProcedure
+    .input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        timestamp: zodSchema.date().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return instrumentAsync(
+        { name: "get-events-by-trace-id-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", ctx.session.projectId);
+          span.setAttribute("trace_id", input.traceId);
+
+          const { observations, totalCount } =
+            await getObservationsForTraceFromEventsTable({
+              projectId: ctx.session.projectId,
+              traceId: input.traceId,
+              timestamp: input.timestamp,
+            });
+
+          return {
+            observations,
+            cutoffObservationsAfterMaxCount:
+              totalCount > MAX_OBSERVATIONS_PER_TRACE,
+          };
+        },
+      );
+    }),
+  /**
    * Fetch agent graph data from events table.
    * Used by v4 events-based trace detail view for graph visualization.
    * Returns same shape as traces.getAgentGraphData for frontend compatibility.
@@ -293,7 +331,9 @@ export const addAttributesToSpan = ({
     }
 
     input.filter.forEach((f) => {
-      span.setAttribute(f.column, f.value.toString());
+      if (f.value !== undefined) {
+        span.setAttribute(f.column, String(f.value));
+      }
     });
   }
 

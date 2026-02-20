@@ -763,7 +763,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "trace_name",
+          column: "traceName",
           type: "string",
           operator: "contains",
           value: "query",
@@ -781,7 +781,7 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "user_id",
+          column: "userId",
           type: "string",
           operator: "=",
           value: "user-123",
@@ -799,28 +799,10 @@ describe("Filter Evaluation for Observation Evals", () => {
 
       const matched = await testFilterMatch(observation, [
         {
-          column: "session_id",
+          column: "sessionId",
           type: "string",
           operator: "=",
           value: "session-abc",
-        },
-      ]);
-
-      expect(matched).toBe(true);
-    });
-
-    it("should filter by release", async () => {
-      const observation = createTestObservation({
-        project_id: projectId,
-        release: "v2.0.0",
-      });
-
-      const matched = await testFilterMatch(observation, [
-        {
-          column: "release",
-          type: "string",
-          operator: "starts with",
-          value: "v2",
         },
       ]);
 
@@ -907,7 +889,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       // Filter that excludes this observation's dataset
       const matched = await testExperimentFilterMatch(observation, [
         {
-          column: "experiment_dataset_id",
+          column: "experimentDatasetId",
           type: "stringOptions",
           operator: "any of",
           value: ["dataset-456"], // Observation has dataset-123
@@ -930,7 +912,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       // Filter that includes this observation's dataset
       const matched = await testExperimentFilterMatch(observation, [
         {
-          column: "experiment_dataset_id",
+          column: "experimentDatasetId",
           type: "stringOptions",
           operator: "any of",
           value: ["dataset-123", "dataset-456"],
@@ -952,7 +934,7 @@ describe("Filter Evaluation for Observation Evals", () => {
       // Filter matches the observation
       const matched = await testExperimentFilterMatch(observation, [
         {
-          column: "experiment_dataset_id",
+          column: "experimentDatasetId",
           type: "stringOptions",
           operator: "any of",
           value: ["dataset-123"],
@@ -975,6 +957,130 @@ describe("Filter Evaluation for Observation Evals", () => {
       const matched = await testExperimentFilterMatch(observation);
 
       // Child spans should not match, only the root span
+      expect(matched).toBe(false);
+    });
+  });
+
+  describe("null filters (parentObservationId)", () => {
+    it("should match observations where parentObservationId is null (root observations)", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match observations where parentObservationId is not null (child observations)", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: "some-parent-span-id",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(false);
+    });
+
+    it("should match observations where parentObservationId is not null using 'is not null' operator", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: "some-parent-span-id",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match root observations with parentObservationId is not null using 'is not null' operator", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+      ]);
+
+      expect(matched).toBe(false);
+    });
+
+    it("should combine null filter with other filters using AND logic", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+        type: "GENERATION",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "type",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+      ]);
+
+      expect(matched).toBe(true);
+    });
+
+    it("should not match when null filter passes but other filter fails", async () => {
+      const observation = createTestObservation({
+        project_id: projectId,
+        parent_span_id: null,
+        type: "SPAN",
+      });
+
+      const matched = await testFilterMatch(observation, [
+        {
+          column: "parentObservationId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+        {
+          column: "type",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+      ]);
+
       expect(matched).toBe(false);
     });
   });

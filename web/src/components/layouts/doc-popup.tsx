@@ -55,18 +55,14 @@ export default function DocPopup({
       </HoverCardTrigger>
       <Portal>
         <HoverCardContent>
-          {typeof description === "string" ? (
-            <div
-              className={cn(
-                "whitespace-break-spaces text-xs font-normal text-primary sm:pl-0",
-                className,
-              )}
-            >
-              {description}
-            </div>
-          ) : (
-            description
-          )}
+          <div
+            className={cn(
+              "whitespace-break-spaces text-xs font-normal text-primary sm:pl-0",
+              className,
+            )}
+          >
+            {description}
+          </div>
         </HoverCardContent>
       </Portal>
     </HoverCard>
@@ -85,13 +81,9 @@ export function Popup({ triggerContent, description }: PopupProps) {
         <div>{triggerContent}</div>
       </HoverCardTrigger>
       <HoverCardContent>
-        {typeof description === "string" ? (
-          <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
-            {description}
-          </div>
-        ) : (
-          description
-        )}
+        <div className="whitespace-break-spaces text-xs font-normal text-primary sm:pl-0">
+          {description}
+        </div>
       </HoverCardContent>
     </HoverCard>
   );

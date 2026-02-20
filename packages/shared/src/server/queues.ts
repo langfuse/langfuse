@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { eventTypes } from "./ingestion/types";
 import {
+  ActionId,
   BatchActionQuerySchema,
   BatchActionType,
 } from "../features/batchAction/types";
@@ -36,8 +37,13 @@ export const OtelIngestionEvent = z.object({
     scope: z.object({
       projectId: z.string(),
       accessLevel: z.literal("project"),
+      orgId: z.string().optional(),
     }),
   }),
+  propagatedHeaders: z.record(z.string(), z.string()).optional(),
+  sdkName: z.string().optional(),
+  sdkVersion: z.string().optional(),
+  ingestionVersion: z.string().optional(),
 });
 
 export const BatchExportJobSchema = z.object({
@@ -83,6 +89,7 @@ export const ProjectQueueEventSchema = z.object({
 export const DatasetRunItemUpsertEventSchema = z.object({
   projectId: z.string(),
   datasetItemId: z.string(),
+  datasetItemValidFrom: z.date().optional(), // Exact valid_from value from DB (internally controlled)
   traceId: z.string(),
   observationId: z.string().optional(),
 });
@@ -183,6 +190,14 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       config: ObservationAddToDatasetConfigSchema,
       type: z.enum(BatchActionType),
     }),
+    z.object({
+      actionId: z.literal(ActionId.ObservationBatchEvaluation),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      cutoffCreatedAt: z.date(),
+      batchActionId: z.string(),
+      evaluatorIds: z.array(z.string()),
+    }),
   ],
 );
 
@@ -204,44 +219,6 @@ export const CreateEvalQueueEventSchema = DatasetRunItemUpsertEventSchema.and(
 export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
-
-export const BATCH_DELETION_TABLES = [
-  "traces",
-  "observations",
-  "scores",
-  "events",
-  "dataset_run_items_rmt",
-] as const;
-
-export const BatchProjectCleanerJobSchema = z.object({
-  table: z.enum(BATCH_DELETION_TABLES),
-});
-export type BatchProjectCleanerJobType = z.infer<
-  typeof BatchProjectCleanerJobSchema
->;
-
-// Tables for batch data retention cleaning (ClickHouse only, no dataset_run_items)
-export const BATCH_DATA_RETENTION_TABLES = [
-  "traces",
-  "observations",
-  "scores",
-  "events",
-] as const;
-
-export type BatchDataRetentionTable =
-  (typeof BATCH_DATA_RETENTION_TABLES)[number];
-
-export const BatchDataRetentionCleanerJobSchema = z.object({
-  table: z.enum(BATCH_DATA_RETENTION_TABLES),
-});
-export type BatchDataRetentionCleanerJobType = z.infer<
-  typeof BatchDataRetentionCleanerJobSchema
->;
-
-export const MediaRetentionCleanerJobSchema = z.object({});
-export type MediaRetentionCleanerJobType = z.infer<
-  typeof MediaRetentionCleanerJobSchema
->;
 
 export const NotificationEventSchema = z.discriminatedUnion("type", [
   z.object({
@@ -362,9 +339,6 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
-  BatchProjectCleanerQueue = "batch-project-cleaner-queue",
-  BatchDataRetentionCleanerQueue = "batch-data-retention-cleaner-queue",
-  MediaRetentionCleanerQueue = "media-retention-cleaner-queue",
 }
 
 export enum QueueJobs {
@@ -401,9 +375,6 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
-  BatchProjectCleanerJob = "batch-project-cleaner-job",
-  BatchDataRetentionCleanerJob = "batch-data-retention-cleaner-job",
-  MediaRetentionCleanerJob = "media-retention-cleaner-job",
 }
 
 export type TQueueJobTypes = {

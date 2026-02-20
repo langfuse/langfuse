@@ -22,8 +22,7 @@ export default function UserPage() {
   const projectId = router.query.projectId as string;
   const { isBetaEnabled } = useV4Beta();
 
-  // Legacy API call (traces-based)
-  const userLegacy = api.users.byId.useQuery(
+  const userV3 = api.users.byId.useQuery(
     {
       projectId: projectId,
       userId,
@@ -31,8 +30,7 @@ export default function UserPage() {
     { enabled: !isBetaEnabled },
   );
 
-  // Beta API call (events-based)
-  const userBeta = api.users.byIdFromEvents.useQuery(
+  const userV4 = api.users.byIdFromEvents.useQuery(
     {
       projectId: projectId,
       userId,
@@ -40,7 +38,7 @@ export default function UserPage() {
     { enabled: isBetaEnabled },
   );
 
-  const user = isBetaEnabled ? userBeta : userLegacy;
+  const user = isBetaEnabled ? userV4 : userV3;
 
   const [currentTab, setCurrentTab] = useQueryParam(
     "tab",
@@ -204,11 +202,14 @@ function TracesTab({ userId, projectId }: TabProps) {
 }
 
 function SessionsTab({ userId, projectId }: TabProps) {
+  const { isBetaEnabled } = useV4Beta();
+
   return (
     <SessionsTable
       projectId={projectId}
       userId={userId}
       omittedFilter={["User IDs"]}
+      isBetaEnabled={isBetaEnabled}
     />
   );
 }

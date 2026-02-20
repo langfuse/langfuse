@@ -15,7 +15,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import type Decimal from "decimal.js";
 import {
   compactNumberFormatter,
@@ -76,6 +76,7 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekView } from "@/src/components/table/peek";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -172,6 +173,7 @@ export default function TracesTable({
   );
 
   const [refreshTick, setRefreshTick] = useState(0);
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0); // resets the interval when manual refresh is called
   const { setDetailPageList } = useDetailPageLists();
 
   // Auto-increment refresh tick to force date range recalculation
@@ -181,10 +183,11 @@ export default function TracesTable({
       setRefreshTick((t) => t + 1);
     }, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval]);
+  }, [refreshInterval, manualRefreshTrigger]);
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
+    setManualRefreshTrigger((t) => t + 1);
     void Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
@@ -338,9 +341,9 @@ export default function TracesTable({
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
   const { selectAll, setSelectAll } = useSelectAll(projectId, "traces");
 
@@ -392,10 +395,14 @@ export default function TracesTable({
   type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
   type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
 
-  const traceRowData = joinTableCoreAndMetrics<
-    TracesCoreOutput,
-    TraceMetricOutput
-  >(traces.data?.traces, traceMetrics.data);
+  const traceRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<TracesCoreOutput, TraceMetricOutput>(
+        traces.data?.traces,
+        traceMetrics.data,
+      ),
+    [traces.data?.traces, traceMetrics.data],
+  );
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
@@ -759,7 +766,21 @@ export default function TracesTable({
       header: "Tags",
       size: 150,
       headerTooltip: {
-        description: "Group traces with tags.",
+        description: (
+          <>
+            Group traces with tags. Read more about implementing tags{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/tags"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
       cell: ({ row }) => {
@@ -784,7 +805,22 @@ export default function TracesTable({
       header: "Metadata",
       size: 400,
       headerTooltip: {
-        description: "Add metadata to traces to track additional information.",
+        description: (
+          <>
+            Add metadata to traces to track additional information. Read more
+            about adding metadata{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/metadata"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/metadata",
       },
       cell: ({ row }) => {
@@ -827,7 +863,22 @@ export default function TracesTable({
       header: "Session",
       size: 150,
       headerTooltip: {
-        description: "Add `sessionId` to traces to track sessions.",
+        description: (
+          <>
+            Group traces into sessions to track longer conversations/workflows.
+            Read more about sessions{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/sessions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/sessions",
       },
       cell: ({ row }) => {
@@ -846,7 +897,22 @@ export default function TracesTable({
       id: "userId",
       size: 150,
       headerTooltip: {
-        description: "Add `userId` to traces to track users.",
+        description: (
+          <>
+            Add <code>userId</code> to traces to track users. Read more about
+            user tracking{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/users"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/users",
       },
       cell: ({ row }) => {
@@ -908,7 +974,21 @@ export default function TracesTable({
       header: "Version",
       size: 100,
       headerTooltip: {
-        description: "Track changes via the version tag.",
+        description: (
+          <>
+            Track changes via the version tag. Read more about versions{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/releases-and-versioning"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
@@ -921,7 +1001,22 @@ export default function TracesTable({
       header: "Release",
       size: 100,
       headerTooltip: {
-        description: "Track changes to your application via the release tag.",
+        description: (
+          <>
+            Track changes to your application via the release tag. Read more
+            about the release tag{" "}
+            <a
+              href="https://langfuse.com/docs/observability/features/releases-and-versioning"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-primary/30 hover:decoration-primary"
+              onClick={(e) => e.stopPropagation()}
+            >
+              here
+            </a>
+            .
+          </>
+        ),
         href: "https://langfuse.com/docs/observability/features/releases-and-versioning",
       },
       defaultHidden: true,
@@ -1124,19 +1219,9 @@ export default function TracesTable({
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
       children: <PeekViewTraceDetail projectId={projectId} />,
-      tableDataUpdatedAt: Math.max(
-        traces.dataUpdatedAt,
-        traceMetrics.dataUpdatedAt,
-      ),
       ...peekNavigationProps,
     };
-  }, [
-    projectId,
-    hideControls,
-    peekNavigationProps,
-    traces.dataUpdatedAt,
-    traceMetrics.dataUpdatedAt,
-  ]);
+  }, [projectId, hideControls, peekNavigationProps]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -1335,6 +1420,7 @@ export default function TracesTable({
             />
           </div>
         </ResizableFilterLayout>
+        {peekConfig && <TablePeekView peekView={peekConfig} />}
       </div>
     </DataTableControlsProvider>
   );

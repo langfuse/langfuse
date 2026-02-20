@@ -26,7 +26,14 @@ export type ColumnDefinition =
   | {
       name: string;
       id: string;
-      type: "number" | "string" | "datetime" | "boolean";
+      type: "number" | "string" | "datetime" | "boolean" | "null";
+      internal: string;
+      nullable?: boolean;
+    }
+  | {
+      name: string;
+      id: string;
+      type: "positionInTrace";
       internal: string;
       nullable?: boolean;
     }

@@ -11,7 +11,7 @@ type PromptLinkingEditorProps = {
   value: string;
   onChange?: (value: string) => void;
   onBlur?: () => void;
-  minHeight: "none" | 30 | 100 | 200;
+  minHeight?: number | string;
   className?: string;
 };
 

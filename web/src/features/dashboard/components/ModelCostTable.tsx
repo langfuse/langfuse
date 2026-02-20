@@ -11,6 +11,7 @@ import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashbo
 import { truncate } from "@/src/utils/string";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 
@@ -21,6 +22,7 @@ export const ModelCostTable = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
 }: {
   className: string;
   projectId: string;
@@ -28,6 +30,7 @@ export const ModelCostTable = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const modelCostQuery: QueryType = {
     view: "observations",
@@ -55,6 +58,7 @@ export const ModelCostTable = ({
     {
       projectId,
       query: modelCostQuery,
+      version: metricsVersion,
     },
     {
       trpc: {

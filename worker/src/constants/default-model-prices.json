@@ -3239,6 +3239,86 @@
     ]
   },
   {
+    "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed",
+    "modelName": "claude-sonnet-4-6",
+    "matchPattern": "(?i)^(anthropic\\/)?(claude-sonnet-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-sonnet-4-6-v1(:0)?|claude-sonnet-4-6)$",
+    "createdAt": "2026-02-18T00:00:00.000Z",
+    "updatedAt": "2026-02-18T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "90ec5ec3-1a48-4ff0-919c-70cdb8f632ed_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 3e-6,
+          "input_tokens": 3e-6,
+          "output": 15e-6,
+          "output_tokens": 15e-6,
+          "cache_creation_input_tokens": 3.75e-6,
+          "input_cache_creation": 3.75e-6,
+          "cache_read_input_tokens": 3e-7,
+          "input_cache_read": 3e-7
+        }
+      },
+      {
+        "id": "7830bfc2-c464-4ffe-b9a2-6e741f6c5486",
+        "name": "Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "input",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 6e-6,
+          "input_tokens": 6e-6,
+          "output": 22.5e-6,
+          "output_tokens": 22.5e-6,
+          "cache_creation_input_tokens": 7.5e-6,
+          "input_cache_creation": 7.5e-6,
+          "cache_read_input_tokens": 6e-7,
+          "input_cache_read": 6e-7
+        }
+      }
+    ]
+  },
+  {
+    "id": "13458bc0-1c20-44c2-8753-172f54b67647",
+    "modelName": "claude-opus-4-6",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
+    "createdAt": "2026-02-09T00:00:00.000Z",
+    "updatedAt": "2026-02-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "13458bc0-1c20-44c2-8753-172f54b67647_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_tokens": 5e-6,
+          "output": 25e-6,
+          "output_tokens": 25e-6,
+          "cache_creation_input_tokens": 6.25e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "cmig1hb7i000104l72qrzgc6h",
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google\/)?(gemini-2.5-pro)$",
@@ -3329,6 +3409,66 @@
       },
       {
         "id": "4da930c8-7146-4e27-b66c-b62f2c2ec357",
+        "name": "Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|prompt|cached)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_modality_1": 4e-6,
+          "prompt_token_count": 4e-6,
+          "promptTokenCount": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "cached_content_token_count": 0.4e-6,
+          "output": 18e-6,
+          "output_modality_1": 18e-6,
+          "candidates_token_count": 18e-6,
+          "candidatesTokenCount": 18e-6,
+          "thoughtsTokenCount": 18e-6,
+          "thoughts_token_count": 18e-6,
+          "output_reasoning": 18e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "55106bba-a5dd-441b-bc0d-5652582b349d",
+    "modelName": "gemini-3.1-pro-preview",
+    "matchPattern": "(?i)^(google\/)?(gemini-3.1-pro-preview(-customtools)?)$",
+    "createdAt": "2026-02-19T00:00:00.000Z",
+    "updatedAt": "2026-02-19T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "55106bba-a5dd-441b-bc0d-5652582b349d_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_modality_1": 2e-6,
+          "prompt_token_count": 2e-6,
+          "promptTokenCount": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "cached_content_token_count": 0.2e-6,
+          "output": 12e-6,
+          "output_modality_1": 12e-6,
+          "candidates_token_count": 12e-6,
+          "candidatesTokenCount": 12e-6,
+          "thoughtsTokenCount": 12e-6,
+          "thoughts_token_count": 12e-6,
+          "output_reasoning": 12e-6
+        }
+      },
+      {
+        "id": "ada11e9f-fe0d-465a-92af-ce334d0eedeb",
         "name": "Large Context",
         "isDefault": false,
         "priority": 1,

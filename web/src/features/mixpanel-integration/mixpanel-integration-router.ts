@@ -31,10 +31,12 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           return null;
         }
 
-        const { encryptedMixpanelProjectToken, ...config } = dbConfig;
+        const { encryptedMixpanelProjectToken, exportSource, ...config } =
+          dbConfig;
 
         return {
           ...config,
+          exportSource,
           mixpanelProjectToken: decrypt(encryptedMixpanelProjectToken),
         };
       } catch (e) {
@@ -86,11 +88,13 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           mixpanelRegion: config.mixpanelRegion,
           encryptedMixpanelProjectToken,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
         update: {
           encryptedMixpanelProjectToken,
           mixpanelRegion: config.mixpanelRegion,
           enabled: config.enabled,
+          exportSource: config.exportSource,
         },
       });
     }),
