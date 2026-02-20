@@ -21,9 +21,10 @@ import { redis } from "@langfuse/shared/src/server";
 
 describe("Media Upload API", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const staticFixtureDir = path.join(__dirname, "..", "static");
 
   // Read the image file once and reuse it for all tests
-  const imagePathPNG = path.join(__dirname, "static/langfuse-logo.png");
+  const imagePathPNG = path.join(staticFixtureDir, "langfuse-logo.png");
   const fileBytesPNG = fs.readFileSync(imagePathPNG);
   const contentTypePNG = "image/png";
   const contentLengthPNG = fileBytesPNG.length;
@@ -40,7 +41,7 @@ describe("Media Upload API", () => {
   };
 
   // Read the PDF file once and reuse it for all tests
-  const imagePathPDF = path.join(__dirname, "static/bitcoin.pdf");
+  const imagePathPDF = path.join(staticFixtureDir, "bitcoin.pdf");
   const fileBytesPDF = fs.readFileSync(imagePathPDF);
   const contentTypePDF = "application/pdf";
   const contentLengthPDF = fileBytesPDF.length;
