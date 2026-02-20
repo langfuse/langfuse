@@ -43,7 +43,7 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
-import { eventsTracesAggregation } from "../queries/clickhouse-sql/query-fragments";
+import { eventsTraceMetadata } from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -1054,35 +1054,38 @@ const getScoresUiGeneric = async <T>(props: {
 };
 
 /**
- * Trace column mapping without queryPrefix, for building HAVING filters
- * inside the traces CTE. The CTE output aliases (name, user_id, tags) don't
- * need a table prefix since HAVING references them directly.
+ * Trace column mapping for building WHERE filters inside the flat events CTE.
+ * References actual events_core columns (trace_name, user_id, tags) with the
+ * "e" prefix used by EventsQueryBuilder.
  */
-const scoresTraceFilterHavingMapping = [
+const scoresTraceFilterEventsMapping = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
     clickhouseTableName: "traces",
-    clickhouseSelect: "name",
+    clickhouseSelect: "trace_name",
+    queryPrefix: "e",
   },
   {
     uiTableName: "User ID",
     uiTableId: "userId",
     clickhouseTableName: "traces",
     clickhouseSelect: "user_id",
+    queryPrefix: "e",
   },
   {
     uiTableName: "Trace Tags",
     uiTableId: "trace_tags",
     clickhouseTableName: "traces",
     clickhouseSelect: "tags",
+    queryPrefix: "e",
   },
 ];
 
 /**
- * v4 variant: scores query using eventsTracesAggregation CTE instead of
- * raw events_core SQL. Trace-level filters and sort use a "traces" CTE
- * built by the event query builder, joined as alias "e".
+ * v4 variant: scores query using a flat events CTE instead of the physical
+ * traces table. Trace-level filters and sort use a "traces" CTE built by
+ * EventsQueryBuilder, joined as alias "e".
  * Does NOT select trace metadata (that comes via metricsFromEvents).
  */
 const getScoresUiGenericFromEvents = async <T>(props: {
@@ -1108,7 +1111,6 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     includeHasMetadataFlag = false,
   } = props;
 
-  // tracesPrefix is required by the function signature but unused here (only scoresFilter is needed)
   const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -1119,18 +1121,19 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     ),
   );
 
-  // Separate trace filters (traces CTE) from score filters
-  const traceFilters = scoresFilter.filter(
-    (f) => f.clickhouseTable === "traces",
-  );
   const scoreOnlyFilters = scoresFilter.filter(
     (f) => f.clickhouseTable !== "traces",
   );
-
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
-  const traceFilterRes = traceFilters.find(() => true)
-    ? traceFilters.apply()
-    : null;
+
+  // Trace-level filter entries from the frontend filter state
+  const traceFilterState = filter.filter((filterEntry) =>
+    scoresTraceFilterEventsMapping.some(
+      (col) =>
+        col.uiTableName === filterEntry.column ||
+        col.uiTableId === filterEntry.column,
+    ),
+  );
 
   const orderByColumn = orderBy
     ? scoresTableUiColumnDefinitionsFromEvents.find(
@@ -1141,47 +1144,42 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       )
     : null;
 
-  const needsTracesCTE = !!traceFilterRes?.query || !!orderByColumn;
+  const needsTracesCTE = traceFilterState.length > 0 || !!orderByColumn;
 
-  // Build traces CTE using the event query builder when needed
+  // Build traces CTE using flat EventsQueryBuilder when needed
   let tracesCTEClause = "";
   const tracesCTEParams: Record<string, unknown> = {};
 
   if (needsTracesCTE) {
-    const tracesBuilder = eventsTracesAggregation({
-      projectId,
-      truncated: true,
-    }).whereRaw("e.is_deleted = 0");
+    const tracesEventsBuilder = eventsTraceMetadata(projectId);
 
-    // Build HAVING filters from the same user filter state, but using a
-    // prefix-free column mapping so conditions reference CTE output aliases
-    // directly (name, user_id, tags) instead of e.name, e.user_id, e.tags.
-    const traceHavingFilterState = filter.filter((filterEntry) =>
-      scoresTraceFilterHavingMapping.some(
-        (column) =>
-          column.uiTableName === filterEntry.column ||
-          column.uiTableId === filterEntry.column,
-      ),
-    );
-    const havingFilters = new FilterList(
-      createFilterFromFilterState(
-        traceHavingFilterState,
-        scoresTraceFilterHavingMapping,
-      ),
-    );
-    const havingFilterRes = havingFilters.apply();
-    if (havingFilterRes.query) {
-      tracesBuilder.having(havingFilterRes);
+    if (traceFilterState.length > 0) {
+      const cteTraceFilters = new FilterList(
+        createFilterFromFilterState(
+          traceFilterState,
+          scoresTraceFilterEventsMapping,
+        ),
+      );
+      const cteTraceFilterRes = cteTraceFilters.apply();
+      if (cteTraceFilterRes.query) {
+        tracesEventsBuilder.where(cteTraceFilterRes);
+      }
     }
 
+    tracesEventsBuilder.limitBy("e.trace_id");
+
     const { query: cteQuery, params: cteParams } =
-      tracesBuilder.buildWithParams();
+      tracesEventsBuilder.buildWithParams();
     tracesCTEClause = `WITH traces AS (${cteQuery})`;
     Object.assign(tracesCTEParams, cteParams);
   }
 
+  // Inner join when trace filters are active (exclude scores without matching traces)
+  // Left join when only sorting (keep all scores)
   const eventsJoin = needsTracesCTE
-    ? `LEFT ANY JOIN traces e ON s.trace_id = e.id`
+    ? traceFilterState.length > 0
+      ? `ANY JOIN traces e ON s.trace_id = e.id`
+      : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
     : "";
 
   const select =
@@ -1222,7 +1220,6 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       WHERE s.project_id = {projectId: String}
       AND s.data_type IN ({dataTypes: Array(String)})
       ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
-      ${traceFilterRes?.query ? `AND ${traceFilterRes.query}` : ""}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
@@ -1235,7 +1232,6 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         projectId,
         dataTypes: AGGREGATABLE_SCORE_TYPES,
         ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
-        ...(traceFilterRes ? traceFilterRes.params : {}),
         ...tracesCTEParams,
         limit,
         offset,

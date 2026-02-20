@@ -30,6 +30,7 @@ import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
   eventsSessionsAggregation,
+  eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -2950,9 +2951,8 @@ export const hasAnySessionFromEventsTable = async (
 };
 
 /**
- * Fetch trace metadata (name, user_id, tags) for a list of trace IDs
- * using the eventsTracesAggregation builder. Used by the scores table
- * to enrich score rows with trace-level data.
+ * Fetch trace metadata (name, user_id, tags) for a list of trace IDs.
+ * Used by the scores table to enrich score rows with trace-level data.
  */
 export const getTraceMetadataByIdsFromEvents = async (props: {
   projectId: string;
@@ -2960,22 +2960,18 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
 }) => {
   if (props.traceIds.length === 0) return [];
 
-  const tracesBuilder = eventsTracesAggregation({
-    projectId: props.projectId,
-    traceIds: props.traceIds,
-    truncated: true,
-    fieldSet: "metadata",
-  }).whereRaw("e.is_deleted = 0");
+  const builder = eventsTraceMetadata(props.projectId).whereRaw(
+    "e.trace_id IN ({traceIds: Array(String)})",
+    { traceIds: props.traceIds },
+  );
 
-  const cteResult = tracesBuilder.buildWithParams();
-
-  const query = `${cteResult.query}`;
+  const { query, params } = builder.buildWithParams();
 
   return measureAndReturn({
     operationName: "getTraceMetadataByIdsFromEvents",
     projectId: props.projectId,
     input: {
-      params: cteResult.params,
+      params,
       tags: {
         feature: "tracing",
         type: "trace-metadata",
