@@ -1188,7 +1188,7 @@ const POSITION_MODES: {
   key: PositionInTraceMode;
   label: string;
 }[] = [
-  { key: "root", label: "Root" },
+  { key: "root", label: "1st" },
   { key: "last", label: "Last" },
   { key: "nthFromStart", label: "Nth from start" },
   { key: "nthFromEnd", label: "Nth from end" },
