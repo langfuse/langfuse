@@ -1472,4 +1472,179 @@ describe("dashboard v1 vs v2 consistency", () => {
       });
     });
   });
+
+  // ─── v2 traces optimization: observations-based queries ────────────────
+
+  maybe("v2 traces optimization: observations-based queries", () => {
+    const rootFilter = {
+      type: "null" as const,
+      column: "parentObservationId",
+      operator: "is null" as const,
+      value: "" as const,
+    };
+
+    it.each(["1d", "7d"] as const)(
+      "total count: observations with root filter matches traces for %s window",
+      async (window) => {
+        const tracesQuery: QueryType = {
+          view: "traces",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const obsQuery: QueryType = {
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [rootFilter],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const [tracesResult, obsResult] = await Promise.all([
+          executeQuery(projectId, tracesQuery, "v2", true),
+          executeQuery(projectId, obsQuery, "v2", true),
+        ]);
+        const sum = (rows: Array<Record<string, unknown>>) =>
+          rows.reduce((s, r) => s + Number(r.count_count), 0);
+        expect(sum(obsResult)).toBe(sum(tracesResult));
+      },
+    );
+
+    it.each(["1d", "7d"] as const)(
+      "grouped by trace name: observations traceName matches traces name for %s window",
+      async (window) => {
+        const tracesQuery: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: [{ field: "count_count", direction: "desc" }],
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+          chartConfig: { type: "table", row_limit: 20 },
+        };
+        const obsQuery: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "traceName" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [rootFilter],
+          orderBy: [{ field: "count_count", direction: "desc" }],
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+          chartConfig: { type: "table", row_limit: 20 },
+        };
+        const [tracesResult, obsResult] = await Promise.all([
+          executeQuery(projectId, tracesQuery, "v2", true),
+          executeQuery(projectId, obsQuery, "v2", true),
+        ]);
+        const tracesMap = toMap(tracesResult, "name");
+        const obsMap = toMap(obsResult, "traceName");
+
+        expect(obsMap.size).toBe(tracesMap.size);
+        for (const [name, tracesRow] of tracesMap) {
+          const obsRow = obsMap.get(name);
+          expect(obsRow).toBeDefined();
+          expect(Number(obsRow!.count_count)).toBe(
+            Number(tracesRow.count_count),
+          );
+        }
+      },
+    );
+
+    it.each(["1d", "7d"] as const)(
+      "time series: observations with root filter matches traces per-bucket for %s window",
+      async (window) => {
+        const tracesQuery: QueryType = {
+          view: "traces",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: { granularity: "day" },
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const obsQuery: QueryType = {
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: { granularity: "day" },
+          filters: [rootFilter],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const [tracesResult, obsResult] = await Promise.all([
+          executeQuery(projectId, tracesQuery, "v2", true),
+          executeQuery(projectId, obsQuery, "v2", true),
+        ]);
+        const tracesMap = toMap(
+          tracesResult.filter((r) => Number(r.count_count) > 0),
+          "time_dimension",
+        );
+        const obsMap = toMap(
+          obsResult.filter((r) => Number(r.count_count) > 0),
+          "time_dimension",
+        );
+
+        expect(obsMap.size).toBe(tracesMap.size);
+        for (const [ts, tracesRow] of tracesMap) {
+          const obsRow = obsMap.get(ts);
+          expect(obsRow).toBeDefined();
+          expect(Number(obsRow!.count_count)).toBe(
+            Number(tracesRow.count_count),
+          );
+        }
+      },
+    );
+
+    it.each(["1d", "7d"] as const)(
+      "grouped by userId: observations with root filter matches traces for %s window",
+      async (window) => {
+        const tracesQuery: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "userId" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const obsQuery: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "userId" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [rootFilter],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const [tracesResult, obsResult] = await Promise.all([
+          executeQuery(projectId, tracesQuery, "v2", true),
+          executeQuery(projectId, obsQuery, "v2", true),
+        ]);
+        const tracesMap = toMap(tracesResult, "userId");
+        const obsMap = toMap(obsResult, "userId");
+
+        expect(obsMap.size).toBe(tracesMap.size);
+        for (const [userId, tracesRow] of tracesMap) {
+          const obsRow = obsMap.get(userId);
+          expect(obsRow).toBeDefined();
+          expect(Number(obsRow!.count_count)).toBe(
+            Number(tracesRow.count_count),
+          );
+        }
+      },
+    );
+  });
 });

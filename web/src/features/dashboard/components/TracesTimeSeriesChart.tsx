@@ -17,6 +17,7 @@ import {
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -38,10 +39,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
   metricsVersion?: ViewVersion;
 }) => {
   const tracesQuery: QueryType = {
-    view: "traces",
+    ...traceViewQuery(metricsVersion, globalFilterState),
     dimensions: [],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: {
       granularity:
         dashboardDateRangeAggregationSettings[agg].dateTrunc ?? "day",
