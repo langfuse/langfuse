@@ -1,3 +1,4 @@
+import type React from "react";
 import { useCallback, useMemo, useEffect, useRef } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import {
@@ -82,6 +83,7 @@ function computeNumericRange(
 export interface BaseUIFilter {
   column: string;
   label: string;
+  tooltip?: string;
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -106,6 +108,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   counts: Map<string, number>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  /** Optional function to render an icon next to filter option labels */
+  renderIcon?: (value: string) => React.ReactNode;
   /**
    * Current operator for arrayOptions columns (tags, labels, etc.)
    * - "any of": OR logic - match if item has ANY selected value
@@ -1012,6 +1016,7 @@ export function useSidebarFilterState(
             type: "numeric",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: currentRange,
             min: facet.min,
@@ -1044,6 +1049,7 @@ export function useSidebarFilterState(
             type: "string",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: currentValue,
             loading: false,
@@ -1097,6 +1103,7 @@ export function useSidebarFilterState(
             type: "keyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1185,6 +1192,7 @@ export function useSidebarFilterState(
             type: "numericKeyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1268,6 +1276,7 @@ export function useSidebarFilterState(
             type: "stringKeyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1359,6 +1368,7 @@ export function useSidebarFilterState(
             type: "categorical",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: selectedOptions,
             options: availableOptions,
@@ -1484,6 +1494,7 @@ export function useSidebarFilterState(
           type: "categorical",
           column: facet.column,
           label: facet.label,
+          tooltip: facet.tooltip,
 
           value: selectedValues,
           options: availableValues,
@@ -1493,6 +1504,8 @@ export function useSidebarFilterState(
           isActive,
           isDisabled: disableState.isDisabled,
           disabledReason: disableState.reason,
+          renderIcon:
+            facet.type === "categorical" ? facet.renderIcon : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {

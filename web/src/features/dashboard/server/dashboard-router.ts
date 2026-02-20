@@ -244,6 +244,73 @@ async function getScoreAggregateV2({
   return merged as DatabaseRow[];
 }
 
+async function getObservationsByTypeV2(params: {
+  projectId: string;
+  filter: FilterState;
+  dimensionField: "costType" | "usageType";
+  metricMeasure: "costByType" | "usageByType";
+}): Promise<DatabaseRow[]> {
+  const { projectId, filter, dimensionField, metricMeasure } = params;
+
+  const [from, to] = extractFromAndToTimestampsFromFilter(filter);
+  if (!from?.value || !to?.value) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Time filter required",
+    });
+  }
+
+  // Filter normalisation for the executeQuery (v2) path:
+  //
+  // Filters arriving here originate from two different column-naming conventions:
+  //   A) uiTableName format ("Model", "Environment", …) — used by globalFilterState
+  //      filters that come from the standard dashboard filter bar. These are handled
+  //      canonically by mapLegacyUiTableFilterToView (see dashboardUiTableToViewMapping.ts).
+  //   B) uiTableId format ("model") — used by ModelSelectorPopover, which constructs
+  //      its filter using the lower-camel uiTableId rather than the display uiTableName.
+  //      mapLegacyUiTableFilterToView matches on uiTableName so it cannot cover this case.
+  //
+  // If additional uiTableId-format filters are introduced here in the future, add them
+  // to the CHART_FILTER_ID_TO_VIEW_FIELD map below (the canonical view field names live
+  // in dashboardUiTableToViewMapping.ts :: viewMappings["observations"]).
+  const CHART_FILTER_ID_TO_VIEW_FIELD: Record<string, string> = {
+    model: "providedModelName",
+  };
+
+  const nonDatetimeFilters = filter.filter((f) => f.type !== "datetime");
+  // Apply standard uiTableName → view field mapping first.
+  const standardMapped = mapLegacyUiTableFilterToView(
+    "observations",
+    nonDatetimeFilters,
+  );
+  // Then patch any remaining uiTableId-format columns.
+  const viewFilters = standardMapped.map((f) => {
+    const viewField = CHART_FILTER_ID_TO_VIEW_FIELD[f.column];
+    return viewField ? { ...f, column: viewField } : f;
+  });
+
+  const q: QueryType = {
+    view: "observations",
+    dimensions: [{ field: dimensionField }],
+    metrics: [{ measure: metricMeasure, aggregation: "sum" }],
+    filters: viewFilters,
+    timeDimension: { granularity: "auto" },
+    fromTimestamp: new Date(from.value as Date).toISOString(),
+    toTimestamp: new Date(to.value as Date).toISOString(),
+    orderBy: null,
+  };
+
+  const rows = await executeQuery(projectId, q, "v2", true);
+
+  // Transform flat rows to { intervalStart, key, sum } expected by the component.
+  const sumField = `sum_${metricMeasure}`;
+  return rows.map((row) => ({
+    intervalStart: new Date(row["time_dimension"] as string),
+    key: row[dimensionField] as string,
+    sum: Number(row[sumField] ?? 0),
+  })) as DatabaseRow[];
+}
+
 export const dashboardRouter = createTRPCRouter({
   chart: protectedProjectProcedure
     .input(
@@ -255,7 +322,6 @@ export const dashboardRouter = createTRPCRouter({
           .enum([
             // Current score table is weird and does not fit into new model. Keep around as is until we decide what to do with it.
             "score-aggregate",
-            // Cost by type and usage by type are currently not supported in the new data model.
             "observations-usage-by-type-timeseries",
             "observations-cost-by-type-timeseries",
           ])
@@ -292,12 +358,28 @@ export const dashboardRouter = createTRPCRouter({
             countScoreId: Number(row.count),
           })) as DatabaseRow[];
         case "observations-usage-by-type-timeseries":
+          if (input.version === "v2") {
+            return getObservationsByTypeV2({
+              projectId: input.projectId,
+              filter: input.filter ?? [],
+              dimensionField: "usageType",
+              metricMeasure: "usageByType",
+            });
+          }
           const rowsObsType = await getObservationUsageByTypeByTime(
             input.projectId,
             input.filter ?? [],
           );
           return rowsObsType as DatabaseRow[];
         case "observations-cost-by-type-timeseries":
+          if (input.version === "v2") {
+            return getObservationsByTypeV2({
+              projectId: input.projectId,
+              filter: input.filter ?? [],
+              dimensionField: "costType",
+              metricMeasure: "costByType",
+            });
+          }
           const rowsObsCostByType = await getObservationCostByTypeByTime(
             input.projectId,
             input.filter ?? [],

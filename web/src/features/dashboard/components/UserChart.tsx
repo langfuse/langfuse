@@ -15,6 +15,7 @@ import {
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 
 type BarChartDataPoint = {
   name: string;
@@ -78,10 +79,9 @@ export const UserChart = ({
   );
 
   const traceCountQuery: QueryType = {
-    view: "traces",
+    ...traceViewQuery(metricsVersion, globalFilterState),
     dimensions: [{ field: "userId" }],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
