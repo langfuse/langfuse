@@ -130,7 +130,7 @@ export const getEventsStream = async (props: {
   const eventsQuery = new EventsQueryBuilder({ projectId })
     .selectFieldSet("export")
     .selectIO(false) // Full I/O, no truncation
-    .selectMetadataDirect() // Use direct JSON metadata column
+    .selectMetadataExpanded() // Full metadata values from events_full
     .selectRaw(
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",
@@ -333,6 +333,148 @@ export const getEventsStream = async (props: {
 
           yield processEventRow(bufferedRow, commentsByEvent);
         }
+      }
+    })(),
+  );
+};
+
+/**
+ * Lightweight event stream for batch observation evaluation.
+ * Unlike getEventsStream, this:
+ * - Uses the "eval" field set (no time/latency/modelId columns)
+ * - Skips scores CTE and JOIN
+ * - Skips comment fetching
+ * - Maps ClickHouse rows to ObservationForEval at the stream boundary
+ */
+export const getEventsStreamForEval = async (props: {
+  projectId: string;
+  cutoffCreatedAt: Date;
+  filter: FilterCondition[] | null;
+  searchQuery?: string;
+  searchType?: TracingSearchType[];
+  rowLimit?: number;
+}): Promise<Readable> => {
+  const {
+    projectId,
+    cutoffCreatedAt,
+    filter = [],
+    searchQuery,
+    searchType,
+    rowLimit = env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+  } = props;
+
+  // Filter out score and comment filters since they're not relevant for eval
+  const eventOnlyFilters = (filter ?? []).filter((f) => {
+    const columnDef = eventsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+
+    return (
+      columnDef?.clickhouseTableName !== "scores" &&
+      columnDef?.clickhouseTableName !== "comments"
+    );
+  });
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      [
+        ...eventOnlyFilters,
+        {
+          column: "startTime",
+          operator: "<" as const,
+          value: cutoffCreatedAt,
+          type: "datetime" as const,
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+    ),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const search = clickhouseSearchCondition(searchQuery, searchType, "e", [
+    "span_id",
+    "name",
+    "user_id",
+    "session_id",
+    "trace_id",
+  ]);
+
+  const eventsQuery = new EventsQueryBuilder({ projectId })
+    .selectFieldSet("eval")
+    .selectIO(false)
+    .selectFieldSet("metadata")
+    .where(appliedEventsFilter)
+    .where(search)
+    .whereRaw("e.is_deleted = 0")
+    .orderByDefault()
+    .limitBy("e.span_id", "e.project_id")
+    .limit(rowLimit);
+
+  const { query, params: queryParams } = eventsQuery.buildWithParams();
+
+  // Matches the aliased columns from the "eval" field set + selectIO + selectFieldSet("metadata")
+  type EvalEventRow = {
+    id: string; // aliased from span_id
+    trace_id: string;
+    project_id: string;
+    parent_observation_id: string | null; // aliased from parent_span_id
+    type: string;
+    name: string | null;
+    environment: string | null;
+    version: string | null;
+    level: string;
+    status_message: string | null;
+    trace_name: string | null;
+    user_id: string | null;
+    session_id: string | null;
+    tags: string[];
+    release: string | null;
+    provided_model_name: string | null;
+    model_parameters: unknown;
+    prompt_id: string | null;
+    prompt_name: string | null;
+    prompt_version: number | null;
+    provided_usage_details: Record<string, number>;
+    usage_details: Record<string, number>;
+    provided_cost_details: Record<string, number>;
+    cost_details: Record<string, number>;
+    tool_definitions: Record<string, unknown>;
+    tool_calls: unknown[];
+    tool_call_names: string[];
+    input: unknown;
+    output: unknown;
+    metadata: Record<string, unknown> | null;
+  };
+
+  const asyncGenerator = queryClickhouseStream<EvalEventRow>({
+    query,
+    params: queryParams,
+    clickhouseConfigs: {
+      request_timeout: 180_000,
+      clickhouse_settings: {
+        http_send_timeout: 300,
+        http_receive_timeout: 300,
+      },
+    },
+    tags: {
+      feature: "batch-eval",
+      type: "event",
+      kind: "eval",
+      projectId,
+    },
+  });
+
+  // Remap ClickHouse aliases to schema field names.
+  // Schema validation is left to the consumer so per-row errors can be handled gracefully.
+  return Readable.from(
+    (async function* () {
+      for await (const row of asyncGenerator) {
+        yield {
+          ...row,
+          span_id: row.id,
+          parent_span_id: row.parent_observation_id,
+        };
       }
     })(),
   );

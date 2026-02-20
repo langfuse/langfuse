@@ -4,15 +4,15 @@ import { ExpandListButton } from "@/src/features/dashboard/components/cards/Chev
 import { useState } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { BarList } from "@tremor/react";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export const TracesBarListChart = ({
   className,
@@ -21,7 +21,7 @@ export const TracesBarListChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
-  isDashboardChartsBeta = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -29,7 +29,7 @@ export const TracesBarListChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -49,6 +49,7 @@ export const TracesBarListChart = ({
     {
       projectId,
       query: totalTracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -76,6 +77,7 @@ export const TracesBarListChart = ({
     {
       projectId,
       query: tracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -123,41 +125,29 @@ export const TracesBarListChart = ({
           description={"Total traces tracked"}
         />
         {adjustedData.length > 0 ? (
-          <>
-            {isDashboardChartsBeta ? (
-              <div
-                className="mt-4 w-full"
-                style={{
-                  minHeight: 200,
-                  height: Math.max(
-                    200,
-                    adjustedData.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING,
-                  ),
-                }}
-              >
-                <Chart
-                  chartType="HORIZONTAL_BAR"
-                  data={barListToDataPoints(adjustedData)}
-                  rowLimit={maxNumberOfEntries.expanded}
-                  chartConfig={{
-                    type: "HORIZONTAL_BAR",
-                    row_limit: maxNumberOfEntries.expanded,
-                    subtle_fill: true,
-                    show_value_labels: true,
-                  }}
-                  valueFormatter={(n) => numberFormatter(n, 0)}
-                />
-              </div>
-            ) : (
-              <BarList
-                data={adjustedData}
-                valueFormatter={(number: number) => numberFormatter(number, 0)}
-                className="mt-6 [&_*]:text-muted-foreground [&_p]:text-muted-foreground [&_span]:text-muted-foreground"
-                showAnimation={true}
-                color={"indigo"}
-              />
-            )}
-          </>
+          <div
+            className="mt-4 w-full"
+            style={{
+              minHeight: 200,
+              height: Math.max(
+                200,
+                adjustedData.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING,
+              ),
+            }}
+          >
+            <Chart
+              chartType="HORIZONTAL_BAR"
+              data={barListToDataPoints(adjustedData)}
+              rowLimit={maxNumberOfEntries.expanded}
+              chartConfig={{
+                type: "HORIZONTAL_BAR",
+                row_limit: maxNumberOfEntries.expanded,
+                subtle_fill: true,
+                show_value_labels: true,
+              }}
+              valueFormatter={(n) => numberFormatter(n, 0)}
+            />
+          </div>
         ) : (
           <NoDataOrLoading
             isLoading={isLoading || traces.isPending || totalTraces.isPending}

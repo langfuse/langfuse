@@ -2,12 +2,21 @@
  * Reusable ClickHouse query fragments and CTEs
  */
 
-import { EventsAggregationQueryBuilder } from "./event-query-builder";
+import {
+  EventsAggregationQueryBuilder,
+  EventsSessionAggregationQueryBuilder,
+  type CTEWithSchema,
+} from "./event-query-builder";
 
 interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
   startTimeFrom?: string | null;
+  /**
+   * Whether to use truncated I/O (events_core) or full I/O (events_full).
+   * Default is false (full) for better compatibility.
+   */
+  truncated?: boolean;
 }
 
 /**
@@ -28,6 +37,7 @@ export const eventsTracesAggregation = (
       .selectFieldSet("all")
       .withTraceIds(params.traceIds)
       .withStartTimeFrom(params.startTimeFrom)
+      .withTruncated(params.truncated ?? false)
       .orderByColumns([{ column: "timestamp", direction: "DESC" }])
   );
 };
@@ -175,4 +185,81 @@ export const eventsTracesScoresAggregation = (
   `.trim();
 
   return { query, params: queryParams };
+};
+
+/**
+ * Aggregates events directly by session_id in a single step.
+ * Mirrors eventsTracesAggregation but groups by session_id instead of trace_id.
+ *
+ * Use this for session-level queries instead of the two-step
+ * eventsTracesAggregation → re-aggregate by session_id approach.
+ */
+export const eventsSessionsAggregation = (params: {
+  projectId: string;
+  sessionIds?: string[];
+  startTimeFrom?: string | null;
+}): EventsSessionAggregationQueryBuilder => {
+  return new EventsSessionAggregationQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectFieldSet("all")
+    .withSessionIds(params.sessionIds)
+    .withStartTimeFrom(params.startTimeFrom)
+    .whereRaw("session_id != ''");
+};
+
+/**
+ * Session-level scores aggregation CTE.
+ * Groups scores by (project_id, session_id), computing numeric/boolean averages
+ * and categorical value lists.
+ *
+ * Returns a query and params object suitable for CTEQueryBuilder.withCTE().
+ */
+export const eventsSessionScoresAggregation = (params: {
+  projectId: string;
+}): CTEWithSchema => {
+  const query = `
+    SELECT
+      project_id,
+      session_id AS score_session_id,
+      groupArrayIf(
+        tuple(name, avg_value),
+        data_type IN ('NUMERIC', 'BOOLEAN')
+      ) AS scores_avg,
+      groupArrayIf(
+        concat(name, ':', string_value),
+        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+      ) AS score_categories
+    FROM (
+      SELECT
+        project_id,
+        session_id,
+        name,
+        data_type,
+        string_value,
+        avg(value) avg_value
+      FROM scores s FINAL
+      WHERE
+        project_id = {projectId: String}
+      GROUP BY
+        project_id,
+        session_id,
+        name,
+        data_type,
+        string_value
+    ) tmp
+    GROUP BY
+      project_id, session_id
+  `.trim();
+
+  return {
+    query,
+    params: { projectId: params.projectId },
+    schema: [
+      "project_id",
+      "score_session_id",
+      "scores_avg",
+      "score_categories",
+    ],
+  };
 };
