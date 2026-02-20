@@ -29,6 +29,7 @@ import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
+  eventsSessionsAggregation,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -65,6 +66,7 @@ import {
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
+  type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
@@ -2122,6 +2124,89 @@ export const getEventsGroupedByHasParentObservation = async (
 };
 
 /**
+ * Get grouped available tool names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(mapKeys(e.tool_definitions))",
+    selectExpression:
+      "arrayJoin(mapKeys(e.tool_definitions)) as toolName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(mapKeys(e.tool_definitions)) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ toolName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped called tool names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByCalledToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(e.tool_call_names)",
+    selectExpression:
+      "arrayJoin(e.tool_call_names) as calledToolName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(e.tool_call_names) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    calledToolName: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
  * Delete events by trace IDs
  * Used when traces are deleted to cascade the deletion to the events table
  */
@@ -2898,5 +2983,48 @@ export const getAvgCostByEvaluatorIds = async (
     evaluatorId: row.evaluator_id,
     avgCost: Number(row.avg_cost),
     executionCount: Number(row.execution_count),
+  }));
+};
+
+export const getSessionMetricsFromEvents = async (props: {
+  projectId: string;
+  sessionIds: string[];
+  queryFromTimestamp?: Date;
+}) => {
+  if (props.sessionIds.length === 0) return [];
+
+  const builder = eventsSessionsAggregation({
+    projectId: props.projectId,
+    sessionIds: props.sessionIds,
+    startTimeFrom: props.queryFromTimestamp
+      ? convertDateToClickhouseDateTime(props.queryFromTimestamp)
+      : undefined,
+  }).limit(props.sessionIds.length);
+
+  const { query, params } = builder.buildWithParams();
+
+  const rows = await measureAndReturn({
+    operationName: "getSessionMetricsFromEvents",
+    projectId: props.projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "session-metrics-direct",
+        projectId: props.projectId,
+      },
+    },
+    fn: async (input) =>
+      queryClickhouse<SessionEventsMetricsRow>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
+    total_observations: Number(row.total_observations),
   }));
 };

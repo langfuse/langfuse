@@ -6,17 +6,22 @@ export type TimeSeriesChartDataPoint = {
 };
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { api } from "@/src/utils/api";
-import { mapLegacyUiTableFilterToView } from "@/src/features/query";
+import {
+  type ViewVersion,
+  mapLegacyUiTableFilterToView,
+} from "@/src/features/query";
 
 export const getAllModels = (
   projectId: string,
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
+  metricsVersion?: ViewVersion,
 ) => {
   const allModels = api.dashboard.executeQuery.useQuery(
     {
       projectId,
+      version: metricsVersion,
       query: {
         view: "observations",
         dimensions: [{ field: "providedModelName" }],

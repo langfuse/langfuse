@@ -10,6 +10,7 @@ import {
   recordGauge,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
+import { randomUUID } from "crypto";
 import { env } from "../../env";
 
 const LAST_PROCESSED_PARTITION_KEY =
@@ -77,6 +78,18 @@ export const handleEventPropagationJob = async (
       `[DUAL WRITE] Last processed partition: ${lastProcessedPartition ?? "none"}`,
     );
 
+    // Track delay based on the Redis key so we have a reference even if no processing happens
+    if (lastProcessedPartition) {
+      const lastPartitionTime = new Date(lastProcessedPartition).getTime();
+      if (!isNaN(lastPartitionTime)) {
+        const delaySeconds = (Date.now() - lastPartitionTime) / 1000;
+        recordGauge(
+          "langfuse.event_propagation.last_processed_partition_delay_seconds",
+          delaySeconds,
+        );
+      }
+    }
+
     // Query for the next partition after the last processed one
     // Filter for partitions older than 6 minutes and order by partition ASC to get the oldest first
     const partitions = await queryClickhouse<{ partition: string }>({
@@ -119,6 +132,30 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
+
+    // Generate a session ID to ensure SYNC REPLICA and INSERT-SELECT
+    // are routed to the same ClickHouse node (sticky session via session_id).
+    // This is required per ClickHouse support guidance: SYNC REPLICA fetches
+    // all missing parts once upfront (unlike select_sequential_consistency=1
+    // which retries repeatedly), but both commands must hit the same replica.
+    const sessionId = randomUUID();
+
+    await commandClickhouse({
+      query: `SYSTEM SYNC REPLICA observations_batch_staging LIGHTWEIGHT`,
+      session_id: sessionId,
+      clickhouseConfigs: {
+        request_timeout: 300000, // 5 minutes timeout
+      },
+      tags: {
+        feature: "ingestion",
+        operation_name: "syncReplicaObservationsBatchStaging",
+      },
+    });
+
+    logger.info(
+      `[DUAL WRITE] Synced replica for observations_batch_staging before processing partition ${partitionToProcess}`,
+    );
+
     await commandClickhouse({
       query: `
         with batch_stats as (
@@ -277,6 +314,7 @@ export const handleEventPropagationJob = async (
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
       `,
+      session_id: sessionId,
       tags: {
         feature: "ingestion",
         partition: partitionToProcess,
@@ -293,6 +331,16 @@ export const handleEventPropagationJob = async (
     logger.info(
       `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
+
+    // Track delay of the partition we just processed
+    const processedPartitionTime = new Date(partitionToProcess).getTime();
+    if (!isNaN(processedPartitionTime)) {
+      const delaySeconds = (Date.now() - processedPartitionTime) / 1000;
+      recordGauge(
+        "langfuse.event_propagation.processed_partition_delay_seconds",
+        delaySeconds,
+      );
+    }
 
     // Step 3: Update the last processed partition cursor in Redis
     // This allows the next job to continue from where we left off

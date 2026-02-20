@@ -6,12 +6,10 @@ import { DashboardCard } from "@/src/features/dashboard/components/cards/Dashboa
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  type QueryType,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 
 export const TracesBarListChart = ({
   className,
@@ -20,6 +18,7 @@ export const TracesBarListChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -27,15 +26,19 @@ export const TracesBarListChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const isV2 = metricsVersion === "v2";
+  const traceBase = traceViewQuery(metricsVersion, globalFilterState);
+  const traceNameField = isV2 ? "traceName" : "name";
+
   // Total traces query using executeQuery
   const totalTracesQuery: QueryType = {
-    view: "traces",
+    ...traceBase,
     dimensions: [],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -46,6 +49,7 @@ export const TracesBarListChart = ({
     {
       projectId,
       query: totalTracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -59,20 +63,21 @@ export const TracesBarListChart = ({
 
   // Traces grouped by name query using executeQuery
   const tracesQuery: QueryType = {
-    view: "traces",
-    dimensions: [{ field: "name" }],
+    ...traceBase,
+    dimensions: [{ field: traceNameField }],
     metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: "count_count", direction: "desc" }],
+    chartConfig: { type: "table", row_limit: 20 },
   };
 
   const traces = api.dashboard.executeQuery.useQuery(
     {
       projectId,
       query: tracesQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -88,7 +93,9 @@ export const TracesBarListChart = ({
   const transformedTraces =
     traces.data?.map((item: any) => {
       return {
-        name: item.name ? (item.name as string) : "Unknown",
+        name: item[traceNameField]
+          ? (item[traceNameField] as string)
+          : "Unknown",
         value: Number(item.count_count),
       };
     }) ?? [];
