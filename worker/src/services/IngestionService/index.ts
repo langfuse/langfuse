@@ -942,7 +942,7 @@ export class IngestionService {
       output: observationRecord.output
         ? (() => { try { return JSON.parse(observationRecord.output); } catch { return observationRecord.output; } })()
         : null,
-        ? JSON.parse(observationRecord.input)
+      metadata: {},
         : null,
       output: observationRecord.output
         ? JSON.parse(observationRecord.output)
