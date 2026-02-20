@@ -3,6 +3,7 @@ import type { ColumnDefinition } from "@langfuse/shared";
 interface BaseFacet {
   column: string;
   label: string;
+  tooltip?: string;
   isDisabled?: boolean;
   disabledReason?: string;
   // Mutually exclusive with these facet columns. If both are active,
