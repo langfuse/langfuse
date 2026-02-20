@@ -193,6 +193,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   options={filter.options}
                   counts={filter.counts}
@@ -219,6 +220,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   min={filter.min}
@@ -241,6 +243,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   value={filter.value}
@@ -259,6 +262,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -280,6 +284,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -300,6 +305,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -319,6 +325,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   mode={filter.mode}
@@ -343,6 +350,7 @@ export function DataTableControls({
 
 interface BaseFacetProps {
   label: string;
+  tooltip?: string;
   children?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
@@ -443,6 +451,7 @@ const FilterAccordionContent = ({
 
 interface FilterAccordionItemProps {
   label: string;
+  tooltip?: string;
   filterKey: string;
   filterKeyShort?: string | null;
   children: React.ReactNode;
@@ -454,6 +463,7 @@ interface FilterAccordionItemProps {
 
 export function FilterAccordionItem({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   children,
@@ -486,6 +496,22 @@ export function FilterAccordionItem({
               </TooltipTrigger>
               <TooltipContent className="max-w-80 text-xs">
                 {disabledReason}
+              </TooltipContent>
+            </Tooltip>
+          ) : tooltip ? (
+            <Tooltip delayDuration={80}>
+              <TooltipTrigger asChild>
+                <span className="flex grow items-baseline gap-1">
+                  {label}
+                  {filterKeyShort && (
+                    <code className="hidden font-mono text-xs text-muted-foreground/70">
+                      {filterKeyShort}
+                    </code>
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-80 text-xs">
+                {tooltip}
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -539,6 +565,7 @@ export function FilterAccordionItem({
 
 export function CategoricalFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded,
@@ -604,6 +631,7 @@ export function CategoricalFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -816,6 +844,7 @@ export function CategoricalFacet({
 
 export function NumericFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -899,6 +928,7 @@ export function NumericFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -979,6 +1009,7 @@ export function NumericFacet({
 
 export function StringFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1027,6 +1058,7 @@ export function StringFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1054,6 +1086,7 @@ export function StringFacet({
 
 export function KeyValueFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1071,6 +1104,7 @@ export function KeyValueFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1098,6 +1132,7 @@ export function KeyValueFacet({
 
 export function NumericKeyValueFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1114,6 +1149,7 @@ export function NumericKeyValueFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1140,6 +1176,7 @@ export function NumericKeyValueFacet({
 
 export function StringKeyValueFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1156,6 +1193,7 @@ export function StringKeyValueFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1199,6 +1237,7 @@ const POSITION_MODES: {
 
 function PositionInTraceFacetComponent({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1217,6 +1256,7 @@ function PositionInTraceFacetComponent({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}

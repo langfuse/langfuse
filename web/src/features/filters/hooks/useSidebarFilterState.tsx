@@ -82,6 +82,7 @@ function computeNumericRange(
 export interface BaseUIFilter {
   column: string;
   label: string;
+  tooltip?: string;
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -1013,6 +1014,7 @@ export function useSidebarFilterState(
             type: "numeric",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: currentRange,
             min: facet.min,
@@ -1046,6 +1048,7 @@ export function useSidebarFilterState(
             type: "string",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: currentValue,
             loading: false,
@@ -1099,6 +1102,7 @@ export function useSidebarFilterState(
             type: "keyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1187,6 +1191,7 @@ export function useSidebarFilterState(
             type: "numericKeyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1270,6 +1275,7 @@ export function useSidebarFilterState(
             type: "stringKeyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1361,6 +1367,7 @@ export function useSidebarFilterState(
             type: "categorical",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: selectedOptions,
             options: availableOptions,
@@ -1486,6 +1493,7 @@ export function useSidebarFilterState(
           type: "categorical",
           column: facet.column,
           label: facet.label,
+          tooltip: facet.tooltip,
 
           value: selectedValues,
           options: availableValues,
