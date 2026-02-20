@@ -22,6 +22,10 @@ import { redis } from "@langfuse/shared/src/server";
 describe("Media Upload API", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   const staticFixtureDir = path.join(__dirname, "..", "static");
+  const supportsS3ChecksumE2E = env.LANGFUSE_USE_AZURE_BLOB !== "true";
+  const describeWithS3ChecksumE2E = supportsS3ChecksumE2E
+    ? describe
+    : describe.skip;
 
   // Read the image file once and reuse it for all tests
   const imagePathPNG = path.join(staticFixtureDir, "langfuse-logo.png");
@@ -232,7 +236,7 @@ describe("Media Upload API", () => {
     }
   });
 
-  describe("End-to-end tests", () => {
+  describeWithS3ChecksumE2E("End-to-end tests", () => {
     it("should upload and retrieve a PNG media asset for trace input", async () => {
       const traceId = "test";
       const field = "input";
@@ -811,7 +815,7 @@ describe("Media Upload API", () => {
     }, 10_000);
   });
 
-  describe("Upload Integrity", () => {
+  describeWithS3ChecksumE2E("Upload Integrity", () => {
     it("should detect SHA-256 hash mismatch during upload", async () => {
       const traceId = "test";
       const field = "input";
