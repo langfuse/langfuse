@@ -30,6 +30,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
 import waitForExpect from "wait-for-expect";
 
+const maybeDescribe =
+  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+    ? describe
+    : describe.skip;
+
 describe("select all test suite", () => {
   it("should schedule trace deletions via pending_deletions table", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
@@ -582,7 +587,9 @@ describe("select all test suite", () => {
       expect(jobs).toHaveLength(0);
     });
   });
+});
 
+maybeDescribe("events table batch actions", () => {
   it("should add observations to dataset from events table with full mapping", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
