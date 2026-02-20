@@ -42,7 +42,7 @@ export const observationEventsFilterConfig: FilterConfig = {
       column: "hasParentObservation",
       label: "Is Root Observation",
       tooltip:
-        "A root observation is the top-level observation in a trace with no parent observation. Filter to 'True' to see only root-level observations.",
+        "A root observation is the top-level observation in a trace. It has no parent observation ID. Filter to 'True' to see only root-level observations.",
       invertValue: true, // "True" = hasParentObservation=false (is root)
     },
     {
