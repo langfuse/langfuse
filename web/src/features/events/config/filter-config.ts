@@ -65,6 +65,14 @@ export const observationEventsFilterConfig: FilterConfig = {
       mutuallyExclusiveWith: ["score_categories", "scores_avg"],
     },
     {
+      type: "numeric" as const,
+      column: "levelInTrace",
+      label: getEventsColumnName("levelInTrace"),
+      min: 0,
+      max: 50,
+      step: 1,
+    },
+    {
       type: "categorical" as const,
       column: "providedModelName",
       label: getEventsColumnName("providedModelName"),
