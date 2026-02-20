@@ -1,3 +1,4 @@
+import type React from "react";
 import {
   createContext,
   useContext,
@@ -200,6 +201,7 @@ export function DataTableControls({
                   value={filter.value}
                   onChange={filter.onChange}
                   onOnlyChange={filter.onOnlyChange}
+                  renderIcon={filter.renderIcon}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
                   operator={filter.operator}
@@ -359,6 +361,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
   value: string[];
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  renderIcon?: (value: string) => React.ReactNode;
   operator?: "any of" | "all of";
   onOperatorChange?: (operator: "any of" | "all of") => void;
   textFilters?: TextFilterEntry[];
@@ -546,6 +549,7 @@ export function CategoricalFacet({
   value,
   onChange,
   onOnlyChange,
+  renderIcon,
   isActive,
   isDisabled,
   disabledReason,
@@ -747,6 +751,7 @@ export function CategoricalFacet({
                         key={option}
                         id={`${filterKey}-${option}`}
                         label={option}
+                        icon={renderIcon?.(option)}
                         count={counts.get(option) || 0}
                         checked={value.includes(option)}
                         onCheckedChange={(checked) => {
@@ -1426,6 +1431,7 @@ function TextFilterSection({
 interface FilterValueCheckboxProps {
   id: string;
   label: string;
+  icon?: React.ReactNode;
   count: number;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
@@ -1437,6 +1443,7 @@ interface FilterValueCheckboxProps {
 export function FilterValueCheckbox({
   id,
   label,
+  icon,
   count,
   checked = false,
   onCheckedChange,
@@ -1477,6 +1484,7 @@ export function FilterValueCheckbox({
         )}
         onClick={onLabelClick}
       >
+        {icon}
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-xs",
