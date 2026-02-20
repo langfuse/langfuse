@@ -25,7 +25,7 @@ import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { X as IconX, Search, WandSparkles } from "lucide-react";
+import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
 import type {
   UIFilter,
   KeyValueFilterEntry,
@@ -504,8 +504,9 @@ export function FilterAccordionItem({
           ) : tooltip ? (
             <Tooltip delayDuration={80}>
               <TooltipTrigger asChild>
-                <span className="flex grow items-baseline gap-1">
+                <span className="flex grow items-center gap-1">
                   {label}
+                  <InfoIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
                   {filterKeyShort && (
                     <code className="hidden font-mono text-xs text-muted-foreground/70">
                       {filterKeyShort}
