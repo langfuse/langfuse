@@ -25,6 +25,35 @@ describe("Authenticate API calls", () => {
     return client;
   };
 
+  const sleep = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
+
+  const isConnectionClosedError = (error: unknown): boolean =>
+    error instanceof Error && error.message.includes("Connection is closed");
+
+  const ensureRedisReady = async (redisClient: RedisClient): Promise<void> => {
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 20; attempt++) {
+      try {
+        await redisClient.ping();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (isConnectionClosedError(error)) {
+          try {
+            await redisClient.connect();
+          } catch {
+            // Ignore reconnect errors and retry ping.
+          }
+        }
+        await sleep(250);
+      }
+    }
+
+    throw lastError ?? new Error("Redis client not ready");
+  };
+
   const getApiKeyCacheKeys = async (
     redisClient: RedisClient,
     pattern = "api-key*",
@@ -37,6 +66,40 @@ describe("Authenticate API calls", () => {
     if (keys.length > 0) {
       await safeMultiDel(redisClient, keys);
     }
+  };
+
+  const clearApiKeyCacheSafely = async (redisClient: RedisClient) => {
+    try {
+      await clearApiKeyCache(redisClient);
+    } catch (error) {
+      if (!isConnectionClosedError(error)) {
+        throw error;
+      }
+    }
+  };
+
+  const getRedisValue = async (redisClient: RedisClient, key: string) => {
+    await ensureRedisReady(redisClient);
+    return await redisClient.get(key);
+  };
+
+  const setRedisValue = async (
+    redisClient: RedisClient,
+    key: string,
+    value: string,
+  ) => {
+    await ensureRedisReady(redisClient);
+    return await redisClient.set(
+      key,
+      value,
+      "EX",
+      3600, // 1 hour TTL
+    );
+  };
+
+  const getRedisTtl = async (redisClient: RedisClient, key: string) => {
+    await ensureRedisReady(redisClient);
+    return await redisClient.ttl(key);
   };
 
   beforeEach(async () => {
@@ -255,25 +318,30 @@ describe("Authenticate API calls", () => {
   describe("validates with redis", () => {
     let redis: RedisClient;
 
-    beforeAll(() => {
+    beforeAll(async () => {
       redis = createRedisClient();
-    }, 15_000);
+      await ensureRedisReady(redis);
+    }, 20_000);
 
     beforeEach(async () => {
+      if (redis.status === "close" || redis.status === "end") {
+        redis = createRedisClient();
+      }
+      await ensureRedisReady(redis);
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-      await clearApiKeyCache(redis);
-    }, 15_000);
+      await clearApiKeyCacheSafely(redis);
+    }, 20_000);
 
     afterEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-      await clearApiKeyCache(redis);
-    }, 15_000);
+      await clearApiKeyCacheSafely(redis);
+    }, 20_000);
 
     afterAll(() => {
       redis.disconnect();
-    }, 15_000);
+    }, 20_000);
 
     it("should create new api key and read from cache", async () => {
       await createAPIKey();
@@ -309,7 +377,8 @@ describe("Authenticate API calls", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-      const cachedKey = await redis.get(
+      const cachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(cachedKey).toBeNull();
@@ -319,7 +388,8 @@ describe("Authenticate API calls", () => {
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
 
-      const cachedKey2 = await redis.get(
+      const cachedKey2 = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
 
@@ -405,15 +475,15 @@ describe("Authenticate API calls", () => {
       };
 
       // Add the non-scoped key to Redis
-      await redis.set(
+      await setRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
         JSON.stringify(nonScopedKey),
-        "EX",
-        3600, // 1 hour TTL
       );
 
       // Verify the key is in Redis
-      const cachedKey = await redis.get(
+      const cachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(cachedKey).not.toBeNull();
@@ -434,7 +504,8 @@ describe("Authenticate API calls", () => {
       expect(verification.validKey).toBe(true);
 
       // The invalid key should be removed from Redis
-      const cachedKeyAfterAuth = await redis.get(
+      const cachedKeyAfterAuth = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
 
@@ -486,7 +557,7 @@ describe("Authenticate API calls", () => {
 
       const redisKeys = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys.length).toBe(1);
-      const redisValue = await redis.get(redisKeys[0]);
+      const redisValue = await getRedisValue(redis, redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
     });
 
@@ -504,7 +575,7 @@ describe("Authenticate API calls", () => {
 
       const redisKeys = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys.length).toBe(1);
-      const redisValue = await redis.get(redisKeys[0]);
+      const redisValue = await getRedisValue(redis, redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
 
       const verification2 = await new ApiAuthService(
@@ -517,7 +588,7 @@ describe("Authenticate API calls", () => {
 
       const redisKeys2 = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys2.length).toBe(1);
-      const redisValue2 = await redis.get(redisKeys[0]);
+      const redisValue2 = await getRedisValue(redis, redisKeys[0]);
       expect(redisValue2).toBe('"api-key-non-existent"');
     });
 
@@ -557,7 +628,8 @@ describe("Authenticate API calls", () => {
       // Ensure prisma was not called
       expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
 
-      const cachedKey = await redis.get(
+      const cachedKey = await getRedisValue(
+        redis,
         "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
       );
       expect(cachedKey).not.toBeNull();
@@ -610,7 +682,8 @@ describe("Authenticate API calls", () => {
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
 
-      const ttl = await redis.ttl(
+      const ttl = await getRedisTtl(
+        redis,
         "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
       );
 
@@ -626,7 +699,8 @@ describe("Authenticate API calls", () => {
         "Basic cGstbGYtMTIzNDU2Nzg5MDpzay1sZi0xMjM0NTY3ODkw",
       );
 
-      const ttl2 = await redis.ttl(
+      const ttl2 = await getRedisTtl(
+        redis,
         "api-key:ed6818ada09bdad405a74ac72773dde1708dd3fc6fe8bb81b59927400419d227",
       );
 
@@ -658,7 +732,8 @@ describe("Authenticate API calls", () => {
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
 
-      const cachedKey = await redis.get(
+      const cachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(cachedKey).not.toBeNull();
@@ -685,7 +760,8 @@ describe("Authenticate API calls", () => {
       });
       expect(deletedApiKey).toBeNull();
 
-      const deletedCachedKey = await redis.get(
+      const deletedCachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(deletedCachedKey).toBeNull();
@@ -695,25 +771,30 @@ describe("Authenticate API calls", () => {
   describe("invalidates api keys in redis", () => {
     let redis: RedisClient;
 
-    beforeAll(() => {
+    beforeAll(async () => {
       redis = createRedisClient();
-    }, 15_000);
+      await ensureRedisReady(redis);
+    }, 20_000);
 
     beforeEach(async () => {
+      if (redis.status === "close" || redis.status === "end") {
+        redis = createRedisClient();
+      }
+      await ensureRedisReady(redis);
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-      await clearApiKeyCache(redis);
-    }, 15_000);
+      await clearApiKeyCacheSafely(redis);
+    }, 20_000);
 
     afterEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-      await clearApiKeyCache(redis);
-    }, 15_000);
+      await clearApiKeyCacheSafely(redis);
+    }, 20_000);
 
     afterAll(() => {
       redis.disconnect();
-    }, 15_000);
+    }, 20_000);
 
     it("should invalidate organization API keys in redis", async () => {
       await createAPIKey();
@@ -732,7 +813,8 @@ describe("Authenticate API calls", () => {
       });
       expect(apiKey).not.toBeNull();
 
-      const cachedKey = await redis.get(
+      const cachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(cachedKey).not.toBeNull();
@@ -741,7 +823,8 @@ describe("Authenticate API calls", () => {
         "seed-org-id",
       );
 
-      const invalidatedCachedKey = await redis.get(
+      const invalidatedCachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(invalidatedCachedKey).toBeNull();
@@ -792,7 +875,8 @@ describe("Authenticate API calls", () => {
       });
       expect(apiKey).not.toBeNull();
 
-      const cachedKey = await redis.get(
+      const cachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(cachedKey).not.toBeNull();
@@ -801,7 +885,8 @@ describe("Authenticate API calls", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       );
 
-      const invalidatedCachedKey = await redis.get(
+      const invalidatedCachedKey = await getRedisValue(
+        redis,
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(invalidatedCachedKey).toBeNull();
