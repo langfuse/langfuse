@@ -2,13 +2,43 @@ import {
   getDisplaySecretKey,
   hashSecretKey,
   OrgEnrichedApiKey,
+  createNewRedisInstance,
+  safeMultiDel,
+  scanKeys,
 } from "@langfuse/shared/src/server";
 import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
-import { Redis } from "ioredis";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 describe("Authenticate API calls", () => {
+  type RedisClient = NonNullable<ReturnType<typeof createNewRedisInstance>>;
+
+  const createRedisClient = (): RedisClient => {
+    const client = createNewRedisInstance({
+      maxRetriesPerRequest: null,
+    });
+
+    if (!client) {
+      throw new Error("Failed to initialize Redis client for tests.");
+    }
+
+    return client;
+  };
+
+  const getApiKeyCacheKeys = async (
+    redisClient: RedisClient,
+    pattern = "api-key*",
+  ) => {
+    return await scanKeys(redisClient, pattern);
+  };
+
+  const clearApiKeyCache = async (redisClient: RedisClient) => {
+    const keys = await getApiKeyCacheKeys(redisClient);
+    if (keys.length > 0) {
+      await safeMultiDel(redisClient, keys);
+    }
+  };
+
   beforeEach(async () => {
     await prisma.apiKey.deleteMany();
   });
@@ -223,32 +253,27 @@ describe("Authenticate API calls", () => {
   });
 
   describe("validates with redis", () => {
-    const redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
-      maxRetriesPerRequest: null,
-    });
+    let redis: RedisClient;
+
+    beforeAll(() => {
+      redis = createRedisClient();
+    }, 15_000);
 
     beforeEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-
-      const keys = await redis.keys("api-key*");
-      if (keys.length > 0) {
-        await redis.del(keys);
-      }
-    });
+      await clearApiKeyCache(redis);
+    }, 15_000);
 
     afterEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-      const keys = await redis.keys("api-key*");
-      if (keys.length > 0) {
-        await redis.del(keys);
-      }
-    });
+      await clearApiKeyCache(redis);
+    }, 15_000);
 
     afterAll(async () => {
-      redis.disconnect();
-    });
+      await redis.quit();
+    }, 15_000);
 
     it("should create new api key and read from cache", async () => {
       await createAPIKey();
@@ -459,7 +484,7 @@ describe("Authenticate API calls", () => {
 
       expect(verification.validKey).toBe(false);
 
-      const redisKeys = await redis.keys(`api-key:*`);
+      const redisKeys = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys.length).toBe(1);
       const redisValue = await redis.get(redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
@@ -477,7 +502,7 @@ describe("Authenticate API calls", () => {
 
       expect(verification.validKey).toBe(false);
 
-      const redisKeys = await redis.keys(`api-key:*`);
+      const redisKeys = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys.length).toBe(1);
       const redisValue = await redis.get(redisKeys[0]);
       expect(redisValue).toBe('"api-key-non-existent"');
@@ -490,7 +515,7 @@ describe("Authenticate API calls", () => {
       );
       expect(verification2.validKey).toBe(false);
 
-      const redisKeys2 = await redis.keys(`api-key:*`);
+      const redisKeys2 = await getApiKeyCacheKeys(redis, "api-key:*");
       expect(redisKeys2.length).toBe(1);
       const redisValue2 = await redis.get(redisKeys[0]);
       expect(redisValue2).toBe('"api-key-non-existent"');
@@ -668,36 +693,27 @@ describe("Authenticate API calls", () => {
   });
 
   describe("invalidates api keys in redis", () => {
-    const redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
-      maxRetriesPerRequest: null,
-    });
+    let redis: RedisClient;
+
+    beforeAll(() => {
+      redis = createRedisClient();
+    }, 15_000);
 
     beforeEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-
-      const keys = await redis.keys("api-key*");
-      console.log("before each deleting keys", keys);
-      if (keys.length > 0) {
-        console.log("before each deleting keys. actually deleting", keys);
-        await redis.del(keys);
-      }
-    });
+      await clearApiKeyCache(redis);
+    }, 15_000);
 
     afterEach(async () => {
       // if we do not remove the key, it will remain in the cache and
       // calling the test twice will not add the key to the cache
-
-      const keys = await redis.keys("api-key*");
-      console.log("after each deleting keys", keys);
-      if (keys.length > 0) {
-        await redis.del(keys);
-      }
-    });
+      await clearApiKeyCache(redis);
+    }, 15_000);
 
     afterAll(async () => {
-      redis.disconnect();
-    });
+      await redis.quit();
+    }, 15_000);
 
     it("should invalidate organization API keys in redis", async () => {
       await createAPIKey();
@@ -745,7 +761,7 @@ describe("Authenticate API calls", () => {
         "seed-org-id",
       );
 
-      const keys = await redis.keys("api-key*");
+      const keys = await getApiKeyCacheKeys(redis);
       expect(keys.length).toBe(0);
     });
 
@@ -756,7 +772,7 @@ describe("Authenticate API calls", () => {
         "seed-org-id",
       );
 
-      const keys = await redis.keys("api-key*");
+      const keys = await getApiKeyCacheKeys(redis);
       expect(keys.length).toBe(0);
     });
 
@@ -805,7 +821,7 @@ describe("Authenticate API calls", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       );
 
-      const keys = await redis.keys("api-key*");
+      const keys = await getApiKeyCacheKeys(redis);
       expect(keys.length).toBe(0);
     });
 
@@ -823,7 +839,7 @@ describe("Authenticate API calls", () => {
         "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       );
 
-      const keys = await redis.keys("api-key*");
+      const keys = await getApiKeyCacheKeys(redis);
       expect(keys.length).toBe(0);
     });
   });
