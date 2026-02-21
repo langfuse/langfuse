@@ -250,6 +250,12 @@ export const eventsTableCols: ColumnDefinition[] = [
     internal: "positionInTrace",
   },
   {
+    name: "Level in Trace",
+    id: "levelInTrace",
+    type: "number",
+    internal: "levelInTrace",
+  },
+  {
     name: "Has Parent Observation",
     id: "hasParentObservation",
     type: "boolean",

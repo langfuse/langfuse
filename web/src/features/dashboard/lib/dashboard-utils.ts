@@ -32,33 +32,38 @@ export const totalCostDashboardFormatted = (totalCost?: number) => {
     : usdFormatter(0);
 };
 
-export const ROOT_OBSERVATION_FILTER: z.infer<typeof singleFilter> = {
+/** Filter to exclude events with empty trace_name (observations view only). */
+export const TRACE_NAME_NOT_NULL_FILTER: z.infer<typeof singleFilter> = {
   type: "null",
-  column: "parentObservationId",
-  operator: "is null",
+  column: "traceName",
+  operator: "is not null",
   value: "",
 };
 
 /**
- * Returns the view name and filters for a "traces-like" query that works in
- * both v1 (queries the traces table) and v2 (queries observations with a
- * root-event filter so counting root observations equals counting traces).
+ * Returns the view, filters, and metric for a "traces count" query.
+ * v1: queries traces view with count/count metric.
+ * v2: queries observations view with traceId/uniq metric (uniq(trace_id)).
  */
-export function traceViewQuery(
-  metricsVersion: ViewVersion | undefined,
-  globalFilterState: FilterState,
-): Pick<QueryType, "view" | "filters"> {
-  if (metricsVersion === "v2") {
+export function traceViewQuery(params: {
+  metricsVersion: ViewVersion | undefined;
+  globalFilterState: FilterState;
+  groupedByName?: boolean;
+}): Pick<QueryType, "view" | "filters" | "metrics"> {
+  if (params.metricsVersion === "v2") {
+    const filters = [
+      ...mapLegacyUiTableFilterToView("observations", params.globalFilterState),
+      ...(params.groupedByName ? [TRACE_NAME_NOT_NULL_FILTER] : []),
+    ];
     return {
       view: "observations",
-      filters: [
-        ...mapLegacyUiTableFilterToView("observations", globalFilterState),
-        ROOT_OBSERVATION_FILTER,
-      ],
+      filters,
+      metrics: [{ measure: "traceId", aggregation: "uniq" }],
     };
   }
   return {
     view: "traces",
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
+    filters: mapLegacyUiTableFilterToView("traces", params.globalFilterState),
+    metrics: [{ measure: "count", aggregation: "count" }],
   };
 }

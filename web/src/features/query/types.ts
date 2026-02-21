@@ -107,6 +107,7 @@ export const metricAggregations = z.enum([
   "p95",
   "p99",
   "histogram",
+  "uniq",
 ]);
 
 export const metric = z.object({
