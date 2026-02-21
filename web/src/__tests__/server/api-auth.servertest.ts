@@ -271,8 +271,8 @@ describe("Authenticate API calls", () => {
       await clearApiKeyCache(redis);
     }, 15_000);
 
-    afterAll(async () => {
-      await redis.quit();
+    afterAll(() => {
+      redis.disconnect();
     }, 15_000);
 
     it("should create new api key and read from cache", async () => {
@@ -711,8 +711,8 @@ describe("Authenticate API calls", () => {
       await clearApiKeyCache(redis);
     }, 15_000);
 
-    afterAll(async () => {
-      await redis.quit();
+    afterAll(() => {
+      redis.disconnect();
     }, 15_000);
 
     it("should invalidate organization API keys in redis", async () => {
