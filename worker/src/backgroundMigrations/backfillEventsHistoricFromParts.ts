@@ -161,7 +161,7 @@ export default class BackfillEventsHistoricFromParts
         WHERE database = 'default'
         AND table = 'observations_pid_tid_sorting'
         AND active = 1
-        AND partition_id IN ('202512', '202601')
+        AND partition_id IN ('202602', '202601')
         ORDER BY partition_id DESC
       `,
       tags: {
@@ -351,8 +351,8 @@ export default class BackfillEventsHistoricFromParts
       ON o.project_id = t.project_id AND o.trace_id = t.id
       WHERE o._partition_id = '${todo.partition}'
       AND o._part = '${todo.partId}'
-      AND o.start_time >= toDateTime64('2025-12-01 00:00:00', 3)
-      AND o.start_time < toDateTime64('2026-01-20 00:00:00', 3)
+      AND o.start_time >= toDateTime64('2026-01-20 00:00:00', 3)
+      AND o.start_time < toDateTime64('2026-02-22 00:00:00', 3)
       SETTINGS
         join_algorithm = 'full_sorting_merge',
         type_json_skip_duplicated_paths = 1
