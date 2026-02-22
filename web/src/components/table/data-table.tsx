@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -45,7 +46,7 @@ import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 
-interface DataTableProps<TData, TValue> {
+interface DataTableProps<TData extends object, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
@@ -76,6 +77,7 @@ interface DataTableProps<TData, TValue> {
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
+  loadingRowsComponent?: React.ComponentType<DataTableLoadingRowsProps<TData>>;
 }
 
 export interface AsyncTableData<T> {
@@ -83,6 +85,20 @@ export interface AsyncTableData<T> {
   isError: boolean;
   data?: T;
   error?: string;
+}
+
+export interface DataTableLoadingRowsProps<TData extends object> {
+  table: ReturnType<typeof useReactTable<TData>>;
+  columns: LangfuseColumnDef<TData, any>[];
+  rowheighttw?: string;
+  rowHeight?: RowHeight;
+}
+
+export interface DataTableSkeletonCellRendererProps<TData extends object> {
+  column: Column<TData>;
+  rowIndex: number;
+  colIndex: number;
+  isSmallRowHeight: boolean;
 }
 
 function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
@@ -163,6 +179,7 @@ export function DataTable<TData extends object, TValue>({
   hidePagination = false,
   tableName,
   getRowClassName,
+  loadingRowsComponent,
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -413,6 +430,7 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                loadingRowsComponent={loadingRowsComponent}
                 tableSnapshot={{
                   columnVisibility,
                   columnOrder,
@@ -430,6 +448,7 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                loadingRowsComponent={loadingRowsComponent}
               />
             )}
           </Table>
@@ -465,7 +484,7 @@ function renderOrderingIndicator(orderBy?: OrderByState) {
     );
 }
 
-interface TableBodyComponentProps<TData> {
+interface TableBodyComponentProps<TData extends object> {
   table: ReturnType<typeof useReactTable<TData>>;
   rowheighttw?: string;
   rowHeight?: RowHeight;
@@ -475,6 +494,7 @@ interface TableBodyComponentProps<TData> {
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
+  loadingRowsComponent?: React.ComponentType<DataTableLoadingRowsProps<TData>>;
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
@@ -482,7 +502,7 @@ interface TableBodyComponentProps<TData> {
   };
 }
 
-function TableRowComponent<TData>({
+function TableRowComponent<TData extends object>({
   row,
   onRowClick,
   getRowClassName,
@@ -517,7 +537,7 @@ function TableRowComponent<TData>({
   );
 }
 
-function TableBodyComponent<TData>({
+function TableBodyComponent<TData extends object>({
   table,
   rowheighttw,
   rowHeight,
@@ -527,18 +547,23 @@ function TableBodyComponent<TData>({
   noResultsMessage,
   onRowClick,
   getRowClassName,
+  loadingRowsComponent,
 }: TableBodyComponentProps<TData>) {
+  const LoadingRowsComponent = loadingRowsComponent;
+
   return (
     <TableBody>
       {data.isLoading || !data.data ? (
-        <TableRow className="h-svh">
-          <TableCell
-            colSpan={columns.length}
-            className="content-start border-b text-center"
-          >
-            Loading...
-          </TableCell>
-        </TableRow>
+        LoadingRowsComponent ? (
+          <LoadingRowsComponent
+            table={table}
+            columns={columns}
+            rowheighttw={rowheighttw}
+            rowHeight={rowHeight}
+          />
+        ) : (
+          <DefaultDataTableLoadingRows columnsLength={columns.length} />
+        )
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
           <TableRowComponent
@@ -616,6 +641,85 @@ function TableBodyComponent<TData>({
   );
 }
 
+function DefaultDataTableLoadingRows({
+  columnsLength,
+}: {
+  columnsLength: number;
+}) {
+  return (
+    <TableRow className="h-svh">
+      <TableCell
+        colSpan={columnsLength}
+        className="content-start border-b text-center"
+      >
+        Loading...
+      </TableCell>
+    </TableRow>
+  );
+}
+
+export function DataTableSkeletonLoadingRows<TData extends object>({
+  table,
+  rowheighttw,
+  rowHeight,
+  rowCount = 10,
+  renderSkeletonCell,
+}: DataTableLoadingRowsProps<TData> & {
+  rowCount?: number;
+  renderSkeletonCell?: (
+    props: DataTableSkeletonCellRendererProps<TData>,
+  ) => React.ReactNode;
+}) {
+  const visibleColumns = table.getVisibleLeafColumns();
+  const isSmallRowHeight = (rowHeight ?? "s") === "s";
+
+  return (
+    <>
+      {Array.from({ length: rowCount }, (_, rowIndex) => (
+        <TableRow key={`loading-row-${rowIndex}`}>
+          {visibleColumns.map((column, colIndex) => (
+            <TableCell
+              key={`${column.id}-loading-${rowIndex}`}
+              className={cn(
+                "overflow-hidden border-b px-1 first:pl-2",
+                isSmallRowHeight && "whitespace-nowrap",
+                getPinningClasses(column),
+              )}
+              style={{
+                width: `calc(var(--col-${column.id}-size) * 1px)`,
+                ...getCommonPinningStyles(column),
+              }}
+            >
+              <div
+                className={cn(
+                  "flex",
+                  isSmallRowHeight ? "items-center" : "items-start",
+                  !isSmallRowHeight && "py-1",
+                  rowheighttw,
+                )}
+              >
+                {renderSkeletonCell?.({
+                  column,
+                  rowIndex,
+                  colIndex,
+                  isSmallRowHeight,
+                }) ?? (
+                  <Skeleton
+                    className={cn(
+                      "h-3",
+                      (rowIndex + colIndex) % 2 === 0 ? "w-2/3" : "w-1/2",
+                    )}
+                  />
+                )}
+              </div>
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
 // Optimize table rendering performance by memoizing the table body
 // This is critical for two high-frequency re-render scenarios:
 // 1. During column resizing: When users drag column headers, it can trigger
@@ -646,6 +750,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
+  if (prev.loadingRowsComponent !== next.loadingRowsComponent) return false;
 
   // Then do more expensive deep equality checks
   if (

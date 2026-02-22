@@ -1,4 +1,8 @@
-import { DataTable } from "@/src/components/table/data-table";
+import {
+  DataTable,
+  DataTableSkeletonLoadingRows,
+  type DataTableLoadingRowsProps,
+} from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -164,6 +168,23 @@ export type EventsTableProps = {
   limitRows?: number;
   sessionId?: string;
 };
+
+const EventsTableLoadingRows = (
+  props: DataTableLoadingRowsProps<EventsTableRow>,
+) => (
+  <DataTableSkeletonLoadingRows
+    {...props}
+    rowCount={10}
+    renderSkeletonCell={({ column, isSmallRowHeight }) =>
+      !isSmallRowHeight && (column.id === "input" || column.id === "output") ? (
+        <JsonSkeleton
+          borderless
+          className="h-full w-full overflow-hidden px-2"
+        />
+      ) : undefined
+    }
+  />
+);
 
 export default function ObservationsEventsTable({
   projectId,
@@ -547,10 +568,12 @@ export default function ObservationsEventsTable({
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("input");
         if (ioLoading) {
-          return (
+          return rowHeight === "s" ? (
+            <Skeleton className="h-3 w-1/2" />
+          ) : (
             <JsonSkeleton
               borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
+              className="h-full w-full overflow-hidden px-2"
             />
           );
         }
@@ -558,6 +581,7 @@ export default function ObservationsEventsTable({
           <MemoizedIOTableCell
             isLoading={false}
             data={value}
+            codeClassName="px-2 min-h-0 h-full overflow-y-auto"
             singleLine={rowHeight === "s"}
           />
         ) : null;
@@ -572,10 +596,12 @@ export default function ObservationsEventsTable({
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("output");
         if (ioLoading) {
-          return (
+          return rowHeight === "s" ? (
+            <Skeleton className="h-3 w-1/2" />
+          ) : (
             <JsonSkeleton
               borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
+              className="h-full w-full overflow-hidden px-2"
             />
           );
         }
@@ -584,6 +610,7 @@ export default function ObservationsEventsTable({
             isLoading={false}
             data={value}
             className={cn("bg-accent-light-green")}
+            codeClassName="px-2 min-h-0 h-full overflow-y-auto"
             singleLine={rowHeight === "s"}
           />
         ) : null;
@@ -1304,6 +1331,7 @@ export default function ObservationsEventsTable({
               tableName={"observations"}
               columns={columns}
               peekView={peekConfig}
+              loadingRowsComponent={EventsTableLoadingRows}
               data={
                 observations.status === "loading" || isViewLoading
                   ? { isLoading: true, isError: false }

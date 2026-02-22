@@ -17,10 +17,12 @@ const IOTableCellContent = ({
   data,
   singleLine,
   className,
+  codeClassName,
 }: {
   data: unknown;
   singleLine: boolean;
   className?: string;
+  codeClassName?: string;
 }) => {
   const stringifiedJson =
     data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
@@ -28,6 +30,8 @@ const IOTableCellContent = ({
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
+  const resolvedCodeClassName =
+    codeClassName ?? "py-1 px-2 min-h-0 h-full overflow-y-auto";
 
   return singleLine ? (
     <div
@@ -49,7 +53,7 @@ const IOTableCellContent = ({
           true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
         className={cn("h-full w-full self-stretch", className)}
-        codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
+        codeClassName={resolvedCodeClassName}
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
       />
@@ -63,7 +67,7 @@ const IOTableCellContent = ({
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
       className={cn("h-full w-full self-stretch", className)}
-      codeClassName="py-1 px-2 min-h-0 h-full overflow-y-auto"
+      codeClassName={resolvedCodeClassName}
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
       borderless
     />
@@ -74,12 +78,14 @@ export const IOTableCell = ({
   data,
   isLoading = false,
   className,
+  codeClassName,
   singleLine = false,
   enableExpandOnHover = false,
 }: {
   data: unknown;
   isLoading?: boolean;
   className?: string;
+  codeClassName?: string;
   singleLine?: boolean;
   enableExpandOnHover?: boolean;
 }) => {
@@ -98,6 +104,7 @@ export const IOTableCell = ({
         data={data}
         singleLine={singleLine}
         className={className}
+        codeClassName={codeClassName}
       />
     );
   }
@@ -110,6 +117,7 @@ export const IOTableCell = ({
             data={data}
             singleLine={singleLine}
             className={className}
+            codeClassName={codeClassName}
           />
         </div>
       </HoverCardTrigger>
