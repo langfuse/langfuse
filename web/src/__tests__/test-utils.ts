@@ -1,7 +1,6 @@
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  clickhouseClient,
   createBasicAuthHeader,
   getQueue,
   IngestionQueue,
@@ -12,43 +11,11 @@ import {
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
-const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
-
-const assertLocalUrl = (url: string, serviceName: string) => {
-  const parsedUrl = new URL(url);
-  if (!LOCAL_HOSTNAMES.has(parsedUrl.hostname)) {
-    throw new Error(
-      `You cannot prune ${serviceName} unless running against localhost.`,
-    );
-  }
-};
-
 const getWebBaseUrl = () => {
-  const defaultPort = process.env.WEB_PORT ?? "3000";
+  const defaultPort = process.env.WEB_PORT ?? process.env.PORT ?? "3000";
   return (env.NEXTAUTH_URL || `http://localhost:${defaultPort}`)
     .replace(/\/$/, "")
     .replace(/\/api\/auth$/, "");
-};
-
-export const getRedisConnectionString = () => {
-  if (process.env.REDIS_CONNECTION_STRING) {
-    return process.env.REDIS_CONNECTION_STRING;
-  }
-
-  const host = process.env.REDIS_HOST ?? "127.0.0.1";
-  const port = process.env.REDIS_PORT ?? "6379";
-  const password = process.env.REDIS_AUTH ?? "myredissecret";
-  const username = process.env.REDIS_USERNAME;
-
-  if (username) {
-    return password
-      ? `redis://${username}:${password}@${host}:${port}`
-      : `redis://${username}@${host}:${port}`;
-  }
-
-  return password
-    ? `redis://:${password}@${host}:${port}`
-    : `redis://${host}:${port}`;
 };
 
 export const ensureTestDatabaseExists = async () => {
@@ -125,23 +92,6 @@ export const ensureTestDatabaseExists = async () => {
   // ClickHouse schema is expected to be migrated as part of local setup.
 };
 
-export const pruneDatabase = async () => {
-  assertLocalUrl(env.DATABASE_URL, "database");
-
-  await prisma.scoreConfig.deleteMany();
-  await prisma.traceSession.deleteMany();
-  await prisma.datasetItem.deleteMany();
-  await prisma.dataset.deleteMany();
-  await prisma.datasetRuns.deleteMany();
-  await prisma.prompt.deleteMany();
-  await prisma.promptDependency.deleteMany();
-  await prisma.model.deleteMany();
-  await prisma.llmApiKeys.deleteMany();
-  await prisma.comment.deleteMany();
-  await prisma.media.deleteMany();
-
-  await truncateClickhouseTables();
-};
 export const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(
@@ -191,33 +141,6 @@ export const disconnectQueues = async () => {
       }
     }),
   );
-};
-
-export const truncateClickhouseTables = async () => {
-  assertLocalUrl(env.CLICKHOUSE_URL, "clickhouse");
-
-  // Additional safety check for test database
-  if (env.CLICKHOUSE_DB === "test") {
-    console.log(
-      "Running tests against test ClickHouse database:",
-      env.CLICKHOUSE_DB,
-    );
-  } else if (env.CLICKHOUSE_DB !== "default") {
-    console.log(
-      "Running tests against ClickHouse database:",
-      env.CLICKHOUSE_DB,
-    );
-  }
-
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS observations",
-  });
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS scores",
-  });
-  await clickhouseClient().command({
-    query: "TRUNCATE TABLE IF EXISTS traces",
-  });
 };
 
 export type IngestionAPIResponse = {
