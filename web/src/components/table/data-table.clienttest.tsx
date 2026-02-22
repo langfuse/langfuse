@@ -16,9 +16,25 @@ jest.mock("../../features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => jest.fn(),
 }));
 
+jest.mock("../ui/CodeJsonViewer", () => ({
+  JsonSkeleton: ({ numRows = 10 }: { numRows?: number }) => (
+    <div>
+      {Array.from({ length: numRows }).map((_, i) => (
+        <div className="h-4 w-full animate-pulse" key={i} />
+      ))}
+    </div>
+  ),
+}));
+
 type TestRow = {
   id: string;
   name: string;
+  status: string;
+};
+
+type TestIoRow = {
+  id: string;
+  input: string;
   status: string;
 };
 
@@ -27,6 +43,20 @@ const columns: LangfuseColumnDef<TestRow, unknown>[] = [
     accessorKey: "name",
     header: "Name",
     cell: ({ row }) => row.original.name,
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => row.original.status,
+  },
+];
+
+const ioColumns: LangfuseColumnDef<TestIoRow, unknown>[] = [
+  {
+    accessorKey: "input",
+    id: "input",
+    header: "Input",
+    cell: ({ row }) => row.original.input,
   },
   {
     accessorKey: "status",
@@ -49,7 +79,7 @@ describe("DataTable loading states", () => {
       />,
     );
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByText("Loading...")).not.toBeNull();
   });
 
   it("renders custom loading state when loadingRowsComponent is provided", () => {
@@ -74,8 +104,8 @@ describe("DataTable loading states", () => {
       />,
     );
 
-    expect(screen.getByTestId("custom-loading-row")).toBeInTheDocument();
-    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+    expect(screen.getByTestId("custom-loading-row")).not.toBeNull();
+    expect(screen.queryByText("Loading...")).toBeNull();
     expect(customLoadingRowsSpy).toHaveBeenCalled();
   });
 
@@ -98,5 +128,24 @@ describe("DataTable loading states", () => {
 
     expect(loadingRows).toHaveLength(10);
     expect(loadingCells).toHaveLength(20);
+  });
+
+  it("renders multiline loading skeleton for input column in shared loading rows", () => {
+    const OneRowLoadingRows = (props: DataTableLoadingRowsProps<TestIoRow>) => (
+      <DataTableSkeletonLoadingRows {...props} rowCount={1} />
+    );
+
+    const { container } = render(
+      <DataTable
+        tableName="test-table-io-skeleton-loading"
+        columns={ioColumns}
+        data={{ isLoading: true, isError: false }}
+        loadingRowsComponent={OneRowLoadingRows}
+      />,
+    );
+
+    const loadingCells = container.querySelectorAll("tbody .animate-pulse");
+
+    expect(loadingCells).toHaveLength(11);
   });
 });

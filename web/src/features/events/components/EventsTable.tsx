@@ -1,19 +1,12 @@
 import { DataTable } from "@/src/components/table/data-table";
-import { type DataTableLoadingRowsProps } from "@/src/components/table/data-table-loading-rows";
+import { DataTableSkeletonLoadingRows } from "@/src/components/table/data-table-loading-rows";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useCallback,
-  type CSSProperties,
-} from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -52,15 +45,10 @@ import { InfoIcon, LightbulbIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  type Column,
-  type Row,
-  type RowSelectionState,
-} from "@tanstack/react-table";
+import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TableCell, TableRow } from "@/src/components/ui/table";
 import { PeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -177,93 +165,6 @@ export type EventsTableProps = {
   externalDateRange?: TableDateRange;
   limitRows?: number;
   sessionId?: string;
-};
-
-const EventsTableLoadingRows = (
-  props: DataTableLoadingRowsProps<EventsTableRow>,
-) => {
-  const visibleColumns = props.table.getVisibleLeafColumns();
-  const isSmallRowHeight = (props.rowHeight ?? "s") === "s";
-
-  return (
-    <>
-      {Array.from({ length: 10 }, (_, rowIndex) => (
-        <TableRow key={`events-loading-row-${rowIndex}`}>
-          {visibleColumns.map((column, colIndex) => {
-            const isIOColumn = column.id === "input" || column.id === "output";
-
-            return (
-              <TableCell
-                key={`${column.id}-events-loading-${rowIndex}`}
-                className={cn(
-                  "overflow-hidden border-b px-1 first:pl-2",
-                  isSmallRowHeight && "whitespace-nowrap",
-                  getEventsLoadingPinningClasses(column),
-                )}
-                style={{
-                  width: `calc(var(--col-${column.id}-size) * 1px)`,
-                  ...getEventsLoadingPinningStyles(column),
-                }}
-              >
-                <div
-                  className={cn(
-                    "flex",
-                    isSmallRowHeight ? "items-center" : "items-start",
-                    !isSmallRowHeight && "py-1",
-                    props.rowheighttw,
-                  )}
-                >
-                  {isIOColumn ? (
-                    <JsonSkeleton
-                      borderless
-                      className="h-full w-full overflow-hidden px-2"
-                    />
-                  ) : (
-                    <Skeleton
-                      className={cn(
-                        "h-3",
-                        (rowIndex + colIndex) % 2 === 0 ? "w-2/3" : "w-1/2",
-                      )}
-                    />
-                  )}
-                </div>
-              </TableCell>
-            );
-          })}
-        </TableRow>
-      ))}
-    </>
-  );
-};
-
-const getEventsLoadingPinningStyles = (
-  column: Column<EventsTableRow>,
-): CSSProperties => {
-  const isPinned = column.getIsPinned();
-
-  return {
-    left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
-    right: isPinned === "right" ? `${column.getAfter("right")}px` : undefined,
-    position: isPinned ? "sticky" : "relative",
-    width: column.getSize(),
-    zIndex: isPinned ? 10 : 0,
-    backgroundColor: isPinned ? "hsl(var(--background))" : undefined,
-  };
-};
-
-const getEventsLoadingPinningClasses = (
-  column: Column<EventsTableRow>,
-): string => {
-  const isPinned = column.getIsPinned();
-  const isLastLeftPinnedColumn =
-    isPinned === "left" && column.getIsLastColumn("left");
-  const isFirstRightPinnedColumn =
-    isPinned === "right" && column.getIsFirstColumn("right");
-
-  return cn(
-    isLastLeftPinnedColumn && "border-r border-border",
-    isFirstRightPinnedColumn && "border-l border-border",
-  );
 };
 
 export default function ObservationsEventsTable({
@@ -1429,7 +1330,7 @@ export default function ObservationsEventsTable({
               tableName={"observations"}
               columns={columns}
               peekView={peekConfig}
-              loadingRowsComponent={EventsTableLoadingRows}
+              loadingRowsComponent={DataTableSkeletonLoadingRows}
               data={
                 observations.status === "loading" || isViewLoading
                   ? { isLoading: true, isError: false }

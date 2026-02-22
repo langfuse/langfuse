@@ -2,6 +2,7 @@ import { type CSSProperties } from "react";
 import { type Column, type Table } from "@tanstack/react-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TableCell, TableRow } from "@/src/components/ui/table";
 import { cn } from "@/src/utils/tailwind";
@@ -58,36 +59,49 @@ export function DataTableSkeletonLoadingRows<TData extends object>({
     <>
       {Array.from({ length: rowCount }, (_, rowIndex) => (
         <TableRow key={`loading-row-${rowIndex}`}>
-          {visibleColumns.map((column, colIndex) => (
-            <TableCell
-              key={`${column.id}-loading-${rowIndex}`}
-              className={cn(
-                "overflow-hidden border-b px-1 first:pl-2",
-                isSmallRowHeight && "whitespace-nowrap",
-                getPinningClasses(column),
-              )}
-              style={{
-                width: `calc(var(--col-${column.id}-size) * 1px)`,
-                ...getCommonPinningStyles(column),
-              }}
-            >
-              <div
+          {visibleColumns.map((column, colIndex) => {
+            // Column ids are derived from accessor keys; IO columns are rendered as
+            // multi-line placeholders to match their expanded text behavior.
+            const isIOColumn = column.id === "input" || column.id === "output";
+
+            return (
+              <TableCell
+                key={`${column.id}-loading-${rowIndex}`}
                 className={cn(
-                  "flex",
-                  isSmallRowHeight ? "items-center" : "items-start",
-                  !isSmallRowHeight && "py-1",
-                  rowheighttw,
+                  "overflow-hidden border-b px-1 first:pl-2",
+                  isSmallRowHeight && "whitespace-nowrap",
+                  getPinningClasses(column),
                 )}
+                style={{
+                  width: `calc(var(--col-${column.id}-size) * 1px)`,
+                  ...getCommonPinningStyles(column),
+                }}
               >
-                <Skeleton
+                <div
                   className={cn(
-                    "h-3",
-                    (rowIndex + colIndex) % 2 === 0 ? "w-2/3" : "w-1/2",
+                    "flex",
+                    isSmallRowHeight ? "items-center" : "items-start",
+                    !isSmallRowHeight && "py-1",
+                    rowheighttw,
                   )}
-                />
-              </div>
-            </TableCell>
-          ))}
+                >
+                  {isIOColumn ? (
+                    <JsonSkeleton
+                      borderless
+                      className="h-full w-full overflow-hidden px-2"
+                    />
+                  ) : (
+                    <Skeleton
+                      className={cn(
+                        "h-3",
+                        (rowIndex + colIndex) % 2 === 0 ? "w-2/3" : "w-1/2",
+                      )}
+                    />
+                  )}
+                </div>
+              </TableCell>
+            );
+          })}
         </TableRow>
       ))}
     </>
