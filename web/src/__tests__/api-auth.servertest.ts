@@ -7,6 +7,7 @@ import { Prisma, type PrismaClient, prisma } from "@langfuse/shared/src/db";
 import { Redis } from "ioredis";
 import { env } from "@/src/env.mjs";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { getRedisConnectionString } from "@/src/__tests__/test-utils";
 
 describe("Authenticate API calls", () => {
   beforeEach(async () => {
@@ -223,7 +224,7 @@ describe("Authenticate API calls", () => {
   });
 
   describe("validates with redis", () => {
-    const redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+    const redis = new Redis(getRedisConnectionString(), {
       maxRetriesPerRequest: null,
     });
 
@@ -668,7 +669,7 @@ describe("Authenticate API calls", () => {
   });
 
   describe("invalidates api keys in redis", () => {
-    const redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+    const redis = new Redis(getRedisConnectionString(), {
       maxRetriesPerRequest: null,
     });
 

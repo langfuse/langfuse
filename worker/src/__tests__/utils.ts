@@ -2,8 +2,12 @@ import { prisma } from "@langfuse/shared/src/db";
 
 import { env } from "../env";
 import { logger } from "@langfuse/shared/src/server";
+
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
 export const pruneDatabase = async () => {
-  if (!env.DATABASE_URL.includes("localhost:5432")) {
+  const parsedUrl = new URL(env.DATABASE_URL);
+  if (!LOCAL_HOSTNAMES.has(parsedUrl.hostname)) {
     throw new Error("You cannot prune database unless running on localhost.");
   }
 

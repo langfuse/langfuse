@@ -12,12 +12,55 @@ import {
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+const assertLocalUrl = (url: string, serviceName: string) => {
+  const parsedUrl = new URL(url);
+  if (!LOCAL_HOSTNAMES.has(parsedUrl.hostname)) {
+    throw new Error(
+      `You cannot prune ${serviceName} unless running against localhost.`,
+    );
+  }
+};
+
+const getWebBaseUrl = () => {
+  const defaultPort = process.env.WEB_PORT ?? "3000";
+  return (env.NEXTAUTH_URL || `http://localhost:${defaultPort}`)
+    .replace(/\/$/, "")
+    .replace(/\/api\/auth$/, "");
+};
+
+export const getRedisConnectionString = () => {
+  if (process.env.REDIS_CONNECTION_STRING) {
+    return process.env.REDIS_CONNECTION_STRING;
+  }
+
+  const host = process.env.REDIS_HOST ?? "127.0.0.1";
+  const port = process.env.REDIS_PORT ?? "6379";
+  const password = process.env.REDIS_AUTH ?? "myredissecret";
+  const username = process.env.REDIS_USERNAME;
+
+  if (username) {
+    return password
+      ? `redis://${username}:${password}@${host}:${port}`
+      : `redis://${username}@${host}:${port}`;
+  }
+
+  return password
+    ? `redis://:${password}@${host}:${port}`
+    : `redis://${host}:${port}`;
+};
+
 export const ensureTestDatabaseExists = async () => {
+  const databaseUrl = new URL(env.DATABASE_URL);
+  const databaseName = databaseUrl.pathname.slice(1);
+  const databaseSchema = databaseUrl.searchParams.get("schema");
+  const isTestDatabaseTarget =
+    databaseName.includes("langfuse_test") ||
+    Boolean(databaseSchema?.includes("test"));
+
   // Only create test database if we're in test environment with test database URL
-  if (
-    !env.DATABASE_URL.includes("langfuse_test") ||
-    process.env.NODE_ENV !== "test"
-  ) {
+  if (!isTestDatabaseTarget || process.env.NODE_ENV !== "test") {
     return; // Not using test database or not in test environment, skip
   }
 
@@ -79,13 +122,11 @@ export const ensureTestDatabaseExists = async () => {
     }
   }
 
-  // ClickHouse uses default database (no setup needed)
+  // ClickHouse schema is expected to be migrated as part of local setup.
 };
 
 export const pruneDatabase = async () => {
-  if (!env.DATABASE_URL.includes("localhost:5432")) {
-    throw new Error("You cannot prune database unless running on localhost.");
-  }
+  assertLocalUrl(env.DATABASE_URL, "database");
 
   await prisma.scoreConfig.deleteMany();
   await prisma.traceSession.deleteMany();
@@ -153,9 +194,7 @@ export const disconnectQueues = async () => {
 };
 
 export const truncateClickhouseTables = async () => {
-  if (!env.CLICKHOUSE_URL?.includes("localhost:8123")) {
-    throw new Error("You cannot prune clickhouse unless running on localhost.");
-  }
+  assertLocalUrl(env.CLICKHOUSE_URL, "clickhouse");
 
   // Additional safety check for test database
   if (env.CLICKHOUSE_DB === "test") {
@@ -205,7 +244,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   auth?: string,
   customHeaders?: Record<string, string>,
 ): Promise<{ body: T; status: number }> {
-  const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
+  const finalUrl = `${getWebBaseUrl()}${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
     auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
   const options = {

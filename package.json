@@ -9,6 +9,8 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "env:worktree": "bash ./scripts/setup-worktree-env.sh",
+    "env:worktree:bootstrap": "bash ./scripts/setup-worktree-env.sh --bootstrap",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
     "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
     "infra:dev:prune": "docker compose -f ./docker-compose.dev.yml down -v",

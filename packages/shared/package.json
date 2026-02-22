@@ -49,7 +49,7 @@
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
     "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
     "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate reset --force; fi",
-    "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
+    "db:deploy": "dotenv -e ../../.env -- bash ./scripts/migrate-deploy.sh",
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate",
     "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",

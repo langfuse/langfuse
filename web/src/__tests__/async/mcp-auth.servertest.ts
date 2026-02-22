@@ -16,8 +16,12 @@ jest.mock("@langfuse/shared/src/server", () => {
 });
 
 import { createMcpTestSetup } from "./mcp-helpers";
+import { env } from "@/src/env.mjs";
 
 const MCP_ENDPOINT = "/api/public/mcp";
+const webBaseUrl = (env.NEXTAUTH_URL ?? "http://localhost:3000")
+  .replace(/\/$/, "")
+  .replace(/\/api\/auth$/, "");
 
 describe("MCP Authentication", () => {
   describe("HTTP status codes for auth errors", () => {
@@ -26,7 +30,7 @@ describe("MCP Authentication", () => {
         "base64",
       );
 
-      const response = await fetch(`http://localhost:3000${MCP_ENDPOINT}`, {
+      const response = await fetch(`${webBaseUrl}${MCP_ENDPOINT}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -50,7 +54,7 @@ describe("MCP Authentication", () => {
     });
 
     it("should return 401 for missing authorization header", async () => {
-      const response = await fetch(`http://localhost:3000${MCP_ENDPOINT}`, {
+      const response = await fetch(`${webBaseUrl}${MCP_ENDPOINT}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,7 +77,7 @@ describe("MCP Authentication", () => {
     it("should return 200 for valid credentials", async () => {
       const { auth } = await createMcpTestSetup();
 
-      const response = await fetch(`http://localhost:3000${MCP_ENDPOINT}`, {
+      const response = await fetch(`${webBaseUrl}${MCP_ENDPOINT}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

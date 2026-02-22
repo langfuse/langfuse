@@ -143,7 +143,40 @@ Requirements
     cp .env.dev.example .env
    ```
 
-5. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
+5. (Recommended when using multiple git worktrees) configure worktree-specific ports and DB namespaces:
+
+   ```bash
+   pnpm run env:worktree
+   ```
+
+   Optional: provide your own stable worktree identifier:
+
+   ```bash
+   pnpm run env:worktree -- --id my-worktree-id
+   ```
+
+   To also start infra and apply migrations in one step:
+
+   ```bash
+   pnpm run env:worktree:bootstrap
+   ```
+
+   This command installs dependencies for the current worktree, starts infra, creates the worktree ClickHouse database, and applies migrations.
+
+   This updates `.env` and `.env.test` in the current worktree with deterministic, isolated values:
+   - `DATABASE_URL` / `DIRECT_URL`: per-worktree Postgres schema
+   - `CLICKHOUSE_DB`: per-worktree ClickHouse database
+   - `REDIS_CONNECTION_STRING` and `REDIS_KEY_PREFIX`: per-worktree Redis isolation
+   - `WEB_PORT` / `WORKER_PORT` and `NEXTAUTH_URL`: per-worktree application ports
+
+   Run `pnpm run infra:dev:up` only once on your laptop to start shared infra containers. Then run `pnpm run env:worktree` in each worktree so web/worker and migrations stay isolated.
+
+   Tests and internal API calls read these env values, so each worktree can run independently without port collisions.
+
+   > [!NOTE]
+   > This workflow targets local development with `docker-compose.dev.yml`. Production/self-host VM deployments using `docker-compose.yml` are not changed by these worktree steps.
+
+6. Run the entire infrastructure in dev mode. **Note**: if you have an existing database, this command wipes it. Also, this will fail on the very first run. Please run it again.
 
    ```bash
    pnpm run dx # first run only (resets db, docker containers, etc...)
@@ -152,11 +185,11 @@ Requirements
 
    You will be asked whether you want to reset Postgres and ClickHouse. Confirm both with 'Y' and press enter.
 
-6. Open the web app in your browser to start using Langfuse:
-   - [Sign up page, http://localhost:3000](http://localhost:3000)
-   - [Demo project, http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a](http://localhost:3000/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a)
+7. Open the web app in your browser to start using Langfuse:
+   - Sign up page: `NEXTAUTH_URL` (default: `http://localhost:3000`)
+   - Demo project: `${NEXTAUTH_URL}/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`
 
-7. Log in as a test user:
+8. Log in as a test user:
    - Username: `demo@langfuse.com`
    - Password: `password`
 
@@ -234,9 +267,9 @@ cp .env.test.example .env.test
 Then, a different PostgreSQL and Redis are used for the tests.
 The `.env.test` file only overrides the set values and falls back on `.env` for all undefined values.
 
-- **PostgreSQL**: Uses separate `langfuse_test` database for isolation
-- **ClickHouse**: Uses shared `default` database for now
-- **Redis**: Uses database 1 instead of 0 for isolation (Redis data is not cleaned between tests)
+- **PostgreSQL**: Uses separate `langfuse_test` database (or a test schema if configured) for isolation
+- **ClickHouse**: Defaults to shared `default` database, or uses the worktree DB when configured via `pnpm run env:worktree`
+- **Redis**: Uses a dedicated Redis DB from `REDIS_CONNECTION_STRING` (defaults to database `1` in `.env.test.example`)
 
 Tests automatically create the PostgreSQL test database if it doesn't exist and clean up data between runs.
 

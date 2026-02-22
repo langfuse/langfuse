@@ -2,6 +2,7 @@ import {
   createHttpHeaderFromRateLimit,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
+import { getRedisConnectionString } from "@/src/__tests__/test-utils";
 import { Redis } from "ioredis";
 
 describe("RateLimitService", () => {
@@ -9,7 +10,7 @@ describe("RateLimitService", () => {
   let redis: Redis;
 
   beforeAll(() => {
-    redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+    redis = new Redis(getRedisConnectionString(), {
       maxRetriesPerRequest: null,
       enableAutoPipelining: false, // Align with our settings overwrite for rate limit service
     });
