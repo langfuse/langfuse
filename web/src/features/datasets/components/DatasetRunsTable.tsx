@@ -7,11 +7,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
-import {
-  compactNumberFormatter,
-  latencyFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { type Prisma, datasetRunsTableColsWithOptions } from "@langfuse/shared";
@@ -646,9 +642,10 @@ export function DatasetRunsTable(props: {
                   );
                   const { chartData, chartLabels } = adapter.toChartData();
 
+                  // TODO: remove when revamping the datasets api for it to directly return ms
                   const valueFormatter =
                     key === "latency"
-                      ? latencyFormatter
+                      ? formatIntervalSeconds
                       : key === "cost"
                         ? usdFormatter
                         : compactNumberFormatter;

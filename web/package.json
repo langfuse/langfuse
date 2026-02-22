@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.154.1",
+  "version": "3.155.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -16,13 +16,12 @@
     "lint:fix": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --fix",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
-    "test": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --selectProjects async-server",
-    "test-sync": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --selectProjects sync-server",
+    "test": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --selectProjects server",
     "test-client": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --selectProjects client",
     "test:watch": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --watch --runInBand",
     "test:e2e": "dotenv -e ../.env.test -e ../.env -- playwright test --reporter=line",
     "test:e2e:server": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --runInBand --verbose --selectProjects e2e-server",
-    "test:debug-handles": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects async-server",
+    "test:debug-handles": "cross-env NODE_OPTIONS='--no-experimental-require-module' dotenv -e ../.env.test -e ../.env -- jest --verbose --runInBand --detectOpenHandles --selectProjects server",
     "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack"
   },
   "dependencies": {
