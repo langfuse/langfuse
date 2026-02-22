@@ -13,6 +13,7 @@ import {
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
+import { type DataTableLoadingRowsProps } from "@/src/components/table/data-table-loading-rows";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
@@ -23,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -85,20 +85,6 @@ export interface AsyncTableData<T> {
   isError: boolean;
   data?: T;
   error?: string;
-}
-
-export interface DataTableLoadingRowsProps<TData extends object> {
-  table: ReturnType<typeof useReactTable<TData>>;
-  columns: LangfuseColumnDef<TData, any>[];
-  rowheighttw?: string;
-  rowHeight?: RowHeight;
-}
-
-export interface DataTableSkeletonCellRendererProps<TData extends object> {
-  column: Column<TData>;
-  rowIndex: number;
-  colIndex: number;
-  isSmallRowHeight: boolean;
 }
 
 function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
@@ -655,68 +641,6 @@ function DefaultDataTableLoadingRows({
         Loading...
       </TableCell>
     </TableRow>
-  );
-}
-
-export function DataTableSkeletonLoadingRows<TData extends object>({
-  table,
-  rowheighttw,
-  rowHeight,
-  rowCount = 10,
-  renderSkeletonCell,
-}: DataTableLoadingRowsProps<TData> & {
-  rowCount?: number;
-  renderSkeletonCell?: (
-    props: DataTableSkeletonCellRendererProps<TData>,
-  ) => React.ReactNode;
-}) {
-  const visibleColumns = table.getVisibleLeafColumns();
-  const isSmallRowHeight = (rowHeight ?? "s") === "s";
-
-  return (
-    <>
-      {Array.from({ length: rowCount }, (_, rowIndex) => (
-        <TableRow key={`loading-row-${rowIndex}`}>
-          {visibleColumns.map((column, colIndex) => (
-            <TableCell
-              key={`${column.id}-loading-${rowIndex}`}
-              className={cn(
-                "overflow-hidden border-b px-1 first:pl-2",
-                isSmallRowHeight && "whitespace-nowrap",
-                getPinningClasses(column),
-              )}
-              style={{
-                width: `calc(var(--col-${column.id}-size) * 1px)`,
-                ...getCommonPinningStyles(column),
-              }}
-            >
-              <div
-                className={cn(
-                  "flex",
-                  isSmallRowHeight ? "items-center" : "items-start",
-                  !isSmallRowHeight && "py-1",
-                  rowheighttw,
-                )}
-              >
-                {renderSkeletonCell?.({
-                  column,
-                  rowIndex,
-                  colIndex,
-                  isSmallRowHeight,
-                }) ?? (
-                  <Skeleton
-                    className={cn(
-                      "h-3",
-                      (rowIndex + colIndex) % 2 === 0 ? "w-2/3" : "w-1/2",
-                    )}
-                  />
-                )}
-              </div>
-            </TableCell>
-          ))}
-        </TableRow>
-      ))}
-    </>
   );
 }
 

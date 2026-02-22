@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { DataTable } from "./data-table";
 import {
-  DataTable,
   DataTableSkeletonLoadingRows,
   type DataTableLoadingRowsProps,
-} from "./data-table";
+} from "./data-table-loading-rows";
 
 jest.mock("next/router", () => ({
   useRouter: () => ({
@@ -98,98 +98,5 @@ describe("DataTable loading states", () => {
 
     expect(loadingRows).toHaveLength(10);
     expect(loadingCells).toHaveLength(20);
-  });
-
-  it("supports custom skeleton rendering for specific columns", () => {
-    type IORow = {
-      id: string;
-      input: string;
-      status: string;
-    };
-
-    const ioColumns: LangfuseColumnDef<IORow, unknown>[] = [
-      {
-        accessorKey: "input",
-        header: "Input",
-        cell: ({ row }) => row.original.input,
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => row.original.status,
-      },
-    ];
-
-    const IOLoadingRows = (props: DataTableLoadingRowsProps<IORow>) => (
-      <DataTableSkeletonLoadingRows
-        {...props}
-        rowCount={2}
-        renderSkeletonCell={({ column }) =>
-          column.id === "input" ? (
-            <div data-testid="io-column-custom-skeleton" />
-          ) : undefined
-        }
-      />
-    );
-
-    const { container } = render(
-      <DataTable
-        tableName="test-table-custom-cell-skeleton"
-        columns={ioColumns}
-        data={{ isLoading: true, isError: false }}
-        loadingRowsComponent={IOLoadingRows}
-      />,
-    );
-
-    expect(screen.getAllByTestId("io-column-custom-skeleton")).toHaveLength(2);
-    expect(container.querySelectorAll("tbody .animate-pulse")).toHaveLength(2);
-  });
-
-  it('passes "s" row height to custom skeleton renderer for fallback behavior', () => {
-    type IORow = {
-      id: string;
-      input: string;
-      status: string;
-    };
-
-    const ioColumns: LangfuseColumnDef<IORow, unknown>[] = [
-      {
-        accessorKey: "input",
-        header: "Input",
-        cell: ({ row }) => row.original.input,
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => row.original.status,
-      },
-    ];
-
-    const IOLoadingRows = (props: DataTableLoadingRowsProps<IORow>) => (
-      <DataTableSkeletonLoadingRows
-        {...props}
-        rowCount={2}
-        renderSkeletonCell={({ column, isSmallRowHeight }) =>
-          !isSmallRowHeight && column.id === "input" ? (
-            <div data-testid="io-column-custom-skeleton" />
-          ) : undefined
-        }
-      />
-    );
-
-    const { container } = render(
-      <DataTable
-        tableName="test-table-small-row-custom-cell-skeleton"
-        columns={ioColumns}
-        rowHeight="s"
-        data={{ isLoading: true, isError: false }}
-        loadingRowsComponent={IOLoadingRows}
-      />,
-    );
-
-    expect(
-      screen.queryByTestId("io-column-custom-skeleton"),
-    ).not.toBeInTheDocument();
-    expect(container.querySelectorAll("tbody .animate-pulse")).toHaveLength(4);
   });
 });

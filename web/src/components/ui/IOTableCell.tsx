@@ -17,12 +17,12 @@ const IOTableCellContent = ({
   data,
   singleLine,
   className,
-  codeClassName,
+  jsonCodeClassName,
 }: {
   data: unknown;
   singleLine: boolean;
   className?: string;
-  codeClassName?: string;
+  jsonCodeClassName?: string;
 }) => {
   const stringifiedJson =
     data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
@@ -31,7 +31,7 @@ const IOTableCellContent = ({
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
   const resolvedCodeClassName =
-    codeClassName ?? "py-1 px-2 min-h-0 h-full overflow-y-auto";
+    jsonCodeClassName ?? "py-1 px-2 min-h-0 h-full overflow-y-auto";
 
   return singleLine ? (
     <div
@@ -78,14 +78,14 @@ export const IOTableCell = ({
   data,
   isLoading = false,
   className,
-  codeClassName,
+  jsonCodeClassName,
   singleLine = false,
   enableExpandOnHover = false,
 }: {
   data: unknown;
   isLoading?: boolean;
   className?: string;
-  codeClassName?: string;
+  jsonCodeClassName?: string;
   singleLine?: boolean;
   enableExpandOnHover?: boolean;
 }) => {
@@ -104,7 +104,7 @@ export const IOTableCell = ({
         data={data}
         singleLine={singleLine}
         className={className}
-        codeClassName={codeClassName}
+        jsonCodeClassName={jsonCodeClassName}
       />
     );
   }
@@ -117,7 +117,7 @@ export const IOTableCell = ({
             data={data}
             singleLine={singleLine}
             className={className}
-            codeClassName={codeClassName}
+            jsonCodeClassName={jsonCodeClassName}
           />
         </div>
       </HoverCardTrigger>

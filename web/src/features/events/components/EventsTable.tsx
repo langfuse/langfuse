@@ -1,8 +1,8 @@
+import { DataTable } from "@/src/components/table/data-table";
 import {
-  DataTable,
   DataTableSkeletonLoadingRows,
   type DataTableLoadingRowsProps,
-} from "@/src/components/table/data-table";
+} from "@/src/components/table/data-table-loading-rows";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -171,20 +171,7 @@ export type EventsTableProps = {
 
 const EventsTableLoadingRows = (
   props: DataTableLoadingRowsProps<EventsTableRow>,
-) => (
-  <DataTableSkeletonLoadingRows
-    {...props}
-    rowCount={10}
-    renderSkeletonCell={({ column, isSmallRowHeight }) =>
-      !isSmallRowHeight && (column.id === "input" || column.id === "output") ? (
-        <JsonSkeleton
-          borderless
-          className="h-full w-full overflow-hidden px-2"
-        />
-      ) : undefined
-    }
-  />
-);
+) => <DataTableSkeletonLoadingRows {...props} rowCount={10} />;
 
 export default function ObservationsEventsTable({
   projectId,
@@ -581,7 +568,7 @@ export default function ObservationsEventsTable({
           <MemoizedIOTableCell
             isLoading={false}
             data={value}
-            codeClassName="px-2 min-h-0 h-full overflow-y-auto"
+            jsonCodeClassName="px-2 min-h-0 h-full overflow-y-auto"
             singleLine={rowHeight === "s"}
           />
         ) : null;
@@ -610,7 +597,7 @@ export default function ObservationsEventsTable({
             isLoading={false}
             data={value}
             className={cn("bg-accent-light-green")}
-            codeClassName="px-2 min-h-0 h-full overflow-y-auto"
+            jsonCodeClassName="px-2 min-h-0 h-full overflow-y-auto"
             singleLine={rowHeight === "s"}
           />
         ) : null;
