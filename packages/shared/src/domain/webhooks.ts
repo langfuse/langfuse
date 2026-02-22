@@ -22,6 +22,7 @@ export const PromptWebhookOutboundSchema = z
       name: z.string(),
       version: z.number(),
       projectId: z.string(),
+      createdBy: z.string(),
       labels: z.array(z.string()),
       prompt: jsonSchema.nullable(),
       type: z.string(),

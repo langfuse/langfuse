@@ -16,6 +16,7 @@ import {
   StorageServiceFactory,
 } from "../services/StorageService";
 import { ClickHouseSettings } from "@clickhouse/client";
+import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
 
 /**
  * Custom error class for ClickHouse resource-related errors
@@ -41,10 +42,7 @@ const ERROR_TYPE_CONFIG: Record<
 type ErrorType = keyof typeof ERROR_TYPE_CONFIG;
 
 export class ClickHouseResourceError extends Error {
-  static ERROR_ADVICE_MESSAGE = [
-    "Your query could not be completed because it required too many resources.",
-    "Please narrow your request by adding more specific filters (e.g., a shorter date range).",
-  ].join(" ");
+  static ERROR_ADVICE_MESSAGE = RESOURCE_LIMIT_ERROR_MESSAGE;
 
   public readonly errorType: ErrorType;
 
@@ -472,6 +470,7 @@ export async function commandClickhouse(opts: {
   tags?: Record<string, string>;
   clickhouseSettings?: ClickHouseSettings;
   abortSignal?: AbortSignal;
+  session_id?: string;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -485,6 +484,7 @@ export async function commandClickhouse(opts: {
       const res = await clickhouseClient(opts.clickhouseConfigs).command({
         query: opts.query,
         query_params: opts.params,
+        ...(opts.session_id ? { session_id: opts.session_id } : {}),
         ...(opts.tags?.queryId
           ? { query_id: opts.tags.queryId as string }
           : {}),

@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { fetchLLMCompletion } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import { ChatMessageType, LLMAdapter } from "@langfuse/shared";
-import { z } from "zod/v3";
+import { z } from "zod/v4";
 
 /**
  * LLM Connection Integration Tests
@@ -10,8 +10,9 @@ import { z } from "zod/v3";
  * These tests verify that all supported LLM adapters work correctly with live API calls.
  * Each adapter is tested with:
  * 1. Simple completion
- * 2. Structured output (using eval schema: {score: number, reasoning: string})
- * 3. Tool calling
+ * 2. Streaming completion
+ * 3. Structured output (using eval schema: {score: number, reasoning: string})
+ * 4. Tool calling
  *
  * Required environment variables (tests will FAIL if not set):
  * - LANGFUSE_LLM_CONNECTION_OPENAI_KEY
@@ -90,6 +91,43 @@ describe("LLM Connection Tests", () => {
       expect(completion).toContain("4");
     }, 30_000);
 
+    test("streaming completion", async () => {
+      checkEnvVar();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_OPENAI_KEY!),
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
+    }, 30_000);
+
     test("structured output - eval schema", async () => {
       checkEnvVar();
 
@@ -159,7 +197,7 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("Anthropic", () => {
-    const MODEL = "claude-3-5-haiku-20241022";
+    const MODEL = "claude-sonnet-4-6";
 
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY) {
@@ -199,6 +237,45 @@ describe("LLM Connection Tests", () => {
 
       expect(typeof completion).toBe("string");
       expect(completion).toContain("4");
+    }, 30_000);
+
+    test("streaming completion", async () => {
+      checkEnvVar();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "anthropic",
+          adapter: LLMAdapter.Anthropic,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY!,
+          ),
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
     }, 30_000);
 
     test("structured output - eval schema", async () => {
@@ -327,6 +404,44 @@ describe("LLM Connection Tests", () => {
       expect(completion).toContain("4");
     }, 30_000);
 
+    test("streaming completion", async () => {
+      checkEnvVars();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "azure",
+          adapter: LLMAdapter.Azure,
+          model: process.env.LANGFUSE_LLM_CONNECTION_AZURE_MODEL!,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY!),
+          baseURL: process.env.LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL!,
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
+    }, 60_000);
+
     test("structured output - eval schema", async () => {
       checkEnvVars();
 
@@ -398,7 +513,7 @@ describe("LLM Connection Tests", () => {
   });
 
   describe("Bedrock", () => {
-    const MODEL = "eu.anthropic.claude-sonnet-4-20250514-v1:0";
+    const MODEL = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
     const checkEnvVars = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID) {
@@ -468,8 +583,46 @@ describe("LLM Connection Tests", () => {
       expect(completion).toContain("4");
     }, 30_000);
 
+    test("streaming completion", async () => {
+      checkEnvVars();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "bedrock",
+          adapter: LLMAdapter.Bedrock,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(getApiKey()),
+          config: getConfig(),
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
+    }, 30_000);
+
     // Flaky
-    test.skip("structured output - eval schema", async () => {
+    test("structured output - eval schema", async () => {
       checkEnvVars();
 
       const completion = await fetchLLMCompletion({
@@ -576,6 +729,44 @@ describe("LLM Connection Tests", () => {
 
       expect(typeof completion).toBe("string");
       expect(completion).toContain("4");
+    }, 30_000);
+
+    test("streaming completion", async () => {
+      checkEnvVar();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "google-vertex-ai",
+          adapter: LLMAdapter.VertexAI,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+          config: null,
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
     }, 30_000);
 
     test("structured output - eval schema", async () => {
@@ -689,6 +880,45 @@ describe("LLM Connection Tests", () => {
 
       expect(typeof completion).toBe("string");
       expect(completion).toContain("4");
+    }, 30_000);
+
+    test("streaming completion", async () => {
+      checkEnvVar();
+
+      const stream = await fetchLLMCompletion({
+        streaming: true,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "google-ai-studio",
+          adapter: LLMAdapter.GoogleAIStudio,
+          model: MODEL,
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(
+            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+          ),
+        },
+      });
+
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+      let chunkCount = 0;
+
+      for await (const chunk of stream) {
+        fullResponse += decoder.decode(chunk);
+        chunkCount++;
+      }
+
+      expect(chunkCount).toBeGreaterThan(0);
+      expect(fullResponse).toContain("4");
     }, 30_000);
 
     test("structured output - eval schema", async () => {

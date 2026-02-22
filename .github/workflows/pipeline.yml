@@ -141,10 +141,9 @@ jobs:
           docker compose --progress plain --verbose -f docker-compose.build.yml build --print > /tmp/bake.json
           docker buildx bake -f /tmp/bake.json
           docker compose --progress plain -f docker-compose.build.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure no unhealthy status
         run: |
-          if docker-compose ps | grep "(unhealthy)"; then
+          if docker compose ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
           else
@@ -156,109 +155,13 @@ jobs:
       - name: Check server health
         run: |
           timeout 10 bash -c 'until curl -f http://localhost:3000/api/public/health; do sleep 2; done'
-
-  tests-web-sync:
+  tests-web:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     needs:
       - pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web-sync (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }})
-    strategy:
-      matrix:
-        node-version: [24]
-        postgres-version: [12, 15]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install golang-migrate for Clickhouse migrations
-        run: |
-          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 9.5.0
-      - name: Login to Docker Hub
-        if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
-          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: "pnpm"
-          cache-dependency-path: "pnpm-lock.yaml"
-      - name: install dependencies
-        run: |
-          pnpm install
-      - name: Load default env
-        run: |
-          cp .env.dev.example .env
-          grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev.example > .env
-          echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
-          echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
-          echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
-      - name: Setup Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
-      - name: Cache Next.js builds
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-${{ matrix.node-version }}-
-      - name: Run dev containers
-        run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
-          docker compose ps
-        env:
-          POSTGRES_VERSION: ${{ matrix.postgres-version }}
-      - name: Migrate DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared ch:up
-      - name: Build
-        run: pnpm run build
-        env:
-          NODE_OPTIONS: --max_old_space_size=8192
-      - name: Start Langfuse
-        run: (pnpm run start&)
-        env:
-          LANGFUSE_INIT_ORG_ID: "seed-org-id"
-          LANGFUSE_INIT_ORG_NAME: "Seed Org"
-          LANGFUSE_INIT_ORG_CLOUD_PLAN: "Team"
-          LANGFUSE_INIT_PROJECT_ID: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a"
-          LANGFUSE_INIT_PROJECT_NAME: "Seed Project"
-          LANGFUSE_INIT_PROJECT_PUBLIC_KEY: "pk-lf-1234567890"
-          LANGFUSE_INIT_PROJECT_SECRET_KEY: "sk-lf-1234567890"
-          LANGFUSE_INIT_USER_EMAIL: "demo@langfuse.com"
-          LANGFUSE_INIT_USER_NAME: "Demo User"
-          LANGFUSE_INIT_USER_PASSWORD: "password"
-      - name: run test-sync
-        working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects sync-server
-      - name: run test-client
-        working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
-
-  tests-web-async:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    needs:
-      - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
-    name: tests-web-async (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, shard${{ matrix.shard }}/3)
     strategy:
       matrix:
         node-version: [24]
@@ -295,6 +198,7 @@ jobs:
           cp .env.dev${{ matrix.deploy-mode }}.example .env
           grep -v -e '^LANGFUSE_S3_BATCH_EXPORT_ENABLED=' -e '^NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=' .env.dev${{ matrix.deploy-mode }}.example > .env
           echo "LANGFUSE_INGESTION_QUEUE_DELAY_MS=1" >> .env
+          echo "LANGFUSE_CACHE_PROMPT_ENABLED=false" >> .env
           echo "LANGFUSE_INGESTION_CLICKHOUSE_WRITE_INTERVAL_MS=1" >> .env
           echo "LANGFUSE_TRACE_DELETE_CONCURRENCY=100" >> .env
           echo "ADMIN_API_KEY=admin-api-key" >> .env
@@ -312,14 +216,15 @@ jobs:
           path: |
             ~/.npm
             ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-async-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
+          key: ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-async-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-async-${{ matrix.node-version }}-
+            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          sleep 5
+
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -360,7 +265,11 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects async-server --shard=${{ matrix.shard }}/3
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects server --shard=${{ matrix.shard }}/3
+      - name: run test-client
+        if: matrix.deploy-mode == '' && matrix.shard == 1
+        working-directory: web
+        run: npx cross-env NODE_OPTIONS='--no-experimental-require-module' npx dotenv -e ../.env.test -e ../.env -- npx jest --verbose --runInBand --detectOpenHandles --selectProjects client
 
   tests-worker:
     timeout-minutes: 20
@@ -407,7 +316,8 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          sleep 5
+
           docker compose ps
       - name: Ensure no unhealthy status
         run: |
@@ -420,7 +330,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
+          pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
       - name: Download and extract ClickHouse client for dev-tables setup
         if: matrix.deploy-mode == ''
@@ -479,7 +389,8 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          sleep 5
+
           docker compose ps
         env:
           POSTGRES_VERSION: 15
@@ -494,7 +405,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
+          pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
       - name: Build
         run: pnpm --filter=worker... run build
@@ -566,12 +477,13 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
+          sleep 5
+
           docker compose ps
-          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure Docker dependencies are healthy
         run: |
-          if docker-compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
+          if docker compose ps | grep "(unhealthy)"; then
+            echo "One or more services are unhealthy" 
             exit 1
           else
             echo "All services are healthy"
@@ -580,7 +492,7 @@ jobs:
         run: |
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
-          pnpm run db:seed
+          pnpm --filter=shared run db:seed
       - name: Build
         run: pnpm run build
         env:
@@ -625,11 +537,12 @@ jobs:
       - name: Run + migrate
         run: |
           docker compose -f docker-compose.dev.yml up -d
+          sleep 5
+
           docker compose ps
-          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure Docker dependencies are healthy
         run: |
-          if docker-compose ps | grep "(unhealthy)"; then
+          if docker compose ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"
             exit 1
           else
@@ -639,7 +552,7 @@ jobs:
         run: |
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
-          pnpm run db:seed:examples
+          pnpm --filter=shared run db:seed:examples
       - name: Build
         run: pnpm run build
         env:
@@ -658,17 +571,15 @@ jobs:
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: ubuntu-latest
-    needs:
-      [
+    needs: [
         lint,
         prettier-check,
-        tests-web-sync,
+        tests-web,
         tests-worker,
         test-worker-llm-connections,
         # e2e-tests, # Temporarily disabled - flaky timeouts
         test-docker-build,
         e2e-server-tests,
-        tests-web-async,
       ]
     if: always()
     outputs:

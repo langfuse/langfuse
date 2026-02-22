@@ -29,7 +29,7 @@ import {
   getSessionsTableCount,
   getSessionsTableFromEvents,
   getSessionsTableCountFromEvents,
-  getSessionsWithMetricsFromEvents,
+  getSessionMetricsFromEvents,
   getSessionTracesFromEvents,
   getObservationsWithModelDataFromEventsTable,
   getTracesGroupedByTags,
@@ -423,21 +423,15 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         sessionIds: z.array(z.string()),
+        queryFromTimestamp: z.date().nullish(),
       }),
     )
     .query(async ({ input, ctx }) => {
       if (input.sessionIds.length === 0) return [];
-      const finalFilter = await getPublicSessionsFilter(input.projectId, [
-        {
-          column: "id",
-          type: "stringOptions",
-          operator: "any of",
-          value: input.sessionIds,
-        },
-      ]);
-      const sessions = await getSessionsWithMetricsFromEvents({
+      const sessions = await getSessionMetricsFromEvents({
         projectId: input.projectId,
-        filter: finalFilter,
+        sessionIds: input.sessionIds,
+        queryFromTimestamp: input.queryFromTimestamp ?? undefined,
       });
 
       const prismaSessionInfo = await ctx.prisma.traceSession.findMany({
@@ -682,18 +676,9 @@ export const sessionRouter = createTRPCRouter({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
         }),
-        getSessionsWithMetricsFromEvents({
+        getSessionMetricsFromEvents({
           projectId: input.projectId,
-          filter: [
-            {
-              column: "id",
-              type: "stringOptions",
-              operator: "any of",
-              value: [input.sessionId],
-            },
-          ],
-          limit: 1,
-          page: 0,
+          sessionIds: [input.sessionId],
         }).then((rows) => rows[0]),
       ]);
 
