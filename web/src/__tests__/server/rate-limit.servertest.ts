@@ -3,77 +3,21 @@ import {
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
 import {
-  createNewRedisInstance,
-  safeMultiDel,
-  scanKeys,
-} from "@langfuse/shared/src/server";
+  clearRedisKeysByPatternSafely,
+  createRedisTestClient,
+  ensureRedisReady,
+  type RedisTestClient,
+} from "@/src/__tests__/server/redis-test-utils";
 
 describe("RateLimitService", () => {
-  type RedisClient = NonNullable<ReturnType<typeof createNewRedisInstance>>;
   const orgId = "seed-org-id";
-  let redis: RedisClient;
+  let redis: RedisTestClient;
 
-  const createRedisClient = (): RedisClient => {
-    const client = createNewRedisInstance({
+  const createRedisClient = (): RedisTestClient => {
+    return createRedisTestClient({
       maxRetriesPerRequest: null,
       enableAutoPipelining: false, // Align with our settings overwrite for rate limit service
     });
-
-    if (!client) {
-      throw new Error("Failed to initialize Redis client for tests.");
-    }
-
-    return client;
-  };
-
-  const sleep = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
-
-  const isConnectionClosedError = (error: unknown): boolean =>
-    error instanceof Error && error.message.includes("Connection is closed");
-
-  const ensureRedisReady = async (redisClient: RedisClient): Promise<void> => {
-    let lastError: unknown = null;
-
-    for (let attempt = 0; attempt < 20; attempt++) {
-      try {
-        await redisClient.ping();
-        return;
-      } catch (error) {
-        lastError = error;
-        if (isConnectionClosedError(error)) {
-          try {
-            await redisClient.connect();
-          } catch {
-            // Ignore reconnect errors and retry ping.
-          }
-        }
-        await sleep(250);
-      }
-    }
-
-    throw lastError ?? new Error("Redis client not ready");
-  };
-
-  const getRateLimitKeys = async (redisClient: RedisClient) => {
-    return await scanKeys(redisClient, "rate-limit*");
-  };
-
-  const clearRateLimitKeys = async (redisClient: RedisClient) => {
-    const keys = await getRateLimitKeys(redisClient);
-    if (keys.length > 0) {
-      await safeMultiDel(redisClient, keys);
-    }
-  };
-
-  const clearRateLimitKeysSafely = async (redisClient: RedisClient) => {
-    try {
-      await clearRateLimitKeys(redisClient);
-    } catch (error) {
-      if (!isConnectionClosedError(error)) {
-        throw error;
-      }
-    }
   };
 
   beforeAll(async () => {
@@ -88,15 +32,15 @@ describe("RateLimitService", () => {
       redis = createRedisClient();
     }
     await ensureRedisReady(redis);
-    await clearRateLimitKeysSafely(redis);
+    await clearRedisKeysByPatternSafely(redis, "rate-limit*");
   }, 20_000);
 
   afterEach(async () => {
-    await clearRateLimitKeysSafely(redis);
+    await clearRedisKeysByPatternSafely(redis, "rate-limit*");
   }, 20_000);
 
   afterAll(async () => {
-    await clearRateLimitKeysSafely(redis);
+    await clearRedisKeysByPatternSafely(redis, "rate-limit*");
     redis.disconnect();
     RateLimitService.shutdown();
   }, 20_000);
