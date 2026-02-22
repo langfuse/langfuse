@@ -553,7 +553,7 @@ describe("/api/public/observations API Endpoint", () => {
   };
 
   // Run tests with both implementations
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
@@ -885,7 +885,7 @@ describe("/api/public/observations API Endpoint", () => {
     };
 
     // Run all advanced filtering tests for both implementations
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
       runAdvancedFilterTestSuite(true); // with events table
     }
     runAdvancedFilterTestSuite(false); // with observations table
@@ -1221,7 +1221,7 @@ describe("/api/public/observations API Endpoint", () => {
     };
 
     // Run parentObservationId filter tests for both implementations
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
       runParentObservationIdFilterTestSuite(true); // with events table
     }
     runParentObservationIdFilterTestSuite(false); // with observations table
