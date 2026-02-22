@@ -21,9 +21,17 @@ import { redis } from "@langfuse/shared/src/server";
 
 describe("Media Upload API", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const staticFixtureDir = path.join(__dirname, "..", "static");
+  const isAzureBlobMode =
+    process.env.LANGFUSE_USE_AZURE_BLOB === "true" ||
+    env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID === "devstoreaccount1" ||
+    env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT?.includes(":10000/") === true;
+  const describeIfNotAzureBlobStorage = isAzureBlobMode
+    ? describe.skip
+    : describe;
 
   // Read the image file once and reuse it for all tests
-  const imagePathPNG = path.join(__dirname, "static/langfuse-logo.png");
+  const imagePathPNG = path.join(staticFixtureDir, "langfuse-logo.png");
   const fileBytesPNG = fs.readFileSync(imagePathPNG);
   const contentTypePNG = "image/png";
   const contentLengthPNG = fileBytesPNG.length;
@@ -40,7 +48,7 @@ describe("Media Upload API", () => {
   };
 
   // Read the PDF file once and reuse it for all tests
-  const imagePathPDF = path.join(__dirname, "static/bitcoin.pdf");
+  const imagePathPDF = path.join(staticFixtureDir, "bitcoin.pdf");
   const fileBytesPDF = fs.readFileSync(imagePathPDF);
   const contentTypePDF = "application/pdf";
   const contentLengthPDF = fileBytesPDF.length;
@@ -231,7 +239,7 @@ describe("Media Upload API", () => {
     }
   });
 
-  describe("End-to-end tests", () => {
+  describeIfNotAzureBlobStorage("End-to-end tests", () => {
     it("should upload and retrieve a PNG media asset for trace input", async () => {
       const traceId = "test";
       const field = "input";
@@ -810,7 +818,7 @@ describe("Media Upload API", () => {
     }, 10_000);
   });
 
-  describe("Upload Integrity", () => {
+  describeIfNotAzureBlobStorage("Upload Integrity", () => {
     it("should detect SHA-256 hash mismatch during upload", async () => {
       const traceId = "test";
       const field = "input";
