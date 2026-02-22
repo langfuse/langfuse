@@ -26,10 +26,9 @@ describe("Media Upload API", () => {
     process.env.LANGFUSE_USE_AZURE_BLOB === "true" ||
     env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID === "devstoreaccount1" ||
     env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT?.includes(":10000/") === true;
-  const supportsS3ChecksumE2E = !isAzureBlobMode;
-  const describeWithS3ChecksumE2E = supportsS3ChecksumE2E
-    ? describe
-    : describe.skip;
+  const describeIfNotAzureBlobStorage = isAzureBlobMode
+    ? describe.skip
+    : describe;
 
   // Read the image file once and reuse it for all tests
   const imagePathPNG = path.join(staticFixtureDir, "langfuse-logo.png");
@@ -240,7 +239,7 @@ describe("Media Upload API", () => {
     }
   });
 
-  describeWithS3ChecksumE2E("End-to-end tests", () => {
+  describeIfNotAzureBlobStorage("End-to-end tests", () => {
     it("should upload and retrieve a PNG media asset for trace input", async () => {
       const traceId = "test";
       const field = "input";
@@ -819,7 +818,7 @@ describe("Media Upload API", () => {
     }, 10_000);
   });
 
-  describeWithS3ChecksumE2E("Upload Integrity", () => {
+  describeIfNotAzureBlobStorage("Upload Integrity", () => {
     it("should detect SHA-256 hash mismatch during upload", async () => {
       const traceId = "test";
       const field = "input";
