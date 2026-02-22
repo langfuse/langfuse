@@ -778,7 +778,7 @@ describe("Ingestion end-to-end tests", () => {
       ],
     },
     {
-      observationExternalModel: "GPT-4",
+      observationExternalModel: "lf-unmatched-model-for-token-test",
       observationStartTime: new Date("2021-01-01T00:00:00.000Z"),
       modelUnit: ModelUsageUnit.Tokens,
       expectedInternalModelId: null,
@@ -834,6 +834,7 @@ describe("Ingestion end-to-end tests", () => {
           prisma.model.create({
             data: {
               id: getModelId(model.id),
+              projectId,
               modelName: model.modelName,
               matchPattern: model.matchPattern,
               startDate: model.startDate,
@@ -1425,6 +1426,7 @@ describe("Ingestion end-to-end tests", () => {
     await prisma.model.create({
       data: {
         id: modelId,
+        projectId,
         modelName: "gpt-4o-mini-2024-07-18",
         matchPattern: "(?i)^(gpt-4o-mini-2024-07-18)$",
         startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -1562,6 +1564,7 @@ describe("Ingestion end-to-end tests", () => {
     await prisma.model.create({
       data: {
         id: modelId,
+        projectId,
         modelName: "gpt-4o-mini-2024-07-18",
         matchPattern: "(?i)^(gpt-4o-mini-2024-07-18)$",
         startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -1937,6 +1940,7 @@ describe("Ingestion end-to-end tests", () => {
 
     await prisma.model.create({
       data: {
+        projectId,
         modelName: "gpt-3.5",
         matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
         startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -2042,6 +2046,7 @@ describe("Ingestion end-to-end tests", () => {
 
     await prisma.model.create({
       data: {
+        projectId,
         modelName: "gpt-3.5",
         matchPattern: "(?i)^(gpt-)(35|3.5)(-turbo)?$",
         startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -2331,6 +2336,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
           startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -2470,6 +2476,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
           startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -2609,6 +2616,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
           startDate: new Date("2021-01-01T00:00:00.000Z"),
@@ -2728,6 +2736,7 @@ describe("Ingestion end-to-end tests", () => {
       await prisma.model.create({
         data: {
           id: modelId,
+          projectId,
           modelName,
           matchPattern: `(?i)^(${modelName})$`,
           startDate: new Date("2021-01-01T00:00:00.000Z"),
