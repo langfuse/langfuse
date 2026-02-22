@@ -140,8 +140,7 @@ jobs:
         run: |
           docker compose --progress plain --verbose -f docker-compose.build.yml build --print > /tmp/bake.json
           docker buildx bake -f /tmp/bake.json
-          docker compose --progress plain -f docker-compose.build.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose --progress plain -f docker-compose.build.yml up -d --wait --wait-timeout 120
       - name: Ensure no unhealthy status
         run: |
           if docker compose ps | grep "(unhealthy)"; then
@@ -219,8 +218,8 @@ jobs:
             ${{ runner.os }}-nextjs-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
+          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -330,8 +329,8 @@ jobs:
             ${{ runner.os }}-nextjs-async-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 120
+          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -418,8 +417,8 @@ jobs:
           cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 120
+          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
           docker compose ps
       - name: Ensure no unhealthy status
         run: |
@@ -432,7 +431,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
+          pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
       - name: Download and extract ClickHouse client for dev-tables setup
         if: matrix.deploy-mode == ''
@@ -490,8 +489,8 @@ jobs:
           cp .env.dev.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
-          sleep 5 # Wait for PostgreSQL to accept connections
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
+          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
           docker compose ps
         env:
           POSTGRES_VERSION: 15
@@ -506,7 +505,7 @@ jobs:
       - name: Seed DB
         run: |
           pnpm run db:migrate
-          pnpm run db:seed
+          pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
       - name: Build
         run: pnpm --filter=worker... run build
@@ -577,9 +576,9 @@ jobs:
           which migrate
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
+          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
           docker compose ps
-          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure Docker dependencies are healthy
         run: |
           if docker compose ps | grep "(unhealthy)"; then
@@ -592,7 +591,7 @@ jobs:
         run: |
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
-          pnpm run db:seed
+          pnpm --filter=shared run db:seed
       - name: Build
         run: pnpm run build
         env:
@@ -636,9 +635,9 @@ jobs:
           cp .env.dev.example .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
+          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
           docker compose ps
-          sleep 5 # Wait for PostgreSQL to accept connections
       - name: Ensure Docker dependencies are healthy
         run: |
           if docker compose ps | grep "(unhealthy)"; then
@@ -651,7 +650,7 @@ jobs:
         run: |
           pnpm run db:migrate
           pnpm --filter=shared run ch:up
-          pnpm run db:seed:examples
+          pnpm --filter=shared run db:seed:examples
       - name: Build
         run: pnpm run build
         env:
