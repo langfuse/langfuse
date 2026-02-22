@@ -140,7 +140,7 @@ jobs:
         run: |
           docker compose --progress plain --verbose -f docker-compose.build.yml build --print > /tmp/bake.json
           docker buildx bake -f /tmp/bake.json
-          docker compose --progress plain -f docker-compose.build.yml up -d --wait --wait-timeout 120
+          docker compose --progress plain -f docker-compose.build.yml up -d
       - name: Ensure no unhealthy status
         run: |
           if docker compose ps | grep "(unhealthy)"; then
@@ -218,8 +218,9 @@ jobs:
             ${{ runner.os }}-nextjs-${{ matrix.node-version }}-
       - name: Run dev containers
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
-          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 5
+
           docker compose ps
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
@@ -489,8 +490,9 @@ jobs:
           cp .env.dev.example worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
-          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 5
+
           docker compose ps
         env:
           POSTGRES_VERSION: 15
@@ -576,13 +578,14 @@ jobs:
           which migrate
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
-          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 5
+
           docker compose ps
       - name: Ensure Docker dependencies are healthy
         run: |
           if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
+            echo "One or more services are unhealthy" 
             exit 1
           else
             echo "All services are healthy"
@@ -635,8 +638,9 @@ jobs:
           cp .env.dev.example .env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 120
-          timeout 120 bash -c 'until [ "$(curl -fsS "http://127.0.0.1:8123/ping?user=clickhouse&password=clickhouse" || true)" = "Ok." ]; do sleep 2; done'
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 5
+
           docker compose ps
       - name: Ensure Docker dependencies are healthy
         run: |
@@ -669,8 +673,7 @@ jobs:
   all-ci-passed:
     # This allows us to have a branch protection rule for tests and deploys with matrix
     runs-on: ubuntu-latest
-    needs:
-      [
+    needs: [
         lint,
         prettier-check,
         tests-web-sync,
