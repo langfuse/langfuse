@@ -12,7 +12,7 @@ jest.mock("next/router", () => ({
   }),
 }));
 
-jest.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+jest.mock("../../features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => jest.fn(),
 }));
 

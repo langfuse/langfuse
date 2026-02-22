@@ -17,12 +17,10 @@ const IOTableCellContent = ({
   data,
   singleLine,
   className,
-  jsonCodeClassName,
 }: {
   data: unknown;
   singleLine: boolean;
   className?: string;
-  jsonCodeClassName?: string;
 }) => {
   const stringifiedJson =
     data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
@@ -30,8 +28,7 @@ const IOTableCellContent = ({
   // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
-  const resolvedCodeClassName =
-    jsonCodeClassName ?? "py-1 px-2 min-h-0 h-full overflow-y-auto";
+  const jsonCodeContainerClassName = "px-2 min-h-0 h-full overflow-y-auto";
 
   return singleLine ? (
     <div
@@ -53,7 +50,7 @@ const IOTableCellContent = ({
           true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
         className={cn("h-full w-full self-stretch", className)}
-        codeClassName={resolvedCodeClassName}
+        codeClassName={jsonCodeContainerClassName}
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
       />
@@ -67,7 +64,7 @@ const IOTableCellContent = ({
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
       className={cn("h-full w-full self-stretch", className)}
-      codeClassName={resolvedCodeClassName}
+      codeClassName={jsonCodeContainerClassName}
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
       borderless
     />
@@ -78,23 +75,18 @@ export const IOTableCell = ({
   data,
   isLoading = false,
   className,
-  jsonCodeClassName,
   singleLine = false,
   enableExpandOnHover = false,
 }: {
   data: unknown;
   isLoading?: boolean;
   className?: string;
-  jsonCodeClassName?: string;
   singleLine?: boolean;
   enableExpandOnHover?: boolean;
 }) => {
   if (isLoading) {
     return (
-      <JsonSkeleton
-        borderless
-        className="h-full w-full overflow-hidden px-2 py-1"
-      />
+      <JsonSkeleton borderless className="h-full w-full overflow-hidden px-2" />
     );
   }
 
@@ -104,7 +96,6 @@ export const IOTableCell = ({
         data={data}
         singleLine={singleLine}
         className={className}
-        jsonCodeClassName={jsonCodeClassName}
       />
     );
   }
@@ -117,7 +108,6 @@ export const IOTableCell = ({
             data={data}
             singleLine={singleLine}
             className={className}
-            jsonCodeClassName={jsonCodeClassName}
           />
         </div>
       </HoverCardTrigger>
