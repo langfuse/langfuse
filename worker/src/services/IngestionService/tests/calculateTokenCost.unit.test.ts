@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Price } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 import { IngestionService } from "../../IngestionService";
 import * as clickhouseWriteExports from "../../ClickhouseWriter";
@@ -72,7 +73,7 @@ describe("Token Cost Calculation", () => {
     modelName = `gpt-test-${uuidv4()}`;
     modelId = uuidv4();
     generationId = uuidv4();
-    projectId = uuidv4();
+    ({ projectId } = await createOrgProjectAndApiKey());
     const matchPattern = `(?i)^(${modelName})$`;
     tokenModelData = {
       id: modelId,

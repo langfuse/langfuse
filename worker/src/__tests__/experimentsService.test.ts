@@ -4,7 +4,11 @@ import { randomUUID } from "crypto";
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { createExperimentJobClickhouse } from "../features/experiments/experimentServiceClickhouse";
-import { createDatasetItem, logger } from "@langfuse/shared/src/server";
+import {
+  createDatasetItem,
+  createOrgProjectAndApiKey,
+  logger,
+} from "@langfuse/shared/src/server";
 
 // Mock the logger to capture log calls
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -32,7 +36,7 @@ describe("create experiment jobs", () => {
     vi.restoreAllMocks();
   });
   test("processes valid experiment without throwing", async () => {
-    const projectId = randomUUID();
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = randomUUID();
@@ -114,7 +118,7 @@ describe("create experiment jobs", () => {
   });
 
   test("handles experiment validation failure (missing prompt_id) without throwing", async () => {
-    const projectId = randomUUID();
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
 
@@ -168,7 +172,7 @@ describe("create experiment jobs", () => {
   });
 
   test("handles prompt with variables without throwing", async () => {
-    const projectId = randomUUID();
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = randomUUID();
@@ -243,7 +247,7 @@ describe("create experiment jobs", () => {
   });
 
   test("handles mismatched dataset variables without throwing", async () => {
-    const projectId = randomUUID();
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = randomUUID();
@@ -326,7 +330,7 @@ describe("create experiment jobs with placeholders", () => {
     promptConfig: any,
     datasetItemInput: any,
   ) => {
-    const projectId = randomUUID();
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = randomUUID();
@@ -475,7 +479,7 @@ describe("experiment processing integration", () => {
   });
 
   test("processes experiment end-to-end without throwing", async () => {
-    const projectId = randomUUID();
+    const { projectId } = await createOrgProjectAndApiKey();
     const datasetId = randomUUID();
     const runId = randomUUID();
     const promptId = randomUUID();

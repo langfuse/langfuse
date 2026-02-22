@@ -14,6 +14,7 @@ import {
   TraceEventType,
   traceRecordReadSchema,
   TraceRecordReadType,
+  createOrgProjectAndApiKey,
   createIngestionEventSchema,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
@@ -23,7 +24,7 @@ import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
 import { Cluster } from "ioredis";
 import { env } from "../../../env";
 
-let projectId = randomUUID();
+let projectId = "";
 const environment = "default";
 
 describe("Ingestion end-to-end tests", () => {
@@ -33,7 +34,7 @@ describe("Ingestion end-to-end tests", () => {
 
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
-    projectId = randomUUID();
+    ({ projectId } = await createOrgProjectAndApiKey());
 
     if (redis instanceof Cluster) {
       await Promise.all(redis.nodes("master").map((node) => node.flushall()));
@@ -926,9 +927,7 @@ describe("Ingestion end-to-end tests", () => {
         testConfig.expectedInternalModelId === null
           ? null
           : getModelId(testConfig.expectedInternalModelId);
-      expect(generation.internal_model_id).toBe(
-        expectedModelId,
-      );
+      expect(generation.internal_model_id).toBe(expectedModelId);
     });
   });
 
