@@ -21,7 +21,9 @@ describe("RBAC access checks", () => {
     );
 
     expect(
-      hasOrganizationAccess(params as Parameters<typeof hasOrganizationAccess>[0]),
+      hasOrganizationAccess(
+        params as Parameters<typeof hasOrganizationAccess>[0],
+      ),
     ).toBe(false);
   });
 

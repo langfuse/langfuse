@@ -57,12 +57,11 @@ export function hasProjectAccess(p: HasProjectAccessParams): boolean {
   const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
   if (isAdmin) return true;
 
-  const projectRole: Role | undefined =
-    hasOwnRole(p)
-      ? p.role
-      : p.session?.user?.organizations
-          .flatMap((org) => org.projects)
-          .find((project) => project.id === p.projectId)?.role;
+  const projectRole: Role | undefined = hasOwnRole(p)
+    ? p.role
+    : p.session?.user?.organizations
+        .flatMap((org) => org.projects)
+        .find((project) => project.id === p.projectId)?.role;
   if (projectRole === undefined) return false;
 
   return projectRoleAccessRights[projectRole].includes(p.scope);
