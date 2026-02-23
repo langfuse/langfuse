@@ -1217,6 +1217,9 @@ export class OtelIngestionProcessor {
       // SmolAgents
       "input.value",
       "output.value",
+      // Pydantic AI agent/root span
+      "final_result",
+      "pydantic_ai.all_messages",
       // Pydantic and Pipecat
       "input",
       "output",
@@ -1495,6 +1498,15 @@ export class OtelIngestionProcessor {
     output = attributes["output"];
     if (input || output) {
       return { input, output, filteredAttributes };
+    }
+
+    // Pydantic AI agent/root span: all_messages → input, final_result → output
+    if (instrumentationScopeName === "pydantic-ai") {
+      input = attributes["pydantic_ai.all_messages"] ?? null;
+      output = attributes["final_result"] ?? null;
+      if (input || output) {
+        return { input, output, filteredAttributes };
+      }
     }
 
     // Pydantic-AI uses tool_arguments and tool_response for tool call input/output
