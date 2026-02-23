@@ -79,9 +79,12 @@ export function DataTableSkeletonLoadingRows<TData extends object>({
               >
                 <div
                   className={cn(
-                    "flex",
-                    isSmallRowHeight ? "items-center" : "items-start",
-                    !isSmallRowHeight && "py-1",
+                    "flex py-1",
+                    isSmallRowHeight
+                      ? isIOColumn
+                        ? "items-start"
+                        : "items-center"
+                      : "items-start",
                     rowheighttw,
                   )}
                 >

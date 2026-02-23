@@ -324,7 +324,7 @@ export const JsonSkeleton = ({
   return (
     <div
       className={cn(
-        "w-[400px] rounded-md",
+        "mt-1 w-[400px] rounded-md",
         borderless ? "" : "border",
         className,
       )}
