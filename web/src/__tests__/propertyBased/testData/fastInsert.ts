@@ -28,6 +28,7 @@ interface GeneratedObservation {
   traceId: string;
   type: "SPAN" | "GENERATION" | "EVENT";
   name: string;
+  version: string;
   providedModelName: string;
   startTime: number;
   endTime: number;
@@ -91,6 +92,7 @@ export const insertTestData = async (
       trace_id: o.traceId,
       type: o.type,
       name: o.name,
+      version: o.version,
       environment:
         traces.find((t) => t.id === o.traceId)?.environment ?? "default",
       start_time: o.startTime,
@@ -166,7 +168,7 @@ export const insertTestData = async (
       session_id: trace?.sessionId ?? "",
       tags: trace?.tags ?? [],
       release: trace?.release ?? "",
-      version: trace?.version ?? "",
+      version: o.version || trace?.version || "",
       trace_name: trace?.name ?? "",
       usage_details: {
         input: o.inputTokens,
