@@ -123,6 +123,8 @@ const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
   "on_enter",
   "llm_fallback_adapter",
   "tts_fallback_adapter",
+  "start_agent_activity",
+  "on_enter",
 ]);
 
 export class OtelIngestionProcessor {
