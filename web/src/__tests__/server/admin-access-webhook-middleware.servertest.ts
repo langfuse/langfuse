@@ -2,6 +2,7 @@
 
 import type { Session } from "next-auth";
 import * as z from "zod/v4";
+import { env } from "@/src/env.mjs";
 
 jest.mock("@langfuse/shared/src/server", () => {
   const originalModule = jest.requireActual("@langfuse/shared/src/server");
@@ -18,7 +19,7 @@ import {
   protectedGetTraceProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
-import * as adminAccessWebhookModule from "@/src/server/adminAccessWebhook";
+import { resetAdminAccessWebhookCacheForTests } from "@/src/server/adminAccessWebhook";
 import { getTraceById } from "@langfuse/shared/src/server";
 
 const middlewareTestRouter = createTRPCRouter({
@@ -103,17 +104,20 @@ const createTestCaller = (params: {
 };
 
 describe("admin access webhook in tRPC authorization middleware", () => {
-  let mockSendAdminAccessWebhook: jest.SpiedFunction<
-    typeof adminAccessWebhookModule.sendAdminAccessWebhook
-  >;
   const mockGetTraceById = jest.mocked(getTraceById);
+  const originalWebhook = env.LANGFUSE_ADMIN_ACCESS_WEBHOOK;
+  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  beforeAll(() => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = "https://example.com/hook";
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+  });
 
   beforeEach(() => {
+    resetAdminAccessWebhookCacheForTests();
     jest.restoreAllMocks();
     jest.clearAllMocks();
-    mockSendAdminAccessWebhook = jest
-      .spyOn(adminAccessWebhookModule, "sendAdminAccessWebhook")
-      .mockResolvedValue(undefined);
+    jest.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
     mockGetTraceById.mockResolvedValue({
       id: "trace-id",
       input: "{}",
@@ -121,6 +125,11 @@ describe("admin access webhook in tRPC authorization middleware", () => {
       public: false,
       sessionId: null,
     } as any);
+  });
+
+  afterAll(() => {
+    (env as any).LANGFUSE_ADMIN_ACCESS_WEBHOOK = originalWebhook;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
   });
 
   it("sends webhook when admin accesses a project they are not a member of", async () => {
@@ -142,10 +151,14 @@ describe("admin access webhook in tRPC authorization middleware", () => {
         deletedAt: null,
       },
     });
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
+    const fetchSpy = jest.mocked(globalThis.fetch);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload).toMatchObject({
       email: "admin@langfuse.com",
-      projectId,
-      orgId,
+      project: projectId,
+      org: orgId,
     });
   });
 
@@ -160,9 +173,14 @@ describe("admin access webhook in tRPC authorization middleware", () => {
       projectId,
     });
 
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
+    const fetchSpy = jest.mocked(globalThis.fetch);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload).toMatchObject({
       email: "admin@langfuse.com",
-      projectId,
+      project: projectId,
+      org: null,
     });
   });
 
@@ -187,9 +205,14 @@ describe("admin access webhook in tRPC authorization middleware", () => {
         public: true,
       },
     });
-    expect(mockSendAdminAccessWebhook).toHaveBeenCalledWith({
+    const fetchSpy = jest.mocked(globalThis.fetch);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload).toMatchObject({
       email: "admin@langfuse.com",
-      projectId,
+      project: projectId,
+      org: null,
     });
   });
 });
