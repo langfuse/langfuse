@@ -208,7 +208,7 @@ const ObservationsPreview = memo(
     projectId: string;
     filterState: z.infer<typeof singleFilter>[];
   }) => {
-    const isv4Enabled = useV4Beta();
+    const { isBetaEnabled } = useV4Beta();
 
     const dateRange = useMemo(() => {
       return {
@@ -228,7 +228,7 @@ const ObservationsPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-b border-l border-r">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            {isv4Enabled ? (
+            {isBetaEnabled ? (
               <EventsTable
                 projectId={projectId}
                 hideControls
