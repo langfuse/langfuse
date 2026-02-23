@@ -14,13 +14,16 @@ import {
   TrashIcon,
   CopyIcon,
   GripVerticalIcon,
-  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
 import { formatMetricName } from "@/src/features/widgets/utils";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type ViewVersion } from "@/src/features/query";
 
 export interface WidgetPlacement {
   id: string;
@@ -51,6 +54,8 @@ export function DashboardWidget({
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const { isBetaEnabled } = useV4Beta();
+  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -94,6 +99,7 @@ export function DashboardWidget({
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
+      version: metricsVersion,
       query: {
         view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
         dimensions: widget.data?.dimensions ?? [],
@@ -134,9 +140,17 @@ export function DashboardWidget({
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !widget.isPending && Boolean(widget.data),
     },
   );
+
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: queryResult.isPending,
+    isError: queryResult.isError,
+  });
 
   const transformedData = useMemo(() => {
     if (!widget.data || !queryResult.data) {
@@ -287,22 +301,14 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          {/* Download button or loading indicator - always available */}
-          {queryResult.isPending ? (
-            <div
-              className="text-muted-foreground"
-              aria-label="Loading chart data"
-              title="Loading..."
-            >
-              <Loader2 size={16} className="animate-spin" />
-            </div>
-          ) : (
+          {/* Download button is available once chart data has loaded */}
+          {!queryResult.isPending ? (
             <DownloadButton
               data={transformedData}
               fileName={widget.data.name}
               className="hidden group-hover:block"
             />
-          )}
+          ) : null}
         </div>
       </div>
       <div
@@ -311,7 +317,7 @@ export function DashboardWidget({
       >
         {widget.data.description}
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1">
         <Chart
           chartType={widget.data.chartType}
           data={transformedData}
@@ -339,6 +345,14 @@ export function DashboardWidget({
             widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
           }
           isLoading={queryResult.isPending}
+        />
+        <ChartLoadingState
+          isLoading={chartLoadingState.isLoading}
+          showSpinner={chartLoadingState.showSpinner}
+          showHintImmediately={chartLoadingState.showHintImmediately}
+          hintText={chartLoadingState.hintText}
+          className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+          hintClassName="max-w-sm px-4"
         />
       </div>
     </div>
