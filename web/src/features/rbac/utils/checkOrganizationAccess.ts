@@ -19,11 +19,6 @@ type HasOrganizationAccessParams =
       scope: OrganizationScope;
     };
 
-const hasOwnRole = (
-  p: HasOrganizationAccessParams,
-): p is Extract<HasOrganizationAccessParams, { role: Role }> =>
-  Object.prototype.hasOwnProperty.call(p, "role");
-
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
  * @throws TRPCError("FORBIDDEN") if user does not have access
@@ -60,22 +55,19 @@ export const useHasOrganizationAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasOrganizationAccess(p: HasOrganizationAccessParams): boolean {
-  if (hasOwnRole(p)) {
-    if (p.admin) return true;
-    const organizationRole = p.role;
-    return (
-      organizationRoleAccessRights[organizationRole]?.includes(p.scope) ?? false
-    );
-  }
+  const isAdmin =
+    "role" in p && Object.prototype.hasOwnProperty.call(p, "role")
+      ? p.admin
+      : p.session?.user?.admin;
+  if (isAdmin) return true;
 
-  if (p.session?.user?.admin) return true;
-
-  const organizationRole = p.session?.user?.organizations.find(
-    (org) => org.id === p.organizationId,
-  )?.role;
+  const organizationRole: Role | undefined =
+    "role" in p && Object.prototype.hasOwnProperty.call(p, "role")
+      ? p.role
+      : p.session?.user?.organizations.find(
+          (org) => org.id === p.organizationId,
+        )?.role;
   if (organizationRole === undefined) return false;
 
-  return (
-    organizationRoleAccessRights[organizationRole]?.includes(p.scope) ?? false
-  );
+  return organizationRoleAccessRights[organizationRole].includes(p.scope);
 }
