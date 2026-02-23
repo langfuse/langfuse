@@ -322,12 +322,21 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
+      const scoredTracesScope =
+        "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
+
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
           getScoreNames(input.projectId, timestampFilter ?? []),
-          getEventsGroupedByTraceTags(input.projectId, eventsFilter),
-          getEventsGroupedByTraceName(input.projectId, eventsFilter),
-          getEventsGroupedByUserId(input.projectId, eventsFilter),
+          getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
+          getEventsGroupedByTraceName(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
+          getEventsGroupedByUserId(input.projectId, eventsFilter, {
+            extraWhereRaw: scoredTracesScope,
+          }),
           getScoreStringValues(input.projectId, timestampFilter ?? []),
         ]);
 

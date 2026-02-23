@@ -1655,6 +1655,7 @@ export const getEventsGroupedByName = async (
 export const getEventsGroupedByTraceName = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1671,6 +1672,8 @@ export const getEventsGroupedByTraceName = async (
     .whereRaw("e.trace_name IS NOT NULL AND length(e.trace_name) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
+
+  if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1701,6 +1704,7 @@ export const getEventsGroupedByTraceName = async (
 export const getEventsGroupedByTraceTags = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1713,6 +1717,8 @@ export const getEventsGroupedByTraceTags = async (
     .where(appliedEventsFilter)
     .whereRaw("e.is_deleted = 0")
     .whereRaw("notEmpty(e.tags)");
+
+  if (opts?.extraWhereRaw) filteredEventsBuilder.whereRaw(opts.extraWhereRaw);
 
   const { query: filteredEventsQuery, params: filteredEventsParams } =
     filteredEventsBuilder.buildWithParams();
@@ -1836,6 +1842,7 @@ export const getEventsGroupedByType = async (
 export const getEventsGroupedByUserId = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1854,6 +1861,8 @@ export const getEventsGroupedByUserId = async (
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
+
+  if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
 
   const { query, params } = queryBuilder.buildWithParams();
 
