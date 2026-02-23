@@ -8,7 +8,7 @@ import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { User } from "next-auth";
-import { Flag } from "@/src/features/feature-flags/types";
+import type { Flag } from "@/src/features/feature-flags/types";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization = User["organizations"][number] | null | undefined;
