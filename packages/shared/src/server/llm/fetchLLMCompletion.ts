@@ -66,12 +66,10 @@ const transformSystemMessageToUserMessage = (
   return [new HumanMessage(safeContent)];
 };
 
-const googleProviderOptionsSchema = z
-  .object({
-    thinkingBudget: z.number().optional(),
-    thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
-  })
-  .default({});
+const googleProviderOptionsSchema = z.object({
+  thinkingBudget: z.number().optional(),
+  thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
+});
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -400,7 +398,7 @@ export async function fetchLLMCompletion(
       ...(modelParams.maxReasoningTokens !== undefined && {
         maxReasoningTokens: modelParams.maxReasoningTokens,
       }),
-      ...(googleProviderOptions as any), // Typecast as thinkingLevel is intentionally looser typed
+      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     const googleProviderOptions = googleProviderOptionsSchema.parse(
@@ -416,7 +414,11 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
+      ...(googleProviderOptions
+        ? {
+            thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
+          }
+        : {}),
     });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
