@@ -303,6 +303,8 @@ export const handleEventPropagationJob = async (
         request_timeout: 600000, // 10 minutes timeout
       },
       clickhouseSettings: {
+        parallel_view_processing: 1,
+        max_insert_threads: "8",
         type_json_skip_duplicated_paths: true,
       },
     });
