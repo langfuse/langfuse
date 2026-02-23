@@ -30,6 +30,7 @@ import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
   eventsSessionsAggregation,
+  eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -1654,6 +1655,7 @@ export const getEventsGroupedByName = async (
 export const getEventsGroupedByTraceName = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1670,6 +1672,8 @@ export const getEventsGroupedByTraceName = async (
     .whereRaw("e.trace_name IS NOT NULL AND length(e.trace_name) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
+
+  if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1690,14 +1694,17 @@ export const getEventsGroupedByTraceName = async (
  * Get grouped trace tags from events table
  * Used for filter options
  *
- * NOTE: Uses raw SQL instead of EventsAggQueryBuilder because:
+ * NOTE:
  * - arrayJoin() explodes arrays into rows, requiring DISTINCT (not GROUP BY)
  * - EventsAggQueryBuilder always emits GROUP BY, which changes semantics
  * - We want unique tag values, not tag occurrence counts
+ * We therefore compose a row-level events query via EventsQueryBuilder and
+ * run arrayJoin() in an outer CTE query.
  */
 export const getEventsGroupedByTraceTags = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1705,21 +1712,34 @@ export const getEventsGroupedByTraceTags = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const query = `
-    SELECT DISTINCT arrayJoin(e.tags) as tag
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-    AND e.is_deleted = 0
-    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
-    AND notEmpty(e.tags)
-    ORDER BY tag ASC
-    LIMIT 1000
-  `;
+  const filteredEventsBuilder = new EventsQueryBuilder({ projectId })
+    .selectRaw("e.tags AS tags")
+    .where(appliedEventsFilter)
+    .whereRaw("e.is_deleted = 0")
+    .whereRaw("notEmpty(e.tags)");
+
+  if (opts?.extraWhereRaw) filteredEventsBuilder.whereRaw(opts.extraWhereRaw);
+
+  const { query: filteredEventsQuery, params: filteredEventsParams } =
+    filteredEventsBuilder.buildWithParams();
+
+  const tagsQueryBuilder = new CTEQueryBuilder()
+    .withCTE("filtered_events", {
+      query: filteredEventsQuery,
+      params: filteredEventsParams,
+      schema: ["tags"],
+    })
+    .from("filtered_events", "fe")
+    .select("DISTINCT arrayJoin(fe.tags) AS tag")
+    .orderBy("ORDER BY tag ASC")
+    .limit(1000, 0);
+
+  const { query, params } = tagsQueryBuilder.buildWithParams();
 
   return measureAndReturn({
     operationName: "getEventsGroupedByTraceTags",
     projectId,
-    input: { params: { projectId, ...appliedEventsFilter.params } },
+    input: { params },
     fn: async (input) => {
       return queryClickhouse<{ tag: string }>({
         query,
@@ -1822,6 +1842,7 @@ export const getEventsGroupedByType = async (
 export const getEventsGroupedByUserId = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1840,6 +1861,8 @@ export const getEventsGroupedByUserId = async (
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
+
+  if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -2992,6 +3015,48 @@ export const hasAnySessionFromEventsTable = async (
   });
 
   return rows.length > 0;
+};
+
+/**
+ * Fetch trace metadata (name, user_id, tags) for a list of trace IDs.
+ * Used by the scores table to enrich score rows with trace-level data.
+ */
+export const getTraceMetadataByIdsFromEvents = async (props: {
+  projectId: string;
+  traceIds: string[];
+}) => {
+  if (props.traceIds.length === 0) return [];
+
+  const builder = eventsTraceMetadata(props.projectId).whereRaw(
+    "e.trace_id IN ({traceIds: Array(String)})",
+    { traceIds: props.traceIds },
+  );
+
+  const { query, params } = builder.buildWithParams();
+
+  return measureAndReturn({
+    operationName: "getTraceMetadataByIdsFromEvents",
+    projectId: props.projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "trace-metadata",
+        projectId: props.projectId,
+      },
+    },
+    fn: async (input) =>
+      queryClickhouse<{
+        id: string;
+        name: string;
+        user_id: string;
+        tags: string[];
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
 };
 
 export const getAvgCostByEvaluatorIds = async (
