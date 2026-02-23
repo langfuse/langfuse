@@ -353,6 +353,47 @@ const AGGREGATION_FIELD_SETS = {
 } as const;
 
 /**
+ * Aggregation fields for experiment-level queries
+ * These fields use ClickHouse aggregation functions and require GROUP BY experiment_id
+ */
+const EXPERIMENTS_AGGREGATION_FIELDS = {
+  // Grouping keys (must be in GROUP BY)
+  experimentId: "experiment_id",
+  projectId: "project_id",
+
+  // Basic experiment metadata (same across all items)
+  experimentName: "max(experiment_name) AS experiment_name",
+  experimentDescription:
+    "max(experiment_description) AS experiment_description",
+
+  // Extended experiment metadata (might differ per item)
+  experimentDatasetId: "max(experiment_dataset_id) AS experiment_dataset_id",
+  // promptId: "max(prompt_id) AS prompt_id",
+
+  // Timestamps
+  createdAt: "min(created_at) AS created_at",
+  updatedAt: "max(updated_at) AS updated_at",
+
+  // Aggregated metrics
+  itemCount: "countDistinct(experiment_item_id) AS item_count",
+  totalCost: "sum(total_cost) AS total_cost",
+  errorCount: "countIf(level = 'ERROR') AS error_count",
+
+  // Usage and cost details
+  usageDetails: "sumMap(usage_details) AS usage_details",
+  costDetails: "sumMap(cost_details) AS cost_details",
+} as const;
+
+/**
+ * Field sets for experiment aggregation queries
+ */
+const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
+  all: Object.keys(EXPERIMENTS_AGGREGATION_FIELDS) as Array<
+    keyof typeof EXPERIMENTS_AGGREGATION_FIELDS
+  >,
+} as const;
+
+/**
  * Special symbol to explicitly opt-out of automatic project_id filtering
  *
  * @example
@@ -1218,6 +1259,96 @@ export class EventsSessionAggregationQueryBuilder extends BaseEventsQueryBuilder
     return {
       ...this.buildWithParams(),
       schema: [...this.selectFields],
+    };
+  }
+}
+
+/**
+ * EventsExperimentsAggregationQueryBuilder - A fluent query builder for experiment aggregation queries
+ *
+ * This builder aggregates events by experiment_id to create one row per experiment.
+ * It automatically filters for experiment_id IS NOT NULL and groups by experiment_id, project_id.
+ *
+ * @example
+ * const builder = new EventsExperimentsAggregationQueryBuilder({ projectId: "my-project-id" })
+ *   .selectFieldSet("all")
+ *   .orderByColumns([{ column: "created_at", direction: "DESC" }]);
+ *
+ * const { query, params } = builder.buildWithParams();
+ */
+export class EventsExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
+  typeof EXPERIMENTS_AGGREGATION_FIELDS
+> {
+  constructor(options: { projectId: string }) {
+    super(EXPERIMENTS_AGGREGATION_FIELDS, options);
+  }
+
+  /**
+   * Add SELECT fields from predefined aggregation field sets
+   */
+  selectFieldSet(
+    ...setNames: Array<keyof typeof EXPERIMENTS_AGGREGATION_FIELD_SETS>
+  ): this {
+    setNames
+      .flatMap((s) => EXPERIMENTS_AGGREGATION_FIELD_SETS[s])
+      .forEach((field) => this.selectFields.add(field));
+    return this;
+  }
+
+  /**
+   * Filter by experiment IDs
+   */
+  withExperimentIds(experimentIds?: string[]): this {
+    return this.when(Boolean(experimentIds && experimentIds.length > 0), (b) =>
+      b.whereRaw("experiment_id IN ({experimentIds: Array(String)})", {
+        experimentIds,
+      }),
+    );
+  }
+
+  /**
+   * Build the SELECT clause for aggregation queries
+   */
+  protected buildSelectClause(): string {
+    const fieldExpressions = [...this.selectFields]
+      .map((key) => {
+        return this.fields[key as keyof typeof EXPERIMENTS_AGGREGATION_FIELDS];
+      })
+      .filter(Boolean);
+    return `SELECT\n  ${fieldExpressions.join(",\n  ")}`;
+  }
+
+  /**
+   * Build the GROUP BY clause for experiment aggregations
+   */
+  protected buildGroupByClause(): string {
+    return "GROUP BY experiment_id, project_id";
+  }
+
+  /**
+   * Build the query with automatic experiment filters
+   */
+  protected buildQuery(): string {
+    // Add default experiment filters
+    this.whereRaw("e.experiment_id IS NOT NULL AND e.experiment_id != ''");
+    this.whereRaw("e.is_deleted = 0");
+
+    return super.buildQuery();
+  }
+
+  /**
+   * Build with schema for use in CTEQueryBuilder.
+   * Returns query, params, and list of column names this CTE exposes.
+   */
+  buildWithSchema(): CTEWithSchema {
+    // Extract column names from selected fields
+    const schema = [...this.selectFields].map((fieldKey) => {
+      return fieldKey;
+    });
+
+    return {
+      ...this.buildWithParams(),
+      schema,
     };
   }
 }

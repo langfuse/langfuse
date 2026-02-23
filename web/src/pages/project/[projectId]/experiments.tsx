@@ -1,4 +1,5 @@
 import Page from "@/src/components/layouts/page";
+import { ExperimentsTable } from "@/src/features/experiments/components/table";
 
 export default function Experiments() {
   return (
@@ -12,9 +13,7 @@ export default function Experiments() {
         },
       }}
     >
-      <div className="p-4">
-        <p>Experiments List View - Coming Soon</p>
-      </div>
+      <ExperimentsTable projectId={projectId} />
     </Page>
   );
 }

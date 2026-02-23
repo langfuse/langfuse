@@ -5,6 +5,8 @@ import {
   createDatasetItemFilterState,
   ExperimentCreateQueue,
   getDatasetItems,
+  getExperimentsCountFromEvents,
+  getExperimentsFromEvents,
   PromptService,
   QueueJobs,
   QueueName,
@@ -24,8 +26,18 @@ import {
   type PromptMessage,
   isPresent,
   type DatasetItemDomain,
+  singleFilter,
+  orderBy,
+  paginationZod,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+
+const ExperimentFilterOptions = z.object({
+  projectId: z.string(),
+  filter: z.array(singleFilter).nullable(),
+  orderBy: orderBy,
+  ...paginationZod,
+});
 
 const ValidConfigResponse = z.object({
   isValid: z.literal(true),
@@ -201,7 +213,7 @@ export const experimentsRouter = createTRPCRouter({
 
       if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");
-      }
+        }
 
       const metadata: ExperimentMetadata = {
         prompt_id: input.promptId,
@@ -255,6 +267,49 @@ export const experimentsRouter = createTRPCRouter({
         datasetId: input.datasetId,
         runId: datasetRun.id,
         runName: input.runName,
+      };
+    }),
+  all: protectedProjectProcedure
+    .input(ExperimentFilterOptions)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const experiments = await getExperimentsFromEvents({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: input.orderBy,
+        page: input.page,
+        limit: input.limit,
+      });
+
+      return {
+        data: experiments,
+      };
+    }),
+
+  countAll: protectedProjectProcedure
+    .input(ExperimentFilterOptions)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const count = await getExperimentsCountFromEvents({
+        projectId: input.projectId,
+        filter: input.filter ?? [],
+        orderBy: input.orderBy,
+        page: input.page,
+        limit: input.limit,
+      });
+
+      return {
+        count: count,
       };
     }),
 });

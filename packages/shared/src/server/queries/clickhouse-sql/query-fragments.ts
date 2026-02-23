@@ -5,6 +5,7 @@
 import {
   EventsAggregationQueryBuilder,
   EventsSessionAggregationQueryBuilder,
+  EventsExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
 
@@ -262,4 +263,24 @@ export const eventsSessionScoresAggregation = (params: {
       "score_categories",
     ],
   };
+};
+
+interface EventsExperimentsAggregationParams {
+  projectId: string;
+  experimentIds?: string[];
+}
+
+/**
+ * Rebuilds experiments from events table by aggregating events with the same experiment_id.
+ * Groups events by experiment_id and project_id, selecting representative fields
+ * and aggregating metrics.
+ */
+export const eventsExperimentsAggregation = (
+  params: EventsExperimentsAggregationParams,
+): EventsExperimentsAggregationQueryBuilder => {
+  return new EventsExperimentsAggregationQueryBuilder({
+    projectId: params.projectId,
+  })
+    .selectFieldSet("all")
+    .withExperimentIds(params.experimentIds);
 };

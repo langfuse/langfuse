@@ -1,0 +1,139 @@
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { ColumnDefinition } from "@langfuse/shared";
+
+// Temporary column definitions for experiments
+// TODO: Move to shared package once backend is implemented
+// Column definitions that match backend experimentCols mapping
+// These must align with packages/shared/src/server/tableMappings/mapExperimentTable.ts
+export const experimentsTableCols: ColumnDefinition[] = [
+  {
+    name: "ID",
+    id: "id",
+    type: "string",
+    internal: "experiment_id",
+  },
+  {
+    name: "Name",
+    id: "name",
+    type: "stringOptions",
+    internal: "experiment_name",
+    options: [],
+  },
+  {
+    name: "Description",
+    id: "description",
+    type: "string",
+    internal: "experiment_description",
+    nullable: true,
+  },
+  {
+    name: "Dataset ID",
+    id: "experimentDatasetId",
+    type: "stringOptions",
+    internal: "experiment_dataset_id",
+    options: [],
+  },
+  {
+    name: "Created At",
+    id: "createdAt",
+    type: "datetime",
+    internal: "created_at",
+  },
+  {
+    name: "Updated At",
+    id: "updatedAt",
+    type: "datetime",
+    internal: "updated_at",
+  },
+  {
+    name: "Item Count",
+    id: "itemCount",
+    type: "number",
+    internal: "item_count",
+  },
+  {
+    name: "Total Cost ($)",
+    id: "totalCost",
+    type: "number",
+    internal: "total_cost",
+    nullable: true,
+  },
+  {
+    name: "Error Count",
+    id: "errorCount",
+    type: "number",
+    internal: "error_count",
+  },
+  {
+    name: "Scores (numeric)",
+    id: "scores_avg",
+    type: "numberObject",
+    internal: "scores_avg",
+  },
+  {
+    name: "Scores (categorical)",
+    id: "score_categories",
+    type: "categoryOptions",
+    internal: "score_categories",
+    options: [],
+    nullable: true,
+  },
+];
+
+// Helper function to get column name from experimentsTableCols by ID
+export const getExperimentsColumnName = (id: string): string => {
+  const column = experimentsTableCols.find((col) => col.id === id);
+  if (!column) {
+    throw new Error(`Column ${id} not found in experimentsTableCols`);
+  }
+  return column.name;
+};
+
+/**
+ * Maps frontend column IDs to backend-expected column IDs for experiments table
+ */
+export const EXPERIMENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
+  // No mapping needed currently
+};
+
+export const experimentsFilterConfig: FilterConfig = {
+  tableName: "experiments",
+
+  columnDefinitions: experimentsTableCols,
+
+  defaultExpanded: ["experimentDatasetId"],
+
+  facets: [
+    {
+      type: "categorical" as const,
+      column: "experimentDatasetId",
+      label: getExperimentsColumnName("experimentDatasetId"),
+    },
+    {
+      type: "numeric" as const,
+      column: "errorCount",
+      label: getExperimentsColumnName("errorCount"),
+      min: 0,
+      max: 10000,
+    },
+    {
+      type: "numeric" as const,
+      column: "totalCost",
+      label: getExperimentsColumnName("totalCost"),
+      min: 0,
+      max: 100,
+      unit: "$",
+    },
+    {
+      type: "keyValue" as const,
+      column: "score_categories",
+      label: "Categorical Scores",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "scores_avg",
+      label: "Numeric Scores",
+    },
+  ],
+};
