@@ -2371,6 +2371,10 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     try {
       if (timestamp == null) {
+        OtelIngestionProcessor.recordConversionFailure(
+          "timestamp_missing",
+          field,
+        );
         return undefined;
       }
 
