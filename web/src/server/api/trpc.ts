@@ -23,6 +23,7 @@ import * as z from "zod/v4";
 import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
+import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -321,6 +322,14 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
   }
 
+  if (ctx.session.user.admin === true) {
+    await sendAdminAccessWebhook({
+      email: ctx.session.user.email,
+      projectId,
+      orgId: sessionProject.organization.id,
+    });
+  }
+
   return next({
     ctx: {
       // infers the `session` as non-nullable
@@ -373,6 +382,13 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "User is not a member of this organization",
+    });
+  }
+
+  if (ctx.session.user.admin === true) {
+    await sendAdminAccessWebhook({
+      email: ctx.session.user.email,
+      orgId,
     });
   }
 
