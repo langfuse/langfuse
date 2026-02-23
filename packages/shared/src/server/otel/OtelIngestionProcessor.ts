@@ -217,12 +217,7 @@ export class OtelIngestionProcessor {
               const scopeAttributes = this.extractScopeAttributes(scopeSpan);
               for (const span of scopeSpan?.spans ?? []) {
                 const spanAttributes = this.extractSpanAttributes(span);
-                // For LiteLLM spans, use langfuse.trace.id from attributes if provided
-                const isLiteLLMSpan = scopeSpan?.scope?.name === "litellm";
-                const traceId =
-                  isLiteLLMSpan && spanAttributes["langfuse.trace.id"]
-                    ? (spanAttributes["langfuse.trace.id"] as string)
-                    : this.parseId(span.traceId);
+                const traceId = this.parseId(span.traceId);
                 const spanId = this.parseId(span.spanId);
                 const parentSpanId = span?.parentSpanId
                   ? this.parseId(span.parentSpanId)
@@ -689,12 +684,7 @@ export class OtelIngestionProcessor {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
 
-    // For LiteLLM spans, use langfuse.trace.id from attributes if provided
-    const isLiteLLMSpan = scopeSpan?.scope?.name === "litellm";
-    const traceId =
-      isLiteLLMSpan && attributes["langfuse.trace.id"]
-        ? (attributes["langfuse.trace.id"] as string)
-        : this.parseId(span.traceId?.data ?? span.traceId);
+    const traceId = this.parseId(span.traceId?.data ?? span.traceId);
     const parentObservationId = span?.parentSpanId
       ? this.parseId(span.parentSpanId?.data ?? span.parentSpanId)
       : null;
