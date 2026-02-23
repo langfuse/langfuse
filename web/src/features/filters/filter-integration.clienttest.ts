@@ -18,7 +18,10 @@ import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
 import { sessionFilterConfig } from "./config/sessions-config";
-import { decodeAndNormalizeFilters } from "./hooks/useSidebarFilterState";
+import {
+  decodeAndNormalizeFilters,
+  resolveCheckboxOperator,
+} from "./hooks/useSidebarFilterState";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -563,5 +566,138 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");
+  });
+});
+
+describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
+  const availableValues = ["tag-1", "tag-2", "tag-3", "tag-4", "tag-5"];
+
+  describe("arrayOptions (e.g., tags)", () => {
+    it('should use "any of" with selected values when no existing filter', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: undefined,
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
+
+    it('should switch from "none of" to "any of" for arrayOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["tag-3", "tag-4", "tag-5"],
+        },
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      // Must NOT keep "none of" — it gives wrong results for multi-valued arrays
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
+
+    it('should preserve "all of" operator for arrayOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "all of",
+          value: ["tag-1"],
+        },
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "all of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
+
+    it('should use "any of" when existing filter is "any of"', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["tag-1"],
+        },
+        values: ["tag-1", "tag-2", "tag-3"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2", "tag-3"],
+      });
+    });
+  });
+
+  describe("stringOptions (e.g., environment) — regression tests", () => {
+    it('should use "none of" with deselected values when no existing filter', () => {
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: undefined,
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      // "none of" inversion is safe for single-valued columns
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["tag-3", "tag-4", "tag-5"],
+      });
+    });
+
+    it('should keep "none of" with updated deselected values for stringOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["tag-3", "tag-4", "tag-5"],
+        },
+        values: ["tag-1", "tag-2", "tag-3"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["tag-4", "tag-5"],
+      });
+    });
+
+    it('should use "any of" when existing filter is "any of" for stringOptions', () => {
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["tag-1"],
+        },
+        values: ["tag-1", "tag-2"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "any of",
+        finalValues: ["tag-1", "tag-2"],
+      });
+    });
   });
 });
