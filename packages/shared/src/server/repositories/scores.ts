@@ -1111,6 +1111,8 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     includeHasMetadataFlag = false,
   } = props;
 
+  // tracesPrefix value is unused here — only scoresFilter is destructured,
+  // and trace-level filtering is handled via the CTE below.
   const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
     tracesPrefix: "t",
   });
@@ -1165,8 +1167,6 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         tracesEventsBuilder.where(cteTraceFilterRes);
       }
     }
-
-    tracesEventsBuilder.limitBy("e.trace_id");
 
     const { query: cteQuery, params: cteParams } =
       tracesEventsBuilder.buildWithParams();
