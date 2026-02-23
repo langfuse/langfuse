@@ -9,7 +9,7 @@ type AdminAccessWebhookPayload = {
   region: string;
 };
 
-const DEDUPE_WINDOW_MS = 60_000;
+const DEDUPE_WINDOW_MS = 5 * 60_000;
 const lastWebhookByKey = new Map<string, number>();
 
 export const resetAdminAccessWebhookCacheForTests = () => {
