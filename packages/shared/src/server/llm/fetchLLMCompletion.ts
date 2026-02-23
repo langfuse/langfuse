@@ -1,4 +1,4 @@
-import { type ZodSchema } from "zod/v4";
+import { type ZodSchema, z } from "zod/v4";
 
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -65,6 +65,13 @@ const transformSystemMessageToUserMessage = (
       : JSON.stringify(messages[0].content);
   return [new HumanMessage(safeContent)];
 };
+
+const googleProviderOptionsSchema = z
+  .object({
+    thinkingBudget: z.number().optional(),
+    thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
+  })
+  .optional();
 
 type ProcessTracedEvents = () => Promise<void>;
 
@@ -358,6 +365,10 @@ export async function fetchLLMCompletion(
       ? VertexAIConfigSchema.parse(config)
       : { location: undefined };
 
+    const googleProviderOptions = googleProviderOptionsSchema.parse(
+      modelParams.providerOptions,
+    );
+
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features
     const shouldUseDefaultCredentials =
@@ -389,11 +400,13 @@ export async function fetchLLMCompletion(
       ...(modelParams.maxReasoningTokens !== undefined && {
         maxReasoningTokens: modelParams.maxReasoningTokens,
       }),
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
-      }),
+      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
+    const googleProviderOptions = googleProviderOptionsSchema.parse(
+      modelParams.providerOptions,
+    );
+
     chatModel = new ChatGoogleGenerativeAI({
       model: modelParams.model,
       baseUrl: baseURL ?? undefined,
@@ -403,9 +416,11 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
-      }),
+      ...(googleProviderOptions
+        ? {
+            thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
+          }
+        : {}),
     });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
