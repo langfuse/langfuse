@@ -3,4 +3,5 @@ export const availableFlags = [
   "excludeClickhouseRead",
   "v4BetaToggleVisible",
   "observationEvals",
+  "experimentsV4Enabled",
 ] as const;
