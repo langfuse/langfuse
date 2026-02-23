@@ -608,7 +608,6 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     session: {
       strategy: "jwt",
       maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
-      updateAge: env.AUTH_SESSION_UPDATE_AGE * 60, // convert minutes to seconds, default is set in env.mjs
     },
     callbacks: {
       async session({ session, token }): Promise<Session> {
