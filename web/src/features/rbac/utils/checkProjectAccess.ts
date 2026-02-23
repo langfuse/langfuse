@@ -20,6 +20,11 @@ type HasProjectAccessParams = (
     }
 ) & { forbiddenErrorMessage?: string };
 
+const hasOwnRole = (
+  p: HasProjectAccessParams,
+): p is Extract<HasProjectAccessParams, { role: Role }> =>
+  Object.prototype.hasOwnProperty.call(p, "role");
+
 /**
  * Check if user has access to the given scope, for use in TRPC resolvers
  * @throws TRPCError("FORBIDDEN") if user does not have access
@@ -53,16 +58,18 @@ export const useHasProjectAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  const isAdmin = "role" in p ? p.admin : p.session?.user?.admin;
-  if (isAdmin) return true;
+  if (hasOwnRole(p)) {
+    if (p.admin) return true;
+    const projectRole = p.role;
+    return projectRoleAccessRights[projectRole]?.includes(p.scope) ?? false;
+  }
 
-  const projectRole: Role | undefined =
-    "role" in p
-      ? p.role
-      : p.session?.user?.organizations
-          .flatMap((org) => org.projects)
-          .find((project) => project.id === p.projectId)?.role;
+  if (p.session?.user?.admin) return true;
+
+  const projectRole = p.session?.user?.organizations
+    .flatMap((org) => org.projects)
+    .find((project) => project.id === p.projectId)?.role;
   if (projectRole === undefined) return false;
 
-  return projectRoleAccessRights[projectRole].includes(p.scope);
+  return projectRoleAccessRights[projectRole]?.includes(p.scope) ?? false;
 }
