@@ -1,6 +1,9 @@
 import { type ZodSchema } from "zod/v4";
 
 import { ChatAnthropic } from "@langchain/anthropic";
+// TODO: Consider migrating to unified ChatGoogle from @langchain/google
+// which replaces both ChatVertexAI and ChatGoogleGenerativeAI with a single
+// class using a `platformType` flag. See: https://docs.langchain.com/oss/javascript/integrations/chat/google
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
@@ -48,6 +51,42 @@ import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+// Security: Keys that must never be overridden via user-controlled providerOptions.
+// These control auth, endpoint routing, or connection behavior and could be exploited
+// for credential exfiltration (SSRF via endpoint/baseUrl), privilege escalation
+// (authOptions/apiKey), or request manipulation (customHeaders/apiVersion).
+const BLOCKED_PROVIDER_OPTION_KEYS = new Set([
+  "authOptions",
+  "credentials",
+  "apiKey",
+  "endpoint",
+  "baseUrl",
+  "baseURL",
+  "location",
+  "platformType",
+  "vertexai",
+  "apiVersion",
+  "apiName",
+  "apiConfig",
+  "customHeaders",
+  "project",
+  "projectId",
+]);
+
+function sanitizeProviderOptions(
+  providerOptions: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!providerOptions) return undefined;
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(providerOptions)) {
+    if (!BLOCKED_PROVIDER_OPTION_KEYS.has(key)) {
+      sanitized[key] = value;
+    }
+  }
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
@@ -389,9 +428,7 @@ export async function fetchLLMCompletion(
       ...(modelParams.maxReasoningTokens !== undefined && {
         maxReasoningTokens: modelParams.maxReasoningTokens,
       }),
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
-      }),
+      ...sanitizeProviderOptions(modelParams.providerOptions),
     });
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     chatModel = new ChatGoogleGenerativeAI({
@@ -403,9 +440,7 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      ...(modelParams.providerOptions && {
-        additionalModelRequestFields: modelParams.providerOptions,
-      }),
+      ...sanitizeProviderOptions(modelParams.providerOptions),
     });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
