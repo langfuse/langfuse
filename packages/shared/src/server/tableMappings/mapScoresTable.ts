@@ -106,8 +106,8 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
 ];
 
 /**
- * v4 column definitions for scores table — trace columns reference events_core
- * instead of traces table. Used with the events_core subquery JOIN (alias e).
+ * v4 column definitions for scores table — trace columns reference the traces
+ * CTE built from a flat EventsQueryBuilder. The CTE is joined as alias "e".
  */
 export const scoresTableUiColumnDefinitionsFromEvents: UiColumnMappings = [
   // All scores-native columns are identical to v3
@@ -117,19 +117,22 @@ export const scoresTableUiColumnDefinitionsFromEvents: UiColumnMappings = [
   {
     uiTableName: "Trace Name",
     uiTableId: "traceName",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "trace_name",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "name",
+    queryPrefix: "e",
   },
   {
     uiTableName: "User ID",
     uiTableId: "userId",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "traces",
     clickhouseSelect: "user_id",
+    queryPrefix: "e",
   },
   {
     uiTableName: "Trace Tags",
     uiTableId: "trace_tags",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "traces",
     clickhouseSelect: "tags",
+    queryPrefix: "e",
   },
 ];
