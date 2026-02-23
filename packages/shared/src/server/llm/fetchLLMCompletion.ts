@@ -66,10 +66,12 @@ const transformSystemMessageToUserMessage = (
   return [new HumanMessage(safeContent)];
 };
 
-const googleProviderOptionsSchema = z.object({
-  thinkingBudget: z.number().optional(),
-  thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
-});
+const googleProviderOptionsSchema = z
+  .object({
+    thinkingBudget: z.number().optional(),
+    thinkingLevel: z.string().optional(), // intentionally loose as types differ / may be extended in the future and are passed through to API
+  })
+  .optional();
 
 type ProcessTracedEvents = () => Promise<void>;
 
