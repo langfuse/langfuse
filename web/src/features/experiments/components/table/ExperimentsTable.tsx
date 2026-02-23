@@ -14,26 +14,14 @@ import {
   experimentsFilterConfig,
 } from "./filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  type FilterState,
-  BatchExportTableName,
-  TableViewPresetTableName,
-  BatchActionType,
-  ActionId,
-} from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
+import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
-import {
-  toAbsoluteTimeRange,
-  type TableDateRange,
-} from "@/src/utils/date-range-utils";
-import { type ScoreAggregate } from "@langfuse/shared";
+import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { InfoIcon, MoreVertical, Columns3 } from "lucide-react";
+import { MoreVertical, Columns3 } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import {
   DropdownMenu,
@@ -44,7 +32,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
-import { type Row, type RowSelectionState } from "@tanstack/react-table";
+import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -52,21 +40,19 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
+import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 
 export default function ExperimentsTable({
   projectId,
   hideControls = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
-  const { viewId } = router.query;
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -117,9 +103,11 @@ export default function ExperimentsTable({
 
   const oldFilterState = inputFilterState.concat(dateRangeFilter);
 
-  // TODO: Implement filter options fetching when backend is ready
-  const filterOptions = {};
-  const isFilterOptionsPending = false;
+  // Fetch filter options for datasets and scores
+  const { filterOptions, isFilterOptionsPending } = useExperimentFilterOptions({
+    projectId,
+    oldFilterState,
+  });
 
   const queryFilter = useSidebarFilterState(
     experimentsFilterConfig,
@@ -143,16 +131,15 @@ export default function ExperimentsTable({
   const filterState = combinedFilterState;
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, handleBatchAction, dataUpdatedAt } =
-    useExperimentsTableData({
-      projectId,
-      filterState,
-      orderByState,
-      paginationState,
-      selectedRows,
-      selectAll,
-      setSelectedRows,
-    });
+  const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
+    projectId,
+    filterState,
+    orderByState,
+    paginationState,
+    selectedRows,
+    selectAll,
+    setSelectedRows,
+  });
 
   useEffect(() => {
     if (experiments.status === "success") {
@@ -180,10 +167,6 @@ export default function ExperimentsTable({
     tableName: "experiments",
     setSelectedRows,
   });
-
-  const tableActions: TableAction[] = [
-    // TODO: Add experiment-specific actions (Compare, Delete, etc.)
-  ];
 
   const enableSorting = !hideControls;
 
@@ -280,7 +263,10 @@ export default function ExperimentsTable({
       size: 150,
       enableSorting,
       cell: ({ row }) => {
-        const value: string | undefined = row.getValue("datasetId");
+        const key: string | undefined = row.getValue("datasetId");
+        const value = filterOptions.experimentDatasetId?.find(
+          (d) => d.value === key,
+        )?.displayValue;
         return value ? <TableIdOrName value={value} /> : undefined;
       },
     },
@@ -317,6 +303,7 @@ export default function ExperimentsTable({
                 <Columns3 className="mr-2 h-4 w-4" />
                 <span>Compare</span>
               </DropdownMenuItem>
+              {/* TODO: handle experiment delete  */}
             </DropdownMenuContent>
           </DropdownMenu>
         );
@@ -336,7 +323,7 @@ export default function ExperimentsTable({
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
-    tableName: TableViewPresetTableName.Observations, // TODO: Create Experiments table view preset
+    tableName: TableViewPresetTableName.Experiments,
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
@@ -366,7 +353,7 @@ export default function ExperimentsTable({
             columns={columns}
             filterState={queryFilter.filterState}
             viewConfig={{
-              tableName: TableViewPresetTableName.Observations, // TODO: Create Experiments preset
+              tableName: TableViewPresetTableName.Experiments,
               projectId,
               controllers: viewControllers,
             }}
@@ -380,27 +367,6 @@ export default function ExperimentsTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
-            actionButtons={[
-              <BatchExportTableButton
-                {...{
-                  projectId,
-                  filterState,
-                  orderByState,
-                }}
-                tableName={BatchExportTableName.Observations} // TODO: Add Experiments export
-                key="batchExport"
-              />,
-              Object.keys(selectedRows).filter((experimentId) =>
-                experiments.rows?.map((e) => e.id).includes(experimentId),
-              ).length > 0 ? (
-                <TableActionMenu
-                  key="experiments-multi-select-actions"
-                  projectId={projectId}
-                  actions={tableActions}
-                  tableName={BatchExportTableName.Observations} // TODO: Add Experiments batch actions
-                />
-              ) : null,
-            ]}
             multiSelect={{
               selectAll,
               setSelectAll,

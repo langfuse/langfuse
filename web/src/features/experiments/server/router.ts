@@ -4,9 +4,11 @@ import {
   type ExperimentMetadata,
   createDatasetItemFilterState,
   ExperimentCreateQueue,
+  getCategoricalScoresGroupedByName,
   getDatasetItems,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getNumericScoresGroupedByName,
   PromptService,
   QueueJobs,
   QueueName,
@@ -29,6 +31,7 @@ import {
   singleFilter,
   orderBy,
   paginationZod,
+  timeFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -213,7 +216,7 @@ export const experimentsRouter = createTRPCRouter({
 
       if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");
-        }
+      }
 
       const metadata: ExperimentMetadata = {
         prompt_id: input.promptId,
@@ -310,6 +313,37 @@ export const experimentsRouter = createTRPCRouter({
 
       return {
         count: count,
+      };
+    }),
+
+  filterOptions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        startTimeFilter: z.array(timeFilter).optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const [numericScoreNames, categoricalScoreNames] = await Promise.all([
+        getNumericScoresGroupedByName(
+          input.projectId,
+          input.startTimeFilter ?? [],
+        ),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          input.startTimeFilter ?? [],
+        ),
+      ]);
+
+      return {
+        scores_avg: numericScoreNames.map((score) => score.name),
+        score_categories: categoricalScoreNames,
       };
     }),
 });

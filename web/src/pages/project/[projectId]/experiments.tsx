@@ -1,7 +1,11 @@
 import Page from "@/src/components/layouts/page";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
+import { useRouter } from "next/router";
 
 export default function Experiments() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+
   return (
     <Page
       headerProps={{

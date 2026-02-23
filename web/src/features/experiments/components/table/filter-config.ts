@@ -28,7 +28,7 @@ export const experimentsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Dataset ID",
+    name: "Dataset",
     id: "experimentDatasetId",
     type: "stringOptions",
     internal: "experiment_dataset_id",
