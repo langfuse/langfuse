@@ -3,10 +3,6 @@
 import type { Session } from "next-auth";
 import * as z from "zod/v4";
 
-jest.mock("@/src/server/adminAccessWebhook", () => ({
-  sendAdminAccessWebhook: jest.fn(),
-}));
-
 jest.mock("@langfuse/shared/src/server", () => {
   const originalModule = jest.requireActual("@langfuse/shared/src/server");
   return {
@@ -22,7 +18,7 @@ import {
   protectedGetTraceProcedure,
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
-import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
+import * as adminAccessWebhookModule from "@/src/server/adminAccessWebhook";
 import { getTraceById } from "@langfuse/shared/src/server";
 
 const middlewareTestRouter = createTRPCRouter({
@@ -107,11 +103,17 @@ const createTestCaller = (params: {
 };
 
 describe("admin access webhook in tRPC authorization middleware", () => {
-  const mockSendAdminAccessWebhook = jest.mocked(sendAdminAccessWebhook);
+  let mockSendAdminAccessWebhook: jest.SpiedFunction<
+    typeof adminAccessWebhookModule.sendAdminAccessWebhook
+  >;
   const mockGetTraceById = jest.mocked(getTraceById);
 
   beforeEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
+    mockSendAdminAccessWebhook = jest
+      .spyOn(adminAccessWebhookModule, "sendAdminAccessWebhook")
+      .mockResolvedValue(undefined);
     mockGetTraceById.mockResolvedValue({
       id: "trace-id",
       input: "{}",
