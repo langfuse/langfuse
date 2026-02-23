@@ -1,6 +1,7 @@
 import { observationsTableCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -27,6 +28,7 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: "Type",
+      renderIcon: renderFilterIcon,
     },
     {
       type: "categorical" as const,

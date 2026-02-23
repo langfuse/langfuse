@@ -470,6 +470,7 @@ export async function commandClickhouse(opts: {
   tags?: Record<string, string>;
   clickhouseSettings?: ClickHouseSettings;
   abortSignal?: AbortSignal;
+  session_id?: string;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-command", spanKind: SpanKind.CLIENT },
@@ -483,6 +484,7 @@ export async function commandClickhouse(opts: {
       const res = await clickhouseClient(opts.clickhouseConfigs).command({
         query: opts.query,
         query_params: opts.params,
+        ...(opts.session_id ? { session_id: opts.session_id } : {}),
         ...(opts.tags?.queryId
           ? { query_id: opts.tags.queryId as string }
           : {}),
