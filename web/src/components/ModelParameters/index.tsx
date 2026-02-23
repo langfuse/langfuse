@@ -185,10 +185,22 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                 enabled={modelParams.maxReasoningTokens.enabled}
                 setModelParamEnabled={setModelParamEnabled}
                 value={modelParams.maxReasoningTokens.value}
-                min={0}
+                min={-1}
                 max={24576}
                 step={1}
-                tooltip="Maximum tokens for model thinking/reasoning. Set to 0 to disable. Only supported on Gemini 2.5+ models."
+                tooltip="Maximum tokens for model thinking/reasoning. Set to -1 for default (auto) thinking, 0 to disable. Only supported on Gemini 2.5+ models."
+                updateModelParam={updateModelParamValue}
+              />
+            )}
+          {(modelParams.adapter.value === LLMAdapter.VertexAI ||
+            modelParams.adapter.value === LLMAdapter.GoogleAIStudio) &&
+            modelParams.returnThoughtParts && (
+              <ModelParamsBooleanToggle
+                title="Include reasoning in output"
+                modelParamsKey="returnThoughtParts"
+                formDisabled={formDisabled}
+                value={modelParams.returnThoughtParts.value}
+                tooltip="Include the model's reasoning/thinking in the output. When disabled, reasoning parts are stripped from the response. Supported on Gemini 2.5+ models."
                 updateModelParam={updateModelParamValue}
               />
             )}
@@ -505,6 +517,55 @@ const ModelParamsSlider = ({
         }}
         value={[value]}
       />
+    </div>
+  );
+};
+
+type ModelParamsBooleanToggleProps = {
+  title: string;
+  modelParamsKey: keyof UIModelParams;
+  value: boolean;
+  tooltip: string;
+  updateModelParam: ModelParamsContext["updateModelParamValue"];
+  formDisabled?: boolean;
+};
+const ModelParamsBooleanToggle = ({
+  title,
+  modelParamsKey,
+  value,
+  tooltip,
+  updateModelParam,
+  formDisabled,
+}: ModelParamsBooleanToggleProps) => {
+  return (
+    <div className="space-y-3" title={tooltip}>
+      <div className="flex flex-row">
+        <div className="flex flex-1 items-center space-x-1">
+          <span
+            className={cn(
+              "text-xs font-semibold",
+              (!value || formDisabled) && "text-muted-foreground",
+            )}
+          >
+            {title}
+          </span>
+          <Tooltip>
+            <TooltipTrigger>
+              <InfoIcon className="size-3 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[200px] p-2">
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <Switch
+          disabled={formDisabled}
+          checked={value}
+          onCheckedChange={(checked) => {
+            updateModelParam(modelParamsKey, checked);
+          }}
+        />
+      </div>
     </div>
   );
 };

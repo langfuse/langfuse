@@ -233,6 +233,7 @@ function getDefaultAdapterParams(
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
         maxReasoningTokens: { value: 0, enabled: false },
+        includeThoughts: { value: false, enabled: true },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -247,6 +248,7 @@ function getDefaultAdapterParams(
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
         maxReasoningTokens: { value: 0, enabled: false },
+        includeThoughts: { value: false, enabled: true },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -262,6 +264,7 @@ function getDefaultAdapterParams(
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
         maxReasoningTokens: { value: 0, enabled: false },
+        includeThoughts: { value: false, enabled: true },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -276,6 +279,7 @@ function getDefaultAdapterParams(
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
         maxReasoningTokens: { value: 0, enabled: false },
+        includeThoughts: { value: false, enabled: true },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -290,6 +294,7 @@ function getDefaultAdapterParams(
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
         maxReasoningTokens: { value: 0, enabled: false },
+        includeThoughts: { value: false, enabled: true },
         providerOptions: { value: {}, enabled: false },
       };
 
@@ -304,6 +309,7 @@ function getDefaultAdapterParams(
         max_tokens: { value: 4096, enabled: false },
         top_p: { value: 1, enabled: false },
         maxReasoningTokens: { value: 0, enabled: false },
+        includeThoughts: { value: false, enabled: true },
         providerOptions: { value: {}, enabled: false },
       };
   }

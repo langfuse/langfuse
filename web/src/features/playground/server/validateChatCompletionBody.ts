@@ -15,6 +15,7 @@ const ModelParamsSchema = z.object({
   max_tokens: z.number().optional(),
   top_p: z.number().optional(),
   maxReasoningTokens: z.number().optional(),
+  includeThoughts: z.boolean().optional(),
   providerOptions: JSONObjectSchema.optional(),
 });
 
