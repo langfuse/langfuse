@@ -3,7 +3,6 @@
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import {
   GetScoreConfigResponse,
@@ -14,10 +13,11 @@ import {
 import { ScoreConfigDataType } from "@langfuse/shared";
 import { type ScoreConfig, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
 
 const configOne = [
   {
-    projectId: "<to be replaced>",
+    projectId: "",
     name: "Test Boolean Config",
     description: "Test Description",
     dataType: ScoreConfigDataType.BOOLEAN,
@@ -31,7 +31,7 @@ const configOne = [
 ];
 const configTwo = [
   {
-    projectId: "<to be replaced>",
+    projectId: "",
     name: "Test Numeric Config",
     description: "Test Description",
     dataType: ScoreConfigDataType.NUMERIC,
@@ -43,7 +43,7 @@ const configTwo = [
 
 const configThree = [
   {
-    projectId: "<to be replaced>",
+    projectId: "",
     name: "Test Categorical Config",
     description: "Test Description",
     dataType: ScoreConfigDataType.CATEGORICAL,
@@ -61,29 +61,21 @@ describe("/api/public/score-configs API Endpoint", () => {
   let auth: string;
   let projectId: string;
 
-  beforeAll(
-    async () => {
-      await pruneDatabase();
+  beforeEach(async () => {
+    const { auth: newAuth, projectId: newProjectId } =
+      await createOrgProjectAndApiKey();
+    auth = newAuth;
+    projectId = newProjectId;
 
-      // Create authentication pairs
-      const { auth: newAuth, projectId: newProjectId } =
-        await createOrgProjectAndApiKey();
-      auth = newAuth;
-      projectId = newProjectId;
+    // Update the project IDs in configs to use the new project ID
+    configOne[0].projectId = projectId;
+    configTwo[0].projectId = projectId;
+    configThree[0].projectId = projectId;
 
-      // Update the project IDs in configs to use the new project ID
-      configOne[0].projectId = projectId;
-      configTwo[0].projectId = projectId;
-      configThree[0].projectId = projectId;
-
-      await prisma.scoreConfig.createMany({
-        data: [...configOne, ...configTwo, ...configThree],
-      });
-    },
-    afterAll(async () => {
-      await pruneDatabase();
-    }),
-  );
+    await prisma.scoreConfig.createMany({
+      data: [...configOne, ...configTwo, ...configThree],
+    });
+  });
 
   it("should GET a score config", async () => {
     const { id: configId } = (await prisma.scoreConfig.findFirst({
@@ -153,7 +145,7 @@ describe("/api/public/score-configs API Endpoint", () => {
   });
 
   it("should return 500 when hitting corrupted score config", async () => {
-    const configId = "corrupted-config-id";
+    const configId = v4();
 
     await prisma.scoreConfig.create({
       data: {

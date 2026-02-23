@@ -37,6 +37,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
 }) => {
+  const isV2 = metricsVersion === "v2";
+
   const tracesQuery: QueryType = {
     view: "traces",
     dimensions: [],
@@ -63,7 +65,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
-      enabled: !isLoading,
+      enabled: !isLoading && !isV2,
     },
   );
 
@@ -147,26 +149,37 @@ export const TracesAndObservationsTimeSeriesChart = ({
     return acc + Number(item.count_count);
   }, 0);
 
-  const data = [
-    {
-      tabTitle: "Traces",
-      data: transformedTraces,
-      totalMetric: total,
-      metricDescription: `Traces tracked`,
-    },
-    {
-      tabTitle: "Observations by Level",
-      data: transformedObservations,
-      totalMetric: totalObservations,
-      metricDescription: `Observations tracked`,
-    },
-  ];
+  const data = isV2
+    ? [
+        {
+          tabTitle: "Observations by Level",
+          data: transformedObservations,
+          totalMetric: totalObservations,
+          metricDescription: `Observations tracked`,
+        },
+      ]
+    : [
+        {
+          tabTitle: "Traces",
+          data: transformedTraces,
+          totalMetric: total,
+          metricDescription: `Traces tracked`,
+        },
+        {
+          tabTitle: "Observations by Level",
+          data: transformedObservations,
+          totalMetric: totalObservations,
+          metricDescription: `Observations tracked`,
+        },
+      ];
 
   return (
     <DashboardCard
       className={className}
-      title="Traces by time"
-      isLoading={isLoading || traces.isPending}
+      title={isV2 ? "Observations by time" : "Traces by time"}
+      isLoading={
+        isLoading || observations.isPending || (!isV2 && traces.isPending)
+      }
       cardContentClassName="flex flex-col content-end "
     >
       <TabComponent
@@ -198,7 +211,11 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   </div>
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || traces.isPending}
+                    isLoading={
+                      isLoading ||
+                      observations.isPending ||
+                      (!isV2 && traces.isPending)
+                    }
                     description="Traces contain details about LLM applications and can be created using the SDK."
                     href="https://langfuse.com/docs/observability/overview"
                   />

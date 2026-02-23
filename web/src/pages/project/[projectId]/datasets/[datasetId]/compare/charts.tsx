@@ -19,11 +19,8 @@ import {
 } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import {
-  compactNumberFormatter,
-  latencyFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -202,9 +199,10 @@ export default function DatasetCompare() {
                     : (RESOURCE_METRICS.find((metric) => metric.key === key)
                         ?.label ?? key);
 
+                  // TODO: remove when revamping the datasets api for it to directly return ms
                   const valueFormatter =
                     key === "latency"
-                      ? latencyFormatter
+                      ? formatIntervalSeconds
                       : key === "cost"
                         ? usdFormatter
                         : (v: number) =>

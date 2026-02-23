@@ -1,55 +1,61 @@
 /** @jest-environment node */
 
 import type { Session } from "next-auth";
-import { pruneDatabase } from "@/src/__tests__/test-utils";
 import { LLMAdapter } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { decrypt } from "@langfuse/shared/encryption";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 describe("llmApiKey.all RPC", () => {
-  const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  let projectId: string;
+  let orgId: string;
+  let caller: ReturnType<typeof appRouter.createCaller>;
 
-  beforeEach(async () => await pruneDatabase());
+  beforeEach(async () => {
+    const setup = await createOrgProjectAndApiKey();
+    projectId = setup.projectId;
+    orgId = setup.orgId;
 
-  const session: Session = {
-    expires: "1",
-    user: {
-      id: "user-1",
-      name: "Demo User",
-      canCreateOrganizations: true,
-      organizations: [
-        {
-          id: "seed-org-id",
-          role: "OWNER",
-          plan: "cloud:hobby",
-          cloudConfig: undefined,
-          name: "Test Organization",
-          metadata: {},
-          projects: [
-            {
-              id: projectId,
-              role: "ADMIN",
-              name: "Test Project",
-              deletedAt: null,
-              retentionDays: null,
-              metadata: {},
-            },
-          ],
+    const session: Session = {
+      expires: "1",
+      user: {
+        id: "user-1",
+        name: "Demo User",
+        canCreateOrganizations: true,
+        organizations: [
+          {
+            id: orgId,
+            role: "OWNER",
+            plan: "cloud:hobby",
+            cloudConfig: undefined,
+            name: "Test Organization",
+            metadata: {},
+            projects: [
+              {
+                id: projectId,
+                role: "ADMIN",
+                name: "Test Project",
+                deletedAt: null,
+                retentionDays: null,
+                metadata: {},
+              },
+            ],
+          },
+        ],
+        featureFlags: {
+          templateFlag: true,
+          excludeClickhouseRead: false,
         },
-      ],
-      featureFlags: {
-        templateFlag: true,
-        excludeClickhouseRead: false,
+        admin: true,
       },
-      admin: true,
-    },
-    environment: {} as any,
-  };
+      environment: {} as any,
+    };
 
-  const ctx = createInnerTRPCContext({ session, headers: {} });
-  const caller = appRouter.createCaller({ ...ctx, prisma });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
+    caller = appRouter.createCaller({ ...ctx, prisma });
+  });
 
   it("should create an llm api key", async () => {
     const secret = "test-secret";

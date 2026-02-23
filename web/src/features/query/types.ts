@@ -23,6 +23,12 @@ export const viewDeclaration = z.object({
       aggregationFunction: z.string().optional(),
       highCardinality: z.boolean().optional(),
       explodeArray: z.boolean().optional(),
+      pairExpand: z
+        .object({
+          valuesSql: z.string(),
+          valueAlias: z.string(),
+        })
+        .optional(),
     }),
   ),
   measures: z.record(
@@ -35,6 +41,10 @@ export const viewDeclaration = z.object({
       type: z.string().optional(),
       unit: z.string().optional(),
       aggs: z.record(z.string(), z.string()).optional(),
+      // When set, the query builder will auto-include this dimension if it is absent.
+      // Used for pairExpand value-alias measures (e.g. costByType requires costType so
+      // the ARRAY JOIN is emitted and "cost_value" is in scope).
+      requiresDimension: z.string().optional(),
     }),
   ),
   tableRelations: z.record(
@@ -97,6 +107,7 @@ export const metricAggregations = z.enum([
   "p95",
   "p99",
   "histogram",
+  "uniq",
 ]);
 
 export const metric = z.object({

@@ -24,6 +24,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
 import { env } from "@/src/env.mjs";
+import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 
 // Skip when events table is not enabled (v2 queries require events_core).
 const maybe =
@@ -819,6 +820,14 @@ describe("dashboard v1 vs v2 consistency", () => {
 
   // ─── 7. Score-aggregate tRPC endpoint (full getScoreAggregateV2 path) ─
 
+  // Synthetic data seeds environments "default" and "staging" explicitly.
+  // Seeder data uses "default" and "langfuse-prompt-experiment" for scores
+  // (see data-generators.ts lines 240, 268, 600 and clickhouse-builder.ts).
+  const SCORE_ENVIRONMENTS =
+    DATA_MODE === "seeder"
+      ? ["default", "langfuse-prompt-experiment"]
+      : ["default", "staging"];
+
   maybe("score-aggregate tRPC endpoint v2", () => {
     const chartInput = (
       version: "v1" | "v2",
@@ -1038,7 +1047,7 @@ describe("dashboard v1 vs v2 consistency", () => {
     it("should return matching results when environment filter is applied", async () => {
       const caller = makeCaller();
 
-      for (const env of ["default", "staging"]) {
+      for (const env of SCORE_ENVIRONMENTS) {
         const envFilter: FilterCondition[] = [
           {
             column: "Environment",
@@ -1053,15 +1062,20 @@ describe("dashboard v1 vs v2 consistency", () => {
           caller.dashboard.chart(chartInput("v2", envFilter)),
         ]);
 
-        // Both should return data (10 traces per environment × 3 score types)
+        // Both should return data
         expect(v1Result.length).toBeGreaterThan(0);
-        expect(v1Result.length).toBe(v2Result.length);
+        expect(v2Result.length).toBeGreaterThan(0);
 
         const toKey = (r: Record<string, unknown>) =>
           `${r.scoreName}|${r.scoreSource}|${r.scoreDataType}`;
         const v1Map = new Map(v1Result.map((r) => [toKey(r), r]));
         const v2Map = new Map(v2Result.map((r) => [toKey(r), r]));
 
+        // v2 must contain every key v1 returns, and their counts/averages must agree.
+        // v2 may return additional rows for scores where score.environment ≠ parent
+        // trace.environment: v1 joins traces and applies the environment filter on
+        // t.environment, while v2 filters directly on scores.environment — which is
+        // more accurate but may include scores v1 silently drops.
         for (const [key, v1Row] of v1Map) {
           const v2Row = v2Map.get(key);
           expect(v2Row).toBeDefined();
@@ -1303,5 +1317,304 @@ describe("dashboard v1 vs v2 consistency", () => {
       const tolerance = Math.ceil(v1Total * 0.15);
       expect(Math.abs(v1Lower - v2Lower)).toBeLessThanOrEqual(tolerance);
     });
+  });
+
+  // ─── 9. Model usage by-type timeseries (v2 via executeQuery + pairExpand) ──
+
+  const COST_BY_TYPE_QUERY = "observations-cost-by-type-timeseries" as const;
+  const USAGE_BY_TYPE_QUERY = "observations-usage-by-type-timeseries" as const;
+
+  maybe("model usage by-type timeseries v2", () => {
+    const typeInput = (
+      version: "v1" | "v2",
+      queryName: typeof COST_BY_TYPE_QUERY | typeof USAGE_BY_TYPE_QUERY,
+    ) => ({
+      projectId,
+      from: "traces_observations" as const,
+      select: [],
+      filter: [
+        {
+          column: "startTime",
+          operator: ">=" as const,
+          value: new Date(fromTimestamp7d),
+          type: "datetime" as const,
+        },
+        {
+          column: "startTime",
+          operator: "<" as const,
+          value: new Date(toTimestamp),
+          type: "datetime" as const,
+        },
+        {
+          column: "type",
+          operator: "any of" as const,
+          value: getGenerationLikeTypes(),
+          type: "stringOptions" as const,
+        },
+      ],
+      limit: 10000,
+      version,
+      queryName,
+    });
+
+    /** Sum all rows' `sum` values per `key` across all time buckets. */
+    function sumByKey(rows: DatabaseRow[]): Map<string, number> {
+      const acc = new Map<string, number>();
+      for (const row of rows) {
+        const k = String(row["key"]);
+        acc.set(k, (acc.get(k) ?? 0) + Number(row["sum"] ?? 0));
+      }
+      return acc;
+    }
+
+    describe("cost by type timeseries v2", () => {
+      it("should return valid cost by type data for v2", async () => {
+        const caller = makeCaller();
+        const result = await caller.dashboard.chart(
+          typeInput("v2", COST_BY_TYPE_QUERY),
+        );
+
+        expect(Array.isArray(result)).toBe(true);
+        expect(result.length).toBeGreaterThan(0);
+        const keys = new Set(
+          result.map((r) => String((r as DatabaseRow)["key"])),
+        );
+        // Both modes include "total". Seeder data additionally has "input"/"output"
+        // because its cost_details maps are fully populated (see data-generators.ts).
+        // Synthetic data uses { total: ... } only (see seedSynthetic in this file).
+        expect(keys.has("total")).toBe(true);
+        if (DATA_MODE === "seeder") {
+          expect(keys.has("input")).toBe(true);
+          expect(keys.has("output")).toBe(true);
+        }
+      });
+
+      it("should return matching cost totals between v1 and v2", async () => {
+        const caller = makeCaller();
+        const [v1, v2] = await Promise.all([
+          caller.dashboard.chart(typeInput("v1", COST_BY_TYPE_QUERY)),
+          caller.dashboard.chart(typeInput("v2", COST_BY_TYPE_QUERY)),
+        ]);
+
+        const v1Totals = sumByKey(v1 as DatabaseRow[]);
+        const v2Totals = sumByKey(v2 as DatabaseRow[]);
+
+        expect(v1Totals.size).toBeGreaterThan(0);
+        expect(v2Totals.size).toBeGreaterThan(0);
+
+        // Every key present in v1 must also appear in v2
+        for (const key of v1Totals.keys()) {
+          expect(v2Totals.has(key)).toBe(true);
+        }
+
+        // Per-key totals must agree within 5%
+        // (ClickHouse eventual consistency between observations FINAL and events_core)
+        for (const [key, v1Sum] of v1Totals) {
+          const v2Sum = v2Totals.get(key) ?? 0;
+          if (v1Sum === 0) {
+            expect(v2Sum).toBeCloseTo(0, 2);
+          } else {
+            const ratio = v2Sum / v1Sum;
+            expect(ratio).toBeGreaterThanOrEqual(0.95);
+            expect(ratio).toBeLessThanOrEqual(1.05);
+          }
+        }
+      });
+    });
+
+    describe("usage by type timeseries v2", () => {
+      it("should return valid usage by type data for v2", async () => {
+        const caller = makeCaller();
+        const result = await caller.dashboard.chart(
+          typeInput("v2", USAGE_BY_TYPE_QUERY),
+        );
+
+        expect(Array.isArray(result)).toBe(true);
+        expect(result.length).toBeGreaterThan(0);
+        const keys = new Set(
+          result.map((r) => String((r as DatabaseRow)["key"])),
+        );
+        // Both modes include "total". Seeder data additionally has "input"/"output".
+        expect(keys.has("total")).toBe(true);
+        if (DATA_MODE === "seeder") {
+          expect(keys.has("input")).toBe(true);
+          expect(keys.has("output")).toBe(true);
+        }
+      });
+
+      it("should return matching usage totals between v1 and v2", async () => {
+        const caller = makeCaller();
+        const [v1, v2] = await Promise.all([
+          caller.dashboard.chart(typeInput("v1", USAGE_BY_TYPE_QUERY)),
+          caller.dashboard.chart(typeInput("v2", USAGE_BY_TYPE_QUERY)),
+        ]);
+
+        const v1Totals = sumByKey(v1 as DatabaseRow[]);
+        const v2Totals = sumByKey(v2 as DatabaseRow[]);
+
+        expect(v1Totals.size).toBeGreaterThan(0);
+        expect(v2Totals.size).toBeGreaterThan(0);
+
+        for (const key of v1Totals.keys()) {
+          expect(v2Totals.has(key)).toBe(true);
+        }
+
+        for (const [key, v1Sum] of v1Totals) {
+          const v2Sum = v2Totals.get(key) ?? 0;
+          if (v1Sum === 0) {
+            expect(v2Sum).toBeCloseTo(0, 2);
+          } else {
+            const ratio = v2Sum / v1Sum;
+            expect(ratio).toBeGreaterThanOrEqual(0.95);
+            expect(ratio).toBeLessThanOrEqual(1.05);
+          }
+        }
+      });
+    });
+  });
+
+  // ─── v2 traces optimization: uniq(trace_id) on observations view ──────
+
+  maybe("v2 traces optimization: uniq(trace_id) on observations view", () => {
+    const traceNameNotNullFilter = {
+      type: "null" as const,
+      column: "traceName",
+      operator: "is not null" as const,
+      value: "" as const,
+    };
+
+    it.each(["1d", "7d"] as const)(
+      "total count: observations uniq(traceId) matches traces count for %s window",
+      async (window) => {
+        const tracesQuery: QueryType = {
+          view: "traces",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const obsQuery: QueryType = {
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "traceId", aggregation: "uniq" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const [tracesResult, obsResult] = await Promise.all([
+          executeQuery(projectId, tracesQuery, "v2", true),
+          executeQuery(projectId, obsQuery, "v2", true),
+        ]);
+        const tracesCount = tracesResult.reduce(
+          (s, r) => s + Number(r.count_count),
+          0,
+        );
+        const obsCount = obsResult.reduce(
+          (s, r) => s + Number(r.uniq_traceId),
+          0,
+        );
+        if (window === "7d") {
+          expect(obsCount).toBe(tracesCount);
+        } else {
+          // 1d: observations counts "traces active in window" which is >=
+          // "traces started in window" (traces view uses rootEventCondition).
+          expect(obsCount).toBeGreaterThanOrEqual(tracesCount);
+          expect(obsCount).toBeLessThan(tracesCount * 10);
+        }
+      },
+    );
+
+    it.each(["1d", "7d"] as const)(
+      "grouped by trace name: observations traceName matches traces name for %s window",
+      async (window) => {
+        const tracesQuery: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: [{ field: "count_count", direction: "desc" }],
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+          chartConfig: { type: "table", row_limit: 20 },
+        };
+        const obsQuery: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "traceName" }],
+          metrics: [{ measure: "traceId", aggregation: "uniq" }],
+          timeDimension: null,
+          filters: [traceNameNotNullFilter],
+          orderBy: [{ field: "uniq_traceId", direction: "desc" }],
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+          chartConfig: { type: "table", row_limit: 20 },
+        };
+        const [tracesResult, obsResult] = await Promise.all([
+          executeQuery(projectId, tracesQuery, "v2", true),
+          executeQuery(projectId, obsQuery, "v2", true),
+        ]);
+        const tracesMap = toMap(tracesResult, "name");
+        const obsMap = toMap(obsResult, "traceName");
+
+        if (window === "7d") {
+          expect(obsMap.size).toBe(tracesMap.size);
+          for (const [name, tracesRow] of tracesMap) {
+            const obsRow = obsMap.get(name);
+            expect(obsRow).toBeDefined();
+            expect(Number(obsRow!.uniq_traceId)).toBe(
+              Number(tracesRow.count_count),
+            );
+          }
+        } else {
+          expect(obsMap.size).toBeGreaterThanOrEqual(tracesMap.size);
+          expect(obsMap.size).toBeLessThan(tracesMap.size * 10);
+        }
+      },
+    );
+
+    it.each(["1d", "7d"] as const)(
+      "grouped by userId: observations uniq(traceId) matches traces for %s window",
+      async (window) => {
+        const tracesQuery: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "userId" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const obsQuery: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "userId" }],
+          metrics: [{ measure: "traceId", aggregation: "uniq" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fromFor(window),
+          toTimestamp,
+        };
+        const [tracesResult, obsResult] = await Promise.all([
+          executeQuery(projectId, tracesQuery, "v2", true),
+          executeQuery(projectId, obsQuery, "v2", true),
+        ]);
+        const tracesMap = toMap(tracesResult, "userId");
+        const obsMap = toMap(obsResult, "userId");
+
+        // userId is not consistently denormalized across events (traces view
+        // picks one via argMaxIf, observations view sees raw per-event values),
+        // so we allow approximate matching for both windows.
+        expect(obsMap.size).toBeGreaterThanOrEqual(tracesMap.size);
+        expect(obsMap.size).toBeLessThan(
+          tracesMap.size * (window === "7d" ? 2 : 10),
+        );
+      },
+    );
   });
 });

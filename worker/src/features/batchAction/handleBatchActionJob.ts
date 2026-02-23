@@ -31,7 +31,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
-import { getEventsStreamForEval } from "../database-read-stream/event-stream";
+import {
+  getEventsStreamForEval,
+  getEventsStreamForDataset,
+} from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
@@ -316,20 +319,30 @@ export const handleBatchActionJob = async (
       `Batch action job completed, projectId: ${batchActionJob.payload.projectId}, ${count} elements`,
     );
   } else if (actionId === "observation-add-to-dataset") {
-    const { projectId, query, cutoffCreatedAt, config, batchActionId } =
-      batchActionEvent;
+    const {
+      projectId,
+      query,
+      cutoffCreatedAt,
+      config,
+      batchActionId,
+      tableName,
+    } = batchActionEvent;
 
     // Parse and validate config
     const parsedConfig = ObservationAddToDatasetConfigSchema.parse(config);
 
-    // Get observation stream
-    const dbReadStream = await getObservationStream({
+    // Get observation stream — use events table when tableName indicates it
+    const streamParams = {
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
       filter: convertDatesInFiltersFromStrings(query.filter ?? []),
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
-    });
+    };
+    const dbReadStream =
+      tableName === BatchTableNames.Events
+        ? await getEventsStreamForDataset(streamParams)
+        : await getObservationStream(streamParams);
 
     // Collect all observations
     const observations: Array<{
