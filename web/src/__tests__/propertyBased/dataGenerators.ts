@@ -67,6 +67,8 @@ export const generateObservation = (
   const types = ["SPAN", "GENERATION", "EVENT"] as const;
   const modelNames = ["gpt-3", "gpt-4", "claude-3"] as const;
 
+  const versions = ["1.0", "2.0", "3.0", "0.1.0", "latest"] as const;
+
   const startTimeOffset = g(fc.integer, { min: 0, max: 10000 });
   const duration = g(fc.integer, { min: 100, max: 5000 });
   const inputTokens = g(fc.integer, { min: 100, max: 10000 });
@@ -78,6 +80,7 @@ export const generateObservation = (
     traceId,
     type: g(fc.constantFrom, ...types),
     name: g(fc.string, { minLength: 1, maxLength: 50 }),
+    version: g(fc.constantFrom, ...versions),
     providedModelName: g(fc.constantFrom, ...modelNames),
     startTime: traceTimestamp + startTimeOffset,
     endTime: traceTimestamp + startTimeOffset + duration,

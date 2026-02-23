@@ -166,6 +166,9 @@ const compareV2Superset = (
     const existing = v2ByKey.get(key);
     if (existing) {
       for (const field of mergeFields) {
+        // Only merge fields that exist in at least one row — avoid creating
+        // phantom fields (e.g. "count") that would trigger comparison checks.
+        if (!(field in existing) && !(field in row)) continue;
         const a = typeof existing[field] === "number" ? existing[field] : 0;
         const b = typeof row[field] === "number" ? row[field] : 0;
         existing[field] = (a as number) + (b as number);
