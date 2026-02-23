@@ -1,5 +1,9 @@
 import { Decimal } from "decimal.js";
-import { type EvalTemplate, EvalTargetObject } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  EvalTargetObject,
+  JobConfigState,
+} from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { createDefaultVariableMappings } from "@/src/features/experiments/utils/evaluatorMappingUtils";
 
@@ -7,6 +11,7 @@ export const CONFIG_BASE = {
   sampling: new Decimal(1),
   delay: 30000,
   timeScope: ["NEW"],
+  status: JobConfigState.ACTIVE,
 };
 
 export function useEvaluatorDefaults() {

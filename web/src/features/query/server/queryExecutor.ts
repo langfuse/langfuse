@@ -160,6 +160,13 @@ export async function executeQuery(
   // Check if the query contains trace table references
   const usesTraceTable = compiledQuery.includes("traces");
 
+  // Route events_core queries to the dedicated events read replica.
+  // Checked via the view declaration's baseCte rather than scanning the compiled SQL.
+  const view = getViewDeclaration(query.view, version);
+  const preferredClickhouseService = view.baseCte.includes("events_")
+    ? ("EventsReadOnly" as const)
+    : undefined;
+
   const tags = {
     feature: "custom-queries",
     type: query.view,
@@ -181,6 +188,7 @@ export async function executeQuery(
         },
       },
       tags,
+      preferredClickhouseService,
     });
   }
 
@@ -210,6 +218,7 @@ export async function executeQuery(
           },
         },
         tags: input.tags,
+        preferredClickhouseService,
       });
     },
   });

@@ -41,7 +41,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -50,6 +50,8 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export type ScoresTableRow = {
   id: string;
@@ -110,6 +112,9 @@ export default function ScoresTable({
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
 }) {
+  const { isBetaEnabled } = useV4Beta();
+  // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
+  const useEventsBackedScores = isBetaEnabled;
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -184,6 +189,8 @@ export default function ScoresTable({
     },
     onSettled: () => {
       void utils.scores.all.invalidate();
+      void utils.scores.allFromEvents.invalidate();
+      void utils.scores.countAllFromEvents.invalidate();
     },
   });
 
@@ -206,26 +213,46 @@ export default function ScoresTable({
     setSelectedRows({});
   };
 
-  const filterOptions = api.scores.filterOptions.useQuery(
-    {
-      projectId,
-      timestampFilter:
-        dateRangeFilter.length > 0
-          ? (dateRangeFilter as TimeFilter[])
-          : undefined,
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
+  // Filter options — v3 vs v4
+  const filterOptionsTimestampInput = {
+    projectId,
+    timestampFilter:
+      dateRangeFilter.length > 0
+        ? (dateRangeFilter as TimeFilter[])
+        : undefined,
+  };
+
+  const filterOptionsQueryConfig = {
+    trpc: {
+      context: {
+        skipBatch: true,
       },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
+    },
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: Infinity,
+  } as const;
+
+  const filterOptionsV3 = api.scores.filterOptions.useQuery(
+    filterOptionsTimestampInput,
+    {
+      ...filterOptionsQueryConfig,
+      enabled: !useEventsBackedScores,
     },
   );
+
+  const filterOptionsV4 = api.scores.filterOptionsFromEvents.useQuery(
+    filterOptionsTimestampInput,
+    {
+      ...filterOptionsQueryConfig,
+      enabled: useEventsBackedScores,
+    },
+  );
+
+  const filterOptions = useEventsBackedScores
+    ? filterOptionsV4
+    : filterOptionsV3;
 
   const newFilterOptions = React.useMemo(
     () => ({
@@ -307,14 +334,45 @@ export default function ScoresTable({
     orderBy: orderByState,
   };
 
-  const scores = api.scores.all.useQuery(getAllPayload, {
-    enabled: !environmentFilterOptions.isLoading,
-  });
-  const totalScoreCountQuery = api.scores.countAll.useQuery(getCountPayload, {
-    enabled: !environmentFilterOptions.isLoading,
+  // Base data — v3 (existing, unchanged)
+  const scoresV3 = api.scores.all.useQuery(getAllPayload, {
+    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
   });
 
+  // Base data — v4 (no traces JOIN)
+  const scoresV4 = api.scores.allFromEvents.useQuery(getAllPayload, {
+    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+  });
+
+  const scores = useEventsBackedScores ? scoresV4 : scoresV3;
+
+  // Count — v3 vs v4
+  const countV3 = api.scores.countAll.useQuery(getCountPayload, {
+    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
+  });
+  const countV4 = api.scores.countAllFromEvents.useQuery(getCountPayload, {
+    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+  });
+  const totalScoreCountQuery = useEventsBackedScores ? countV4 : countV3;
+
   const totalCount = totalScoreCountQuery.data?.totalCount ?? null;
+
+  // Metrics — v4 only (loads trace metadata from events-backed aggregations)
+  const scoreMetrics = api.scores.metricsFromEvents.useQuery(
+    {
+      projectId,
+      traceIds: [
+        ...new Set(
+          scoresV4.data?.scores
+            .map((s) => s.traceId)
+            .filter((id): id is string => Boolean(id)) ?? [],
+        ),
+      ],
+    },
+    {
+      enabled: scoresV4.data !== undefined && useEventsBackedScores,
+    },
+  );
 
   const { selectActionColumn } = TableSelectionManager<ScoresTableRow>({
     projectId,
@@ -348,6 +406,8 @@ export default function ScoresTable({
       enableSorting: true,
       size: 150,
       cell: ({ row }) => {
+        if (isBetaEnabled && !scoreMetrics.data)
+          return <Skeleton className="h-3 w-1/2" />;
         const value = row.getValue("traceName") as ScoresTableRow["traceName"];
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
@@ -463,6 +523,8 @@ export default function ScoresTable({
       enableSorting: true,
       size: 100,
       cell: ({ row }) => {
+        if (isBetaEnabled && !scoreMetrics.data)
+          return <Skeleton className="h-3 w-1/2" />;
         const value = row.getValue("userId");
         return typeof value === "string" ? (
           <>
@@ -607,6 +669,8 @@ export default function ScoresTable({
       enableHiding: true,
       defaultHidden: true,
       cell: ({ row }) => {
+        if (isBetaEnabled && !scoreMetrics.data)
+          return <Skeleton className="h-3 w-1/2" />;
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
           traceTags && (
@@ -690,6 +754,53 @@ export default function ScoresTable({
       executionTraceId: score.executionTraceId ?? undefined,
     };
   };
+
+  // Merge v4 metrics into table rows
+  const enrichedScores = useMemo(() => {
+    if (!isBetaEnabled) {
+      return scoresV3.data?.scores.map(convertToTableRow);
+    }
+
+    const v4Data = scoresV4.data?.scores;
+    if (!v4Data) return undefined;
+
+    const metaByTraceId = new Map(
+      scoreMetrics.data?.map((m) => [m.traceId, m]) ?? [],
+    );
+
+    return v4Data.map((score) => {
+      const meta = metaByTraceId.get(score.traceId ?? "");
+      return {
+        id: score.id,
+        timestamp: score.timestamp,
+        source: score.source,
+        name: score.name,
+        dataType: score.dataType,
+        value:
+          isNumericDataType(score.dataType) && isPresent(score.value)
+            ? score.value % 1 === 0
+              ? String(score.value)
+              : score.value.toFixed(4)
+            : (score.stringValue ?? ""),
+        author: {
+          userId: score.authorUserId ?? undefined,
+          image: score.authorUserImage ?? undefined,
+          name: score.authorUserName ?? undefined,
+        },
+        comment: score.comment ?? undefined,
+        observationId: score.observationId ?? undefined,
+        sessionId: score.sessionId ?? undefined,
+        traceId: score.traceId ?? undefined,
+        traceName: meta?.traceName ?? undefined,
+        userId: meta?.userId ?? undefined,
+        jobConfigurationId: score.jobConfigurationId ?? undefined,
+        traceTags: meta?.tags ?? undefined,
+        environment: score.environment ?? undefined,
+        executionTraceId: score.executionTraceId ?? undefined,
+      } satisfies ScoresTableRow;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scores.data, scoreMetrics.data, isBetaEnabled]);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
@@ -792,7 +903,7 @@ export default function ScoresTable({
                     : {
                         isLoading: false,
                         isError: false,
-                        data: scores.data?.scores.map(convertToTableRow) ?? [],
+                        data: enrichedScores ?? [],
                       }
               }
               pagination={{
