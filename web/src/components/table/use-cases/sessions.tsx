@@ -340,6 +340,7 @@ export default function SessionsTable({
     {
       projectId,
       sessionIds: sessionsV4.data?.sessions.map((s) => s.id) ?? [],
+      queryFromTimestamp: dateRange?.from ?? null,
     },
     {
       enabled: sessionsV4.data !== undefined && isBetaEnabled,

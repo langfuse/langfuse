@@ -10,10 +10,12 @@ import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashbo
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 
 type BarChartDataPoint = {
   name: string;
@@ -27,6 +29,7 @@ export const UserChart = ({
   fromTimestamp,
   toTimestamp,
   isLoading = false,
+  metricsVersion,
 }: {
   className?: string;
   projectId: string;
@@ -34,6 +37,7 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
+  metricsVersion?: ViewVersion;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
@@ -62,6 +66,7 @@ export const UserChart = ({
     {
       projectId,
       query: userCostQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -73,11 +78,12 @@ export const UserChart = ({
     },
   );
 
+  const isV2 = metricsVersion === "v2";
+  const countField = isV2 ? "uniq_traceId" : "count_count";
+
   const traceCountQuery: QueryType = {
-    view: "traces",
+    ...traceViewQuery({ metricsVersion, globalFilterState }),
     dimensions: [{ field: "userId" }],
-    metrics: [{ measure: "count", aggregation: "count" }],
-    filters: mapLegacyUiTableFilterToView("traces", globalFilterState),
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -88,6 +94,7 @@ export const UserChart = ({
     {
       projectId,
       query: traceCountQuery,
+      version: metricsVersion,
     },
     {
       trpc: {
@@ -105,7 +112,7 @@ export const UserChart = ({
         .map((item) => {
           return {
             name: item.userId as string,
-            value: item.count_count ? Number(item.count_count) : 0,
+            value: item[countField] ? Number(item[countField]) : 0,
           };
         })
     : [];
@@ -127,7 +134,7 @@ export const UserChart = ({
   );
 
   const totalTraces = traces.data?.reduce(
-    (acc, curr) => acc + (Number(curr.count_count) || 0),
+    (acc, curr) => acc + (Number(curr[countField]) || 0),
     0,
   );
 

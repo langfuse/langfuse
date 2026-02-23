@@ -29,6 +29,8 @@ import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { FilterState } from "../../types";
 import {
   eventsScoresAggregation,
+  eventsSessionsAggregation,
+  eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -65,6 +67,7 @@ import {
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
+  type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
@@ -419,8 +422,14 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
+  // Extract levelInTrace filters (number type, may have multiple for range: >= and <=)
+  const levelFilters = filter.filter(
+    (f) => f.column === "levelInTrace" && f.type === "number",
+  );
   const baseFilter: typeof filter = [
-    ...filter.filter((f) => f.type !== "positionInTrace"),
+    ...filter.filter(
+      (f) => f.type !== "positionInTrace" && f.column !== "levelInTrace",
+    ),
   ];
 
   // Build filter list from baseFilter (without positionInTrace)
@@ -499,14 +508,66 @@ async function getObservationsFromEventsTableInternal<T>(
     if (nativeFilterClause) cteWhere += ` AND ${nativeFilterClause}`;
     if (searchClause) cteWhere += ` AND ${searchClause}`;
 
+    // TODO: Build this CTE via a query builder instead of raw SQL string
     queryBuilder.withCTE("qualifying_obs", {
-      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events e WHERE ${cteWhere}`,
+      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events_core e WHERE ${cteWhere}`,
       params: { projectId, ...appliedNativeFilter.params, ...search.params },
     });
 
     queryBuilder.whereRaw(
       "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
       { _posRn: Math.max(1, position) },
+    );
+  }
+
+  // Handle levelInTrace via recursive CTE
+  // Level 0 = root (no parent), level 1 = direct children of root, etc.
+  if (levelFilters.length > 0) {
+    const nativeLevelFilter = new FilterList(
+      createFilterFromFilterState(
+        baseFilter,
+        eventsTableNativeUiColumnDefinitions,
+      ),
+    );
+    const appliedNativeLevelFilter = nativeLevelFilter.apply();
+    const nativeLevelClause = appliedNativeLevelFilter.query
+      .trim()
+      .replace(/^(AND|OR)\s+/i, "");
+
+    let cteScope = "e.project_id = {projectId: String}";
+    if (nativeLevelClause) cteScope += ` AND ${nativeLevelClause}`;
+
+    // Each UNION ALL branch has its own namespace scope, so `e` can be reused safely.
+    const levelCteQuery = [
+      // Anchor: root observations (no parent)
+      `SELECT e.span_id, e.trace_id, 0 AS level FROM events_core e WHERE ${cteScope} AND e.parent_span_id = ''`,
+      "UNION ALL",
+      // Recursive: children
+      `SELECT e.span_id, e.trace_id, parent.level + 1 AS level FROM events_core e JOIN level_tree parent ON e.parent_span_id = parent.span_id AND e.trace_id = parent.trace_id WHERE e.project_id = {projectId: String}${nativeLevelClause ? ` AND ${nativeLevelClause}` : ""}`,
+    ].join(" ");
+
+    // TODO: Build this CTE via a query builder instead of raw SQL string
+    queryBuilder.withRecursiveCTE("level_tree", {
+      query: levelCteQuery,
+      params: { projectId, ...appliedNativeLevelFilter.params },
+    });
+
+    // Build WHERE conditions for each level filter
+    const levelConditions: string[] = [];
+    const levelParams: Record<string, number> = {};
+    levelFilters.forEach((lf, idx) => {
+      if (lf.type === "number") {
+        const paramName = `_levelVal${idx}`;
+        levelConditions.push(`level ${lf.operator} {${paramName}: UInt32}`);
+        // Round to integer — level is always a whole number depth
+        levelParams[paramName] = Math.round(lf.value);
+      }
+    });
+
+    const levelWhere = levelConditions.join(" AND ");
+    queryBuilder.whereRaw(
+      `e.span_id IN (SELECT span_id FROM level_tree WHERE ${levelWhere})`,
+      levelParams,
     );
   }
 
@@ -1594,6 +1655,7 @@ export const getEventsGroupedByName = async (
 export const getEventsGroupedByTraceName = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1610,6 +1672,8 @@ export const getEventsGroupedByTraceName = async (
     .whereRaw("e.trace_name IS NOT NULL AND length(e.trace_name) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
+
+  if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1630,14 +1694,17 @@ export const getEventsGroupedByTraceName = async (
  * Get grouped trace tags from events table
  * Used for filter options
  *
- * NOTE: Uses raw SQL instead of EventsAggQueryBuilder because:
+ * NOTE:
  * - arrayJoin() explodes arrays into rows, requiring DISTINCT (not GROUP BY)
  * - EventsAggQueryBuilder always emits GROUP BY, which changes semantics
  * - We want unique tag values, not tag occurrence counts
+ * We therefore compose a row-level events query via EventsQueryBuilder and
+ * run arrayJoin() in an outer CTE query.
  */
 export const getEventsGroupedByTraceTags = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1645,21 +1712,34 @@ export const getEventsGroupedByTraceTags = async (
 
   const appliedEventsFilter = eventsFilter.apply();
 
-  const query = `
-    SELECT DISTINCT arrayJoin(e.tags) as tag
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-    AND e.is_deleted = 0
-    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
-    AND notEmpty(e.tags)
-    ORDER BY tag ASC
-    LIMIT 1000
-  `;
+  const filteredEventsBuilder = new EventsQueryBuilder({ projectId })
+    .selectRaw("e.tags AS tags")
+    .where(appliedEventsFilter)
+    .whereRaw("e.is_deleted = 0")
+    .whereRaw("notEmpty(e.tags)");
+
+  if (opts?.extraWhereRaw) filteredEventsBuilder.whereRaw(opts.extraWhereRaw);
+
+  const { query: filteredEventsQuery, params: filteredEventsParams } =
+    filteredEventsBuilder.buildWithParams();
+
+  const tagsQueryBuilder = new CTEQueryBuilder()
+    .withCTE("filtered_events", {
+      query: filteredEventsQuery,
+      params: filteredEventsParams,
+      schema: ["tags"],
+    })
+    .from("filtered_events", "fe")
+    .select("DISTINCT arrayJoin(fe.tags) AS tag")
+    .orderBy("ORDER BY tag ASC")
+    .limit(1000, 0);
+
+  const { query, params } = tagsQueryBuilder.buildWithParams();
 
   return measureAndReturn({
     operationName: "getEventsGroupedByTraceTags",
     projectId,
-    input: { params: { projectId, ...appliedEventsFilter.params } },
+    input: { params },
     fn: async (input) => {
       return queryClickhouse<{ tag: string }>({
         query,
@@ -1762,6 +1842,7 @@ export const getEventsGroupedByType = async (
 export const getEventsGroupedByUserId = async (
   projectId: string,
   filter: FilterState,
+  opts?: { extraWhereRaw?: string },
 ) => {
   const eventsFilter = new FilterList(
     createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
@@ -1780,6 +1861,8 @@ export const getEventsGroupedByUserId = async (
     .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
     .orderBy("ORDER BY count() DESC")
     .limit(1000, 0);
+
+  if (opts?.extraWhereRaw) queryBuilder.whereRaw(opts.extraWhereRaw);
 
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -2119,6 +2202,89 @@ export const getEventsGroupedByHasParentObservation = async (
       projectId,
     },
   });
+};
+
+/**
+ * Get grouped available tool names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(mapKeys(e.tool_definitions))",
+    selectExpression:
+      "arrayJoin(mapKeys(e.tool_definitions)) as toolName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(mapKeys(e.tool_definitions)) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{ toolName: string; count: number }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
+};
+
+/**
+ * Get grouped called tool names from events table
+ * Used for filter options
+ */
+export const getEventsGroupedByCalledToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, eventsTableUiColumnDefinitions),
+  );
+
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "arrayJoin(e.tool_call_names)",
+    selectExpression:
+      "arrayJoin(e.tool_call_names) as calledToolName, count() as count",
+  })
+    .where(appliedEventsFilter)
+    .whereRaw("length(e.tool_call_names) > 0")
+    .orderBy("ORDER BY count() DESC")
+    .limit(1000, 0);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    calledToolName: string;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+  });
+  return res;
 };
 
 /**
@@ -2851,6 +3017,48 @@ export const hasAnySessionFromEventsTable = async (
   return rows.length > 0;
 };
 
+/**
+ * Fetch trace metadata (name, user_id, tags) for a list of trace IDs.
+ * Used by the scores table to enrich score rows with trace-level data.
+ */
+export const getTraceMetadataByIdsFromEvents = async (props: {
+  projectId: string;
+  traceIds: string[];
+}) => {
+  if (props.traceIds.length === 0) return [];
+
+  const builder = eventsTraceMetadata(props.projectId).whereRaw(
+    "e.trace_id IN ({traceIds: Array(String)})",
+    { traceIds: props.traceIds },
+  );
+
+  const { query, params } = builder.buildWithParams();
+
+  return measureAndReturn({
+    operationName: "getTraceMetadataByIdsFromEvents",
+    projectId: props.projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "trace-metadata",
+        projectId: props.projectId,
+      },
+    },
+    fn: async (input) =>
+      queryClickhouse<{
+        id: string;
+        name: string;
+        user_id: string;
+        tags: string[];
+      }>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
+};
+
 export const getAvgCostByEvaluatorIds = async (
   projectId: string,
   evaluatorIds: string[],
@@ -2898,5 +3106,48 @@ export const getAvgCostByEvaluatorIds = async (
     evaluatorId: row.evaluator_id,
     avgCost: Number(row.avg_cost),
     executionCount: Number(row.execution_count),
+  }));
+};
+
+export const getSessionMetricsFromEvents = async (props: {
+  projectId: string;
+  sessionIds: string[];
+  queryFromTimestamp?: Date;
+}) => {
+  if (props.sessionIds.length === 0) return [];
+
+  const builder = eventsSessionsAggregation({
+    projectId: props.projectId,
+    sessionIds: props.sessionIds,
+    startTimeFrom: props.queryFromTimestamp
+      ? convertDateToClickhouseDateTime(props.queryFromTimestamp)
+      : undefined,
+  }).limit(props.sessionIds.length);
+
+  const { query, params } = builder.buildWithParams();
+
+  const rows = await measureAndReturn({
+    operationName: "getSessionMetricsFromEvents",
+    projectId: props.projectId,
+    input: {
+      params,
+      tags: {
+        feature: "tracing",
+        type: "session-metrics-direct",
+        projectId: props.projectId,
+      },
+    },
+    fn: async (input) =>
+      queryClickhouse<SessionEventsMetricsRow>({
+        query,
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
+    total_observations: Number(row.total_observations),
   }));
 };

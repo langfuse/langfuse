@@ -7,7 +7,10 @@ import { SingleValueOption } from "../../tableDefinitions";
 import { ColumnDefinition } from "../../tableDefinitions";
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 
-const flexibleUsageCostSchema = z.record(z.string(), z.number().nullable());
+const flexibleUsageCostSchema = z.record(
+  z.string(),
+  z.coerce.number().nullable(),
+);
 
 export const observationForEvalSchema = z.object({
   // Identifiers

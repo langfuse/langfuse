@@ -77,15 +77,27 @@ export const handleEventPropagationJob = async (
       `[DUAL WRITE] Last processed partition: ${lastProcessedPartition ?? "none"}`,
     );
 
+    // Track delay based on the Redis key so we have a reference even if no processing happens
+    if (lastProcessedPartition) {
+      const lastPartitionTime = new Date(lastProcessedPartition).getTime();
+      if (!isNaN(lastPartitionTime)) {
+        const delaySeconds = (Date.now() - lastPartitionTime) / 1000;
+        recordGauge(
+          "langfuse.event_propagation.last_processed_partition_delay_seconds",
+          delaySeconds,
+        );
+      }
+    }
+
     // Query for the next partition after the last processed one
-    // Filter for partitions older than 6 minutes and order by partition ASC to get the oldest first
+    // Filter for partitions older than LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES minutes and order by partition ASC to get the oldest first
     const partitions = await queryClickhouse<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
           AND active = 1
-          AND toDateTime(partition) < now() - INTERVAL 10 MINUTE
+          AND toDateTime(partition) < now() - INTERVAL ${env.LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES} MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}
         ORDER BY partition ASC
       `,
@@ -152,7 +164,13 @@ export const handleEventPropagationJob = async (
           from traces t
           where t.project_id in (select arrayJoin(project_ids) from batch_stats)
             and t.id in (select arrayJoin(trace_ids) from batch_stats)
-            and t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats)
+            and (
+              -- For some reason clickhouse detects any "date >= '1969-12-31'" as false.
+              -- Therefore, we add a fallback condition that limits actively to last 7 days.
+              -- This means that 7 days becomes the maximum trace data propagation interval.
+              t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats) OR
+              t.timestamp >= now() - interval 7 day
+            )
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
           order by t.event_ts desc
           limit 1 by t.project_id, t.id
@@ -293,6 +311,16 @@ export const handleEventPropagationJob = async (
     logger.info(
       `[DUAL WRITE] Successfully propagated observations from partition ${partitionToProcess} to events table`,
     );
+
+    // Track delay of the partition we just processed
+    const processedPartitionTime = new Date(partitionToProcess).getTime();
+    if (!isNaN(processedPartitionTime)) {
+      const delaySeconds = (Date.now() - processedPartitionTime) / 1000;
+      recordGauge(
+        "langfuse.event_propagation.processed_partition_delay_seconds",
+        delaySeconds,
+      );
+    }
 
     // Step 3: Update the last processed partition cursor in Redis
     // This allows the next job to continue from where we left off

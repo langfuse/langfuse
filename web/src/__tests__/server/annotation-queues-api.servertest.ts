@@ -4,7 +4,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
-  pruneDatabase,
 } from "@/src/__tests__/test-utils";
 import {
   GetAnnotationQueuesResponse,
@@ -31,7 +30,7 @@ describe("Annotation Queues API Endpoints", () => {
   const TOTAL_TEST_QUEUES = 15; // Create enough queues to test pagination
   const TOTAL_TEST_QUEUE_ITEMS = 20; // Create enough queue items to test pagination
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     // Create organization, project, and API key for testing
     const { auth: newAuth, projectId: newProjectId } =
       await createOrgProjectAndApiKey();
@@ -88,10 +87,6 @@ describe("Annotation Queues API Endpoints", () => {
 
     const queueItems = await Promise.all(queueItemPromises);
     queueItemId = queueItems[0].id; // Use the first queue item for specific tests
-  });
-
-  afterAll(async () => {
-    await pruneDatabase();
   });
 
   describe("GET /annotation-queues", () => {
@@ -205,6 +200,15 @@ describe("Annotation Queues API Endpoints", () => {
     });
 
     it("should return 400 if the queue name already exists", async () => {
+      await prisma.annotationQueue.create({
+        data: {
+          name: "Test Queue",
+          description: "Test Queue Description",
+          scoreConfigIds: [],
+          projectId,
+        },
+      });
+
       const response = await makeAPICall(
         "POST",
         "/api/public/annotation-queues",

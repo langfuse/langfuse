@@ -49,6 +49,9 @@ export class InMemoryFilterService {
   ): boolean {
     const { column, type, operator } = condition;
 
+    // levelInTrace is computed via recursive CTE in DB queries, skip in-memory.
+    if (column === "levelInTrace") return true;
+
     // Get the data field value based on the column
     const fieldValue = fieldMapper(data, column);
 
@@ -374,7 +377,9 @@ export class InMemoryFilterService {
   ): boolean {
     switch (operator) {
       case "is null":
-        return fieldValue === null || fieldValue === undefined;
+        return (
+          fieldValue === null || fieldValue === undefined || fieldValue === ""
+        );
       case "is not null":
         return fieldValue !== null && fieldValue !== undefined;
       default:
