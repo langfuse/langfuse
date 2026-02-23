@@ -30,21 +30,14 @@ if [ -z "$DIRECT_URL" ]; then
     export DIRECT_URL="${DATABASE_URL}"
 fi
 
-run_postgres_migrations() {
-    prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
-    prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
-}
-
-status=0
-
 # Always execute the postgres migration, except when disabled.
 if [ "$LANGFUSE_AUTO_POSTGRES_MIGRATION_DISABLED" != "true" ]; then
-    if ! run_postgres_migrations; then
-        echo "Initial postgres migration attempt failed. Retrying once after applying cleanup patches..."
-        run_postgres_migrations
-        status=$?
-    fi
+    prisma db execute --url "$DIRECT_URL" --file "./packages/shared/scripts/cleanup.sql"
+
+    # Apply migrations
+    prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
 fi
+status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
 if [ $status -ne 0 ]; then
