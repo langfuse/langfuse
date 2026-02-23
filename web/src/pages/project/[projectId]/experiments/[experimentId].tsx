@@ -3,7 +3,6 @@ import Page from "@/src/components/layouts/page";
 
 export default function ExperimentDetail() {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
   const experimentId = router.query.experimentId as string;
 
   return (
@@ -16,11 +15,9 @@ export default function ExperimentDetail() {
           href: "https://langfuse.com/docs/datasets/experiments",
         },
       }}
-      scrollable
     >
       <div className="p-4">
         <p>Experiment Detail View - Coming Soon</p>
-        <p>Project ID: {projectId}</p>
         <p>Experiment ID: {experimentId}</p>
       </div>
     </Page>
