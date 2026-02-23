@@ -75,6 +75,18 @@ interface CreateObservationEventParams {
   endTimeISO: string;
 }
 
+type NanoTimestamp =
+  | number
+  | string
+  | {
+      high: number;
+      low: number;
+    }
+  | null
+  | undefined;
+
+type TimestampField = "start_time" | "end_time" | "unknown";
+
 export interface ResourceSpan {
   resource?: {
     attributes?: Array<{ key: string; value: any }>;
@@ -91,8 +103,8 @@ export interface ResourceSpan {
       parentSpanId?: { data?: Buffer } | Buffer;
       name: string;
       kind: number;
-      startTimeUnixNano: number | { low: number; high: number };
-      endTimeUnixNano: number | { low: number; high: number };
+      startTimeUnixNano?: NanoTimestamp;
+      endTimeUnixNano?: NanoTimestamp;
       attributes?: Array<{ key: string; value: any }>;
       events?: any[];
       status?: { code?: number; message?: string };
@@ -110,6 +122,9 @@ const observationTypeMapper = new ObservationTypeMapperRegistry();
  * for converting OTEL spans to Langfuse events.
  */
 export class OtelIngestionProcessor {
+  private static readonly OTEL_CONVERSION_FAILURE_METRIC =
+    "langfuse.ingestion.otel.conversion_failure";
+
   private seenTraces: Set<string> = new Set();
   private isInitialized = false;
   private traceEventCounts = {
@@ -223,14 +238,11 @@ export class OtelIngestionProcessor {
                   ? this.parseId(span.parentSpanId)
                   : null;
                 const name = span.name;
-                const startTimeISO =
-                  OtelIngestionProcessor.convertNanoTimestampToISO(
-                    span.startTimeUnixNano,
-                  );
-                const endTimeISO =
-                  OtelIngestionProcessor.convertNanoTimestampToISO(
-                    span.endTimeUnixNano,
-                  );
+                const { startTimeISO, endTimeISO } =
+                  OtelIngestionProcessor.resolveSpanTimestamps({
+                    startTimeUnixNano: span.startTimeUnixNano,
+                    endTimeUnixNano: span.endTimeUnixNano,
+                  });
 
                 // Extract metadata from different sources
                 const spanMetadata = this.extractMetadata(
@@ -697,12 +709,11 @@ export class OtelIngestionProcessor {
       resourceAttributes,
       "trace",
     );
-    const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
-      span.startTimeUnixNano,
-    );
-    const endTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
-      span.endTimeUnixNano,
-    );
+    const { startTimeISO, endTimeISO } =
+      OtelIngestionProcessor.resolveSpanTimestamps({
+        startTimeUnixNano: span.startTimeUnixNano,
+        endTimeUnixNano: span.endTimeUnixNano,
+      });
 
     const isRootSpan =
       !parentObservationId ||
@@ -2345,20 +2356,52 @@ export class OtelIngestionProcessor {
    * Handles various timestamp formats: string, number, or object with high/low bits.
    */
   public static convertNanoTimestampToISO(
-    timestamp:
-      | number
-      | string
-      | {
-          high: number;
-          low: number;
-        },
-  ): string {
+    timestamp: NanoTimestamp,
+    field: TimestampField = "unknown",
+  ): string | undefined {
     try {
-      if (typeof timestamp === "string") {
-        return new Date(Number(BigInt(timestamp) / BigInt(1e6))).toISOString();
+      if (timestamp == null) {
+        OtelIngestionProcessor.recordConversionFailure(
+          "timestamp_missing",
+          field,
+        );
+        return undefined;
       }
+
+      if (typeof timestamp === "string") {
+        if (timestamp.trim() === "") {
+          OtelIngestionProcessor.recordConversionFailure(
+            "timestamp_invalid_empty_string",
+            field,
+          );
+          return undefined;
+        }
+
+        const millisBigInt = BigInt(timestamp) / BigInt(1_000_000);
+        return new Date(Number(millisBigInt)).toISOString();
+      }
+
       if (typeof timestamp === "number") {
+        if (!Number.isFinite(timestamp)) {
+          OtelIngestionProcessor.recordConversionFailure(
+            "timestamp_invalid_number",
+            field,
+          );
+          return undefined;
+        }
+
         return new Date(timestamp / 1e6).toISOString();
+      }
+
+      if (
+        typeof timestamp.high !== "number" ||
+        typeof timestamp.low !== "number"
+      ) {
+        OtelIngestionProcessor.recordConversionFailure(
+          "timestamp_invalid_object",
+          field,
+        );
+        return undefined;
       }
 
       // Convert high and low to BigInt
@@ -2376,8 +2419,64 @@ export class OtelIngestionProcessor {
         timestamp,
         error: e,
       });
-      throw e;
+      OtelIngestionProcessor.recordConversionFailure(
+        typeof timestamp === "string"
+          ? "timestamp_invalid_string"
+          : "timestamp_conversion_exception",
+        field,
+      );
+      return undefined;
     }
+  }
+
+  /**
+   * Ensure a stable time range for spans even if a timestamp is missing.
+   * If one edge is missing, use the other edge. If both are missing, use current time.
+   */
+  private static resolveSpanTimestamps(params: {
+    startTimeUnixNano?: NanoTimestamp;
+    endTimeUnixNano?: NanoTimestamp;
+  }): { startTimeISO: string; endTimeISO: string } {
+    const startTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
+      params.startTimeUnixNano,
+      "start_time",
+    );
+    const endTimeISO = OtelIngestionProcessor.convertNanoTimestampToISO(
+      params.endTimeUnixNano,
+      "end_time",
+    );
+    const fallbackISO = new Date().toISOString();
+
+    if (!startTimeISO && endTimeISO) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_inferred_start_from_end",
+        "start_time",
+      );
+    } else if (startTimeISO && !endTimeISO) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_inferred_end_from_start",
+        "end_time",
+      );
+    } else if (!startTimeISO && !endTimeISO) {
+      OtelIngestionProcessor.recordConversionFailure(
+        "timestamp_inferred_both_missing",
+      );
+    }
+
+    return {
+      startTimeISO: startTimeISO ?? endTimeISO ?? fallbackISO,
+      endTimeISO: endTimeISO ?? startTimeISO ?? fallbackISO,
+    };
+  }
+
+  private static recordConversionFailure(
+    failureType: string,
+    field: TimestampField = "unknown",
+  ): void {
+    recordIncrement(OtelIngestionProcessor.OTEL_CONVERSION_FAILURE_METRIC, 1, {
+      failure_type: failureType,
+      timestamp_field: field,
+    });
   }
 
   /**
