@@ -5,6 +5,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["db:generate", "^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true
     },
@@ -60,6 +61,7 @@
     },
     "build:check": {
       "dependsOn": ["db:generate", "^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env"],
       "outputs": [".next-check/**", "!.next-check/cache/**"],
       "cache": true
     },
