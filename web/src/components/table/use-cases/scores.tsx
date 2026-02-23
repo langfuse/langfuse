@@ -285,8 +285,26 @@ export default function ScoresTable({
     [filterOptions.data, environmentOptions],
   );
 
+  // TODO: remove if we can filter out values without scores somehow
+  const effectiveFilterConfig = React.useMemo(() => {
+    if (!useEventsBackedScores) return scoreFilterConfig;
+    const traceColumns = new Set(["traceName", "userId", "tags"]);
+    return {
+      ...scoreFilterConfig,
+      facets: scoreFilterConfig.facets.map((f) =>
+        traceColumns.has(f.column)
+          ? {
+              ...f,
+              tooltip:
+                "Includes all values, including from traces without scores.",
+            }
+          : f,
+      ),
+    };
+  }, [useEventsBackedScores]);
+
   const queryFilter = useSidebarFilterState(
-    scoreFilterConfig,
+    effectiveFilterConfig,
     newFilterOptions,
     projectId,
     filterOptions.isPending || environmentFilterOptions.isPending,
