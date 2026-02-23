@@ -1136,6 +1136,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Total number of observations.",
       unit: "observations",
     },
+    traceId: {
+      sql: "@@AGG@@(events_observations.trace_id)",
+      aggs: { agg: "any" },
+      alias: "traceId",
+      type: "string",
+      description:
+        "Trace identifier; apply uniq aggregation to count distinct traces.",
+    },
     latency: {
       sql: "date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.end_time))",
       aggs: { agg1: "any" },

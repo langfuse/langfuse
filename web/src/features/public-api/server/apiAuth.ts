@@ -39,15 +39,15 @@ export class ApiAuthService {
   // - when projects move across organisations, the orgId in the API key cache needs to be updated
   // - when the plan of the org changes, the plan in the API key cache needs to be updated as well
   async invalidateCachedApiKeys(apiKeys: ApiKey[], identifier: string) {
-    await invalidateCachedApiKeysShared(apiKeys, identifier);
+    await invalidateCachedApiKeysShared(apiKeys, identifier, this.redis);
   }
 
   async invalidateCachedOrgApiKeys(orgId: string) {
-    await invalidateCachedOrgApiKeysShared(orgId);
+    await invalidateCachedOrgApiKeysShared(orgId, this.redis);
   }
 
   async invalidateCachedProjectApiKeys(projectId: string) {
-    await invalidateCachedProjectApiKeysShared(projectId);
+    await invalidateCachedProjectApiKeysShared(projectId, this.redis);
   }
 
   /**
@@ -73,7 +73,7 @@ export class ApiAuthService {
 
     // if redis is available, delete the key from there as well
     // delete from redis even if caching is disabled via env for consistency
-    this.invalidateCachedApiKeys([apiKey], `key ${id}`);
+    await this.invalidateCachedApiKeys([apiKey], `key ${id}`);
 
     await this.prisma.apiKey.delete({
       where: {

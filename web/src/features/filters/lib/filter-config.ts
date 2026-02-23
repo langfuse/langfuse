@@ -1,8 +1,10 @@
+import type React from "react";
 import type { ColumnDefinition } from "@langfuse/shared";
 
 interface BaseFacet {
   column: string;
   label: string;
+  tooltip?: string;
   isDisabled?: boolean;
   disabledReason?: string;
   // Mutually exclusive with these facet columns. If both are active,
@@ -12,6 +14,8 @@ interface BaseFacet {
 
 interface CategoricalFacet extends BaseFacet {
   type: "categorical";
+  /** Optional function to render an icon next to filter option labels */
+  renderIcon?: (value: string) => React.ReactNode;
 }
 
 interface BooleanFacet extends BaseFacet {
