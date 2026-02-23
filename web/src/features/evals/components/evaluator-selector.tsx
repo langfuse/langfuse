@@ -4,7 +4,6 @@ import {
   CheckIcon,
   ExternalLink,
   ExternalLinkIcon,
-  Info,
 } from "lucide-react";
 import {
   InputCommand,
