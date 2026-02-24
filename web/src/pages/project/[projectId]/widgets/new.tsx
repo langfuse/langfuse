@@ -50,7 +50,7 @@ export default function NewWidget() {
     filters: any[];
     chartType: DashboardWidgetChartType;
     chartConfig: WidgetChartConfig;
-    version: number;
+    minVersion: number;
   }) => {
     if (!widgetData.name.trim()) {
       showErrorToast("Error", "Widget name is required");
@@ -71,7 +71,7 @@ export default function NewWidget() {
       filters: widgetData.filters,
       chartType: widgetData.chartType,
       chartConfig: widgetData.chartConfig,
-      version: widgetData.version,
+      minVersion: widgetData.minVersion,
     });
   };
 

@@ -64,14 +64,12 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-  // v2-created widgets always use v2; v1 widgets (including traces) follow
-  // the user's beta opt-in. Traces view is never saved as v2 by the form,
-  // but guard against corrupt data by ignoring the stored version for traces.
+  // If widget requires v2 features (minVersion >= 2), must use v2.
+  // Otherwise follow the beta toggle.
   const metricsVersion: ViewVersion = useMemo(() => {
-    if (widget.data?.view === "traces") return isBetaEnabled ? "v2" : "v1";
-    if ((widget.data?.version ?? 1) >= 2) return "v2";
+    if ((widget.data?.minVersion ?? 1) >= 2) return "v2";
     return isBetaEnabled ? "v2" : "v1";
-  }, [widget.data?.version, widget.data?.view, isBetaEnabled]);
+  }, [widget.data?.minVersion, isBetaEnabled]);
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";

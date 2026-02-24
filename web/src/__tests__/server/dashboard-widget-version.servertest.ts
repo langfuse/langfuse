@@ -1,5 +1,6 @@
 /** @jest-environment node */
 
+import { v4 as uuidv4 } from "uuid";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { DashboardService } from "@langfuse/shared/src/server";
 import { DashboardWidgetViews } from "@langfuse/shared/src/db";
@@ -7,22 +8,41 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
+import { requiresV2 } from "@/src/features/query/dataModel";
 
-describe("dashboard widget version", () => {
+describe("dashboard widget minVersion", () => {
   let projectId: string;
   let orgId: string;
+  let userId: string;
 
   beforeAll(async () => {
     const org = await createOrgProjectAndApiKey();
     projectId = org.projectId;
     orgId = org.orgId;
+
+    const user = await prisma.user.create({
+      data: {
+        id: uuidv4(),
+        email: `test-dashboard-widget-${uuidv4().substring(0, 8)}@test.com`,
+        name: "Test User",
+      },
+    });
+    userId = user.id;
+
+    await prisma.organizationMembership.create({
+      data: {
+        orgId,
+        userId: user.id,
+        role: "OWNER",
+      },
+    });
   });
 
   function makeCaller() {
     const session: Session = {
       expires: "1",
       user: {
-        id: "user-1",
+        id: userId,
         canCreateOrganizations: true,
         name: "Test User",
         organizations: [
@@ -72,72 +92,163 @@ describe("dashboard widget version", () => {
     chartConfig: { type: "LINE_TIME_SERIES" as const },
   };
 
+  // ── requiresV2 helper tests ─────────────────────────────────────────
+
+  describe("requiresV2", () => {
+    it("should return false for v1-compatible observations fields", () => {
+      expect(
+        requiresV2({
+          view: "observations",
+          dimensions: [{ field: "name" }],
+          measures: [{ measure: "count" }],
+        }),
+      ).toBe(false);
+    });
+
+    it("should return true for costType dimension (v2-only)", () => {
+      expect(
+        requiresV2({
+          view: "observations",
+          dimensions: [{ field: "costType" }],
+          measures: [{ measure: "count" }],
+        }),
+      ).toBe(true);
+    });
+
+    it("should return true for usageType dimension (v2-only)", () => {
+      expect(
+        requiresV2({
+          view: "observations",
+          dimensions: [{ field: "usageType" }],
+          measures: [{ measure: "count" }],
+        }),
+      ).toBe(true);
+    });
+
+    it("should return true for costByType measure (v2-only)", () => {
+      expect(
+        requiresV2({
+          view: "observations",
+          dimensions: [],
+          measures: [{ measure: "costByType" }],
+        }),
+      ).toBe(true);
+    });
+
+    it("should return true for usageByType measure (v2-only)", () => {
+      expect(
+        requiresV2({
+          view: "observations",
+          dimensions: [],
+          measures: [{ measure: "usageByType" }],
+        }),
+      ).toBe(true);
+    });
+
+    it("should return true for traceId measure (v2-only)", () => {
+      expect(
+        requiresV2({
+          view: "observations",
+          dimensions: [],
+          measures: [{ measure: "traceId" }],
+        }),
+      ).toBe(true);
+    });
+
+    it("should return false for traces view (same fields in v1 and v2)", () => {
+      expect(
+        requiresV2({
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          measures: [{ measure: "count" }],
+        }),
+      ).toBe(false);
+    });
+
+    it("should return false for scores-numeric view", () => {
+      expect(
+        requiresV2({
+          view: "scores-numeric",
+          dimensions: [{ field: "name" }],
+          measures: [{ measure: "count" }],
+        }),
+      ).toBe(false);
+    });
+
+    it("should return false for unknown view", () => {
+      expect(
+        requiresV2({
+          view: "nonexistent",
+          dimensions: [{ field: "name" }],
+          measures: [{ measure: "count" }],
+        }),
+      ).toBe(false);
+    });
+  });
+
   // ── Service layer tests ─────────────────────────────────────────────
 
   describe("DashboardService", () => {
-    it("should default version to 1 when not provided", async () => {
+    it("should default minVersion to 1 when not provided", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
         baseWidgetInput,
-        "user-1",
+        userId,
       );
 
-      expect(widget.version).toBe(1);
+      expect(widget.minVersion).toBe(1);
     });
 
-    it("should persist version=2 when explicitly provided", async () => {
+    it("should persist minVersion=2 when explicitly provided", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
-        { ...baseWidgetInput, version: 2 },
-        "user-1",
+        { ...baseWidgetInput, minVersion: 2 },
+        userId,
       );
 
-      expect(widget.version).toBe(2);
+      expect(widget.minVersion).toBe(2);
 
-      // Verify via getWidget
       const fetched = await DashboardService.getWidget(widget.id, projectId);
       expect(fetched).not.toBeNull();
-      expect(fetched!.version).toBe(2);
+      expect(fetched!.minVersion).toBe(2);
     });
 
-    it("should preserve version when updating without specifying it", async () => {
+    it("should preserve minVersion when updating without specifying it", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
-        { ...baseWidgetInput, version: 2 },
-        "user-1",
+        { ...baseWidgetInput, minVersion: 2 },
+        userId,
       );
 
-      // Update without version
       const updated = await DashboardService.updateWidget(
         projectId,
         widget.id,
         { ...baseWidgetInput, name: "Updated Widget" },
-        "user-1",
+        userId,
       );
 
-      expect(updated.version).toBe(2);
+      expect(updated.minVersion).toBe(2);
       expect(updated.name).toBe("Updated Widget");
     });
 
-    it("should allow changing version on update", async () => {
+    it("should allow changing minVersion on update", async () => {
       const widget = await DashboardService.createWidget(
         projectId,
-        { ...baseWidgetInput, version: 1 },
-        "user-1",
+        { ...baseWidgetInput, minVersion: 1 },
+        userId,
       );
 
       const updated = await DashboardService.updateWidget(
         projectId,
         widget.id,
-        { ...baseWidgetInput, version: 2 },
-        "user-1",
+        { ...baseWidgetInput, minVersion: 2 },
+        userId,
       );
 
-      expect(updated.version).toBe(2);
+      expect(updated.minVersion).toBe(2);
     });
 
-    it("should preserve version when copying widget to project", async () => {
-      // Create a Langfuse-managed widget (projectId=null) directly in DB
+    it("should preserve minVersion when copying widget to project", async () => {
       const sourceWidget = await prisma.dashboardWidget.create({
         data: {
           name: "Langfuse Widget",
@@ -148,20 +259,18 @@ describe("dashboard widget version", () => {
           filters: [],
           chartType: "LINE_TIME_SERIES",
           chartConfig: { type: "LINE_TIME_SERIES" },
-          version: 2,
+          minVersion: 2,
           projectId: null,
         },
       });
 
-      // Create a dashboard to copy into
       const dashboard = await DashboardService.createDashboard(
         projectId,
         "Test Dashboard",
         "A test dashboard",
-        "user-1",
+        userId,
       );
 
-      // Add a placement pointing to the source widget
       const placementId = "placement-1";
       await DashboardService.updateDashboardDefinition(
         dashboard.id,
@@ -179,16 +288,15 @@ describe("dashboard widget version", () => {
             },
           ],
         },
-        "user-1",
+        userId,
       );
 
-      // Copy widget to project
       const newWidgetId = await DashboardService.copyWidgetToProject({
         sourceWidgetId: sourceWidget.id,
         projectId,
         dashboardId: dashboard.id,
         placementId,
-        userId: "user-1",
+        userId: userId,
       });
 
       const copiedWidget = await DashboardService.getWidget(
@@ -197,7 +305,7 @@ describe("dashboard widget version", () => {
       );
 
       expect(copiedWidget).not.toBeNull();
-      expect(copiedWidget!.version).toBe(2);
+      expect(copiedWidget!.minVersion).toBe(2);
       expect(copiedWidget!.owner).toBe("PROJECT");
     });
   });
@@ -205,12 +313,12 @@ describe("dashboard widget version", () => {
   // ── tRPC router tests ──────────────────────────────────────────────
 
   describe("tRPC dashboardWidgets router", () => {
-    it("should create widget with default version=1", async () => {
+    it("should create widget with default minVersion=1", async () => {
       const caller = makeCaller();
       const result = await caller.dashboardWidgets.create({
         projectId,
         name: "tRPC Widget v1",
-        description: "Widget without explicit version",
+        description: "Widget without explicit minVersion",
         view: "observations",
         dimensions: [{ field: "name" }],
         metrics: [{ measure: "count", agg: "count" }],
@@ -219,10 +327,10 @@ describe("dashboard widget version", () => {
         chartConfig: { type: "LINE_TIME_SERIES" },
       });
 
-      expect(result.widget.version).toBe(1);
+      expect(result.widget.minVersion).toBe(1);
     });
 
-    it("should create widget with version=2", async () => {
+    it("should create widget with minVersion=2", async () => {
       const caller = makeCaller();
       const result = await caller.dashboardWidgets.create({
         projectId,
@@ -234,13 +342,13 @@ describe("dashboard widget version", () => {
         filters: [],
         chartType: "LINE_TIME_SERIES",
         chartConfig: { type: "LINE_TIME_SERIES" },
-        version: 2,
+        minVersion: 2,
       });
 
-      expect(result.widget.version).toBe(2);
+      expect(result.widget.minVersion).toBe(2);
     });
 
-    it("should return version when getting widget", async () => {
+    it("should return minVersion when getting widget", async () => {
       const caller = makeCaller();
       const created = await caller.dashboardWidgets.create({
         projectId,
@@ -252,7 +360,7 @@ describe("dashboard widget version", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        version: 2,
+        minVersion: 2,
       });
 
       const fetched = await caller.dashboardWidgets.get({
@@ -260,10 +368,10 @@ describe("dashboard widget version", () => {
         widgetId: created.widget.id,
       });
 
-      expect(fetched.version).toBe(2);
+      expect(fetched.minVersion).toBe(2);
     });
 
-    it("should update widget version", async () => {
+    it("should update widget minVersion", async () => {
       const caller = makeCaller();
       const created = await caller.dashboardWidgets.create({
         projectId,
@@ -275,7 +383,7 @@ describe("dashboard widget version", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        version: 1,
+        minVersion: 1,
       });
 
       await caller.dashboardWidgets.update({
@@ -289,7 +397,7 @@ describe("dashboard widget version", () => {
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
-        version: 2,
+        minVersion: 2,
       });
 
       const fetched = await caller.dashboardWidgets.get({
@@ -297,10 +405,10 @@ describe("dashboard widget version", () => {
         widgetId: created.widget.id,
       });
 
-      expect(fetched.version).toBe(2);
+      expect(fetched.minVersion).toBe(2);
     });
 
-    it("should allow creating widget with traces view (v1)", async () => {
+    it("should allow creating widget with traces view", async () => {
       const caller = makeCaller();
       const result = await caller.dashboardWidgets.create({
         projectId,
@@ -312,10 +420,10 @@ describe("dashboard widget version", () => {
         filters: [],
         chartType: "LINE_TIME_SERIES",
         chartConfig: { type: "LINE_TIME_SERIES" },
-        version: 1,
+        minVersion: 1,
       });
 
-      expect(result.widget.version).toBe(1);
+      expect(result.widget.minVersion).toBe(1);
     });
   });
 });

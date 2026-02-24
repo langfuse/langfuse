@@ -29,7 +29,7 @@ const CreateDashboardWidgetInput = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
-  version: z.number().int().optional(),
+  minVersion: z.number().int().optional(),
 });
 
 // Define update widget input schema (without projectId)
@@ -44,7 +44,7 @@ const UpdateDashboardWidgetInput = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
-  version: z.number().int().optional(),
+  minVersion: z.number().int().optional(),
 });
 
 // Define the widget list input schema
@@ -91,7 +91,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
         {
           ...input,
           view: viewMapping[input.view],
-          version: input.version ?? 1,
+          minVersion: input.minVersion ?? 1,
         },
         ctx.session.user?.id,
       );
@@ -171,7 +171,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
           filters: input.filters,
           chartType: input.chartType,
           chartConfig: input.chartConfig,
-          version: input.version,
+          minVersion: input.minVersion,
         },
         ctx.session.user?.id,
       );

@@ -25,9 +25,9 @@ import {
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { viewDeclarations } from "@/src/features/query/dataModel";
+import { viewDeclarations, requiresV2 } from "@/src/features/query/dataModel";
 import { type z } from "zod/v4";
-import { views, viewsV2, toViewVersion } from "@/src/features/query/types";
+import { views, viewsV2 } from "@/src/features/query/types";
 import { type ViewVersion } from "@/src/features/query";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
@@ -176,7 +176,7 @@ export function WidgetForm({
     // Support for complete widget data (editing mode)
     metrics?: { measure: string; agg: string }[];
     dimensions?: { field: string }[];
-    version?: number;
+    minVersion?: number;
   };
   projectId: string;
   onSave: (widgetData: {
@@ -188,7 +188,7 @@ export function WidgetForm({
     filters: any[];
     chartType: DashboardWidgetChartType;
     chartConfig: ChartConfig;
-    version: number;
+    minVersion: number;
   }) => void;
   widgetId?: string;
 }) {
@@ -210,14 +210,13 @@ export function WidgetForm({
     initialValues.view,
   );
 
-  // When beta is enabled, use v2 — unless the current view is "traces"
-  // which is not available in v2. Reactive to selectedView so switching
-  // away from traces mid-edit upgrades to v2.
-  const widgetVersion =
-    isBetaEnabled && selectedView !== "traces"
-      ? 2
-      : (initialValues.version ?? 1);
-  const viewVersion: ViewVersion = toViewVersion(widgetVersion);
+  // Form definitions follow beta toggle, or v2 if widget already requires it.
+  // Traces view is excluded from beta-v2 because it has no v2-only fields.
+  const viewVersion: ViewVersion =
+    (isBetaEnabled && selectedView !== "traces") ||
+    (initialValues.minVersion ?? 1) >= 2
+      ? "v2"
+      : "v1";
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
@@ -728,7 +727,7 @@ export function WidgetForm({
       .sort((a, b) =>
         a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
       );
-  }, [selectedView, selectedChartType, selectedMetrics]);
+  }, [selectedView, selectedChartType, selectedMetrics, viewVersion]);
 
   // Get available aggregations for a specific metric index in pivot tables
   const getAvailableAggregations = (
@@ -798,7 +797,7 @@ export function WidgetForm({
       .sort((a, b) =>
         a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
       );
-  }, [selectedView]);
+  }, [selectedView, viewVersion]);
 
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(() => {
@@ -978,28 +977,31 @@ export function WidgetForm({
       return;
     }
 
+    const saveDimensions =
+      selectedChartType === "PIVOT_TABLE"
+        ? pivotDimensions.map((field) => ({ field }))
+        : selectedDimension !== "none"
+          ? [{ field: selectedDimension }]
+          : [];
+    const saveMetrics =
+      selectedChartType === "PIVOT_TABLE"
+        ? validMetrics.map((metric) => ({
+            measure: metric.measure,
+            agg: metric.aggregation,
+          }))
+        : [
+            {
+              measure: selectedMeasure,
+              agg: selectedAggregation,
+            },
+          ];
+
     onSave({
       name: widgetName,
       description: widgetDescription,
       view: selectedView,
-      dimensions:
-        selectedChartType === "PIVOT_TABLE"
-          ? pivotDimensions.map((field) => ({ field }))
-          : selectedDimension !== "none"
-            ? [{ field: selectedDimension }]
-            : [],
-      metrics:
-        selectedChartType === "PIVOT_TABLE"
-          ? validMetrics.map((metric) => ({
-              measure: metric.measure,
-              agg: metric.aggregation,
-            }))
-          : [
-              {
-                measure: selectedMeasure,
-                agg: selectedAggregation,
-              },
-            ],
+      dimensions: saveDimensions,
+      metrics: saveMetrics,
       filters: mapLegacyUiTableFilterToView(selectedView, userFilterState),
       chartType: selectedChartType as DashboardWidgetChartType,
       chartConfig: isTimeSeriesChart(
@@ -1027,7 +1029,13 @@ export function WidgetForm({
                 type: selectedChartType as DashboardWidgetChartType,
                 row_limit: rowLimit,
               },
-      version: widgetVersion,
+      minVersion: requiresV2({
+        view: selectedView,
+        dimensions: saveDimensions,
+        measures: saveMetrics.map((m) => ({ measure: m.measure })),
+      })
+        ? 2
+        : 1,
     });
   };
 
