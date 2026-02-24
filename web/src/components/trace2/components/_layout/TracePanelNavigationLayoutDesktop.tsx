@@ -53,11 +53,11 @@ export function TracePanelNavigationLayoutDesktop({
               direction="vertical"
               className="flex-1 overflow-hidden"
             >
-              <ResizablePanel defaultSize={60} minSize={20}>
+              <ResizablePanel defaultSize="60%" minSize="20%">
                 <div className="h-full overflow-hidden">{children}</div>
               </ResizablePanel>
               <ResizableHandle className="h-px bg-border" />
-              <ResizablePanel defaultSize={40} minSize={20}>
+              <ResizablePanel defaultSize="40%" minSize="20%">
                 <div className="h-full overflow-hidden">{secondaryContent}</div>
               </ResizablePanel>
             </ResizablePanelGroup>

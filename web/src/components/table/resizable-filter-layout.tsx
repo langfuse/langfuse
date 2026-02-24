@@ -10,7 +10,7 @@ import { useDataTableControls } from "./data-table-controls";
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
-  const { open, tableName } = useDataTableControls();
+  const { open } = useDataTableControls();
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
 
   // Extract filter sidebar and table content from children
@@ -38,8 +38,6 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     );
   }
 
-  const autoSaveId = tableName ? `filter-layout-${tableName}` : "filter-layout";
-
   return (
     <ResizableDesktopLayout
       mainContent={
@@ -53,7 +51,6 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
       defaultSidebarSize={filterDefault}
       minMainSize={50}
       maxSidebarSize={50}
-      autoSaveId={autoSaveId}
       sidebarPosition="left"
     />
   );

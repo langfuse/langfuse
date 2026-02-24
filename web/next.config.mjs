@@ -71,8 +71,8 @@ const nextConfig = {
       // web/src/features/widgets/components/DashboardGrid.tsx file. This **only** affects
       // the dev server. The CSS is included in the non-turbopack based prod build anyways.
       // Also not needed for the non-turbopack based dev server.
-      "react-resizable/css/styles.css":
-        "../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/react-resizable/css/styles.css",
+      // "react-resizable/css/styles.css":
+      //"../node_modules/.pnpm/react-resizable@3.0.5_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/react-resizable/css/styles.css",
     },
   },
   experimental: {
