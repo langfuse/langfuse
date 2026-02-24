@@ -276,6 +276,7 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
       invocationKwargs: modelParams.providerOptions,
+      timeout: timeoutMs,
     };
 
     chatModel = new ChatAnthropic(chatOptions);
@@ -320,6 +321,7 @@ export async function fetchLLMCompletion(
       maxRetries,
       configuration: {
         baseURL: processedBaseURL,
+        timeout: timeoutMs,
         defaultHeaders: extraHeaders,
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
@@ -341,6 +343,7 @@ export async function fetchLLMCompletion(
       maxRetries,
       timeout: timeoutMs,
       configuration: {
+        timeout: timeoutMs,
         defaultHeaders: extraHeaders,
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
