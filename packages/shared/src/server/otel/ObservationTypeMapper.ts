@@ -398,7 +398,9 @@ export class ObservationTypeMapperRegistry {
     new CustomAttributeMapper(
       "LiveKit_SpanName",
       7,
-      (_attributes, _resourceAttributes, _scopeData, spanName) => {
+      (_attributes, _resourceAttributes, scopeData, spanName) => {
+        if (scopeData?.name !== "livekit-agents") return false;
+
         return (
           spanName === "agent_turn" ||
           spanName === "start_agent_activity" ||

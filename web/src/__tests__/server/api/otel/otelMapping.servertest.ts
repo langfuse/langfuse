@@ -1465,6 +1465,7 @@ describe("OTel Resource Span Mapping", () => {
           createLivekitSpan({
             name: spanName,
             attributes,
+            scopeName: "livekit-agents",
           }),
           new Set([livekitTraceId]),
         );
@@ -1475,6 +1476,21 @@ describe("OTel Resource Span Mapping", () => {
         expect(observation?.body.name).toBe(spanName);
       },
     );
+
+    it("should not map LiveKit span names without livekit-agents scope", async () => {
+      const events = await convertOtelSpanToIngestionEvent(
+        createLivekitSpan({
+          name: "agent_turn",
+        }),
+        new Set([livekitTraceId]),
+      );
+
+      const observation = events.find(
+        (e) => e.type !== "trace-create" && e.type.endsWith("-create"),
+      );
+      expect(observation).toBeDefined();
+      expect(observation?.type).toBe("span-create");
+    });
 
     it.each([
       {
