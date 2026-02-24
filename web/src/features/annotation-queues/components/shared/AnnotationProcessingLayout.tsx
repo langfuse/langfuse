@@ -2,8 +2,10 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  usePersistentPanelSize,
 } from "@/src/components/ui/resizable";
-import useSessionStorage from "@/src/components/useSessionStorage";
+
+const ANNOTATION_LEFT_PANEL_ID = "annotation-left";
 
 interface AnnotationProcessingLayoutProps {
   leftPanel: React.ReactNode;
@@ -14,10 +16,11 @@ interface AnnotationProcessingLayoutProps {
 export const AnnotationProcessingLayout: React.FC<
   AnnotationProcessingLayoutProps
 > = ({ leftPanel, rightPanel, projectId }) => {
-  const [panelSize, setPanelSize] = useSessionStorage(
-    `annotationQueuePanelSize-${projectId}`,
-    65,
-  );
+  const { panelSize, onLayoutChanged } = usePersistentPanelSize({
+    storageKey: `annotationQueuePanelSize-${projectId}`,
+    panelId: ANNOTATION_LEFT_PANEL_ID,
+    defaultSize: 65,
+  });
 
   return (
     <>
@@ -34,13 +37,10 @@ export const AnnotationProcessingLayout: React.FC<
         <ResizablePanelGroup
           orientation="horizontal"
           className="h-full overflow-hidden"
-          onLayoutChanged={(layout) => {
-            const left = layout["annotation-left"];
-            if (left != null) setPanelSize(left);
-          }}
+          onLayoutChanged={onLayoutChanged}
         >
           <ResizablePanel
-            id="annotation-left"
+            id={ANNOTATION_LEFT_PANEL_ID}
             className="col-span-1 h-full !overflow-y-auto rounded-md border"
             minSize="30%"
             defaultSize={`${panelSize}%`}
