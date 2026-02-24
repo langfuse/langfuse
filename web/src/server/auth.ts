@@ -62,6 +62,10 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/ha
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 
+// Used to equalize bcrypt work for invalid login attempts when no user/password hash exists.
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$PwFggQRycDRry1OcSh9OH.l8ynRBctBmZGRJCwhZDnGpxFHVgcFNC";
+
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
 
@@ -121,11 +125,19 @@ const staticProviders: Provider[] = [
         },
       });
 
-      if (!dbUser) throw new Error("Invalid credentials");
-      if (dbUser.password === null)
+      if (!dbUser) {
+        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        await verifyPassword(credentials.password, DUMMY_PASSWORD_HASH);
+        throw new Error("Invalid credentials");
+      }
+
+      if (dbUser.password === null) {
+        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        await verifyPassword(credentials.password, DUMMY_PASSWORD_HASH);
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
+      }
 
       const isValidPassword = await verifyPassword(
         credentials.password,
