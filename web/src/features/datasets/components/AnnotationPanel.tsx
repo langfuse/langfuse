@@ -36,7 +36,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
 
   return (
     <ResizablePanelGroup
-      direction="vertical"
+      orientation="vertical"
       className="h-full"
       onLayoutChanged={(layout) => {
         const top = layout["annotation-top"];

@@ -54,9 +54,14 @@ export function ResizableDesktopLayout({
       ? sessionStorage
       : NOOP_LAYOUT_STORAGE;
 
+  const panelIds =
+    sidebarPosition === "left"
+      ? [SIDEBAR_PANEL_ID, MAIN_PANEL_ID]
+      : [MAIN_PANEL_ID, SIDEBAR_PANEL_ID];
+
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: groupId,
-    panelIds: [SIDEBAR_PANEL_ID, MAIN_PANEL_ID],
+    panelIds,
     storage,
   });
 
@@ -83,7 +88,7 @@ export function ResizableDesktopLayout({
   return (
     <ResizablePanelGroup
       id={groupId}
-      direction="horizontal"
+      orientation="horizontal"
       className={className}
       defaultLayout={defaultLayout}
       onLayoutChanged={persistId ? onLayoutChanged : undefined}

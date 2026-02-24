@@ -32,7 +32,7 @@ export const AnnotationProcessingLayout: React.FC<
       {/* Desktop: Horizontal resizable panels */}
       <div className="hidden max-h-full min-h-0 overflow-hidden md:block">
         <ResizablePanelGroup
-          direction="horizontal"
+          orientation="horizontal"
           className="h-full overflow-hidden"
           onLayoutChanged={(layout) => {
             const left = layout["annotation-left"];

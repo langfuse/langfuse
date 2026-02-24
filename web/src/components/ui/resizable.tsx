@@ -4,18 +4,11 @@ import * as ResizablePrimitive from "react-resizable-panels";
 
 import { cn } from "@/src/utils/tailwind";
 
-// Compat bridge: accept `direction` as alias for `orientation`
-type ResizablePanelGroupProps = ResizablePrimitive.GroupProps & {
-  /** @deprecated Use `orientation` instead */
-  direction?: "horizontal" | "vertical";
-};
-
 function ResizablePanelGroup({
   className,
-  direction,
   orientation,
   ...props
-}: ResizablePanelGroupProps) {
+}: ResizablePrimitive.GroupProps) {
   return (
     <ResizablePrimitive.Group
       data-slot="resizable-panel-group"
@@ -23,7 +16,7 @@ function ResizablePanelGroup({
         "flex h-full w-full aria-[orientation=vertical]:flex-col",
         className,
       )}
-      orientation={orientation ?? direction}
+      orientation={orientation}
       {...props}
     />
   );

@@ -601,7 +601,7 @@ export function DatasetRunsTable(props: {
     <>
       {hasCharts ? (
         <ResizablePanelGroup
-          direction="vertical"
+          orientation="vertical"
           className="h-full"
           onLayoutChanged={(layout) => {
             const charts = layout["dataset-charts"];

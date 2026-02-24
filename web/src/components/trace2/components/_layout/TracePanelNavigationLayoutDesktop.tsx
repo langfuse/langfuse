@@ -50,7 +50,7 @@ export function TracePanelNavigationLayoutDesktop({
           <TracePanelNavigationHiddenNotice />
           {secondaryContent ? (
             <ResizablePanelGroup
-              direction="vertical"
+              orientation="vertical"
               className="flex-1 overflow-hidden"
             >
               <ResizablePanel defaultSize="60%" minSize="20%">
