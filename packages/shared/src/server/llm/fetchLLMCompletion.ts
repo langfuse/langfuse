@@ -50,8 +50,7 @@ import { LLMCompletionError } from "./errors";
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 // Maps adapters to the content block types that represent "thinking".
-// we use this data to optionally strip thinking parts from output
-// NOTE: we might need to include the model name here in the future (?)
+// Used to optionally strip thinking parts from output.
 const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
   [LLMAdapter.VertexAI]: new Set(["reasoning"]),
   [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
@@ -448,11 +447,25 @@ export async function fetchLLMCompletion(
     metadata: traceSinkParams?.metadata,
   };
 
+  const thinkingTypes = getThinkingBlockTypes(modelParams.adapter);
+  const shouldStripThoughts =
+    modelParams.returnThoughtParts !== true && thinkingTypes != null;
+
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
+      // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
+      // parsing. Force function calling so the parser reads from tool_calls instead.
+      const structuredOutputConfig =
+        thinkingTypes != null
+          ? { method: "functionCalling" as const }
+          : undefined;
+
       const structuredOutput = await chatModel
-        .withStructuredOutput(params.structuredOutputSchema)
+        .withStructuredOutput(
+          params.structuredOutputSchema,
+          structuredOutputConfig,
+        )
         .invoke(finalMessages, runConfig);
 
       return structuredOutput;
@@ -478,6 +491,17 @@ export async function fetchLLMCompletion(
       return chatModel
         .pipe(new BytesOutputParser())
         .stream(finalMessages, runConfig);
+
+    // Adapters with thinking blocks return content that StringOutputParser
+    // cannot handle ("Cannot coerce reasoning message part").
+    // Invoke model directly and extract text, optionally stripping thinking blocks.
+    if (thinkingTypes != null) {
+      const aiMessage = await chatModel.invoke(finalMessages, runConfig);
+      return extractTextFromAIMessage(
+        aiMessage,
+        shouldStripThoughts ? thinkingTypes : undefined,
+      );
+    }
 
     const completion = await chatModel
       .pipe(new StringOutputParser())
@@ -536,6 +560,37 @@ export async function fetchLLMCompletion(
   } finally {
     await processTracedEvents();
   }
+}
+
+/**
+ * Extracts text from an AIMessage, optionally filtering out thinking content blocks.
+ * @param thinkingBlockTypes - Set of block type names to strip. If undefined, all blocks included.
+ */
+function extractTextFromAIMessage(
+  message: AIMessage,
+  thinkingBlockTypes?: Set<string>,
+): string {
+  const { content } = message;
+
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return String(content);
+
+  const parts: string[] = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      parts.push(block);
+      continue;
+    }
+
+    // Skip blocks whose type is in the strip set
+    if (thinkingBlockTypes?.has(block.type)) continue;
+
+    // Extract text from whichever field exists
+    const text = (block as any).text ?? (block as any).reasoning;
+    if (typeof text === "string") parts.push(text);
+  }
+
+  return parts.join("");
 }
 
 /**
