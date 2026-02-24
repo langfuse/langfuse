@@ -1,5 +1,8 @@
 import { describe, test, expect } from "vitest";
-import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+import {
+  fetchLLMCompletion,
+  type CompletionWithReasoning,
+} from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import { ChatMessageType, LLMAdapter } from "@langfuse/shared";
 import { z } from "zod/v4";
@@ -727,8 +730,9 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      // VertexAI always returns CompletionWithReasoning (text + optional reasoning)
+      expect(typeof completion).toBe("object");
+      expect((completion as CompletionWithReasoning).text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
@@ -838,7 +842,7 @@ describe("LLM Connection Tests", () => {
       expect(completion.tool_calls[0].args).toHaveProperty("location");
     }, 30_000);
 
-    test("returnThoughtParts false strips reasoning blocks from output", async () => {
+    test("thinking model returns CompletionWithReasoning with separate text and reasoning", async () => {
       checkEnvVar();
 
       const completion = await fetchLLMCompletion({
@@ -857,7 +861,6 @@ describe("LLM Connection Tests", () => {
           temperature: 0,
           max_tokens: 100,
           maxReasoningTokens: 1024,
-          returnThoughtParts: false,
         },
         llmConnection: {
           secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
@@ -865,47 +868,13 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      // Should not contain reasoning block JSON
-      expect(completion).not.toMatch(/\{"type":"reasoning"/);
-      expect(completion).toContain("4");
-    }, 60_000);
-
-    test("returnThoughtParts true preserves reasoning blocks in output", async () => {
-      checkEnvVar();
-
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
-          },
-        ],
-        modelParams: {
-          provider: "google-vertex-ai",
-          adapter: LLMAdapter.VertexAI,
-          model: "gemini-2.5-flash",
-          temperature: 0,
-          max_tokens: 100,
-          maxReasoningTokens: 1024,
-          returnThoughtParts: true,
-        },
-        llmConnection: {
-          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
-          config: null,
-        },
-      });
-
-      expect(typeof completion).toBe("string");
-      // With thoughts enabled and maxReasoningTokens > 0, output should contain reasoning blocks
+      // Always returns CompletionWithReasoning for VertexAI
+      expect(typeof completion).toBe("object");
+      const result = completion as CompletionWithReasoning;
+      expect(result.text).toContain("4");
+      // With maxReasoningTokens > 0, reasoning should be present
       // Note: this depends on the model actually producing reasoning output
-      console.log(
-        "returnThoughtParts=true output:",
-        JSON.stringify(completion),
-      );
-      expect(completion).toContain("4");
+      console.log("CompletionWithReasoning output:", JSON.stringify(result));
     }, 60_000);
   });
 
@@ -948,8 +917,9 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      // GoogleAIStudio always returns CompletionWithReasoning (text + optional reasoning)
+      expect(typeof completion).toBe("object");
+      expect((completion as CompletionWithReasoning).text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
@@ -1091,8 +1061,9 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      // GoogleAIStudio always returns CompletionWithReasoning
+      expect(typeof completion).toBe("object");
+      expect((completion as CompletionWithReasoning).text).toContain("4");
     }, 30_000);
   });
 });

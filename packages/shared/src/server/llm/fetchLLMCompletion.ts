@@ -47,6 +47,8 @@ import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
 
+export type CompletionWithReasoning = { text: string; reasoning?: string };
+
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 // Maps adapters to the content block types that represent "thinking".
@@ -117,7 +119,7 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<string>;
+): Promise<string | CompletionWithReasoning>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -137,6 +139,7 @@ export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
 ): Promise<
   | string
+  | CompletionWithReasoning
   | IterableReadableStream<Uint8Array>
   | Record<string, unknown>
   | ToolCallResponse
@@ -448,8 +451,6 @@ export async function fetchLLMCompletion(
   };
 
   const thinkingTypes = getThinkingBlockTypes(modelParams.adapter);
-  const shouldStripThoughts =
-    modelParams.returnThoughtParts !== true && thinkingTypes != null;
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -494,13 +495,10 @@ export async function fetchLLMCompletion(
 
     // Adapters with thinking blocks return content that StringOutputParser
     // cannot handle ("Cannot coerce reasoning message part").
-    // Invoke model directly and extract text, optionally stripping thinking blocks.
+    // Invoke model directly and extract text + reasoning separately.
     if (thinkingTypes != null) {
       const aiMessage = await chatModel.invoke(finalMessages, runConfig);
-      return extractTextFromAIMessage(
-        aiMessage,
-        shouldStripThoughts ? thinkingTypes : undefined,
-      );
+      return extractCompletionWithReasoning(aiMessage, thinkingTypes);
     }
 
     const completion = await chatModel
@@ -563,34 +561,42 @@ export async function fetchLLMCompletion(
 }
 
 /**
- * Extracts text from an AIMessage, optionally filtering out thinking content blocks.
- * @param thinkingBlockTypes - Set of block type names to strip. If undefined, all blocks included.
+ * Splits AIMessage content into text and reasoning parts.
+ * Text parts are concatenated into `text`, thinking-type parts into `reasoning`.
  */
-function extractTextFromAIMessage(
+function extractCompletionWithReasoning(
   message: AIMessage,
-  thinkingBlockTypes?: Set<string>,
-): string {
+  thinkingBlockTypes: Set<string>,
+): CompletionWithReasoning {
   const { content } = message;
 
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return String(content);
+  if (typeof content === "string") return { text: content };
+  if (!Array.isArray(content)) return { text: String(content) };
 
-  const parts: string[] = [];
+  const textParts: string[] = [];
+  const reasoningParts: string[] = [];
+
   for (const block of content) {
     if (typeof block === "string") {
-      parts.push(block);
+      textParts.push(block);
       continue;
     }
 
-    // Skip blocks whose type is in the strip set
-    if (thinkingBlockTypes?.has(block.type)) continue;
-
-    // Extract text from whichever field exists
-    const text = (block as any).text ?? (block as any).reasoning;
-    if (typeof text === "string") parts.push(text);
+    if (thinkingBlockTypes.has(block.type)) {
+      const text = (block as any).text ?? (block as any).reasoning;
+      if (typeof text === "string") reasoningParts.push(text);
+    } else {
+      const text = (block as any).text ?? (block as any).reasoning;
+      if (typeof text === "string") textParts.push(text);
+    }
   }
 
-  return parts.join("");
+  return {
+    text: textParts.join(""),
+    ...(reasoningParts.length > 0
+      ? { reasoning: reasoningParts.join("") }
+      : {}),
+  };
 }
 
 /**
