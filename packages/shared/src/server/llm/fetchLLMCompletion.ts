@@ -49,6 +49,18 @@ import { LLMCompletionError } from "./errors";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
+// Maps adapters to the content block types that represent "thinking".
+// we use this data to optionally strip thinking parts from output
+// NOTE: we might need to include the model name here in the future (?)
+const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
+  [LLMAdapter.VertexAI]: new Set(["reasoning"]),
+  [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
+};
+
+function getThinkingBlockTypes(adapter: LLMAdapter): Set<string> | undefined {
+  return THINKING_BLOCK_TYPES[adapter];
+}
+
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
   LLMAdapter.GoogleAIStudio,

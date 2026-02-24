@@ -200,7 +200,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
                 modelParamsKey="returnThoughtParts"
                 formDisabled={formDisabled}
                 value={modelParams.returnThoughtParts.value}
-                tooltip="Include the model's reasoning/thinking in the output. When disabled, reasoning parts are stripped from the response. Supported on Gemini 2.5+ models."
+                tooltip="Include the model's reasoning/thinking in the output. When disabled, reasoning parts are stripped from non-streaming responses. Stripping is not applied during streaming. Supported on Gemini 2.5+ models."
                 updateModelParam={updateModelParamValue}
               />
             )}

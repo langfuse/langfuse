@@ -284,7 +284,7 @@ export const ZodModelConfig = z.object({
   temperature: z.coerce.number().optional(),
   top_p: z.coerce.number().optional(),
   maxReasoningTokens: z.coerce.number().optional(),
-  includeThoughts: z.boolean().optional(),
+  returnThoughtParts: z.boolean().optional(),
   providerOptions: JSONObjectSchema.optional(),
 });
 
