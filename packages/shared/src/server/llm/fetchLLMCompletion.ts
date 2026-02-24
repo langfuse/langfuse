@@ -133,7 +133,7 @@ export async function fetchLLMCompletion(
     streaming: false;
     tools: LLMToolDefinition[];
   },
-): Promise<ToolCallResponse>;
+): Promise<ToolCallResponse & { reasoning?: string }>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
@@ -484,6 +484,32 @@ export async function fetchLLMCompletion(
       const result = await chatModel
         .bindTools(langchainTools)
         .invoke(finalMessages, runConfig);
+
+      // For thinking adapters, strip reasoning blocks from content before parsing
+      // so ToolCallResponseSchema can validate. Extract reasoning separately.
+      if (thinkingTypes != null && Array.isArray(result.content)) {
+        const filtered = result.content.filter(
+          (block) =>
+            typeof block === "string" || !thinkingTypes.has(block.type),
+        );
+        const reasoning = result.content
+          .filter(
+            (block) =>
+              typeof block !== "string" && thinkingTypes.has(block.type),
+          )
+          .map((block) => (block as any).text ?? (block as any).reasoning ?? "")
+          .join("");
+
+        result.content = filtered;
+        const parsed = ToolCallResponseSchema.safeParse(result);
+        if (!parsed.success)
+          throw Error("Failed to parse LLM tool call result");
+
+        return {
+          ...parsed.data,
+          ...(reasoning ? { reasoning } : {}),
+        };
+      }
 
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");

@@ -842,6 +842,44 @@ describe("LLM Connection Tests", () => {
       expect(completion.tool_calls[0].args).toHaveProperty("location");
     }, 30_000);
 
+    test("thinking model with tool calling strips reasoning from content and parses tool calls", async () => {
+      checkEnvVar();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What's the weather like in Paris?",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "google-vertex-ai",
+          adapter: LLMAdapter.VertexAI,
+          model: "gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 2048,
+          maxReasoningTokens: 1024,
+        },
+        tools: [weatherTool],
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+          config: null,
+        },
+      });
+
+      // Should parse tool calls successfully despite reasoning blocks in content
+      expect(completion).toHaveProperty("tool_calls");
+      expect(Array.isArray(completion.tool_calls)).toBe(true);
+      expect(completion.tool_calls.length).toBeGreaterThan(0);
+      expect(completion.tool_calls[0].name).toBe("get_weather");
+      // Reasoning should be extracted separately
+      if ((completion as any).reasoning) {
+        expect(typeof (completion as any).reasoning).toBe("string");
+      }
+    }, 60_000);
+
     test("thinking model returns CompletionWithReasoning with separate text and reasoning", async () => {
       checkEnvVar();
 
@@ -874,7 +912,6 @@ describe("LLM Connection Tests", () => {
       expect(result.text).toContain("4");
       // With maxReasoningTokens > 0, reasoning should be present
       // Note: this depends on the model actually producing reasoning output
-      console.log("CompletionWithReasoning output:", JSON.stringify(result));
     }, 60_000);
   });
 
