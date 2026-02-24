@@ -256,11 +256,11 @@ const EnvSchema = z.object({
     .positive()
     .default(10),
 
-  LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS: z.coerce
+  LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_SECONDS: z.coerce
     .number()
     .int()
     .positive()
-    .default(120_000), // 2 minutes
+    .default(120),
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
 

@@ -230,7 +230,7 @@ export async function fetchLLMCompletion(
   // Common proxy configuration for all adapters
   const proxyUrl = env.HTTPS_PROXY;
   const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
-  const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+  const timeoutSeconds = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_SECONDS;
 
   let chatModel:
     | ChatOpenAI
@@ -254,7 +254,7 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
-        timeout: timeoutMs,
+        timeout: timeoutSeconds,
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
         }),
@@ -312,7 +312,7 @@ export async function fetchLLMCompletion(
         }),
       },
       modelKwargs: modelParams.providerOptions,
-      timeout: timeoutMs,
+      timeout: timeoutSeconds,
     });
   } else if (modelParams.adapter === LLMAdapter.Azure) {
     chatModel = new AzureChatOpenAI({
@@ -325,7 +325,7 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
-      timeout: timeoutMs,
+      timeout: timeoutSeconds,
       configuration: {
         defaultHeaders: extraHeaders,
         ...(proxyDispatcher && {
@@ -357,7 +357,7 @@ export async function fetchLLMCompletion(
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
-      timeout: timeoutMs,
+      timeout: timeoutSeconds,
       additionalModelRequestFields: modelParams.providerOptions as any,
     });
   } else if (modelParams.adapter === LLMAdapter.VertexAI) {
