@@ -250,6 +250,24 @@ describe("Filter Query Encoding Integration (Full URL Lifecycle)", () => {
     // Empty filters
     expect(simulateUrlFlow([])).toEqual([]);
   });
+
+  it("should round-trip arrayOptions with empty value as [] not ['']", () => {
+    // When user clicks ALL toggle with no checkboxes, value is []
+    const filters: FilterState = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: [],
+      },
+    ];
+
+    const result = simulateUrlFlow(filters);
+
+    // Must decode back to [] — not [""] which causes hasAll(tags, ['']) → 0 results
+    expect(result).toEqual(filters);
+    expect(result[0]?.value).toEqual([]);
+  });
 });
 
 describe("Saved View Validation (Backward & Forward Compatibility)", () => {
