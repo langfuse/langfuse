@@ -382,11 +382,11 @@ export class OtelIngestionProcessor {
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
                     ] ??
-                    (scopeSpan?.scope?.name === "livekit-agents" &&
-                    LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-                      ? ObservationLevel.DEBUG
-                      : span.status?.code === 2
-                        ? ObservationLevel.ERROR
+                    (span.status?.code === 2
+                      ? ObservationLevel.ERROR
+                      : scopeSpan?.scope?.name === "livekit-agents" &&
+                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+                        ? ObservationLevel.DEBUG
                         : ObservationLevel.DEFAULT),
                   statusMessage:
                     spanAttributes[
@@ -963,11 +963,11 @@ export class OtelIngestionProcessor {
       },
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
-        (scopeSpan?.scope?.name === "livekit-agents" &&
-        LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-          ? ObservationLevel.DEBUG
-          : span.status?.code === 2
-            ? ObservationLevel.ERROR
+        (span.status?.code === 2
+          ? ObservationLevel.ERROR
+          : scopeSpan?.scope?.name === "livekit-agents" &&
+              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+            ? ObservationLevel.DEBUG
             : ObservationLevel.DEFAULT),
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
