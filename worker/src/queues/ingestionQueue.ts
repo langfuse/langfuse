@@ -265,9 +265,7 @@ export const ingestionQueueProcessorBuilder = (
       // Use explicit flag from job payload if provided, otherwise fall back to env flags
       const forwardToEventsTable =
         job.data.payload.data.forwardToEventsTable ??
-        (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" &&
-          env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
-          env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB !== "true");
+        env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true";
 
       await new IngestionService(
         redis,
