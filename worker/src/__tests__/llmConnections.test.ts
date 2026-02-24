@@ -859,7 +859,7 @@ describe("LLM Connection Tests", () => {
           adapter: LLMAdapter.VertexAI,
           model: "gemini-2.5-flash",
           temperature: 0,
-          max_tokens: 100,
+          max_tokens: 2048,
           maxReasoningTokens: 1024,
         },
         llmConnection: {
