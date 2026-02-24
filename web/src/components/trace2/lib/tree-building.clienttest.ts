@@ -1682,130 +1682,141 @@ describe("removeHiddenNodes", () => {
     ...overrides,
   });
 
-  it("returns nodes unchanged when none are hidden", () => {
-    const roots = [
-      makeNode({
-        id: "A",
-        children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
-      }),
-    ];
+  const flattenIds = (nodes: TreeNode[]): Array<[string, string[]]> => {
+    const out: Array<[string, string[]]> = [];
+    const stack = [...nodes];
 
-    const result = removeHiddenNodes(roots, () => false);
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      out.push([node.id, node.children.map((c) => c.id)]);
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        stack.push(node.children[i]!);
+      }
+    }
 
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("A");
-    expect(result[0].children).toHaveLength(2);
-  });
+    return out;
+  };
 
-  it("promotes children of a hidden intermediate node", () => {
-    // A -> B (hidden) -> C
-    const roots = [
-      makeNode({
-        id: "A",
-        children: [
-          makeNode({
-            id: "B",
-            level: "DEBUG",
-            children: [makeNode({ id: "C" })],
-          }),
-        ],
-      }),
-    ];
-
-    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
-
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("A");
-    expect(result[0].children).toHaveLength(1);
-    expect(result[0].children[0].id).toBe("C");
-  });
-
-  it("promotes children of a hidden root node", () => {
-    // A (hidden) -> [B, C]
-    const roots = [
-      makeNode({
-        id: "A",
-        level: "DEBUG",
-        children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
-      }),
-    ];
-
-    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
-
-    expect(result).toHaveLength(2);
-    expect(result[0].id).toBe("B");
-    expect(result[1].id).toBe("C");
-  });
-
-  it("handles multiple consecutive hidden ancestors", () => {
-    // A -> B (hidden) -> C (hidden) -> D
-    const roots = [
-      makeNode({
-        id: "A",
-        children: [
-          makeNode({
-            id: "B",
-            level: "DEBUG",
-            children: [
-              makeNode({
-                id: "C",
-                level: "DEBUG",
-                children: [makeNode({ id: "D" })],
-              }),
-            ],
-          }),
-        ],
-      }),
-    ];
-
-    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
-
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("A");
-    expect(result[0].children).toHaveLength(1);
-    expect(result[0].children[0].id).toBe("D");
-  });
-
-  it("merges promoted children with existing siblings", () => {
-    // A -> [B (hidden) -> [B1, B2], C]
-    const roots = [
-      makeNode({
-        id: "A",
-        children: [
-          makeNode({
-            id: "B",
-            level: "DEBUG",
-            children: [makeNode({ id: "B1" }), makeNode({ id: "B2" })],
-          }),
-          makeNode({ id: "C" }),
-        ],
-      }),
-    ];
-
-    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
-
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("A");
-    expect(result[0].children).toHaveLength(3);
-    expect(result[0].children.map((c) => c.id)).toEqual(["B1", "B2", "C"]);
-  });
-
-  it("removes leaf hidden nodes entirely", () => {
-    const roots = [
-      makeNode({
-        id: "A",
-        children: [
-          makeNode({ id: "B", level: "DEBUG" }),
-          makeNode({ id: "C" }),
-        ],
-      }),
-    ];
-
-    const result = removeHiddenNodes(roots, (n) => n.level === "DEBUG");
-
-    expect(result).toHaveLength(1);
-    expect(result[0].children).toHaveLength(1);
-    expect(result[0].children[0].id).toBe("C");
+  it.each([
+    {
+      name: "keeps nodes unchanged when none are hidden",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
+        }),
+      ],
+      expected: [
+        ["A", ["B", "C"]],
+        ["B", []],
+        ["C", []],
+      ],
+      predicate: () => false,
+    },
+    {
+      name: "promotes children of hidden intermediate nodes",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({
+              id: "B",
+              level: "DEBUG",
+              children: [makeNode({ id: "C" })],
+            }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["C"]],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "promotes children of hidden root nodes",
+      roots: [
+        makeNode({
+          id: "A",
+          level: "DEBUG",
+          children: [makeNode({ id: "B" }), makeNode({ id: "C" })],
+        }),
+      ],
+      expected: [
+        ["B", []],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "handles consecutive hidden ancestors",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({
+              id: "B",
+              level: "DEBUG",
+              children: [
+                makeNode({
+                  id: "C",
+                  level: "DEBUG",
+                  children: [makeNode({ id: "D" })],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["D"]],
+        ["D", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "merges promoted children with existing siblings",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({
+              id: "B",
+              level: "DEBUG",
+              children: [makeNode({ id: "B1" }), makeNode({ id: "B2" })],
+            }),
+            makeNode({ id: "C" }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["B1", "B2", "C"]],
+        ["B1", []],
+        ["B2", []],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+    {
+      name: "removes hidden leaf nodes",
+      roots: [
+        makeNode({
+          id: "A",
+          children: [
+            makeNode({ id: "B", level: "DEBUG" }),
+            makeNode({ id: "C" }),
+          ],
+        }),
+      ],
+      expected: [
+        ["A", ["C"]],
+        ["C", []],
+      ],
+      predicate: (n: TreeNode) => n.level === "DEBUG",
+    },
+  ])("$name", ({ roots, expected, predicate }) => {
+    const result = removeHiddenNodes(roots, predicate);
+    expect(flattenIds(result)).toEqual(expected);
   });
 
   it("does not modify the original tree", () => {
@@ -1844,21 +1855,48 @@ describe("removeHiddenNodes", () => {
     expect(result[0].id).toBe("trace-1");
     expect(result[0].children).toHaveLength(1);
   });
+
+  it("handles deeply nested trees without stack overflow", () => {
+    const depth = 15_000;
+    const root = makeNode({ id: "node-0" });
+    let current = root;
+
+    for (let i = 1; i < depth; i++) {
+      const child = makeNode({ id: `node-${i}` });
+      current.children = [child];
+      current = child;
+    }
+
+    const result = removeHiddenNodes([root], () => false);
+
+    expect(result).toHaveLength(1);
+    let count = 0;
+    let cursor: TreeNode | undefined = result[0];
+    while (cursor) {
+      count++;
+      cursor = cursor.children[0];
+    }
+
+    expect(count).toBe(depth);
+  });
 });
 
 describe("getObservationLevels", () => {
-  it("returns all levels when minLevel is undefined", () => {
-    const levels = getObservationLevels(undefined);
-    expect(levels).toEqual(["DEBUG", "DEFAULT", "WARNING", "ERROR"]);
-  });
-
-  it("returns levels at or above DEFAULT", () => {
-    const levels = getObservationLevels("DEFAULT");
-    expect(levels).toEqual(["DEFAULT", "WARNING", "ERROR"]);
-  });
-
-  it("returns only ERROR when minLevel is ERROR", () => {
-    const levels = getObservationLevels("ERROR");
-    expect(levels).toEqual(["ERROR"]);
+  it.each([
+    {
+      minLevel: undefined,
+      expected: ["DEBUG", "DEFAULT", "WARNING", "ERROR"],
+    },
+    {
+      minLevel: "DEFAULT" as const,
+      expected: ["DEFAULT", "WARNING", "ERROR"],
+    },
+    {
+      minLevel: "ERROR" as const,
+      expected: ["ERROR"],
+    },
+  ])("returns levels at/above $minLevel", ({ minLevel, expected }) => {
+    const levels = getObservationLevels(minLevel);
+    expect(levels).toEqual(expected);
   });
 });
