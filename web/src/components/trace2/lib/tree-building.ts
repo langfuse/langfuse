@@ -505,15 +505,42 @@ export function buildTraceUiData(
  *
  * This is applied as a display-layer post-processing step, keeping the
  * tree-building data layer clean and free of level-filtering concerns.
+ *
+ * Implemented iteratively to avoid call stack overflows on deeply nested traces.
+ * Uses a single-pass stack algorithm to keep complexity linear in node count.
  */
 export function removeHiddenNodes(
   nodes: TreeNode[],
   isHidden: (node: TreeNode) => boolean,
 ): TreeNode[] {
-  return nodes.flatMap((node) => {
+  if (nodes.length === 0) return [];
+
+  const result: TreeNode[] = [];
+
+  // Each stack entry carries the output array where this node should be attached.
+  // Hidden nodes are skipped and their children are redirected to the same target.
+  const stack: Array<{ node: TreeNode; target: TreeNode[] }> = [];
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    stack.push({ node: nodes[i]!, target: result });
+  }
+
+  while (stack.length > 0) {
+    const { node, target } = stack.pop()!;
+
     if (isHidden(node)) {
-      return removeHiddenNodes(node.children, isHidden);
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        stack.push({ node: node.children[i]!, target });
+      }
+      continue;
     }
-    return [{ ...node, children: removeHiddenNodes(node.children, isHidden) }];
-  });
+
+    const clone: TreeNode = { ...node, children: [] };
+    target.push(clone);
+
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      stack.push({ node: node.children[i]!, target: clone.children });
+    }
+  }
+
+  return result;
 }
