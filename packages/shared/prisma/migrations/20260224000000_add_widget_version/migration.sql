@@ -1,0 +1,1 @@
+ALTER TABLE "dashboard_widgets" ADD COLUMN "version" INTEGER NOT NULL DEFAULT 1;

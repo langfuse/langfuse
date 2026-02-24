@@ -55,7 +55,6 @@ export function DashboardWidget({
   const router = useRouter();
   const utils = api.useUtils();
   const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -65,6 +64,14 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  // v2-created widgets always use v2; v1 widgets (including traces) follow
+  // the user's beta opt-in. Traces view is never saved as v2 by the form,
+  // but guard against corrupt data by ignoring the stored version for traces.
+  const metricsVersion: ViewVersion = useMemo(() => {
+    if (widget.data?.view === "traces") return isBetaEnabled ? "v2" : "v1";
+    if ((widget.data?.version ?? 1) >= 2) return "v2";
+    return isBetaEnabled ? "v2" : "v1";
+  }, [widget.data?.version, widget.data?.view, isBetaEnabled]);
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";

@@ -91,6 +91,11 @@ export const viewsV2 = z.enum([
 export const viewVersions = z.enum(["v1", "v2"]);
 export type ViewVersion = z.infer<typeof viewVersions>;
 
+/** Convert a numeric DB widget version to the ViewVersion string. */
+export function toViewVersion(dbVersion: number): ViewVersion {
+  return dbVersion >= 2 ? "v2" : "v1";
+}
+
 export const dimension = z.object({
   field: z.string(),
 });

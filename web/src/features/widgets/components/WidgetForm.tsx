@@ -24,9 +24,12 @@ import {
 } from "@/src/components/ui/select";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { viewDeclarations } from "@/src/features/query/dataModel";
 import { type z } from "zod/v4";
-import { views } from "@/src/features/query/types";
+import { views, viewsV2, toViewVersion } from "@/src/features/query/types";
+import { type ViewVersion } from "@/src/features/query";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
@@ -54,6 +57,7 @@ import {
   Table,
   Plus,
   X,
+  AlertCircle,
 } from "lucide-react";
 import {
   buildWidgetName,
@@ -172,6 +176,7 @@ export function WidgetForm({
     // Support for complete widget data (editing mode)
     metrics?: { measure: string; agg: string }[];
     dimensions?: { field: string }[];
+    version?: number;
   };
   projectId: string;
   onSave: (widgetData: {
@@ -183,9 +188,12 @@ export function WidgetForm({
     filters: any[];
     chartType: DashboardWidgetChartType;
     chartConfig: ChartConfig;
+    version: number;
   }) => void;
   widgetId?: string;
 }) {
+  const { isBetaEnabled } = useV4Beta();
+
   // State for form fields
   const [widgetName, setWidgetName] = useState<string>(initialValues.name);
   const [widgetDescription, setWidgetDescription] = useState<string>(
@@ -201,6 +209,16 @@ export function WidgetForm({
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
   );
+
+  // When beta is enabled, use v2 — unless the current view is "traces"
+  // which is not available in v2. Reactive to selectedView so switching
+  // away from traces mid-edit upgrades to v2.
+  const widgetVersion =
+    isBetaEnabled && selectedView !== "traces"
+      ? 2
+      : (initialValues.version ?? 1);
+  const viewVersion: ViewVersion = toViewVersion(widgetVersion);
+  const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
 
   // For regular charts: single metric selection
   const [selectedMeasure, setSelectedMeasure] = useState<string>(
@@ -667,7 +685,7 @@ export function WidgetForm({
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
-    const viewDeclaration = viewDeclarations.v1[selectedView];
+    const viewDeclaration = viewDeclarations[viewVersion][selectedView];
 
     // For pivot tables, only show measures that still have available aggregations
     if (selectedChartType === "PIVOT_TABLE") {
@@ -734,7 +752,7 @@ export function WidgetForm({
   // Get available metrics for a specific metric index in pivot tables
   const getAvailableMetrics = (metricIndex: number) => {
     if (selectedChartType === "PIVOT_TABLE") {
-      const viewDeclaration = viewDeclarations.v1[selectedView];
+      const viewDeclaration = viewDeclarations[viewVersion][selectedView];
       return Object.entries(viewDeclaration.measures)
         .filter(([measureKey]) => {
           // For count, there's only one aggregation option
@@ -771,7 +789,7 @@ export function WidgetForm({
 
   // Get available dimensions for the selected view
   const availableDimensions = useMemo(() => {
-    const viewDeclaration = viewDeclarations.v1[selectedView];
+    const viewDeclaration = viewDeclarations[viewVersion][selectedView];
     return Object.entries(viewDeclaration.dimensions)
       .map(([key]) => ({
         value: key,
@@ -876,6 +894,7 @@ export function WidgetForm({
     {
       projectId,
       query,
+      version: viewVersion,
     },
     {
       trpc: {
@@ -1008,6 +1027,7 @@ export function WidgetForm({
                 type: selectedChartType as DashboardWidgetChartType,
                 row_limit: rowLimit,
               },
+      version: widgetVersion,
     });
   };
 
@@ -1108,6 +1128,22 @@ export function WidgetForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
+            {isBetaEnabled && selectedView === "traces" && (
+              <Alert
+                variant="default"
+                className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
+              >
+                <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+                <AlertTitle className="text-yellow-800 dark:text-yellow-400">
+                  Traces view is not available in v2
+                </AlertTitle>
+                <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+                  This widget uses the traces view which is not supported in v2.
+                  It will continue to use v1 definitions. To use v2, change the
+                  view to observations or scores.
+                </AlertDescription>
+              </Alert>
+            )}
             {/* Data Selection Section */}
             <div className="space-y-4">
               <h3 className="text-lg font-bold">Data Selection</h3>
@@ -1120,7 +1156,8 @@ export function WidgetForm({
                   onValueChange={(value) => {
                     if (value !== selectedView) {
                       const newView = value as z.infer<typeof views>;
-                      const newViewDeclaration = viewDeclarations.v1[newView];
+                      const newViewDeclaration =
+                        viewDeclarations[viewVersion][newView];
 
                       // Reset regular chart fields
                       setSelectedMeasure("count");
@@ -1177,12 +1214,14 @@ export function WidgetForm({
                     <SelectValue placeholder="Select a view" />
                   </SelectTrigger>
                   <SelectContent>
-                    {views.options.map((view) => (
+                    {availableViewOptions.options.map((view) => (
                       <WidgetPropertySelectItem
                         key={view}
                         value={view}
                         label={startCase(view)}
-                        description={viewDeclarations.v1[view].description}
+                        description={
+                          viewDeclarations[viewVersion][view].description
+                        }
                       />
                     ))}
                   </SelectContent>
@@ -1267,8 +1306,9 @@ export function WidgetForm({
                                   <SelectContent>
                                     {metricsForIndex.map((metric) => {
                                       const meta =
-                                        viewDeclarations.v1[selectedView]
-                                          ?.measures?.[metric.value];
+                                        viewDeclarations[viewVersion][
+                                          selectedView
+                                        ]?.measures?.[metric.value];
                                       return (
                                         <WidgetPropertySelectItem
                                           key={metric.value}
@@ -1351,9 +1391,8 @@ export function WidgetForm({
                       <SelectContent>
                         {availableMetrics.map((metric) => {
                           const meta =
-                            viewDeclarations.v1[selectedView]?.measures?.[
-                              metric.value
-                            ];
+                            viewDeclarations[viewVersion][selectedView]
+                              ?.measures?.[metric.value];
                           return (
                             <WidgetPropertySelectItem
                               key={metric.value}
@@ -1438,9 +1477,8 @@ export function WidgetForm({
                         <SelectItem value="none">None</SelectItem>
                         {availableDimensions.map((dimension) => {
                           const meta =
-                            viewDeclarations.v1[selectedView]?.dimensions?.[
-                              dimension.value
-                            ];
+                            viewDeclarations[viewVersion][selectedView]
+                              ?.dimensions?.[dimension.value];
                           return (
                             <WidgetPropertySelectItem
                               key={dimension.value}
@@ -1513,7 +1551,7 @@ export function WidgetForm({
                                 )
                                 .map((dimension) => {
                                   const meta =
-                                    viewDeclarations.v1[selectedView]
+                                    viewDeclarations[viewVersion][selectedView]
                                       ?.dimensions?.[dimension.value];
                                   return (
                                     <WidgetPropertySelectItem

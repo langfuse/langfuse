@@ -285,6 +285,7 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
+        version: input.version ?? 1,
         createdBy: userId,
         updatedBy: userId,
       },
@@ -343,6 +344,7 @@ export class DashboardService {
         filters: input.filters,
         chartType: input.chartType,
         chartConfig: input.chartConfig,
+        ...(input.version !== undefined ? { version: input.version } : {}),
         updatedBy: userId,
       },
     });
@@ -434,6 +436,7 @@ export class DashboardService {
           filters: sourceWidget.filters ?? [],
           chartType: sourceWidget.chartType,
           chartConfig: sourceWidget.chartConfig ?? {},
+          version: sourceWidget.version,
           projectId, // project owned
           createdBy: userId,
           updatedBy: userId,

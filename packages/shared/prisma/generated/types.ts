@@ -435,6 +435,7 @@ export type DashboardWidget = {
   filters: unknown;
   chart_type: DashboardWidgetChartType;
   chart_config: unknown;
+  version: Generated<number>;
 };
 export type Dataset = {
   id: string;

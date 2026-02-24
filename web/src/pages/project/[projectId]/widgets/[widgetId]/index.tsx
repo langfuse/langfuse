@@ -64,6 +64,7 @@ export default function EditWidget() {
     filters: any[];
     chartType: DashboardWidgetChartType;
     chartConfig: WidgetChartConfig;
+    version: number;
   }) => {
     if (!widgetId) return;
 
@@ -81,6 +82,7 @@ export default function EditWidget() {
       filters: widgetFormData.filters,
       chartType: widgetFormData.chartType,
       chartConfig: widgetFormData.chartConfig,
+      version: widgetFormData.version,
     });
   };
 
@@ -116,6 +118,7 @@ export default function EditWidget() {
             filters: widgetData.filters,
             chartType: widgetData.chartType,
             chartConfig: widgetData.chartConfig,
+            version: widgetData.version,
           }}
         />
       ) : (
