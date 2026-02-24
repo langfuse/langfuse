@@ -52,7 +52,7 @@ export type CompletionWithReasoning = { text: string; reasoning?: string };
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 // Maps adapters to the content block types that represent "thinking".
-// Used to optionally strip thinking parts from output.
+// Used to extract reasoning separately and strip thinking parts from parsed output.
 const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
   [LLMAdapter.VertexAI]: new Set(["reasoning"]),
   [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
@@ -488,19 +488,13 @@ export async function fetchLLMCompletion(
       // For thinking adapters, strip reasoning blocks from content before parsing
       // so ToolCallResponseSchema can validate. Extract reasoning separately.
       if (thinkingTypes != null && Array.isArray(result.content)) {
-        const filtered = result.content.filter(
+        const reasoning = extractReasoning(result.content, thinkingTypes);
+        // mutates Langchain AIMessage in place, not ideal but safe because only used for parsing below
+        result.content = result.content.filter(
           (block) =>
             typeof block === "string" || !thinkingTypes.has(block.type),
         );
-        const reasoning = result.content
-          .filter(
-            (block) =>
-              typeof block !== "string" && thinkingTypes.has(block.type),
-          )
-          .map((block) => (block as any).text ?? (block as any).reasoning ?? "")
-          .join("");
 
-        result.content = filtered;
         const parsed = ToolCallResponseSchema.safeParse(result);
         if (!parsed.success)
           throw Error("Failed to parse LLM tool call result");
@@ -589,6 +583,23 @@ export async function fetchLLMCompletion(
   }
 }
 
+// extracts reasoning text from an array of content blocks.
+// returns concatenated reasoning or undefined if no reasoning blocks are found
+function extractReasoning(
+  content: AIMessage["content"],
+  thinkingBlockTypes: Set<string>,
+): string | undefined {
+  if (typeof content === "string" || !Array.isArray(content)) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (typeof block !== "string" && thinkingBlockTypes.has(block.type)) {
+      const text = (block as any).text ?? (block as any).reasoning;
+      if (typeof text === "string") parts.push(text);
+    }
+  }
+  return parts.length > 0 ? parts.join("") : undefined;
+}
+
 /**
  * Splits AIMessage content into text and reasoning parts.
  * Text parts are concatenated into `text`, thinking-type parts into `reasoning`.
@@ -602,19 +613,13 @@ function extractCompletionWithReasoning(
   if (typeof content === "string") return { text: content };
   if (!Array.isArray(content)) return { text: String(content) };
 
-  const textParts: string[] = [];
-  const reasoningParts: string[] = [];
+  const reasoning = extractReasoning(content, thinkingBlockTypes);
 
+  const textParts: string[] = [];
   for (const block of content) {
     if (typeof block === "string") {
       textParts.push(block);
-      continue;
-    }
-
-    if (thinkingBlockTypes.has(block.type)) {
-      const text = (block as any).text ?? (block as any).reasoning;
-      if (typeof text === "string") reasoningParts.push(text);
-    } else {
+    } else if (!thinkingBlockTypes.has(block.type)) {
       const text = (block as any).text ?? (block as any).reasoning;
       if (typeof text === "string") textParts.push(text);
     }
@@ -622,9 +627,7 @@ function extractCompletionWithReasoning(
 
   return {
     text: textParts.join(""),
-    ...(reasoningParts.length > 0
-      ? { reasoning: reasoningParts.join("") }
-      : {}),
+    ...(reasoning ? { reasoning } : {}),
   };
 }
 
