@@ -516,8 +516,7 @@ export async function fetchLLMCompletion(
         .pipe(new BytesOutputParser())
         .stream(finalMessages, runConfig);
 
-    // Adapters with thinking blocks return content that StringOutputParser
-    // cannot handle ("Cannot coerce reasoning message part").
+    // content with thinking blocks can't be handled by StringOutputParser
     // Invoke model directly and extract text + reasoning separately.
     if (thinkingTypes != null) {
       const aiMessage = await chatModel.invoke(finalMessages, runConfig);
