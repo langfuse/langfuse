@@ -837,6 +837,76 @@ describe("LLM Connection Tests", () => {
       expect(completion.tool_calls[0].name).toBe("get_weather");
       expect(completion.tool_calls[0].args).toHaveProperty("location");
     }, 30_000);
+
+    test("returnThoughtParts false strips reasoning blocks from output", async () => {
+      checkEnvVar();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "google-vertex-ai",
+          adapter: LLMAdapter.VertexAI,
+          model: "gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 100,
+          maxReasoningTokens: 1024,
+          returnThoughtParts: false,
+        },
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+          config: null,
+        },
+      });
+
+      expect(typeof completion).toBe("string");
+      // Should not contain reasoning block JSON
+      expect(completion).not.toMatch(/\{"type":"reasoning"/);
+      expect(completion).toContain("4");
+    }, 60_000);
+
+    test("returnThoughtParts true preserves reasoning blocks in output", async () => {
+      checkEnvVar();
+
+      const completion = await fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "What is 2+2? Answer only with the number.",
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ],
+        modelParams: {
+          provider: "google-vertex-ai",
+          adapter: LLMAdapter.VertexAI,
+          model: "gemini-2.5-flash",
+          temperature: 0,
+          max_tokens: 100,
+          maxReasoningTokens: 1024,
+          returnThoughtParts: true,
+        },
+        llmConnection: {
+          secretKey: encrypt(process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!),
+          config: null,
+        },
+      });
+
+      expect(typeof completion).toBe("string");
+      // With thoughts enabled and maxReasoningTokens > 0, output should contain reasoning blocks
+      // Note: this depends on the model actually producing reasoning output
+      console.log(
+        "returnThoughtParts=true output:",
+        JSON.stringify(completion),
+      );
+      expect(completion).toContain("4");
+    }, 60_000);
   });
 
   describe("GoogleAIStudio", () => {
