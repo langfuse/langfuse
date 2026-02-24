@@ -91,34 +91,11 @@ langfuse/
 - App-local EE adapters live under `web/src/ee/*` and `worker/src/ee/*`; these
   must not be imported by `packages/shared`.
 
-## High-Signal Entry Points
-
-### Web
-- App shell: `web/src/pages/_app.tsx`
-- tRPC setup: `web/src/server/api/trpc.ts`
-- tRPC router registry: `web/src/server/api/root.ts`
-- tRPC routers: `web/src/server/api/routers/*` and `web/src/features/*/server/*`
-- Public REST API: `web/src/pages/api/public/*`
-- Feature folders: `web/src/features/*`
-- Shared components: `web/src/components/*`
-- Tests: `web/src/__tests__/*`, `web/src/__e2e__/*`
-
-### Worker
-- Process bootstrap: `worker/src/index.ts`, `worker/src/app.ts`
-- Worker lifecycle/metrics: `worker/src/queues/workerManager.ts`
-- Queue processors: `worker/src/queues/*`
-- Domain processors/services: `worker/src/features/*`, `worker/src/services/*`
-- Tests: `worker/src/__tests__/*`, `worker/src/queues/__tests__/*`
-
-### Shared (`@langfuse/shared`)
-- Postgres schema: `packages/shared/prisma/schema.prisma`
-- Prisma migrations: `packages/shared/prisma/migrations/*`
-- ClickHouse migrations: `packages/shared/clickhouse/migrations/{clustered,unclustered}/*`
-- DB client exports: `packages/shared/src/db.ts`
-- Shared server surface: `packages/shared/src/server/index.ts`
-- Queue definitions: `packages/shared/src/server/queues.ts`,
-  `packages/shared/src/server/redis/*`
-- Repository layer: `packages/shared/src/server/repositories/*`
+## Package Guides
+- Web implementation details: `web/AGENTS.md`
+- Worker implementation details: `worker/AGENTS.md`
+- Shared domain/schema/queue details: `packages/shared/AGENTS.md`
+- EE package details: `ee/AGENTS.md`
 
 ## Core Domain Hotspots
 - Traces / observations / scores:
@@ -158,35 +135,14 @@ langfuse/
   - Worker runtime env parsing: `worker/src/env.ts`
   - Root env examples: `.env*.example`
 
-## Task Routing (What to Edit)
-
-- New frontend feature:
-  - `web/src/features/<feature>/*`
-  - Use `web/src/components/*` only for truly reusable UI
-
-- New tRPC endpoint:
-  - Add router/procedure in `web/src/features/<feature>/server/*` or
-    `web/src/server/api/routers/*`
-  - Register router in `web/src/server/api/root.ts`
-
-- New public REST endpoint:
-  - Add route in `web/src/pages/api/public/*`
-  - Add/update schemas in `web/src/features/public-api/types/*`
-  - Add server test in `web/src/__tests__/server/*`
-
-- Queue/background job changes:
-  - Queue contract in `packages/shared/src/server/queues.ts` and/or
-    `packages/shared/src/server/redis/*`
-  - Processor in `worker/src/queues/*`
-  - Registration/env gating in `worker/src/app.ts`
-  - Tests in `worker/src/__tests__/*` or `worker/src/queues/__tests__/*`
-
-- Database model changes:
-  - Update `packages/shared/prisma/schema.prisma`
-  - Add Prisma migration under `packages/shared/prisma/migrations/*`
-  - If analytics path is affected, add ClickHouse migration under
-    `packages/shared/clickhouse/migrations/*`
-  - Regenerate clients/types via `pnpm run db:generate`
+## Cross-Package Routing
+- UI, tRPC, and public REST API work: start in `web/AGENTS.md`
+- Queue consumers/processors: start in `worker/AGENTS.md`
+- Shared contracts, schema, and repository-layer changes: start in
+  `packages/shared/AGENTS.md`
+- EE package changes: start in `ee/AGENTS.md`
+- For cross-cutting changes, follow each impacted package guide and then apply
+  the root verification matrix.
 
 ## Rapid Discovery Commands
 - Find relevant feature files:
