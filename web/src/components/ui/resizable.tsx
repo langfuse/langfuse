@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import * as ResizablePrimitive from "react-resizable-panels";
 
+// TODO: UI component shouldn't import storage
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { cn } from "@/src/utils/tailwind";
 
