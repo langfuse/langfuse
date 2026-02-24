@@ -55,6 +55,7 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
       maxSidebarSize={50}
       autoSaveId={autoSaveId}
       sidebarPosition="left"
+      mainContentScrollable={false}
     />
   );
 }

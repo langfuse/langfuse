@@ -5,6 +5,7 @@ import {
   ResizablePanelGroup,
   type ImperativePanelHandle,
 } from "@/src/components/ui/resizable";
+import { cn } from "@/src/utils/tailwind";
 
 interface ResizableDesktopLayoutProps {
   mainContent: ReactNode;
@@ -17,6 +18,8 @@ interface ResizableDesktopLayoutProps {
   autoSaveId?: string;
   className?: string;
   sidebarPosition?: "left" | "right";
+  /** Whether main content panel should scroll. Defaults to true. Set to false when nested inside another scrollable container. */
+  mainContentScrollable?: boolean;
 }
 
 /**
@@ -34,6 +37,7 @@ export function ResizableDesktopLayout({
   autoSaveId,
   className = "flex h-full w-full",
   sidebarPosition = "right",
+  mainContentScrollable = true,
 }: ResizableDesktopLayoutProps) {
   const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
   const mainPanelRef = useRef<ImperativePanelHandle>(null);
@@ -76,8 +80,13 @@ export function ResizableDesktopLayout({
         minSize={minMainSize}
       >
         <div
-          className="relative h-full w-full overflow-scroll"
-          style={{ overscrollBehaviorY: "none" }}
+          className={cn(
+            "relative h-full w-full",
+            mainContentScrollable && "overflow-scroll",
+          )}
+          style={
+            mainContentScrollable ? { overscrollBehaviorY: "none" } : undefined
+          }
         >
           {mainContent}
         </div>
