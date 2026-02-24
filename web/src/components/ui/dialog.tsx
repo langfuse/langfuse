@@ -51,16 +51,24 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     closeOnInteractionOutside?: boolean;
+    stopPropagationOnEnterSpace?: boolean;
   } & VariantProps<typeof dialogContentVariants>
 >(
   (
-    { className, children, closeOnInteractionOutside = false, size, ...props },
+    {
+      className,
+      children,
+      closeOnInteractionOutside = false,
+      stopPropagationOnEnterSpace = true,
+      size,
+      ...props
+    },
     ref,
   ) => {
     const handleKeyDown = (e: React.KeyboardEvent) => {
       // Prevent Enter/Space key events from propagating to parent elements
       // This prevents triggering actions like row clicks when submitting forms in dialogs
-      if (e.key === "Enter" || e.key === " ") {
+      if (stopPropagationOnEnterSpace && (e.key === "Enter" || e.key === " ")) {
         e.stopPropagation();
       }
     };
