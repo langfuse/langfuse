@@ -1,3 +1,4 @@
+import type React from "react";
 import { useCallback, useMemo, useEffect, useRef } from "react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import {
@@ -82,6 +83,7 @@ function computeNumericRange(
 export interface BaseUIFilter {
   column: string;
   label: string;
+  tooltip?: string;
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -106,6 +108,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   counts: Map<string, number>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  /** Optional function to render an icon next to filter option labels */
+  renderIcon?: (value: string) => React.ReactNode;
   /**
    * Current operator for arrayOptions columns (tags, labels, etc.)
    * - "any of": OR logic - match if item has ANY selected value
@@ -146,6 +150,7 @@ export interface NumericUIFilter extends BaseUIFilter {
   max: number;
   onChange: (value: [number, number]) => void;
   unit?: string;
+  step?: number;
 }
 
 export interface StringUIFilter extends BaseUIFilter {
@@ -304,6 +309,56 @@ type UpdateFilter = (
   values: string[],
   operator?: "any of" | "none of" | "all of",
 ) => void;
+
+/**
+ * Pure function that determines the operator and values for checkbox-based
+ * filter interactions. Extracted for testability.
+ *
+ * For arrayOptions (e.g., tags), "none of" inversion is NOT semantically
+ * equivalent because a single trace can have multiple tags. For example,
+ * a trace with tags [tag-1, tag-3] matches "any of [tag-1, tag-2]" but does NOT match
+ * "none of [tag-3, tag-4, tag-5]" (because it contains tag-3). So we always use positive
+ * matching ("any of" / "all of") for array columns.
+ *
+ * For stringOptions (e.g., environment), each row has a single value,
+ * so "none of [deselected]" is semantically equivalent to "any of [selected]".
+ *
+ * @param params - Filter context including column type, existing filter, selected and available values
+ * @returns Object with finalOperator and finalValues to apply
+ */
+export function resolveCheckboxOperator(params: {
+  colType: string | undefined;
+  existingFilter: FilterState[number] | undefined;
+  values: string[];
+  availableValues: string[];
+}): { finalOperator: "any of" | "none of" | "all of"; finalValues: string[] } {
+  const { colType, existingFilter, values, availableValues } = params;
+
+  if (colType === "arrayOptions") {
+    // For array columns, always use positive matching.
+    if (
+      existingFilter?.operator === "all of" &&
+      existingFilter.type === "arrayOptions"
+    ) {
+      return { finalOperator: "all of", finalValues: values };
+    }
+    return { finalOperator: "any of", finalValues: values };
+  }
+
+  // For single-valued columns (stringOptions), "none of" inversion is safe
+  if (!existingFilter) {
+    const deselected = availableValues.filter((v) => !values.includes(v));
+    return { finalOperator: "none of", finalValues: deselected };
+  }
+  if (
+    existingFilter.operator === "none of" &&
+    existingFilter.type === "stringOptions"
+  ) {
+    const deselected = availableValues.filter((v) => !values.includes(v));
+    return { finalOperator: "none of", finalValues: deselected };
+  }
+  return { finalOperator: "any of", finalValues: values };
+}
 
 export function useSidebarFilterState(
   config: FilterConfig,
@@ -596,34 +651,12 @@ export function useSidebarFilterState(
         }
         // Checkbox interaction - smart operator selection
         const existingFilter = current.find((f) => f.column === column);
-
-        if (!existingFilter) {
-          // No existing filter - user is deselecting from "all selected" state
-          // Use "none of" with deselected items
-          const deselected = availableValues.filter((v) => !values.includes(v));
-          finalOperator = "none of";
-          finalValues = deselected;
-        } else if (
-          existingFilter.operator === "none of" &&
-          (existingFilter.type === "stringOptions" ||
-            existingFilter.type === "arrayOptions")
-        ) {
-          // Existing "none of" filter - keep "none of", update to deselected items
-          const deselected = availableValues.filter((v) => !values.includes(v));
-          finalOperator = "none of";
-          finalValues = deselected;
-        } else if (
-          existingFilter.operator === "all of" &&
-          existingFilter.type === "arrayOptions"
-        ) {
-          // Existing "all of" filter - keep "all of" with selected items
-          finalOperator = "all of";
-          finalValues = values;
-        } else {
-          // Existing "any of" filter or other - keep "any of" with selected items
-          finalOperator = "any of";
-          finalValues = values;
-        }
+        ({ finalOperator, finalValues } = resolveCheckboxOperator({
+          colType,
+          existingFilter,
+          values,
+          availableValues,
+        }));
       }
 
       const filterType: "arrayOptions" | "stringOptions" =
@@ -1012,11 +1045,13 @@ export function useSidebarFilterState(
             type: "numeric",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: currentRange,
             min: facet.min,
             max: facet.max,
             unit: facet.unit,
+            step: facet.step,
             loading: false,
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1044,6 +1079,7 @@ export function useSidebarFilterState(
             type: "string",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: currentValue,
             loading: false,
@@ -1097,6 +1133,7 @@ export function useSidebarFilterState(
             type: "keyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1185,6 +1222,7 @@ export function useSidebarFilterState(
             type: "numericKeyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1268,6 +1306,7 @@ export function useSidebarFilterState(
             type: "stringKeyValue",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: activeFilters,
             keyOptions,
@@ -1359,6 +1398,7 @@ export function useSidebarFilterState(
             type: "categorical",
             column: facet.column,
             label: facet.label,
+            tooltip: facet.tooltip,
 
             value: selectedOptions,
             options: availableOptions,
@@ -1484,6 +1524,7 @@ export function useSidebarFilterState(
           type: "categorical",
           column: facet.column,
           label: facet.label,
+          tooltip: facet.tooltip,
 
           value: selectedValues,
           options: availableValues,
@@ -1493,6 +1534,8 @@ export function useSidebarFilterState(
           isActive,
           isDisabled: disableState.isDisabled,
           disabledReason: disableState.reason,
+          renderIcon:
+            facet.type === "categorical" ? facet.renderIcon : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {

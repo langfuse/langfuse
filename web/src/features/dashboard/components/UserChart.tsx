@@ -78,10 +78,12 @@ export const UserChart = ({
     },
   );
 
+  const isV2 = metricsVersion === "v2";
+  const countField = isV2 ? "uniq_traceId" : "count_count";
+
   const traceCountQuery: QueryType = {
-    ...traceViewQuery(metricsVersion, globalFilterState),
+    ...traceViewQuery({ metricsVersion, globalFilterState }),
     dimensions: [{ field: "userId" }],
-    metrics: [{ measure: "count", aggregation: "count" }],
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
@@ -110,7 +112,7 @@ export const UserChart = ({
         .map((item) => {
           return {
             name: item.userId as string,
-            value: item.count_count ? Number(item.count_count) : 0,
+            value: item[countField] ? Number(item[countField]) : 0,
           };
         })
     : [];
@@ -132,7 +134,7 @@ export const UserChart = ({
   );
 
   const totalTraces = traces.data?.reduce(
-    (acc, curr) => acc + (Number(curr.count_count) || 0),
+    (acc, curr) => acc + (Number(curr[countField]) || 0),
     0,
   );
 

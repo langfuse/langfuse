@@ -26,6 +26,11 @@ type RunEvaluationDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  exampleObservation: {
+    id: string;
+    traceId: string;
+    startTime?: Date;
+  };
 };
 
 type DialogStep = "select-evaluator" | "confirm";
@@ -55,41 +60,16 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   const displayCount = selectAll ? totalCount : selectedObservationIds.length;
 
-  const previewFilter = useMemo(
-    () =>
-      buildQueryWithSelectedIds({ query, selectAll, selectedObservationIds })
-        .filter ?? [],
-    [query, selectAll, selectedObservationIds],
-  );
-
-  const previewObservationSeedQuery = api.events.all.useQuery(
-    {
-      projectId,
-      filter: previewFilter,
-      searchQuery: selectAll ? (query.searchQuery ?? null) : null,
-      searchType: selectAll ? (query.searchType ?? ["id", "content"]) : [],
-      page: 1,
-      limit: 1,
-      orderBy: query.orderBy,
-    },
-    {
-      enabled: displayCount > 0,
-    },
-  );
-
-  const previewObservationSeed =
-    previewObservationSeedQuery.data?.observations?.[0];
-
   const previewObservationQuery = api.observations.byId.useQuery(
     {
       projectId,
-      observationId: previewObservationSeed?.id ?? "",
-      traceId: previewObservationSeed?.traceId ?? "",
-      startTime: previewObservationSeed?.startTime ?? null,
+      observationId: props.exampleObservation.id,
+      traceId: props.exampleObservation.traceId,
+      startTime: props.exampleObservation.startTime ?? null,
     },
     {
       enabled: Boolean(
-        previewObservationSeed?.id && previewObservationSeed?.traceId,
+        props.exampleObservation.id && props.exampleObservation.traceId,
       ),
     },
   );
@@ -174,10 +154,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 isQueryError={evaluatorsQuery.isError}
                 queryErrorMessage={evaluatorsQuery.error?.message}
                 previewObservation={previewObservationQuery.data}
-                isPreviewLoading={
-                  previewObservationSeedQuery.isLoading ||
-                  previewObservationQuery.isLoading
-                }
+                isPreviewLoading={previewObservationQuery.isLoading}
                 selectedEvaluatorIds={selectedEvaluatorIds}
                 evaluatorSearchQuery={evaluatorSearchQuery}
                 onSearchQueryChange={setEvaluatorSearchQuery}
