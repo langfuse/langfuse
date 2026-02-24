@@ -8,27 +8,20 @@ groups:
         output:
           location: local-file-system
           path: ../../../web/public/generated/api
+        smart-casing: false
 
       - name: fernapi/fern-python-sdk
-        version: 2.16.0
+        version: 4.46.2
         output:
           location: local-file-system
           path: ../../../generated/python
         config:
-          client_class_name: FernLangfuse
-          improved_imports: false
-          inline_request_params: false
           pydantic_config:
-            require_optional_fields: false
-            use_str_enums: false
-
-      # - name: fernapi/fern-java-sdk
-      #   version: 2.20.1
-      #   output:
-      #     location: local-file-system
-      #     path: ../../../../langfuse-java/src/main/java/com/langfuse/client/
-      #   config:
-      #     client-class-name: LangfuseClient
+            enum_type: python_enums
+            version: v2
+          client:
+            class_name: LangfuseAPI
+        smart-casing: true
 
       - name: fernapi/fern-typescript-node-sdk
         version: 2.12.3
@@ -44,9 +37,4 @@ groups:
           fileResponseType: binary-response
           streamType: web
           omitFernHeaders: true
-
-      - name: fernapi/fern-postman
-        version: 0.0.45
-        output:
-          location: local-file-system
-          path: ../../../web/public/generated/postman
+        smart-casing: false

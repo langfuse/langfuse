@@ -1296,7 +1296,7 @@ export default function TracesTable({
   }, [traces.isSuccess, traceRowData?.rows]);
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={traceFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
@@ -1464,6 +1464,7 @@ const TracesDynamicCell = ({
         col === "input" && "bg-muted/50",
       )}
       singleLine={singleLine}
+      enableExpandOnHover={singleLine}
     />
   );
 };

@@ -47,7 +47,20 @@ import { decryptAndParseExtraHeaders } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
 
+export type CompletionWithReasoning = { text: string; reasoning?: string };
+
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+// Maps adapters to the content block types that represent "thinking".
+// Used to extract reasoning separately and strip thinking parts from parsed output.
+const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
+  [LLMAdapter.VertexAI]: new Set(["reasoning"]),
+  [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
+};
+
+function getThinkingBlockTypes(adapter: LLMAdapter): Set<string> | undefined {
+  return THINKING_BLOCK_TYPES[adapter];
+}
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.VertexAI,
@@ -106,7 +119,7 @@ export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
     streaming: false;
   },
-): Promise<string>;
+): Promise<string | CompletionWithReasoning>;
 
 export async function fetchLLMCompletion(
   params: LLMCompletionParams & {
@@ -120,12 +133,13 @@ export async function fetchLLMCompletion(
     streaming: false;
     tools: LLMToolDefinition[];
   },
-): Promise<ToolCallResponse>;
+): Promise<ToolCallResponse & { reasoning?: string }>;
 
 export async function fetchLLMCompletion(
   params: FetchLLMCompletionParams,
 ): Promise<
   | string
+  | CompletionWithReasoning
   | IterableReadableStream<Uint8Array>
   | Record<string, unknown>
   | ToolCallResponse
@@ -439,11 +453,23 @@ export async function fetchLLMCompletion(
     metadata: traceSinkParams?.metadata,
   };
 
+  const thinkingTypes = getThinkingBlockTypes(modelParams.adapter);
+
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
     if (params.structuredOutputSchema) {
+      // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
+      // parsing. Force function calling so the parser reads from tool_calls instead.
+      const structuredOutputConfig =
+        thinkingTypes != null
+          ? { method: "functionCalling" as const }
+          : undefined;
+
       const structuredOutput = await chatModel
-        .withStructuredOutput(params.structuredOutputSchema)
+        .withStructuredOutput(
+          params.structuredOutputSchema,
+          structuredOutputConfig,
+        )
         .invoke(finalMessages, runConfig);
 
       return structuredOutput;
@@ -459,6 +485,26 @@ export async function fetchLLMCompletion(
         .bindTools(langchainTools)
         .invoke(finalMessages, runConfig);
 
+      // For thinking adapters, strip reasoning blocks from content before parsing
+      // so ToolCallResponseSchema can validate. Extract reasoning separately.
+      if (thinkingTypes != null && Array.isArray(result.content)) {
+        const reasoning = extractReasoning(result.content, thinkingTypes);
+        // mutates Langchain AIMessage in place, not ideal but safe because only used for parsing below
+        result.content = result.content.filter(
+          (block) =>
+            typeof block === "string" || !thinkingTypes.has(block.type),
+        );
+
+        const parsed = ToolCallResponseSchema.safeParse(result);
+        if (!parsed.success)
+          throw Error("Failed to parse LLM tool call result");
+
+        return {
+          ...parsed.data,
+          ...(reasoning ? { reasoning } : {}),
+        };
+      }
+
       const parsed = ToolCallResponseSchema.safeParse(result);
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
@@ -469,6 +515,13 @@ export async function fetchLLMCompletion(
       return chatModel
         .pipe(new BytesOutputParser())
         .stream(finalMessages, runConfig);
+
+    // content with thinking blocks can't be handled by StringOutputParser
+    // Invoke model directly and extract text + reasoning separately.
+    if (thinkingTypes != null) {
+      const aiMessage = await chatModel.invoke(finalMessages, runConfig);
+      return extractCompletionWithReasoning(aiMessage, thinkingTypes);
+    }
 
     const completion = await chatModel
       .pipe(new StringOutputParser())
@@ -527,6 +580,54 @@ export async function fetchLLMCompletion(
   } finally {
     await processTracedEvents();
   }
+}
+
+// extracts reasoning text from an array of content blocks.
+// returns concatenated reasoning or undefined if no reasoning blocks are found
+function extractReasoning(
+  content: AIMessage["content"],
+  thinkingBlockTypes: Set<string>,
+): string | undefined {
+  if (typeof content === "string" || !Array.isArray(content)) return undefined;
+  const parts: string[] = [];
+  for (const block of content) {
+    if (typeof block !== "string" && thinkingBlockTypes.has(block.type)) {
+      const text = (block as any).text ?? (block as any).reasoning;
+      if (typeof text === "string") parts.push(text);
+    }
+  }
+  return parts.length > 0 ? parts.join("") : undefined;
+}
+
+/**
+ * Splits AIMessage content into text and reasoning parts.
+ * Text parts are concatenated into `text`, thinking-type parts into `reasoning`.
+ */
+function extractCompletionWithReasoning(
+  message: AIMessage,
+  thinkingBlockTypes: Set<string>,
+): CompletionWithReasoning {
+  const { content } = message;
+
+  if (typeof content === "string") return { text: content };
+  if (!Array.isArray(content)) return { text: String(content) };
+
+  const reasoning = extractReasoning(content, thinkingBlockTypes);
+
+  const textParts: string[] = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      textParts.push(block);
+    } else if (!thinkingBlockTypes.has(block.type)) {
+      const text = (block as any).text ?? (block as any).reasoning;
+      if (typeof text === "string") textParts.push(text);
+    }
+  }
+
+  return {
+    text: textParts.join(""),
+    ...(reasoning ? { reasoning } : {}),
+  };
 }
 
 /**
