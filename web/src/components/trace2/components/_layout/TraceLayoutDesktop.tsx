@@ -4,6 +4,7 @@ import {
   Separator,
   Panel,
   usePanelRef,
+  useDefaultLayout,
   type PanelImperativeHandle,
 } from "react-resizable-panels";
 import {
@@ -83,6 +84,12 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
     }
   }, [isTimelineView]);
 
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: RESIZABLE_PANEL_GROUP_ID,
+    panelIds: [RESIZABLE_PANEL_NAVIGATION_ID, RESIZABLE_PANEL_PREVIEW_ID],
+    storage: sessionStorage,
+  });
+
   const contextValue: TraceLayoutDesktopContext = {
     isNavigationPanelCollapsed,
     setIsNavigationPanelCollapsed,
@@ -94,7 +101,12 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   return (
     <LayoutContext.Provider value={contextValue}>
       <div className="h-full w-full">
-        <Group orientation="horizontal" id={RESIZABLE_PANEL_GROUP_ID}>
+        <Group
+          orientation="horizontal"
+          id={RESIZABLE_PANEL_GROUP_ID}
+          defaultLayout={defaultLayout}
+          onLayoutChanged={onLayoutChanged}
+        >
           {children}
         </Group>
       </div>
@@ -116,7 +128,7 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
       panelRef={panelRef}
       collapsible={true}
       collapsedSize="40px"
-      minSize="360px"
+      minSize="260px"
       defaultSize="450px"
       onResize={() => {
         setIsNavigationPanelCollapsed(panelRef.current?.isCollapsed() ?? false);

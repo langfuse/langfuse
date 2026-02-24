@@ -600,12 +600,19 @@ export function DatasetRunsTable(props: {
   return (
     <>
       {hasCharts ? (
-        <ResizablePanelGroup direction="vertical" className="h-full">
+        <ResizablePanelGroup
+          direction="vertical"
+          className="h-full"
+          onLayoutChanged={(layout) => {
+            const charts = layout["dataset-charts"];
+            if (charts != null) setChartsPanelSize(charts);
+          }}
+        >
           <ResizablePanel
+            id="dataset-charts"
             defaultSize={`${chartsPanelSize}%`}
             minSize="20%"
             className="overflow-hidden"
-            onResize={(size) => setChartsPanelSize(size.asPercentage)}
           >
             <div className="h-full w-full overflow-x-auto overflow-y-auto p-3">
               <div className="flex h-full w-full gap-4">

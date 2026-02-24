@@ -35,12 +35,19 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
   );
 
   return (
-    <ResizablePanelGroup direction="vertical" className="h-full">
+    <ResizablePanelGroup
+      direction="vertical"
+      className="h-full"
+      onLayoutChanged={(layout) => {
+        const top = layout["annotation-top"];
+        if (top != null) setVerticalSize(top);
+      }}
+    >
       <ResizablePanel
+        id="annotation-top"
         className="w-full overflow-y-auto p-2"
         minSize="30%"
         defaultSize={`${verticalSize}%`}
-        onResize={(size) => setVerticalSize(size.asPercentage)}
       >
         {activeCell ? (
           <>

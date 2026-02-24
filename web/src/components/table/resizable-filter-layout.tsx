@@ -10,7 +10,7 @@ import { useDataTableControls } from "./data-table-controls";
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
-  const { open } = useDataTableControls();
+  const { open, tableName } = useDataTableControls();
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
 
   // Extract filter sidebar and table content from children
@@ -52,6 +52,7 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
       minMainSize={50}
       maxSidebarSize={50}
       sidebarPosition="left"
+      persistId={tableName ? `filter-layout-${tableName}` : "filter-layout"}
     />
   );
 }

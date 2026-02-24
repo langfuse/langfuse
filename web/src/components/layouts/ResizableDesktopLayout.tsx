@@ -1,8 +1,9 @@
-import { type ReactNode, useLayoutEffect } from "react";
+import { type ReactNode, useId, useLayoutEffect } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  useDefaultLayout,
   usePanelRef,
 } from "@/src/components/ui/resizable";
 
@@ -16,7 +17,16 @@ interface ResizableDesktopLayoutProps {
   maxSidebarSize?: number;
   className?: string;
   sidebarPosition?: "left" | "right";
+  persistId?: string;
 }
+
+const MAIN_PANEL_ID = "main";
+const SIDEBAR_PANEL_ID = "sidebar";
+
+const NOOP_LAYOUT_STORAGE = {
+  getItem: () => null,
+  setItem: () => {},
+};
 
 /**
  * Reusable component to show/hide resizable panels with a consistent DOM tree.
@@ -32,26 +42,57 @@ export function ResizableDesktopLayout({
   maxSidebarSize = 60,
   className = "flex h-full w-full",
   sidebarPosition = "right",
+  persistId,
 }: ResizableDesktopLayoutProps) {
+  const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const groupId = persistId
+    ? `resizable-layout-${persistId}`
+    : `resizable-layout-${instanceId}`;
+
+  const storage =
+    persistId && typeof window !== "undefined"
+      ? sessionStorage
+      : NOOP_LAYOUT_STORAGE;
+
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: groupId,
+    panelIds: [SIDEBAR_PANEL_ID, MAIN_PANEL_ID],
+    storage,
+  });
+
   const sidebarPanelRef = usePanelRef();
-  const mainPanelRef = usePanelRef();
 
   useLayoutEffect(() => {
+    const panel = sidebarPanelRef.current;
+    if (!panel) return;
+
     if (open) {
-      sidebarPanelRef.current?.resize(`${defaultSidebarSize}%`);
-      mainPanelRef.current?.resize(`${defaultMainSize}%`);
+      // v4 react-resizable-panel `expand()` depends on internal collapsed bookkeeping.
+      // Fallback to default size if the panel remains effectively closed.
+      if (panel.isCollapsed()) {
+        panel.expand();
+      }
+      if (panel.getSize().asPercentage < 2) {
+        panel.resize(`${defaultSidebarSize}%`);
+      }
     } else {
-      sidebarPanelRef.current?.resize("0%");
-      mainPanelRef.current?.resize("100%");
+      panel.collapse();
     }
-  }, [open, defaultMainSize, defaultSidebarSize]);
+  }, [open, sidebarPanelRef, defaultSidebarSize]);
 
   return (
-    <ResizablePanelGroup direction="horizontal" className={className}>
+    <ResizablePanelGroup
+      id={groupId}
+      direction="horizontal"
+      className={className}
+      defaultLayout={defaultLayout}
+      onLayoutChanged={persistId ? onLayoutChanged : undefined}
+    >
       {sidebarPosition === "left" && (
         <ResizablePanel
+          id={SIDEBAR_PANEL_ID}
           panelRef={sidebarPanelRef}
-          defaultSize="0%"
+          defaultSize={`${defaultSidebarSize}%`}
           minSize="0%"
           maxSize={`${maxSidebarSize}%`}
           collapsible={true}
@@ -62,9 +103,9 @@ export function ResizableDesktopLayout({
           {sidebarContent}
         </ResizablePanel>
       )}
-      {open && <ResizableHandle withHandle />}
+      {sidebarPosition === "left" && open && <ResizableHandle withHandle />}
       <ResizablePanel
-        panelRef={mainPanelRef}
+        id={MAIN_PANEL_ID}
         defaultSize={`${defaultMainSize}%`}
         minSize={`${minMainSize}%`}
       >
@@ -75,10 +116,12 @@ export function ResizableDesktopLayout({
           {mainContent}
         </div>
       </ResizablePanel>
+      {sidebarPosition === "right" && open && <ResizableHandle withHandle />}
       {sidebarPosition === "right" && (
         <ResizablePanel
+          id={SIDEBAR_PANEL_ID}
           panelRef={sidebarPanelRef}
-          defaultSize="0%"
+          defaultSize={`${defaultSidebarSize}%`}
           minSize="0%"
           maxSize={`${maxSidebarSize}%`}
           collapsible={true}

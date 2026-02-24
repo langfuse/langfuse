@@ -57,7 +57,14 @@ function ResizableHandle({
 }
 
 const usePanelRef = ResizablePrimitive.usePanelRef;
+const useDefaultLayout = ResizablePrimitive.useDefaultLayout;
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup, usePanelRef };
+export {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  usePanelRef,
+  useDefaultLayout,
+};
 type ImperativePanelHandle = ResizablePrimitive.PanelImperativeHandle;
 export type { ImperativePanelHandle };
