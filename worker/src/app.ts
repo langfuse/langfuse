@@ -11,7 +11,7 @@ require("dotenv").config();
 import {
   evalJobCreatorQueueProcessor,
   evalJobDatasetCreatorQueueProcessor,
-  evalJobExecutorQueueProcessor,
+  evalJobExecutorQueueProcessorBuilder,
   evalJobTraceCreatorQueueProcessor,
   llmAsJudgeExecutionQueueProcessor,
 } from "./queues/evalQueue";
@@ -231,7 +231,7 @@ if (env.QUEUE_CONSUMER_DATASET_RUN_ITEM_UPSERT_QUEUE_IS_ENABLED === "true") {
 if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
   WorkerManager.register(
     QueueName.EvaluationExecution,
-    evalJobExecutorQueueProcessor,
+    evalJobExecutorQueueProcessorBuilder(true, QueueName.EvaluationExecution),
     {
       concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
       // The default lockDuration is 30s and the lockRenewTime 1/2 of that.
@@ -252,6 +252,23 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       concurrency: env.LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY,
       lockDuration: 60000,
       stalledInterval: 120000,
+      maxStalledCount: 3,
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(
+    QueueName.EvaluationExecutionSecondaryQueue,
+    evalJobExecutorQueueProcessorBuilder(
+      false,
+      QueueName.EvaluationExecutionSecondaryQueue,
+    ),
+    {
+      concurrency:
+        env.LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY,
+      lockDuration: 60000, // 60 seconds
+      stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
     },
   );
