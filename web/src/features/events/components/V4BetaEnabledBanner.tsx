@@ -10,7 +10,7 @@ import {
 } from "@/src/features/top-banner";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
-const CHANGELOG_URL = "https://langfuse.com/changelog";
+const CHANGELOG_URL = "https://langfuse.com/changelog"; // TODO: update after changelog release
 const DISMISSED_STORAGE_KEY = "v4-beta-enabled-banner:v1:dismissed";
 const V4_BETA_BANNER_ID = "v4-beta-enabled-banner";
 const V4_BETA_BANNER_ORDER = 20;
@@ -63,14 +63,15 @@ export function V4BetaEnabledBanner() {
       <div className="flex items-center gap-3 px-4 py-1.5">
         <Sparkles className="h-4 w-4 shrink-0" />
         <p className="flex-1 text-sm">
-          v4 Beta is enabled. You&apos;re using Langfuse&apos;s new
-          observation-centric architecture for faster charts and APIs.{" "}
+          <span className="font-semibold">v4 Beta is enabled.</span> You&apos;re
+          using Langfuse&apos;s new observation-centric architecture for faster
+          charts and APIs.{" "}
           <Link
             href={CHANGELOG_URL}
             target="_blank"
             className="font-medium underline underline-offset-2"
           >
-            Read the changelog
+            Read the blog post
           </Link>
           .
         </p>
