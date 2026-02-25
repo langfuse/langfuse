@@ -1167,11 +1167,11 @@ export function WidgetForm({
               >
                 <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
                 <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-                  Traces view is not available in v2
+                  Traces view is not available in v4
                 </AlertTitle>
                 <AlertDescription className="text-yellow-700 dark:text-yellow-500">
-                  This widget uses the traces view which is not supported in v2.
-                  It will continue to use v1 definitions. To use v2, change the
+                  This widget uses the traces view which is not supported in v4.
+                  It will continue to use v3 definitions. To use v4, change the
                   view to observations or scores.
                 </AlertDescription>
               </Alert>
