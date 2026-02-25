@@ -366,6 +366,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
           setOutput(displayContent);
           setOutputToolCalls(completion.tool_calls);
+          if (completion.reasoning) setOutputReasoning(completion.reasoning);
 
           response = JSON.stringify(completion, null, 2);
         } else if (structuredOutputSchema) {
@@ -710,7 +711,7 @@ async function getChatCompletionWithTools(
   modelParams: UIModelParams,
   tools: unknown[],
   streaming: boolean = false,
-): Promise<ToolCallResponse> {
+): Promise<ToolCallResponse & { reasoning?: string }> {
   if (!projectId) throw Error("Project ID is not set");
 
   const body = JSON.stringify({
@@ -743,7 +744,10 @@ async function getChatCompletionWithTools(
         JSON.stringify(responseData, null, 2),
     );
 
-  return parsed.data;
+  return {
+    ...parsed.data,
+    ...(responseData.reasoning ? { reasoning: responseData.reasoning } : {}),
+  };
 }
 
 async function getChatCompletionWithStructuredOutput(

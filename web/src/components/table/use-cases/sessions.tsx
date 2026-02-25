@@ -755,7 +755,7 @@ export default function SessionsTable({
   });
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={sessionFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
