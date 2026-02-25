@@ -1333,15 +1333,15 @@ export type BlobStorageTagFilterCondition = {
 // Array of tag filter conditions, combined with AND logic
 export type BlobStorageTagFilters = BlobStorageTagFilterCondition[];
 
-export const getTracesForBlobStorageExport = function (
-  projectId: string,
-  minTimestamp: Date,
-  maxTimestamp: Date,
-  tagFilters?: BlobStorageTagFilters,
-) {
-  const traceTable = "traces";
-
-  // Build tag filter clauses - each condition generates a clause, combined with AND
+/**
+ * Builds ClickHouse tag filter clauses from tag filter conditions.
+ * Each condition generates a clause, and all clauses are combined with AND logic.
+ * @returns Object with `clause` (SQL string with leading AND if non-empty) and `params` (parameter values)
+ */
+export function buildTagFilterClause(tagFilters?: BlobStorageTagFilters): {
+  clause: string;
+  params: Record<string, unknown>;
+} {
   const tagFilterClauses: string[] = [];
   const tagParams: Record<string, unknown> = {};
 
@@ -1371,8 +1371,22 @@ export const getTracesForBlobStorageExport = function (
     });
   }
 
-  const tagFilterClause =
+  const clause =
     tagFilterClauses.length > 0 ? "AND " + tagFilterClauses.join(" AND ") : "";
+
+  return { clause, params: tagParams };
+}
+
+export const getTracesForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  tagFilters?: BlobStorageTagFilters,
+) {
+  const traceTable = "traces";
+
+  const { clause: tagFilterClause, params: tagParams } =
+    buildTagFilterClause(tagFilters);
 
   const query = `
     SELECT

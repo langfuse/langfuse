@@ -527,6 +527,92 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
+  describe("Tag filtering", () => {
+    maybeIt(
+      "should only export traces matching tag filter conditions",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
+        const now = new Date();
+        const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+        // Create traces with different tags
+        const trace1 = createTrace({
+          id: randomUUID(),
+          project_id: projectId,
+          timestamp: now.getTime() - 90 * 60 * 1000,
+          name: "Prod Important Trace",
+          tags: ["prod", "important"],
+        });
+        const trace2 = createTrace({
+          id: randomUUID(),
+          project_id: projectId,
+          timestamp: now.getTime() - 90 * 60 * 1000,
+          name: "Staging Trace",
+          tags: ["staging"],
+        });
+        const trace3 = createTrace({
+          id: randomUUID(),
+          project_id: projectId,
+          timestamp: now.getTime() - 90 * 60 * 1000,
+          name: "Prod Debug Trace",
+          tags: ["prod", "debug"],
+        });
+
+        await createTracesCh([trace1, trace2, trace3]);
+
+        // Create integration with tag filters:
+        // "any of [prod]" AND "none of [debug]" should match only trace1
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            nextSyncAt: twoHoursAgo,
+            lastSyncAt: twoHoursAgo,
+            exportTraces: true,
+            exportObservations: false,
+            exportScores: false,
+            exportEvents: false,
+            tagFilters: [
+              { operator: "any of", tags: ["prod"] },
+              { operator: "none of", tags: ["debug"] },
+            ],
+          },
+        });
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const traceFile = files.find((f) => f.file.includes("/traces/"));
+
+        expect(traceFile).toBeDefined();
+
+        if (traceFile) {
+          const content = await s3StorageService.download(traceFile.file);
+          // Should contain trace1 (prod + important, no debug)
+          expect(content).toContain(trace1.id);
+          expect(content).toContain("Prod Important Trace");
+          // Should NOT contain trace2 (staging, not prod)
+          expect(content).not.toContain(trace2.id);
+          // Should NOT contain trace3 (prod + debug, excluded by "none of debug")
+          expect(content).not.toContain(trace3.id);
+        }
+      },
+    );
+  });
+
   describe("Granular export flags", () => {
     maybeIt(
       "should only export data types with exportX flag set to true",
