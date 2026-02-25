@@ -18,6 +18,7 @@ import {
   SquarePercent,
   ClipboardPen,
   Clock,
+  Beaker,
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -167,6 +168,14 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
+    group: RouteGroup.Evaluation,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Experiments",
+    pathname: `/project/[projectId]/experiments`,
+    icon: Beaker,
+    featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
   },

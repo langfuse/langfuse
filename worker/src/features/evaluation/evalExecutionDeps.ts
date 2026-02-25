@@ -5,6 +5,7 @@ import {
   DefaultEvalModelService,
   fetchLLMCompletion,
   IngestionQueue,
+  LLMAdapter,
   QueueJobs,
   ScoreEventType,
 } from "@langfuse/shared/src/server";
@@ -25,6 +26,7 @@ export type ModelConfigResult =
           adapter: string;
           [key: string]: unknown;
         };
+        adapter: LLMAdapter;
         modelParams: Record<string, unknown>;
       };
     }
