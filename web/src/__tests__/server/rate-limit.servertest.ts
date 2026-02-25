@@ -2,37 +2,48 @@ import {
   createHttpHeaderFromRateLimit,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
-import { Redis } from "ioredis";
+import {
+  clearRedisKeysByPatternSafely,
+  createRedisTestClient,
+  ensureRedisReady,
+  type RedisTestClient,
+} from "@/src/__tests__/server/redis-test-utils";
 
 describe("RateLimitService", () => {
   const orgId = "seed-org-id";
-  let redis: Redis;
+  let redis: RedisTestClient;
 
-  beforeAll(() => {
-    redis = new Redis("redis://:myredissecret@127.0.0.1:6379", {
+  const createRedisClient = (): RedisTestClient => {
+    return createRedisTestClient({
       maxRetriesPerRequest: null,
       enableAutoPipelining: false, // Align with our settings overwrite for rate limit service
     });
-  });
+  };
 
-  afterAll(async () => {
-    redis.disconnect();
-  });
+  beforeAll(async () => {
+    RateLimitService.shutdown();
+    redis = createRedisClient();
+    await ensureRedisReady(redis);
+  }, 20_000);
 
   beforeEach(async () => {
-    expect(redis).toBeDefined();
-    const keys = await redis?.keys("rate-limit*");
-    if (keys && keys?.length > 0) {
-      await redis?.del(keys);
+    if (redis.status === "close" || redis.status === "end") {
+      RateLimitService.shutdown();
+      redis = createRedisClient();
     }
-  });
+    await ensureRedisReady(redis);
+    await clearRedisKeysByPatternSafely(redis, "rate-limit*");
+  }, 20_000);
 
   afterEach(async () => {
-    const keys = await redis?.keys("rate-limit*");
-    if (keys && keys.length > 0) {
-      await redis?.del(keys);
-    }
-  });
+    await clearRedisKeysByPatternSafely(redis, "rate-limit*");
+  }, 20_000);
+
+  afterAll(async () => {
+    await clearRedisKeysByPatternSafely(redis, "rate-limit*");
+    redis.disconnect();
+    RateLimitService.shutdown();
+  }, 20_000);
 
   it("should create correct ratelimit headers", () => {
     const rateLimitRes = {

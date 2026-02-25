@@ -1,3 +1,4 @@
+import type React from "react";
 import {
   createContext,
   useContext,
@@ -24,7 +25,7 @@ import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { X as IconX, Search, WandSparkles } from "lucide-react";
+import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
 import type {
   UIFilter,
   KeyValueFilterEntry,
@@ -193,6 +194,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   options={filter.options}
                   counts={filter.counts}
@@ -200,6 +202,7 @@ export function DataTableControls({
                   value={filter.value}
                   onChange={filter.onChange}
                   onOnlyChange={filter.onOnlyChange}
+                  renderIcon={filter.renderIcon}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
                   operator={filter.operator}
@@ -219,6 +222,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   min={filter.min}
@@ -226,6 +230,7 @@ export function DataTableControls({
                   value={filter.value}
                   onChange={filter.onChange}
                   unit={filter.unit}
+                  step={filter.step}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
                   isDisabled={filter.isDisabled}
@@ -240,6 +245,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   value={filter.value}
@@ -258,6 +264,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -279,6 +286,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -299,6 +307,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -318,6 +327,7 @@ export function DataTableControls({
                   key={filter.column}
                   filterKey={filter.column}
                   label={filter.label}
+                  tooltip={filter.tooltip}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   mode={filter.mode}
@@ -342,6 +352,7 @@ export function DataTableControls({
 
 interface BaseFacetProps {
   label: string;
+  tooltip?: string;
   children?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
@@ -359,6 +370,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
   value: string[];
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
+  renderIcon?: (value: string) => React.ReactNode;
   operator?: "any of" | "all of";
   onOperatorChange?: (operator: "any of" | "all of") => void;
   textFilters?: TextFilterEntry[];
@@ -378,6 +390,7 @@ interface NumericFacetProps extends BaseFacetProps {
   value: [number, number];
   onChange: (value: [number, number]) => void;
   unit?: string;
+  step?: number;
 }
 
 interface StringFacetProps extends BaseFacetProps {
@@ -441,6 +454,7 @@ const FilterAccordionContent = ({
 
 interface FilterAccordionItemProps {
   label: string;
+  tooltip?: string;
   filterKey: string;
   filterKeyShort?: string | null;
   children: React.ReactNode;
@@ -452,6 +466,7 @@ interface FilterAccordionItemProps {
 
 export function FilterAccordionItem({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   children,
@@ -484,6 +499,23 @@ export function FilterAccordionItem({
               </TooltipTrigger>
               <TooltipContent className="max-w-80 text-xs">
                 {disabledReason}
+              </TooltipContent>
+            </Tooltip>
+          ) : tooltip ? (
+            <Tooltip delayDuration={80}>
+              <TooltipTrigger asChild>
+                <span className="flex grow items-center gap-1">
+                  {label}
+                  <InfoIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  {filterKeyShort && (
+                    <code className="hidden font-mono text-xs text-muted-foreground/70">
+                      {filterKeyShort}
+                    </code>
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-80 text-xs">
+                {tooltip}
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -537,6 +569,7 @@ export function FilterAccordionItem({
 
 export function CategoricalFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded,
@@ -546,6 +579,7 @@ export function CategoricalFacet({
   value,
   onChange,
   onOnlyChange,
+  renderIcon,
   isActive,
   isDisabled,
   disabledReason,
@@ -602,6 +636,7 @@ export function CategoricalFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -747,6 +782,7 @@ export function CategoricalFacet({
                         key={option}
                         id={`${filterKey}-${option}`}
                         label={option}
+                        icon={renderIcon?.(option)}
                         count={counts.get(option) || 0}
                         checked={value.includes(option)}
                         onCheckedChange={(checked) => {
@@ -814,6 +850,7 @@ export function CategoricalFacet({
 
 export function NumericFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -823,6 +860,7 @@ export function NumericFacet({
   value,
   onChange,
   unit,
+  step: stepProp,
   isActive,
   isDisabled,
   disabledReason,
@@ -896,6 +934,7 @@ export function NumericFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -923,7 +962,7 @@ export function NumericFacet({
                     value={isActive ? localValue[0] : ""}
                     placeholder={String(min)}
                     min={min}
-                    step="any"
+                    step={stepProp ?? "any"}
                     onChange={handleMinInputChange}
                     className="h-8"
                   />
@@ -948,7 +987,7 @@ export function NumericFacet({
                     value={isActive ? localValue[1] : ""}
                     placeholder={String(max)}
                     min={min}
-                    step="any"
+                    step={stepProp ?? "any"}
                     onChange={handleMaxInputChange}
                     className="h-8"
                   />
@@ -963,7 +1002,7 @@ export function NumericFacet({
             <Slider
               min={min}
               max={max}
-              step={max - min <= 1000 ? 0.01 : 1}
+              step={stepProp ?? (max - min <= 1000 ? 0.01 : 1)}
               value={localValue}
               onValueChange={handleSliderChange}
             />
@@ -976,6 +1015,7 @@ export function NumericFacet({
 
 export function StringFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1024,6 +1064,7 @@ export function StringFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1051,6 +1092,7 @@ export function StringFacet({
 
 export function KeyValueFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1068,6 +1110,7 @@ export function KeyValueFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1095,6 +1138,7 @@ export function KeyValueFacet({
 
 export function NumericKeyValueFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1111,6 +1155,7 @@ export function NumericKeyValueFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1137,6 +1182,7 @@ export function NumericKeyValueFacet({
 
 export function StringKeyValueFacet({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1153,6 +1199,7 @@ export function StringKeyValueFacet({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1188,7 +1235,7 @@ const POSITION_MODES: {
   key: PositionInTraceMode;
   label: string;
 }[] = [
-  { key: "root", label: "Root" },
+  { key: "root", label: "1st" },
   { key: "last", label: "Last" },
   { key: "nthFromStart", label: "Nth from start" },
   { key: "nthFromEnd", label: "Nth from end" },
@@ -1196,6 +1243,7 @@ const POSITION_MODES: {
 
 function PositionInTraceFacetComponent({
   label,
+  tooltip,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1214,6 +1262,7 @@ function PositionInTraceFacetComponent({
   return (
     <FilterAccordionItem
       label={label}
+      tooltip={tooltip}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1426,6 +1475,7 @@ function TextFilterSection({
 interface FilterValueCheckboxProps {
   id: string;
   label: string;
+  icon?: React.ReactNode;
   count: number;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
@@ -1437,6 +1487,7 @@ interface FilterValueCheckboxProps {
 export function FilterValueCheckbox({
   id,
   label,
+  icon,
   count,
   checked = false,
   onCheckedChange,
@@ -1477,6 +1528,7 @@ export function FilterValueCheckbox({
         )}
         onClick={onLabelClick}
       >
+        {icon ? <span className="mr-2">{icon}</span> : null}
         <span
           className={cn(
             "min-w-0 flex-1 truncate text-xs",

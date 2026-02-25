@@ -25,6 +25,9 @@ export class QueryBuilderError extends Error {
   }
 }
 
+// Matches nullIf(expr, '') wrappers used in dimension SQL for display purposes.
+const NULL_IF_EMPTY_RE = /^nullIf\((.+),\s*''\)$/;
+
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
@@ -32,9 +35,9 @@ export const createFilterFromFilterState = (
   filter: FilterCondition[],
   columnMapping: UiColumnMappings,
 ) => {
-  const applicableFilters = filter.filter(
-    (frontEndFilter) => frontEndFilter.type !== "positionInTrace",
-  );
+  const applicableFilters = filter
+    .filter((frontEndFilter) => frontEndFilter.type !== "positionInTrace")
+    .filter((frontEndFilter) => frontEndFilter.column !== "levelInTrace");
 
   return applicableFilters.map((frontEndFilter) => {
     // checks if the column exists in the clickhouse schema
@@ -124,20 +127,23 @@ export const createFilterFromFilterState = (
           column.clickhouseTableName.startsWith("events")
         ) {
           const isNull = frontEndFilter.operator === "is null";
+          // When the dimension SQL wraps the column with nullIf(col, ''), the value
+          // is already NULL for empty strings — use a standard IS NULL / IS NOT NULL check.
+          // When there is no nullIf wrapper, the column stores '' directly — use = '' / != ''.
+          const hasNullIf = NULL_IF_EMPTY_RE.test(column.clickhouseSelect);
           const fieldWithPrefix = column.queryPrefix
             ? `${column.queryPrefix}.${column.clickhouseSelect}`
             : column.clickhouseSelect;
+          const query = hasNullIf
+            ? `${fieldWithPrefix} IS ${isNull ? "" : "NOT "}NULL`
+            : `${fieldWithPrefix} ${isNull ? "=" : "!="} ''`;
 
-          // Create an inline filter for empty string comparison
           return {
             clickhouseTable: column.clickhouseTableName,
             field: column.clickhouseSelect,
             operator: isNull ? ("=" as const) : ("!=" as const),
             tablePrefix: column.queryPrefix,
-            apply: () => ({
-              query: `${fieldWithPrefix} ${isNull ? "=" : "!="} ''`,
-              params: {},
-            }),
+            apply: () => ({ query, params: {} }),
           };
         }
 

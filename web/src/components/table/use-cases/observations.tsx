@@ -1279,7 +1279,7 @@ export default function ObservationsTable({
   }, [generations]);
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={observationFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (

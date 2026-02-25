@@ -21,7 +21,6 @@ import { afterAll, test as baseTest, beforeAll, describe } from "vitest";
 import { z } from "zod/v4";
 import { createEvalJobs } from "../features/evaluation/evalService";
 import { OpenAIServer } from "./network";
-import { pruneDatabase } from "./utils";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // Check for both OPENAI_API_KEY and LANGFUSE_LLM_CONNECTION_OPENAI_KEY
@@ -39,7 +38,6 @@ const openAIServer = new OpenAIServer({
 
 beforeAll(openAIServer.setup);
 beforeAll(async () => {
-  await pruneDatabase();
   openAIServer.respondWithDefault();
 });
 afterAll(openAIServer.teardown);

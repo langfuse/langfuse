@@ -114,6 +114,8 @@ export function ScoreAnalytics(props: {
                     <div className="mb-2 text-sm text-muted-foreground">
                       Total aggregate scores
                       {isNumericDataType(dataType) && (
+                        // TODO: v2 histogram aggregates all rows server-side (no 10k cap).
+                        // Make this tooltip conditional on metricsVersion.
                         <DocPopup description="Aggregate of up to 10,000 scores" />
                       )}
                     </div>

@@ -250,6 +250,12 @@ export const eventsTableCols: ColumnDefinition[] = [
     internal: "positionInTrace",
   },
   {
+    name: "Level in Trace",
+    id: "levelInTrace",
+    type: "number",
+    internal: "levelInTrace",
+  },
+  {
     name: "Has Parent Observation",
     id: "hasParentObservation",
     type: "boolean",
@@ -277,6 +283,36 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "stringOptions",
     internal: "e.experiment_name",
     options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Available Tool Names",
+    id: "toolNames",
+    type: "arrayOptions",
+    internal: "mapKeys(e.tool_definitions)",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "e.tool_call_names",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Available Tools",
+    id: "toolDefinitions",
+    type: "number",
+    internal: "length(mapKeys(e.tool_definitions))",
+    nullable: true,
+  },
+  {
+    name: "Tool Calls",
+    id: "toolCalls",
+    type: "number",
+    internal: "length(e.tool_calls)",
     nullable: true,
   },
 ];

@@ -160,6 +160,13 @@ export async function executeQuery(
   // Check if the query contains trace table references
   const usesTraceTable = compiledQuery.includes("traces");
 
+  // Route events_core queries to the dedicated events read replica.
+  // Checked via the view declaration's baseCte rather than scanning the compiled SQL.
+  const view = getViewDeclaration(query.view, version);
+  const preferredClickhouseService = view.baseCte.includes("events_")
+    ? ("EventsReadOnly" as const)
+    : undefined;
+
   const tags = {
     feature: "custom-queries",
     type: query.view,
@@ -175,12 +182,16 @@ export async function executeQuery(
       clickhouseConfigs: {
         clickhouse_settings: {
           date_time_output_format: "iso",
+          ...(env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE === "true"
+            ? { use_query_condition_cache: "true" }
+            : {}),
           max_bytes_before_external_group_by: String(
             env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
           ),
         },
       },
       tags,
+      preferredClickhouseService,
     });
   }
 
@@ -204,12 +215,16 @@ export async function executeQuery(
         clickhouseConfigs: {
           clickhouse_settings: {
             date_time_output_format: "iso",
+            ...(env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE === "true"
+              ? { use_query_condition_cache: "true" }
+              : {}),
             max_bytes_before_external_group_by: String(
               env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
             ),
           },
         },
         tags: input.tags,
+        preferredClickhouseService,
       });
     },
   });
