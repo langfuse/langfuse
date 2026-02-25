@@ -1366,11 +1366,13 @@ describe("/api/public/v2/scores API Endpoint", () => {
       it("should include both when fields=score,trace", async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
         const traceId = v4();
+        const traceSessionId = v4();
         const scoreId = v4();
 
         const trace = createTrace({
           id: traceId,
           project_id: projectId,
+          session_id: traceSessionId,
           user_id: "test-user",
           tags: ["tag1"],
         });
@@ -1403,6 +1405,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           trace: {
             userId: "test-user",
             tags: ["tag1"],
+            sessionId: traceSessionId,
           },
         });
       });
