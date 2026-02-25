@@ -153,6 +153,16 @@ export const env = createEnv({
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTH0_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CHECKS: zAuthChecks,
+    // Langfuse Cloud only: "Sign in with ClickHouse Cloud" (Auth0 under the hood).
+    // NOT intended for self-hosted Langfuse — use AUTH_AUTH0_* instead.
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_ID: z.string().optional(),
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET: z.string().optional(),
+    AUTH_CLICKHOUSE_CLOUD_ISSUER: z.string().url().optional(),
+    AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING: z
+      .enum(["true", "false"])
+      .optional(),
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_CLICKHOUSE_CLOUD_CHECKS: zAuthChecks,
     AUTH_COGNITO_CLIENT_ID: z.string().optional(),
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
     AUTH_COGNITO_ISSUER: z.string().url().optional(),
@@ -543,6 +553,16 @@ export const env = createEnv({
       process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
     AUTH_AUTH0_CLIENT_AUTH_METHOD: process.env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
     AUTH_AUTH0_CHECKS: process.env.AUTH_AUTH0_CHECKS,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_ID:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
+    AUTH_CLICKHOUSE_CLOUD_ISSUER: process.env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+    AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+    AUTH_CLICKHOUSE_CLOUD_CHECKS: process.env.AUTH_CLICKHOUSE_CLOUD_CHECKS,
     AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
     AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
