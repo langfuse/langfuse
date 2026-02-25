@@ -109,7 +109,11 @@ export const useModelSelection = (
   toTimestamp: Date,
   metricsVersion?: ViewVersion,
 ) => {
-  const allModels = getAllModels(
+  const {
+    allModels,
+    isPending: isAllModelsPending,
+    isError: isAllModelsError,
+  } = getAllModels(
     projectId,
     globalFilterState,
     fromTimestamp,
@@ -144,5 +148,7 @@ export const useModelSelection = (
     isAllSelected,
     buttonText,
     handleSelectAll,
+    isAllModelsPending,
+    isAllModelsError,
   };
 };

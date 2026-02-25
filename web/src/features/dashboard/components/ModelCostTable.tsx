@@ -67,6 +67,9 @@ export const ModelCostTable = ({
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -101,11 +104,7 @@ export const ModelCostTable = ({
     : [];
 
   return (
-    <DashboardCard
-      className={className}
-      title="Model costs"
-      isLoading={isLoading || metrics.isLoading}
-    >
+    <DashboardCard className={className} title="Model costs" isLoading={false}>
       <DashboardTable
         headers={[
           "Model",
@@ -114,6 +113,7 @@ export const ModelCostTable = ({
         ]}
         rows={metricsData}
         isLoading={isLoading || metrics.isLoading}
+        isError={metrics.isError}
         collapse={{ collapsed: 5, expanded: 20 }}
       >
         <TotalMetric

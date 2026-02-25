@@ -153,6 +153,9 @@ export function DashboardTable() {
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 

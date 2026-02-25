@@ -18,6 +18,8 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -79,6 +81,9 @@ export function CategoricalScoreChart(props: {
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
@@ -97,16 +102,34 @@ export function CategoricalScoreChart(props: {
     return adapter.toChartData();
   }, [scores.data, props.agg]);
 
-  if (isEmptyChart({ data: chartData })) {
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: scores.isPending,
+    isError: scores.isError,
+  });
+
+  if (isEmptyChart({ data: chartData }) && !chartLoadingState.isLoading) {
     return (
-      <NoDataOrLoading
-        isLoading={scores.isLoading}
-        className="min-h-[9rem] flex-1"
-      />
+      <NoDataOrLoading isLoading={false} className="min-h-[9rem] flex-1" />
     );
   }
+
+  if (isEmptyChart({ data: chartData })) {
+    return (
+      <div className="relative min-h-[9rem] w-full">
+        <ChartLoadingState
+          isLoading={chartLoadingState.isLoading}
+          showSpinner={chartLoadingState.showSpinner}
+          showHintImmediately={chartLoadingState.showHintImmediately}
+          hintText={chartLoadingState.hintText}
+          className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+          hintClassName="max-w-sm px-4"
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="h-80 w-full shrink-0">
+    <div className="relative h-80 w-full shrink-0">
       <Chart
         chartType="VERTICAL_BAR"
         data={scoreChartDataToDataPoints(chartData, chartLabels)}
@@ -116,6 +139,14 @@ export function CategoricalScoreChart(props: {
           row_limit: 100,
           subtle_fill: true,
         }}
+      />
+      <ChartLoadingState
+        isLoading={chartLoadingState.isLoading}
+        showSpinner={chartLoadingState.showSpinner}
+        showHintImmediately={chartLoadingState.showHintImmediately}
+        hintText={chartLoadingState.hintText}
+        className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+        hintClassName="max-w-sm px-4"
       />
     </div>
   );

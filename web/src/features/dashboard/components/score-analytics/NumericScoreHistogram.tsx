@@ -10,6 +10,8 @@ import React from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export function NumericScoreHistogram(props: {
   projectId: string;
@@ -57,6 +59,9 @@ export function NumericScoreHistogram(props: {
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
@@ -64,16 +69,40 @@ export function NumericScoreHistogram(props: {
     ? histogram.data
     : { chartData: [], chartLabels: [] };
 
-  return histogram.isLoading || !Boolean(chartData.length) ? (
-    <NoDataOrLoading isLoading={histogram.isLoading} />
-  ) : (
-    <div className="h-80 w-full shrink-0">
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: histogram.isPending,
+    isError: histogram.isError,
+  });
+
+  return Boolean(chartData.length) ? (
+    <div className="relative h-80 w-full shrink-0">
       <Chart
         chartType="HISTOGRAM"
         data={scoreHistogramToDataPoints(chartData, chartLabels)}
         rowLimit={100}
         chartConfig={{ type: "HISTOGRAM", subtle_fill: true }}
       />
+      <ChartLoadingState
+        isLoading={chartLoadingState.isLoading}
+        showSpinner={chartLoadingState.showSpinner}
+        showHintImmediately={chartLoadingState.showHintImmediately}
+        hintText={chartLoadingState.hintText}
+        className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+        hintClassName="max-w-sm px-4"
+      />
     </div>
+  ) : chartLoadingState.isLoading ? (
+    <div className="relative min-h-[9rem] w-full">
+      <ChartLoadingState
+        isLoading={chartLoadingState.isLoading}
+        showSpinner={chartLoadingState.showSpinner}
+        showHintImmediately={chartLoadingState.showHintImmediately}
+        hintText={chartLoadingState.hintText}
+        className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+        hintClassName="max-w-sm px-4"
+      />
+    </div>
+  ) : (
+    <NoDataOrLoading isLoading={false} />
   );
 }

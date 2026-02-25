@@ -49,6 +49,9 @@ export function SelectDashboardDialog({
     },
     {
       enabled: Boolean(projectId) && open,
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
