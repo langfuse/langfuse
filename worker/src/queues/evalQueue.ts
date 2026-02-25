@@ -144,13 +144,17 @@ export const evalJobExecutorQueueProcessorBuilder = (
           const secondaryQueue = getQueue(
             QueueName.EvaluationExecutionSecondaryQueue,
           );
-          if (secondaryQueue) {
-            await secondaryQueue.add(
-              QueueName.EvaluationExecutionSecondaryQueue,
-              job.data,
+          if (!secondaryQueue) {
+            throw new Error(
+              "Secondary evaluation execution queue is not available",
             );
-            return;
           }
+
+          await secondaryQueue.add(
+            QueueName.EvaluationExecutionSecondaryQueue,
+            job.data,
+          );
+          return;
         }
       }
 
