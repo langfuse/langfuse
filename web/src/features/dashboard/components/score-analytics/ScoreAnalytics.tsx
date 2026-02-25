@@ -21,6 +21,8 @@ import {
   convertScoreColumnsToAnalyticsData,
   getScoreDataTypeIcon,
 } from "@/src/features/scores/lib/scoreColumns";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export function ScoreAnalytics(props: {
   className?: string;
@@ -48,6 +50,9 @@ export function ScoreAnalytics(props: {
     },
     {
       enabled: !props.isLoading,
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
@@ -61,13 +66,18 @@ export function ScoreAnalytics(props: {
     selectedDashboardScoreKeys.includes(option.key),
   );
 
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: props.isLoading || scoreKeysAndProps.isPending,
+    isError: scoreKeysAndProps.isError,
+  });
+
   return (
     <DashboardCard
       className={props.className}
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
-      isLoading={props.isLoading || scoreKeysAndProps.isPending}
-      headerClassName={"grid grid-cols-[1fr_auto_auto] items-center"}
+      isLoading={false}
+      headerClassName={"grid grid-cols-[1fr,auto,auto] items-center"}
       headerChildren={
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&
@@ -202,8 +212,19 @@ export function ScoreAnalytics(props: {
             Select a score to view analytics
           </p>
         </div>
+      ) : chartLoadingState.isLoading ? (
+        <div className="relative min-h-[9rem] w-full">
+          <ChartLoadingState
+            isLoading={chartLoadingState.isLoading}
+            showSpinner={chartLoadingState.showSpinner}
+            showHintImmediately={chartLoadingState.showHintImmediately}
+            hintText={chartLoadingState.hintText}
+            className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+            hintClassName="max-w-sm px-4"
+          />
+        </div>
       ) : (
-        <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
+        <NoDataOrLoading isLoading={false} />
       )}
     </DashboardCard>
   );

@@ -94,6 +94,9 @@ export const ScoresTable = ({
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -138,6 +141,9 @@ export const ScoresTable = ({
           context: {
             skipBatch: true,
           },
+        },
+        meta: {
+          silentHttpCodes: [422],
         },
         enabled: !isLoading,
       },
@@ -192,16 +198,7 @@ export const ScoresTable = ({
   );
 
   return (
-    <DashboardCard
-      className={className}
-      title="Scores"
-      isLoading={
-        isLoading ||
-        metrics.isPending ||
-        zeroValueScores.isPending ||
-        oneValueScores.isPending
-      }
-    >
+    <DashboardCard className={className} title="Scores" isLoading={false}>
       <DashboardTable
         headers={[
           "Name",
@@ -239,6 +236,9 @@ export const ScoresTable = ({
           metrics.isPending ||
           zeroValueScores.isPending ||
           oneValueScores.isPending
+        }
+        isError={
+          metrics.isError || zeroValueScores.isError || oneValueScores.isError
         }
         noDataProps={{
           description:

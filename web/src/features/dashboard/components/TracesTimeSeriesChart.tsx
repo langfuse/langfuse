@@ -16,7 +16,8 @@ import {
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -67,7 +68,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:traces-time-series"}:traces`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading && !isV2,
     },
   );
@@ -116,7 +119,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:traces-time-series"}:observations`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -160,6 +165,8 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          isPending: observations.isPending,
+          isError: observations.isError,
         },
       ]
     : [
@@ -168,12 +175,16 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedTraces,
           totalMetric: total,
           metricDescription: `Traces tracked`,
+          isPending: traces.isPending,
+          isError: traces.isError,
         },
         {
           tabTitle: "Observations by Level",
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          isPending: observations.isPending,
+          isError: observations.isError,
         },
       ];
 
@@ -181,13 +192,16 @@ export const TracesAndObservationsTimeSeriesChart = ({
     <DashboardCard
       className={className}
       title={isV2 ? "Observations by time" : "Traces by time"}
-      isLoading={
-        isLoading || observations.isPending || (!isV2 && traces.isPending)
-      }
+      isLoading={false}
       cardContentClassName="flex flex-col content-end "
     >
       <TabComponent
         tabs={data.map((item) => {
+          const tabLoadingState = getChartLoadingStateProps({
+            isPending: isLoading || item.isPending,
+            isError: item.isError,
+          });
+
           return {
             tabTitle: item.tabTitle,
             content: (
@@ -201,7 +215,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   }
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
-                  <div className="h-80 w-full shrink-0">
+                  <div className="relative h-80 w-full shrink-0">
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
@@ -212,14 +226,29 @@ export const TracesAndObservationsTimeSeriesChart = ({
                       }}
                       legendPosition="above"
                     />
+                    <ChartLoadingState
+                      isLoading={tabLoadingState.isLoading}
+                      showSpinner={tabLoadingState.showSpinner}
+                      showHintImmediately={tabLoadingState.showHintImmediately}
+                      hintText={tabLoadingState.hintText}
+                      className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                      hintClassName="max-w-sm px-4"
+                    />
+                  </div>
+                ) : tabLoadingState.isLoading ? (
+                  <div className="relative h-80 w-full shrink-0">
+                    <ChartLoadingState
+                      isLoading={tabLoadingState.isLoading}
+                      showSpinner={tabLoadingState.showSpinner}
+                      showHintImmediately={tabLoadingState.showHintImmediately}
+                      hintText={tabLoadingState.hintText}
+                      className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                      hintClassName="max-w-sm px-4"
+                    />
                   </div>
                 ) : (
                   <NoDataOrLoading
-                    isLoading={
-                      isLoading ||
-                      observations.isPending ||
-                      (!isV2 && traces.isPending)
-                    }
+                    isLoading={false}
                     description="Traces contain details about LLM applications and can be created using the SDK."
                     href="https://langfuse.com/docs/observability/overview"
                   />

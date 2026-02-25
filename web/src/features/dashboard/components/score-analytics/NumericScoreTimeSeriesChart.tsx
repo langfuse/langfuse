@@ -23,7 +23,8 @@ import {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -86,7 +87,9 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
-      queryId: `${props.schedulerId ?? "home:score-analytics"}:numeric:${props.source}:${props.name}`,
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
@@ -107,11 +110,16 @@ export function NumericScoreTimeSeriesChart(props: {
       : [];
   }, [scores.data]);
 
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: scores.isPending,
+    isError: scores.isError,
+  });
+
   return !isEmptyTimeSeries({
     data: extractedScores,
     isNullValueAllowed: true,
   }) ? (
-    <div className="h-80 w-full shrink-0">
+    <div className="relative h-80 w-full shrink-0">
       <Chart
         chartType="LINE_TIME_SERIES"
         data={timeSeriesToDataPoints(extractedScores, props.agg)}
@@ -123,8 +131,27 @@ export function NumericScoreTimeSeriesChart(props: {
         }}
         legendPosition="above"
       />
+      <ChartLoadingState
+        isLoading={chartLoadingState.isLoading}
+        showSpinner={chartLoadingState.showSpinner}
+        showHintImmediately={chartLoadingState.showHintImmediately}
+        hintText={chartLoadingState.hintText}
+        className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+        hintClassName="max-w-sm px-4"
+      />
+    </div>
+  ) : chartLoadingState.isLoading ? (
+    <div className="relative min-h-[9rem] w-full">
+      <ChartLoadingState
+        isLoading={chartLoadingState.isLoading}
+        showSpinner={chartLoadingState.showSpinner}
+        showHintImmediately={chartLoadingState.showHintImmediately}
+        hintText={chartLoadingState.hintText}
+        className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+        hintClassName="max-w-sm px-4"
+      />
     </div>
   ) : (
-    <NoDataOrLoading isLoading={scores.isLoading} />
+    <NoDataOrLoading isLoading={false} />
   );
 }

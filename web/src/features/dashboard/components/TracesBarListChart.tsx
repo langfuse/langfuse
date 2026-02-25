@@ -9,7 +9,8 @@ import { type QueryType, type ViewVersion } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export const TracesBarListChart = ({
   className,
@@ -58,7 +59,9 @@ export const TracesBarListChart = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:traces"}:total`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -90,7 +93,9 @@ export const TracesBarListChart = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:traces"}:grouped`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -112,6 +117,11 @@ export const TracesBarListChart = ({
     ? transformedTraces.slice(0, maxNumberOfEntries.expanded)
     : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
 
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: isLoading || traces.isPending || totalTraces.isPending,
+    isError: traces.isError || totalTraces.isError,
+  });
+
   // Height scales with bar count so each bar keeps the same height when expanding, otherwise recharts chart would resize to fit into the container.
   const BAR_ROW_HEIGHT = 36;
   const CHART_AXIS_PADDING = 32;
@@ -121,7 +131,7 @@ export const TracesBarListChart = ({
       className={className}
       title={"Traces"}
       description={null}
-      isLoading={isLoading || traces.isPending || totalTraces.isPending}
+      isLoading={false}
     >
       <>
         <TotalMetric
@@ -134,7 +144,7 @@ export const TracesBarListChart = ({
         />
         {adjustedData.length > 0 ? (
           <div
-            className="mt-4 w-full"
+            className="relative mt-4 w-full"
             style={{
               minHeight: 200,
               height: Math.max(
@@ -155,10 +165,29 @@ export const TracesBarListChart = ({
               }}
               valueFormatter={(n) => numberFormatter(n, 0)}
             />
+            <ChartLoadingState
+              isLoading={chartLoadingState.isLoading}
+              showSpinner={chartLoadingState.showSpinner}
+              showHintImmediately={chartLoadingState.showHintImmediately}
+              hintText={chartLoadingState.hintText}
+              className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+              hintClassName="max-w-sm px-4"
+            />
+          </div>
+        ) : chartLoadingState.isLoading ? (
+          <div className="relative mt-4 min-h-[200px] w-full">
+            <ChartLoadingState
+              isLoading={chartLoadingState.isLoading}
+              showSpinner={chartLoadingState.showSpinner}
+              showHintImmediately={chartLoadingState.showHintImmediately}
+              hintText={chartLoadingState.hintText}
+              className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+              hintClassName="max-w-sm px-4"
+            />
           </div>
         ) : (
           <NoDataOrLoading
-            isLoading={isLoading || traces.isPending || totalTraces.isPending}
+            isLoading={false}
             description="Traces contain details about LLM applications and can be created using the SDK."
             href="https://langfuse.com/docs/get-started"
           />

@@ -24,7 +24,7 @@ export const useAllModels = (
   metricsVersion?: ViewVersion,
   options?: UseAllModelsOptions,
 ) => {
-  const allModels = useScheduledDashboardExecuteQuery(
+  const allModelsQuery = api.dashboard.executeQuery.useQuery(
     {
       projectId,
       version: metricsVersion,
@@ -53,12 +53,17 @@ export const useAllModels = (
           skipBatch: true,
         },
       },
-      enabled: options?.enabled ?? true,
-      queryId: `${options?.queryId ?? "dashboard:all-models"}:models`,
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
-  return allModels.data ? extractAllModels(allModels.data) : [];
+  return {
+    allModels: allModelsQuery.data ? extractAllModels(allModelsQuery.data) : [],
+    isPending: allModelsQuery.isPending,
+    isError: allModelsQuery.isError,
+  };
 };
 
 const extractAllModels = (

@@ -71,7 +71,9 @@ export const LatencyTables = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:latency-tables"}:generations`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -113,7 +115,9 @@ export const LatencyTables = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:latency-tables"}:observations`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -147,7 +151,9 @@ export const LatencyTables = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:latency-tables"}:traces`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -207,7 +213,7 @@ export const LatencyTables = ({
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Trace latency percentiles"
-        isLoading={isLoading || tracesLatencies.isPending}
+        isLoading={false}
       >
         <DashboardTable
           headers={[
@@ -221,13 +227,14 @@ export const LatencyTables = ({
           ]}
           rows={generateLatencyData(tracesLatencies.data)}
           isLoading={isLoading || tracesLatencies.isPending}
+          isError={tracesLatencies.isError}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
         title="Generation latency percentiles"
-        isLoading={isLoading || generationsLatencies.isPending}
+        isLoading={false}
       >
         <DashboardTable
           headers={[
@@ -241,13 +248,14 @@ export const LatencyTables = ({
           ]}
           rows={generateLatencyData(generationsLatencies.data)}
           isLoading={isLoading || generationsLatencies.isPending}
+          isError={generationsLatencies.isError}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>
       <DashboardCard
         className="col-span-1 xl:col-span-2"
-        title="Observation latency percentiles"
-        isLoading={isLoading || observationsLatencies.isPending}
+        title="Span latency percentiles"
+        isLoading={false}
       >
         <DashboardTable
           headers={[
@@ -259,8 +267,9 @@ export const LatencyTables = ({
             </RightAlignedCell>,
             <RightAlignedCell key="p99">p99</RightAlignedCell>,
           ]}
-          rows={generateLatencyData(observationsLatencies.data)}
-          isLoading={isLoading || observationsLatencies.isPending}
+          rows={generateLatencyData(spansLatencies.data)}
+          isLoading={isLoading || spansLatencies.isPending}
+          isError={spansLatencies.isError}
           collapse={{ collapsed: 5, expanded: 20 }}
         />
       </DashboardCard>

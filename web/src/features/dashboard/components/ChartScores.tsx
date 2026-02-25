@@ -19,7 +19,8 @@ import {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export function ChartScores(props: {
   className?: string;
@@ -61,7 +62,9 @@ export function ChartScores(props: {
           skipBatch: true,
         },
       },
-      queryId: `${props.schedulerId ?? "home:chart-scores"}:scores`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !props.isLoading,
     },
   );
@@ -88,15 +91,20 @@ export function ChartScores(props: {
       )
     : [];
 
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending: props.isLoading || scores.isPending,
+    isError: scores.isError,
+  });
+
   return (
     <DashboardCard
       className={props.className}
       title="Scores"
       description="Moving average per score"
-      isLoading={props.isLoading || scores.isPending}
+      isLoading={false}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
-        <div className="min-h-80">
+        <div className="relative min-h-80">
           <Chart
             chartType="LINE_TIME_SERIES"
             data={timeSeriesToDataPoints(extractedScores, props.agg)}
@@ -108,10 +116,29 @@ export function ChartScores(props: {
             }}
             legendPosition="above"
           />
+          <ChartLoadingState
+            isLoading={chartLoadingState.isLoading}
+            showSpinner={chartLoadingState.showSpinner}
+            showHintImmediately={chartLoadingState.showHintImmediately}
+            hintText={chartLoadingState.hintText}
+            className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+            hintClassName="max-w-sm px-4"
+          />
+        </div>
+      ) : chartLoadingState.isLoading ? (
+        <div className="relative min-h-80 w-full">
+          <ChartLoadingState
+            isLoading={chartLoadingState.isLoading}
+            showSpinner={chartLoadingState.showSpinner}
+            showHintImmediately={chartLoadingState.showHintImmediately}
+            hintText={chartLoadingState.hintText}
+            className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+            hintClassName="max-w-sm px-4"
+          />
         </div>
       ) : (
         <NoDataOrLoading
-          isLoading={props.isLoading || scores.isPending}
+          isLoading={false}
           description="Scores evaluate LLM quality and can be created manually or using the SDK."
           href="https://langfuse.com/docs/evaluation/overview"
           className="h-full"

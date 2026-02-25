@@ -113,7 +113,11 @@ export const useModelSelection = (
     queryId: string;
   },
 ) => {
-  const allModels = useAllModels(
+  const {
+    allModels,
+    isPending: isAllModelsPending,
+    isError: isAllModelsError,
+  } = getAllModels(
     projectId,
     globalFilterState,
     fromTimestamp,
@@ -149,5 +153,7 @@ export const useModelSelection = (
     isAllSelected,
     buttonText,
     handleSelectAll,
+    isAllModelsPending,
+    isAllModelsError,
   };
 };

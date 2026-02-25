@@ -341,6 +341,8 @@ export const dashboardRouter = createTRPCRouter({
         return [];
       }
 
+      // sleep 2 seconds
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       switch (input.queryName) {
         case "score-aggregate":
           if (input.version === "v2") {
@@ -446,11 +448,14 @@ export const dashboardRouter = createTRPCRouter({
     )
     .query(async ({ input }) => {
       try {
-        const validation = validateQuery(input.query, input.version);
-        if (!validation.valid) {
-          throw new InvalidRequestError(validation.reason);
+        if (Math.random() < 0.5) {
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message: "Random trpc error 422",
+          });
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 5000));
         }
-
         return executeQuery(
           input.projectId,
           input.query,

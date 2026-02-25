@@ -15,7 +15,8 @@ import {
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 type BarChartDataPoint = {
   name: string;
@@ -82,7 +83,9 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:users"}:cost`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -125,7 +128,9 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:users"}:traces`,
+      meta: {
+        silentHttpCodes: [422],
+      },
       enabled: !isLoading,
     },
   );
@@ -177,6 +182,8 @@ export const UserChart = ({
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: "Total cost",
       formatter: localUsdFormatter,
+      queryPending: user.isPending,
+      queryError: user.isError,
     },
     {
       tabTitle: "Count of Traces",
@@ -187,6 +194,8 @@ export const UserChart = ({
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
       metricDescription: "Total traces",
+      queryPending: traces.isPending,
+      queryError: traces.isError,
     },
   ];
 
@@ -194,10 +203,15 @@ export const UserChart = ({
     <DashboardCard
       className={className}
       title="User consumption"
-      isLoading={isLoading || user.isPending}
+      isLoading={false}
     >
       <TabComponent
         tabs={data.map((item) => {
+          const tabLoadingState = getChartLoadingStateProps({
+            isPending: isLoading || item.queryPending,
+            isError: item.queryError,
+          });
+
           return {
             tabTitle: item.tabTitle,
             content: (
@@ -209,7 +223,7 @@ export const UserChart = ({
                       description={item.metricDescription}
                     />
                     <div
-                      className="mt-4 w-full"
+                      className="relative mt-4 w-full"
                       style={{
                         minHeight: 200,
                         height: Math.max(
@@ -231,11 +245,32 @@ export const UserChart = ({
                         }}
                         valueFormatter={item.formatter}
                       />
+                      <ChartLoadingState
+                        isLoading={tabLoadingState.isLoading}
+                        showSpinner={tabLoadingState.showSpinner}
+                        showHintImmediately={
+                          tabLoadingState.showHintImmediately
+                        }
+                        hintText={tabLoadingState.hintText}
+                        className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                        hintClassName="max-w-sm px-4"
+                      />
                     </div>
+                  </div>
+                ) : tabLoadingState.isLoading ? (
+                  <div className="relative min-h-[200px] w-full">
+                    <ChartLoadingState
+                      isLoading={tabLoadingState.isLoading}
+                      showSpinner={tabLoadingState.showSpinner}
+                      showHintImmediately={tabLoadingState.showHintImmediately}
+                      hintText={tabLoadingState.hintText}
+                      className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                      hintClassName="max-w-sm px-4"
+                    />
                   </div>
                 ) : (
                   <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
+                    isLoading={false}
                     description="Consumption per user is tracked by passing their ids on traces."
                     href="https://langfuse.com/docs/observability/features/users"
                   />

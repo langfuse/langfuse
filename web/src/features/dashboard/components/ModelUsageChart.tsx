@@ -27,7 +27,8 @@ import {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export const ModelUsageChart = ({
   className,
@@ -59,6 +60,8 @@ export const ModelUsageChart = ({
     isAllSelected,
     buttonText,
     handleSelectAll,
+    isAllModelsPending,
+    isAllModelsError,
   } = useModelSelection(
     projectId,
     userAndEnvFilterState,
@@ -117,8 +120,9 @@ export const ModelUsageChart = ({
           skipBatch: true,
         },
       },
-      queryId: `${schedulerId ?? "home:model-usage"}:timeseries`,
-      priority: 1001,
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
@@ -171,6 +175,9 @@ export const ModelUsageChart = ({
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
@@ -220,6 +227,9 @@ export const ModelUsageChart = ({
         context: {
           skipBatch: true,
         },
+      },
+      meta: {
+        silentHttpCodes: [422],
       },
     },
   );
@@ -305,6 +315,8 @@ export const ModelUsageChart = ({
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Cost`,
       formatter: totalCostDashboardFormatted,
+      queryPending: isAllModelsPending || queryResult.isPending,
+      queryError: isAllModelsError || queryResult.isError,
     },
     {
       tabTitle: "Cost by type",
@@ -312,6 +324,8 @@ export const ModelUsageChart = ({
       totalMetric: totalCostDashboardFormatted(totalCost),
       metricDescription: `Cost`,
       formatter: totalCostDashboardFormatted,
+      queryPending: isAllModelsPending || queryCostByType.isPending,
+      queryError: isAllModelsError || queryCostByType.isError,
     },
     {
       tabTitle: "Usage by model",
@@ -320,6 +334,8 @@ export const ModelUsageChart = ({
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
       metricDescription: `Units`,
+      queryPending: isAllModelsPending || queryResult.isPending,
+      queryError: isAllModelsError || queryResult.isError,
     },
     {
       tabTitle: "Usage by type",
@@ -328,6 +344,8 @@ export const ModelUsageChart = ({
         ? compactNumberFormatter(totalTokens)
         : compactNumberFormatter(0),
       metricDescription: `Units`,
+      queryPending: isAllModelsPending || queryUsageByType.isPending,
+      queryError: isAllModelsError || queryUsageByType.isError,
     },
   ];
 
@@ -335,9 +353,7 @@ export const ModelUsageChart = ({
     <DashboardCard
       className={className}
       title="Model Usage"
-      isLoading={
-        isLoading || (queryResult.isPending && selectedModels.length > 0)
-      }
+      isLoading={false}
       headerRight={
         <div className="flex items-center justify-end">
           <ModelSelectorPopover
@@ -353,6 +369,11 @@ export const ModelUsageChart = ({
     >
       <TabComponent
         tabs={data.map((item) => {
+          const tabLoadingState = getChartLoadingStateProps({
+            isPending: isLoading || item.queryPending,
+            isError: item.queryError,
+          });
+
           return {
             tabTitle: item.tabTitle,
             content: (
@@ -362,14 +383,8 @@ export const ModelUsageChart = ({
                   description={item.metricDescription}
                   className="mb-4"
                 />
-                {isEmptyTimeSeries({ data: item.data }) ||
-                isLoading ||
-                queryResult.isPending ? (
-                  <NoDataOrLoading
-                    isLoading={isLoading || queryResult.isPending}
-                  />
-                ) : (
-                  <div className="h-80 w-full shrink-0">
+                {!isEmptyTimeSeries({ data: item.data }) ? (
+                  <div className="relative h-80 w-full shrink-0">
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
@@ -381,7 +396,28 @@ export const ModelUsageChart = ({
                       valueFormatter={item.formatter}
                       legendPosition="above"
                     />
+                    <ChartLoadingState
+                      isLoading={tabLoadingState.isLoading}
+                      showSpinner={tabLoadingState.showSpinner}
+                      showHintImmediately={tabLoadingState.showHintImmediately}
+                      hintText={tabLoadingState.hintText}
+                      className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                      hintClassName="max-w-sm px-4"
+                    />
                   </div>
+                ) : tabLoadingState.isLoading ? (
+                  <div className="relative h-80 w-full shrink-0">
+                    <ChartLoadingState
+                      isLoading={tabLoadingState.isLoading}
+                      showSpinner={tabLoadingState.showSpinner}
+                      showHintImmediately={tabLoadingState.showHintImmediately}
+                      hintText={tabLoadingState.hintText}
+                      className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                      hintClassName="max-w-sm px-4"
+                    />
+                  </div>
+                ) : (
+                  <NoDataOrLoading isLoading={false} />
                 )}
               </>
             ),
