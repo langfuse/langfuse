@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { eventTypes } from "./ingestion/types";
 import {
+  ActionId,
   BatchActionQuerySchema,
   BatchActionType,
 } from "../features/batchAction/types";
@@ -189,6 +190,14 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       config: ObservationAddToDatasetConfigSchema,
       type: z.enum(BatchActionType),
     }),
+    z.object({
+      actionId: z.literal(ActionId.ObservationBatchEvaluation),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      cutoffCreatedAt: z.date(),
+      batchActionId: z.string(),
+      evaluatorIds: z.array(z.string()),
+    }),
   ],
 );
 
@@ -315,6 +324,7 @@ export enum QueueName {
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
+  EvaluationExecutionSecondaryQueue = "secondary-evaluation-execution-queue", // Separates high-throughput eval projects from other projects.
   LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based eval execution
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
@@ -421,6 +431,13 @@ export type TQueueJobTypes = {
     retryBaggage?: RetryBaggage;
   };
   [QueueName.EvaluationExecution]: {
+    timestamp: Date;
+    id: string;
+    payload: EvalExecutionEventType;
+    name: QueueJobs.EvaluationExecution;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.EvaluationExecutionSecondaryQueue]: {
     timestamp: Date;
     id: string;
     payload: EvalExecutionEventType;

@@ -76,6 +76,7 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekView } from "@/src/components/table/peek";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
@@ -394,10 +395,14 @@ export default function TracesTable({
   type TracesCoreOutput = RouterOutput["traces"]["all"]["traces"][number];
   type TraceMetricOutput = RouterOutput["traces"]["metrics"][number];
 
-  const traceRowData = joinTableCoreAndMetrics<
-    TracesCoreOutput,
-    TraceMetricOutput
-  >(traces.data?.traces, traceMetrics.data);
+  const traceRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<TracesCoreOutput, TraceMetricOutput>(
+        traces.data?.traces,
+        traceMetrics.data,
+      ),
+    [traces.data?.traces, traceMetrics.data],
+  );
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
@@ -1214,19 +1219,9 @@ export default function TracesTable({
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
       children: <PeekViewTraceDetail projectId={projectId} />,
-      tableDataUpdatedAt: Math.max(
-        traces.dataUpdatedAt,
-        traceMetrics.dataUpdatedAt,
-      ),
       ...peekNavigationProps,
     };
-  }, [
-    projectId,
-    hideControls,
-    peekNavigationProps,
-    traces.dataUpdatedAt,
-    traceMetrics.dataUpdatedAt,
-  ]);
+  }, [projectId, hideControls, peekNavigationProps]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -1301,7 +1296,7 @@ export default function TracesTable({
   }, [traces.isSuccess, traceRowData?.rows]);
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={traceFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (
@@ -1425,6 +1420,7 @@ export default function TracesTable({
             />
           </div>
         </ResizableFilterLayout>
+        {peekConfig && <TablePeekView peekView={peekConfig} />}
       </div>
     </DataTableControlsProvider>
   );
@@ -1468,6 +1464,7 @@ const TracesDynamicCell = ({
         col === "input" && "bg-muted/50",
       )}
       singleLine={singleLine}
+      enableExpandOnHover={singleLine}
     />
   );
 };

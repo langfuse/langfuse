@@ -400,7 +400,8 @@ CREATE TABLE IF NOT EXISTS events_full
       -- Indexes
       INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
       INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_type type TYPE set(50) GRANULARITY 1,
+      INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
+      INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
       INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
       INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
 
@@ -532,7 +533,8 @@ CREATE TABLE IF NOT EXISTS events_core
     -- Indexes
     INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_type type TYPE set(50) GRANULARITY 1,
+    INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
     INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1
 )
@@ -697,6 +699,13 @@ clickhouse client \
   --multiquery <<EOF
   SET type_json_skip_duplicated_paths = 1;
   TRUNCATE events;
+  TRUNCATE events_core;
+  TRUNCATE events_full;
+
+  -- Note: production excludes experiment traces here (LEFT ANTI JOIN dataset_run_items_rmt)
+  -- and re-inserts them with experiment metadata via handleExperimentBackfill.
+  -- For dev seeding, we include all traces directly to ensure events_core and
+  -- traces/observations tables have matching row counts for dashboard testing.
   INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
@@ -758,7 +767,6 @@ clickhouse client \
          o.is_deleted
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
-  LEFT ANTI JOIN dataset_run_items_rmt excl ON excl.project_id = o.project_id AND excl.trace_id = o.trace_id
   WHERE (o.is_deleted = 0);
   -- Backfill events from traces table as well
   -- Traces are converted to synthetic observations with id = 't-' + trace_id
@@ -812,7 +820,6 @@ clickhouse client \
          t.event_ts,
          t.is_deleted
   FROM traces t FINAL
-  LEFT ANTI JOIN dataset_run_items_rmt excl ON excl.project_id = t.project_id AND excl.trace_id = t.id
   WHERE (t.is_deleted = 0);
 
 EOF
