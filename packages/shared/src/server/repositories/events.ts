@@ -2856,10 +2856,13 @@ export const hasAnyUserFromEventsTable = async (
  * Streams events from ClickHouse for blob storage export.
  * Uses EventsQueryBuilder for consistent query construction.
  */
+import { BlobStorageTagFilters } from "./traces";
+
 export const getEventsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  tagFilters?: BlobStorageTagFilters,
 ) {
   const queryBuilder = new EventsQueryBuilder({ projectId })
     .selectFieldSet("export")
@@ -2872,8 +2875,46 @@ export const getEventsForBlobStorageExport = function (
         maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       },
     )
-    .whereRaw("e.is_deleted = 0")
-    .limitBy("e.span_id", "e.project_id");
+    .whereRaw("e.is_deleted = 0");
+
+  // Add tag filters if provided - each condition is combined with AND
+  if (tagFilters && tagFilters.length > 0) {
+    const tagConditions: string[] = [];
+    const tagParams: Record<string, unknown> = {};
+
+    tagFilters.forEach((filter, index) => {
+      if (filter.tags.length > 0) {
+        const paramName = `filterTags${index}`;
+        tagParams[paramName] = filter.tags;
+        switch (filter.operator) {
+          case "any of":
+            tagConditions.push(
+              `hasAny({${paramName}: Array(String)}, tags) = 1`,
+            );
+            break;
+          case "all of":
+            tagConditions.push(
+              `hasAll(tags, {${paramName}: Array(String)}) = 1`,
+            );
+            break;
+          case "none of":
+            tagConditions.push(
+              `hasAny({${paramName}: Array(String)}, tags) = 0`,
+            );
+            break;
+        }
+      }
+    });
+
+    if (tagConditions.length > 0) {
+      queryBuilder.whereRaw(
+        `e.trace_id IN (SELECT id FROM traces WHERE project_id = {projectId: String} AND ${tagConditions.join(" AND ")})`,
+        tagParams,
+      );
+    }
+  }
+
+  queryBuilder.limitBy("e.span_id", "e.project_id");
 
   const { query, params } = queryBuilder.buildWithParams();
 

@@ -39,6 +39,16 @@ export const blobStorageIntegrationFormSchema = z
     exportObservations: z.boolean().optional().nullable(),
     exportScores: z.boolean().optional().nullable(),
     exportEvents: z.boolean().optional().nullable(),
+    // Tag filtering (optional - filter exports by trace tags)
+    // Array of filter conditions, combined with AND logic
+    tagFilters: z
+      .array(
+        z.object({
+          operator: z.enum(["any of", "all of", "none of"]),
+          tags: z.array(z.string()).min(1),
+        }),
+      )
+      .default([]),
   })
   .refine(
     (data) => {

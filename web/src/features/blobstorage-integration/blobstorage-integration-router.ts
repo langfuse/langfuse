@@ -14,6 +14,7 @@ import {
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
+  getTracesGroupedByTags,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -22,6 +23,7 @@ import {
   BlobStorageIntegrationType,
   BlobStorageExportMode,
 } from "@langfuse/shared";
+import { type Prisma } from "@prisma/client";
 import { env } from "@/src/env.mjs";
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
@@ -93,6 +95,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           exportObservations,
           exportScores,
           exportEvents,
+          tagFilters,
         } = input;
 
         const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -117,7 +120,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         }
         // For FULL_HISTORY mode, exportStartDate remains null
 
-        const data: Partial<BlobStorageIntegration> = {
+        const baseData = {
           type,
           bucketName,
           endpoint: endpoint || null,
@@ -135,6 +138,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           exportObservations,
           exportScores,
           exportEvents,
+          tagFilters: (tagFilters ?? []) as Prisma.InputJsonValue,
         };
 
         // Use a transaction to check if record exists, then create or update
@@ -149,15 +153,13 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           );
 
           if (existingConfig) {
-            if (secretAccessKey) {
-              data.secretAccessKey = encrypt(secretAccessKey);
-            }
-
             return await prisma.blobStorageIntegration.update({
               where: {
                 projectId: input.projectId,
               },
-              data,
+              data: secretAccessKey
+                ? { ...baseData, secretAccessKey: encrypt(secretAccessKey) }
+                : baseData,
             });
           } else {
             // Record doesn't exist, perform create
@@ -171,7 +173,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
             return await prisma.blobStorageIntegration.create({
               data: {
-                ...(data as BlobStorageIntegration),
+                ...baseData,
                 projectId: input.projectId,
                 accessKeyId,
                 secretAccessKey: secretAccessKey
@@ -403,6 +405,27 @@ This file can be safely deleted.`;
           code: "BAD_REQUEST",
           message: `Validation failed: ${errorMessage}`,
         });
+      }
+    }),
+
+  getAvailableTags: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "integrations:CRUD",
+      });
+
+      try {
+        const tags = await getTracesGroupedByTags({
+          projectId: input.projectId,
+          filter: [],
+        });
+        return tags.map((t) => t.value);
+      } catch (e) {
+        logger.error(`Failed to get available tags for project`, e);
+        return [];
       }
     }),
 });

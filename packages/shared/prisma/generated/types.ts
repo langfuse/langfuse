@@ -372,6 +372,7 @@ export type BlobStorageIntegration = {
   export_observations: boolean | null;
   export_scores: boolean | null;
   export_events: boolean | null;
+  tag_filters: Generated<unknown>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };

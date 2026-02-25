@@ -93,6 +93,10 @@ async function handleGetBlobStorageIntegrations(
       exportObservations: integration.exportObservations,
       exportScores: integration.exportScores,
       exportEvents: integration.exportEvents,
+      tagFilters: integration.tagFilters as {
+        operator: "any of" | "all of" | "none of";
+        tags: string[];
+      }[],
     }),
   );
 
@@ -170,6 +174,7 @@ async function handleUpsertBlobStorageIntegration(
     exportObservations: validatedData.exportObservations,
     exportScores: validatedData.exportScores,
     exportEvents: validatedData.exportEvents,
+    tagFilters: validatedData.tagFilters ?? [],
   };
 
   // Upsert the integration (create or update)
@@ -203,6 +208,10 @@ async function handleUpsertBlobStorageIntegration(
     exportObservations: integration.exportObservations,
     exportScores: integration.exportScores,
     exportEvents: integration.exportEvents,
+    tagFilters: integration.tagFilters as {
+      operator: "any of" | "all of" | "none of";
+      tags: string[];
+    }[],
   };
 
   return res.status(200).json(responseData);

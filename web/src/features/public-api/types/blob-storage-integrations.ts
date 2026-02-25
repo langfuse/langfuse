@@ -18,6 +18,18 @@ export const BlobStorageExportMode = z.enum([
   "FROM_CUSTOM_DATE",
 ]);
 
+export const BlobStorageFilterTagsOperator = z.enum([
+  "any of",
+  "all of",
+  "none of",
+]);
+
+// Tag filter condition schema
+export const BlobStorageTagFilterCondition = z.object({
+  operator: BlobStorageFilterTagsOperator,
+  tags: z.array(z.string()).min(1),
+});
+
 /**
  * Request/Response Types
  */
@@ -50,6 +62,8 @@ export const CreateBlobStorageIntegrationRequest = z
     exportObservations: z.boolean().nullable().optional(),
     exportScores: z.boolean().nullable().optional(),
     exportEvents: z.boolean().nullable().optional(),
+    // Tag filtering - array of filter conditions combined with AND logic
+    tagFilters: z.array(BlobStorageTagFilterCondition).optional(),
   })
   .strict()
   .refine(
@@ -88,6 +102,8 @@ export const BlobStorageIntegrationResponse = z
     exportObservations: z.boolean().nullable(),
     exportScores: z.boolean().nullable(),
     exportEvents: z.boolean().nullable(),
+    // Tag filtering - array of filter conditions combined with AND logic
+    tagFilters: z.array(BlobStorageTagFilterCondition),
   })
   .strict();
 

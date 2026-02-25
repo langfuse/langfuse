@@ -1120,6 +1120,11 @@ model BlobStorageIntegration {
   exportScores       Boolean? @map("export_scores")
   exportEvents       Boolean? @map("export_events")
 
+  // Tag filtering (optional - filter exports by trace tags)
+  // Array of filter conditions: [{ operator: "any of" | "all of" | "none of", tags: string[] }]
+  // Conditions are combined with AND logic
+  tagFilters Json @default("[]") @map("tag_filters")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 

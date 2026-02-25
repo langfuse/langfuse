@@ -1324,12 +1324,55 @@ export const getUserMetrics = async (
   });
 };
 
+// Single tag filter condition
+export type BlobStorageTagFilterCondition = {
+  tags: string[];
+  operator: "any of" | "all of" | "none of";
+};
+
+// Array of tag filter conditions, combined with AND logic
+export type BlobStorageTagFilters = BlobStorageTagFilterCondition[];
+
 export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  tagFilters?: BlobStorageTagFilters,
 ) {
   const traceTable = "traces";
+
+  // Build tag filter clauses - each condition generates a clause, combined with AND
+  const tagFilterClauses: string[] = [];
+  const tagParams: Record<string, unknown> = {};
+
+  if (tagFilters && tagFilters.length > 0) {
+    tagFilters.forEach((filter, index) => {
+      if (filter.tags.length > 0) {
+        const paramName = `filterTags${index}`;
+        tagParams[paramName] = filter.tags;
+        switch (filter.operator) {
+          case "any of":
+            tagFilterClauses.push(
+              `hasAny({${paramName}: Array(String)}, tags) = 1`,
+            );
+            break;
+          case "all of":
+            tagFilterClauses.push(
+              `hasAll(tags, {${paramName}: Array(String)}) = 1`,
+            );
+            break;
+          case "none of":
+            tagFilterClauses.push(
+              `hasAny({${paramName}: Array(String)}, tags) = 0`,
+            );
+            break;
+        }
+      }
+    });
+  }
+
+  const tagFilterClause =
+    tagFilterClauses.length > 0 ? "AND " + tagFilterClauses.join(" AND ") : "";
 
   const query = `
     SELECT
@@ -1352,6 +1395,7 @@ export const getTracesForBlobStorageExport = function (
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
     AND timestamp <= {maxTimestamp: DateTime64(3)}
+    ${tagFilterClause}
   `;
 
   return queryClickhouseStream<Record<string, unknown>>({
@@ -1360,6 +1404,7 @@ export const getTracesForBlobStorageExport = function (
       projectId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+      ...tagParams,
     },
     tags: {
       feature: "blobstorage",
