@@ -8,7 +8,8 @@ import {
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
 import {
-  metricAggregations,
+  type metricAggregations,
+  getValidAggregationsForMeasureType,
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
@@ -141,6 +142,53 @@ const chartTypes: ChartType[] = [
     supportsBreakdown: true,
   },
 ];
+
+/**
+ * Pure function that resolves the correct aggregation and chart type given the
+ * current selections and valid aggregation list. Returns null when no change is
+ * needed.
+ */
+export function resolveAggregationAndChartType(params: {
+  chartType: string;
+  measure: string;
+  currentAgg: string;
+  validAggs: z.infer<typeof metricAggregations>[];
+}): {
+  aggregation?: z.infer<typeof metricAggregations>;
+  chartType?: string;
+} | null {
+  const { chartType, measure, currentAgg, validAggs } = params;
+  const supportsHistogram = validAggs.includes("histogram");
+
+  // HISTOGRAM chart with a measure that doesn't support it — bail out of both
+  if (chartType === "HISTOGRAM" && !supportsHistogram) {
+    return { chartType: "NUMBER", aggregation: validAggs[0] ?? "count" };
+  }
+
+  // HISTOGRAM chart forces histogram aggregation
+  if (chartType === "HISTOGRAM" && currentAgg !== "histogram") {
+    return { aggregation: "histogram" };
+  }
+
+  // Switched away from HISTOGRAM chart but aggregation still histogram
+  if (chartType !== "HISTOGRAM" && currentAgg === "histogram") {
+    return {
+      aggregation: measure === "count" ? "count" : (validAggs[0] ?? "sum"),
+    };
+  }
+
+  // "count" measure always uses "count" aggregation (outside HISTOGRAM charts)
+  if (measure === "count" && currentAgg !== "count") {
+    return { aggregation: "count" };
+  }
+
+  // Current aggregation is not valid for the measure type
+  if (!validAggs.includes(currentAgg as z.infer<typeof metricAggregations>)) {
+    return { aggregation: validAggs[0] ?? "count" };
+  }
+
+  return null;
+}
 
 /**
  * Interface for representing a selected metric combination
@@ -622,65 +670,36 @@ export function WidgetForm({
     }
   }, [selectedChartType, selectedDimension]);
 
-  // Set aggregation based on chart type and metric, with histogram chart type taking priority
-  useEffect(() => {
-    // Histogram chart type always takes priority
-    if (
-      selectedChartType === "HISTOGRAM" &&
-      selectedAggregation !== "histogram"
-    ) {
-      setSelectedAggregation("histogram");
-    }
-    // If switching away from histogram chart type and aggregation is still histogram, reset to appropriate default
-    else if (
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation === "histogram"
-    ) {
-      if (selectedMeasure === "count") {
-        setSelectedAggregation("count");
-      } else {
-        setSelectedAggregation("sum"); // Default aggregation for non-count metrics
-      }
-    }
-    // Only set to "count" for count metric if not using histogram chart type
-    else if (
-      selectedMeasure === "count" &&
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation !== "count"
-    ) {
-      setSelectedAggregation("count");
-    }
-  }, [selectedMeasure, selectedAggregation, selectedChartType]);
+  // Resolve valid aggregations for the currently selected measure
+  const validAggregationsForMeasure = useMemo(() => {
+    const measureType =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[selectedMeasure]
+        ?.type;
+    return getValidAggregationsForMeasureType(measureType);
+  }, [viewVersion, selectedView, selectedMeasure]);
 
-  // Set aggregation based on chart type and metric, with histogram chart type taking priority
+  const measureSupportsHistogram =
+    validAggregationsForMeasure.includes("histogram");
+
+  // Sync aggregation and chart type when selections change
   useEffect(() => {
-    // Histogram chart type always takes priority
-    if (
-      selectedChartType === "HISTOGRAM" &&
-      selectedAggregation !== "histogram"
-    ) {
-      setSelectedAggregation("histogram");
+    const resolved = resolveAggregationAndChartType({
+      chartType: selectedChartType,
+      measure: selectedMeasure,
+      currentAgg: selectedAggregation,
+      validAggs: validAggregationsForMeasure,
+    });
+    if (!resolved) return;
+    if (resolved.chartType) setSelectedChartType(resolved.chartType);
+    if (resolved.aggregation) {
+      setSelectedAggregation(resolved.aggregation);
     }
-    // If switching away from histogram chart type and aggregation is still histogram, reset to appropriate default
-    else if (
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation === "histogram"
-    ) {
-      if (selectedMeasure === "count") {
-        setSelectedAggregation("count");
-      } else {
-        setSelectedAggregation("sum"); // Default aggregation for non-count metrics
-      }
-    }
-    // Only set to "count" for count metric if not using histogram chart type
-    else if (
-      selectedMeasure === "count" &&
-      selectedChartType !== "HISTOGRAM" &&
-      selectedAggregation !== "count"
-    ) {
-      setSelectedAggregation("count");
-    }
-  }, [selectedMeasure, selectedAggregation, selectedChartType]);
+  }, [
+    selectedMeasure,
+    selectedAggregation,
+    selectedChartType,
+    validAggregationsForMeasure,
+  ]);
 
   // Get available metrics for the selected view
   const availableMetrics = useMemo(() => {
@@ -700,12 +719,13 @@ export function WidgetForm({
             .filter((m) => m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const availableAggregationsForMeasure =
-            metricAggregations.options.filter(
-              (agg) =>
-                agg !== "histogram" &&
-                !selectedAggregationsForMeasure.includes(agg),
-            );
+          const measureType = viewDeclaration.measures[measureKey]?.type;
+          const validAggs = getValidAggregationsForMeasureType(measureType);
+          const availableAggregationsForMeasure = validAggs.filter(
+            (agg) =>
+              agg !== "histogram" &&
+              !selectedAggregationsForMeasure.includes(agg),
+          );
 
           return availableAggregationsForMeasure.length > 0;
         })
@@ -734,8 +754,11 @@ export function WidgetForm({
     metricIndex: number,
     measureKey: string,
   ): z.infer<typeof metricAggregations>[] => {
+    const measureType =
+      viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey]?.type;
+    const validAggs = getValidAggregationsForMeasureType(measureType);
     if (selectedChartType === "PIVOT_TABLE" && measureKey) {
-      return metricAggregations.options.filter(
+      return validAggs.filter(
         (agg) =>
           !selectedMetrics.some(
             (m, idx) =>
@@ -745,7 +768,7 @@ export function WidgetForm({
           ),
       ) as z.infer<typeof metricAggregations>[];
     }
-    return metricAggregations.options as z.infer<typeof metricAggregations>[];
+    return validAggs as z.infer<typeof metricAggregations>[];
   };
 
   // Get available metrics for a specific metric index in pivot tables
@@ -766,12 +789,13 @@ export function WidgetForm({
             .filter((m, idx) => idx !== metricIndex && m.measure === measureKey)
             .map((m) => m.aggregation);
 
-          const availableAggregationsForMeasure =
-            metricAggregations.options.filter(
-              (agg) =>
-                agg !== "histogram" &&
-                !selectedAggregationsForMeasure.includes(agg),
-            );
+          const measureType = viewDeclaration.measures[measureKey]?.type;
+          const validAggs = getValidAggregationsForMeasureType(measureType);
+          const availableAggregationsForMeasure = validAggs.filter(
+            (agg) =>
+              agg !== "histogram" &&
+              !selectedAggregationsForMeasure.includes(agg),
+          );
 
           return availableAggregationsForMeasure.length > 0;
         })
@@ -1429,7 +1453,7 @@ export function WidgetForm({
                             <SelectValue placeholder="Select Aggregation" />
                           </SelectTrigger>
                           <SelectContent>
-                            {metricAggregations.options.map((aggregation) => (
+                            {validAggregationsForMeasure.map((aggregation) => (
                               <SelectItem key={aggregation} value={aggregation}>
                                 {startCase(aggregation)}
                               </SelectItem>
@@ -1709,7 +1733,14 @@ export function WidgetForm({
                       {chartTypes
                         .filter((item) => item.group === "total-value")
                         .map((chart) => (
-                          <SelectItem key={chart.value} value={chart.value}>
+                          <SelectItem
+                            key={chart.value}
+                            value={chart.value}
+                            disabled={
+                              chart.value === "HISTOGRAM" &&
+                              !measureSupportsHistogram
+                            }
+                          >
                             <div className="flex items-center">
                               {React.createElement(chart.icon, {
                                 className: "mr-2 w-4",

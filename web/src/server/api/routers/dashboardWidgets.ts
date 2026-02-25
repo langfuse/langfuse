@@ -15,8 +15,13 @@ import {
   MetricSchema,
   ChartConfigSchema,
 } from "@langfuse/shared/src/server";
-import { views } from "@/src/features/query";
+import {
+  views,
+  getValidAggregationsForMeasureType,
+} from "@/src/features/query";
+import { getViewDeclaration } from "@/src/features/query/dataModel";
 import { TRPCError } from "@trpc/server";
+import type { ViewVersion } from "@/src/features/query";
 import { LangfuseConflictError } from "@langfuse/shared";
 
 const CreateDashboardWidgetInput = z.object({
@@ -75,6 +80,30 @@ const reverseViewMapping: Record<DashboardWidgetViews, string> = {
   [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
 };
 
+function validateMetricAggregations(params: {
+  view: string;
+  metrics: Array<{ measure: string; agg: string }>;
+  minVersion?: number;
+}): void {
+  const version: ViewVersion = (params.minVersion ?? 1) >= 2 ? "v2" : "v1";
+  const viewDecl = getViewDeclaration(
+    params.view as z.infer<typeof views>,
+    version,
+  );
+
+  for (const metric of params.metrics) {
+    const measureDef = viewDecl.measures[metric.measure];
+    if (!measureDef) continue; // measure existence is validated elsewhere
+    const validAggs = getValidAggregationsForMeasureType(measureDef.type);
+    if (!validAggs.some((a) => a === metric.agg)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Aggregation "${metric.agg}" is not valid for measure "${metric.measure}" (type: ${measureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
+      });
+    }
+  }
+}
+
 export const dashboardWidgetRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
@@ -83,6 +112,12 @@ export const dashboardWidgetRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "dashboards:CUD",
+      });
+
+      validateMetricAggregations({
+        view: input.view,
+        metrics: input.metrics,
+        minVersion: input.minVersion,
       });
 
       // Create the widget using the DashboardService
@@ -156,6 +191,12 @@ export const dashboardWidgetRouter = createTRPCRouter({
         session: ctx.session,
         projectId: input.projectId,
         scope: "dashboards:CUD",
+      });
+
+      validateMetricAggregations({
+        view: input.view,
+        metrics: input.metrics,
+        minVersion: input.minVersion,
       });
 
       // Update the widget using the DashboardService

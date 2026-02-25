@@ -95,95 +95,27 @@ describe("dashboard widget minVersion", () => {
   // ── requiresV2 helper tests ─────────────────────────────────────────
 
   describe("requiresV2", () => {
-    it("should return false for v1-compatible observations fields", () => {
-      expect(
-        requiresV2({
-          view: "observations",
-          dimensions: [{ field: "name" }],
-          measures: [{ measure: "count" }],
-        }),
-      ).toBe(false);
-    });
-
-    it("should return true for costType dimension (v2-only)", () => {
-      expect(
-        requiresV2({
-          view: "observations",
-          dimensions: [{ field: "costType" }],
-          measures: [{ measure: "count" }],
-        }),
-      ).toBe(true);
-    });
-
-    it("should return true for usageType dimension (v2-only)", () => {
-      expect(
-        requiresV2({
-          view: "observations",
-          dimensions: [{ field: "usageType" }],
-          measures: [{ measure: "count" }],
-        }),
-      ).toBe(true);
-    });
-
-    it("should return true for costByType measure (v2-only)", () => {
-      expect(
-        requiresV2({
-          view: "observations",
-          dimensions: [],
-          measures: [{ measure: "costByType" }],
-        }),
-      ).toBe(true);
-    });
-
-    it("should return true for usageByType measure (v2-only)", () => {
-      expect(
-        requiresV2({
-          view: "observations",
-          dimensions: [],
-          measures: [{ measure: "usageByType" }],
-        }),
-      ).toBe(true);
-    });
-
-    it("should return true for traceId measure (v2-only)", () => {
-      expect(
-        requiresV2({
-          view: "observations",
-          dimensions: [],
-          measures: [{ measure: "traceId" }],
-        }),
-      ).toBe(true);
-    });
-
-    it("should return false for traces view (same fields in v1 and v2)", () => {
-      expect(
-        requiresV2({
-          view: "traces",
-          dimensions: [{ field: "name" }],
-          measures: [{ measure: "count" }],
-        }),
-      ).toBe(false);
-    });
-
-    it("should return false for scores-numeric view", () => {
-      expect(
-        requiresV2({
-          view: "scores-numeric",
-          dimensions: [{ field: "name" }],
-          measures: [{ measure: "count" }],
-        }),
-      ).toBe(false);
-    });
-
-    it("should return false for unknown view", () => {
-      expect(
-        requiresV2({
-          view: "nonexistent",
-          dimensions: [{ field: "name" }],
-          measures: [{ measure: "count" }],
-        }),
-      ).toBe(false);
-    });
+    it.each([
+      // v2-only dimensions
+      ["observations", [{ field: "costType" }], [], true],
+      ["observations", [{ field: "usageType" }], [], true],
+      // v2-only measures
+      ["observations", [], [{ measure: "costByType" }], true],
+      ["observations", [], [{ measure: "usageByType" }], true],
+      ["observations", [], [{ measure: "traceId" }], true],
+      // v1-compatible fields
+      ["observations", [{ field: "name" }], [{ measure: "count" }], false],
+      // views where v1 and v2 share all fields
+      ["traces", [{ field: "name" }], [{ measure: "count" }], false],
+      ["scores-numeric", [{ field: "name" }], [{ measure: "count" }], false],
+      // unknown view
+      ["nonexistent", [{ field: "name" }], [{ measure: "count" }], false],
+    ])(
+      "requiresV2(%s, dims=%j, measures=%j) → %s",
+      (view, dimensions, measures, expected) => {
+        expect(requiresV2({ view, dimensions, measures })).toBe(expected);
+      },
+    );
   });
 
   // ── Service layer tests ─────────────────────────────────────────────
@@ -310,120 +242,95 @@ describe("dashboard widget minVersion", () => {
     });
   });
 
-  // ── tRPC router tests ──────────────────────────────────────────────
+  // ── tRPC measure-aggregation validation ──────────────────────────────
+  // Note: basic CRUD and minVersion round-trips are covered by the
+  // DashboardService tests above. These tests exercise the
+  // validateMetricAggregations guard that lives in the tRPC router.
 
-  describe("tRPC dashboardWidgets router", () => {
-    it("should create widget with default minVersion=1", async () => {
+  describe("tRPC measure-aggregation validation", () => {
+    it("should reject invalid aggregation on a string measure", async () => {
       const caller = makeCaller();
-      const result = await caller.dashboardWidgets.create({
-        projectId,
-        name: "tRPC Widget v1",
-        description: "Widget without explicit minVersion",
-        view: "observations",
-        dimensions: [{ field: "name" }],
-        metrics: [{ measure: "count", agg: "count" }],
-        filters: [],
-        chartType: "LINE_TIME_SERIES",
-        chartConfig: { type: "LINE_TIME_SERIES" },
-      });
-
-      expect(result.widget.minVersion).toBe(1);
+      await expect(
+        caller.dashboardWidgets.create({
+          projectId,
+          name: "Invalid Widget",
+          description: "histogram on traceId",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "traceId", agg: "histogram" }],
+          filters: [],
+          chartType: "HISTOGRAM",
+          chartConfig: { type: "HISTOGRAM", bins: 10 },
+          minVersion: 2,
+        }),
+      ).rejects.toThrow(/not valid for measure/);
     });
 
-    it("should create widget with minVersion=2", async () => {
+    it("should allow creating a widget with uniq on a string measure", async () => {
       const caller = makeCaller();
       const result = await caller.dashboardWidgets.create({
         projectId,
-        name: "tRPC Widget v2",
-        description: "Widget with v2",
+        name: "Valid traceId Widget",
+        description: "uniq on traceId",
         view: "observations",
-        dimensions: [{ field: "name" }],
-        metrics: [{ measure: "count", agg: "count" }],
+        dimensions: [],
+        metrics: [{ measure: "traceId", agg: "uniq" }],
         filters: [],
-        chartType: "LINE_TIME_SERIES",
-        chartConfig: { type: "LINE_TIME_SERIES" },
+        chartType: "NUMBER",
+        chartConfig: { type: "NUMBER" },
         minVersion: 2,
       });
 
-      expect(result.widget.minVersion).toBe(2);
+      expect(result.success).toBe(true);
     });
 
-    it("should return minVersion when getting widget", async () => {
+    it("should reject updating a valid widget to an invalid aggregation", async () => {
       const caller = makeCaller();
       const created = await caller.dashboardWidgets.create({
         projectId,
-        name: "tRPC Get Widget",
-        description: "Widget for get test",
+        name: "Widget to update",
+        description: "will try invalid update",
         view: "observations",
         dimensions: [],
-        metrics: [{ measure: "count", agg: "count" }],
+        metrics: [{ measure: "traceId", agg: "uniq" }],
         filters: [],
         chartType: "NUMBER",
         chartConfig: { type: "NUMBER" },
         minVersion: 2,
       });
 
-      const fetched = await caller.dashboardWidgets.get({
-        projectId,
-        widgetId: created.widget.id,
-      });
-
-      expect(fetched.minVersion).toBe(2);
+      await expect(
+        caller.dashboardWidgets.update({
+          projectId,
+          widgetId: created.widget.id,
+          name: "Widget to update",
+          description: "invalid aggregation",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "traceId", agg: "sum" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        }),
+      ).rejects.toThrow(/not valid for measure/);
     });
 
-    it("should update widget minVersion", async () => {
-      const caller = makeCaller();
-      const created = await caller.dashboardWidgets.create({
-        projectId,
-        name: "tRPC Update Widget",
-        description: "Widget for update test",
-        view: "observations",
-        dimensions: [],
-        metrics: [{ measure: "count", agg: "count" }],
-        filters: [],
-        chartType: "NUMBER",
-        chartConfig: { type: "NUMBER" },
-        minVersion: 1,
-      });
-
-      await caller.dashboardWidgets.update({
-        projectId,
-        widgetId: created.widget.id,
-        name: "tRPC Update Widget",
-        description: "Widget for update test",
-        view: "observations",
-        dimensions: [],
-        metrics: [{ measure: "count", agg: "count" }],
-        filters: [],
-        chartType: "NUMBER",
-        chartConfig: { type: "NUMBER" },
-        minVersion: 2,
-      });
-
-      const fetched = await caller.dashboardWidgets.get({
-        projectId,
-        widgetId: created.widget.id,
-      });
-
-      expect(fetched.minVersion).toBe(2);
-    });
-
-    it("should allow creating widget with traces view", async () => {
+    it("should allow numeric measures with any aggregation", async () => {
       const caller = makeCaller();
       const result = await caller.dashboardWidgets.create({
         projectId,
-        name: "Traces Widget",
-        description: "Widget using traces view",
-        view: "traces",
-        dimensions: [{ field: "name" }],
-        metrics: [{ measure: "count", agg: "count" }],
+        name: "Numeric Widget",
+        description: "histogram on latency",
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "latency", agg: "histogram" }],
         filters: [],
-        chartType: "LINE_TIME_SERIES",
-        chartConfig: { type: "LINE_TIME_SERIES" },
-        minVersion: 1,
+        chartType: "HISTOGRAM",
+        chartConfig: { type: "HISTOGRAM", bins: 10 },
       });
 
-      expect(result.widget.minVersion).toBe(1);
+      expect(result.success).toBe(true);
     });
   });
 });
