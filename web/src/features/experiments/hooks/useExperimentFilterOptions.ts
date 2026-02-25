@@ -39,10 +39,12 @@ export function useExperimentFilterOptions({
         {} as Record<string, string[]>,
       ) ?? undefined;
 
-    const experimentDatasetFilterOptions = datasets.data?.map((d) => ({
-      value: d.id,
-      displayValue: d.name,
-    }));
+    const experimentDatasetFilterOptions = datasets.data
+      ?.filter((d) => filterOptions.data?.experimentDatasetIds?.includes(d.id))
+      .map((d) => ({
+        value: d.id,
+        displayValue: d.name,
+      }));
 
     return {
       experimentDatasetId: experimentDatasetFilterOptions,

@@ -65,6 +65,12 @@ export const experimentCols: UiColumnMappings = [
     clickhouseSelect: "error_count",
   },
   {
+    uiTableName: "Latency (ms)",
+    uiTableId: "latencyAvg",
+    clickhouseTableName: "events_core",
+    clickhouseSelect: "latency_avg",
+  },
+  {
     uiTableName: "Scores (numeric)",
     uiTableId: "scores_avg",
     clickhouseTableName: "scores",

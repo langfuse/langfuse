@@ -14,9 +14,6 @@ type UseExperimentsTableDataParams = {
     column: string;
     order: "ASC" | "DESC";
   } | null;
-  selectedRows: Record<string, boolean>;
-  selectAll: boolean;
-  setSelectedRows: (rows: Record<string, boolean>) => void;
 };
 
 export function useExperimentsTableData({
@@ -24,9 +21,6 @@ export function useExperimentsTableData({
   filterState,
   paginationState,
   orderByState,
-  selectedRows,
-  selectAll,
-  setSelectedRows,
 }: UseExperimentsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -80,10 +74,6 @@ export function useExperimentsTableData({
     const rows: ExperimentsTableRow[] =
       experimentsQuery.data?.data?.map((exp) => ({
         ...exp,
-        errorCount: 0,
-        totalCost: parseFloat("0"),
-        usageDetails: {},
-        costDetails: {},
         scores: {}, // TODO: Add score aggregation when available
       })) ?? [];
 
@@ -96,22 +86,9 @@ export function useExperimentsTableData({
 
   const dataUpdatedAt = experimentsQuery.dataUpdatedAt;
 
-  // Placeholder handler for batch actions
-  const handleBatchAction = async ({
-    projectId,
-    targetId,
-  }: {
-    projectId: string;
-    targetId: string;
-  }) => {
-    console.log("Batch action called", { projectId, targetId, selectedRows });
-    // TODO: Implement actual batch action logic
-  };
-
   return {
     experiments,
     dataUpdatedAt,
     totalCount,
-    handleBatchAction,
   };
 }

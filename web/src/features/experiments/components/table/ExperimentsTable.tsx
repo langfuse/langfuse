@@ -15,7 +15,7 @@ import {
 } from "./filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -23,6 +23,7 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { MoreVertical, Columns3 } from "lucide-react";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,15 +44,15 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import {
+  IOTableCell,
+  MemoizedIOTableCell,
+} from "@/src/components/ui/IOTableCell";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 
-export default function ExperimentsTable({
-  projectId,
-  hideControls = false,
-}: ExperimentsTableProps) {
+export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
   const router = useRouter();
 
   const { setDetailPageList } = useDetailPageLists();
@@ -114,7 +115,6 @@ export default function ExperimentsTable({
     filterOptions,
     projectId,
     isFilterOptionsPending,
-    hideControls,
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -136,9 +136,6 @@ export default function ExperimentsTable({
     filterState,
     orderByState,
     paginationState,
-    selectedRows,
-    selectAll,
-    setSelectedRows,
   });
 
   useEffect(() => {
@@ -168,16 +165,14 @@ export default function ExperimentsTable({
     setSelectedRows,
   });
 
-  const enableSorting = !hideControls;
-
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [
-    ...(hideControls ? [] : [selectActionColumn]),
+    selectActionColumn,
     {
       accessorKey: "name",
       id: "name",
       header: getExperimentsColumnName("name"),
       size: 200,
-      enableSorting,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: string = row.getValue("name");
         return value ? <TableIdOrName value={value} /> : undefined;
@@ -201,11 +196,51 @@ export default function ExperimentsTable({
       },
     },
     {
+      accessorKey: "metadata",
+      id: "metadata",
+      header: getExperimentsColumnName("metadata"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Record<string, string> = row.getValue("metadata");
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
+    },
+    {
+      accessorKey: "prompts",
+      id: "prompts",
+      header: getExperimentsColumnName("prompts"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Array<[string, number | null]> = row.getValue("prompts");
+        return (
+          <div className="flex flex-wrap gap-1">
+            {value.map(([name, version]) => (
+              <Link
+                key={`${name}-${version}`}
+                href={`/project/${projectId}/prompts/${encodeURIComponent(name)}?version=${version}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Badge
+                  variant="secondary"
+                  className="cursor-pointer hover:bg-secondary/80"
+                >
+                  {name}
+                </Badge>
+              </Link>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "itemCount",
       id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      enableSorting,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: number = row.getValue("itemCount");
         return <span>{numberFormatter(value, 0)}</span>;
@@ -216,7 +251,7 @@ export default function ExperimentsTable({
       id: "errorCount",
       header: getExperimentsColumnName("errorCount"),
       size: 100,
-      enableSorting,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: number = row.getValue("errorCount");
         return (
@@ -231,26 +266,12 @@ export default function ExperimentsTable({
       enableHiding: true,
     },
     {
-      accessorKey: "totalCost",
-      header: getExperimentsColumnName("totalCost"),
-      id: "totalCost",
-      size: 120,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-        return value !== undefined ? (
-          <span>{usdFormatter(value)}</span>
-        ) : undefined;
-      },
-      enableHiding: true,
-      enableSorting,
-    },
-    {
       accessorKey: "createdAt",
       id: "createdAt",
       header: getExperimentsColumnName("createdAt"),
       size: 150,
       enableHiding: true,
-      enableSorting,
+      enableSorting: true,
       cell: ({ row }) => {
         const value: Date = row.getValue("createdAt");
         return <LocalIsoDate date={value} />;
@@ -261,7 +282,6 @@ export default function ExperimentsTable({
       id: "datasetId",
       header: getExperimentsColumnName("experimentDatasetId"),
       size: 150,
-      enableSorting,
       cell: ({ row }) => {
         const key: string | undefined = row.getValue("datasetId");
         const value = filterOptions.experimentDatasetId?.find(
@@ -348,46 +368,41 @@ export default function ExperimentsTable({
     <DataTableControlsProvider>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
-        {!hideControls && (
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.filterState}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Experiments,
-              projectId,
-              controllers: viewControllers,
-            }}
-            columnsWithCustomSelect={["name", "datasetId"]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds:
-                Object.keys(selectedRows).filter((experimentId) =>
-                  experiments.rows?.map((e) => e.id).includes(experimentId),
-                ) ?? [],
-              setRowSelection: setSelectedRows,
-              totalCount,
-              pageSize: paginationState.limit,
-              pageIndex: paginationState.page - 1,
-            }}
-            filterWithAI
-          />
-        )}
+        <DataTableToolbar
+          columns={columns}
+          filterState={queryFilter.filterState}
+          viewConfig={{
+            tableName: TableViewPresetTableName.Experiments,
+            projectId,
+            controllers: viewControllers,
+          }}
+          columnsWithCustomSelect={["name", "datasetId"]}
+          columnVisibility={columnVisibility}
+          setColumnVisibility={setColumnVisibilityState}
+          columnOrder={columnOrder}
+          setColumnOrder={setColumnOrder}
+          orderByState={orderByState}
+          rowHeight={rowHeight}
+          setRowHeight={setRowHeight}
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+          multiSelect={{
+            selectAll,
+            setSelectAll,
+            selectedRowIds:
+              Object.keys(selectedRows).filter((experimentId) =>
+                experiments.rows?.map((e) => e.id).includes(experimentId),
+              ) ?? [],
+            setRowSelection: setSelectedRows,
+            totalCount,
+            pageSize: paginationState.limit,
+            pageIndex: paginationState.page - 1,
+          }}
+        />
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
-          {!hideControls && (
-            <DataTableControls queryFilter={queryFilter} filterWithAI />
-          )}
+          <DataTableControls queryFilter={queryFilter} />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable

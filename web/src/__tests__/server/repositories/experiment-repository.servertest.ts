@@ -5,6 +5,7 @@ import {
   createEventsCh,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getExperimentMetricsFromEvents,
 } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -309,6 +310,288 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       expect(excludedExperiment2).toBeUndefined(); // Different dataset
       expect(excludedExperiment3).toBeUndefined(); // Outside date range
+    });
+
+    it("should handle latency calculations correctly", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "latency-test-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Trace 1: Multiple events with timing data to test latency calculation
+      // Latency should be: earliest start_time to latest end_time
+      const trace1Id = randomUUID();
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace1Id,
+        type: "GENERATION",
+        name: "parent-generation",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        start_time: (now - 3500) * 1000, // Earliest start: now - 3500ms (convert to microseconds)
+        end_time: (now - 2500) * 1000, // End: now - 2500ms (convert to microseconds)
+        created_at: now * 1000,
+      });
+
+      const childSpan1Id = randomUUID();
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: childSpan1Id,
+        project_id: projectId,
+        trace_id: trace1Id,
+        type: "GENERATION",
+        name: "child-generation-1",
+        parent_span_id: event1.span_id,
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: event1.experiment_item_id,
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: event1.experiment_item_root_span_id,
+        start_time: (now - 3400) * 1000,
+        end_time: (now - 3000) * 1000,
+        created_at: now * 1000,
+      });
+
+      const childSpan2Id = randomUUID();
+      const event3 = createEvent({
+        id: randomUUID(),
+        span_id: childSpan2Id,
+        project_id: projectId,
+        trace_id: trace1Id,
+        type: "GENERATION",
+        name: "child-generation-2",
+        parent_span_id: event1.span_id,
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: event1.experiment_item_id,
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: event1.experiment_item_root_span_id,
+        start_time: (now - 3000) * 1000,
+        end_time: (now - 1500) * 1000, // Latest end: now - 1500ms (convert to microseconds)
+        created_at: now * 1000,
+      });
+
+      // Trace 2: Single event with known latency (1000ms)
+      const trace2Id = randomUUID();
+      const event4 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace2Id,
+        type: "GENERATION",
+        name: "single-generation",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        start_time: (now - 2500) * 1000, // Start: now - 2500ms (convert to microseconds)
+        end_time: (now - 1500) * 1000, // End: now - 1500ms (latency = 1000ms, convert to microseconds)
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1, event2, event3, event4]);
+
+      const metrics = await getExperimentMetricsFromEvents({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(metrics).toHaveLength(1);
+      const metric = metrics[0];
+
+      expect(metric.id).toBe(experimentId);
+      expect(metric.latencyAvg).toBeDefined();
+      expect(typeof metric.latencyAvg).toBe("number");
+
+      expect(metric.latencyAvg).toBeCloseTo(1500, -1); // Within 10ms tolerance
+    });
+
+    it("should handle cost calculations correctly", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "cost-test-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Trace 1: Multiple events with costs (parent + 2 children)
+      const trace1Id = randomUUID();
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace1Id,
+        type: "GENERATION",
+        name: "parent-generation",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        start_time: (now - 3500) * 1000,
+        end_time: (now - 2500) * 1000,
+        cost_details: { total: 0 }, // Parent has no direct cost
+        created_at: now * 1000,
+      });
+
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace1Id,
+        type: "GENERATION",
+        name: "child-generation-1",
+        parent_span_id: event1.span_id,
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: event1.experiment_item_id,
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: event1.experiment_item_root_span_id,
+        start_time: (now - 3400) * 1000,
+        end_time: (now - 3000) * 1000,
+        cost_details: { total: 0.005 }, // Child 1 cost
+        created_at: now * 1000,
+      });
+
+      const event3 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace1Id,
+        type: "GENERATION",
+        name: "child-generation-2",
+        parent_span_id: event1.span_id,
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: event1.experiment_item_id,
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: event1.experiment_item_root_span_id,
+        start_time: (now - 3000) * 1000,
+        end_time: (now - 2600) * 1000,
+        cost_details: { total: 0.008765 }, // Child 2 cost (total = 0.013765)
+        created_at: now * 1000,
+      });
+
+      // Trace 2: Single event with cost
+      const trace2Id = randomUUID();
+      const event4 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace2Id,
+        type: "GENERATION",
+        name: "single-generation",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        start_time: (now - 2500) * 1000,
+        end_time: (now - 1500) * 1000,
+        cost_details: { total: 0.1 }, // Single event cost
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1, event2, event3, event4]);
+
+      const metrics = await getExperimentMetricsFromEvents({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(metrics).toHaveLength(1);
+      const metric = metrics[0];
+
+      expect(metric.id).toBe(experimentId);
+      expect(metric.totalCost).toBeDefined();
+      expect(typeof metric.totalCost).toBe("number");
+
+      // Total cost should be:
+      // Trace 1: 0 + 0.005 + 0.008765 = 0.013765
+      // Trace 2: 0.1
+      // Total: 0.113765
+      expect(metric.totalCost).toBeCloseTo(0.113765, 6);
+    });
+
+    it("should include correct enriched data (latency and costs) in experiment list", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "enriched-test-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Create trace with both latency and cost data
+      const traceId = randomUUID();
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        start_time: (now - 2000) * 1000,
+        end_time: (now - 1000) * 1000, // 1000ms latency
+        cost_details: { total: 0.05 },
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1]);
+
+      // Fetch experiment with metrics
+      const metrics = await getExperimentMetricsFromEvents({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(metrics).toHaveLength(1);
+      const metric = metrics[0];
+
+      // Verify both latency and cost are present and properly typed
+      expect(metric.latencyAvg).toBeDefined();
+      expect(typeof metric.latencyAvg).toBe("number");
+      expect(metric.latencyAvg).toBeCloseTo(1000, -1);
+
+      expect(metric.totalCost).toBeDefined();
+      expect(typeof metric.totalCost).toBe("number");
+      expect(metric.totalCost).toBeCloseTo(0.05, 6);
     });
   });
 });

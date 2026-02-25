@@ -6,8 +6,10 @@ import {
   ExperimentCreateQueue,
   getCategoricalScoresGroupedByName,
   getDatasetItems,
+  getEventsGroupedByExperimentDatasetId,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getExperimentMetricsFromEvents,
   getNumericScoresGroupedByName,
   PromptService,
   QueueJobs,
@@ -316,6 +318,34 @@ export const experimentsRouter = createTRPCRouter({
       };
     }),
 
+  metrics: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentIds: z.array(z.string()),
+        filter: z.array(singleFilter).nullable(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      if (input.experimentIds.length === 0) {
+        return [];
+      }
+
+      const metrics = await getExperimentMetricsFromEvents({
+        projectId: input.projectId,
+        experimentIds: input.experimentIds,
+        filter: input.filter ?? [],
+      });
+
+      return metrics;
+    }),
+
   filterOptions: protectedProjectProcedure
     .input(
       z.object({
@@ -330,20 +360,33 @@ export const experimentsRouter = createTRPCRouter({
         scope: "promptExperiments:read",
       });
 
-      const [numericScoreNames, categoricalScoreNames] = await Promise.all([
-        getNumericScoresGroupedByName(
-          input.projectId,
-          input.startTimeFilter ?? [],
-        ),
-        getCategoricalScoresGroupedByName(
-          input.projectId,
-          input.startTimeFilter ?? [],
-        ),
-      ]);
+      const [numericScoreNames, categoricalScoreNames, experimentDatasetIds] =
+        await Promise.all([
+          getNumericScoresGroupedByName(
+            input.projectId,
+            input.startTimeFilter ?? [],
+          ),
+          getCategoricalScoresGroupedByName(
+            input.projectId,
+            input.startTimeFilter ?? [],
+          ),
+          getEventsGroupedByExperimentDatasetId(
+            input.projectId,
+            input.startTimeFilter ?? [],
+          ),
+        ]);
+
+      const experimentDatasetIdSet = new Set<string>();
+      for (const { experimentDatasetId } of experimentDatasetIds) {
+        if (experimentDatasetId !== null) {
+          experimentDatasetIdSet.add(experimentDatasetId);
+        }
+      }
 
       return {
         scores_avg: numericScoreNames.map((score) => score.name),
         score_categories: categoricalScoreNames,
+        experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
     }),
 });

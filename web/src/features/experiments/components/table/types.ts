@@ -1,11 +1,12 @@
 import { type ScoreAggregate } from "@langfuse/shared";
 
-// Type matches backend ExperimentEventsWithMetricsReturnType
 export type ExperimentsTableRow = {
   // Identity fields
   id: string;
   name: string;
   description: string | null;
+  metadata: Record<string, string>;
+  prompts: Array<[string, number | null]>;
 
   // Related entities
   datasetId: string;
@@ -17,11 +18,6 @@ export type ExperimentsTableRow = {
   // Core properties
   itemCount: number;
   errorCount: number;
-
-  // Metrics
-  totalCost?: number;
-  usageDetails: Record<string, number>;
-  costDetails: Record<string, number>;
 
   // Scores - dynamic columns
   scores: ScoreAggregate;

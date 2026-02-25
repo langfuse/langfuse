@@ -376,12 +376,19 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
 
   // Aggregated metrics
   itemCount: "countDistinct(experiment_item_id) AS item_count",
-  totalCost: "sum(total_cost) AS total_cost",
   errorCount: "countIf(level = 'ERROR') AS error_count",
 
-  // Usage and cost details
-  usageDetails: "sumMap(usage_details) AS usage_details",
-  costDetails: "sumMap(cost_details) AS cost_details",
+  // // Usage and cost details
+  // usageDetails: "sumMap(usage_details) AS usage_details",
+  // costDetails: "sumMap(cost_details) AS cost_details",
+
+  // Prompts - tuple of (name, version) to preserve pairing
+  prompts:
+    "groupUniqArrayIf(tuple(prompt_name, prompt_version), prompt_name != '') AS prompts",
+
+  // Experiment metadata - use any() since it's identical across events, convert to map
+  experimentMetadata:
+    "any(mapFromArrays(experiment_metadata_names, experiment_metadata_values)) AS experiment_metadata",
 } as const;
 
 /**

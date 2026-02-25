@@ -28,6 +28,20 @@ export const experimentsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Metadata",
+    id: "metadata",
+    type: "string",
+    internal: "experiment_metadata",
+    nullable: true,
+  },
+  {
+    name: "Referenced Prompts",
+    id: "prompts",
+    type: "string",
+    internal: "prompts",
+    nullable: true,
+  },
+  {
     name: "Dataset",
     id: "experimentDatasetId",
     type: "stringOptions",
@@ -116,14 +130,6 @@ export const experimentsFilterConfig: FilterConfig = {
       label: getExperimentsColumnName("errorCount"),
       min: 0,
       max: 10000,
-    },
-    {
-      type: "numeric" as const,
-      column: "totalCost",
-      label: getExperimentsColumnName("totalCost"),
-      min: 0,
-      max: 100,
-      unit: "$",
     },
     {
       type: "keyValue" as const,
