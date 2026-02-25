@@ -122,38 +122,10 @@ export const evalJobExecutorQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
   queueName: EvalExecutionQueueName,
 ): Processor => {
-  const NON_MATCHING_PROJECT_LOG_LIMIT = 25;
-  let nonMatchingProjectLogCount = 0;
-
-  const configuredSecondaryProjectIdsRaw =
-    env.LANGFUSE_SECONDARY_EVAL_EXECUTION_QUEUE_ENABLED_PROJECT_IDS;
   const projectIdsToRedirectToSecondaryQueue =
-    configuredSecondaryProjectIdsRaw
-      ?.split(",")
-      .map((projectId) => projectId.trim())
-      .filter((projectId) => projectId.length > 0) ?? [];
-
-  logger.info("Initialized evaluation execution queue processor", {
-    queueName,
-    enableRedirectToSecondaryQueue,
-    configuredSecondaryProjectIdCount:
-      projectIdsToRedirectToSecondaryQueue.length,
-    configuredSecondaryProjectIds: projectIdsToRedirectToSecondaryQueue,
-    configuredSecondaryProjectIdsRaw,
-  });
-
-  if (
-    enableRedirectToSecondaryQueue &&
-    projectIdsToRedirectToSecondaryQueue.length === 0
-  ) {
-    logger.warn(
-      "Secondary evaluation queue redirect is enabled but no project IDs are configured",
-      {
-        queueName,
-        envVar: "LANGFUSE_SECONDARY_EVAL_EXECUTION_QUEUE_ENABLED_PROJECT_IDS",
-      },
-    );
-  }
+    env.LANGFUSE_SECONDARY_EVAL_EXECUTION_QUEUE_ENABLED_PROJECT_IDS?.split(
+      ",",
+    ) ?? [];
   return async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
     try {
       logger.info("Executing Evaluation Execution Job", job.data);
@@ -164,50 +136,14 @@ export const evalJobExecutorQueueProcessorBuilder = (
         const shouldRedirectToSecondaryQueue =
           projectIdsToRedirectToSecondaryQueue.includes(projectId);
 
-        if (
-          !shouldRedirectToSecondaryQueue &&
-          projectIdsToRedirectToSecondaryQueue.length > 0 &&
-          nonMatchingProjectLogCount < NON_MATCHING_PROJECT_LOG_LIMIT
-        ) {
-          nonMatchingProjectLogCount += 1;
-          logger.info(
-            "Evaluation execution job not configured for secondary redirect",
-            {
-              sourceQueue: queueName,
-              projectId,
-              jobExecutionId: job.data.payload.jobExecutionId,
-              configuredSecondaryProjectIds:
-                projectIdsToRedirectToSecondaryQueue,
-              nonMatchingProjectLogCount,
-              nonMatchingProjectLogLimit: NON_MATCHING_PROJECT_LOG_LIMIT,
-            },
-          );
-        }
-
         if (shouldRedirectToSecondaryQueue) {
-          logger.info(
+          logger.debug(
             `Redirecting evaluation execution job to secondary queue for project ${projectId}`,
-            {
-              sourceQueue: queueName,
-              targetQueue: QueueName.EvaluationExecutionSecondaryQueue,
-              projectId,
-              jobExecutionId: job.data.payload.jobExecutionId,
-              retryAttempt: job.data.retryBaggage?.attempt ?? 0,
-            },
           );
           const secondaryQueue = getQueue(
             QueueName.EvaluationExecutionSecondaryQueue,
           );
           if (!secondaryQueue) {
-            logger.error(
-              "Secondary evaluation execution queue is not available for redirect",
-              {
-                sourceQueue: queueName,
-                targetQueue: QueueName.EvaluationExecutionSecondaryQueue,
-                projectId,
-                jobExecutionId: job.data.payload.jobExecutionId,
-              },
-            );
             throw new Error(
               "Secondary evaluation execution queue is not available",
             );
