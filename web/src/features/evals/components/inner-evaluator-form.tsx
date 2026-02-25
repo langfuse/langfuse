@@ -940,6 +940,7 @@ export const InnerEvaluatorForm = (props: {
                               </p>
                             ) : (
                               <InlineFilterBuilder
+                                key={target}
                                 columnIdentifier={
                                   isDatasetTarget(target) ||
                                   isTraceTarget(target)
