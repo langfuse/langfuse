@@ -240,7 +240,6 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: number = row.getValue("itemCount");
         return <span>{numberFormatter(value, 0)}</span>;
@@ -251,7 +250,6 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       id: "errorCount",
       header: getExperimentsColumnName("errorCount"),
       size: 100,
-      enableSorting: true,
       cell: ({ row }) => {
         const value: number = row.getValue("errorCount");
         return (
