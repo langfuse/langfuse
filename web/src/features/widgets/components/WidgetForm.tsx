@@ -659,17 +659,6 @@ export function WidgetForm({
     }
   }, [selectedChartType, selectedMetrics]);
 
-  // When chart type does not support breakdown, wipe the breakdown dimension
-  useEffect(() => {
-    if (
-      chartTypes.find((c) => c.value === selectedChartType)
-        ?.supportsBreakdown === false &&
-      selectedDimension !== "none"
-    ) {
-      setSelectedDimension("none");
-    }
-  }, [selectedChartType, selectedDimension]);
-
   // Resolve valid aggregations for the currently selected measure
   const validAggregationsForMeasure = useMemo(() => {
     const measureType =

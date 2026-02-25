@@ -66,10 +66,8 @@ export function DashboardWidget({
   );
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
-  const metricsVersion: ViewVersion = useMemo(() => {
-    if ((widget.data?.minVersion ?? 1) >= 2) return "v2";
-    return isBetaEnabled ? "v2" : "v1";
-  }, [widget.data?.minVersion, isBetaEnabled]);
+  const metricsVersion: ViewVersion =
+    (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled ? "v2" : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
