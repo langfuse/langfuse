@@ -2039,16 +2039,18 @@ export class OtelIngestionProcessor {
       const outputTokens = attributes["gen_ai.usage.output_tokens"];
       const cacheReadTokens =
         attributes["gen_ai.usage.cache_read_tokens"] ??
-        attributes["gen_ai.usage.details.cache_read_input_tokens"];
+        attributes["gen_ai.usage.details.cache_read_tokens"];
       const cacheWriteTokens =
         attributes["gen_ai.usage.cache_write_tokens"] ??
-        attributes["gen_ai.usage.details.cache_creation_input_tokens"];
+        attributes["gen_ai.usage.details.cache_write_tokens"];
 
       return {
-        input: inputTokens,
-        output: outputTokens,
-        input_cache_read: cacheReadTokens,
-        input_cache_creation: cacheWriteTokens,
+        input: inputTokens !== undefined ? Number(inputTokens) : undefined,
+        output: outputTokens !== undefined ? Number(outputTokens) : undefined,
+        input_cache_read:
+          cacheReadTokens !== undefined ? Number(cacheReadTokens) : undefined,
+        input_cache_creation:
+          cacheWriteTokens !== undefined ? Number(cacheWriteTokens) : undefined,
       };
     }
 
