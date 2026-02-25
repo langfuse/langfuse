@@ -302,6 +302,11 @@ export const promptRouter = createTRPCRouter({
         ...input,
         prisma: ctx.prisma,
         createdBy: ctx.session.user.id,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
       });
 
       if (!prompt) {
@@ -344,6 +349,11 @@ export const promptRouter = createTRPCRouter({
         isSingleVersion: input.isSingleVersion,
         createdBy: ctx.session.user.id,
         prisma: ctx.prisma,
+        user: {
+          id: ctx.session.user.id,
+          name: ctx.session.user.name ?? null,
+          email: ctx.session.user.email ?? null,
+        },
       });
 
       if (!prompt) {
@@ -556,6 +566,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "deleted",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
@@ -714,6 +729,11 @@ export const promptRouter = createTRPCRouter({
         await promptChangeEventSourcing(
           await promptService.resolvePrompt(promptVersion),
           "deleted",
+          {
+            id: ctx.session.user.id,
+            name: ctx.session.user.name ?? null,
+            email: ctx.session.user.email ?? null,
+          },
         );
       } catch (e) {
         logger.error(e);
@@ -906,6 +926,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "updated",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
@@ -1054,6 +1079,11 @@ export const promptRouter = createTRPCRouter({
             promptChangeEventSourcing(
               await promptService.resolvePrompt(prompt),
               "updated",
+              {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
             ),
           ),
         );
