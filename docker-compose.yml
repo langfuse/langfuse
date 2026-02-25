@@ -1,6 +1,7 @@
 # Make sure to update the credential placeholders with your own secrets.
 # We mark them with # CHANGEME in the file below.
-# In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
+# In addition, we recommend to restrict inbound traffic on the host to langfuse-web (WEB_HOST_PORT, default 3000)
+# and minio (MINIO_API_PORT, default 9090) only.
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
 services:
@@ -17,7 +18,7 @@ services:
       clickhouse:
         condition: service_healthy
     ports:
-      - 127.0.0.1:3030:3030
+      - 127.0.0.1:${WORKER_HOST_PORT:-3030}:3030
     environment: &langfuse-worker-env
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres} # CHANGEME
@@ -29,6 +30,7 @@ services:
       CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://clickhouse:8123}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse} # CHANGEME
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-default}
       CLICKHOUSE_CLUSTER_ENABLED: ${CLICKHOUSE_CLUSTER_ENABLED:-false}
       LANGFUSE_USE_AZURE_BLOB: ${LANGFUSE_USE_AZURE_BLOB:-false}
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${LANGFUSE_S3_EVENT_UPLOAD_BUCKET:-langfuse}
@@ -59,6 +61,8 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_AUTH: ${REDIS_AUTH:-myredissecret} # CHANGEME
+      REDIS_CONNECTION_STRING: ${REDIS_CONNECTION_STRING:-}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
       REDIS_TLS_CA: ${REDIS_TLS_CA:-/certs/ca.crt}
       REDIS_TLS_CERT: ${REDIS_TLS_CERT:-/certs/redis.crt}
@@ -71,7 +75,7 @@ services:
     restart: always
     depends_on: *langfuse-depends-on
     ports:
-      - 3000:3000
+      - ${WEB_HOST_PORT:-3000}:3000
     environment:
       <<: *langfuse-worker-env
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-mysecret} # CHANGEME
@@ -97,8 +101,8 @@ services:
       - langfuse_clickhouse_data:/var/lib/clickhouse
       - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - 127.0.0.1:8123:8123
-      - 127.0.0.1:9000:9000
+      - 127.0.0.1:${CLICKHOUSE_HTTP_PORT:-8123}:8123
+      - 127.0.0.1:${CLICKHOUSE_NATIVE_PORT:-9000}:9000
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 5s
@@ -116,8 +120,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret} # CHANGEME
     ports:
-      - 9090:9000
-      - 127.0.0.1:9091:9001
+      - ${MINIO_API_PORT:-9090}:9000
+      - 127.0.0.1:${MINIO_CONSOLE_PORT:-9091}:9001
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
@@ -135,7 +139,7 @@ services:
       --requirepass ${REDIS_AUTH:-myredissecret}
       --maxmemory-policy noeviction
     ports:
-      - 127.0.0.1:6379:6379
+      - 127.0.0.1:${REDIS_HOST_PORT:-6379}:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -157,7 +161,7 @@ services:
       TZ: UTC
       PGTZ: UTC
     ports:
-      - 127.0.0.1:5432:5432
+      - 127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
 

@@ -20,6 +20,7 @@ import {
 import { redis } from "@langfuse/shared/src/server";
 
 describe("Media Upload API", () => {
+  const localHostnames = new Set(["localhost", "127.0.0.1", "::1"]);
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
   const staticFixtureDir = path.join(__dirname, "..", "static");
   const isAzureBlobMode =
@@ -226,7 +227,8 @@ describe("Media Upload API", () => {
   }
 
   beforeEach(async () => {
-    if (!env.DATABASE_URL.includes("localhost:5432")) {
+    const parsedUrl = new URL(env.DATABASE_URL);
+    if (!localHostnames.has(parsedUrl.hostname)) {
       throw new Error("You cannot prune database unless running on localhost.");
     }
 

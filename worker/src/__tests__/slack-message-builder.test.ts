@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 import type { WebhookInput } from "@langfuse/shared/src/server";
+import { env } from "../env";
 
 describe("SlackMessageBuilder", () => {
   const mockPromptPayload: WebhookInput["payload"] = {
@@ -170,8 +171,11 @@ describe("SlackMessageBuilder", () => {
     it("should generate correct URLs for different environments", () => {
       let blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
+      const expectedBaseUrl = (env.NEXTAUTH_URL ?? "http://localhost:3000")
+        .replace(/\/$/, "")
+        .replace(/\/api\/auth$/, "");
       expect(blocks[4].elements[0].url).toContain(
-        "http://localhost:3000/project/project-456/prompts/test-prompt?version=2",
+        `${expectedBaseUrl}/project/project-456/prompts/test-prompt?version=2`,
       );
     });
   });

@@ -11,12 +11,23 @@ import {
 } from "@langfuse/shared/src/server";
 import { type z } from "zod/v4";
 
+const getWebBaseUrl = () => {
+  const defaultPort = process.env.WEB_PORT ?? process.env.PORT ?? "3000";
+  return (env.NEXTAUTH_URL || `http://localhost:${defaultPort}`)
+    .replace(/\/$/, "")
+    .replace(/\/api\/auth$/, "");
+};
+
 export const ensureTestDatabaseExists = async () => {
+  const databaseUrl = new URL(env.DATABASE_URL);
+  const databaseName = databaseUrl.pathname.slice(1);
+  const databaseSchema = databaseUrl.searchParams.get("schema");
+  const isTestDatabaseTarget =
+    databaseName.includes("langfuse_test") ||
+    Boolean(databaseSchema?.includes("test"));
+
   // Only create test database if we're in test environment with test database URL
-  if (
-    !env.DATABASE_URL.includes("langfuse_test") ||
-    process.env.NODE_ENV !== "test"
-  ) {
+  if (!isTestDatabaseTarget || process.env.NODE_ENV !== "test") {
     return; // Not using test database or not in test environment, skip
   }
 
@@ -78,7 +89,7 @@ export const ensureTestDatabaseExists = async () => {
     }
   }
 
-  // ClickHouse uses default database (no setup needed)
+  // ClickHouse schema is expected to be migrated as part of local setup.
 };
 
 export const getQueues = () => {
@@ -156,7 +167,7 @@ export async function makeAPICall<T = IngestionAPIResponse>(
   auth?: string,
   customHeaders?: Record<string, string>,
 ): Promise<{ body: T; status: number }> {
-  const finalUrl = `http://localhost:3000${url.startsWith("/") ? url : `/${url}`}`;
+  const finalUrl = `${getWebBaseUrl()}${url.startsWith("/") ? url : `/${url}`}`;
   const authorization =
     auth || createBasicAuthHeader("pk-lf-1234567890", "sk-lf-1234567890");
   const options = {

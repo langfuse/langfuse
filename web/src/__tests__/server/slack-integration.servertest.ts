@@ -5,6 +5,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { appRouter } from "@/src/server/api/root";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 
 // Mock SlackService
 jest.mock("@langfuse/shared/src/server", () => {
@@ -19,6 +20,9 @@ jest.mock("@langfuse/shared/src/server", () => {
 
 const __orgIds: string[] = [];
 let mockSlackService: any;
+const webBaseUrl = (env.NEXTAUTH_URL ?? "http://localhost:3000")
+  .replace(/\/$/, "")
+  .replace(/\/api\/auth$/, "");
 
 const prepare = async () => {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -429,7 +433,7 @@ describe("Slack Integration", () => {
 
       // Make request without any session/auth
       const response = await fetch(
-        `http://localhost:3000/api/public/slack/install?projectId=${project.id}`,
+        `${webBaseUrl}/api/public/slack/install?projectId=${project.id}`,
         {
           method: "GET",
           headers: {
@@ -448,15 +452,12 @@ describe("Slack Integration", () => {
     });
 
     it("should reject requests without projectId with 400", async () => {
-      const response = await fetch(
-        `http://localhost:3000/api/public/slack/install`,
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
+      const response = await fetch(`${webBaseUrl}/api/public/slack/install`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
         },
-      );
+      });
 
       expect(response.status).toBe(400);
 
