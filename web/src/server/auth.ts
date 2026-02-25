@@ -280,6 +280,40 @@ if (
     }),
   );
 
+// Langfuse Cloud only: "Sign in with ClickHouse Cloud"
+// Uses Auth0Provider with a custom provider ID so the callback URL becomes
+// /api/auth/callback/clickhouse-cloud. NOT intended for self-hosted Langfuse.
+if (
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID &&
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET &&
+  env.AUTH_CLICKHOUSE_CLOUD_ISSUER &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+)
+  staticProviders.push(
+    Auth0Provider({
+      id: "clickhouse-cloud",
+      name: "ClickHouse Cloud",
+      clientId: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+      authorization: {
+        params: {
+          scope: "openid email profile",
+          // audience: "langfuse",
+        },
+      },
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_CLICKHOUSE_CLOUD_CHECKS
+        ? { checks: env.AUTH_CLICKHOUSE_CLOUD_CHECKS }
+        : {}),
+    }),
+  );
+
 if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
   staticProviders.push(
     GitHubProvider({
