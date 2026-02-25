@@ -310,6 +310,7 @@ export enum QueueName {
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
+  EvaluationExecutionSecondaryQueue = "secondary-evaluation-execution-queue", // Separates high-throughput eval projects from other projects.
   LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based eval execution
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
@@ -416,6 +417,13 @@ export type TQueueJobTypes = {
     retryBaggage?: RetryBaggage;
   };
   [QueueName.EvaluationExecution]: {
+    timestamp: Date;
+    id: string;
+    payload: EvalExecutionEventType;
+    name: QueueJobs.EvaluationExecution;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.EvaluationExecutionSecondaryQueue]: {
     timestamp: Date;
     id: string;
     payload: EvalExecutionEventType;
