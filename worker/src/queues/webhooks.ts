@@ -349,6 +349,12 @@ async function executeWebhookAction({
   }
 
   const webhookConfig = actionConfig.config;
+  const webhookUser = input.payload.user
+    ? {
+        name: input.payload.user.name,
+        email: input.payload.user.email,
+      }
+    : undefined;
 
   // Validate and prepare webhook payload
   const validatedPayload = PromptWebhookOutboundSchema.safeParse({
@@ -358,7 +364,7 @@ async function executeWebhookAction({
     apiVersion: "v1",
     action: input.payload.action,
     prompt: input.payload.prompt,
-    user: input.payload.user,
+    user: webhookUser,
   });
 
   if (!validatedPayload.success) {
@@ -449,6 +455,12 @@ async function executeGitHubDispatchAction({
   }
 
   const githubConfig = actionConfig.config;
+  const webhookUser = input.payload.user
+    ? {
+        name: input.payload.user.name,
+        email: input.payload.user.email,
+      }
+    : undefined;
 
   // Validate and prepare Langfuse payload
   const validatedPayload = PromptWebhookOutboundSchema.safeParse({
@@ -458,7 +470,7 @@ async function executeGitHubDispatchAction({
     apiVersion: "v1",
     action: input.payload.action,
     prompt: input.payload.prompt,
-    user: input.payload.user,
+    user: webhookUser,
   });
 
   if (!validatedPayload.success) {

@@ -33,7 +33,6 @@ export const PromptWebhookOutboundSchema = z
     }),
     user: z
       .object({
-        id: z.string(),
         name: z.string().nullable(),
         email: z.string().nullable(),
       })

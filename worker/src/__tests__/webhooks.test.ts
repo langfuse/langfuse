@@ -1285,7 +1285,11 @@ describe("Webhook Integration Tests", () => {
       expect(requests).toHaveLength(1);
 
       const payload = JSON.parse(requests[0].body);
-      expect(payload.user).toEqual(testUser);
+      expect(payload.user).toEqual({
+        name: testUser.name,
+        email: testUser.email,
+      });
+      expect(payload.user.id).toBeUndefined();
       // Verify prompt is still the last field
       const payloadKeys = Object.keys(payload);
       expect(payloadKeys[payloadKeys.length - 1]).toBe("prompt");
@@ -1402,7 +1406,11 @@ describe("Webhook Integration Tests", () => {
 
       const payload = JSON.parse(requests[0].body);
       expect(payload.event_type).toBe("prompt-update");
-      expect(payload.client_payload.user).toEqual(testUser);
+      expect(payload.client_payload.user).toEqual({
+        name: testUser.name,
+        email: testUser.email,
+      });
+      expect(payload.client_payload.user.id).toBeUndefined();
       // Verify prompt is still the last field in client_payload
       const clientPayloadKeys = Object.keys(payload.client_payload);
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
