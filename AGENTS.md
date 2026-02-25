@@ -2,6 +2,11 @@
 
 Langfuse is an **open source LLM engineering** platform for developing, monitoring, evaluating and debugging AI applications. See the README for more details.
 
+## Codebase
+* Nextjs 15 without SSR
+* Typescript 5
+* Tailwind
+
 ## Linting
 - Run `pnpm run lint` to lint all packages.
 - Fix issues automatically with `pnpm run lint:fix`.

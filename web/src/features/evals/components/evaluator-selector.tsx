@@ -137,7 +137,20 @@ export function EvaluatorSelector({
                         "bg-secondary",
                     )}
                   >
-                    {name}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>{name}</span>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="right"
+                        className="max-h-[300px] max-w-[400px] overflow-y-auto"
+                      >
+                        <p className="mb-1 font-medium">Evaluation prompt</p>
+                        <pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                          {latestVersion.prompt}
+                        </pre>
+                      </TooltipContent>
+                    </Tooltip>
                     {isInvalid && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -215,7 +228,20 @@ export function EvaluatorSelector({
                         "bg-secondary",
                     )}
                   >
-                    <div className="mr-1">{name}</div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="mr-1">{name}</div>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="right"
+                        className="max-h-[300px] max-w-[400px] overflow-y-auto"
+                      >
+                        <p className="mb-1 font-medium">Evaluation prompt</p>
+                        <pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                          {latestVersion.prompt}
+                        </pre>
+                      </TooltipContent>
+                    </Tooltip>
                     <MaintainerTooltip
                       maintainer={getMaintainer(latestVersion)}
                     />

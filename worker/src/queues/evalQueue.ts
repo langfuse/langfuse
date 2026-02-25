@@ -154,7 +154,6 @@ export const evalJobExecutorQueueProcessorBuilder = (
       },
     );
   }
-
   return async (job: Job<TQueueJobTypes[QueueName.EvaluationExecution]>) => {
     try {
       logger.info("Executing Evaluation Execution Job", job.data);
