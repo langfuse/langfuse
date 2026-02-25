@@ -1684,7 +1684,7 @@ describe("removeHiddenNodes", () => {
 
   const flattenIds = (nodes: TreeNode[]): Array<[string, string[]]> => {
     const out: Array<[string, string[]]> = [];
-    const stack = [...nodes];
+    const stack = [...nodes].reverse();
 
     while (stack.length > 0) {
       const node = stack.pop()!;
