@@ -4,6 +4,7 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   CTEQueryBuilder,
+  type CTEWithSchema,
   DateTimeFilter,
   FilterList,
   StringOptionsFilter,
@@ -133,6 +134,85 @@ export type FetchExperimentsFromEventsProps = {
   tags?: Record<string, string>;
 };
 
+/**
+ * Helper function to build trace-level metrics CTE for experiments.
+ * Groups events by (project_id, experiment_id, trace_id) and computes:
+ * - latency_ms: Time difference between min start_time and max end_time
+ * - total_cost: Sum of costs across all events in the trace
+ *
+ * This is Stage 1 of the two-stage aggregation required for experiment metrics.
+ */
+const buildExperimentTraceMetricsCTE = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  startTimeFrom?: string | null;
+}): CTEWithSchema => {
+  const query = `
+    SELECT
+      e.project_id,
+      e.experiment_id,
+      e.trace_id,
+      dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time))) as latency_ms,
+      sum(e.total_cost) as total_cost
+    FROM events_core e
+    WHERE e.project_id = {projectId: String}
+      AND e.experiment_id IS NOT NULL
+      AND e.experiment_id != ''
+      AND e.is_deleted = 0
+      ${params.startTimeFrom ? `AND e.start_time >= {startTimeFrom: DateTime64(3)}` : ""}
+      ${params.experimentIds ? `AND e.experiment_id IN ({experimentIds: Array(String)})` : ""}
+    GROUP BY e.project_id, e.experiment_id, e.trace_id
+  `.trim();
+
+  const cteParams: Record<string, string | string[]> = {};
+
+  if (params.startTimeFrom) {
+    cteParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  if (params.experimentIds) {
+    cteParams.experimentIds = params.experimentIds;
+  }
+
+  return {
+    query,
+    params: cteParams,
+    schema: [
+      "project_id",
+      "experiment_id",
+      "trace_id",
+      "latency_ms",
+      "total_cost",
+    ],
+  };
+};
+
+/**
+ * Helper function to build experiment-level metrics CTE.
+ * Aggregates trace-level metrics (from trace_metrics CTE) to experiment level:
+ * - total_cost: SUM of trace costs (experiment total)
+ * - latency_avg: AVG of trace latencies (average latency)
+ *
+ * This is Stage 2 of the two-stage aggregation required for experiment metrics.
+ */
+const buildExperimentMetricsCTE = (): CTEWithSchema => {
+  const query = `
+    SELECT
+      project_id,
+      experiment_id,
+      sum(total_cost) as total_cost,
+      avg(latency_ms) as latency_avg
+    FROM trace_metrics
+    GROUP BY project_id, experiment_id
+  `.trim();
+
+  return {
+    query,
+    params: {},
+    schema: ["project_id", "experiment_id", "total_cost", "latency_avg"],
+  };
+};
+
 const getExperimentsFromEventsGeneric = async <T>(
   props: FetchExperimentsFromEventsProps,
 ) => {
@@ -156,7 +236,7 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   // Determine if metrics CTEs are needed
   const hasMetricsFilter = experimentFilters.some((f) =>
-    ["totalCost", "latencyAvg", "errorCount"].includes(f.field),
+    ["totalCost", "latencyAvg"].includes(f.field),
   );
 
   const selectMetrics = select === "metrics" || hasMetricsFilter;
@@ -188,59 +268,15 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   // Conditionally add trace_metrics + experiment_metrics CTEs for cost/latency
   if (selectMetrics) {
-    // Build trace-level metrics CTE (Stage 1)
-    const traceMetricsCte = {
-      query: `
-        SELECT
-          e.project_id,
-          e.experiment_id,
-          e.trace_id,
-          dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time))) as latency_ms,
-          sum(e.total_cost) as total_cost
-        FROM events_core e
-        WHERE e.project_id = {projectId: String}
-          AND e.experiment_id IS NOT NULL
-          AND e.experiment_id != ''
-          AND e.is_deleted = 0
-          ${startTimeFilter ? `AND e.start_time >= {startTimeFrom: DateTime64(3)}` : ""}
-          ${experimentIdFilter?.values ? `AND e.experiment_id IN ({experimentIds: Array(String)})` : ""}
-        GROUP BY e.project_id, e.experiment_id, e.trace_id
-      `.trim(),
-      params: {
-        ...(startTimeFilter
-          ? {
-              startTimeFrom: convertDateToClickhouseDateTime(
-                startTimeFilter.value,
-              ),
-            }
-          : {}),
-        ...(experimentIdFilter?.values
-          ? { experimentIds: experimentIdFilter.values }
-          : {}),
-      },
-      schema: [
-        "project_id",
-        "experiment_id",
-        "trace_id",
-        "latency_ms",
-        "total_cost",
-      ],
-    };
+    const traceMetricsCte = buildExperimentTraceMetricsCTE({
+      projectId,
+      experimentIds: experimentIdFilter?.values,
+      startTimeFrom: startTimeFilter
+        ? convertDateToClickhouseDateTime(startTimeFilter.value)
+        : null,
+    });
 
-    // Build experiment-level metrics CTE (Stage 2)
-    const experimentMetricsCte = {
-      query: `
-        SELECT
-          project_id,
-          experiment_id,
-          sum(total_cost) as total_cost,
-          avg(latency_ms) as latency_avg
-        FROM trace_metrics
-        GROUP BY project_id, experiment_id
-      `.trim(),
-      params: {},
-      schema: ["project_id", "experiment_id", "total_cost", "latency_avg"],
-    };
+    const experimentMetricsCte = buildExperimentMetricsCTE();
 
     queryBuilder = queryBuilder
       .withCTE("trace_metrics", traceMetricsCte)
