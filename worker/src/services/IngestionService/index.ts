@@ -36,6 +36,8 @@ import {
   TraceRecordInsertType,
   traceRecordReadSchema,
   TraceUpsertQueue,
+  EntityChangeQueue,
+  QueueName,
   UsageCostType,
   findModel,
   matchPricingTier,
@@ -744,6 +746,25 @@ export class IngestionService {
 
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
 
+    // Determine whether this is a new trace or an update
+    const traceAction = clickhouseTraceRecord ? "updated" : "created";
+
+    // Enqueue entity change event for automation triggers (e.g. Slack, Webhook).
+    // Wrapped in try/catch so a failure here never breaks the main ingestion flow.
+    try {
+      this.enqueueTraceEntityChange({
+        projectId,
+        entityId,
+        finalTraceRecord,
+        action: traceAction as "created" | "updated",
+      });
+    } catch (error) {
+      logger.error(
+        `Failed to build trace entity change event for trace ${entityId} in project ${projectId}`,
+        error,
+      );
+    }
+
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     const traceRecordWithSession = traceRecords
       .slice()
@@ -810,6 +831,155 @@ export class IngestionService {
         name: QueueJobs.TraceUpsert as const,
       });
     }
+  }
+
+  /**
+   * Enqueue a trace entity change event for automation trigger processing.
+   * Converts the ClickHouse record format to TraceDomain and queues
+   * to the EntityChangeQueue for async evaluation against active triggers.
+   */
+  private enqueueTraceEntityChange(params: {
+    projectId: string;
+    entityId: string;
+    finalTraceRecord: TraceRecordInsertType;
+    action: "created" | "updated";
+  }): void {
+    const { projectId, entityId, finalTraceRecord, action } = params;
+
+    const entityChangeQueue = EntityChangeQueue.getInstance();
+    if (!entityChangeQueue) {
+      return;
+    }
+
+    // Convert ClickHouse insert record to TraceDomain for the automation payload
+    const traceDomain = {
+      id: finalTraceRecord.id,
+      name: finalTraceRecord.name ?? null,
+      timestamp: new Date(finalTraceRecord.timestamp),
+      environment: finalTraceRecord.environment,
+      tags: finalTraceRecord.tags,
+      bookmarked: finalTraceRecord.bookmarked,
+      public: finalTraceRecord.public,
+      release: finalTraceRecord.release ?? null,
+      version: finalTraceRecord.version ?? null,
+      input: finalTraceRecord.input ? JSON.parse(finalTraceRecord.input) : null,
+      output: finalTraceRecord.output
+        ? JSON.parse(finalTraceRecord.output)
+        : null,
+      metadata: finalTraceRecord.metadata,
+      createdAt: new Date(finalTraceRecord.created_at),
+      updatedAt: new Date(finalTraceRecord.updated_at),
+      sessionId: finalTraceRecord.session_id ?? null,
+      userId: finalTraceRecord.user_id ?? null,
+      projectId,
+    };
+
+    entityChangeQueue
+      .add(QueueName.EntityChangeQueue, {
+        timestamp: new Date(),
+        id: randomUUID(),
+        name: QueueJobs.EntityChangeJob as QueueJobs.EntityChangeJob,
+        payload: {
+          entityType: "trace" as const,
+          projectId,
+          traceId: entityId,
+          action,
+          trace: traceDomain,
+        },
+      })
+      .catch((error) => {
+        logger.error(
+          `Failed to enqueue trace entity change event for trace ${entityId} in project ${projectId}`,
+          error,
+        );
+      });
+  }
+
+  /**
+   * Enqueue a trace entity change event triggered by an observation-level event.
+   * Builds a minimal trace domain from the observation record without reading
+   * ClickHouse (the trace may not be flushed yet). The observation context
+   * (level, observation ID) is included so automation filters can match on
+   * observation levels.
+   */
+  private enqueueObservationLevelEntityChange(params: {
+    projectId: string;
+    traceId: string;
+    observationId: string;
+    observationLevel: string;
+    observationRecord: ObservationRecordInsertType;
+  }): void {
+    const {
+      projectId,
+      traceId,
+      observationId,
+      observationLevel,
+      observationRecord,
+    } = params;
+
+    const entityChangeQueue = EntityChangeQueue.getInstance();
+    if (!entityChangeQueue) {
+      return;
+    }
+
+    // Build a minimal trace domain from the observation.
+    // Full trace data may not be available yet (ClickHouse hasn't flushed),
+    // so we use what we know from the observation record.
+    const now = new Date();
+    const traceDomain = {
+      id: traceId,
+      name: observationRecord.name ?? null,
+      timestamp: new Date(observationRecord.start_time),
+      environment: observationRecord.environment,
+      tags: [] as string[],
+      bookmarked: false,
+      public: false,
+      release: null,
+      version: observationRecord.version ?? null,
+      input: observationRecord.input
+        ? (() => { try { return JSON.parse(observationRecord.input); } catch { return observationRecord.input; } })()
+        : null,
+      output: observationRecord.output
+        ? (() => { try { return JSON.parse(observationRecord.output); } catch { return observationRecord.output; } })()
+        : null,
+      metadata: {},
+        : null,
+      output: observationRecord.output
+        ? JSON.parse(observationRecord.output)
+        : null,
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+      sessionId: null,
+      userId: null,
+      projectId,
+    };
+
+    entityChangeQueue
+      .add(QueueName.EntityChangeQueue, {
+        timestamp: now,
+        id: randomUUID(),
+        name: QueueJobs.EntityChangeJob as QueueJobs.EntityChangeJob,
+        payload: {
+          entityType: "trace" as const,
+          projectId,
+          traceId,
+          action: "updated",
+          trace: traceDomain,
+          observationLevel: observationLevel as
+            | "DEBUG"
+            | "DEFAULT"
+            | "WARNING"
+            | "ERROR",
+          observationId,
+        },
+      })
+      .catch((error) => {
+        logger.error(
+          `Failed to enqueue observation-level entity change for trace ${traceId} in project ${projectId}`,
+          error,
+        );
+      });
   }
 
   private async processObservationEventList(params: {
@@ -956,6 +1126,29 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    // Trigger automation when an observation with ERROR level is ingested.
+    // This allows users to receive Slack/webhook notifications on error observations.
+    // Wrapped in try/catch so a failure here never breaks the main ingestion flow.
+    if (
+      finalObservationRecord.level === ObservationLevel.ERROR &&
+      finalObservationRecord.trace_id
+    ) {
+      try {
+        this.enqueueObservationLevelEntityChange({
+          projectId,
+          traceId: finalObservationRecord.trace_id,
+          observationId: entityId,
+          observationLevel: finalObservationRecord.level,
+          observationRecord: finalObservationRecord,
+        });
+      } catch (error) {
+        logger.error(
+          `Failed to build observation-level entity change event for trace ${finalObservationRecord.trace_id} in project ${projectId}`,
+          error,
+        );
+      }
+    }
 
     // Dual-write to staging table for batch propagation to events table
     // Here, we add some additional logic around the first seen timestamp.

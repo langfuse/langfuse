@@ -4,13 +4,17 @@ import { z } from "zod/v4";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  Trace = "trace",
 }
 
 export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
 
 export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
-export const TriggerEventSourceSchema = z.enum([TriggerEventSource.Prompt]);
+export const TriggerEventSourceSchema = z.enum([
+  TriggerEventSource.Prompt,
+  TriggerEventSource.Trace,
+]);
 
 export type TriggerDomain = Omit<
   Trigger,
@@ -38,10 +42,12 @@ export type ActionDomainWithSecrets = Omit<Action, "config"> & {
 
 export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK", "GITHUB_DISPATCH"]);
 
-export const AvailableWebhookApiSchema = z.record(
-  z.enum(["prompt"]),
-  z.enum(["v1"]),
-);
+// Each event source key is optional so configs can declare only the
+// versions they support (e.g. { prompt: "v1" } or { trace: "v1" }).
+export const AvailableWebhookApiSchema = z.object({
+  prompt: z.enum(["v1"]).optional(),
+  trace: z.enum(["v1"]).optional(),
+});
 
 export const RequestHeaderSchema = z.object({
   secret: z.boolean(),

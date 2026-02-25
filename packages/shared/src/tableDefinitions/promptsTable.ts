@@ -84,3 +84,62 @@ export function promptsTableColsWithOptions(
 export function webhookActionFilterOptions(): ColumnDefinition[] {
   return promptsTableCols.filter((col) => col.id === "name");
 }
+
+/**
+ * Filter options available for trace-based automation triggers.
+ * Includes trace fields available at ingestion time and observation-level
+ * context (e.g. observation level) populated when an observation triggers the event.
+ */
+export function traceAutomationFilterOptions(): ColumnDefinition[] {
+  return [
+    {
+      name: "Observation Level",
+      id: "level",
+      type: "stringOptions",
+      internal: '"level"',
+      options: [
+        { value: "DEBUG" },
+        { value: "DEFAULT" },
+        { value: "WARNING" },
+        { value: "ERROR" },
+      ],
+    },
+    {
+      name: "Name",
+      id: "name",
+      type: "string",
+      internal: 't."name"',
+    },
+    {
+      name: "Tags",
+      id: "tags",
+      type: "arrayOptions",
+      internal: 't."tags"',
+      options: [], // evaluated at runtime via InMemoryFilterService
+    },
+    {
+      name: "Environment",
+      id: "environment",
+      type: "string",
+      internal: 't."environment"',
+    },
+    {
+      name: "User ID",
+      id: "userId",
+      type: "string",
+      internal: 't."user_id"',
+    },
+    {
+      name: "Release",
+      id: "release",
+      type: "string",
+      internal: 't."release"',
+    },
+    {
+      name: "Version",
+      id: "version",
+      type: "string",
+      internal: 't."version"',
+    },
+  ];
+}

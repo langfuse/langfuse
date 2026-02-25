@@ -4,6 +4,7 @@ import {
   type EntityChangeEventType,
 } from "@langfuse/shared/src/server";
 import { promptVersionProcessor } from "./promptVersionProcessor";
+import { traceProcessor } from "./traceProcessor";
 
 /**
  * Generic entity change worker that delegates to specific entity handlers
@@ -24,13 +25,14 @@ export const entityChangeWorker = async (
     if (span) {
       span.setAttribute("entityType", event.entityType);
       span.setAttribute("projectId", event.projectId);
-      span.setAttribute("promptId", event.promptId);
       span.setAttribute("action", event.action);
     }
 
     switch (event.entityType) {
       case "prompt-version":
         return await promptVersionProcessor(event);
+      case "trace":
+        return await traceProcessor(event);
       default:
         throw new Error(
           `Unsupported entity type: ${(event as any).entityType}`,
