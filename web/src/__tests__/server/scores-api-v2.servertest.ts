@@ -219,11 +219,13 @@ describe("/api/public/v2/scores API Endpoint", () => {
       const correctionScoreId_2 = v4();
       let authentication: string;
       let newProjectId: string;
+      let executionTraceId: string;
 
       beforeEach(async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
         authentication = auth;
         newProjectId = projectId;
+        executionTraceId = v4();
 
         const trace = createTrace({
           id: traceId,
@@ -278,6 +280,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           observation_id: generationId,
           config_id: config.id,
           comment: "comment",
+          execution_trace_id: executionTraceId,
         });
 
         const score2 = createTraceScore({
@@ -432,6 +435,13 @@ describe("/api/public/v2/scores API Endpoint", () => {
             ).toBeTruthy();
           }
         }
+
+        const scoreWithExecutionTraceId = getAllScore.body.data.find(
+          (score) => score.id === scoreId_1,
+        );
+        expect(scoreWithExecutionTraceId?.executionTraceId).toBe(
+          executionTraceId,
+        );
       });
 
       it("get all scores for config", async () => {
