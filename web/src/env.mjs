@@ -240,6 +240,9 @@ export const env = createEnv({
     CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
       .number()
       .default(32_000_000_000), // ~32GB
+    CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
+      .enum(["true", "false"])
+      .default("false"),
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
@@ -650,6 +653,8 @@ export const env = createEnv({
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
     CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY:
       process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+    CLICKHOUSE_USE_QUERY_CONDITION_CACHE:
+      process.env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
