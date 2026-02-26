@@ -365,7 +365,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       accessorKey: "actions",
       header: "Actions",
       size: 70,
-      cell: ({ row }) => {
+      cell: () => {
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
