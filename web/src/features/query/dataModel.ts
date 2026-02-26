@@ -176,6 +176,10 @@ export const eventsTracesView: ViewDeclarationType = {
       // First try most-recent non-empty trace_name, then fall back to root event's name
       aggregationFunction:
         "COALESCE(nullIf(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), ''), argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = '' AND events_traces.name <> ''))",
+      // having defaults to aggregationFunction above
+      filterSql: {
+        where: ["events_traces.trace_name", "events_traces.name"],
+      },
     },
     tags: {
       sql: "events_traces.tags",

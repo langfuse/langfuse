@@ -21,6 +21,16 @@ export const viewDeclaration = z.object({
       type: z.string().optional(),
       unit: z.string().optional(),
       aggregationFunction: z.string().optional(),
+      // Override for filter generation when the dimension uses complex SQL/aggregation.
+      // - where: column expressions OR'd together for pre-aggregation row pruning
+      // - having: aggregate expression applied after GROUP BY for exact match;
+      //   defaults to aggregationFunction when omitted
+      filterSql: z
+        .object({
+          where: z.array(z.string()),
+          having: z.string().optional(),
+        })
+        .optional(),
       highCardinality: z.boolean().optional(),
       explodeArray: z.boolean().optional(),
       pairExpand: z
