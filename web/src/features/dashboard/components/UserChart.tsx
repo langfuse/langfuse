@@ -78,8 +78,7 @@ export const UserChart = ({
     },
   );
 
-  const isV2 = metricsVersion === "v2";
-  const countField = isV2 ? "uniq_traceId" : "count_count";
+  const countField = "count_count";
 
   const traceCountQuery: QueryType = {
     ...traceViewQuery({ metricsVersion, globalFilterState }),

@@ -174,7 +174,7 @@ export const eventsTracesView: ViewDeclarationType = {
       description:
         "Name assigned to the trace (often the endpoint or operation).",
       aggregationFunction:
-        "argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> '')",
+        "coalesce(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), nullIf(argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = ''), ''))",
     },
     tags: {
       sql: "events_traces.tags",

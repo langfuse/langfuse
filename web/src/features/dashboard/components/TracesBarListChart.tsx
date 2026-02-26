@@ -30,9 +30,8 @@ export const TracesBarListChart = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const isV2 = metricsVersion === "v2";
-  const traceNameField = isV2 ? "traceName" : "name";
-  const countField = isV2 ? "uniq_traceId" : "count_count";
+  const traceNameField = "name";
+  const countField = "count_count";
 
   // Total traces query using executeQuery
   const totalTracesQuery: QueryType = {
