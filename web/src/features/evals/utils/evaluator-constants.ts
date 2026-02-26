@@ -54,3 +54,30 @@ export const DEFAULT_TRACE_FILTER = [
     type: "stringOptions" as const,
   },
 ];
+
+// Default filter for new observation evaluators - restricts to GENERATION type
+// to prevent evaluators from running on every observation by default
+export const DEFAULT_OBSERVATION_FILTER = [
+  {
+    column: "type",
+    operator: "any of" as const,
+    value: ["GENERATION"],
+    type: "stringOptions" as const,
+  },
+  {
+    column: "environment",
+    operator: "none of" as const,
+    value: [...INTERNAL_ENVIRONMENTS],
+    type: "stringOptions" as const,
+  },
+];
+
+// Default filter when remapping an evaluator from trace-level to observation-level
+export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING = [
+  {
+    column: "parentObservationId",
+    operator: "is null" as const,
+    value: "",
+    type: "null" as const,
+  },
+];

@@ -1,13 +1,17 @@
 import { Decimal } from "decimal.js";
-import { type EvalTemplate, EvalTargetObject } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  EvalTargetObject,
+  JobConfigState,
+} from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
 import { createDefaultVariableMappings } from "@/src/features/experiments/utils/evaluatorMappingUtils";
-import { useObservationEvals } from "@/src/features/events/hooks/useObservationEvals";
 
 export const CONFIG_BASE = {
   sampling: new Decimal(1),
   delay: 30000,
   timeScope: ["NEW"],
+  status: JobConfigState.ACTIVE,
 };
 
 export function useEvaluatorDefaults() {
@@ -18,7 +22,6 @@ export function useEvaluatorDefaults() {
    * @param scoreName - Optional custom score name (defaults to template name)
    * @returns The configured evaluator with defaults
    */
-  const isBetaEnabled = useObservationEvals();
 
   const createDefaultEvaluator = (
     template: EvalTemplate,
@@ -31,9 +34,7 @@ export function useEvaluatorDefaults() {
     // Return the configured evaluator for dataset target
     return {
       ...CONFIG_BASE,
-      targetObject: isBetaEnabled
-        ? EvalTargetObject.EXPERIMENT
-        : EvalTargetObject.DATASET,
+      targetObject: EvalTargetObject.EXPERIMENT,
       evalTemplate: template,
       scoreName: scoreName || template.name,
       variableMapping: variableMappings,
@@ -43,7 +44,7 @@ export function useEvaluatorDefaults() {
           value: [datasetId],
           // Use the column id (not display name) for EXPERIMENT target
           // This maps to observation.experimentDatasetId in the filter service
-          column: isBetaEnabled ? "experimentDatasetId" : "Dataset",
+          column: "experimentDatasetId",
           operator: "any of",
         },
       ],

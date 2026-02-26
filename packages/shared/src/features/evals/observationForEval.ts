@@ -6,7 +6,10 @@ import { SingleValueOption } from "../../tableDefinitions";
 import { ColumnDefinition } from "../../tableDefinitions";
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 
-const flexibleUsageCostSchema = z.record(z.string(), z.number().nullable());
+const flexibleUsageCostSchema = z.record(
+  z.string(),
+  z.coerce.number().nullable(),
+);
 
 export const observationForEvalSchema = z.object({
   // Identifiers
@@ -89,6 +92,7 @@ export type ObservationEvalFilterColumnInternal =
     | "tags"
     | "experiment_dataset_id"
     | "metadata"
+    | "parent_span_id"
   >;
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<
@@ -269,6 +273,13 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     id: "metadata",
     type: "stringObject",
     internal: "metadata",
+  },
+  {
+    name: "Parent Observation",
+    id: "parentObservationId",
+    type: "null",
+    internal: "parent_span_id",
+    nullable: true,
   },
 ];
 

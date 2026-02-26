@@ -722,7 +722,7 @@ export const eventRecordBaseSchema = z.object({
 export type EventRecordBaseType = z.infer<typeof eventRecordBaseSchema>;
 
 export const eventRecordReadSchema = eventRecordBaseSchema.extend({
-  metadata_prefixes: z.array(z.string()).default([]),
+  metadata_values: z.array(z.string()).default([]),
   metadata_hashes: z.array(z.number().int()).default([]),
   metadata_long_values: z.record(z.number().int(), z.string()).default({}),
   total_cost: z.number().nullish(),

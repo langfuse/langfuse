@@ -33,7 +33,7 @@ import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
 import type Decimal from "decimal.js";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { NumberParam, useQueryParams, withDefault } from "use-query-params";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -152,9 +152,9 @@ export default function SessionsTable({
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "sessions");
 
-  const [paginationState, setPaginationState] = useQueryParams({
-    pageIndex: withDefault(NumberParam, 0),
-    pageSize: withDefault(NumberParam, 50),
+  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
+    page: "pageIndex",
+    limit: "pageSize",
   });
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("sessions", "s");
@@ -340,6 +340,7 @@ export default function SessionsTable({
     {
       projectId,
       sessionIds: sessionsV4.data?.sessions.map((s) => s.id) ?? [],
+      queryFromTimestamp: dateRange?.from ?? null,
     },
     {
       enabled: sessionsV4.data !== undefined && isBetaEnabled,
@@ -352,10 +353,14 @@ export default function SessionsTable({
   type SessionCoreOutput = RouterOutput["sessions"]["all"]["sessions"][number];
   type SessionMetricOutput = RouterOutput["sessions"]["metrics"][number];
 
-  const sessionRowData = joinTableCoreAndMetrics<
-    SessionCoreOutput,
-    SessionMetricOutput
-  >(sessions.data?.sessions, sessionMetrics.data);
+  const sessionRowData = useMemo(
+    () =>
+      joinTableCoreAndMetrics<SessionCoreOutput, SessionMetricOutput>(
+        sessions.data?.sessions,
+        sessionMetrics.data,
+      ),
+    [sessions.data?.sessions, sessionMetrics.data],
+  );
 
   const totalCount = sessionCountQuery.data?.totalCount ?? null;
   useEffect(() => {
@@ -750,7 +755,7 @@ export default function SessionsTable({
   });
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider tableName={sessionFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar

@@ -38,8 +38,6 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     );
   }
 
-  const autoSaveId = tableName ? `filter-layout-${tableName}` : "filter-layout";
-
   return (
     <ResizableDesktopLayout
       mainContent={
@@ -53,8 +51,8 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
       defaultSidebarSize={filterDefault}
       minMainSize={50}
       maxSidebarSize={50}
-      autoSaveId={autoSaveId}
       sidebarPosition="left"
+      persistId={tableName ? `filter-layout-${tableName}` : "filter-layout"}
     />
   );
 }

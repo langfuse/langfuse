@@ -136,6 +136,13 @@ export const BlobStorageExportMode = {
 } as const;
 export type BlobStorageExportMode =
   (typeof BlobStorageExportMode)[keyof typeof BlobStorageExportMode];
+export const AnalyticsIntegrationExportSource = {
+  TRACES_OBSERVATIONS: "TRACES_OBSERVATIONS",
+  TRACES_OBSERVATIONS_EVENTS: "TRACES_OBSERVATIONS_EVENTS",
+  EVENTS: "EVENTS",
+} as const;
+export type AnalyticsIntegrationExportSource =
+  (typeof AnalyticsIntegrationExportSource)[keyof typeof AnalyticsIntegrationExportSource];
 export const DashboardWidgetViews = {
   TRACES: "TRACES",
   OBSERVATIONS: "OBSERVATIONS",
@@ -360,6 +367,7 @@ export type BlobStorageIntegration = {
   file_type: Generated<BlobStorageIntegrationFileType>;
   export_mode: Generated<BlobStorageExportMode>;
   export_start_date: Timestamp | null;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 };
@@ -427,6 +435,7 @@ export type DashboardWidget = {
   filters: unknown;
   chart_type: DashboardWidgetChartType;
   chart_config: unknown;
+  min_version: Generated<number>;
 };
 export type Dataset = {
   id: string;
@@ -487,6 +496,15 @@ export type DefaultLlmModel = {
   adapter: string;
   model: string;
   model_params: unknown | null;
+};
+export type DefaultView = {
+  id: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  project_id: string;
+  user_id: string | null;
+  view_name: string;
+  view_id: string;
 };
 export type EvalTemplate = {
   id: string;
@@ -675,6 +693,7 @@ export type MixpanelIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Model = {
   id: string;
@@ -748,6 +767,7 @@ export type PosthogIntegration = {
   last_sync_at: Timestamp | null;
   enabled: boolean;
   created_at: Generated<Timestamp>;
+  export_source: Generated<AnalyticsIntegrationExportSource>;
 };
 export type Price = {
   id: string;
@@ -953,6 +973,7 @@ export type DB = {
   dataset_runs: DatasetRuns;
   datasets: Dataset;
   default_llm_models: DefaultLlmModel;
+  default_views: DefaultView;
   eval_templates: EvalTemplate;
   job_configurations: JobConfiguration;
   job_executions: JobExecution;
