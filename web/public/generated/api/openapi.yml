@@ -2669,11 +2669,10 @@ paths:
             nullable: true
         - name: parseIoAsJson
           in: query
-          description: >-
-            Set to `true` to parse input/output fields as JSON, or `false` to
-            return raw strings.
-
-            Defaults to `false` if not provided.
+          description: |-
+            **Deprecated.** Setting this to `true` will return a 400 error.
+            Input/output fields are always returned as raw strings.
+            Remove this parameter or set it to `false`.
           required: false
           schema:
             type: boolean
@@ -5235,9 +5234,9 @@ paths:
           description: >-
             Comma-separated list of field groups to include in the response.
             Available field groups: 'score' (core score fields), 'trace' (trace
-            properties: userId, tags, environment). If not specified, both
-            'score' and 'trace' are returned by default. Example: 'score' to
-            exclude trace data, 'score,trace' to include both. Note: When
+            properties: userId, tags, environment, sessionId). If not specified,
+            both 'score' and 'trace' are returned by default. Example: 'score'
+            to exclude trace data, 'score,trace' to include both. Note: When
             filtering by trace properties (using userId or traceTags
             parameters), the 'trace' field group must be included, otherwise a
             400 error will be returned.
@@ -10405,6 +10404,10 @@ components:
           type: string
           nullable: true
           description: The environment of the trace referenced by score
+        sessionId:
+          type: string
+          nullable: true
+          description: The session ID associated with the trace referenced by score
     GetScoresResponseDataNumeric:
       title: GetScoresResponseDataNumeric
       type: object

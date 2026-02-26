@@ -25,6 +25,7 @@ import {
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 
 interface WidgetPlacement {
   id: string;
@@ -206,28 +207,15 @@ export default function DashboardDetail() {
     },
   );
 
-  const environmentFilterOptions =
-    api.projects.environmentFilterOptions.useQuery(
-      {
-        projectId,
-        fromTimestamp: absoluteTimeRange?.from,
-      },
-      {
-        trpc: {
-          context: {
-            skipBatch: true,
-          },
-        },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
-    );
-  const environmentOptions =
-    environmentFilterOptions.data?.map((value) => ({
-      value: value.environment,
-    })) || [];
+  const environmentOptionsState = useEnvironmentFilterOptionsCache({
+    projectId,
+    timeRange,
+  });
+  const environmentOptions = environmentOptionsState.environmentOptions.map(
+    (value) => ({
+      value,
+    }),
+  );
   const nameOptions = traceFilterOptions.data?.name || [];
   const tagsOptions = traceFilterOptions.data?.tags || [];
 

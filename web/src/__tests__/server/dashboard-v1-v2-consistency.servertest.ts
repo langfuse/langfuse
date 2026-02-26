@@ -1473,6 +1473,369 @@ describe("dashboard v1 vs v2 consistency", () => {
     });
   });
 
+  // ─── v2 empty trace_name fallback to root event name ─────────────────
+
+  maybe("v2 empty trace_name fallback to root event name", () => {
+    let fallbackProjectId: string;
+    let fallbackFromTimestamp: string;
+    let fallbackToTimestamp: string;
+    // Trace IDs for targeted assertions
+    let emptyTraceNameTraceId: string;
+    let populatedTraceNameTraceId: string;
+
+    beforeAll(async () => {
+      const org = await createOrgProjectAndApiKey();
+      fallbackProjectId = org.projectId;
+
+      const baseTime = new Date("2024-06-15T12:00:00Z").getTime();
+      // events_core uses DateTime64(6) — timestamps in microseconds
+      const baseTimeUs = baseTime * 1000;
+
+      // ── Trace 1: empty trace_name, root event name = "FallbackTraceName" ──
+      emptyTraceNameTraceId = v4();
+      const childObsId = v4();
+
+      const rootEventEmpty = createEvent({
+        id: `t-${emptyTraceNameTraceId}`,
+        span_id: `t-${emptyTraceNameTraceId}`,
+        trace_id: emptyTraceNameTraceId,
+        project_id: fallbackProjectId,
+        parent_span_id: "",
+        name: "FallbackTraceName",
+        type: "SPAN",
+        environment: "default",
+        trace_name: "",
+        user_id: "",
+        session_id: null,
+        tags: [],
+        release: null,
+        version: null,
+        public: false,
+        bookmarked: false,
+        input: null,
+        output: null,
+        metadata: {},
+        start_time: baseTimeUs,
+        end_time: null,
+        cost_details: {},
+        provided_cost_details: {},
+        usage_details: {},
+        provided_usage_details: {},
+        created_at: baseTimeUs,
+        updated_at: baseTimeUs,
+        event_ts: baseTimeUs,
+      });
+
+      const childEventEmpty = createEvent({
+        id: childObsId,
+        span_id: childObsId,
+        trace_id: emptyTraceNameTraceId,
+        project_id: fallbackProjectId,
+        parent_span_id: `t-${emptyTraceNameTraceId}`,
+        name: "ChildObservationName",
+        type: "GENERATION",
+        environment: "default",
+        trace_name: "",
+        user_id: "",
+        session_id: null,
+        tags: [],
+        release: null,
+        version: null,
+        level: "DEFAULT",
+        status_message: null,
+        provided_model_name: "gpt-4o-mini-2024-07-18",
+        model_parameters: "{}",
+        input: null,
+        output: null,
+        metadata: {},
+        provided_usage_details: {},
+        usage_details: {},
+        provided_cost_details: {},
+        cost_details: {},
+        prompt_id: null,
+        prompt_name: null,
+        prompt_version: null,
+        start_time: baseTimeUs + 100_000,
+        end_time: baseTimeUs + 500_000,
+        completion_start_time: null,
+        created_at: baseTimeUs + 100_000,
+        updated_at: baseTimeUs + 500_000,
+        event_ts: baseTimeUs + 500_000,
+      });
+
+      // ── Trace 2: populated trace_name (happy path) ──
+      populatedTraceNameTraceId = v4();
+      const childObsId2 = v4();
+
+      const rootEventPopulated = createEvent({
+        id: `t-${populatedTraceNameTraceId}`,
+        span_id: `t-${populatedTraceNameTraceId}`,
+        trace_id: populatedTraceNameTraceId,
+        project_id: fallbackProjectId,
+        parent_span_id: "",
+        name: "PopulatedTraceName",
+        type: "SPAN",
+        environment: "default",
+        trace_name: "PopulatedTraceName",
+        user_id: "",
+        session_id: null,
+        tags: [],
+        release: null,
+        version: null,
+        public: false,
+        bookmarked: false,
+        input: null,
+        output: null,
+        metadata: {},
+        start_time: baseTimeUs + 1_000_000,
+        end_time: null,
+        cost_details: {},
+        provided_cost_details: {},
+        usage_details: {},
+        provided_usage_details: {},
+        created_at: baseTimeUs + 1_000_000,
+        updated_at: baseTimeUs + 1_000_000,
+        event_ts: baseTimeUs + 1_000_000,
+      });
+
+      const childEventPopulated = createEvent({
+        id: childObsId2,
+        span_id: childObsId2,
+        trace_id: populatedTraceNameTraceId,
+        project_id: fallbackProjectId,
+        parent_span_id: `t-${populatedTraceNameTraceId}`,
+        name: "SomeObservation",
+        type: "GENERATION",
+        environment: "default",
+        trace_name: "PopulatedTraceName",
+        user_id: "",
+        session_id: null,
+        tags: [],
+        release: null,
+        version: null,
+        level: "DEFAULT",
+        status_message: null,
+        provided_model_name: "gpt-4o-mini-2024-07-18",
+        model_parameters: "{}",
+        input: null,
+        output: null,
+        metadata: {},
+        provided_usage_details: {},
+        usage_details: {},
+        provided_cost_details: {},
+        cost_details: {},
+        prompt_id: null,
+        prompt_name: null,
+        prompt_version: null,
+        start_time: baseTimeUs + 1_100_000,
+        end_time: baseTimeUs + 1_500_000,
+        completion_start_time: null,
+        created_at: baseTimeUs + 1_100_000,
+        updated_at: baseTimeUs + 1_500_000,
+        event_ts: baseTimeUs + 1_500_000,
+      });
+
+      // ── Scores for both traces (for scores view test) ──
+      const scoreTs = baseTime + 200;
+      const scoreEmpty = createTraceScore({
+        project_id: fallbackProjectId,
+        trace_id: emptyTraceNameTraceId,
+        name: "fb-score",
+        source: "API",
+        data_type: "NUMERIC",
+        value: 0.8,
+        string_value: null,
+        timestamp: scoreTs,
+        environment: "default",
+        created_at: scoreTs,
+        updated_at: scoreTs,
+        event_ts: scoreTs,
+      });
+      const scorePopulated = createTraceScore({
+        project_id: fallbackProjectId,
+        trace_id: populatedTraceNameTraceId,
+        name: "fb-score",
+        source: "API",
+        data_type: "NUMERIC",
+        value: 0.9,
+        string_value: null,
+        timestamp: scoreTs + 100,
+        environment: "default",
+        created_at: scoreTs + 100,
+        updated_at: scoreTs + 100,
+        event_ts: scoreTs + 100,
+      });
+
+      await Promise.all([
+        createEventsCh([
+          rootEventEmpty,
+          childEventEmpty,
+          rootEventPopulated,
+          childEventPopulated,
+        ]),
+        createScoresCh([scoreEmpty, scorePopulated]),
+      ]);
+
+      fallbackFromTimestamp = new Date(
+        baseTime - 24 * 60 * 60 * 1000,
+      ).toISOString();
+      fallbackToTimestamp = new Date(baseTime + 60 * 60 * 1000).toISOString();
+    });
+
+    it("traces view: aggregationFunction resolves name via COALESCE fallback", async () => {
+      // This query uses dimensions: [{ field: "name" }] which triggers the
+      // aggregationFunction path (inner GROUP BY per trace_id, then outer GROUP BY name).
+      const result = await executeQuery(
+        fallbackProjectId,
+        {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fallbackFromTimestamp,
+          toTimestamp: fallbackToTimestamp,
+        },
+        "v2",
+        true,
+      );
+
+      const nameMap = new Map(
+        result.map((r) => [r.name as string, Number(r.count_count)]),
+      );
+      // Trace with empty trace_name should resolve via root event's name
+      expect(nameMap.get("FallbackTraceName")).toBe(1);
+      // Trace with populated trace_name should resolve normally
+      expect(nameMap.get("PopulatedTraceName")).toBe(1);
+      // Child observation name should never appear as a trace name
+      expect(nameMap.has("ChildObservationName")).toBe(false);
+    });
+
+    it("observations view: traceName resolves from root event, child events get NULL", async () => {
+      // Without filter: both root (resolved traceName) and child (NULL traceName) appear
+      const allResult = await executeQuery(
+        fallbackProjectId,
+        {
+          view: "observations",
+          dimensions: [{ field: "traceName" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: fallbackFromTimestamp,
+          toTimestamp: fallbackToTimestamp,
+        },
+        "v2",
+        true,
+      );
+
+      const allNames = allResult.map((r) => r.traceName);
+      expect(allNames).toContain("FallbackTraceName");
+      expect(allNames).toContain("PopulatedTraceName");
+      // Child observation name must never leak as traceName
+      expect(allNames).not.toContain("ChildObservationName");
+      expect(allNames).not.toContain("SomeObservation");
+
+      // With IS NOT NULL filter: only resolved traceNames appear
+      const filteredResult = await executeQuery(
+        fallbackProjectId,
+        {
+          view: "observations",
+          dimensions: [{ field: "traceName" }],
+          metrics: [{ measure: "traceId", aggregation: "uniq" }],
+          timeDimension: null,
+          filters: [
+            {
+              type: "null" as const,
+              column: "traceName",
+              operator: "is not null" as const,
+              value: "" as const,
+            },
+          ],
+          orderBy: null,
+          fromTimestamp: fallbackFromTimestamp,
+          toTimestamp: fallbackToTimestamp,
+        },
+        "v2",
+        true,
+      );
+
+      const nameMap = new Map(
+        filteredResult.map((r) => [
+          r.traceName as string,
+          Number(r.uniq_traceId),
+        ]),
+      );
+      expect(nameMap.get("FallbackTraceName")).toBe(1);
+      expect(nameMap.get("PopulatedTraceName")).toBe(1);
+    });
+
+    it("scores view: traceName resolves via COALESCE on joined root events", async () => {
+      const result = await executeQuery(
+        fallbackProjectId,
+        {
+          view: "scores-numeric",
+          dimensions: [{ field: "traceName" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [
+            {
+              type: "null" as const,
+              column: "traceName",
+              operator: "is not null" as const,
+              value: "" as const,
+            },
+          ],
+          orderBy: null,
+          fromTimestamp: fallbackFromTimestamp,
+          toTimestamp: fallbackToTimestamp,
+        },
+        "v2",
+        true,
+      );
+
+      const nameMap = new Map(
+        result.map((r) => [r.traceName as string, Number(r.count_count)]),
+      );
+      // Score on trace with empty trace_name should resolve via root event name
+      expect(nameMap.get("FallbackTraceName")).toBe(1);
+      // Score on trace with populated trace_name should resolve normally
+      expect(nameMap.get("PopulatedTraceName")).toBe(1);
+      // Child observation name should never appear
+      expect(nameMap.has("ChildObservationName")).toBe(false);
+    });
+
+    it("happy path: populated trace_name is used directly (COALESCE is no-op)", async () => {
+      const result = await executeQuery(
+        fallbackProjectId,
+        {
+          view: "traces",
+          dimensions: [{ field: "name" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [
+            {
+              type: "string" as const,
+              column: "name",
+              operator: "=" as const,
+              value: "PopulatedTraceName",
+            },
+          ],
+          orderBy: null,
+          fromTimestamp: fallbackFromTimestamp,
+          toTimestamp: fallbackToTimestamp,
+        },
+        "v2",
+        true,
+      );
+
+      expect(result.length).toBe(1);
+      expect(result[0].name).toBe("PopulatedTraceName");
+      expect(Number(result[0].count_count)).toBe(1);
+    });
+  });
+
   // ─── v2 traces optimization: uniq(trace_id) on observations view ──────
 
   maybe("v2 traces optimization: uniq(trace_id) on observations view", () => {
