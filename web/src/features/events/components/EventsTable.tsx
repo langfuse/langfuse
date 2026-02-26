@@ -1154,7 +1154,7 @@ export default function ObservationsEventsTable({
               startTime: observation.startTime,
               endTime: observation.endTime ?? undefined,
               timeToFirstToken: observation.timeToFirstToken ?? undefined,
-              scores: {}, // TODO: scores not included in FullObservation type
+              scores: observation.scores ?? {},
               latency: observation.latency ?? undefined,
               totalCost: observation.totalCost ?? undefined,
               cost: {
