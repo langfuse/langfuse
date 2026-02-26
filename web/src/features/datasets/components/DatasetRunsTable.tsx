@@ -27,6 +27,8 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { BatchExportTableName } from "@langfuse/shared";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
@@ -594,6 +596,23 @@ export function DatasetRunsTable(props: {
     columns,
   );
 
+  const batchExportButton = (
+    <BatchExportTableButton
+      key="batchExport"
+      projectId={props.projectId}
+      tableName={BatchExportTableName.DatasetRunItems}
+      orderByState={{ column: "createdAt", order: "DESC" }}
+      filterState={[
+        {
+          type: "string",
+          operator: "=",
+          column: "datasetId",
+          value: props.datasetId,
+        },
+      ]}
+    />
+  );
+
   // Check if we have charts to display
   const hasCharts = Boolean(props.selectedMetrics.length);
 
@@ -741,6 +760,7 @@ export function DatasetRunsTable(props: {
                     setRowSelection={setSelectedRows}
                   />
                 ) : null,
+                batchExportButton,
               ]}
             />
             <DataTable
@@ -805,6 +825,7 @@ export function DatasetRunsTable(props: {
                   setRowSelection={setSelectedRows}
                 />
               ) : null,
+              batchExportButton,
             ]}
           />
           <DataTable
