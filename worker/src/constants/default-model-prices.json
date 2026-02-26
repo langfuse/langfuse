@@ -2565,7 +2565,7 @@
   {
     "id": "c5qmrqolku82tra3vgdixmys",
     "modelName": "claude-sonnet-4-5-20250929",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|global\\.anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?|anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
     "updatedAt": "2026-02-23T00:00:00.000Z",
     "tokenizerId": "claude",
@@ -2620,7 +2620,7 @@
   {
     "id": "cris-claude-sonnet-4-5-20250929",
     "modelName": "claude-sonnet-4-5-20250929-cris",
-    "matchPattern": "(?i)^(eu\\.|us\\.|apac\\.|global\\.)anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?$",
+    "matchPattern": "(?i)^(eu\\.|us\\.|apac\\.)anthropic\\.claude-sonnet-4-5(-20250929)?-v1(:0)?$",
     "createdAt": "2026-02-26T00:00:00.000Z",
     "updatedAt": "2026-02-26T00:00:00.000Z",
     "tokenizerId": "claude",
@@ -3209,7 +3209,7 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5-20251001|global\\.anthropic\\.claude-haiku-4-5-20251001-v1:0|anthropic\\.claude-haiku-4-5-20251001-v1:0|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
     "updatedAt": "2025-12-12T15:00:06.513Z",
     "tokenizerId": "claude",
@@ -3238,7 +3238,7 @@
   {
     "id": "cris-claude-haiku-4-5-20251001",
     "modelName": "claude-haiku-4-5-20251001-cris",
-    "matchPattern": "(?i)^(eu\\.|us\\.|apac\\.|global\\.)anthropic\\.claude-haiku-4-5-20251001-v1:0$",
+    "matchPattern": "(?i)^(eu\\.|us\\.|apac\\.)anthropic\\.claude-haiku-4-5-20251001-v1:0$",
     "createdAt": "2026-02-26T00:00:00.000Z",
     "updatedAt": "2026-02-26T00:00:00.000Z",
     "tokenizerId": "claude",
