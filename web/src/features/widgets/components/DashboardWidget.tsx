@@ -55,7 +55,6 @@ export function DashboardWidget({
   const router = useRouter();
   const utils = api.useUtils();
   const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -65,6 +64,10 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
+  // If widget requires v2 features (minVersion >= 2), must use v2.
+  // Otherwise follow the beta toggle.
+  const metricsVersion: ViewVersion =
+    (widget.data?.minVersion ?? 1) >= 2 || isBetaEnabled ? "v2" : "v1";
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";

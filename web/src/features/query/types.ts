@@ -110,6 +110,24 @@ export const metricAggregations = z.enum([
   "uniq",
 ]);
 
+/**
+ * Returns the subset of aggregations that are valid for a given measure type.
+ * Whitelists known numeric types; unknown or missing types default to the
+ * restrictive count/uniq set to surface missing type annotations early.
+ */
+export function getValidAggregationsForMeasureType(
+  measureType: string | undefined,
+): z.infer<typeof metricAggregations>[] {
+  if (
+    measureType === "integer" ||
+    measureType === "decimal" ||
+    measureType === "number"
+  ) {
+    return [...metricAggregations.options];
+  }
+  return ["count", "uniq"];
+}
+
 export const metric = z.object({
   measure: z.string(),
   aggregation: metricAggregations,
