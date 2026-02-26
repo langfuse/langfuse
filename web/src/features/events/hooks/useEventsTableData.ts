@@ -184,11 +184,14 @@ export function useEventsTableData({
     projectId: string;
     targetId: string;
   }) => {
+    const visibleObservationIds = new Set(
+      (observations.data?.observations ?? [])
+        .map((observation) => observation.id)
+        .filter((id): id is string => Boolean(id)),
+    );
+
     const selectedObservationIds = Object.keys(selectedRows).filter(
-      (observationId) =>
-        (observations.data?.observations ?? [])
-          .map((o) => o.id)
-          .includes(observationId),
+      (observationId) => visibleObservationIds.has(observationId),
     );
 
     await addToQueueMutation.mutateAsync({
