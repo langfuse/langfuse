@@ -11,18 +11,18 @@ import {
 } from "@/src/features/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
-type GetAllModelsOptions = {
+type UseAllModelsOptions = {
   enabled?: boolean;
   queryId: string;
 };
 
-export const getAllModels = (
+export const useAllModels = (
   projectId: string,
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
   metricsVersion?: ViewVersion,
-  options?: GetAllModelsOptions,
+  options?: UseAllModelsOptions,
 ) => {
   const allModels = useScheduledDashboardExecuteQuery(
     {
