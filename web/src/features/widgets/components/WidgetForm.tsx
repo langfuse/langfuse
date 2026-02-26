@@ -302,6 +302,10 @@ export function WidgetForm({
 
   // When beta is toggled on while "traces" is selected (and not editing an
   // existing widget), auto-switch to "observations" and reset dependent fields.
+  // Only `isBetaEnabled` is in the dep array intentionally: we want this effect
+  // to fire only when the beta toggle changes, reading the current selectedView
+  // and isExistingWidget at that moment. isExistingWidget is stable (derived
+  // from widgetId prop), and re-running on selectedView changes is unnecessary.
   useEffect(() => {
     if (isBetaEnabled && selectedView === "traces" && !isExistingWidget) {
       setSelectedView("observations");
