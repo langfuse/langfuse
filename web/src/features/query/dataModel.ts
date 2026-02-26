@@ -1336,3 +1336,32 @@ export function getViewDeclaration(
 
   return versionViews[viewName as keyof typeof versionViews];
 }
+
+/**
+ * Check whether a widget's selected fields require v2 view declarations.
+ * Returns true if any dimension or measure only exists in the v2 declaration
+ * for the given view (e.g. pairExpand dimensions, requiresDimension measures).
+ */
+export function requiresV2(params: {
+  view: string;
+  dimensions: { field: string }[];
+  measures: { measure: string }[];
+}): boolean {
+  const v1View =
+    viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
+  const v2View =
+    viewDeclarations.v2[params.view as keyof (typeof viewDeclarations)["v2"]];
+  if (!v1View || !v2View) return false;
+
+  const v2OnlyDims = Object.keys(v2View.dimensions).filter(
+    (k) => !(k in v1View.dimensions),
+  );
+  const v2OnlyMeasures = Object.keys(v2View.measures).filter(
+    (k) => !(k in v1View.measures),
+  );
+
+  return (
+    params.dimensions.some((d) => v2OnlyDims.includes(d.field)) ||
+    params.measures.some((m) => v2OnlyMeasures.includes(m.measure))
+  );
+}
