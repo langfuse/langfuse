@@ -9258,6 +9258,165 @@ components:
       required:
         - modelName
         - matchPattern
+    ObservationV2:
+      title: ObservationV2
+      type: object
+      description: >-
+        An observation from the v2 API with field-group-based selection.
+
+        Core fields are always present. Other fields are included only when
+        their field group is requested.
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the observation
+        traceId:
+          type: string
+          nullable: true
+          description: The trace ID associated with the observation
+        startTime:
+          type: string
+          format: date-time
+          description: The start time of the observation
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: The end time of the observation
+        projectId:
+          type: string
+          description: The project ID this observation belongs to
+        parentObservationId:
+          type: string
+          nullable: true
+          description: The parent observation ID
+        type:
+          type: string
+          description: The type of the observation (e.g. GENERATION, SPAN, EVENT)
+        name:
+          type: string
+          nullable: true
+          description: The name of the observation
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+          nullable: true
+          description: The level of the observation
+        statusMessage:
+          type: string
+          nullable: true
+          description: The status message of the observation
+        version:
+          type: string
+          nullable: true
+          description: The version of the observation
+        environment:
+          type: string
+          nullable: true
+          description: The environment from which this observation originated
+        bookmarked:
+          type: boolean
+          nullable: true
+          description: Whether the observation is bookmarked
+        public:
+          type: boolean
+          nullable: true
+          description: Whether the observation is public
+        userId:
+          type: string
+          nullable: true
+          description: The user ID associated with the observation
+        sessionId:
+          type: string
+          nullable: true
+          description: The session ID associated with the observation
+        completionStartTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: The completion start time of the observation
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The creation timestamp of the observation
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The last update timestamp of the observation
+        input:
+          nullable: true
+          description: The input data of the observation
+        output:
+          nullable: true
+          description: The output data of the observation
+        metadata:
+          nullable: true
+          description: Additional metadata of the observation
+        providedModelName:
+          type: string
+          nullable: true
+          description: The model name as provided by the user
+        internalModelId:
+          type: string
+          nullable: true
+          description: The internal model ID matched by Langfuse
+        modelParameters:
+          nullable: true
+          description: The parameters of the model used for the observation
+        usageDetails:
+          type: object
+          additionalProperties:
+            type: integer
+          nullable: true
+          description: >-
+            The usage details of the observation. Key is the usage metric name,
+            value is the number of units consumed.
+        costDetails:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+          nullable: true
+          description: >-
+            The cost details of the observation. Key is the cost metric name,
+            value is the cost in USD.
+        totalCost:
+          type: number
+          format: double
+          nullable: true
+          description: The total cost of the observation in USD
+        promptId:
+          type: string
+          nullable: true
+          description: The prompt ID associated with the observation
+        promptName:
+          type: string
+          nullable: true
+          description: The prompt name associated with the observation
+        promptVersion:
+          type: integer
+          nullable: true
+          description: The prompt version associated with the observation
+        latency:
+          type: number
+          format: double
+          nullable: true
+          description: The latency in seconds
+        timeToFirstToken:
+          type: number
+          format: double
+          nullable: true
+          description: The time to first token in seconds
+        modelId:
+          type: string
+          nullable: true
+          description: The matched model ID
+      required:
+        - id
+        - startTime
+        - projectId
+        - type
     ObservationsV2Response:
       title: ObservationsV2Response
       type: object
@@ -9274,8 +9433,7 @@ components:
         data:
           type: array
           items:
-            type: object
-            additionalProperties: true
+            $ref: '#/components/schemas/ObservationV2'
           description: >-
             Array of observation objects. Fields included depend on the `fields`
             parameter in the request.
