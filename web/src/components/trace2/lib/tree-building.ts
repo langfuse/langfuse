@@ -5,11 +5,14 @@
  * Uses fully iterative algorithms (no recursion) to avoid stack overflow on deep trees (10k+ depth).
  *
  * Algorithm Overview:
- * 1. Filter observations by level threshold and sort by startTime
+ * 1. Sort observations by startTime
  * 2. Build dependency graph: Map-based parent-child relationships (O(N))
  * 3. Topological sort: Process nodes bottom-up (leaves first) using queue with index-based traversal
  * 4. Cost aggregation: Compute bottom-up during tree construction (children before parents)
  * 5. Flatten to searchItems: Iterative pre-order traversal using explicit stack
+ *
+ * Level filtering (hiding DEBUG observations etc.) is NOT done here — it's applied
+ * as a post-processing step via removeHiddenNodes() in the display layer (TraceDataContext).
  *
  * Complexity: O(N) time, O(N) space - handles unlimited depth without stack overflow.
  *
@@ -53,7 +56,9 @@ interface ProcessingNode {
 /**
  * Returns observation levels at or above the minimum level.
  */
-function getObservationLevels(minLevel: ObservationLevelType | undefined) {
+export function getObservationLevels(
+  minLevel: ObservationLevelType | undefined,
+) {
   const ascendingLevels = [
     ObservationLevel.DEBUG,
     ObservationLevel.DEFAULT,
@@ -68,37 +73,24 @@ function getObservationLevels(minLevel: ObservationLevelType | undefined) {
 }
 
 /**
- * Filters and prepares observations for tree building.
- * Filters by minimum observation level, cleans orphaned parents, and sorts by startTime.
+ * Prepares observations for tree building.
+ * Cleans orphaned parent references and sorts by startTime.
  * Returns flat array (nesting happens in buildDependencyGraph).
  */
-function filterAndPrepareObservations(
-  list: ObservationReturnType[],
-  minLevel?: ObservationLevelType,
-): {
+function prepareObservations(list: ObservationReturnType[]): {
   sortedObservations: ObservationReturnType[];
-  hiddenObservationsCount: number;
 } {
-  if (list.length === 0)
-    return { sortedObservations: [], hiddenObservationsCount: 0 };
-
-  // Filter for observations with minimum level
-  const mutableList = list.filter((o) =>
-    getObservationLevels(minLevel).includes(o.level),
-  );
-  const hiddenObservationsCount = list.length - mutableList.length;
+  if (list.length === 0) return { sortedObservations: [] };
 
   // Build a Set of all observation IDs for O(1) lookup
   const observationIds = new Set(list.map((o) => o.id));
 
-  // Remove parentObservationId if parent doesn't exist
-  mutableList.forEach((observation) => {
-    if (
-      observation.parentObservationId &&
-      !observationIds.has(observation.parentObservationId)
-    ) {
-      observation.parentObservationId = null;
+  // Remove parentObservationId if parent doesn't exist in the list
+  const mutableList = list.map((o) => {
+    if (o.parentObservationId && !observationIds.has(o.parentObservationId)) {
+      return { ...o, parentObservationId: null };
     }
+    return o;
   });
 
   // Sort by start time
@@ -106,10 +98,7 @@ function filterAndPrepareObservations(
     (a, b) => a.startTime.getTime() - b.startTime.getTime(),
   );
 
-  return {
-    sortedObservations,
-    hiddenObservationsCount,
-  };
+  return { sortedObservations };
 }
 
 /**
@@ -170,7 +159,7 @@ function buildDependencyGraph(sortedObservations: ObservationReturnType[]): {
 
   // Fourth pass: calculate in-degrees and identify leaf nodes
   // Note: Children are already in correct order because observations are pre-sorted
-  // by startTime in filterAndPrepareObservations, and children are added in iteration order.
+  // by startTime in prepareObservations, and children are added in iteration order.
   const leafIds: string[] = [];
   for (const [id, node] of nodeRegistry) {
     // Set in-degree to children count (for topological sort)
@@ -334,21 +323,18 @@ function buildTreeNodesBottomUp(
 function buildTraceTree(
   trace: TraceType,
   observations: ObservationReturnType[],
-  minLevel?: ObservationLevelType,
 ): {
   roots: TreeNode[];
-  hiddenObservationsCount: number;
   nodeMap: Map<string, TreeNode>;
 } {
-  // Phase 1: Filter and prepare observations
-  const { sortedObservations, hiddenObservationsCount } =
-    filterAndPrepareObservations(observations, minLevel);
+  // Phase 1: Prepare observations (sort, clean orphaned parents)
+  const { sortedObservations } = prepareObservations(observations);
 
   // Handle empty case
   if (sortedObservations.length === 0) {
     // For events-based traces with no observations, return empty roots
     if (trace.rootObservationType) {
-      return { roots: [], hiddenObservationsCount, nodeMap: new Map() };
+      return { roots: [], nodeMap: new Map() };
     }
 
     // Traditional traces: return TRACE node with no children
@@ -369,7 +355,7 @@ function buildTraceTree(
     };
     const nodeMap = new Map<string, TreeNode>();
     nodeMap.set(emptyTree.id, emptyTree);
-    return { roots: [emptyTree], hiddenObservationsCount, nodeMap };
+    return { roots: [emptyTree], nodeMap };
   }
 
   // Phase 2: Build dependency graph
@@ -398,7 +384,7 @@ function buildTraceTree(
 
   // Events-based traces (rootObservationType set): return observations as roots directly
   if (trace.rootObservationType) {
-    return { roots: rootTreeNodes, hiddenObservationsCount, nodeMap };
+    return { roots: rootTreeNodes, nodeMap };
   }
 
   // Traditional traces: wrap in TRACE node
@@ -437,37 +423,33 @@ function buildTraceTree(
 
   nodeMap.set(traceNode.id, traceNode);
 
-  return { roots: [traceNode], hiddenObservationsCount, nodeMap };
+  return { roots: [traceNode], nodeMap };
 }
 
 /**
  * Main entry point: builds complete UI data from trace and observations.
  *
+ * Level filtering (hiding DEBUG observations etc.) is NOT done here.
+ * Use removeHiddenNodes() on the returned roots to filter by level in the display layer.
+ *
  * Returns:
  * - roots: Array of root TreeNodes (single TRACE root for traditional, multiple obs roots for events-based)
  * - nodeMap: Map<id, TreeNode> for O(1) lookup
  * - searchItems: Flattened list for search/virtualized rendering
- * - hiddenObservationsCount: Number filtered by minLevel
  */
 export function buildTraceUiData(
   trace: TraceType,
   observations: ObservationReturnType[],
-  minLevel?: ObservationLevelType,
 ): {
   roots: TreeNode[];
-  hiddenObservationsCount: number;
   searchItems: TraceSearchListItem[];
   nodeMap: Map<string, TreeNode>;
 } {
-  const { roots, hiddenObservationsCount, nodeMap } = buildTraceTree(
-    trace,
-    observations,
-    minLevel,
-  );
+  const { roots, nodeMap } = buildTraceTree(trace, observations);
 
   // Handle empty roots case
   if (roots.length === 0) {
-    return { roots, hiddenObservationsCount, searchItems: [], nodeMap };
+    return { roots, searchItems: [], nodeMap };
   }
 
   // TODO: Extract aggregation logic to shared utility - duplicated in TraceTree.tsx and TraceTimeline/index.tsx
@@ -513,5 +495,52 @@ export function buildTraceUiData(
     }
   }
 
-  return { roots, hiddenObservationsCount, searchItems, nodeMap };
+  return { roots, searchItems, nodeMap };
+}
+
+/**
+ * Removes nodes matching a predicate from a tree, promoting their children
+ * to the parent level. Useful for hiding observations by level (e.g. DEBUG)
+ * without breaking the tree structure.
+ *
+ * This is applied as a display-layer post-processing step, keeping the
+ * tree-building data layer clean and free of level-filtering concerns.
+ *
+ * Implemented iteratively to avoid call stack overflows on deeply nested traces.
+ * Uses a single-pass stack algorithm to keep complexity linear in node count.
+ */
+export function removeHiddenNodes(
+  nodes: TreeNode[],
+  isHidden: (node: TreeNode) => boolean,
+): TreeNode[] {
+  if (nodes.length === 0) return [];
+
+  const result: TreeNode[] = [];
+
+  // Each stack entry carries the output array where this node should be attached.
+  // Hidden nodes are skipped and their children are redirected to the same target.
+  const stack: Array<{ node: TreeNode; target: TreeNode[] }> = [];
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    stack.push({ node: nodes[i]!, target: result });
+  }
+
+  while (stack.length > 0) {
+    const { node, target } = stack.pop()!;
+
+    if (isHidden(node)) {
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        stack.push({ node: node.children[i]!, target });
+      }
+      continue;
+    }
+
+    const clone: TreeNode = { ...node, children: [] };
+    target.push(clone);
+
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      stack.push({ node: node.children[i]!, target: clone.children });
+    }
+  }
+
+  return result;
 }
