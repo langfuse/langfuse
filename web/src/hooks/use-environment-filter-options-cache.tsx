@@ -114,7 +114,6 @@ export function useEnvironmentFilterOptionsCache({
             skipBatch: true,
           },
         },
-        refetchOnMount: true,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         staleTime: ttlMs,
