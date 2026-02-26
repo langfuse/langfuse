@@ -360,6 +360,9 @@ const normalizeDashboardExecuteQueryInputForCache = (
 ): DashboardExecuteQueryInput => {
   if (!input.query) return input;
 
+  // Intentionally bucket from/to timestamps to stabilize React Query keys across
+  // remounts/navigation for relative ranges. This can shift boundaries by < bucketMs
+  // (configured from staleTime), which we accept to avoid refetch waterfalls.
   return {
     ...input,
     query: {
