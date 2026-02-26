@@ -38,6 +38,8 @@ import {
 } from "@/src/hooks/use-environment-filter";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
+import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -78,26 +80,12 @@ export default function Dashboard() {
     },
   );
 
-  const environmentFilterOptions =
-    api.projects.environmentFilterOptions.useQuery(
-      {
-        projectId,
-        fromTimestamp: absoluteTimeRange?.from,
-      },
-      {
-        trpc: {
-          context: {
-            skipBatch: true,
-          },
-        },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
-    );
+  const environmentOptionsState = useEnvironmentFilterOptionsCache({
+    projectId,
+    timeRange,
+  });
   const environmentOptions: string[] =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
+    environmentOptionsState.environmentOptions;
 
   // Add effect to update filter state when environments change
   const { selectedEnvironments, setSelectedEnvironments } =
@@ -184,6 +172,7 @@ export default function Dashboard() {
     ...timeFilter,
     ...environmentFilter,
   ];
+  const isDashboardDataReady = environmentOptionsState.isReady;
 
   return (
     <Page
@@ -254,101 +243,105 @@ export default function Dashboard() {
         ),
       }}
     >
-      <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-        <TracesBarListChart
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <ModelCostTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <ScoresTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <TracesAndObservationsTimeSeriesChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          agg={agg}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <ModelUsageChart
-          className="col-span-1 min-h-24 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
-          agg={agg}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <UserChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <ChartScores
-          className="col-span-1 xl:col-span-3"
-          agg={agg}
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <LatencyTables
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <GenerationLatencyChart
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          projectId={projectId}
-          agg={agg}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-        <ScoreAnalytics
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          agg={agg}
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          metricsVersion={metricsVersion}
-        />
-      </div>
+      {!isDashboardDataReady ? (
+        <NoDataOrLoading isLoading />
+      ) : (
+        <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
+          <TracesBarListChart
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <ModelCostTable
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <ScoresTable
+            className="col-span-1 xl:col-span-2"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <TracesAndObservationsTimeSeriesChart
+            className="col-span-1 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            agg={agg}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <ModelUsageChart
+            className="col-span-1 min-h-24 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={mergedFilterState}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
+            agg={agg}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <UserChart
+            className="col-span-1 xl:col-span-3"
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <ChartScores
+            className="col-span-1 xl:col-span-3"
+            agg={agg}
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <LatencyTables
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <GenerationLatencyChart
+            className="col-span-1 flex-auto justify-between lg:col-span-full"
+            projectId={projectId}
+            agg={agg}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+          <ScoreAnalytics
+            className="col-span-1 flex-auto justify-between lg:col-span-full"
+            agg={agg}
+            projectId={projectId}
+            globalFilterState={[...userFilterState, ...environmentFilter]}
+            fromTimestamp={fromTimestamp}
+            toTimestamp={toTimestamp}
+            isLoading={environmentOptionsState.isPending}
+            metricsVersion={metricsVersion}
+          />
+        </div>
+      )}
     </Page>
   );
 }
