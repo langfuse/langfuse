@@ -398,6 +398,75 @@ describe("Clickhouse Traces Repository Test", () => {
     expect(exists).toBe(true);
   });
 
+  it.each([
+    {
+      name: "latency",
+      column: "latency",
+      observationOverrides: {
+        start_time: Date.now() - 15_000,
+        end_time: Date.now(),
+      },
+      matchingValue: 10,
+      nonMatchingValue: 20,
+    },
+    {
+      name: "totalCost",
+      column: "totalCost",
+      observationOverrides: {
+        cost_details: { input: 5, output: 10, total: 15 },
+      },
+      matchingValue: 10,
+      nonMatchingValue: 20,
+    },
+  ])(
+    "should check if trace exists with $name filter",
+    async ({
+      column,
+      observationOverrides,
+      matchingValue,
+      nonMatchingValue,
+    }) => {
+      const traceId = v4();
+      const trace = createTrace({ id: traceId, project_id: projectId });
+
+      await createTracesCh([trace]);
+      await createObservationsCh([
+        createObservation({
+          trace_id: traceId,
+          project_id: projectId,
+          ...observationOverrides,
+        }),
+      ]);
+
+      const { exists: shouldExist } = await checkTraceExistsAndGetTimestamp({
+        projectId,
+        traceId,
+        timestamp: new Date(),
+        filter: [
+          { type: "number", column, operator: ">", value: matchingValue },
+        ],
+        maxTimeStamp: undefined,
+      });
+      expect(shouldExist).toBe(true);
+
+      const { exists: shouldNotExist } = await checkTraceExistsAndGetTimestamp({
+        projectId,
+        traceId,
+        timestamp: new Date(),
+        filter: [
+          {
+            type: "number",
+            column,
+            operator: ">",
+            value: nonMatchingValue,
+          },
+        ],
+        maxTimeStamp: undefined,
+      });
+      expect(shouldNotExist).toBe(false);
+    },
+  );
+
   it("should handle timestamp filter in checkTraceExistsAndGetTimestamp", async () => {
     const traceId = v4();
     const trace = createTrace({
