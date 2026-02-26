@@ -61,6 +61,7 @@ import {
 import { type PartialConfig } from "@/src/features/evals/types";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
+import { Callout } from "@/src/components/ui/callout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
@@ -101,7 +102,6 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useIsObservationEvalsFullyReleased } from "@/src/features/events/hooks/useObservationEvals";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 /**
@@ -278,7 +278,6 @@ export const InnerEvaluatorForm = (props: {
   oldConfigId?: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const isFullyReleased = useIsObservationEvalsFullyReleased();
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
@@ -391,12 +390,32 @@ export const InnerEvaluatorForm = (props: {
     ),
   );
 
+  const hasObservationTargetsInTraceEval = useMemo(() => {
+    if (props.mode === "edit") return false;
+
+    const target = form.watch("target");
+    if (!isTraceTarget(target)) return false;
+
+    const mapping = form.watch("mapping");
+    return mapping.some(
+      (m) => m.langfuseObject && m.langfuseObject !== "trace",
+    );
+  }, [form.watch("target"), form.watch("mapping"), props.mode]);
+
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
     capture(
       props.mode === "edit"
         ? "eval_config:update"
         : "eval_config:new_form_submit",
     );
+
+    // Block NEW trace-level evals that target observations
+    if (hasObservationTargetsInTraceEval) {
+      setFormError(
+        "Trace-level evaluators targeting observations are no longer supported. Please use observation-level evaluators instead.",
+      );
+      return;
+    }
 
     // Apply preprocessFormValues if it exists
     if (props.preprocessFormValues) {
@@ -624,13 +643,6 @@ export const InnerEvaluatorForm = (props: {
                           >
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
-                            <Badge
-                              variant="secondary"
-                              size="sm"
-                              className="border border-border font-normal"
-                            >
-                              Beta
-                            </Badge>
                           </TabsTrigger>
                           {allowLegacy && (
                             <TabsTrigger
@@ -640,15 +652,13 @@ export const InnerEvaluatorForm = (props: {
                             >
                               <ListTree className="h-3.5 w-3.5" />
                               Traces
-                              {isFullyReleased && (
-                                <Badge
-                                  variant="secondary"
-                                  size="sm"
-                                  className="border border-border font-normal"
-                                >
-                                  Legacy
-                                </Badge>
-                              )}
+                              <Badge
+                                variant="secondary"
+                                size="sm"
+                                className="border border-border font-normal"
+                              >
+                                Legacy
+                              </Badge>
                             </TabsTrigger>
                           )}
                           <TabsTrigger
@@ -714,13 +724,6 @@ export const InnerEvaluatorForm = (props: {
                       >
                         <FlaskConical className="h-3.5 w-3.5" />
                         Experiment Runner SDK
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="border border-border font-normal"
-                        >
-                          Beta
-                        </Badge>
                       </TabsTrigger>
                       <TabsTrigger
                         value="non-otel"
@@ -729,15 +732,13 @@ export const InnerEvaluatorForm = (props: {
                       >
                         <BetweenHorizonalStart className="h-3.5 w-3.5" />
                         Low-level SDK methods
-                        {isFullyReleased && (
-                          <Badge
-                            variant="secondary"
-                            size="sm"
-                            className="border border-border font-normal"
-                          >
-                            Legacy
-                          </Badge>
-                        )}
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="border border-border font-normal"
+                        >
+                          Legacy
+                        </Badge>
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
@@ -1063,6 +1064,24 @@ export const InnerEvaluatorForm = (props: {
             )}
           </div>
         </Card>
+      )}
+      {hasObservationTargetsInTraceEval && (
+        <Callout variant="warning" id="trace-observation-eval-warning">
+          <span className="font-semibold">
+            Trace-level evaluators targeting observations are no longer
+            supported.
+          </span>{" "}
+          Please use observation-level evaluators instead for improved
+          performance and functionality.{" "}
+          <a
+            href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline hover:opacity-80"
+          >
+            Learn more
+          </a>
+        </Callout>
       )}
       <VariableMappingCard
         projectId={props.projectId}

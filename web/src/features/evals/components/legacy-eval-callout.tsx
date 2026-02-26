@@ -23,7 +23,7 @@ export function LegacyEvalCallout({
   return (
     <Callout
       id={`eval-remapping-peek-${evalConfigId}`}
-      variant="info"
+      variant="warning"
       key="dismissed-eval-remapping-callouts"
       actions={() => (
         <>
