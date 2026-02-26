@@ -10,6 +10,14 @@ groups:
           path: ../../../web/public/generated/api
         smart-casing: false
 
+      # - name: fernapi/fern-java-sdk
+      #   version: 3.38.1
+      #   output:
+      #     location: local-file-system
+      #     path: ../../../../langfuse-java/src/main/java/com/langfuse/client/
+      #   config:
+      #     client-class-name: LangfuseClient
+
       - name: fernapi/fern-python-sdk
         version: 4.46.2
         output:

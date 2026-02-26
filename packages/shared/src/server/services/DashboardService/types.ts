@@ -128,6 +128,7 @@ export const WidgetDomainSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  minVersion: z.number().int().default(1),
   owner: OwnerEnum,
 });
 
@@ -141,6 +142,7 @@ export const CreateWidgetInputSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  minVersion: z.number().int().optional(),
 });
 
 // Define the widget list response
