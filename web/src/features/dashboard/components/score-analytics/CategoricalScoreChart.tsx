@@ -1,4 +1,3 @@
-import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import {
@@ -18,6 +17,7 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -27,6 +27,7 @@ export function CategoricalScoreChart(props: {
   toTimestamp: Date;
   agg?: DashboardDateRangeAggregationOption;
   metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-categorical",
@@ -67,7 +68,7 @@ export function CategoricalScoreChart(props: {
     orderBy: null,
   };
 
-  const scores = api.dashboard.executeQuery.useQuery(
+  const scores = useScheduledDashboardExecuteQuery(
     {
       projectId: props.projectId,
       query: scoresQuery,
@@ -79,6 +80,7 @@ export function CategoricalScoreChart(props: {
           skipBatch: true,
         },
       },
+      queryId: `${props.schedulerId ?? "home:score-analytics"}:categorical:${props.scoreData.source}:${props.scoreData.name}:${props.agg ?? "aggregate"}`,
     },
   );
 

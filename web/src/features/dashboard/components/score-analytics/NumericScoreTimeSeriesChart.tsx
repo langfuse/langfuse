@@ -1,5 +1,3 @@
-import { api } from "@/src/utils/api";
-
 import {
   type ScoreSourceType,
   type FilterState,
@@ -25,6 +23,7 @@ import {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -36,6 +35,7 @@ export function NumericScoreTimeSeriesChart(props: {
   fromTimestamp: Date;
   toTimestamp: Date;
   metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -74,7 +74,7 @@ export function NumericScoreTimeSeriesChart(props: {
     orderBy: null,
   };
 
-  const scores = api.dashboard.executeQuery.useQuery(
+  const scores = useScheduledDashboardExecuteQuery(
     {
       projectId: props.projectId,
       query: scoresQuery,
@@ -86,6 +86,7 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
+      queryId: `${props.schedulerId ?? "home:score-analytics"}:numeric:${props.source}:${props.name}`,
     },
   );
 
