@@ -1,5 +1,9 @@
 import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { type QueryType } from "@/src/features/query/types";
+import {
+  type QueryType,
+  getValidAggregationsForMeasureType,
+  metricAggregations,
+} from "@/src/features/query/types";
 import {
   executeQuery,
   validateQuery,
@@ -4307,5 +4311,65 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result).toEqual({ valid: true });
+  });
+});
+
+describe("getValidAggregationsForMeasureType", () => {
+  const allAggs = metricAggregations.options.length;
+  const restricted = ["count", "uniq"];
+
+  it.each([
+    // Numeric types → all aggregations
+    ["integer", allAggs],
+    ["decimal", allAggs],
+    ["number", allAggs],
+    // Non-numeric / missing → restricted
+    ["string", restricted.length],
+    ["boolean", restricted.length],
+    [undefined, restricted.length],
+  ])("type=%s → %i aggregations", (type, expectedLength) => {
+    const valid = getValidAggregationsForMeasureType(type);
+    expect(valid).toHaveLength(expectedLength);
+  });
+
+  it("restricted set contains only count and uniq", () => {
+    expect(getValidAggregationsForMeasureType("string")).toEqual(restricted);
+  });
+});
+
+describe("query builder measure-aggregation validation", () => {
+  it("should reject invalid aggregation for string measure", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "traceId", aggregation: "histogram" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
+      /not valid for measure/,
+    );
+  });
+
+  it("should accept uniq aggregation for string measure", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "traceId", aggregation: "uniq" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+    expect(result.query).toBeDefined();
   });
 });

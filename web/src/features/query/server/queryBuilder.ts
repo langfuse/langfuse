@@ -11,7 +11,10 @@ import type {
   ViewVersion,
   views,
 } from "../types";
-import { query as queryModel } from "../types";
+import {
+  query as queryModel,
+  getValidAggregationsForMeasureType,
+} from "../types";
 import { getViewDeclaration } from "@/src/features/query/dataModel";
 import {
   FilterList,
@@ -125,6 +128,13 @@ export class QueryBuilder {
       if (!(metric.measure in view.measures)) {
         throw new InvalidRequestError(
           `Invalid metric ${metric.measure}. Must be one of ${Object.keys(view.measures)}`,
+        );
+      }
+      const measureDef = view.measures[metric.measure];
+      const validAggs = getValidAggregationsForMeasureType(measureDef.type);
+      if (!validAggs.includes(metric.aggregation)) {
+        throw new InvalidRequestError(
+          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${measureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
         );
       }
       return {
