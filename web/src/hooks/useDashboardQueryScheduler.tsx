@@ -38,6 +38,8 @@ export type DashboardQuerySchedulerApi = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const SECOND_MS = 1000;
+const MINUTE_MS = 60 * SECOND_MS;
 
 export const getDashboardQuerySchedulerMaxConcurrent = (
   timeRange: TimeRange,
@@ -53,6 +55,15 @@ export const getDashboardQuerySchedulerMaxConcurrent = (
   if (durationMs >= 7 * DAY_MS) return 6;
   if (durationMs >= DAY_MS) return 6;
   return 9;
+};
+
+const parseIsoDateMs = (value: unknown): number | null => {
+  if (typeof value !== "string") return null;
+
+  const parsedMs = Date.parse(value);
+  if (Number.isNaN(parsedMs)) return null;
+
+  return parsedMs;
 };
 
 export const useDashboardQueryScheduler = ({
@@ -270,6 +281,101 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
 const getDefaultRunKey = (input: DashboardExecuteQueryInput) =>
   hashKey([input]);
 
+const getDashboardExecuteQueryDurationMs = (
+  input: DashboardExecuteQueryInput,
+): number | null => {
+  const fromMs = parseIsoDateMs(input.query?.fromTimestamp);
+  const toMs = parseIsoDateMs(input.query?.toTimestamp);
+
+  if (fromMs === null || toMs === null) return null;
+  return Math.max(0, toMs - fromMs);
+};
+
+const getDashboardExecuteQueryCachePolicy = (
+  input: DashboardExecuteQueryInput,
+): {
+  staleTime: number;
+  gcTime: number;
+} => {
+  const durationMs = getDashboardExecuteQueryDurationMs(input);
+
+  if (durationMs === null) {
+    return {
+      staleTime: 30 * SECOND_MS,
+      gcTime: 10 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= 30 * MINUTE_MS) {
+    return {
+      staleTime: 15 * SECOND_MS,
+      gcTime: 5 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= DAY_MS) {
+    return {
+      staleTime: 30 * SECOND_MS,
+      gcTime: 10 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= 7 * DAY_MS) {
+    return {
+      staleTime: 2 * MINUTE_MS,
+      gcTime: 20 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= 30 * DAY_MS) {
+    return {
+      staleTime: 5 * MINUTE_MS,
+      gcTime: 30 * MINUTE_MS,
+    };
+  }
+
+  return {
+    staleTime: 10 * MINUTE_MS,
+    gcTime: 60 * MINUTE_MS,
+  };
+};
+
+const normalizeIsoTimestampByBucket = (
+  value: unknown,
+  bucketMs: number,
+): unknown => {
+  if (typeof value !== "string") return value;
+  const parsedMs = Date.parse(value);
+  if (Number.isNaN(parsedMs)) return value;
+
+  const effectiveBucketMs = Math.max(1, Math.floor(bucketMs));
+  const normalizedMs =
+    Math.floor(parsedMs / effectiveBucketMs) * effectiveBucketMs;
+  return new Date(normalizedMs).toISOString();
+};
+
+const normalizeDashboardExecuteQueryInputForCache = (
+  input: DashboardExecuteQueryInput,
+  bucketMs: number,
+): DashboardExecuteQueryInput => {
+  if (!input.query) return input;
+
+  return {
+    ...input,
+    query: {
+      ...input.query,
+      fromTimestamp: normalizeIsoTimestampByBucket(
+        input.query.fromTimestamp,
+        bucketMs,
+      ) as string,
+      toTimestamp: normalizeIsoTimestampByBucket(
+        input.query.toTimestamp,
+        bucketMs,
+      ) as string,
+    },
+  };
+};
+
 export const useScheduledDashboardExecuteQuery = (
   input: DashboardExecuteQueryInput,
   {
@@ -286,9 +392,18 @@ export const useScheduledDashboardExecuteQuery = (
   const register = scheduler?.register;
   const unregister = scheduler?.unregister;
   const markDone = scheduler?.markDone;
+  const cachePolicy = useMemo(
+    () => getDashboardExecuteQueryCachePolicy(input),
+    [input],
+  );
+  const cacheNormalizedInput = useMemo(
+    () =>
+      normalizeDashboardExecuteQueryInputForCache(input, cachePolicy.staleTime),
+    [cachePolicy.staleTime, input],
+  );
   const effectiveRunKey = useMemo(
-    () => runKey ?? getDefaultRunKey(input),
-    [input, runKey],
+    () => runKey ?? getDefaultRunKey(cacheNormalizedInput),
+    [cacheNormalizedInput, runKey],
   );
 
   useEffect(() => {
@@ -307,8 +422,13 @@ export const useScheduledDashboardExecuteQuery = (
 
   const queryResult = api.dashboard.executeQuery.useQuery<
     Record<string, unknown>[]
-  >(input, {
+  >(cacheNormalizedInput, {
     ...queryOptions,
+    staleTime: queryOptions.staleTime ?? cachePolicy.staleTime,
+    gcTime: queryOptions.gcTime ?? cachePolicy.gcTime,
+    refetchOnWindowFocus: queryOptions.refetchOnWindowFocus ?? false,
+    refetchOnReconnect: queryOptions.refetchOnReconnect ?? false,
+    refetchOnMount: queryOptions.refetchOnMount ?? false,
     enabled: enabled && canFetch,
     meta,
   });
