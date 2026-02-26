@@ -122,7 +122,9 @@ function LegacyBadgeCell({ status }: { status: string }) {
                   >
                     this guide
                   </Link>{" "}
-                  to upgrade to the new version.
+                  to upgrade to the new version. <br /> <br /> If you do not
+                  upgrade, your evaluator will continue to run, but you will not
+                  benefit from improvements.
                 </p>
               </div>
             </TooltipContent>
@@ -513,12 +515,12 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               variant="warning"
               key="dismissed-eval-remapping-callouts"
             >
-              <span>New LLM-as-a-Judge functionality has landed. </span>
+              <span>New functionality has landed. </span>
               <span className="font-semibold">
                 Some of your evaluators (marked &quot;Legacy&quot;) require
                 changes{" "}
               </span>
-              <span>for new features and improvements. </span>
+              <span>to benefit from new features and improvements. </span>
               <Link
                 href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
                 target="_blank"
@@ -528,6 +530,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 Learn what is changing and how to upgrade
               </Link>
               <span>.</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="ml-1 inline h-4 w-4 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Your evaluator will continue to work without upgrading, but
+                  you will not benefit from performance improvements.
+                </TooltipContent>
+              </Tooltip>
             </Callout>
           </div>
         )}
