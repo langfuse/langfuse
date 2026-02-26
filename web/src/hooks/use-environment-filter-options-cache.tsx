@@ -9,11 +9,12 @@ import { useMemo, useEffect } from "react";
 const ENVIRONMENT_OPTIONS_CACHE_STORAGE_KEY =
   "langfuse-environment-options-cache-v1";
 
+const SECOND_MS = 1000;
 const MINUTE_MS = 60 * 1000;
 const HALF_HOUR_MS = 30 * MINUTE_MS;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const TTL_30_MINUTES_MS = 0;
+const TTL_30_MINUTES_MS = 30 * SECOND_MS;
 const TTL_1_DAY_MS = 5 * MINUTE_MS;
 const TTL_7_DAYS_MS = 10 * MINUTE_MS;
 const TTL_30_DAYS_MS = 30 * MINUTE_MS;
@@ -33,12 +34,7 @@ type EnvironmentOptionsCacheStore = Record<
 const getCacheBucketFromTimeRange = (timeRange: TimeRange) => {
   if ("range" in timeRange) return `relative:${timeRange.range}`;
 
-  const durationMs = timeRange.to.getTime() - timeRange.from.getTime();
-
-  if (durationMs <= DAY_MS) return "absolute:<=1d";
-  if (durationMs <= 7 * DAY_MS) return "absolute:<=7d";
-  if (durationMs <= 30 * DAY_MS) return "absolute:<=30d";
-  return "absolute:>30d";
+  return `absolute:${timeRange.from.getTime()}:${timeRange.to.getTime()}`;
 };
 
 const getTtlMsFromTimeRange = (timeRange: TimeRange) => {
@@ -77,11 +73,8 @@ export function useEnvironmentFilterOptionsCache({
     () => toAbsoluteTimeRange(timeRange) ?? undefined,
     [timeRange],
   );
-  const cacheBucket = useMemo(
-    () => getCacheBucketFromTimeRange(timeRange),
-    [timeRange],
-  );
-  const ttlMs = useMemo(() => getTtlMsFromTimeRange(timeRange), [timeRange]);
+  const cacheBucket = getCacheBucketFromTimeRange(timeRange);
+  const ttlMs = getTtlMsFromTimeRange(timeRange);
 
   const cacheEntryKey = `${projectId}:${cacheBucket}`;
   const [cacheStore, setCacheStore] =
@@ -95,9 +88,8 @@ export function useEnvironmentFilterOptionsCache({
     [cacheStore],
   );
   const cacheEntry = prunedCacheStore[cacheEntryKey];
-  const shouldUseCache = ttlMs > 0;
   const hasValidCache = Boolean(
-    shouldUseCache && cacheEntry && cacheEntry.expiresAt > Date.now(),
+    cacheEntry && cacheEntry.expiresAt > Date.now(),
   );
 
   // Persist cache cleanup to localStorage when needed.
@@ -122,25 +114,15 @@ export function useEnvironmentFilterOptionsCache({
             skipBatch: true,
           },
         },
-        refetchOnMount: false,
+        refetchOnMount: true,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
-        staleTime: Infinity,
+        staleTime: ttlMs,
       },
     );
 
   useEffect(() => {
     if (!projectId || !environmentFilterOptions.data) return;
-
-    if (!shouldUseCache) {
-      setCacheStore((previousStore) => {
-        if (!previousStore[cacheEntryKey]) return previousStore;
-        const nextStore = { ...previousStore };
-        delete nextStore[cacheEntryKey];
-        return nextStore;
-      });
-      return;
-    }
 
     const options = dedupeOptions(
       environmentFilterOptions.data.map((value) => value.environment),
@@ -158,7 +140,6 @@ export function useEnvironmentFilterOptionsCache({
     });
   }, [
     projectId,
-    shouldUseCache,
     cacheEntryKey,
     environmentFilterOptions.data,
     ttlMs,
@@ -167,6 +148,7 @@ export function useEnvironmentFilterOptionsCache({
 
   const environmentOptions = useMemo(() => {
     if (hasValidCache && cacheEntry) return cacheEntry.options;
+
     return dedupeOptions(
       environmentFilterOptions.data?.map((value) => value.environment) ?? [],
     );
