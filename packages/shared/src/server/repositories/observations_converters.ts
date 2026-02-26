@@ -59,6 +59,7 @@ function ensureObservationCoreFields(
   if (record.trace_id === undefined) missingFields.push("trace_id");
   if (record.start_time === undefined) missingFields.push("start_time");
   if (record.project_id === undefined) missingFields.push("project_id");
+  if (record.type === undefined) missingFields.push("type");
 
   if (missingFields.length > 0) {
     const errorMessage = `Missing required ObservationCoreFields: ${missingFields.join(", ")}${record.id ? ` (record: ${record.id})` : ""}`;
@@ -70,8 +71,12 @@ function ensureObservationCoreFields(
     id: record.id!,
     traceId: record.trace_id ?? null,
     startTime: parseClickhouseUTCDateTimeFormat(record.start_time!),
+    endTime: record.end_time
+      ? parseClickhouseUTCDateTimeFormat(record.end_time)
+      : null,
     projectId: record.project_id!,
     parentObservationId: record.parent_observation_id ?? null,
+    type: record.type! as ObservationType,
   };
 }
 
