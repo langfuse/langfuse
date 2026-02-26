@@ -1,16 +1,14 @@
 import { UiColumnMappings } from "../../tableDefinitions";
 
 /**
- * Column mappings for experiment aggregations (post-aggregation filtering/ordering).
+ * Pre-aggregation column mappings for experiments.
  *
- * Table aliases used:
- * - e.* for experiment_data CTE (core experiment info)
- * - em.* for experiment_metrics CTE (cost, latency)
- * - es.* for experiment_scores CTE (scores_avg, score_categories)
+ * These columns exist in the raw events table and can be filtered BEFORE
+ * the experiment_data CTE aggregation for better query performance.
  *
- * These aliases must match the CTEQueryBuilder setup in experiments.ts.
+ * Used for filtering raw events before GROUP BY.
  */
-export const experimentCols: UiColumnMappings = [
+export const experimentPreAggCols: UiColumnMappings = [
   {
     uiTableName: "ID",
     uiTableId: "id",
@@ -41,12 +39,23 @@ export const experimentCols: UiColumnMappings = [
     clickhouseTableName: "events_core",
     clickhouseSelect: "e.created_at",
   },
-  {
-    uiTableName: "Updated At",
-    uiTableId: "updatedAt",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.updated_at",
-  },
+];
+
+/**
+ * Post-aggregation column mappings for experiments.
+ *
+ * These columns are either:
+ * - Computed during aggregation (itemCount, errorCount, metadata)
+ * - From joined CTEs (totalCost, latencyAvg from metrics; scores from scores CTE)
+ *
+ * Table aliases used:
+ * - e.* for experiment_data CTE (core experiment info)
+ * - em.* for experiment_metrics CTE (cost, latency)
+ * - es.* for experiment_scores CTE (scores_avg, score_categories)
+ *
+ * These aliases must match the CTEQueryBuilder setup in experiments.ts.
+ */
+export const experimentPostAggCols: UiColumnMappings = [
   {
     uiTableName: "Item Count",
     uiTableId: "itemCount",
@@ -83,53 +92,20 @@ export const experimentCols: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "es.score_categories",
   },
+  {
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "events_core",
+    clickhouseSelect: "e.experiment_metadata",
+    queryPrefix: "e", // StringObjectFilter uses {prefix}.metadata_names/metadata_values for array access
+  },
 ];
 
 /**
- * Column mappings for filtering on events table columns BEFORE aggregation.
- * These use the e.* prefix to reference actual events table columns.
+ * Combined column mappings for experiments (all columns).
+ * Use this for ordering and general column lookups.
  */
-export const experimentEventsFilterCols: UiColumnMappings = [
-  {
-    uiTableName: "ID",
-    uiTableId: "id",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.experiment_id",
-  },
-  {
-    uiTableName: "Name",
-    uiTableId: "name",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.experiment_name",
-  },
-  {
-    uiTableName: "Description",
-    uiTableId: "description",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.experiment_description",
-  },
-  {
-    uiTableName: "Dataset ID",
-    uiTableId: "experimentDatasetId",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.experiment_dataset_id",
-  },
-  {
-    uiTableName: "Created At",
-    uiTableId: "createdAt",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.created_at",
-  },
-  {
-    uiTableName: "Item Count",
-    uiTableId: "itemCount",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.experiment_item_id",
-  },
-  {
-    uiTableName: "Error Count",
-    uiTableId: "errorCount",
-    clickhouseTableName: "events_core",
-    clickhouseSelect: "e.level",
-  },
+export const experimentCols: UiColumnMappings = [
+  ...experimentPreAggCols,
+  ...experimentPostAggCols,
 ];

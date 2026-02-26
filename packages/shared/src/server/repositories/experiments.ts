@@ -1,4 +1,5 @@
 import { type OrderByState } from "../../interfaces/orderBy";
+import { UiColumnMappings } from "../../tableDefinitions";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
@@ -16,7 +17,7 @@ import { queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 import {
   experimentCols,
-  experimentEventsFilterCols,
+  experimentPreAggCols,
 } from "../tableMappings/mapExperimentTable";
 
 export type ExperimentEventsDataReturnType = {
@@ -335,35 +336,26 @@ const getExperimentsFromEventsGeneric = async <T>(
     experimentIds: experimentIdFilter?.values,
   }).selectFieldSet("all");
 
-  // // Apply pre-aggregation filters from experimentEventsFilterCols
-  // // Only include filters that have a mapping in experimentEventsFilterCols
-  // // (exclude scores_avg, score_categories, etc. which are post-aggregation only)
-  // if (filter.length > 0) {
-  //   const preAggFilterableColumns = new Set(
-  //     experimentEventsFilterCols.map((col) => col.uiTableId ?? col.uiTableName),
-  //   );
-  //   const preAggFilterState = filter.filter(
-  //     (f) =>
-  //       preAggFilterableColumns.has(f.column) ||
-  //       preAggFilterableColumns.has(f.column),
-  //   );
+  // Apply pre-aggregation filters
+  // Only include filters for columns defined in experimentPreAggCols (raw events table columns)
+  if (filter.length > 0) {
+    const preAggFilterState = filter.filter((f) =>
+      experimentPreAggCols.some((col) => col.uiTableId === f.column),
+    );
 
-  //   if (preAggFilterState.length > 0) {
-  //     const preAggFilters = new FilterList(
-  //       createFilterFromFilterState(
-  //         preAggFilterState,
-  //         experimentEventsFilterCols,
-  //       ),
-  //     );
-  //     const preAggFiltersRes = preAggFilters.apply();
-  //     if (preAggFiltersRes.query) {
-  //       experimentsBuilder.whereRaw(
-  //         preAggFiltersRes.query,
-  //         preAggFiltersRes.params,
-  //       );
-  //     }
-  //   }
-  // }
+    if (preAggFilterState.length > 0) {
+      const preAggFilters = new FilterList(
+        createFilterFromFilterState(preAggFilterState, experimentPreAggCols),
+      );
+      const preAggFiltersRes = preAggFilters.apply();
+      if (preAggFiltersRes.query) {
+        experimentsBuilder.whereRaw(
+          preAggFiltersRes.query,
+          preAggFiltersRes.params,
+        );
+      }
+    }
+  }
 
   // Initialize CTEQueryBuilder
   let queryBuilder = new CTEQueryBuilder()
@@ -428,6 +420,8 @@ const getExperimentsFromEventsGeneric = async <T>(
         "e.error_count",
         "e.prompts",
         "e.experiment_metadata",
+        "e.metadata_names",
+        "e.metadata_values",
         "e.project_id",
       );
       break;

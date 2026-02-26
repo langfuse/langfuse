@@ -104,7 +104,7 @@ export type TextFilterEntry = {
 export interface CategoricalUIFilter extends BaseUIFilter {
   type: "categorical";
   value: string[];
-  options: string[];
+  options: string[] | SingleValueOption[];
   counts: Map<string, number>;
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
@@ -284,17 +284,17 @@ function reconcileMutuallyExclusiveFilters(
 // extract values and counts from options array
 // for both string[] and SingleValueOption[]
 function processOptions(options: (string | SingleValueOption)[]): {
-  values: string[];
+  values: string[] | SingleValueOption[];
   counts: Map<string, number>;
 } {
-  const values: string[] = [];
+  const values: SingleValueOption[] = [];
   const counts = new Map<string, number>();
 
   for (const opt of options) {
     if (typeof opt === "string") {
-      values.push(opt);
+      values.push({ value: opt });
     } else if (typeof opt === "object" && "value" in opt) {
-      values.push(opt.value);
+      values.push(opt);
       if (opt.count !== undefined) {
         counts.set(opt.value, opt.count);
       }
@@ -1356,10 +1356,13 @@ export function useSidebarFilterState(
           const trueLabel = facet.trueLabel ?? "True";
           const falseLabel = facet.falseLabel ?? "False";
           const invert = facet.invertValue ?? false;
-          const availableOptions = [trueLabel, falseLabel];
+          const availableOptions: SingleValueOption[] = [
+            { value: trueLabel },
+            { value: falseLabel },
+          ];
           const filterEntry = filterByColumn.get(facet.column);
 
-          let selectedOptions = availableOptions;
+          let selectedOptions = [trueLabel, falseLabel];
           if (filterEntry) {
             const boolValue = filterEntry.value as boolean;
             if (invert) {

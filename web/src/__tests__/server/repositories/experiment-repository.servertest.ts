@@ -759,5 +759,651 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       expect(excludedExperiment).toBeUndefined(); // avg = 0.5 < 0.6
     });
+
+    it("should filter experiments by name with equals operator", async () => {
+      const experimentId1 = randomUUID();
+      const experimentName1 = "exact-match-name-" + randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentName2 = "different-name-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1, event2]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "=",
+            value: experimentName1,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedExperiment = result.find((e) => e.id === experimentId2);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.name).toBe(experimentName1);
+      expect(excludedExperiment).toBeUndefined();
+    });
+
+    it("should filter experiments by name with contains operator", async () => {
+      const uniquePrefix = randomUUID().substring(0, 8);
+      const experimentId1 = randomUUID();
+      const experimentName1 = `prefix-${uniquePrefix}-suffix`;
+      const experimentId2 = randomUUID();
+      const experimentName2 = "no-match-here-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1, event2]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "name",
+            type: "string",
+            operator: "contains",
+            value: uniquePrefix,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedExperiment = result.find((e) => e.id === experimentId2);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.name).toBe(experimentName1);
+      expect(excludedExperiment).toBeUndefined();
+    });
+
+    it("should filter experiments by metadata key-value with equals operator", async () => {
+      const experimentId1 = randomUUID();
+      const experimentName1 = "metadata-test-1-" + randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentName2 = "metadata-test-2-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+      const uniqueEnvValue = "production-" + randomUUID().substring(0, 8);
+
+      // Experiment 1: Has matching metadata
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: ["environment", "version"],
+        experiment_metadata_values: [uniqueEnvValue, "1.0.0"],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Experiment 2: Has different metadata
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: ["environment", "version"],
+        experiment_metadata_values: ["staging", "2.0.0"],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1, event2]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "metadata",
+            type: "stringObject",
+            operator: "=",
+            key: "environment",
+            value: uniqueEnvValue,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedExperiment = result.find((e) => e.id === experimentId2);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.name).toBe(experimentName1);
+      expect(matchingExperiment?.metadata).toEqual({
+        environment: uniqueEnvValue,
+        version: "1.0.0",
+      });
+      expect(excludedExperiment).toBeUndefined();
+    });
+
+    it("should filter experiments by metadata with contains operator", async () => {
+      const experimentId1 = randomUUID();
+      const experimentName1 = "metadata-contains-1-" + randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentName2 = "metadata-contains-2-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+      const uniqueSubstring = randomUUID().substring(0, 8);
+
+      // Experiment 1: Has metadata with substring
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: ["description"],
+        experiment_metadata_values: [`test-${uniqueSubstring}-experiment`],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Experiment 2: Has metadata without substring
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: ["description"],
+        experiment_metadata_values: ["completely-different-value"],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1, event2]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "metadata",
+            type: "stringObject",
+            operator: "contains",
+            key: "description",
+            value: uniqueSubstring,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedExperiment = result.find((e) => e.id === experimentId2);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.name).toBe(experimentName1);
+      expect(excludedExperiment).toBeUndefined();
+    });
+
+    it("should handle experiments without metadata gracefully when filtering", async () => {
+      const experimentId1 = randomUUID();
+      const experimentName1 = "with-metadata-" + randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentName2 = "without-metadata-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+      const uniqueEnvValue = "production-" + randomUUID().substring(0, 8);
+
+      // Experiment 1: Has matching metadata
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: ["environment"],
+        experiment_metadata_values: [uniqueEnvValue],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Experiment 2: Has NO metadata
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1, event2]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "metadata",
+            type: "stringObject",
+            operator: "=",
+            key: "environment",
+            value: uniqueEnvValue,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedExperiment = result.find((e) => e.id === experimentId2);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.name).toBe(experimentName1);
+      // Experiment without metadata should not match
+      expect(excludedExperiment).toBeUndefined();
+    });
+
+    it("should filter experiments by error count", async () => {
+      const experimentId1 = randomUUID();
+      const experimentName1 = "high-error-count-" + randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentName2 = "low-error-count-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Experiment 1: Has 3 ERROR events (error_count = 3)
+      const event1a = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event1b = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event1c = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Experiment 2: Has 1 ERROR event (error_count = 1)
+      const event2a = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Add a non-error event to experiment 2 (should not increase error_count)
+      const event2b = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "DEFAULT",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1a, event1b, event1c, event2a, event2b]);
+
+      // Filter for experiments with error_count >= 2
+      // Should only return experiment 1 (error_count = 3)
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "errorCount",
+            type: "number",
+            operator: ">=",
+            value: 2,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedExperiment = result.find((e) => e.id === experimentId2);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.name).toBe(experimentName1);
+      expect(matchingExperiment?.errorCount).toBe(3);
+
+      // Experiment 2 has error_count = 1, which is < 2, so should be excluded
+      expect(excludedExperiment).toBeUndefined();
+    });
+
+    it("should combine pre-aggregation (dataset) and post-aggregation (errorCount) filters", async () => {
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+
+      const experimentId1 = randomUUID();
+      const experimentName1 = "combined-filter-1-" + randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentName2 = "combined-filter-2-" + randomUUID();
+      const experimentId3 = randomUUID();
+      const experimentName3 = "combined-filter-3-" + randomUUID();
+
+      const now = new Date().getTime();
+
+      // Experiment 1: datasetId1, 2 errors (should match both filters)
+      const event1a = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId1,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event1b = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId1,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Experiment 2: datasetId1, 0 errors (matches dataset, not error filter)
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "DEFAULT",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId1,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Experiment 3: datasetId2, 2 errors (matches error filter, not dataset)
+      const event3a = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId3,
+        experiment_name: experimentName3,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId2,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event3b = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        name: "test-generation",
+        level: "ERROR",
+        experiment_id: experimentId3,
+        experiment_name: experimentName3,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId2,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1a, event1b, event2, event3a, event3b]);
+
+      // Filter: datasetId1 (pre-aggregation) AND errorCount >= 2 (post-aggregation)
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "experimentDatasetId",
+            type: "string",
+            operator: "=",
+            value: datasetId1,
+          },
+          {
+            column: "errorCount",
+            type: "number",
+            operator: ">=",
+            value: 2,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      // Only experiment 1 should match (correct dataset + enough errors)
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedByErrorCount = result.find((e) => e.id === experimentId2);
+      const excludedByDataset = result.find((e) => e.id === experimentId3);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.name).toBe(experimentName1);
+      expect(matchingExperiment?.errorCount).toBe(2);
+
+      expect(excludedByErrorCount).toBeUndefined(); // Wrong error count
+      expect(excludedByDataset).toBeUndefined(); // Wrong dataset
+    });
   });
 });

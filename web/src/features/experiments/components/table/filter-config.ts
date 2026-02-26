@@ -16,9 +16,8 @@ export const experimentsTableCols: ColumnDefinition[] = [
   {
     name: "Name",
     id: "name",
-    type: "stringOptions",
+    type: "string",
     internal: "experiment_name",
-    options: [],
   },
   {
     name: "Description",
@@ -30,7 +29,7 @@ export const experimentsTableCols: ColumnDefinition[] = [
   {
     name: "Metadata",
     id: "metadata",
-    type: "string",
+    type: "stringObject",
     internal: "experiment_metadata",
     nullable: true,
   },
@@ -55,12 +54,6 @@ export const experimentsTableCols: ColumnDefinition[] = [
     internal: "created_at",
   },
   {
-    name: "Updated At",
-    id: "updatedAt",
-    type: "datetime",
-    internal: "updated_at",
-  },
-  {
     name: "Item Count",
     id: "itemCount",
     type: "number",
@@ -71,6 +64,13 @@ export const experimentsTableCols: ColumnDefinition[] = [
     id: "totalCost",
     type: "number",
     internal: "total_cost",
+    nullable: true,
+  },
+  {
+    name: "Average Latency (ms)",
+    id: "latencyAvg",
+    type: "number",
+    internal: "latency_avg",
     nullable: true,
   },
   {
@@ -120,9 +120,19 @@ export const experimentsFilterConfig: FilterConfig = {
 
   facets: [
     {
+      type: "string" as const,
+      column: "name",
+      label: getExperimentsColumnName("name"),
+    },
+    {
       type: "categorical" as const,
       column: "experimentDatasetId",
       label: getExperimentsColumnName("experimentDatasetId"),
+    },
+    {
+      type: "stringKeyValue" as const,
+      column: "metadata",
+      label: getExperimentsColumnName("metadata"),
     },
     {
       type: "numeric" as const,

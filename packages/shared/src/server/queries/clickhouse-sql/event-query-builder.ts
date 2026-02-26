@@ -386,9 +386,12 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   prompts:
     "groupUniqArrayIf(tuple(prompt_name, prompt_version), prompt_name != '') AS prompts",
 
-  // Experiment metadata - use any() since it's identical across events, convert to map
+  // Experiment metadata - output as arrays for filtering, convert to map for display
   experimentMetadata:
     "any(mapFromArrays(experiment_metadata_names, experiment_metadata_values)) AS experiment_metadata",
+  // Arrays for filtering (StringObjectFilter uses metadata_names/metadata_values)
+  metadataNames: "any(experiment_metadata_names) AS metadata_names",
+  metadataValues: "any(experiment_metadata_values) AS metadata_values",
 } as const;
 
 /**

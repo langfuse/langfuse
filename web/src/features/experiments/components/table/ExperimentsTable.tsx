@@ -326,6 +326,28 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       columns: experimentScoreColumns,
     },
     {
+      accessorKey: "latencyAvg",
+      id: "latencyAvg",
+      header: getExperimentsColumnName("latencyAvg"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: number = row.getValue("latencyAvg");
+        return <span>{numberFormatter(value, 4)}</span>;
+      },
+    },
+    {
+      accessorKey: "totalCost",
+      id: "totalCost",
+      header: getExperimentsColumnName("totalCost"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: number = row.getValue("totalCost");
+        return <span>{numberFormatter(value, 4)}</span>;
+      },
+    },
+    {
       accessorKey: "metadata",
       id: "metadata",
       header: getExperimentsColumnName("metadata"),
