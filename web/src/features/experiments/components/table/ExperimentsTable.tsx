@@ -151,13 +151,37 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [experiments.status, experiments.rows]);
 
+  // Trace-based scores (experiment item level)
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<ExperimentsTableRow>({
-      scoreColumnKey: "scores",
+      displayFormat: "aggregate",
+      scoreColumnKey: "itemScores",
       projectId,
-      filter: scoreFilters.forObservations(),
-      fromTimestamp: tableDateRange?.from,
+      filter:
+        experiments.rows && experiments.rows.length > 0
+          ? scoreFilters.forExperimentItems({
+              experimentIds: experiments.rows.map((e) => e.id),
+            })
+          : [],
+      isFilterDataPending: experiments.status === "loading",
     });
+
+  // Experiment-level scores (direct dataset_run_id match)
+  const {
+    scoreColumns: experimentScoreColumns,
+    isLoading: isExperimentScoreColumnLoading,
+  } = useScoreColumns<ExperimentsTableRow>({
+    scoreColumnKey: "experimentScores",
+    projectId,
+    filter:
+      experiments.rows && experiments.rows.length > 0
+        ? scoreFilters.forDatasetRuns({
+            datasetRunIds: experiments.rows.map((e) => e.id),
+          })
+        : [],
+    prefix: "Experiment-level",
+    isFilterDataPending: experiments.status === "loading",
+  });
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
     projectId,
@@ -193,46 +217,6 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
             singleLine={rowHeight === "s"}
           />
         ) : undefined;
-      },
-    },
-    {
-      accessorKey: "metadata",
-      id: "metadata",
-      header: getExperimentsColumnName("metadata"),
-      size: 100,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
-      accessorKey: "prompts",
-      id: "prompts",
-      header: getExperimentsColumnName("prompts"),
-      size: 100,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: Array<[string, number | null]> = row.getValue("prompts");
-        return (
-          <div className="flex flex-wrap gap-1">
-            {value.map(([name, version]) => (
-              <Link
-                key={`${name}-${version}`}
-                href={`/project/${projectId}/prompts/${encodeURIComponent(name)}?version=${version}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Badge
-                  variant="secondary"
-                  className="cursor-pointer hover:bg-secondary/80"
-                >
-                  {name}
-                </Badge>
-              </Link>
-            ))}
-          </div>
-        );
       },
     },
     {
@@ -289,15 +273,68 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       },
     },
     {
-      accessorKey: "scores",
-      header: "Scores",
-      id: "scores",
+      accessorKey: "prompts",
+      id: "prompts",
+      header: getExperimentsColumnName("prompts"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Array<[string, number | null]> = row.getValue("prompts");
+        return (
+          <div className="flex flex-wrap gap-1">
+            {value.map(([name, version]) => (
+              <Link
+                key={`${name}-${version}`}
+                href={`/project/${projectId}/prompts/${encodeURIComponent(name)}?version=${version}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Badge
+                  variant="secondary"
+                  className="cursor-pointer hover:bg-secondary/80"
+                >
+                  {name}
+                </Badge>
+              </Link>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "itemScores",
+      header: "Experiment Item Scores",
+      id: "itemScores",
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
         return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
       },
       columns: scoreColumns,
+    },
+    {
+      accessorKey: "experimentScores",
+      header: "Experiment-Level Scores",
+      id: "experimentScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isExperimentScoreColumnLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: experimentScoreColumns,
+    },
+    {
+      accessorKey: "metadata",
+      id: "metadata",
+      header: getExperimentsColumnName("metadata"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Record<string, string> = row.getValue("metadata");
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
     },
     {
       id: "actions",

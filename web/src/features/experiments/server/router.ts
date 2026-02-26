@@ -11,6 +11,8 @@ import {
   getExperimentsFromEvents,
   getExperimentMetricsFromEvents,
   getNumericScoresGroupedByName,
+  getScoresForExperimentItems,
+  getScoresForExperiments,
   PromptService,
   QueueJobs,
   QueueName,
@@ -36,6 +38,7 @@ import {
   timeFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 const ExperimentFilterOptions = z.object({
   projectId: z.string(),
@@ -337,13 +340,35 @@ export const experimentsRouter = createTRPCRouter({
         return [];
       }
 
-      const metrics = await getExperimentMetricsFromEvents({
-        projectId: input.projectId,
-        experimentIds: input.experimentIds,
-        filter: input.filter ?? [],
-      });
+      // Fetch metrics (cost, latency) and both score types in parallel
+      const [metrics, itemScores, experimentScores] = await Promise.all([
+        getExperimentMetricsFromEvents({
+          projectId: input.projectId,
+          experimentIds: input.experimentIds,
+          filter: input.filter ?? [],
+        }),
+        getScoresForExperimentItems(input.projectId, input.experimentIds),
+        getScoresForExperiments({
+          projectId: input.projectId,
+          runIds: input.experimentIds, // experiment_id === dataset_run_id
+          excludeMetadata: true,
+          includeHasMetadata: true,
+        }),
+      ]);
 
-      return metrics;
+      return metrics.map((metric) => ({
+        id: metric.id,
+        totalCost: metric.totalCost,
+        latencyAvg: metric.latencyAvg,
+        // Item-level scores
+        itemScores: aggregateScores(
+          itemScores.filter((s) => s.experimentId === metric.id),
+        ),
+        // Experiment-level scores (direct dataset_run_id match)
+        experimentScores: aggregateScores(
+          experimentScores.filter((s) => s.datasetRunId === metric.id),
+        ),
+      }));
     }),
 
   filterOptions: protectedProjectProcedure

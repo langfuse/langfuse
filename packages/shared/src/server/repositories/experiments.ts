@@ -213,6 +213,88 @@ const buildExperimentMetricsCTE = (): CTEWithSchema => {
   };
 };
 
+/**
+ * Helper function to build scores aggregation CTE for experiments.
+ * Aggregates scores by (project_id, experiment_id):
+ * - scores_avg: Array of tuples (score_name, experiment_level_avg) for numeric/boolean scores
+ * - score_categories: Array of "name:value" strings for categorical scores
+ *
+ * Note: scores_avg contains ONE tuple per score name with the EXPERIMENT-LEVEL average
+ * (not per-trace averages), enabling correct filtering by average score thresholds.
+ */
+const buildExperimentScoresCTE = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  startTimeFrom?: string | null;
+}): CTEWithSchema => {
+  // Build the WHERE conditions for reuse in both UNION branches
+  const baseConditions = `
+    e.project_id = {projectId: String}
+    AND e.experiment_id IS NOT NULL
+    AND e.experiment_id != ''
+    AND e.is_deleted = 0
+    ${params.startTimeFrom ? `AND e.start_time >= {startTimeFrom: DateTime64(3)}` : ""}
+    ${params.experimentIds ? `AND e.experiment_id IN ({experimentIds: Array(String)})` : ""}
+  `.trim();
+
+  const query = `
+    SELECT
+      project_id,
+      experiment_id,
+      -- Filter out empty names from the array
+      arrayFilter(x -> x.1 != '', groupArray(tuple(name, avg_value))) AS scores_avg,
+      -- Flatten and filter empty strings from categorical scores
+      arrayFilter(x -> x != '', arrayFlatten(groupArray(category_values))) AS score_categories
+    FROM (
+      -- Numeric/Boolean scores: compute EXPERIMENT-LEVEL average per score name
+      SELECT
+        e.project_id as project_id,
+        e.experiment_id as experiment_id,
+        s.name as name,
+        avg(s.value) as avg_value,
+        [] as category_values
+      FROM events_core e
+      INNER JOIN scores s FINAL ON s.project_id = e.project_id AND s.trace_id = e.trace_id
+      WHERE ${baseConditions}
+        AND s.data_type IN ('NUMERIC', 'BOOLEAN')
+      GROUP BY e.project_id, e.experiment_id, s.name
+
+      UNION ALL
+
+      -- Categorical scores: collect all distinct name:value pairs per experiment
+      SELECT
+        e.project_id as project_id,
+        e.experiment_id as experiment_id,
+        '' as name,
+        0 as avg_value,
+        groupArray(DISTINCT concat(s.name, ':', s.string_value)) as category_values
+      FROM events_core e
+      INNER JOIN scores s FINAL ON s.project_id = e.project_id AND s.trace_id = e.trace_id
+      WHERE ${baseConditions}
+        AND s.data_type = 'CATEGORICAL'
+        AND notEmpty(s.string_value)
+      GROUP BY e.project_id, e.experiment_id
+    ) sub
+    GROUP BY project_id, experiment_id
+  `.trim();
+
+  const cteParams: Record<string, string | string[]> = {};
+
+  if (params.startTimeFrom) {
+    cteParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  if (params.experimentIds) {
+    cteParams.experimentIds = params.experimentIds;
+  }
+
+  return {
+    query,
+    params: cteParams,
+    schema: ["project_id", "experiment_id", "scores_avg", "score_categories"],
+  };
+};
+
 const getExperimentsFromEventsGeneric = async <T>(
   props: FetchExperimentsFromEventsProps,
 ) => {
@@ -235,11 +317,17 @@ const getExperimentsFromEventsGeneric = async <T>(
   ) as StringOptionsFilter | undefined;
 
   // Determine if metrics CTEs are needed
+  // Note: f.field contains the clickhouseSelect value (e.g., "em.total_cost", "es.scores_avg")
   const hasMetricsFilter = experimentFilters.some((f) =>
-    ["totalCost", "latencyAvg"].includes(f.field),
+    ["em.total_cost", "em.latency_avg"].includes(f.field),
+  );
+
+  const hasScoresFilter = experimentFilters.some((f) =>
+    ["es.scores_avg", "es.score_categories"].includes(f.field),
   );
 
   const selectMetrics = select === "metrics" || hasMetricsFilter;
+  const selectScores = hasScoresFilter;
 
   // Build main experiment_data CTE
   const experimentsBuilder = eventsExperimentsAggregation({
@@ -247,19 +335,35 @@ const getExperimentsFromEventsGeneric = async <T>(
     experimentIds: experimentIdFilter?.values,
   }).selectFieldSet("all");
 
-  // Apply pre-aggregation filters from experimentEventsFilterCols
-  if (filter.length > 0) {
-    const preAggFilters = new FilterList(
-      createFilterFromFilterState(filter, experimentEventsFilterCols),
-    );
-    const preAggFiltersRes = preAggFilters.apply();
-    if (preAggFiltersRes.query) {
-      experimentsBuilder.whereRaw(
-        preAggFiltersRes.query,
-        preAggFiltersRes.params,
-      );
-    }
-  }
+  // // Apply pre-aggregation filters from experimentEventsFilterCols
+  // // Only include filters that have a mapping in experimentEventsFilterCols
+  // // (exclude scores_avg, score_categories, etc. which are post-aggregation only)
+  // if (filter.length > 0) {
+  //   const preAggFilterableColumns = new Set(
+  //     experimentEventsFilterCols.map((col) => col.uiTableId ?? col.uiTableName),
+  //   );
+  //   const preAggFilterState = filter.filter(
+  //     (f) =>
+  //       preAggFilterableColumns.has(f.column) ||
+  //       preAggFilterableColumns.has(f.column),
+  //   );
+
+  //   if (preAggFilterState.length > 0) {
+  //     const preAggFilters = new FilterList(
+  //       createFilterFromFilterState(
+  //         preAggFilterState,
+  //         experimentEventsFilterCols,
+  //       ),
+  //     );
+  //     const preAggFiltersRes = preAggFilters.apply();
+  //     if (preAggFiltersRes.query) {
+  //       experimentsBuilder.whereRaw(
+  //         preAggFiltersRes.query,
+  //         preAggFiltersRes.params,
+  //       );
+  //     }
+  //   }
+  // }
 
   // Initialize CTEQueryBuilder
   let queryBuilder = new CTEQueryBuilder()
@@ -288,6 +392,25 @@ const getExperimentsFromEventsGeneric = async <T>(
       );
   }
 
+  // Conditionally add scores CTE for score aggregations
+  if (selectScores) {
+    const scoresCte = buildExperimentScoresCTE({
+      projectId,
+      experimentIds: experimentIdFilter?.values,
+      startTimeFrom: startTimeFilter
+        ? convertDateToClickhouseDateTime(startTimeFilter.value)
+        : null,
+    });
+
+    queryBuilder = queryBuilder
+      .withCTE("experiment_scores", scoresCte)
+      .leftJoin(
+        "experiment_scores",
+        "es",
+        "ON es.experiment_id = e.experiment_id AND es.project_id = e.project_id",
+      );
+  }
+
   // Add SELECT based on operation type
   switch (select) {
     case "count":
@@ -309,7 +432,11 @@ const getExperimentsFromEventsGeneric = async <T>(
       );
       break;
     case "metrics":
-      queryBuilder.selectColumns("e.experiment_id", "e.project_id");
+      // Use explicit aliases to avoid column name conflicts with joined CTEs
+      queryBuilder.select(
+        "e.experiment_id as experiment_id",
+        "e.project_id as project_id",
+      );
       if (selectMetrics) {
         queryBuilder.select("em.total_cost", "em.latency_avg");
       }

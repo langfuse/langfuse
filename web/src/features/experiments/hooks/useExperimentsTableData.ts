@@ -1,7 +1,28 @@
 import { useMemo } from "react";
-import { type FilterState } from "@langfuse/shared";
-import { type ExperimentsTableRow } from "../components/table/types";
+import { type FilterState, type ScoreAggregate } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+
+type ExperimentCoreData = {
+  id: string;
+  name: string;
+  description: string | null;
+  metadata: Record<string, string>;
+  prompts: Array<[string, number | null]>;
+  datasetId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  itemCount: number;
+  errorCount: number;
+};
+
+type ExperimentMetricsData = {
+  id: string;
+  totalCost: number | null;
+  latencyAvg: number | null;
+  itemScores: ScoreAggregate; // Item-level scores
+  experimentScores: ScoreAggregate; // Experiment-level scores
+};
 
 type UseExperimentsTableDataParams = {
   projectId: string;
@@ -54,6 +75,27 @@ export function useExperimentsTableData({
     refetchOnWindowFocus: true,
   });
 
+  // Build metrics payload based on experiments data
+  const metricsPayload = useMemo(() => {
+    const experiments = experimentsQuery.data?.data;
+    if (!experiments || experiments.length === 0) {
+      return null;
+    }
+
+    return {
+      projectId,
+      experimentIds: experiments.map((e) => e.id),
+      filter: filterState,
+    };
+  }, [experimentsQuery.data?.data, projectId, filterState]);
+
+  // Fetch metrics
+  const metricsQuery = api.experiments.metrics.useQuery(metricsPayload!, {
+    enabled: experimentsQuery.isSuccess && metricsPayload !== null,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
+
   // Fetch total count
   const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
     refetchOnWindowFocus: true,
@@ -61,8 +103,9 @@ export function useExperimentsTableData({
 
   const totalCount = totalCountQuery.data?.count ?? null;
 
-  // Transform backend data (snake_case) to frontend format (camelCase)
-  const experiments = useMemo(() => {
+  // Memoize joined data to prevent infinite re-renders
+  // Handle loading, error, and success states
+  const joinedData = useMemo(() => {
     if (experimentsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
@@ -71,24 +114,24 @@ export function useExperimentsTableData({
       return { status: "error" as const, rows: undefined };
     }
 
-    const rows: ExperimentsTableRow[] =
-      experimentsQuery.data?.data?.map((exp) => ({
-        ...exp,
-        scores: {}, // TODO: Add score aggregation when available
-      })) ?? [];
-
-    return { status: "success" as const, rows };
+    // Success case - join the data
+    return joinTableCoreAndMetrics<ExperimentCoreData, ExperimentMetricsData>(
+      experimentsQuery.data?.data,
+      metricsQuery.data,
+    );
   }, [
     experimentsQuery.isLoading,
     experimentsQuery.isError,
-    experimentsQuery.data,
+    experimentsQuery.data?.data,
+    metricsQuery.data,
   ]);
 
   const dataUpdatedAt = experimentsQuery.dataUpdatedAt;
 
   return {
-    experiments,
+    experiments: joinedData,
     dataUpdatedAt,
     totalCount,
+    metricsLoading: metricsQuery.isLoading,
   };
 }

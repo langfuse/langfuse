@@ -6,6 +6,8 @@ import {
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
   getExperimentMetricsFromEvents,
+  createTraceScore,
+  createScoresCh,
 } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -592,6 +594,170 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(metric.totalCost).toBeDefined();
       expect(typeof metric.totalCost).toBe("number");
       expect(metric.totalCost).toBeCloseTo(0.05, 6);
+    });
+
+    it("should filter by scores_avg with a threshold", async () => {
+      const experimentId1 = randomUUID();
+      const experimentName1 = "score-filter-test-1-" + randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentName2 = "score-filter-test-2-" + randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+      const scoreName = "accuracy";
+
+      // Experiment 1: Two items with scores averaging to 0.8
+      // Item 1: score = 0.7
+      // Item 2: score = 0.9
+      // Average = 0.8
+      const trace1aId = randomUUID();
+      const trace1bId = randomUUID();
+
+      const event1a = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace1aId,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event1b = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace1bId,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: experimentName1,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      // Experiment 2: Two items with scores averaging to 0.5
+      // Item 1: score = 0.4
+      // Item 2: score = 0.6
+      // Average = 0.5
+      const trace2aId = randomUUID();
+      const trace2bId = randomUUID();
+
+      const event2a = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace2aId,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      const event2b = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: trace2bId,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: experimentName2,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: now * 1000,
+        experiment_item_root_span_id: randomUUID(),
+        created_at: now * 1000,
+      });
+
+      await createEventsCh([event1a, event1b, event2a, event2b]);
+
+      // Create scores for experiment 1 traces (avg = 0.8)
+      const score1a = createTraceScore({
+        project_id: projectId,
+        trace_id: trace1aId,
+        name: scoreName,
+        value: 0.7,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+      const score1b = createTraceScore({
+        project_id: projectId,
+        trace_id: trace1bId,
+        name: scoreName,
+        value: 0.9,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      // Create scores for experiment 2 traces (avg = 0.5)
+      const score2a = createTraceScore({
+        project_id: projectId,
+        trace_id: trace2aId,
+        name: scoreName,
+        value: 0.4,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+      const score2b = createTraceScore({
+        project_id: projectId,
+        trace_id: trace2bId,
+        name: scoreName,
+        value: 0.6,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      await createScoresCh([score1a, score1b, score2a, score2b]);
+
+      // Filter for experiments where score avg > 0.6
+      // Should only return experiment 1 (avg = 0.8)
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "scores_avg",
+            type: "numberObject",
+            key: scoreName,
+            operator: ">",
+            value: 0.6,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      // Should only return experimentId1 (avg = 0.8 > 0.6)
+      const matchingExperiment = result.find((e) => e.id === experimentId1);
+      const excludedExperiment = result.find((e) => e.id === experimentId2);
+
+      expect(matchingExperiment).toBeDefined();
+      expect(matchingExperiment?.id).toBe(experimentId1);
+      expect(matchingExperiment?.name).toBe(experimentName1);
+
+      expect(excludedExperiment).toBeUndefined(); // avg = 0.5 < 0.6
     });
   });
 });

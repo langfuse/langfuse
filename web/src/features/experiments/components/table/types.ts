@@ -1,4 +1,4 @@
-import { type ScoreAggregate } from "@langfuse/shared";
+import { ScoreAggregate } from "@langfuse/shared";
 
 export type ExperimentsTableRow = {
   // Identity fields
@@ -19,8 +19,11 @@ export type ExperimentsTableRow = {
   itemCount: number;
   errorCount: number;
 
-  // Scores - dynamic columns
-  scores: ScoreAggregate;
+  // Metrics - from separate query
+  totalCost?: number | null;
+  latencyAvg?: number | null;
+  itemScores?: ScoreAggregate; // Item-level scores
+  experimentScores?: ScoreAggregate; // Experiment-level scores
 };
 
 export type ExperimentsTableProps = {
