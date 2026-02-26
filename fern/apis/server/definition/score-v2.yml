@@ -74,7 +74,7 @@ service:
             docs: Only scores linked to traces that include all of these tags will be returned.
           fields:
             type: optional<string>
-            docs: "Comma-separated list of field groups to include in the response. Available field groups: 'score' (core score fields), 'trace' (trace properties: userId, tags, environment). If not specified, both 'score' and 'trace' are returned by default. Example: 'score' to exclude trace data, 'score,trace' to include both. Note: When filtering by trace properties (using userId or traceTags parameters), the 'trace' field group must be included, otherwise a 400 error will be returned."
+            docs: "Comma-separated list of field groups to include in the response. Available field groups: 'score' (core score fields), 'trace' (trace properties: userId, tags, environment, sessionId). If not specified, both 'score' and 'trace' are returned by default. Example: 'score' to exclude trace data, 'score,trace' to include both. Note: When filtering by trace properties (using userId or traceTags parameters), the 'trace' field group must be included, otherwise a 400 error will be returned."
           filter:
             type: optional<string>
             docs: >
@@ -106,6 +106,9 @@ types:
       environment:
         type: optional<string>
         docs: The environment of the trace referenced by score
+      sessionId:
+        type: optional<string>
+        docs: The session ID associated with the trace referenced by score
 
   GetScoresResponseDataNumeric:
     extends: commons.NumericScore
