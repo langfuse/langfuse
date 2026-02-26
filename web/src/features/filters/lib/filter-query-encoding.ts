@@ -49,20 +49,14 @@ export type GenericFilterOptions = Record<
 
 // Pure helper: compute UI-selected values from a filter entry and available values
 export function computeSelectedValues(
-  availableValues: string[] | SingleValueOption[],
+  availableValues: string[],
   filterEntry: { operator?: string; value?: unknown } | undefined,
 ): string[] {
-  // Extract string values from SingleValueOption[] if needed
-  const valueStrings =
-    availableValues.length > 0 && typeof availableValues[0] === "object"
-      ? (availableValues as SingleValueOption[]).map((opt) => opt.value)
-      : (availableValues as string[]);
-
-  if (!filterEntry) return valueStrings;
+  if (!filterEntry) return availableValues;
   const values = (filterEntry.value as string[]) ?? [];
   if (filterEntry.operator === "none of") {
     const excluded = new Set(values);
-    return valueStrings.filter((v) => !excluded.has(v));
+    return availableValues.filter((v) => !excluded.has(v));
   }
   return values;
 }
