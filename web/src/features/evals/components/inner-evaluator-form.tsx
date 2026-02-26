@@ -390,17 +390,18 @@ export const InnerEvaluatorForm = (props: {
     ),
   );
 
+  const watchedTarget = form.watch("target");
+  const watchedMapping = form.watch("mapping");
+
   const hasObservationTargetsInTraceEval = useMemo(() => {
     if (props.mode === "edit") return false;
 
-    const target = form.watch("target");
-    if (!isTraceTarget(target)) return false;
+    if (!isTraceTarget(watchedTarget)) return false;
 
-    const mapping = form.watch("mapping");
-    return mapping.some(
+    return watchedMapping.some(
       (m) => m.langfuseObject && m.langfuseObject !== "trace",
     );
-  }, [form.watch("target"), form.watch("mapping"), props.mode]);
+  }, [watchedTarget, watchedMapping, props.mode]);
 
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
     capture(
