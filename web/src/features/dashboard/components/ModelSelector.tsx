@@ -108,6 +108,10 @@ export const useModelSelection = (
   fromTimestamp: Date,
   toTimestamp: Date,
   metricsVersion?: ViewVersion,
+  options?: {
+    enabled?: boolean;
+    queryId: string;
+  },
 ) => {
   const allModels = getAllModels(
     projectId,
@@ -115,6 +119,7 @@ export const useModelSelection = (
     fromTimestamp,
     toTimestamp,
     metricsVersion,
+    options,
   );
 
   const [selectedModels, setSelectedModels] = useState<string[]>([]);

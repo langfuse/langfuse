@@ -5,11 +5,16 @@ export type TimeSeriesChartDataPoint = {
   values: { label: string; value?: number }[];
 };
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { api } from "@/src/utils/api";
 import {
   type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+
+type GetAllModelsOptions = {
+  enabled?: boolean;
+  queryId: string;
+};
 
 export const getAllModels = (
   projectId: string,
@@ -17,8 +22,9 @@ export const getAllModels = (
   fromTimestamp: Date,
   toTimestamp: Date,
   metricsVersion?: ViewVersion,
+  options?: GetAllModelsOptions,
 ) => {
-  const allModels = api.dashboard.executeQuery.useQuery(
+  const allModels = useScheduledDashboardExecuteQuery(
     {
       projectId,
       version: metricsVersion,
@@ -47,6 +53,8 @@ export const getAllModels = (
           skipBatch: true,
         },
       },
+      enabled: options?.enabled ?? true,
+      queryId: `${options?.queryId ?? "dashboard:all-models"}:models`,
     },
   );
 

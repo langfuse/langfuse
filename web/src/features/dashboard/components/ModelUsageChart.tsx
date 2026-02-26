@@ -27,6 +27,7 @@ import {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export const ModelUsageChart = ({
   className,
@@ -38,6 +39,7 @@ export const ModelUsageChart = ({
   userAndEnvFilterState,
   isLoading = false,
   metricsVersion,
+  schedulerId,
 }: {
   className?: string;
   projectId: string;
@@ -48,6 +50,7 @@ export const ModelUsageChart = ({
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) => {
   const {
     allModels,
@@ -62,6 +65,10 @@ export const ModelUsageChart = ({
     fromTimestamp,
     toTimestamp,
     metricsVersion,
+    {
+      enabled: !isLoading,
+      queryId: `${schedulerId ?? "home:model-usage"}:all-models`,
+    },
   );
 
   const modelUsageQuery: QueryType = {
@@ -95,7 +102,7 @@ export const ModelUsageChart = ({
     orderBy: null,
   };
 
-  const queryResult = api.dashboard.executeQuery.useQuery(
+  const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: modelUsageQuery,
@@ -108,6 +115,8 @@ export const ModelUsageChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:model-usage"}:timeseries`,
+      priority: 1001,
     },
   );
 
