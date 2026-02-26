@@ -3,6 +3,7 @@ import {
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { api, type RouterInputs } from "@/src/utils/api";
+import { hashKey } from "@tanstack/react-query";
 import {
   createContext,
   type ReactNode,
@@ -268,13 +269,8 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
   runKey?: string;
 };
 
-const getDefaultRunKey = (input: DashboardExecuteQueryInput) => {
-  try {
-    return JSON.stringify(input);
-  } catch {
-    return "default-run-key";
-  }
-};
+const getDefaultRunKey = (input: DashboardExecuteQueryInput) =>
+  hashKey([input]);
 
 export const useScheduledDashboardExecuteQuery = (
   input: DashboardExecuteQueryInput,
