@@ -41,7 +41,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
-import { type FilterState, type FilterOption } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 interface ControlsContextType {
@@ -365,7 +365,7 @@ interface BaseFacetProps {
 }
 
 interface CategoricalFacetProps extends BaseFacetProps {
-  options: FilterOption[];
+  options: string[];
   counts: Map<string, number>;
   value: string[];
   onChange: (values: string[]) => void;
@@ -621,18 +621,11 @@ export function CategoricalFacet({
   const MAX_VISIBLE_OPTIONS = 12;
   const hasMoreOptions = options.length > MAX_VISIBLE_OPTIONS;
 
-  // Filter options by search query - search on both displayValue and value
+  // Filter options by search query
   const filteredOptions = searchQuery
-    ? options.filter((option) => {
-        const searchLower = searchQuery.toLowerCase();
-        const displayValue =
-          option.displayValue ??
-          (option.value === "" ? "(empty)" : option.value);
-        return (
-          displayValue.toLowerCase().includes(searchLower) ||
-          option.value.toLowerCase().includes(searchLower)
-        );
-      })
+    ? options.filter((option) =>
+        option.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : options;
 
   const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
@@ -784,33 +777,26 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {visibleOptions.map((option: FilterOption) => {
-                      const displayLabel =
-                        option.displayValue ??
-                        (option.value === "" ? "(empty)" : option.value);
-                      return (
-                        <FilterValueCheckbox
-                          key={option.value}
-                          id={`${filterKey}-${option.value}`}
-                          label={displayLabel}
-                          icon={renderIcon?.(option.value)}
-                          count={counts.get(option.value) || 0}
-                          checked={value.includes(option.value)}
-                          onCheckedChange={(checked) => {
-                            const newValues = checked
-                              ? [...value, option.value]
-                              : value.filter((v: string) => v !== option.value);
-                            onChange(newValues);
-                          }}
-                          onLabelClick={
-                            onOnlyChange
-                              ? () => onOnlyChange(option.value)
-                              : undefined
-                          }
-                          totalSelected={value.length}
-                        />
-                      );
-                    })}
+                    {visibleOptions.map((option: string) => (
+                      <FilterValueCheckbox
+                        key={option}
+                        id={`${filterKey}-${option}`}
+                        label={option}
+                        icon={renderIcon?.(option)}
+                        count={counts.get(option) || 0}
+                        checked={value.includes(option)}
+                        onCheckedChange={(checked) => {
+                          const newValues = checked
+                            ? [...value, option]
+                            : value.filter((v: string) => v !== option);
+                          onChange(newValues);
+                        }}
+                        onLabelClick={
+                          onOnlyChange ? () => onOnlyChange(option) : undefined
+                        }
+                        totalSelected={value.length}
+                      />
+                    ))}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">
                         <Button
@@ -827,7 +813,7 @@ export function CategoricalFacet({
                 )}
                 {filterKey === "environment" &&
                 options.length === 1 &&
-                options[0]?.value.toLowerCase() === "default" ? (
+                options[0]?.toLowerCase() === "default" ? (
                   <div className="mt-2 px-2 text-xs text-muted-foreground">
                     Environments help you separate traces from different
                     contexts (e.g. production, staging).{" "}

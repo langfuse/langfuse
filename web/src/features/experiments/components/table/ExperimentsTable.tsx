@@ -344,7 +344,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       enableHiding: true,
       cell: ({ row }) => {
         const value: number = row.getValue("totalCost");
-        return <span>{numberFormatter(value, 4)}</span>;
+        return <span>{numberFormatter(value, 6)}</span>;
       },
     },
     {
