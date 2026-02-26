@@ -696,6 +696,7 @@ export const eventRecordBaseSchema = z.object({
   experiment_description: z.string().nullish(),
   experiment_dataset_id: z.string().nullish(),
   experiment_item_id: z.string().nullish(),
+  experiment_item_version: clickhouseStringDateSchema.nullish(),
   experiment_item_expected_output: z.string().nullish(),
   experiment_item_metadata_names: z.array(z.string()).default([]),
   experiment_item_metadata_values: z.array(z.string().nullish()).default([]),
@@ -732,7 +733,6 @@ export const eventRecordReadSchema = eventRecordBaseSchema.extend({
   created_at: clickhouseStringDateSchema,
   updated_at: clickhouseStringDateSchema,
   event_ts: clickhouseStringDateSchema,
-  experiment_item_version: clickhouseStringDateSchema.nullish(),
 });
 export type EventRecordReadType = z.infer<typeof eventRecordReadSchema>;
 
@@ -744,6 +744,5 @@ export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
   created_at: z.number(),
   updated_at: z.number(),
   event_ts: z.number(),
-  experiment_item_version: z.number().nullish(),
 });
 export type EventRecordInsertType = z.infer<typeof eventRecordInsertSchema>;

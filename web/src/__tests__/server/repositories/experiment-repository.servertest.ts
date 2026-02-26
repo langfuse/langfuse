@@ -58,7 +58,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_description: experimentDescription,
         experiment_dataset_id: experimentDatasetId,
         experiment_item_id: experimentItemId,
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_expected_output: "Test expected output",
         experiment_item_metadata_names: [],
         experiment_item_metadata_values: [],
@@ -81,7 +81,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_description: experimentDescription,
         experiment_dataset_id: experimentDatasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_expected_output: "Test expected output 2",
         experiment_item_metadata_names: [],
         experiment_item_metadata_values: [],
@@ -134,7 +134,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: twoDaysAgo.getTime() * 1000,
       });
@@ -152,7 +152,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now.getTime() * 1000,
       });
@@ -170,7 +170,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: yesterday.getTime() * 1000,
       });
@@ -230,7 +230,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: twoDaysAgo.getTime() * 1000,
       });
@@ -249,7 +249,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId2,
         experiment_item_id: randomUUID(),
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: yesterday.getTime() * 1000,
       });
@@ -268,7 +268,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
-        experiment_item_version: Date.now() * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: threeDaysAgo.getTime() * 1000,
       });
@@ -337,7 +337,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         start_time: (now - 3500) * 1000, // Earliest start: now - 3500ms (convert to microseconds)
         end_time: (now - 2500) * 1000, // End: now - 2500ms (convert to microseconds)
@@ -359,7 +359,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: event1.experiment_item_id,
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3400) * 1000,
         end_time: (now - 3000) * 1000,
@@ -381,7 +381,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: event1.experiment_item_id,
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3000) * 1000,
         end_time: (now - 1500) * 1000, // Latest end: now - 1500ms (convert to microseconds)
@@ -403,7 +403,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         start_time: (now - 2500) * 1000, // Start: now - 2500ms (convert to microseconds)
         end_time: (now - 1500) * 1000, // End: now - 1500ms (latency = 1000ms, convert to microseconds)
@@ -449,7 +449,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         start_time: (now - 3500) * 1000,
         end_time: (now - 2500) * 1000,
@@ -471,7 +471,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: event1.experiment_item_id,
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3400) * 1000,
         end_time: (now - 3000) * 1000,
@@ -493,7 +493,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: event1.experiment_item_id,
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: event1.experiment_item_root_span_id,
         start_time: (now - 3000) * 1000,
         end_time: (now - 2600) * 1000,
@@ -516,7 +516,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         start_time: (now - 2500) * 1000,
         end_time: (now - 1500) * 1000,
@@ -567,7 +567,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         start_time: (now - 2000) * 1000,
         end_time: (now - 1000) * 1000, // 1000ms latency
@@ -626,7 +626,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -644,7 +644,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -669,7 +669,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -687,7 +687,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -782,7 +782,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -800,7 +800,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -852,7 +852,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -870,7 +870,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -923,7 +923,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [uniqueEnvValue, "1.0.0"],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -942,7 +942,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: ["staging", "2.0.0"],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1000,7 +1000,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [`test-${uniqueSubstring}-experiment`],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1019,7 +1019,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: ["completely-different-value"],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1073,7 +1073,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [uniqueEnvValue],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1092,7 +1092,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1147,7 +1147,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1166,7 +1166,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1185,7 +1185,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1205,7 +1205,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1225,7 +1225,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1287,7 +1287,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1306,7 +1306,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1326,7 +1326,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId1,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1346,7 +1346,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId2,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
@@ -1365,7 +1365,7 @@ describe("Clickhouse Experiment Repository Test", () => {
         experiment_metadata_values: [],
         experiment_dataset_id: datasetId2,
         experiment_item_id: randomUUID(),
-        experiment_item_version: now * 1000,
+        experiment_item_version: null,
         experiment_item_root_span_id: randomUUID(),
         created_at: now * 1000,
       });
