@@ -1,6 +1,8 @@
 import startCase from "lodash/startCase";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { type z } from "zod/v4";
+import { type views } from "@/src/features/query/types";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -132,4 +134,13 @@ export function buildWidgetDescription({
   }
 
   return sentence;
+}
+
+/**
+ * Returns the default view for the new widget form.
+ * When v4 beta is enabled, defaults to "observations" because "traces"
+ * is excluded from viewsV2 (no v2-specific API support).
+ */
+export function getDefaultView(isBetaEnabled: boolean): z.infer<typeof views> {
+  return isBetaEnabled ? "observations" : "traces";
 }

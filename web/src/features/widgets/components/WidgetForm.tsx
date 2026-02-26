@@ -300,6 +300,18 @@ export function WidgetForm({
     initialValues.dimension,
   );
 
+  // When beta is toggled on while "traces" is selected (and not editing an
+  // existing widget), auto-switch to "observations" and reset dependent fields.
+  useEffect(() => {
+    if (isBetaEnabled && selectedView === "traces" && !isExistingWidget) {
+      setSelectedView("observations");
+      setSelectedMeasure("count");
+      setSelectedAggregation("count");
+      setSelectedDimension("none");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBetaEnabled]);
+
   // Pivot table dimensions state (for PIVOT_TABLE chart type)
   const [pivotDimensions, setPivotDimensions] = useState<string[]>(
     initialValues.chartType === "PIVOT_TABLE" &&
