@@ -1,4 +1,4 @@
-import { ScoreAggregate } from "@langfuse/shared";
+import { type ScoreAggregate } from "@langfuse/shared";
 
 export type ExperimentsTableRow = {
   // Identity fields

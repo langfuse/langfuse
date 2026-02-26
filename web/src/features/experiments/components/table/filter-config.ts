@@ -1,6 +1,6 @@
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-import { ColumnDefinition } from "@langfuse/shared";
+import type { ColumnDefinition } from "@langfuse/shared";
 
 // Temporary column definitions for experiments
 // TODO: Move to shared package once backend is implemented

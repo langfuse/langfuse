@@ -366,8 +366,6 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       header: "Actions",
       size: 70,
       cell: ({ row }) => {
-        const id: string = row.getValue("name");
-
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

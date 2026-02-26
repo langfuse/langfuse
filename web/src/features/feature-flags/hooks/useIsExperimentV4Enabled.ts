@@ -1,5 +1,4 @@
 import { useSession } from "next-auth/react";
-import type { Flag } from "../types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
