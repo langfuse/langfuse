@@ -1,5 +1,4 @@
 import { type OrderByState } from "../../interfaces/orderBy";
-import { UiColumnMappings } from "../../tableDefinitions";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
