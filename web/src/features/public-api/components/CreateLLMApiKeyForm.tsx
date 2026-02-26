@@ -1027,8 +1027,9 @@ export function CreateLLMApiKeyForm({
               )}
 
               {/* Extra Headers */}
-              {currentAdapter === LLMAdapter.OpenAI &&
-                renderExtraHeadersField()}
+              {[LLMAdapter.OpenAI, LLMAdapter.Anthropic].includes(
+                currentAdapter,
+              ) && renderExtraHeadersField()}
 
               {/* With default models */}
               <FormField
