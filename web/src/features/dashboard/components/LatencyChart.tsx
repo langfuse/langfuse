@@ -25,6 +25,8 @@ import {
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 
 export const GenerationLatencyChart = ({
   className,
@@ -52,6 +54,8 @@ export const GenerationLatencyChart = ({
     isAllSelected,
     buttonText,
     handleSelectAll,
+    isAllModelsPending,
+    isAllModelsError,
   } = useModelSelection(
     projectId,
     globalFilterState,
@@ -107,6 +111,9 @@ export const GenerationLatencyChart = ({
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
@@ -151,14 +158,20 @@ export const GenerationLatencyChart = ({
     },
   ];
 
+  const chartLoadingState = getChartLoadingStateProps({
+    isPending:
+      isLoading ||
+      isAllModelsPending ||
+      (latencies.isPending && selectedModels.length > 0),
+    isError: isAllModelsError || latencies.isError,
+  });
+
   return (
     <DashboardCard
       className={className}
       title="Model latencies"
       description="Latencies (seconds) per LLM generation"
-      isLoading={
-        isLoading || (latencies.isPending && selectedModels.length > 0)
-      }
+      isLoading={false}
       headerRight={
         <div className="flex items-center justify-end">
           <ModelSelectorPopover
@@ -179,7 +192,7 @@ export const GenerationLatencyChart = ({
             content: (
               <>
                 {!isEmptyTimeSeries({ data: item.data }) ? (
-                  <div className="h-80 w-full shrink-0">
+                  <div className="relative h-80 w-full shrink-0">
                     <Chart
                       chartType="LINE_TIME_SERIES"
                       data={timeSeriesToDataPoints(item.data, agg)}
@@ -191,11 +204,32 @@ export const GenerationLatencyChart = ({
                       valueFormatter={latencyFormatter}
                       legendPosition="above"
                     />
+                    <ChartLoadingState
+                      isLoading={chartLoadingState.isLoading}
+                      showSpinner={chartLoadingState.showSpinner}
+                      showHintImmediately={
+                        chartLoadingState.showHintImmediately
+                      }
+                      hintText={chartLoadingState.hintText}
+                      className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                      hintClassName="max-w-sm px-4"
+                    />
+                  </div>
+                ) : chartLoadingState.isLoading ? (
+                  <div className="relative h-80 w-full shrink-0">
+                    <ChartLoadingState
+                      isLoading={chartLoadingState.isLoading}
+                      showSpinner={chartLoadingState.showSpinner}
+                      showHintImmediately={
+                        chartLoadingState.showHintImmediately
+                      }
+                      hintText={chartLoadingState.hintText}
+                      className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm"
+                      hintClassName="max-w-sm px-4"
+                    />
                   </div>
                 ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || latencies.isPending}
-                  />
+                  <NoDataOrLoading isLoading={false} />
                 )}
               </>
             ),

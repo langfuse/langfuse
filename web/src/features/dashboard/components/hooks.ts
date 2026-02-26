@@ -18,7 +18,7 @@ export const getAllModels = (
   toTimestamp: Date,
   metricsVersion?: ViewVersion,
 ) => {
-  const allModels = api.dashboard.executeQuery.useQuery(
+  const allModelsQuery = api.dashboard.executeQuery.useQuery(
     {
       projectId,
       version: metricsVersion,
@@ -47,10 +47,17 @@ export const getAllModels = (
           skipBatch: true,
         },
       },
+      meta: {
+        silentHttpCodes: [422],
+      },
     },
   );
 
-  return allModels.data ? extractAllModels(allModels.data) : [];
+  return {
+    allModels: allModelsQuery.data ? extractAllModels(allModelsQuery.data) : [],
+    isPending: allModelsQuery.isPending,
+    isError: allModelsQuery.isError,
+  };
 };
 
 const extractAllModels = (
