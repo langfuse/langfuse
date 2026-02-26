@@ -211,7 +211,7 @@ export default function Dashboard() {
     maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
     resetKey: schedulerResetKey,
   });
-  const homeCardId = (id: string) => `${projectId}:${id}`;
+  const homeSchedulerIdPrefix = `${projectId}:`;
 
   return (
     <DashboardQuerySchedulerProvider scheduler={scheduler}>
@@ -295,7 +295,7 @@ export default function Dashboard() {
               toTimestamp={toTimestamp}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.traces)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.traces}`}
             />
             <ModelCostTable
               className="col-span-1 xl:col-span-2"
@@ -305,7 +305,7 @@ export default function Dashboard() {
               toTimestamp={toTimestamp}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.modelCosts)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelCosts}`}
             />
             <ScoresTable
               className="col-span-1 xl:col-span-2"
@@ -323,7 +323,7 @@ export default function Dashboard() {
               agg={agg}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.tracesTimeSeries)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
             />
             <ModelUsageChart
               className="col-span-1 min-h-24 xl:col-span-3"
@@ -335,7 +335,7 @@ export default function Dashboard() {
               agg={agg}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.modelUsage)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
             />
             <UserChart
               className="col-span-1 xl:col-span-3"
@@ -345,7 +345,7 @@ export default function Dashboard() {
               toTimestamp={toTimestamp}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.users)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.users}`}
             />
             <ChartScores
               className="col-span-1 xl:col-span-3"
@@ -356,7 +356,7 @@ export default function Dashboard() {
               toTimestamp={toTimestamp}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.chartScores)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
             />
             <LatencyTables
               projectId={projectId}
@@ -365,7 +365,7 @@ export default function Dashboard() {
               toTimestamp={toTimestamp}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.latencyTables)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.latencyTables}`}
             />
             <GenerationLatencyChart
               className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -376,9 +376,7 @@ export default function Dashboard() {
               toTimestamp={toTimestamp}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(
-                HOME_DASHBOARD_CARD_IDS.generationLatency,
-              )}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
             />
             <ScoreAnalytics
               className="col-span-1 flex-auto justify-between lg:col-span-full"
@@ -389,7 +387,7 @@ export default function Dashboard() {
               toTimestamp={toTimestamp}
               isLoading={environmentOptionsState.isPending}
               metricsVersion={metricsVersion}
-              schedulerId={homeCardId(HOME_DASHBOARD_CARD_IDS.scoreAnalytics)}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
             />
           </div>
         )}

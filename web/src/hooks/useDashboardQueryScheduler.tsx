@@ -35,7 +35,6 @@ export type DashboardQuerySchedulerApi = {
   unregister: (id: string) => void;
   canFetch: (id: string) => boolean;
   markDone: (id: string) => void;
-  reset: () => void;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -165,7 +164,7 @@ export const useDashboardQueryScheduler = ({
     [syncQueue],
   );
 
-  const reset = useCallback(() => {
+  const resetQueue = useCallback(() => {
     let changed = false;
 
     for (const item of itemsRef.current.values()) {
@@ -195,15 +194,14 @@ export const useDashboardQueryScheduler = ({
   useEffect(() => {
     if (previousResetKeyRef.current === resetKey) return;
     previousResetKeyRef.current = resetKey;
-    reset();
-  }, [reset, resetKey]);
+    resetQueue();
+  }, [resetKey, resetQueue]);
 
   return {
     register,
     unregister,
     canFetch,
     markDone,
-    reset,
   };
 };
 

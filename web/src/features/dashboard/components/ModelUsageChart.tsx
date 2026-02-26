@@ -70,6 +70,8 @@ export const ModelUsageChart = ({
       queryId: `${schedulerId ?? "home:model-usage"}:all-models`,
     },
   );
+  const hasModelSelection = selectedModels.length > 0 && allModels.length > 0;
+  const isModelUsageEnabled = !isLoading && hasModelSelection;
 
   const modelUsageQuery: QueryType = {
     view: "observations",
@@ -109,7 +111,7 @@ export const ModelUsageChart = ({
       version: metricsVersion,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      enabled: isModelUsageEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -163,7 +165,7 @@ export const ModelUsageChart = ({
       version: metricsVersion,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      enabled: isModelUsageEnabled,
       trpc: {
         context: {
           skipBatch: true,
@@ -213,7 +215,7 @@ export const ModelUsageChart = ({
       version: metricsVersion,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      enabled: isModelUsageEnabled,
       trpc: {
         context: {
           skipBatch: true,

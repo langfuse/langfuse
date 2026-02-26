@@ -65,6 +65,8 @@ export const GenerationLatencyChart = ({
       queryId: `${schedulerId ?? "home:generation-latency"}:all-models`,
     },
   );
+  const hasModelSelection = selectedModels.length > 0 && allModels.length > 0;
+  const isLatencyEnabled = !isLoading && hasModelSelection;
 
   const latenciesQuery: QueryType = {
     view: "observations",
@@ -107,7 +109,7 @@ export const GenerationLatencyChart = ({
       version: metricsVersion,
     },
     {
-      enabled: !isLoading && selectedModels.length > 0 && allModels.length > 0,
+      enabled: isLatencyEnabled,
       trpc: {
         context: {
           skipBatch: true,
