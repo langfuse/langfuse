@@ -196,7 +196,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       id: "name",
       header: getExperimentsColumnName("name"),
       size: 200,
-      enableSorting: true,
+      isPinnedLeft: true,
       cell: ({ row }) => {
         const value: string = row.getValue("name");
         return value ? <TableIdOrName value={value} /> : undefined;
@@ -332,8 +332,9 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       size: 100,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number = row.getValue("latencyAvg");
-        return <span>{numberFormatter(value, 4)}</span>;
+        const value: number | undefined = row.getValue("latencyAvg");
+        if (value === undefined) return undefined;
+        return <span>{numberFormatter(value / 1000, 4)}s</span>;
       },
     },
     {
@@ -343,8 +344,9 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       size: 100,
       enableHiding: true,
       cell: ({ row }) => {
-        const value: number = row.getValue("totalCost");
-        return <span>{numberFormatter(value, 6)}</span>;
+        const value: number | undefined = row.getValue("totalCost");
+        if (value === undefined) return undefined;
+        return <span>${numberFormatter(value, 6)}</span>;
       },
     },
     {
