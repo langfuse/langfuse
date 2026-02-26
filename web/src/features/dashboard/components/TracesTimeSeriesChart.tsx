@@ -1,4 +1,3 @@
-import { api } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
@@ -17,6 +16,7 @@ import {
 } from "@/src/features/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -27,6 +27,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   agg,
   isLoading = false,
   metricsVersion,
+  schedulerId,
 }: {
   className?: string;
   projectId: string;
@@ -36,6 +37,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
   metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) => {
   const isV2 = metricsVersion === "v2";
 
@@ -53,7 +55,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     orderBy: null,
   };
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const traces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: tracesQuery,
@@ -65,6 +67,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:traces-time-series"}:traces`,
       enabled: !isLoading && !isV2,
     },
   );
@@ -101,7 +104,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     orderBy: null,
   };
 
-  const observations = api.dashboard.executeQuery.useQuery(
+  const observations = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: observationsQuery,
@@ -113,6 +116,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:traces-time-series"}:observations`,
       enabled: !isLoading,
     },
   );

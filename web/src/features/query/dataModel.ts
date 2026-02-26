@@ -168,13 +168,14 @@ export const eventsTracesView: ViewDeclarationType = {
       // This is the GROUP BY identity column
     },
     name: {
-      sql: "nullIf(events_traces.trace_name, '')",
+      sql: "COALESCE(nullIf(events_traces.trace_name, ''), if(events_traces.parent_span_id = '', nullIf(events_traces.name, ''), NULL))",
       alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
+      // First try most-recent non-empty trace_name, then fall back to root event's name
       aggregationFunction:
-        "argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> '')",
+        "COALESCE(nullIf(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), ''), argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = '' AND events_traces.name <> ''))",
     },
     tags: {
       sql: "events_traces.tags",
@@ -682,7 +683,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
-    sql: "nullIf(events_traces.trace_name, '')",
+    sql: "COALESCE(nullIf(events_traces.trace_name, ''), nullIf(events_traces.name, ''))",
     alias: "traceName",
     type: "string",
     relationTable: "events_traces",
@@ -1047,7 +1048,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     },
     // Backwards-compatible field definitions (for API parity with v1)
     traceName: {
-      sql: "nullIf(events_observations.trace_name, '')",
+      sql: "COALESCE(nullIf(events_observations.trace_name, ''), if(events_observations.parent_span_id = '', nullIf(events_observations.name, ''), NULL))",
       alias: "traceName",
       type: "string",
       description: "Name of the parent trace (backwards-compatible with v1).",
