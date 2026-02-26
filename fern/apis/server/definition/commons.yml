@@ -781,6 +781,7 @@ types:
     union:
       - optional<string>
       - optional<integer>
+      - optional<float>
       - optional<boolean>
       - optional<list<string>>
   CommentObjectType:

@@ -138,7 +138,14 @@ export default async function chatCompletionHandler(req: NextRequest) {
           streaming,
         });
 
-        return NextResponse.json({ content: completion });
+        if (typeof completion === "string") {
+          return NextResponse.json({ content: completion });
+        } else {
+          return NextResponse.json({
+            content: completion.text,
+            reasoning: completion.reasoning,
+          });
+        }
       }
     });
   } catch (err) {

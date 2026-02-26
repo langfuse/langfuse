@@ -577,7 +577,7 @@ jobs:
         tests-web,
         tests-worker,
         test-worker-llm-connections,
-        # e2e-tests, # Temporarily disabled - flaky timeouts
+        e2e-tests,
         test-docker-build,
         e2e-server-tests,
       ]

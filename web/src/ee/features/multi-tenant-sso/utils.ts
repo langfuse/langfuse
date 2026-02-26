@@ -141,6 +141,31 @@ export async function getSsoAuthProviderIdForDomain(
   return getAuthProviderIdForSsoConfig(ssoConfig);
 }
 
+type TokenEndpointAuthMethod =
+  | "client_secret_basic"
+  | "client_secret_post"
+  | "client_secret_jwt"
+  | "private_key_jwt"
+  | "tls_client_auth"
+  | "self_signed_tls_client_auth"
+  | "none";
+
+/**
+ * Returns the NextAuth `client` config for token endpoint auth method if configured.
+ */
+const getClientConfig = (authConfig: {
+  tokenEndpointAuthMethod?: TokenEndpointAuthMethod;
+}):
+  | { client: { token_endpoint_auth_method: TokenEndpointAuthMethod } }
+  | Record<string, never> =>
+  authConfig.tokenEndpointAuthMethod
+    ? {
+        client: {
+          token_endpoint_auth_method: authConfig.tokenEndpointAuthMethod,
+        },
+      }
+    : {};
+
 /**
  * Converts a SsoProviderConfig to a NextAuth Provider instance.
  *
@@ -156,60 +181,70 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "github")
     return GitHubProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "gitlab")
     return GitLabProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "auth0")
     return Auth0Provider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "okta")
     return OktaProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "authentik")
     return AuthentikProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "onelogin")
     return OneLoginProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "azure-ad")
     return AzureADProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "cognito")
     return CognitoProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "keycloak")
     return KeycloakProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "custom")
     return CustomSSOProvider({
@@ -219,6 +254,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       authorization: {
         params: { scope: provider.authConfig.scope ?? "openid email profile" },
       },
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "github-enterprise")
     return GitHubEnterpriseProvider({
@@ -228,6 +264,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       enterprise: {
         baseUrl: provider.authConfig.enterprise.baseUrl,
       },
+      ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "jumpcloud")
     return JumpCloudProvider({
@@ -237,6 +274,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       authorization: {
         params: { scope: provider.authConfig.scope ?? "openid profile email" },
       },
+      ...getClientConfig(provider.authConfig),
     });
   else {
     // Type check to ensure we handle all providers

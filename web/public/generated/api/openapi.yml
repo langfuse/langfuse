@@ -20,9 +20,6 @@ info:
 
 
     - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
-
-    - Postman collection:
-    https://cloud.langfuse.com/generated/postman/collection.json
 paths:
   /api/public/annotation-queues:
     get:
@@ -2672,11 +2669,10 @@ paths:
             nullable: true
         - name: parseIoAsJson
           in: query
-          description: >-
-            Set to `true` to parse input/output fields as JSON, or `false` to
-            return raw strings.
-
-            Defaults to `false` if not provided.
+          description: |-
+            **Deprecated.** Setting this to `true` will return a 400 error.
+            Input/output fields are always returned as raw strings.
+            Remove this parameter or set it to `false`.
           required: false
           schema:
             type: boolean
@@ -4526,7 +4522,7 @@ paths:
         API key)
       operationId: scim_getServiceProviderConfig
       tags:
-        - SCIM
+        - Scim
       parameters: []
       responses:
         '200':
@@ -4567,7 +4563,7 @@ paths:
       description: Get SCIM Resource Types (requires organization-scoped API key)
       operationId: scim_getResourceTypes
       tags:
-        - SCIM
+        - Scim
       parameters: []
       responses:
         '200':
@@ -4608,7 +4604,7 @@ paths:
       description: Get SCIM Schemas (requires organization-scoped API key)
       operationId: scim_getSchemas
       tags:
-        - SCIM
+        - Scim
       parameters: []
       responses:
         '200':
@@ -4649,7 +4645,7 @@ paths:
       description: List users in the organization (requires organization-scoped API key)
       operationId: scim_listUsers
       tags:
-        - SCIM
+        - Scim
       parameters:
         - name: filter
           in: query
@@ -4712,7 +4708,7 @@ paths:
         key)
       operationId: scim_createUser
       tags:
-        - SCIM
+        - Scim
       parameters: []
       responses:
         '200':
@@ -4783,7 +4779,7 @@ paths:
       description: Get a specific user by ID (requires organization-scoped API key)
       operationId: scim_getUser
       tags:
-        - SCIM
+        - Scim
       parameters:
         - name: userId
           in: path
@@ -4831,7 +4827,7 @@ paths:
         does not delete the user entity itself.
       operationId: scim_deleteUser
       tags:
-        - SCIM
+        - Scim
       parameters:
         - name: userId
           in: path
@@ -5238,9 +5234,9 @@ paths:
           description: >-
             Comma-separated list of field groups to include in the response.
             Available field groups: 'score' (core score fields), 'trace' (trace
-            properties: userId, tags, environment). If not specified, both
-            'score' and 'trace' are returned by default. Example: 'score' to
-            exclude trace data, 'score,trace' to include both. Note: When
+            properties: userId, tags, environment, sessionId). If not specified,
+            both 'score' and 'trace' are returned by default. Example: 'score'
+            to exclude trace data, 'score,trace' to include both. Note: When
             filtering by trace properties (using userId or traceTags
             parameters), the 'trace' field group must be included, otherwise a
             400 error will be returned.
@@ -7905,6 +7901,9 @@ components:
           nullable: true
         - type: integer
           nullable: true
+        - type: integer
+          format: float
+          nullable: true
         - type: boolean
           nullable: true
         - type: array
@@ -9787,28 +9786,8 @@ components:
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - chat
-            - $ref: '#/components/schemas/CreateChatPromptRequest'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - text
-            - $ref: '#/components/schemas/CreateTextPromptRequest'
-          required:
-            - type
+        - $ref: '#/components/schemas/CreateChatPromptRequest'
+        - $ref: '#/components/schemas/CreateTextPromptRequest'
     CreateChatPromptRequest:
       title: CreateChatPromptRequest
       type: object
@@ -9821,6 +9800,8 @@ components:
             $ref: '#/components/schemas/ChatMessageWithPlaceholders'
         config:
           nullable: true
+        type:
+          $ref: '#/components/schemas/CreateChatPromptType'
         labels:
           type: array
           items:
@@ -9840,6 +9821,7 @@ components:
       required:
         - name
         - prompt
+        - type
     CreateTextPromptRequest:
       title: CreateTextPromptRequest
       type: object
@@ -9849,6 +9831,9 @@ components:
         prompt:
           type: string
         config:
+          nullable: true
+        type:
+          $ref: '#/components/schemas/CreateTextPromptType'
           nullable: true
         labels:
           type: array
@@ -9941,28 +9926,8 @@ components:
     ChatMessageWithPlaceholders:
       title: ChatMessageWithPlaceholders
       oneOf:
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - chatmessage
-            - $ref: '#/components/schemas/ChatMessage'
-          required:
-            - type
-        - type: object
-          allOf:
-            - type: object
-              properties:
-                type:
-                  type: string
-                  enum:
-                    - placeholder
-            - $ref: '#/components/schemas/PlaceholderMessage'
-          required:
-            - type
+        - $ref: '#/components/schemas/ChatMessage'
+        - $ref: '#/components/schemas/PlaceholderMessage'
     ChatMessage:
       title: ChatMessage
       type: object
@@ -9971,17 +9936,33 @@ components:
           type: string
         content:
           type: string
+        type:
+          $ref: '#/components/schemas/ChatMessageType'
+          nullable: true
       required:
         - role
         - content
+    ChatMessageType:
+      title: ChatMessageType
+      type: string
+      enum:
+        - chatmessage
     PlaceholderMessage:
       title: PlaceholderMessage
       type: object
       properties:
         name:
           type: string
+        type:
+          $ref: '#/components/schemas/PlaceholderMessageType'
+          nullable: true
       required:
         - name
+    PlaceholderMessageType:
+      title: PlaceholderMessageType
+      type: string
+      enum:
+        - placeholder
     TextPrompt:
       title: TextPrompt
       type: object
@@ -10004,6 +9985,16 @@ components:
         - prompt
       allOf:
         - $ref: '#/components/schemas/BasePrompt'
+    CreateChatPromptType:
+      title: CreateChatPromptType
+      type: string
+      enum:
+        - chat
+    CreateTextPromptType:
+      title: CreateTextPromptType
+      type: string
+      enum:
+        - text
     ServiceProviderConfig:
       title: ServiceProviderConfig
       type: object
@@ -10413,6 +10404,10 @@ components:
           type: string
           nullable: true
           description: The environment of the trace referenced by score
+        sessionId:
+          type: string
+          nullable: true
+          description: The session ID associated with the trace referenced by score
     GetScoresResponseDataNumeric:
       title: GetScoresResponseDataNumeric
       type: object

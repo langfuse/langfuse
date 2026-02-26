@@ -10,10 +10,11 @@ export type UpdatePromptParams = {
   projectId: string;
   promptVersion: number;
   newLabels: string[];
+  user?: { id: string; name: string | null; email: string | null };
 };
 
 export const updatePrompt = async (params: UpdatePromptParams) => {
-  const { promptName, projectId, promptVersion, newLabels } = params;
+  const { promptName, projectId, promptVersion, newLabels, user } = params;
 
   logger.info(
     `Updating prompt ${promptName} in project ${projectId} version ${promptVersion} with labels ${newLabels}`,
@@ -162,6 +163,7 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
         promptChangeEventSourcing(
           await promptService.resolvePrompt(prompt),
           "updated",
+          user,
         ),
       ),
     );
