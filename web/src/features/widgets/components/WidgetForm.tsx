@@ -13,7 +13,7 @@ import {
   type QueryType,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -300,21 +300,8 @@ export function WidgetForm({
     initialValues.dimension,
   );
 
-  // When beta is toggled on while "traces" is selected (and not editing an
-  // existing widget), auto-switch to "observations" and reset dependent fields.
-  // Only `isBetaEnabled` is in the dep array intentionally: we want this effect
-  // to fire only when the beta toggle changes, reading the current selectedView
-  // and isExistingWidget at that moment. isExistingWidget is stable (derived
-  // from widgetId prop), and re-running on selectedView changes is unnecessary.
-  useEffect(() => {
-    if (isBetaEnabled && selectedView === "traces" && !isExistingWidget) {
-      setSelectedView("observations");
-      setSelectedMeasure("count");
-      setSelectedAggregation("count");
-      setSelectedDimension("none");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBetaEnabled]);
+  const selectedViewRef = useRef(selectedView);
+  selectedViewRef.current = selectedView;
 
   // Pivot table dimensions state (for PIVOT_TABLE chart type)
   const [pivotDimensions, setPivotDimensions] = useState<string[]>(
@@ -394,6 +381,32 @@ export function WidgetForm({
       return filter;
     }) ?? [],
   );
+
+  // When beta is toggled on while "traces" is selected (and not editing an
+  // existing widget), auto-switch to "observations" and reset dependent fields.
+  // selectedView is read via ref to avoid re-triggering on view changes.
+  useEffect(() => {
+    if (
+      isBetaEnabled &&
+      selectedViewRef.current === "traces" &&
+      !isExistingWidget
+    ) {
+      setSelectedView("observations");
+      setSelectedMeasure("count");
+      setSelectedAggregation("count");
+      setSelectedDimension("none");
+      setPivotDimensions([]);
+      setSelectedMetrics([
+        {
+          id: "count_count",
+          measure: "count",
+          aggregation: "count" as z.infer<typeof metricAggregations>,
+          label: "Count Count",
+        },
+      ]);
+      setUserFilterState([]);
+    }
+  }, [isBetaEnabled, isExistingWidget]);
 
   // Static sort state for pivot table preview (non-interactive)
   const previewSortState = useMemo(
