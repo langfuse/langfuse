@@ -60,7 +60,7 @@ export function V4BetaEnabledBanner() {
       role="status"
       aria-live="polite"
     >
-      <div className="flex items-center gap-3 px-4 py-1.5">
+      <div className="flex items-center gap-2 py-1.5 pl-3">
         <Sparkles className="h-4 w-4 shrink-0" />
         <p className="flex-1 text-sm">
           <span className="font-semibold">v4 Beta is enabled.</span> You&apos;re
