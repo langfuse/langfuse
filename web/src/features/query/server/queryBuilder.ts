@@ -621,14 +621,13 @@ export class QueryBuilder {
     );
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
-    // When the view has a rootEventCondition, use anyIf with that condition so that
-    // only the root event's timestamp is used for time bucketing (not observations).
-    // The condition column is prefixed with the table alias to avoid ambiguity in
-    // future views that may involve JOINs.
+    // When the view has a rootEventCondition, prefer the root event's timestamp for
+    // time bucketing. Falls back to min(start_time) when no root event exists for a
+    // trace (e.g. parent_span_id is not populated).
     let wrappedSql: string;
     if (wrapInAgg && view.rootEventCondition) {
       const alias = this.tableAlias(view);
-      wrappedSql = `anyIf(${timeDimensionSql}, ${alias}.${view.rootEventCondition.condition})`;
+      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${alias}.${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
     } else if (wrapInAgg) {
       wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
     } else {
@@ -1208,6 +1207,8 @@ export class QueryBuilder {
     // When rootEventCondition is set, add a subquery filter to restrict rows
     // to traces whose root event has timeDimension in the query window.
     // The existing start_time filter above is kept for ClickHouse partition pruning.
+    // Falls back gracefully: if no root events exist in the window at all
+    // (e.g. parent_span_id is never populated), the filter is skipped via NOT EXISTS.
     if (view.rootEventCondition) {
       const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
       const fromP = `subFrom${uid}`;
@@ -1215,13 +1216,15 @@ export class QueryBuilder {
       const projP = `subProj${uid}`;
       const baseTable = this.actualTableName(view);
       const { column, condition } = view.rootEventCondition;
-      fromClause +=
-        ` AND ${baseTable}.${column} IN (` +
+      const subquery =
         `SELECT ${column} FROM ${baseTable} ` +
         `WHERE project_id = {${projP}: String} ` +
         `AND ${condition} ` +
         `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-        `AND ${view.timeDimension} <= {${toP}: DateTime64(3)})`;
+        `AND ${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+      fromClause +=
+        ` AND (${baseTable}.${column} IN (${subquery})` +
+        ` OR NOT EXISTS (${subquery} LIMIT 1))`;
       parameters[fromP] = new Date(query.fromTimestamp).getTime();
       parameters[toP] = new Date(query.toTimestamp).getTime();
       parameters[projP] = projectId;
