@@ -332,6 +332,7 @@ export class DataGenerator {
               evalJobConfiguration.evalTemplateId,
               traceIndex,
               projectId,
+              i,
             ),
             trace_id: trace.id,
             project_id: projectId,
