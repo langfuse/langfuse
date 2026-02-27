@@ -61,7 +61,6 @@ import {
 import { type PartialConfig } from "@/src/features/evals/types";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { EvalVersionCallout } from "@/src/features/evals/components/eval-version-callout";
-import { Callout } from "@/src/components/ui/callout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
