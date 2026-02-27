@@ -10,6 +10,9 @@ import {
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
   getExperimentMetricsFromEvents,
+  getExperimentItemsFromEvents,
+  getExperimentItemsCountFromEvents,
+  getExperimentItemMetricsFromEvents,
   getNumericScoresGroupedByName,
   getScoresForExperimentItems,
   getScoresForExperiments,
@@ -297,6 +300,42 @@ export const experimentsRouter = createTRPCRouter({
       return {
         data: experiments,
       };
+    }),
+
+  byId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        experimentId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "promptExperiments:read",
+      });
+
+      const experiments = await getExperimentsFromEvents({
+        projectId: input.projectId,
+        filter: [
+          {
+            type: "string",
+            column: "id",
+            operator: "=",
+            value: input.experimentId,
+          },
+        ],
+        orderBy: undefined,
+        page: 0,
+        limit: 1,
+      });
+
+      if (experiments.length === 0) {
+        return null;
+      }
+
+      return experiments[0];
     }),
 
   countAll: protectedProjectProcedure
