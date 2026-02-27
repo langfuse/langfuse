@@ -48,7 +48,6 @@ type RawSqlPart = { query: string; params: Record<string, unknown> };
 type MappedFilters = {
   whereFilters: Filter[];
   whereRawParts: RawSqlPart[];
-  havingParts: RawSqlPart[];
 };
 
 export class QueryBuilder {
@@ -248,60 +247,53 @@ export class QueryBuilder {
   }
 
   /**
-   * Builds an OR'd WHERE clause for pre-aggregation row pruning.
-   * Creates one filter per column via createFilterFromFilterState, applies each,
-   * and joins the SQL with OR.
+   * Builds a WHERE condition for a filterSql dimension:
+   *   (col1 OP X OR col2 OP X) AND dimensionSql OP X
+   *
+   * The OR'd part is pruning-friendly (helps ClickHouse skip blocks).
+   * The exact part uses the dimension's row-level sql expression for correctness.
+   * Both delegate to createFilterFromFilterState for full operator/type support.
    */
-  private buildFilterSqlWherePrune(params: {
+  private buildFilterSqlWhereCondition(params: {
     filter: z.infer<typeof queryModel>["filters"][number];
     whereCols: string[];
+    dimensionSql: string;
     tableName: string;
   }): RawSqlPart {
-    const { filter, whereCols, tableName } = params;
+    const { filter, whereCols, dimensionSql, tableName } = params;
+
+    const syntheticMapping = (clickhouseSelect: string) => [
+      {
+        uiTableName: filter.column,
+        uiTableId: filter.column,
+        clickhouseTableName: tableName,
+        clickhouseSelect,
+        queryPrefix: "",
+      },
+    ];
+
+    // Pruning: one filter per where column, OR'd together
     const pruneApplied = whereCols.map((col) => {
       const filters = createFilterFromFilterState(
         [filter],
-        [
-          {
-            uiTableName: filter.column,
-            uiTableId: filter.column,
-            clickhouseTableName: tableName,
-            clickhouseSelect: col,
-            queryPrefix: "",
-          },
-        ],
+        syntheticMapping(col),
       );
       return filters[0].apply();
     });
-    return {
-      query: `(${pruneApplied.map((p) => p.query).join(" OR ")})`,
-      params: Object.assign({}, ...pruneApplied.map((p) => p.params)),
-    };
-  }
+    const pruneQuery = `(${pruneApplied.map((p) => p.query).join(" OR ")})`;
+    const pruneParams = Object.assign({}, ...pruneApplied.map((p) => p.params));
 
-  /**
-   * Builds a HAVING clause for post-aggregation exact matching.
-   * Creates a filter via createFilterFromFilterState using the aggregation expression.
-   */
-  private buildFilterSqlHaving(params: {
-    filter: z.infer<typeof queryModel>["filters"][number];
-    havingExpression: string;
-    tableName: string;
-  }): RawSqlPart {
-    const { filter, havingExpression, tableName } = params;
-    const filters = createFilterFromFilterState(
+    // Exact match: filter on the dimension's row-level sql expression
+    const exactFilters = createFilterFromFilterState(
       [filter],
-      [
-        {
-          uiTableName: filter.column,
-          uiTableId: filter.column,
-          clickhouseTableName: tableName,
-          clickhouseSelect: havingExpression,
-          queryPrefix: "",
-        },
-      ],
+      syntheticMapping(dimensionSql),
     );
-    return filters[0].apply();
+    const exactApplied = exactFilters[0].apply();
+
+    return {
+      query: `${pruneQuery} AND ${exactApplied.query}`,
+      params: { ...pruneParams, ...exactApplied.params },
+    };
   }
 
   private mapFilters(
@@ -316,7 +308,6 @@ export class QueryBuilder {
     const result: MappedFilters = {
       whereFilters: [],
       whereRawParts: [],
-      havingParts: [],
     };
 
     // Separate filters into normal (createFilterFromFilterState) and filterSql-aware
@@ -333,27 +324,13 @@ export class QueryBuilder {
     for (const filter of filters) {
       const dimension = this.resolveDimension(filter.column, view);
 
-      // Dimension with filterSql: delegate to existing filter infrastructure
+      // Dimension with filterSql: pruning OR + exact match, both in WHERE
       if (dimension?.filterSql) {
-        const having =
-          dimension.filterSql.having ?? dimension.aggregationFunction;
-        if (!having) {
-          throw new InvalidRequestError(
-            `Dimension '${filter.column}' has filterSql.where but no having expression and no aggregationFunction to fall back to.`,
-          );
-        }
-
         result.whereRawParts.push(
-          this.buildFilterSqlWherePrune({
+          this.buildFilterSqlWhereCondition({
             filter,
             whereCols: dimension.filterSql.where,
-            tableName: actualTableName,
-          }),
-        );
-        result.havingParts.push(
-          this.buildFilterSqlHaving({
-            filter,
-            havingExpression: having,
+            dimensionSql: dimension.sql,
             tableName: actualTableName,
           }),
         );
@@ -841,7 +818,6 @@ export class QueryBuilder {
     innerMetricsPart: string;
     fromClause: string;
     appliedDimensions: AppliedDimensionType[];
-    havingClause?: string;
   }) {
     const {
       view,
@@ -849,7 +825,6 @@ export class QueryBuilder {
       innerMetricsPart,
       fromClause,
       appliedDimensions,
-      havingClause = "",
     } = params;
     const actualTableName = this.actualTableName(view);
     // Use actual SQL from view definition for id column (handles events.span_id -> id mapping)
@@ -872,8 +847,7 @@ export class QueryBuilder {
         ${innerDimensionsPart}
         ${innerMetricsPart}
         ${fromClause}
-      GROUP BY ${groupByParts.join(", ")}
-      ${havingClause}`;
+      GROUP BY ${groupByParts.join(", ")}`;
   }
 
   private buildOuterDimensionsPart(
@@ -1296,8 +1270,8 @@ export class QueryBuilder {
       }
     }
 
-    // Create filters: WHERE (normal + raw pruning) and HAVING (post-aggregation)
-    const { whereFilters, whereRawParts, havingParts } = this.mapFilters(
+    // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
+    const { whereFilters, whereRawParts } = this.mapFilters(
       query.filters,
       view,
     );
@@ -1372,10 +1346,8 @@ export class QueryBuilder {
 
     // Check if single-level optimization is applicable
     // Note: Relation tables are OK as long as measures have aggs configuration
-    // HAVING filters require the two-level path (inner GROUP BY + HAVING)
     const canOptimize =
       enableSingleLevelOptimization &&
-      havingParts.length === 0 &&
       this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics);
 
     // Build GROUP BY clause (used by both single-level and two-level queries)
@@ -1407,16 +1379,6 @@ export class QueryBuilder {
     // Build LIMIT clause for row limiting
     const limitClause = this.buildLimitClause();
 
-    // Build HAVING clause from filterSql having expressions (post-aggregation filters)
-    let havingClause = "";
-    if (havingParts.length > 0) {
-      const havingQueries = havingParts.map((p) => p.query);
-      havingClause = `HAVING ${havingQueries.join(" AND ")}`;
-      for (const part of havingParts) {
-        Object.assign(parameters, part.params);
-      }
-    }
-
     // Build final query - branch based on optimization
     let sql: string;
     if (canOptimize) {
@@ -1442,14 +1404,13 @@ export class QueryBuilder {
       );
       const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
-      // Build inner SELECT with HAVING for filterSql post-aggregation filters
+      // Build inner SELECT
       const innerQuery = this.buildInnerSelect({
         view,
         innerDimensionsPart,
         innerMetricsPart,
         fromClause,
         appliedDimensions,
-        havingClause,
       });
 
       // Build outer SELECT parts
