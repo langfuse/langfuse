@@ -4373,6 +4373,58 @@ describe("query builder measure-aggregation validation", () => {
     expect(result.query).toBeDefined();
   });
 
+  it("should reject sum aggregation for uniqueUserIds on traces view", async () => {
+    const query: QueryType = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "uniqueUserIds", aggregation: "sum" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
+      /not valid for measure/,
+    );
+  });
+
+  it("should accept uniq aggregation for uniqueUserIds on traces view", async () => {
+    const query: QueryType = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "uniqueUserIds", aggregation: "uniq" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+    expect(result.query).toBeDefined();
+  });
+
+  it("should accept histogram aggregation for numeric measure", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "latency", aggregation: "histogram" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+    expect(result.query).toBeDefined();
+  });
+
   describe("events_traces traceName filter", () => {
     const isEventsTableV2Enabled =
       env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;

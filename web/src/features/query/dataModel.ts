@@ -265,17 +265,21 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "scores",
     },
     uniqueUserIds: {
-      sql: "uniq(events_traces.user_id)",
+      sql: "@@AGG@@(nullIf(events_traces.user_id, ''))",
+      aggs: { agg: "any" },
       alias: "uniqueUserIds",
-      type: "integer",
-      description: "Count of unique userIds.",
+      type: "string",
+      description:
+        "User identifier; apply uniq aggregation to count distinct users.",
       unit: "users",
     },
     uniqueSessionIds: {
-      sql: "uniq(events_traces.session_id)",
+      sql: "@@AGG@@(nullIf(events_traces.session_id, ''))",
+      aggs: { agg: "any" },
       alias: "uniqueSessionIds",
-      type: "integer",
-      description: "Count of unique sessionIds.",
+      type: "string",
+      description:
+        "Session identifier; apply uniq aggregation to count distinct sessions.",
       unit: "sessions",
     },
     latency: {
@@ -1149,6 +1153,24 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Trace identifier; apply uniq aggregation to count distinct traces.",
+    },
+    uniqueUserIds: {
+      sql: "@@AGG@@(nullIf(events_observations.user_id, ''))",
+      aggs: { agg: "any" },
+      alias: "uniqueUserIds",
+      type: "string",
+      description:
+        "User identifier; apply uniq aggregation to count distinct users.",
+      unit: "users",
+    },
+    uniqueSessionIds: {
+      sql: "@@AGG@@(nullIf(events_observations.session_id, ''))",
+      aggs: { agg: "any" },
+      alias: "uniqueSessionIds",
+      type: "string",
+      description:
+        "Session identifier; apply uniq aggregation to count distinct sessions.",
+      unit: "sessions",
     },
     latency: {
       sql: "date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.end_time))",
