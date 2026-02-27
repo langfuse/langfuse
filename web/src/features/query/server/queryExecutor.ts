@@ -182,6 +182,9 @@ export async function executeQuery(
       clickhouseConfigs: {
         clickhouse_settings: {
           date_time_output_format: "iso",
+          ...(env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE === "true"
+            ? { use_query_condition_cache: "true" }
+            : {}),
           max_bytes_before_external_group_by: String(
             env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
           ),
@@ -212,6 +215,9 @@ export async function executeQuery(
         clickhouseConfigs: {
           clickhouse_settings: {
             date_time_output_format: "iso",
+            ...(env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE === "true"
+              ? { use_query_condition_cache: "true" }
+              : {}),
             max_bytes_before_external_group_by: String(
               env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
             ),

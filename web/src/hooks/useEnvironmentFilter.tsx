@@ -35,9 +35,11 @@ export function useEnvironmentFilter(
       {},
     );
 
-  const visibleEnvironments = (availableEnvironments || []).filter(
-    (env) => visibilityMap[env] === true,
-  );
+  const getDefaultVisibility = (env: string) => !env.startsWith("langfuse-");
+
+  const visibleEnvironments = (availableEnvironments || []).filter((env) => {
+    return visibilityMap[env] ?? getDefaultVisibility(env);
+  });
 
   const handleSetVisibilityMap = (environments: string[]) => {
     const selectedSet = new Set(environments);
@@ -61,7 +63,7 @@ export function useEnvironmentFilter(
       // If environment doesn't exist in map, set default visibility
       // Environments prefixed with "langfuse-" are deselected by default
       if (updatedMap[env] === undefined) {
-        updatedMap[env] = !env.startsWith("langfuse-");
+        updatedMap[env] = getDefaultVisibility(env);
         hasChanges = true;
       }
     });

@@ -13,7 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { getAllModels } from "@/src/features/dashboard/components/hooks";
+import { useAllModels } from "@/src/features/dashboard/components/hooks";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@/src/features/query";
@@ -108,13 +108,18 @@ export const useModelSelection = (
   fromTimestamp: Date,
   toTimestamp: Date,
   metricsVersion?: ViewVersion,
+  options?: {
+    enabled?: boolean;
+    queryId: string;
+  },
 ) => {
-  const allModels = getAllModels(
+  const allModels = useAllModels(
     projectId,
     globalFilterState,
     fromTimestamp,
     toTimestamp,
     metricsVersion,
+    options,
   );
 
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
