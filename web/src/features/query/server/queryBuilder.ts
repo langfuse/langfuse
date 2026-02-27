@@ -281,7 +281,10 @@ export class QueryBuilder {
       return filters[0].apply();
     });
     const pruneQuery = `(${pruneApplied.map((p) => p.query).join(" OR ")})`;
-    const pruneParams = Object.assign({}, ...pruneApplied.map((p) => p.params));
+    const pruneParams = pruneApplied.reduce<Record<string, unknown>>(
+      (acc, p) => ({ ...acc, ...p.params }),
+      {},
+    );
 
     // Exact match: filter on the dimension's row-level sql expression
     const exactFilters = createFilterFromFilterState(
@@ -349,6 +352,14 @@ export class QueryBuilder {
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }
+        // Filters on measures are underdefined and not allowed in the initial version
+        // } else if (filter.column in view.measures) {
+        //   const measure = view.measures[filter.column];
+        //   clickhouseSelect = measure.sql;
+        //   type = measure.type;
+        //   if (measure.relationTable) {
+        //     clickhouseTableName = measure.relationTable;
+        //   }
       } else if (filter.column === view.timeDimension) {
         clickhouseSelect = view.timeDimension;
         queryPrefix = clickhouseTableName;
@@ -358,7 +369,9 @@ export class QueryBuilder {
         queryPrefix = clickhouseTableName;
         type = "stringObject";
       } else if (filter.column.endsWith("Name")) {
-        // Fallback for *Name columns when no "name" dimension exists (LFE-4838)
+        // Sometimes, the filter does not update correctly and sends us scoreName instead of name for scores, etc.
+        // If this happens, none of the conditions above apply, and we use this fallback to avoid raising an error.
+        // As this is hard to catch, we include this workaround. (LFE-4838).
         clickhouseSelect = "name";
         queryPrefix = clickhouseTableName;
         type = "string";
@@ -812,20 +825,13 @@ export class QueryBuilder {
       .join(",\n");
   }
 
-  private buildInnerSelect(params: {
-    view: ViewDeclarationType;
-    innerDimensionsPart: string;
-    innerMetricsPart: string;
-    fromClause: string;
-    appliedDimensions: AppliedDimensionType[];
-  }) {
-    const {
-      view,
-      innerDimensionsPart,
-      innerMetricsPart,
-      fromClause,
-      appliedDimensions,
-    } = params;
+  private buildInnerSelect(
+    view: ViewDeclarationType,
+    innerDimensionsPart: string,
+    innerMetricsPart: string,
+    fromClause: string,
+    appliedDimensions: AppliedDimensionType[],
+  ) {
     const actualTableName = this.actualTableName(view);
     // Use actual SQL from view definition for id column (handles events.span_id -> id mapping)
     const idSql = view.dimensions.id?.sql || `${actualTableName}.id`;
@@ -1405,13 +1411,13 @@ export class QueryBuilder {
       const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
       // Build inner SELECT
-      const innerQuery = this.buildInnerSelect({
+      const innerQuery = this.buildInnerSelect(
         view,
         innerDimensionsPart,
         innerMetricsPart,
         fromClause,
         appliedDimensions,
-      });
+      );
 
       // Build outer SELECT parts
       const outerDimensionsPart = this.buildOuterDimensionsPart(
