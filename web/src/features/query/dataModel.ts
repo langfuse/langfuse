@@ -238,7 +238,7 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "countIf(events_traces.parent_span_id = '')",
+      sql: "uniq(events_traces.trace_id)",
       alias: "count",
       type: "integer",
       description: "Total number of traces.",
