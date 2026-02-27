@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { MinusCircle, PlusCircle } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -21,6 +22,22 @@ export function TierPriceEditor({
 }: TierPriceEditorProps) {
   const prices = form.watch(`pricingTiers.${tierIndex}.prices`) || {};
 
+  const nextIdRef = useRef(0);
+  const keyToIdRef = useRef<Record<string, number>>({});
+
+  // Assign stable IDs to any new keys
+  for (const k of Object.keys(prices)) {
+    if (!(k in keyToIdRef.current)) {
+      keyToIdRef.current[k] = nextIdRef.current++;
+    }
+  }
+  // Clean up removed keys
+  for (const k of Object.keys(keyToIdRef.current)) {
+    if (!(k in prices)) {
+      delete keyToIdRef.current[k];
+    }
+  }
+
   return (
     <div className="space-y-3">
       <FormLabel>Prices</FormLabel>
@@ -29,7 +46,7 @@ export function TierPriceEditor({
         <span>Price</span>
       </div>
       {Object.entries(prices).map(([key, value]) => (
-        <div key={key} className="grid grid-cols-2 gap-1">
+        <div key={keyToIdRef.current[key]} className="grid grid-cols-2 gap-1">
           <Input
             placeholder="Key (e.g. input, output)"
             value={key}
@@ -42,10 +59,20 @@ export function TierPriceEditor({
                 return; // Don't allow the change
               }
 
-              const newPrices = { ...prices };
-              const oldValue = newPrices[key];
-              delete newPrices[key];
-              newPrices[newKey] = oldValue;
+              // Transfer stable ID from old key to new key
+              const stableId = keyToIdRef.current[key];
+              delete keyToIdRef.current[key];
+              keyToIdRef.current[newKey] = stableId;
+
+              // Rebuild prices preserving insertion order
+              const newPrices: Record<string, number> = {};
+              for (const [k, v] of Object.entries(prices)) {
+                if (k === key) {
+                  newPrices[newKey] = v as number;
+                } else {
+                  newPrices[k] = v as number;
+                }
+              }
               form.setValue(`pricingTiers.${tierIndex}.prices`, newPrices);
             }}
             className={!isDefault ? "cursor-not-allowed bg-muted" : ""}
