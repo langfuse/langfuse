@@ -24,6 +24,7 @@ import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoa
 import { getChartLoadingStateProps } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { type ViewVersion } from "@/src/features/query";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export interface WidgetPlacement {
   id: string;
@@ -43,6 +44,7 @@ export function DashboardWidget({
   filterState,
   onDeleteWidget,
   dashboardOwner,
+  schedulerId,
 }: {
   projectId: string;
   dashboardId: string;
@@ -51,6 +53,7 @@ export function DashboardWidget({
   filterState: FilterState;
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
+  schedulerId?: string;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -99,7 +102,7 @@ export function DashboardWidget({
     setSortState(newSort);
   }, []);
 
-  const queryResult = api.dashboard.executeQuery.useQuery(
+  const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
       version: metricsVersion,
@@ -143,6 +146,7 @@ export function DashboardWidget({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:execute`,
       meta: {
         silentHttpCodes: [422],
       },
