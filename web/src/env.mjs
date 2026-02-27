@@ -133,9 +133,9 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTHENTIK_ISSUER: z
       .string()
-      .regex(/^$|^https:\/\/.+\/application\/o\/[^/]+\/?$/, {
+      .regex(/^https:\/\/.+\/application\/o\/[^/]+\/?$/, {
         message:
-          "Authentik issuer must be in format https://<domain>/application/o/<slug> with optional trailing slash, or empty to disable",
+          "Authentik issuer must be in format https://<domain>/application/o/<slug> with optional trailing slash",
       })
       .optional(),
     AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
