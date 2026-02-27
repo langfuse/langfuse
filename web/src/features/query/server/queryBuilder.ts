@@ -21,6 +21,7 @@ import {
   createFilterFromFilterState,
 } from "@langfuse/shared/src/server";
 import { InvalidRequestError } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 
 type AppliedDimensionType = {
   table: string;
@@ -1208,23 +1209,34 @@ export class QueryBuilder {
     // When rootEventCondition is set, add a subquery filter to restrict rows
     // to traces whose root event has timeDimension in the query window.
     // The existing start_time filter above is kept for ClickHouse partition pruning.
+    // For wide time windows (default >7 days), the subquery is skipped as the
+    // root-event check has diminishing returns and hurts performance.
+    // Set LANGFUSE_ROOT_EVENT_CONDITION_MIN_HOURS=0 to always apply the filter.
     if (view.rootEventCondition) {
-      const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
-      const fromP = `subFrom${uid}`;
-      const toP = `subTo${uid}`;
-      const projP = `subProj${uid}`;
-      const baseTable = this.actualTableName(view);
-      const { column, condition } = view.rootEventCondition;
-      fromClause +=
-        ` AND ${baseTable}.${column} IN (` +
-        `SELECT ${column} FROM ${baseTable} ` +
-        `WHERE project_id = {${projP}: String} ` +
-        `AND ${condition} ` +
-        `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-        `AND ${view.timeDimension} <= {${toP}: DateTime64(3)})`;
-      parameters[fromP] = new Date(query.fromTimestamp).getTime();
-      parameters[toP] = new Date(query.toTimestamp).getTime();
-      parameters[projP] = projectId;
+      const windowMs =
+        new Date(query.toTimestamp).getTime() -
+        new Date(query.fromTimestamp).getTime();
+      const windowHours = windowMs / (1000 * 60 * 60);
+      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MIN_HOURS;
+
+      if (thresholdHours === 0 || windowHours <= thresholdHours) {
+        const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+        const fromP = `subFrom${uid}`;
+        const toP = `subTo${uid}`;
+        const projP = `subProj${uid}`;
+        const baseTable = this.actualTableName(view);
+        const { column, condition } = view.rootEventCondition;
+        fromClause +=
+          ` AND ${baseTable}.${column} IN (` +
+          `SELECT ${column} FROM ${baseTable} ` +
+          `WHERE project_id = {${projP}: String} ` +
+          `AND ${condition} ` +
+          `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
+          `AND ${view.timeDimension} <= {${toP}: DateTime64(3)})`;
+        parameters[fromP] = new Date(query.fromTimestamp).getTime();
+        parameters[toP] = new Date(query.toTimestamp).getTime();
+        parameters[projP] = projectId;
+      }
     }
 
     // Check if single-level optimization is applicable
