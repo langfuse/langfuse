@@ -1,12 +1,18 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
-import { type FilterState, AnnotationQueueObjectType } from "@langfuse/shared";
+import {
+  type FilterState,
+  AnnotationQueueObjectType,
+  type ScoreAggregate,
+} from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
 
-type FullEventsObservation = FullEventsObservations[number];
+type FullEventsObservation = FullEventsObservations[number] & {
+  scores?: ScoreAggregate;
+};
 
 type UseEventsTableDataParams = {
   projectId: string;

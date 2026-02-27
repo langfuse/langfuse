@@ -107,6 +107,9 @@ export const checkTraceExistsAndGetTimestamp = async ({
         countIf(level = 'WARNING') as warning_count,
         countIf(level = 'DEFAULT') as default_count,
         countIf(level = 'DEBUG') as debug_count,
+        date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
+        sumMap(usage_details) as usage_details,
+        sumMap(cost_details) as cost_details,
         trace_id,
         project_id
       FROM observations o FINAL

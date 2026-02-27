@@ -121,6 +121,24 @@ const observationTypeMapper = new ObservationTypeMapperRegistry();
  * Manages trace deduplication internally and provides a clean interface
  * for converting OTEL spans to Langfuse events.
  */
+const LIVEKIT_DEBUG_SPAN_NAMES = new Set([
+  "user_speaking",
+  "eou_detection",
+  "llm_request_run",
+  "tts_node",
+  "tts_request",
+  "tts_request_run",
+  "tts_stream_adapter",
+  "agent_speaking",
+  "drain_agent_activity",
+  "on_exit",
+  "on_enter",
+  "llm_fallback_adapter",
+  "tts_fallback_adapter",
+  "start_agent_activity",
+  "on_enter",
+]);
+
 export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
@@ -346,6 +364,7 @@ export class OtelIngestionProcessor {
                     spanAttributes,
                     resourceAttributes,
                     scopeSpan?.scope,
+                    span.name,
                   ),
                   environment: this.extractEnvironment(
                     spanAttributes,
@@ -365,7 +384,10 @@ export class OtelIngestionProcessor {
                     ] ??
                     (span.status?.code === 2
                       ? ObservationLevel.ERROR
-                      : ObservationLevel.DEFAULT),
+                      : scopeSpan?.scope?.name === "livekit-agents" &&
+                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+                        ? ObservationLevel.DEBUG
+                        : ObservationLevel.DEFAULT),
                   statusMessage:
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
@@ -943,7 +965,10 @@ export class OtelIngestionProcessor {
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
         (span.status?.code === 2
           ? ObservationLevel.ERROR
-          : ObservationLevel.DEFAULT),
+          : scopeSpan?.scope?.name === "livekit-agents" &&
+              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+            ? ObservationLevel.DEBUG
+            : ObservationLevel.DEFAULT),
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
         span.status?.message ??
@@ -980,6 +1005,7 @@ export class OtelIngestionProcessor {
       attributes,
       resourceAttributes,
       scopeSpan?.scope,
+      span.name,
     );
     const observationType =
       mappedObservationType && typeof mappedObservationType === "string"
@@ -1206,6 +1232,9 @@ export class OtelIngestionProcessor {
       "events",
       // LiveKit
       "lk.input_text",
+      "lk.user_transcript",
+      "lk.chat_ctx",
+      "lk.user_input",
       "lk.function_tool.output",
       "lk.response.text",
       // MLFlow
@@ -1437,7 +1466,10 @@ export class OtelIngestionProcessor {
     }
 
     // LiveKit
-    input = attributes["lk.input_text"];
+    input =
+      attributes["lk.input_text"] ??
+      attributes["lk.user_transcript"] ??
+      attributes["lk.chat_ctx"];
     output =
       attributes["lk.function_tool.output"] || attributes["lk.response.text"];
     if (input || output) {
