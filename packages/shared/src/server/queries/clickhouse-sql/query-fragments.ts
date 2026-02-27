@@ -4,9 +4,26 @@
 
 import {
   EventsAggregationQueryBuilder,
+  EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+
+/**
+ * Lightweight trace metadata query: one row per trace with name, user_id, tags.
+ * Picks a row with non-empty trace_name via LIMIT 1 BY trace_id.
+ */
+export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
+  new EventsQueryBuilder({ projectId })
+    .selectRaw(
+      "e.trace_id AS id",
+      "e.trace_name AS name",
+      "e.user_id AS user_id",
+      "e.tags AS tags",
+    )
+    .whereRaw("e.trace_name <> ''")
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.trace_id");
 
 interface EventsTracesAggregationParams {
   projectId: string;
@@ -30,16 +47,19 @@ interface EventsTracesAggregationParams {
 export const eventsTracesAggregation = (
   params: EventsTracesAggregationParams,
 ): EventsAggregationQueryBuilder => {
-  return (
-    new EventsAggregationQueryBuilder({ projectId: params.projectId })
-      // we always use this as CTE, no need to be smart here.
-      // ClickHouse will optimize unused columns away.
-      .selectFieldSet("all")
-      .withTraceIds(params.traceIds)
-      .withStartTimeFrom(params.startTimeFrom)
-      .withTruncated(params.truncated ?? false)
-      .orderByColumns([{ column: "timestamp", direction: "DESC" }])
-  );
+  const builder = new EventsAggregationQueryBuilder({
+    projectId: params.projectId,
+  })
+    // we always use this as CTE, no need to be smart here.
+    // ClickHouse will optimize unused columns away.
+    .selectFieldSet("all")
+    .withTraceIds(params.traceIds)
+    .withStartTimeFrom(params.startTimeFrom)
+    .withTruncated(params.truncated ?? false);
+
+  builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+
+  return builder;
 };
 
 interface BaseScoresAggregationParams {

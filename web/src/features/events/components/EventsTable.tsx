@@ -1154,7 +1154,7 @@ export default function ObservationsEventsTable({
               startTime: observation.startTime,
               endTime: observation.endTime ?? undefined,
               timeToFirstToken: observation.timeToFirstToken ?? undefined,
-              scores: {}, // TODO: scores not included in FullObservation type
+              scores: observation.scores ?? {},
               latency: observation.latency ?? undefined,
               totalCost: observation.totalCost ?? undefined,
               cost: {
@@ -1227,7 +1227,9 @@ export default function ObservationsEventsTable({
   }, [selectedObservationIds, observations.rows]);
 
   return (
-    <DataTableControlsProvider>
+    <DataTableControlsProvider
+      tableName={observationEventsFilterConfig.tableName}
+    >
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         {!hideControls && (

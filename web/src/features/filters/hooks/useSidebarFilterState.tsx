@@ -310,6 +310,56 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
+/**
+ * Pure function that determines the operator and values for checkbox-based
+ * filter interactions. Extracted for testability.
+ *
+ * For arrayOptions (e.g., tags), "none of" inversion is NOT semantically
+ * equivalent because a single trace can have multiple tags. For example,
+ * a trace with tags [tag-1, tag-3] matches "any of [tag-1, tag-2]" but does NOT match
+ * "none of [tag-3, tag-4, tag-5]" (because it contains tag-3). So we always use positive
+ * matching ("any of" / "all of") for array columns.
+ *
+ * For stringOptions (e.g., environment), each row has a single value,
+ * so "none of [deselected]" is semantically equivalent to "any of [selected]".
+ *
+ * @param params - Filter context including column type, existing filter, selected and available values
+ * @returns Object with finalOperator and finalValues to apply
+ */
+export function resolveCheckboxOperator(params: {
+  colType: string | undefined;
+  existingFilter: FilterState[number] | undefined;
+  values: string[];
+  availableValues: string[];
+}): { finalOperator: "any of" | "none of" | "all of"; finalValues: string[] } {
+  const { colType, existingFilter, values, availableValues } = params;
+
+  if (colType === "arrayOptions") {
+    // For array columns, always use positive matching.
+    if (
+      existingFilter?.operator === "all of" &&
+      existingFilter.type === "arrayOptions"
+    ) {
+      return { finalOperator: "all of", finalValues: values };
+    }
+    return { finalOperator: "any of", finalValues: values };
+  }
+
+  // For single-valued columns (stringOptions), "none of" inversion is safe
+  if (!existingFilter) {
+    const deselected = availableValues.filter((v) => !values.includes(v));
+    return { finalOperator: "none of", finalValues: deselected };
+  }
+  if (
+    existingFilter.operator === "none of" &&
+    existingFilter.type === "stringOptions"
+  ) {
+    const deselected = availableValues.filter((v) => !values.includes(v));
+    return { finalOperator: "none of", finalValues: deselected };
+  }
+  return { finalOperator: "any of", finalValues: values };
+}
+
 export function useSidebarFilterState(
   config: FilterConfig,
   options: Record<
@@ -601,34 +651,12 @@ export function useSidebarFilterState(
         }
         // Checkbox interaction - smart operator selection
         const existingFilter = current.find((f) => f.column === column);
-
-        if (!existingFilter) {
-          // No existing filter - user is deselecting from "all selected" state
-          // Use "none of" with deselected items
-          const deselected = availableValues.filter((v) => !values.includes(v));
-          finalOperator = "none of";
-          finalValues = deselected;
-        } else if (
-          existingFilter.operator === "none of" &&
-          (existingFilter.type === "stringOptions" ||
-            existingFilter.type === "arrayOptions")
-        ) {
-          // Existing "none of" filter - keep "none of", update to deselected items
-          const deselected = availableValues.filter((v) => !values.includes(v));
-          finalOperator = "none of";
-          finalValues = deselected;
-        } else if (
-          existingFilter.operator === "all of" &&
-          existingFilter.type === "arrayOptions"
-        ) {
-          // Existing "all of" filter - keep "all of" with selected items
-          finalOperator = "all of";
-          finalValues = values;
-        } else {
-          // Existing "any of" filter or other - keep "any of" with selected items
-          finalOperator = "any of";
-          finalValues = values;
-        }
+        ({ finalOperator, finalValues } = resolveCheckboxOperator({
+          colType,
+          existingFilter,
+          values,
+          availableValues,
+        }));
       }
 
       const filterType: "arrayOptions" | "stringOptions" =

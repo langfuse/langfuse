@@ -28,7 +28,7 @@ import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
-} from "@/src/hooks/use-environment-filter";
+} from "@/src/hooks/useEnvironmentFilter";
 import { Badge } from "@/src/components/ui/badge";
 
 type RowData = {

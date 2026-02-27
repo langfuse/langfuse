@@ -5,13 +5,14 @@ import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import { BracesIcon, Check, Copy, Plus } from "lucide-react";
 import { ToolCallCard } from "@/src/components/ChatMessages/ToolCallCard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { ThinkingBlock } from "@/src/components/trace2/components/IOPreview/components/ThinkingBlock";
 
 export const GenerationOutput = () => {
   const [isCopied, setIsCopied] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [isJson, setIsJson] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const { output, outputJson, addMessage, outputToolCalls } =
+  const { output, outputReasoning, outputJson, addMessage, outputToolCalls } =
     usePlaygroundContext();
 
   const handleCopy = () => {
@@ -100,6 +101,11 @@ export const GenerationOutput = () => {
           </div>
         </div>
         <div className="px-4">
+          {outputReasoning && !isJson && (
+            <div className="-ml-1">
+              <ThinkingBlock content={outputReasoning} />
+            </div>
+          )}
           <pre className="whitespace-break-spaces break-words text-xs">
             {isJson ? outputJson : output}
           </pre>
