@@ -1714,6 +1714,110 @@ describe("OTel Resource Span Mapping", () => {
       expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
     });
 
+    it("should not double-count cache tokens in pydantic-ai input usage (#12306)", async () => {
+      // Per OTel semantic conventions, gen_ai.usage.input_tokens is the TOTAL
+      // input token count (cached + uncached). genai-prices (used by pydantic-ai)
+      // sums Anthropic's input_tokens + cache_read + cache_creation into
+      // gen_ai.usage.input_tokens. Langfuse must subtract cache tokens to avoid
+      // double-counting.
+      const traceId = "abcdef1234567890abcdef1234567891";
+
+      const pydanticAiCacheSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.61.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcdef", "hex"),
+                parentSpanId: Buffer.from("fedcba0987654321", "hex"),
+                name: "anthropic cached call",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.system",
+                    value: { stringValue: "anthropic" },
+                  },
+                  {
+                    key: "gen_ai.request.model",
+                    value: { stringValue: "claude-sonnet-4-5-20250929" },
+                  },
+                  {
+                    // genai-prices sets this to total = 5 + 128955 + 1253
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 130213, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 1769, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read_tokens",
+                    value: {
+                      intValue: { low: 128955, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_write_tokens",
+                    value: {
+                      intValue: { low: 1253, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiCacheSpan,
+        new Set([traceId]),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // input should be total MINUS cache tokens = 130213 - 128955 - 1253 = 5
+      expect(observationEvent?.body.usageDetails.input).toBe(5);
+      expect(observationEvent?.body.usageDetails.output).toBe(1769);
+      expect(observationEvent?.body.usageDetails.input_cache_read).toBe(128955);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        1253,
+      );
+    });
+
     it("should prioritize OpenInference over OTel GenAI and model detection", async () => {
       const resourceSpan = {
         scopeSpans: [
