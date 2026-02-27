@@ -241,6 +241,10 @@ if (
   });
 
   if (env.AUTH_AUTHENTIK_AUTHORIZATION_URL) {
+    // For reverse proxy setups where authentik's external URL differs from
+    // the internal issuer, well-known discovery can't be used. We disable it
+    // and derive token/userinfo/JWKS endpoints from the issuer, assuming
+    // authentik's standard URL layout: <host>/application/o/<slug>.
     const authentikIssuer = env.AUTH_AUTHENTIK_ISSUER.replace(/\/$/, "");
     const authentikBase = authentikIssuer.replace(
       /\/application\/o\/[^/]+$/,
