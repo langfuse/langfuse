@@ -391,17 +391,16 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const watchedTarget = form.watch("target");
-  const watchedMapping = form.watch("mapping");
 
-  const hasObservationTargetsInTraceEval = useMemo(() => {
-    if (props.mode === "edit") return false;
-
-    if (!isTraceTarget(watchedTarget)) return false;
-
-    return watchedMapping.some(
-      (m) => m.langfuseObject && m.langfuseObject !== "trace",
-    );
-  }, [watchedTarget, watchedMapping, props.mode]);
+  // Clear mapping error if user switches away from trace target
+  useEffect(() => {
+    if (
+      !isTraceTarget(watchedTarget) &&
+      form.formState.errors.mapping?.type === "manual"
+    ) {
+      form.clearErrors("mapping");
+    }
+  }, [watchedTarget, form]);
 
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
     capture(
@@ -409,14 +408,6 @@ export const InnerEvaluatorForm = (props: {
         ? "eval_config:update"
         : "eval_config:new_form_submit",
     );
-
-    // Block NEW trace-level evals that target observations
-    if (hasObservationTargetsInTraceEval) {
-      setFormError(
-        "Trace-level evaluators targeting observations are no longer supported. Please use observation-level evaluators instead.",
-      );
-      return;
-    }
 
     // Apply preprocessFormValues if it exists
     if (props.preprocessFormValues) {
@@ -449,6 +440,22 @@ export const InnerEvaluatorForm = (props: {
       form.setError("filter", {
         type: "manual",
         message: "Please fill out all filter fields",
+      });
+      return;
+    }
+
+    // Block NEW trace-level evals that target observations
+    if (
+      props.mode !== "edit" &&
+      isTraceTarget(values.target) &&
+      values.mapping.some(
+        (m) => m.langfuseObject && m.langfuseObject !== "trace",
+      )
+    ) {
+      form.setError("mapping", {
+        type: "manual",
+        message:
+          "Trace-level evaluators targeting observations are no longer supported. Please use observation-level evaluators or target trace IO instead.",
       });
       return;
     }
@@ -1065,24 +1072,6 @@ export const InnerEvaluatorForm = (props: {
             )}
           </div>
         </Card>
-      )}
-      {hasObservationTargetsInTraceEval && (
-        <Callout variant="warning" id="trace-observation-eval-warning">
-          <span className="font-semibold">
-            Trace-level evaluators targeting observations are no longer
-            supported.
-          </span>{" "}
-          Please use observation-level evaluators instead for improved
-          performance and functionality.{" "}
-          <a
-            href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium underline hover:opacity-80"
-          >
-            Learn more
-          </a>
-        </Callout>
       )}
       <VariableMappingCard
         projectId={props.projectId}
