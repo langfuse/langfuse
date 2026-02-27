@@ -235,9 +235,7 @@ if (
     client: {
       token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
     },
-    ...(env.AUTH_AUTHENTIK_CHECKS
-      ? { checks: env.AUTH_AUTHENTIK_CHECKS }
-      : {}),
+    ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
   });
 
   if (env.AUTH_AUTHENTIK_AUTHORIZATION_URL) {
