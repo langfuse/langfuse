@@ -7,7 +7,10 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import {
+  hashPassword,
+  verifyPassword,
+} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -61,10 +64,6 @@ import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAc
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-
-// Used to equalize bcrypt work for invalid login attempts when no user/password hash exists.
-const DUMMY_PASSWORD_HASH =
-  "$2b$12$PwFggQRycDRry1OcSh9OH.l8ynRBctBmZGRJCwhZDnGpxFHVgcFNC";
 
 function canCreateOrganizations(userEmail: string | null): boolean {
   const instancePlan = getSelfHostedInstancePlanServerSide();
@@ -127,11 +126,13 @@ const staticProviders: Provider[] = [
 
       if (!dbUser) {
         // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
-        await verifyPassword(credentials.password, DUMMY_PASSWORD_HASH);
+        await hashPassword(credentials.password);
         throw new Error("Invalid credentials");
       }
 
       if (dbUser.password === null) {
+        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        await hashPassword(credentials.password);
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
