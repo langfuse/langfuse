@@ -483,3 +483,207 @@ const getExperimentsFromEventsGeneric = async <T>(
     },
   });
 };
+
+// ============================================================================
+// Experiment Items Queries
+// ============================================================================
+
+/**
+ * Return type for experiment item rows from ClickHouse.
+ */
+export type ExperimentItemEventsDataReturnType = {
+  experiment_item_id: string;
+  trace_id: string;
+  observation_id: string;
+  input: string | null;
+  output: string | null;
+  expected_output: string | null;
+  created_at: string;
+  item_metadata: Record<string, string>;
+};
+
+/**
+ * Return type for experiment item metrics from ClickHouse.
+ */
+export type ExperimentItemMetricsReturnType = {
+  experiment_item_id: string;
+  trace_id: string;
+  total_cost: number | null;
+  latency_ms: number | null;
+  scores_avg: Array<[string, number, string, string]>;
+  score_categories: string[];
+};
+
+/**
+ * Get experiment items count for pagination.
+ */
+export const getExperimentItemsCountFromEvents = async (props: {
+  projectId: string;
+  experimentId: string;
+  filter: FilterState;
+}) => {
+  const query = `
+    SELECT count(DISTINCT e.experiment_item_id) as count
+    FROM events_core e
+    WHERE e.project_id = {projectId: String}
+      AND e.experiment_id = {experimentId: String}
+      AND e.experiment_item_id IS NOT NULL
+      AND e.experiment_item_id != ''
+      AND e.is_deleted = 0
+  `.trim();
+
+  const rows = await queryClickhouse<{ count: string }>({
+    query,
+    params: {
+      projectId: props.projectId,
+      experimentId: props.experimentId,
+    },
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-count",
+      projectId: props.projectId,
+    },
+  });
+
+  return rows.length > 0 ? Number(rows[0].count) : 0;
+};
+
+/**
+ * Get experiment items for a single experiment.
+ */
+export const getExperimentItemsFromEvents = async (props: {
+  projectId: string;
+  experimentId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+}) => {
+  const query = `
+    SELECT
+      e.experiment_item_id,
+      e.trace_id,
+      e.experiment_item_root_span_id as observation_id,
+      e.input,
+      e.output,
+      e.experiment_item_expected_output as expected_output,
+      e.created_at,
+      mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as item_metadata
+    FROM events_core e
+    WHERE e.project_id = {projectId: String}
+      AND e.experiment_id = {experimentId: String}
+      AND e.experiment_item_id IS NOT NULL
+      AND e.experiment_item_id != ''
+      AND e.is_deleted = 0
+    ORDER BY e.created_at DESC
+    LIMIT 1 BY e.experiment_item_id
+    ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+  `.trim();
+
+  const params: Record<string, unknown> = {
+    projectId: props.projectId,
+    experimentId: props.experimentId,
+  };
+
+  if (props.limit !== undefined && props.page !== undefined) {
+    params.limit = props.limit;
+    params.offset = props.limit * props.page;
+  }
+
+  const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
+    query,
+    params,
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-list",
+      projectId: props.projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.experiment_item_id,
+    traceId: row.trace_id,
+    observationId: row.observation_id,
+    input: row.input,
+    output: row.output,
+    expectedOutput: row.expected_output,
+    createdAt: parseClickhouseUTCDateTimeFormat(row.created_at),
+    metadata: row.item_metadata || {},
+  }));
+};
+
+/**
+ * Get metrics for specific experiment items.
+ */
+export const getExperimentItemMetricsFromEvents = async (props: {
+  projectId: string;
+  experimentId: string;
+  experimentItemIds: string[];
+  filter?: FilterState;
+}) => {
+  if (props.experimentItemIds.length === 0) {
+    return [];
+  }
+
+  const query = `
+    WITH item_metrics AS (
+      SELECT
+        e.experiment_item_id,
+        e.trace_id,
+        dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time))) as latency_ms,
+        sum(e.total_cost) as total_cost
+      FROM events_core e
+      WHERE e.project_id = {projectId: String}
+        AND e.experiment_id = {experimentId: String}
+        AND e.experiment_item_id IN ({experimentItemIds: Array(String)})
+        AND e.is_deleted = 0
+      GROUP BY e.experiment_item_id, e.trace_id
+    ),
+    item_scores AS (
+      SELECT
+        e.experiment_item_id,
+        e.trace_id,
+        groupArrayIf(tuple(s.name, s.value, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
+        groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS score_categories
+      FROM events_core e
+      INNER JOIN scores s FINAL ON s.project_id = e.project_id AND s.trace_id = e.trace_id
+      WHERE e.project_id = {projectId: String}
+        AND e.experiment_id = {experimentId: String}
+        AND e.experiment_item_id IN ({experimentItemIds: Array(String)})
+        AND e.is_deleted = 0
+      GROUP BY e.experiment_item_id, e.trace_id
+    )
+    SELECT
+      im.experiment_item_id,
+      im.trace_id,
+      im.total_cost,
+      im.latency_ms,
+      is.scores_avg,
+      is.score_categories
+    FROM item_metrics im
+    LEFT JOIN item_scores is ON is.experiment_item_id = im.experiment_item_id AND is.trace_id = im.trace_id
+  `.trim();
+
+  const rows = await queryClickhouse<ExperimentItemMetricsReturnType>({
+    query,
+    params: {
+      projectId: props.projectId,
+      experimentId: props.experimentId,
+      experimentItemIds: props.experimentItemIds,
+    },
+    tags: {
+      feature: "experiments",
+      type: "experiment-items-metrics",
+      projectId: props.projectId,
+    },
+  });
+
+  return rows.map((row) => ({
+    experimentItemId: row.experiment_item_id,
+    traceId: row.trace_id,
+    totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
+    latencyMs: row.latency_ms !== null ? Number(row.latency_ms) : null,
+    scoresAvg: row.scores_avg || [],
+    scoreCategories: row.score_categories || [],
+  }));
+};
