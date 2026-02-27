@@ -5,7 +5,7 @@ import { prisma, PrismaClient } from "@langfuse/shared/src/db";
  *
  * Key pricing rules for Anthropic models:
  * - Prompt caching: 5m TTL write = 1.25x base input, 1h TTL write = 2x base input, cache read = 0.1x base input
- * - CRIS (Cross-Region Inference) 10% surcharge on Bedrock regional endpoints (eu./us./apac.):
+ * - CRIS (Cross-Region Inference) 10% surcharge on Bedrock regional endpoints (eu./us./apac./jp.):
  *   Applies to Claude Sonnet 4.5, Haiku 4.5, and all future models only.
  *   Earlier models (Sonnet 4, Opus 4, Opus 4.1, and prior) retain standard pricing on regional endpoints.
  *   global. prefix = global cross-region inference (standard pricing, no surcharge).
