@@ -4372,4 +4372,230 @@ describe("query builder measure-aggregation validation", () => {
     const result = await queryBuilder.build(query, randomUUID());
     expect(result.query).toBeDefined();
   });
+
+  describe("events_traces traceName filter", () => {
+    const isEventsTableV2Enabled =
+      env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+    let hasLegacyEventsTable = false;
+
+    beforeAll(async () => {
+      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+
+      try {
+        const result = await clickhouseClient().query({
+          query: "EXISTS TABLE default.events",
+          format: "TabSeparated",
+        });
+        hasLegacyEventsTable = (await result.text()).trim() === "1";
+      } catch {
+        hasLegacyEventsTable = false;
+      }
+    });
+
+    isEventsTableV2Enabled(
+      "should filter events_traces by traceName using aggregation logic",
+      async () => {
+        if (!hasLegacyEventsTable) return;
+
+        const projectId = randomUUID();
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+
+        // Trace 1: trace_name is empty, root event name is "my-trace"
+        // The aggregation logic should reconstruct this trace's name as "my-trace"
+        const events = [
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId1,
+            trace_name: "",
+            name: "my-trace",
+            parent_span_id: "", // root event
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId1,
+            trace_name: "",
+            name: "child-observation",
+            parent_span_id: "some-parent", // child event
+            start_time: Date.now() * 1000,
+          }),
+          // Trace 2: trace_name is "other-trace"
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId2,
+            trace_name: "other-trace",
+            name: "root-event",
+            parent_span_id: "", // root event
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
+
+        // Filter by name = "my-trace" — should find trace 1 (via root event name fallback)
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "traces",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "name",
+                operator: "=",
+                value: "my-trace",
+                type: "string",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+        );
+
+        // Should return exactly 1 trace (trace 1) with name "my-trace"
+        expect(result).toHaveLength(1);
+        expect(result[0].name).toBe("my-trace");
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "should filter events_traces by traceName column via resolveDimension fallback to name filterSql",
+      async () => {
+        if (!hasLegacyEventsTable) return;
+
+        const projectId = randomUUID();
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+
+        const events = [
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId1,
+            trace_name: "target-trace",
+            name: "root-observation",
+            parent_span_id: "",
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId2,
+            trace_name: "other-trace",
+            name: "root-observation",
+            parent_span_id: "",
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
+
+        // Filter using "traceName" column (triggers endsWith("Name") fallback)
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "traces",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "traceName",
+                operator: "=",
+                value: "target-trace",
+                type: "string",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+        );
+
+        // Should return only the trace with trace_name = "target-trace"
+        expect(result).toHaveLength(1);
+        expect(result[0].name).toBe("target-trace");
+      },
+    );
+
+    isEventsTableV2Enabled(
+      "should filter events_traces by name filterSql combined with a regular dimension filter",
+      async () => {
+        if (!hasLegacyEventsTable) return;
+
+        const projectId = randomUUID();
+        const traceId1 = randomUUID();
+        const traceId2 = randomUUID();
+        const traceId3 = randomUUID();
+
+        const events = [
+          // Trace 1: name="target-trace", environment="production"
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId1,
+            trace_name: "target-trace",
+            name: "root-op",
+            parent_span_id: "",
+            environment: "production",
+            start_time: Date.now() * 1000,
+          }),
+          // Trace 2: name="target-trace", environment="staging"
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId2,
+            trace_name: "target-trace",
+            name: "root-op",
+            parent_span_id: "",
+            environment: "staging",
+            start_time: Date.now() * 1000,
+          }),
+          // Trace 3: name="other-trace", environment="production"
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId3,
+            trace_name: "other-trace",
+            name: "root-op",
+            parent_span_id: "",
+            environment: "production",
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
+
+        // Filter by name (filterSql) AND environment (regular dimension)
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "traces",
+            dimensions: [{ field: "name" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "name",
+                operator: "=",
+                value: "target-trace",
+                type: "string",
+              },
+              {
+                column: "environment",
+                operator: "=",
+                value: "production",
+                type: "string",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+        );
+
+        // Should return only trace 1 (matches both name AND environment)
+        expect(result).toHaveLength(1);
+        expect(result[0].name).toBe("target-trace");
+      },
+    );
+  });
 });
