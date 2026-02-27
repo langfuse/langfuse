@@ -131,8 +131,6 @@ const staticProviders: Provider[] = [
       }
 
       if (dbUser.password === null) {
-        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
-        await hashPassword(credentials.password);
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
