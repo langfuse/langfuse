@@ -1333,17 +1333,17 @@ export class QueryBuilder {
     // The existing start_time filter above is kept for ClickHouse partition pruning.
     // For wide time windows (default >7 days), the subquery is skipped as the
     // root-event check has diminishing returns and hurts performance.
-    // Set LANGFUSE_ROOT_EVENT_CONDITION_MIN_HOURS=0 to always apply the filter.
-    // Falls back gracefully: if no root events exist in the window at all
-    // (e.g. parent_span_id is never populated), the filter is skipped via NOT EXISTS.
+    // Set LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS=0 to always apply the filter.
     if (view.rootEventCondition) {
       const windowMs =
         new Date(query.toTimestamp).getTime() -
         new Date(query.fromTimestamp).getTime();
       const windowHours = windowMs / (1000 * 60 * 60);
-      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MIN_HOURS;
+      const thresholdHours = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
       if (thresholdHours === 0 || windowHours <= thresholdHours) {
+        // Falls back gracefully: if no root events exist in the window at all
+        // (e.g. parent_span_id is never populated), the filter is skipped via NOT EXISTS.
         const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
         const fromP = `subFrom${uid}`;
         const toP = `subTo${uid}`;

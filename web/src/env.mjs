@@ -253,7 +253,7 @@ export const env = createEnv({
     CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
       .enum(["true", "false"])
       .default("false"),
-    LANGFUSE_ROOT_EVENT_CONDITION_MIN_HOURS: z.coerce
+    LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS: z.coerce
       .number()
       .int()
       .nonnegative()
@@ -680,8 +680,8 @@ export const env = createEnv({
       process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
     CLICKHOUSE_USE_QUERY_CONDITION_CACHE:
       process.env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE,
-    LANGFUSE_ROOT_EVENT_CONDITION_MIN_HOURS:
-      process.env.LANGFUSE_ROOT_EVENT_CONDITION_MIN_HOURS,
+    LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS:
+      process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
