@@ -1,7 +1,13 @@
 import { Callout } from "@/src/components/ui/callout";
 import { Button } from "@/src/components/ui/button";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/src/components/ui/tooltip";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { Info } from "lucide-react";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 
 interface LegacyEvalCalloutProps {
@@ -23,7 +29,7 @@ export function LegacyEvalCallout({
   return (
     <Callout
       id={`eval-remapping-peek-${evalConfigId}`}
-      variant="info"
+      variant="warning"
       key="dismissed-eval-remapping-callouts"
       actions={() => (
         <>
@@ -52,10 +58,16 @@ export function LegacyEvalCallout({
           requires changes{" "}
         </Link>
       </span>
-      <span>
-        to benefit from new features and performance improvements. Upgrade for
-        full compatibility.
-      </span>
+      <span>to benefit from new features and performance improvements.</span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Info className="ml-1 inline h-4 w-4 cursor-help" />
+        </TooltipTrigger>
+        <TooltipContent>
+          Your evaluator will continue to work without upgrading, but you will
+          not benefit from improvements.
+        </TooltipContent>
+      </Tooltip>
     </Callout>
   );
 }
