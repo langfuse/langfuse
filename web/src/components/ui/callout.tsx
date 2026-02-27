@@ -1,7 +1,7 @@
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Info, AlertTriangle, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const DEFAULT_STORAGE_KEY = "dismissed-callouts";
@@ -75,7 +75,6 @@ export function Callout({
 
   if (!isVisible) return null;
 
-  const Icon = variant === "warning" ? AlertTriangle : Info;
   const variantClass =
     variant === "warning"
       ? "border-light-yellow bg-light-yellow dark:border-light-yellow dark:bg-light-yellow"
@@ -89,13 +88,6 @@ export function Callout({
 
   return (
     <Alert className={`${variantClass} ${alignmentOverrides}`}>
-      <Icon
-        className={`h-4 w-4 ${
-          variant === "warning"
-            ? "text-dark-yellow dark:text-dark-yellow"
-            : "text-dark-blue dark:text-dark-blue"
-        }`}
-      />
       <AlertDescription
         className={`flex ${alignmentClass} ml-1 justify-between`}
       >
