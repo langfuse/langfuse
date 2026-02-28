@@ -303,10 +303,25 @@ You can use the staging environment end-to-end with the Langfuse integrations or
 
 ## Production environment
 
-When a new release is tagged on the `main` branch (excluding prereleases), it triggers a production deployment. The deployment process consists of two steps:
+We run two separate release/deployment processes:
 
-1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
-2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
+1. **Langfuse Cloud deployment (frequent):**
+   - Every commit on the `production` branch triggers an ECS deployment to Langfuse Cloud.
+   - To deploy current `main` to Langfuse Cloud, promote `main` to `production` via [`promote-main-to-production.yml`](.github/workflows/promote-main-to-production.yml) (instead of force pushing from a local machine).
+2. **Open-source release (less frequent):**
+   - The open-source Docker release process is handled via [`release.yml`](.github/workflows/release.yml) for self-hosted production users.
+
+You can trigger the Langfuse Cloud promotion in either way:
+
+1. Preferred local command:
+
+```bash
+pnpm run release:cloud
+```
+
+This wraps the GitHub CLI trigger and performs preflight checks (main branch/sync checks and migration diff checks against `production`) before dispatching the workflow.
+
+2. GitHub UI: open **Actions** -> **Promote Main to Production** -> **Run workflow**, then set `confirm=promote`.
 
 ## Theming
 
