@@ -508,7 +508,6 @@ abstract class AbstractQueryBuilder {
 abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   protected ctes: string[] = [];
   protected joins: string[] = [];
-  protected hasRecursiveCTE = false;
 
   /**
    * Add a CTE (Common Table Expression) to the query
@@ -523,17 +522,6 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   }
 
   /**
-   * Add a recursive CTE. Sets the RECURSIVE flag on the WITH clause.
-   */
-  withRecursiveCTE(
-    name: string,
-    queryWithParams: { query: string; params: Record<string, any> },
-  ): this {
-    this.hasRecursiveCTE = true;
-    return this.withCTE(name, queryWithParams);
-  }
-
-  /**
    * Add a LEFT JOIN
    */
   leftJoin(table: string, onClause: string): this {
@@ -545,9 +533,7 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
    * Helper to build WITH clause section
    */
   protected buildCTESection(): string {
-    if (this.ctes.length === 0) return "";
-    const keyword = this.hasRecursiveCTE ? "WITH RECURSIVE" : "WITH";
-    return `${keyword} ${this.ctes.join(",\n")}`;
+    return this.ctes.length > 0 ? `WITH ${this.ctes.join(",\n")}` : "";
   }
 
   /**

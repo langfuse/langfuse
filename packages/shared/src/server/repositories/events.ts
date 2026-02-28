@@ -422,14 +422,8 @@ async function getObservationsFromEventsTableInternal<T>(
 
   // Extract positionInTrace filter and build baseFilter without it
   const positionFilter = filter.find((f) => f.type === "positionInTrace");
-  // Extract levelInTrace filters (number type, may have multiple for range: >= and <=)
-  const levelFilters = filter.filter(
-    (f) => f.column === "levelInTrace" && f.type === "number",
-  );
   const baseFilter: typeof filter = [
-    ...filter.filter(
-      (f) => f.type !== "positionInTrace" && f.column !== "levelInTrace",
-    ),
+    ...filter.filter((f) => f.type !== "positionInTrace"),
   ];
 
   // Build filter list from baseFilter (without positionInTrace)
@@ -508,66 +502,14 @@ async function getObservationsFromEventsTableInternal<T>(
     if (nativeFilterClause) cteWhere += ` AND ${nativeFilterClause}`;
     if (searchClause) cteWhere += ` AND ${searchClause}`;
 
-    // TODO: Build this CTE via a query builder instead of raw SQL string
     queryBuilder.withCTE("qualifying_obs", {
-      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events_core e WHERE ${cteWhere}`,
+      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events e WHERE ${cteWhere}`,
       params: { projectId, ...appliedNativeFilter.params, ...search.params },
     });
 
     queryBuilder.whereRaw(
       "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
       { _posRn: Math.max(1, position) },
-    );
-  }
-
-  // Handle levelInTrace via recursive CTE
-  // Level 0 = root (no parent), level 1 = direct children of root, etc.
-  if (levelFilters.length > 0) {
-    const nativeLevelFilter = new FilterList(
-      createFilterFromFilterState(
-        baseFilter,
-        eventsTableNativeUiColumnDefinitions,
-      ),
-    );
-    const appliedNativeLevelFilter = nativeLevelFilter.apply();
-    const nativeLevelClause = appliedNativeLevelFilter.query
-      .trim()
-      .replace(/^(AND|OR)\s+/i, "");
-
-    let cteScope = "e.project_id = {projectId: String}";
-    if (nativeLevelClause) cteScope += ` AND ${nativeLevelClause}`;
-
-    // Each UNION ALL branch has its own namespace scope, so `e` can be reused safely.
-    const levelCteQuery = [
-      // Anchor: root observations (no parent)
-      `SELECT e.span_id, e.trace_id, 0 AS level FROM events_core e WHERE ${cteScope} AND e.parent_span_id = ''`,
-      "UNION ALL",
-      // Recursive: children
-      `SELECT e.span_id, e.trace_id, parent.level + 1 AS level FROM events_core e JOIN level_tree parent ON e.parent_span_id = parent.span_id AND e.trace_id = parent.trace_id WHERE e.project_id = {projectId: String}${nativeLevelClause ? ` AND ${nativeLevelClause}` : ""}`,
-    ].join(" ");
-
-    // TODO: Build this CTE via a query builder instead of raw SQL string
-    queryBuilder.withRecursiveCTE("level_tree", {
-      query: levelCteQuery,
-      params: { projectId, ...appliedNativeLevelFilter.params },
-    });
-
-    // Build WHERE conditions for each level filter
-    const levelConditions: string[] = [];
-    const levelParams: Record<string, number> = {};
-    levelFilters.forEach((lf, idx) => {
-      if (lf.type === "number") {
-        const paramName = `_levelVal${idx}`;
-        levelConditions.push(`level ${lf.operator} {${paramName}: UInt32}`);
-        // Round to integer — level is always a whole number depth
-        levelParams[paramName] = Math.round(lf.value);
-      }
-    });
-
-    const levelWhere = levelConditions.join(" AND ");
-    queryBuilder.whereRaw(
-      `e.span_id IN (SELECT span_id FROM level_tree WHERE ${levelWhere})`,
-      levelParams,
     );
   }
 
