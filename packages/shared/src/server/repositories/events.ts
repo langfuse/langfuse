@@ -492,20 +492,18 @@ async function getObservationsFromEventsTableInternal<T>(
       ),
     );
     const appliedNativeFilter = nativeFilter.apply();
+    const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
+      .selectRaw(
+        "e.span_id",
+        `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
+      )
+      .where(appliedNativeFilter)
+      .where(search);
 
-    // Build CTE WHERE clause
-    const nativeFilterClause = appliedNativeFilter.query
-      .trim()
-      .replace(/^(AND|OR)\s+/i, "");
-    const searchClause = search.query.trim().replace(/^(AND|OR)\s+/i, "");
-    let cteWhere = "e.project_id = {projectId: String}";
-    if (nativeFilterClause) cteWhere += ` AND ${nativeFilterClause}`;
-    if (searchClause) cteWhere += ` AND ${searchClause}`;
-
-    queryBuilder.withCTE("qualifying_obs", {
-      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events e WHERE ${cteWhere}`,
-      params: { projectId, ...appliedNativeFilter.params, ...search.params },
-    });
+    queryBuilder.withCTE(
+      "qualifying_obs",
+      qualifyingObsBuilder.buildWithParams(),
+    );
 
     queryBuilder.whereRaw(
       "e.span_id IN (SELECT span_id FROM qualifying_obs WHERE _rn = {_posRn: UInt32})",
