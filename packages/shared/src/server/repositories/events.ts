@@ -503,7 +503,7 @@ async function getObservationsFromEventsTableInternal<T>(
     if (searchClause) cteWhere += ` AND ${searchClause}`;
 
     queryBuilder.withCTE("qualifying_obs", {
-      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events e WHERE ${cteWhere}`,
+      query: `SELECT e.span_id, ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn FROM events_core e WHERE ${cteWhere}`,
       params: { projectId, ...appliedNativeFilter.params, ...search.params },
     });
 
