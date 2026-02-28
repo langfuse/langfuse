@@ -1328,8 +1328,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -1556,8 +1556,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -1765,8 +1765,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -1794,8 +1794,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -1823,8 +1823,8 @@
           "input_cache_creation": 0.000001,
           "cache_read_input_tokens": 8e-8,
           "input_cache_read": 8e-8,
-          "cache_write_5m_input_tokens": 0.000001,
-          "cache_write_1h_input_tokens": 1.6e-06
+          "input_cache_write_5m": 0.000001,
+          "input_cache_write_1h": 1.6e-06
         }
       }
     ]
@@ -1852,8 +1852,8 @@
           "input_cache_creation": 0.000001,
           "cache_read_input_tokens": 8e-8,
           "input_cache_read": 8e-8,
-          "cache_write_5m_input_tokens": 0.000001,
-          "cache_write_1h_input_tokens": 1.6e-06
+          "input_cache_write_5m": 0.000001,
+          "input_cache_write_1h": 1.6e-06
         }
       }
     ]
@@ -2171,8 +2171,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -2200,8 +2200,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -2585,8 +2585,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       },
       {
@@ -2611,8 +2611,8 @@
           "input_cache_creation": 0.0000075,
           "cache_read_input_tokens": 6e-7,
           "input_cache_read": 6e-7,
-          "cache_write_5m_input_tokens": 0.0000075,
-          "cache_write_1h_input_tokens": 1.2e-05
+          "input_cache_write_5m": 0.0000075,
+          "input_cache_write_1h": 1.2e-05
         }
       }
     ]
@@ -2640,8 +2640,8 @@
           "input_cache_creation": 4.125e-6,
           "cache_read_input_tokens": 3.3e-7,
           "input_cache_read": 3.3e-7,
-          "cache_write_5m_input_tokens": 4.125e-6,
-          "cache_write_1h_input_tokens": 6.6e-6
+          "input_cache_write_5m": 4.125e-6,
+          "input_cache_write_1h": 6.6e-6
         }
       },
       {
@@ -2666,8 +2666,8 @@
           "input_cache_creation": 8.25e-6,
           "cache_read_input_tokens": 6.6e-7,
           "input_cache_read": 6.6e-7,
-          "cache_write_5m_input_tokens": 8.25e-6,
-          "cache_write_1h_input_tokens": 1.32e-05
+          "input_cache_write_5m": 8.25e-6,
+          "input_cache_write_1h": 1.32e-05
         }
       }
     ]
@@ -2695,8 +2695,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -2724,8 +2724,8 @@
           "input_cache_creation": 0.00000375,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 0.00000375,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 0.00000375,
+          "input_cache_write_1h": 6e-06
         }
       }
     ]
@@ -2753,8 +2753,8 @@
           "input_cache_creation": 0.00001875,
           "cache_read_input_tokens": 0.0000015,
           "input_cache_read": 0.0000015,
-          "cache_write_5m_input_tokens": 0.00001875,
-          "cache_write_1h_input_tokens": 3e-05
+          "input_cache_write_5m": 0.00001875,
+          "input_cache_write_1h": 3e-05
         }
       }
     ]
@@ -2934,8 +2934,8 @@
           "input_cache_creation": 0.00001875,
           "cache_read_input_tokens": 0.0000015,
           "input_cache_read": 0.0000015,
-          "cache_write_5m_input_tokens": 0.00001875,
-          "cache_write_1h_input_tokens": 3e-05
+          "input_cache_write_5m": 0.00001875,
+          "input_cache_write_1h": 3e-05
         }
       }
     ]
@@ -3229,8 +3229,8 @@
           "input_cache_creation": 0.00000125,
           "cache_read_input_tokens": 1e-7,
           "input_cache_read": 1e-7,
-          "cache_write_5m_input_tokens": 0.00000125,
-          "cache_write_1h_input_tokens": 2e-06
+          "input_cache_write_5m": 0.00000125,
+          "input_cache_write_1h": 2e-06
         }
       }
     ]
@@ -3258,8 +3258,8 @@
           "input_cache_creation": 1.375e-6,
           "cache_read_input_tokens": 1.1e-7,
           "input_cache_read": 1.1e-7,
-          "cache_write_5m_input_tokens": 1.375e-6,
-          "cache_write_1h_input_tokens": 2.2e-6
+          "input_cache_write_5m": 1.375e-6,
+          "input_cache_write_1h": 2.2e-6
         }
       }
     ]
@@ -3348,8 +3348,8 @@
           "input_cache_creation": 6.25e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
-          "cache_write_5m_input_tokens": 6.25e-6,
-          "cache_write_1h_input_tokens": 1e-05
+          "input_cache_write_5m": 6.25e-6,
+          "input_cache_write_1h": 1e-05
         }
       }
     ]
@@ -3378,8 +3378,8 @@
           "input_cache_creation": 6.875e-6,
           "cache_read_input_tokens": 0.55e-6,
           "input_cache_read": 0.55e-6,
-          "cache_write_5m_input_tokens": 6.875e-6,
-          "cache_write_1h_input_tokens": 1.1e-05
+          "input_cache_write_5m": 6.875e-6,
+          "input_cache_write_1h": 1.1e-05
         }
       }
     ]
@@ -3408,8 +3408,8 @@
           "input_cache_creation": 3.75e-6,
           "cache_read_input_tokens": 3e-7,
           "input_cache_read": 3e-7,
-          "cache_write_5m_input_tokens": 3.75e-6,
-          "cache_write_1h_input_tokens": 6e-06
+          "input_cache_write_5m": 3.75e-6,
+          "input_cache_write_1h": 6e-06
         }
       },
       {
@@ -3434,8 +3434,8 @@
           "input_cache_creation": 7.5e-6,
           "cache_read_input_tokens": 6e-7,
           "input_cache_read": 6e-7,
-          "cache_write_5m_input_tokens": 7.5e-6,
-          "cache_write_1h_input_tokens": 1.2e-05
+          "input_cache_write_5m": 7.5e-6,
+          "input_cache_write_1h": 1.2e-05
         }
       }
     ]
@@ -3464,8 +3464,8 @@
           "input_cache_creation": 4.125e-6,
           "cache_read_input_tokens": 3.3e-7,
           "input_cache_read": 3.3e-7,
-          "cache_write_5m_input_tokens": 4.125e-6,
-          "cache_write_1h_input_tokens": 6.6e-6
+          "input_cache_write_5m": 4.125e-6,
+          "input_cache_write_1h": 6.6e-6
         }
       },
       {
@@ -3490,8 +3490,8 @@
           "input_cache_creation": 8.25e-6,
           "cache_read_input_tokens": 6.6e-7,
           "input_cache_read": 6.6e-7,
-          "cache_write_5m_input_tokens": 8.25e-6,
-          "cache_write_1h_input_tokens": 1.32e-05
+          "input_cache_write_5m": 8.25e-6,
+          "input_cache_write_1h": 1.32e-05
         }
       }
     ]
@@ -3520,8 +3520,8 @@
           "input_cache_creation": 6.25e-6,
           "cache_read_input_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
-          "cache_write_5m_input_tokens": 6.25e-6,
-          "cache_write_1h_input_tokens": 1e-05
+          "input_cache_write_5m": 6.25e-6,
+          "input_cache_write_1h": 1e-05
         }
       }
     ]
@@ -3550,8 +3550,8 @@
           "input_cache_creation": 6.875e-6,
           "cache_read_input_tokens": 0.55e-6,
           "input_cache_read": 0.55e-6,
-          "cache_write_5m_input_tokens": 6.875e-6,
-          "cache_write_1h_input_tokens": 1.1e-05
+          "input_cache_write_5m": 6.875e-6,
+          "input_cache_write_1h": 1.1e-05
         }
       }
     ]
