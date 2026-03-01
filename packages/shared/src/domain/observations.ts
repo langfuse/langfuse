@@ -103,7 +103,13 @@ export type Observation = z.infer<typeof ObservationSchema>;
 
 export type ObservationCoreFields = Pick<
   Observation,
-  "id" | "traceId" | "startTime" | "projectId" | "parentObservationId"
+  | "id"
+  | "traceId"
+  | "startTime"
+  | "endTime"
+  | "projectId"
+  | "parentObservationId"
+  | "type"
 >;
 
 export const EventsObservationSchema = ObservationSchema.extend({

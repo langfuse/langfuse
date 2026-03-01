@@ -14,19 +14,9 @@ const clientTestConfig = {
 };
 
 const serverTestConfig = {
-  displayName: "sync-server",
-  testMatch: ["/**/*.servertest.[jt]s?(x)"],
-  testPathIgnorePatterns: ["async", "__e2e__"],
-  testEnvironment: "jest-environment-node",
-  testEnvironmentOptions: { globalsCleanup: "on" },
-  setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
-  globalTeardown: "<rootDir>/src/__tests__/teardown.ts",
-};
-
-const asyncServerTestConfig = {
-  displayName: "async-server",
+  displayName: "server",
   testPathIgnorePatterns: ["__e2e__"],
-  testMatch: ["/**/async/**/*.servertest.[jt]s?(x)"],
+  testMatch: ["/**/server/**/*.servertest.[jt]s?(x)"],
   testEnvironment: "jest-environment-node",
   testEnvironmentOptions: { globalsCleanup: "on" },
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/after-teardown.ts"],
@@ -65,12 +55,6 @@ const config = {
     },
     {
       ...(await createJestConfig(serverTestConfig)()),
-      transformIgnorePatterns: [
-        `/web/node_modules/(?!(${esModules.join("|")})/)`,
-      ],
-    },
-    {
-      ...(await createJestConfig(asyncServerTestConfig)()),
       transformIgnorePatterns: [
         `/web/node_modules/(?!(${esModules.join("|")})/)`,
       ],

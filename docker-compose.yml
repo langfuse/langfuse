@@ -136,6 +136,8 @@ services:
       --maxmemory-policy noeviction
     ports:
       - 127.0.0.1:6379:6379
+    volumes:
+      - langfuse_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -169,4 +171,6 @@ volumes:
   langfuse_clickhouse_logs:
     driver: local
   langfuse_minio_data:
+    driver: local
+  langfuse_redis_data:
     driver: local

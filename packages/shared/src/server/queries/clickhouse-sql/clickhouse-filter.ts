@@ -224,7 +224,7 @@ export class CategoryOptionsFilter implements Filter {
 
 // stringObject filter is used when we want to filter on a key value pair in metadata.
 // For observations/traces tables: uses Map column (metadata)
-// For events table: uses Array columns (metadata_names/metadata_prefixes)
+// For events tables (events_core, events_full): uses Array columns (metadata_names/metadata_values)
 // We can only filter efficiently on the first level of a json obj.
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
@@ -255,15 +255,19 @@ export class StringObjectFilter implements Filter {
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
 
-    // Events table uses array columns (metadata_names/metadata_prefixes)
+    // Events tables use array columns (metadata_names/metadata_values)
     // Observations/traces tables use Map column (metadata)
-    const isEventsTable = this.clickhouseTable === "events";
+    const isEventsTable = [
+      "events_proto",
+      "events_core",
+      "events_full",
+    ].includes(this.clickhouseTable);
 
     let query: string;
     if (isEventsTable) {
-      // For events table, use array access: metadata_prefixes[indexOf(metadata_names, key)]
+      // For events tables, use array access: metadata_values[indexOf(metadata_names, key)]
       const namesColumn = `${prefix}metadata_names`;
-      const valuesColumn = `${prefix}metadata_prefixes`;
+      const valuesColumn = `${prefix}metadata_values`;
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
 
       switch (this.operator) {

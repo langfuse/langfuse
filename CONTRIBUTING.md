@@ -244,19 +244,16 @@ Tests automatically create the PostgreSQL test database if it doesn't exist and 
 
 We're using Jest with in the `web` package. Therefore, if you want to provide an argument to the test runner, do it directly without an intermittent `--`.
 
-There are three types of unit tests:
+There are two types of unit tests:
 
-- `test-sync`
-- `test` (for async folder tests)
+- `test` (server tests)
 - `test-client`
 
 To run a specific test, for example the test: `"should handle special characters in prompt names"` in `prompts.v2.servertest.ts`, run:
 
 ```sh
 cd web  # or with --filter=web
-pnpm test-sync --testPathPatterns="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
-# for async folder tests:
-pnpm test -- --testPathPatterns="observations-api" --testNamePattern="should fetch all observations"
+pnpm test --testPathPatterns="prompts\.v2\.servertest" --testNamePattern="should handle special characters in prompt names"
 ```
 
 To run all tests:
@@ -306,10 +303,25 @@ You can use the staging environment end-to-end with the Langfuse integrations or
 
 ## Production environment
 
-When a new release is tagged on the `main` branch (excluding prereleases), it triggers a production deployment. The deployment process consists of two steps:
+We run two separate release/deployment processes:
 
-1. The Docker image is published to GitHub Packages with the version number and `latest` tag.
-2. The deployment is carried out on Langfuse Cloud. This is done by force pushing the `main` branch to the `production` branch during every release, using the [`release.yml`](.github/workflows/release.yml) GitHub Action.
+1. **Langfuse Cloud deployment (frequent):**
+   - Every commit on the `production` branch triggers an ECS deployment to Langfuse Cloud.
+   - To deploy current `main` to Langfuse Cloud, promote `main` to `production` via [`promote-main-to-production.yml`](.github/workflows/promote-main-to-production.yml) (instead of force pushing from a local machine).
+2. **Open-source release (less frequent):**
+   - The open-source Docker release process is handled via [`release.yml`](.github/workflows/release.yml) for self-hosted production users.
+
+You can trigger the Langfuse Cloud promotion in either way:
+
+1. Preferred local command:
+
+```bash
+pnpm run release:cloud
+```
+
+This wraps the GitHub CLI trigger and performs preflight checks (main branch/sync checks and migration diff checks against `production`) before dispatching the workflow.
+
+2. GitHub UI: open **Actions** -> **Promote Main to Production** -> **Run workflow**, then set `confirm=promote`.
 
 ## Theming
 

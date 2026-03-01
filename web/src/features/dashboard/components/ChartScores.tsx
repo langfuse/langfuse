@@ -1,6 +1,3 @@
-import { api } from "@/src/utils/api";
-
-import { BaseTimeSeriesChart } from "@/src/features/dashboard/components/BaseTimeSeriesChart";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import {
@@ -16,11 +13,13 @@ import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
   type QueryType,
+  type ViewVersion,
   mapLegacyUiTableFilterToView,
 } from "@/src/features/query";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/tremorv4-recharts-chart-adapters";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 
 export function ChartScores(props: {
   className?: string;
@@ -30,7 +29,8 @@ export function ChartScores(props: {
   toTimestamp: Date;
   projectId: string;
   isLoading?: boolean;
-  isDashboardChartsBeta?: boolean;
+  metricsVersion?: ViewVersion;
+  schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -49,10 +49,11 @@ export function ChartScores(props: {
     orderBy: null,
   };
 
-  const scores = api.dashboard.executeQuery.useQuery(
+  const scores = useScheduledDashboardExecuteQuery(
     {
       projectId: props.projectId,
       query: scoresQuery,
+      version: props.metricsVersion,
     },
     {
       trpc: {
@@ -60,6 +61,7 @@ export function ChartScores(props: {
           skipBatch: true,
         },
       },
+      queryId: `${props.schedulerId ?? "home:chart-scores"}:scores`,
       enabled: !props.isLoading,
     },
   );
@@ -94,28 +96,19 @@ export function ChartScores(props: {
       isLoading={props.isLoading || scores.isPending}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
-        props.isDashboardChartsBeta ? (
-          <div className="min-h-80">
-            <Chart
-              chartType="LINE_TIME_SERIES"
-              data={timeSeriesToDataPoints(extractedScores, props.agg)}
-              rowLimit={100}
-              chartConfig={{
-                type: "LINE_TIME_SERIES",
-                show_data_point_dots: false,
-                subtle_fill: true,
-              }}
-              legendPosition="above"
-            />
-          </div>
-        ) : (
-          <BaseTimeSeriesChart
-            className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground"
-            agg={props.agg}
-            data={extractedScores}
-            connectNulls
+        <div className="min-h-80">
+          <Chart
+            chartType="LINE_TIME_SERIES"
+            data={timeSeriesToDataPoints(extractedScores, props.agg)}
+            rowLimit={100}
+            chartConfig={{
+              type: "LINE_TIME_SERIES",
+              show_data_point_dots: false,
+              subtle_fill: true,
+            }}
+            legendPosition="above"
           />
-        )
+        </div>
       ) : (
         <NoDataOrLoading
           isLoading={props.isLoading || scores.isPending}

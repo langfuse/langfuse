@@ -13,14 +13,13 @@ import { FeedbackButtonWrapper } from "@/src/features/feedback/component/Feedbac
 import { BarChart2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type FilterState } from "@langfuse/shared";
-import { type ColumnDefinition } from "@langfuse/shared";
+import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { LatencyTables } from "@/src/features/dashboard/components/LatencyTables";
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import {
-  findClosestDashboardInterval,
   DASHBOARD_AGGREGATION_OPTIONS,
+  findClosestDashboardInterval,
   toAbsoluteTimeRange,
   type DashboardDateRangeAggregationOption,
 } from "@/src/utils/date-range-utils";
@@ -35,41 +34,36 @@ import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
-} from "@/src/hooks/use-environment-filter";
-import { useDashboardChartsBeta } from "@/src/features/dashboard/hooks/useDashboardChartsBeta";
-import { Label } from "@/src/components/ui/label";
-import { Switch } from "@/src/components/ui/switch";
+} from "@/src/hooks/useEnvironmentFilter";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type ViewVersion } from "@/src/features/query";
+import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { useSession } from "next-auth/react";
+  DashboardQuerySchedulerProvider,
+  getDashboardQuerySchedulerMaxConcurrent,
+  useDashboardQueryScheduler,
+} from "@/src/hooks/useDashboardQueryScheduler";
 
-const isLangfuseEmail = (email: string | null | undefined) =>
-  Boolean(email?.toLowerCase().endsWith("@langfuse.com"));
+const HOME_DASHBOARD_CARD_IDS = {
+  traces: "home:traces",
+  modelCosts: "home:model-costs",
+  scoresTable: "home:scores-table",
+  tracesTimeSeries: "home:traces-time-series",
+  modelUsage: "home:model-usage",
+  users: "home:users",
+  chartScores: "home:chart-scores",
+  latencyTables: "home:latency-tables",
+  generationLatency: "home:generation-latency",
+  scoreAnalytics: "home:score-analytics",
+} as const;
 
 export default function Dashboard() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const utils = api.useUtils();
-  const { data: session } = useSession();
   const { timeRange, setTimeRange } = useDashboardDateRange();
-  const { isDashboardChartsBeta, setDashboardChartsBeta } =
-    useDashboardChartsBeta();
-  const prevBetaRef = useRef<boolean | null>(null);
-  const showChartsBetaToggle = isLangfuseEmail(session?.user?.email ?? null);
-
-  // Reload all dashboard data when the charts beta toggle is switched
-  useEffect(() => {
-    if (
-      prevBetaRef.current !== null &&
-      prevBetaRef.current !== isDashboardChartsBeta
-    ) {
-      void utils.dashboard.invalidate();
-    }
-    prevBetaRef.current = isDashboardChartsBeta;
-  }, [isDashboardChartsBeta, utils.dashboard]);
+  const { isBetaEnabled } = useV4Beta();
+  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
 
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange),
@@ -77,7 +71,6 @@ export default function Dashboard() {
   );
 
   const uiCustomization = useUiCustomization();
-
   const lookbackLimit = useEntitlementLimit("data-access-days");
 
   const [userFilterState, setUserFilterState] = useQueryFilterState(
@@ -103,28 +96,13 @@ export default function Dashboard() {
     },
   );
 
-  const environmentFilterOptions =
-    api.projects.environmentFilterOptions.useQuery(
-      {
-        projectId,
-        fromTimestamp: absoluteTimeRange?.from,
-      },
-      {
-        trpc: {
-          context: {
-            skipBatch: true,
-          },
-        },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
-    );
+  const environmentOptionsState = useEnvironmentFilterOptionsCache({
+    projectId,
+    timeRange,
+  });
   const environmentOptions: string[] =
-    environmentFilterOptions.data?.map((value) => value.environment) || [];
+    environmentOptionsState.environmentOptions;
 
-  // Add effect to update filter state when environments change
   const { selectedEnvironments, setSelectedEnvironments } =
     useEnvironmentFilter(environmentOptions, projectId);
 
@@ -209,192 +187,211 @@ export default function Dashboard() {
     ...timeFilter,
     ...environmentFilter,
   ];
+  const isDashboardDataReady = environmentOptionsState.isReady;
+
+  const schedulerResetKey = useMemo(() => {
+    return [
+      projectId,
+      metricsVersion,
+      absoluteTimeRange?.from?.toISOString() ?? "",
+      absoluteTimeRange?.to?.toISOString() ?? "",
+      JSON.stringify(userFilterState),
+      selectedEnvironments.join(","),
+    ].join("|");
+  }, [
+    absoluteTimeRange?.from,
+    absoluteTimeRange?.to,
+    metricsVersion,
+    projectId,
+    selectedEnvironments,
+    userFilterState,
+  ]);
+
+  const scheduler = useDashboardQueryScheduler({
+    maxConcurrent: getDashboardQuerySchedulerMaxConcurrent(timeRange),
+    resetKey: schedulerResetKey,
+  });
+  const homeSchedulerIdPrefix = `${projectId}:`;
 
   return (
-    <Page
-      withPadding
-      scrollable
-      headerProps={{
-        title: "Home",
-        titleBadges: showChartsBetaToggle ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="dashboard-charts-beta-toggle"
-                  size="sm"
-                  checked={isDashboardChartsBeta}
-                  onCheckedChange={setDashboardChartsBeta}
-                  className="shrink-0"
-                />
-                <Label
-                  htmlFor="dashboard-charts-beta-toggle"
-                  className="cursor-pointer text-sm font-normal text-muted-foreground"
+    <DashboardQuerySchedulerProvider scheduler={scheduler}>
+      <Page
+        withPadding
+        scrollable
+        headerProps={{
+          title: "Home",
+          actionButtonsLeft: (
+            <>
+              <TimeRangePicker
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
+                timeRangePresets={dashboardTimeRangePresets}
+                className="my-0 max-w-full overflow-x-auto"
+                disabled={
+                  lookbackLimit
+                    ? {
+                        before: new Date(
+                          new Date().getTime() -
+                            lookbackLimit * 24 * 60 * 60 * 1000,
+                        ),
+                      }
+                    : undefined
+                }
+              />
+              <MultiSelect
+                title="Environment"
+                label="Env"
+                values={selectedEnvironments}
+                onValueChange={useDebounce(setSelectedEnvironments)}
+                options={environmentOptions.map((env) => ({
+                  value: env,
+                }))}
+                className="my-0 w-auto overflow-hidden"
+              />
+              <PopoverFilterBuilder
+                columns={filterColumns}
+                filterState={userFilterState}
+                onChange={useDebounce(setUserFilterState)}
+              />
+            </>
+          ),
+          actionButtonsRight: (
+            <>
+              {uiCustomization?.feedbackHref === undefined && (
+                <FeedbackButtonWrapper
+                  title="Request Chart"
+                  description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
+                  className="hidden lg:flex"
                 >
-                  Charts (beta)
-                </Label>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs text-xs">
-              Unified Recharts charts. Toggle to compare with previous charts.
-            </TooltipContent>
-          </Tooltip>
-        ) : undefined,
-        actionButtonsLeft: (
-          <>
-            <TimeRangePicker
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-              timeRangePresets={dashboardTimeRangePresets}
-              className="my-0 max-w-full overflow-x-auto"
-              disabled={
-                lookbackLimit
-                  ? {
-                      before: new Date(
-                        new Date().getTime() -
-                          lookbackLimit * 24 * 60 * 60 * 1000,
-                      ),
+                  <Button
+                    id="date"
+                    variant={"outline"}
+                    className={
+                      "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
                     }
-                  : undefined
-              }
+                  >
+                    <BarChart2
+                      className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
+                      aria-hidden="true"
+                    />
+                    Request Chart
+                  </Button>
+                </FeedbackButtonWrapper>
+              )}
+              <SetupTracingButton />
+            </>
+          ),
+        }}
+      >
+        {!isDashboardDataReady ? (
+          <NoDataOrLoading isLoading />
+        ) : (
+          <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
+            <TracesBarListChart
+              className="col-span-1 xl:col-span-2"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.traces}`}
             />
-            <MultiSelect
-              title="Environment"
-              label="Env"
-              values={selectedEnvironments}
-              onValueChange={useDebounce(setSelectedEnvironments)}
-              options={environmentOptions.map((env) => ({
-                value: env,
-              }))}
-              className="my-0 w-auto overflow-hidden"
+            <ModelCostTable
+              className="col-span-1 xl:col-span-2"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelCosts}`}
             />
-            <PopoverFilterBuilder
-              columns={filterColumns}
-              filterState={userFilterState}
-              onChange={useDebounce(setUserFilterState)}
+            <ScoresTable
+              className="col-span-1 xl:col-span-2"
+              projectId={projectId}
+              globalFilterState={mergedFilterState}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
             />
-          </>
-        ),
-        actionButtonsRight: (
-          <>
-            {uiCustomization?.feedbackHref === undefined && (
-              <FeedbackButtonWrapper
-                title="Request Chart"
-                description="Your feedback matters! Let the Langfuse team know what additional data or metrics you'd like to see in your dashboard."
-                className="hidden lg:flex"
-              >
-                <Button
-                  id="date"
-                  variant={"outline"}
-                  className={
-                    "group justify-start gap-x-3 text-left font-semibold text-primary hover:bg-primary-foreground hover:text-primary-accent"
-                  }
-                >
-                  <BarChart2
-                    className="hidden h-6 w-6 shrink-0 text-primary group-hover:text-primary-accent lg:block"
-                    aria-hidden="true"
-                  />
-                  Request Chart
-                </Button>
-              </FeedbackButtonWrapper>
-            )}
-            <SetupTracingButton />
-          </>
-        ),
-      }}
-    >
-      <div className="grid w-full grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2 xl:grid-cols-6">
-        <TracesBarListChart
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
-        />
-        <ModelCostTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-        />
-        <ScoresTable
-          className="col-span-1 xl:col-span-2"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          isLoading={environmentFilterOptions.isPending}
-        />
-        <TracesAndObservationsTimeSeriesChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          agg={agg}
-          isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
-        />
-        <ModelUsageChart
-          className="col-span-1 min-h-24 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={mergedFilterState}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
-          agg={agg}
-          isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
-        />
-        <UserChart
-          className="col-span-1 xl:col-span-3"
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
-        />
-        <ChartScores
-          className="col-span-1 xl:col-span-3"
-          agg={agg}
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
-        />
-        <LatencyTables
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-        />
-        <GenerationLatencyChart
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          projectId={projectId}
-          agg={agg}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
-        />
-        <ScoreAnalytics
-          className="col-span-1 flex-auto justify-between lg:col-span-full"
-          agg={agg}
-          projectId={projectId}
-          globalFilterState={[...userFilterState, ...environmentFilter]}
-          fromTimestamp={fromTimestamp}
-          toTimestamp={toTimestamp}
-          isLoading={environmentFilterOptions.isPending}
-          isDashboardChartsBeta={isDashboardChartsBeta}
-        />
-      </div>
-    </Page>
+            <TracesAndObservationsTimeSeriesChart
+              className="col-span-1 xl:col-span-3"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              agg={agg}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.tracesTimeSeries}`}
+            />
+            <ModelUsageChart
+              className="col-span-1 min-h-24 xl:col-span-3"
+              projectId={projectId}
+              globalFilterState={mergedFilterState}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              userAndEnvFilterState={[...userFilterState, ...environmentFilter]}
+              agg={agg}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.modelUsage}`}
+            />
+            <UserChart
+              className="col-span-1 xl:col-span-3"
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.users}`}
+            />
+            <ChartScores
+              className="col-span-1 xl:col-span-3"
+              agg={agg}
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.chartScores}`}
+            />
+            <LatencyTables
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.latencyTables}`}
+            />
+            <GenerationLatencyChart
+              className="col-span-1 flex-auto justify-between lg:col-span-full"
+              projectId={projectId}
+              agg={agg}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.generationLatency}`}
+            />
+            <ScoreAnalytics
+              className="col-span-1 flex-auto justify-between lg:col-span-full"
+              agg={agg}
+              projectId={projectId}
+              globalFilterState={[...userFilterState, ...environmentFilter]}
+              fromTimestamp={fromTimestamp}
+              toTimestamp={toTimestamp}
+              isLoading={environmentOptionsState.isPending}
+              metricsVersion={metricsVersion}
+              schedulerId={`${homeSchedulerIdPrefix}${HOME_DASHBOARD_CARD_IDS.scoreAnalytics}`}
+            />
+          </div>
+        )}
+      </Page>
+    </DashboardQuerySchedulerProvider>
   );
 }

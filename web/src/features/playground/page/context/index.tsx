@@ -65,6 +65,7 @@ type PlaygroundContextType = {
   setStructuredOutputSchema: (schema: PlaygroundSchema | null) => void;
 
   output: string;
+  outputReasoning: string;
   outputJson: string;
   outputToolCalls: LLMToolCall[];
 
@@ -99,6 +100,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     PlaceholderMessageFillIn[]
   >([]);
   const [output, setOutput] = useState("");
+  const [outputReasoning, setOutputReasoning] = useState("");
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -310,6 +312,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       try {
         setIsStreaming(true);
         setOutput("");
+        setOutputReasoning("");
         setOutputJson("");
         setOutputToolCalls([]);
 
@@ -363,6 +366,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
 
           setOutput(displayContent);
           setOutputToolCalls(completion.tool_calls);
+          if (completion.reasoning) setOutputReasoning(completion.reasoning);
 
           response = JSON.stringify(completion, null, 2);
         } else if (structuredOutputSchema) {
@@ -388,12 +392,14 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
               setOutput(response);
             }
           } else {
-            response = await getChatCompletionNonStreaming(
+            const result = await getChatCompletionNonStreaming(
               projectId,
               finalMessages,
               modelParams,
             );
-            setOutput(response);
+            response = result.content;
+            setOutput(result.content);
+            if (result.reasoning) setOutputReasoning(result.reasoning);
           }
         }
 
@@ -684,6 +690,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         providerModelCombinations,
 
         output,
+        outputReasoning,
         outputJson,
         outputToolCalls,
         handleSubmit,
@@ -704,7 +711,7 @@ async function getChatCompletionWithTools(
   modelParams: UIModelParams,
   tools: unknown[],
   streaming: boolean = false,
-): Promise<ToolCallResponse> {
+): Promise<ToolCallResponse & { reasoning?: string }> {
   if (!projectId) throw Error("Project ID is not set");
 
   const body = JSON.stringify({
@@ -737,7 +744,10 @@ async function getChatCompletionWithTools(
         JSON.stringify(responseData, null, 2),
     );
 
-  return parsed.data;
+  return {
+    ...parsed.data,
+    ...(responseData.reasoning ? { reasoning: responseData.reasoning } : {}),
+  };
 }
 
 async function getChatCompletionWithStructuredOutput(
@@ -846,7 +856,7 @@ async function getChatCompletionNonStreaming(
   projectId: string | undefined,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
-): Promise<string> {
+): Promise<{ content: string; reasoning?: string }> {
   if (!projectId) {
     throw new Error("Project ID is not set");
   }
@@ -880,7 +890,10 @@ async function getChatCompletionNonStreaming(
   }
 
   const responseData = await result.json();
-  return responseData.content || "";
+  return {
+    content: responseData.content || "",
+    reasoning: responseData.reasoning,
+  };
 }
 
 function getFinalMessages(

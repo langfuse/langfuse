@@ -64,4 +64,20 @@ export const DEFAULT_OBSERVATION_FILTER = [
     value: ["GENERATION"],
     type: "stringOptions" as const,
   },
+  {
+    column: "environment",
+    operator: "none of" as const,
+    value: [...INTERNAL_ENVIRONMENTS],
+    type: "stringOptions" as const,
+  },
+];
+
+// Default filter when remapping an evaluator from trace-level to observation-level
+export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING = [
+  {
+    column: "parentObservationId",
+    operator: "is null" as const,
+    value: "",
+    type: "null" as const,
+  },
 ];

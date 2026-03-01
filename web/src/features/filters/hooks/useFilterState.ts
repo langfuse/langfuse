@@ -26,6 +26,7 @@ import {
   splitOnUnescapedPipe,
   unescapePipeInValue,
 } from "../lib/filter-query-encoding";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -121,6 +122,8 @@ export const useQueryFilterState = (
   table: TableName,
   projectId?: string, // Passing projectId is expected as filters might differ across projects. However, we can't call hooks conditionally. There is a case in the prompts table where this will only be used if projectId is defined, but it's not defined in all cases.
 ) => {
+  const peekContext = usePeekTableState();
+
   const [sessionFilterState, setSessionFilterState] =
     useSessionStorage<FilterState>(
       !!projectId ? `${table}FilterState-${projectId}` : `${table}FilterState`,
@@ -148,6 +151,16 @@ export const useQueryFilterState = (
     "filter",
     withDefault(getCommaArrayParam(table), sessionFilterState),
   );
+
+  if (peekContext) {
+    const setState = (newFilters: FilterState) => {
+      peekContext.setTableState({
+        ...peekContext.tableState,
+        filters: newFilters,
+      });
+    };
+    return [peekContext.tableState.filters, setState] as const;
+  }
 
   const setFilterStateWithSession = (newState: FilterState): void => {
     setFilterState(newState);

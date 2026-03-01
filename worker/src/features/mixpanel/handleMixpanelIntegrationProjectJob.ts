@@ -21,6 +21,7 @@ import {
 
 type MixpanelExecutionConfig = {
   projectId: string;
+  projectName: string;
   minTimestamp: Date;
   maxTimestamp: Date;
   decryptedMixpanelProjectToken: string;
@@ -30,6 +31,7 @@ type MixpanelExecutionConfig = {
 const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
   const traces = getTracesForAnalyticsIntegrations(
     config.projectId,
+    config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
   );
@@ -65,6 +67,7 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
 const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
   const generations = getGenerationsForAnalyticsIntegrations(
     config.projectId,
+    config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
   );
@@ -100,6 +103,7 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
 const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
   const scores = getScoresForAnalyticsIntegrations(
     config.projectId,
+    config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
   );
@@ -135,6 +139,7 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
 const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
   const events = getEventsForAnalyticsIntegrations(
     config.projectId,
+    config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
   );
@@ -188,6 +193,11 @@ export const handleMixpanelIntegrationProjectJob = async (
       projectId,
       enabled: true,
     },
+    include: {
+      project: {
+        select: { name: true },
+      },
+    },
   });
 
   if (!mixpanelIntegration) {
@@ -197,9 +207,17 @@ export const handleMixpanelIntegrationProjectJob = async (
     return;
   }
 
+  if (!mixpanelIntegration.project) {
+    logger.warn(
+      `[MIXPANEL] Project not found for Mixpanel integration ${projectId}`,
+    );
+    return;
+  }
+
   // Fetch relevant data and send it to Mixpanel
   const executionConfig: MixpanelExecutionConfig = {
     projectId,
+    projectName: mixpanelIntegration.project.name,
     // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
     minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
     maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago

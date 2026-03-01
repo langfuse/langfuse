@@ -47,6 +47,7 @@ export const env = createEnv({
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.string().url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.string().url().optional(),
+    LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.string().url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
     SALT: z.string({
@@ -152,6 +153,16 @@ export const env = createEnv({
     AUTH_AUTH0_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTH0_CLIENT_AUTH_METHOD: zAuthMethod,
     AUTH_AUTH0_CHECKS: zAuthChecks,
+    // Langfuse Cloud only: "Sign in with ClickHouse Cloud" (Auth0 under the hood).
+    // NOT intended for self-hosted Langfuse — use AUTH_AUTH0_* instead.
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_ID: z.string().optional(),
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET: z.string().optional(),
+    AUTH_CLICKHOUSE_CLOUD_ISSUER: z.string().url().optional(),
+    AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING: z
+      .enum(["true", "false"])
+      .optional(),
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_CLICKHOUSE_CLOUD_CHECKS: zAuthChecks,
     AUTH_COGNITO_CLIENT_ID: z.string().optional(),
     AUTH_COGNITO_CLIENT_SECRET: z.string().optional(),
     AUTH_COGNITO_ISSUER: z.string().url().optional(),
@@ -239,6 +250,9 @@ export const env = createEnv({
     CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
       .number()
       .default(32_000_000_000), // ~32GB
+    CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
+      .enum(["true", "false"])
+      .default("false"),
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
@@ -363,6 +377,17 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // API Traces endpoint controls (may induce breaking changes on API when changed!)
+    LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
+
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
       .enum(["true", "false"])
@@ -374,10 +399,6 @@ export const env = createEnv({
 
     // v2 APIs (events table based) - disabled by default for self-hosters
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS: z
-      .enum(["true", "false"])
-      .default("false"),
-
-    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST: z
       .enum(["true", "false"])
       .default("false"),
 
@@ -449,6 +470,7 @@ export const env = createEnv({
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
+    LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,
@@ -531,6 +553,16 @@ export const env = createEnv({
       process.env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING,
     AUTH_AUTH0_CLIENT_AUTH_METHOD: process.env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
     AUTH_AUTH0_CHECKS: process.env.AUTH_AUTH0_CHECKS,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_ID:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
+    AUTH_CLICKHOUSE_CLOUD_ISSUER: process.env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+    AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING:
+      process.env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING,
+    AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD:
+      process.env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+    AUTH_CLICKHOUSE_CLOUD_CHECKS: process.env.AUTH_CLICKHOUSE_CLOUD_CHECKS,
     AUTH_COGNITO_CLIENT_ID: process.env.AUTH_COGNITO_CLIENT_ID,
     AUTH_COGNITO_CLIENT_SECRET: process.env.AUTH_COGNITO_CLIENT_SECRET,
     AUTH_COGNITO_ISSUER: process.env.AUTH_COGNITO_ISSUER,
@@ -641,6 +673,8 @@ export const env = createEnv({
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
     CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY:
       process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
+    CLICKHOUSE_USE_QUERY_CONDITION_CACHE:
+      process.env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
@@ -721,6 +755,13 @@ export const env = createEnv({
       process.env.LANGFUSE_AI_FEATURES_SECRET_KEY,
     LANGFUSE_AI_FEATURES_PROJECT_ID:
       process.env.LANGFUSE_AI_FEATURES_PROJECT_ID,
+    // API Traces endpoint controls
+    LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS:
+      process.env.LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS,
+    LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE:
+      process.env.LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE,
+    LANGFUSE_API_TRACES_DEFAULT_FIELDS:
+      process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
     // Events table migration
     LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
@@ -728,8 +769,6 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
     LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
       process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
-    LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST:
-      process.env.LANGFUSE_ENABLE_QUERY_OPTIMIZATION_SHADOW_TEST,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },

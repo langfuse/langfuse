@@ -1,6 +1,8 @@
 import {
   BatchExportTableName,
   BatchActionType,
+  BatchTableNames,
+  BatchActionStatus,
   EvalTargetObject,
 } from "@langfuse/shared";
 import { expect, describe, it, vi } from "vitest";
@@ -13,6 +15,8 @@ import {
   createScoresCh,
   createTrace,
   createTracesCh,
+  createEvent,
+  createEventsCh,
   getQueue,
   getScoresByIds,
   QueueJobs,
@@ -25,6 +29,11 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { Decimal } from "decimal.js";
 import waitForExpect from "wait-for-expect";
+
+const maybeDescribe =
+  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+    ? describe
+    : describe.skip;
 
 describe("select all test suite", () => {
   it("should schedule trace deletions via pending_deletions table", async () => {
@@ -577,5 +586,265 @@ describe("select all test suite", () => {
       const jobs = await queue?.getJobs();
       expect(jobs).toHaveLength(0);
     });
+  });
+});
+
+maybeDescribe("events table batch actions", () => {
+  it("should add observations to dataset from events table with full mapping", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+      timestamp: new Date().getTime(),
+    });
+    await createTracesCh([trace]);
+
+    const eventInput1 = { prompt: "Hello, how are you?" };
+    const eventOutput1 = { response: "I'm fine, thank you!" };
+    const eventInput2 = { prompt: "What is 2+2?" };
+    const eventOutput2 = { response: "4" };
+
+    const event1 = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: eventInput1,
+      output: eventOutput1,
+      metadata: { source: "test" },
+    });
+    const event2 = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: eventInput2,
+      output: eventOutput2,
+      metadata: { source: "test" },
+    });
+
+    await createEventsCh([event1, event2]);
+
+    const datasetName = uuidv4();
+    const dataset = await prisma.dataset.create({
+      data: {
+        id: uuidv4(),
+        projectId,
+        name: datasetName,
+      },
+    });
+
+    const batchAction = await prisma.batchAction.create({
+      data: {
+        projectId,
+        userId: "test-user",
+        actionType: "observation-add-to-dataset",
+        tableName: BatchTableNames.Events,
+        status: BatchActionStatus.Queued,
+        query: { filter: [], orderBy: null },
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        batchActionId: batchAction.id,
+        projectId,
+        actionId: "observation-add-to-dataset" as const,
+        tableName: BatchTableNames.Events,
+        cutoffCreatedAt: new Date(),
+        query: { filter: [], orderBy: null },
+        config: {
+          datasetId: dataset.id,
+          datasetName: dataset.name,
+          mapping: {
+            input: { mode: "full" as const },
+            expectedOutput: { mode: "full" as const },
+            metadata: { mode: "none" as const },
+          },
+        },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const datasetItems = await prisma.datasetItem.findMany({
+      where: { datasetId: dataset.id },
+    });
+
+    expect(datasetItems).toHaveLength(2);
+
+    const eventSpanIds = [event1.span_id, event2.span_id];
+    for (const item of datasetItems) {
+      expect(eventSpanIds).toContain(item.sourceObservationId);
+      expect(item.sourceTraceId).toBe(traceId);
+      expect(item.metadata).toBeNull();
+    }
+
+    // Verify each item's input/output matches the corresponding event
+    const item1 = datasetItems.find(
+      (i) => i.sourceObservationId === event1.span_id,
+    );
+    const item2 = datasetItems.find(
+      (i) => i.sourceObservationId === event2.span_id,
+    );
+
+    expect(item1?.input).toEqual(eventInput1);
+    expect(item1?.expectedOutput).toEqual(eventOutput1);
+    expect(item2?.input).toEqual(eventInput2);
+    expect(item2?.expectedOutput).toEqual(eventOutput2);
+
+    // Verify batch action status
+    const updatedBatchAction = await prisma.batchAction.findUnique({
+      where: { id: batchAction.id },
+    });
+    expect(updatedBatchAction?.status).toBe(BatchActionStatus.Completed);
+    expect(updatedBatchAction?.processedCount).toBe(2);
+  });
+
+  it("should apply jsonSelector mapping when adding events to dataset", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = uuidv4();
+    const trace = createTrace({
+      project_id: projectId,
+      id: traceId,
+      timestamp: new Date().getTime(),
+    });
+    await createTracesCh([trace]);
+
+    const eventInput = {
+      messages: [
+        { role: "system", content: "You are helpful." },
+        { role: "user", content: "What is 2+2?" },
+      ],
+    };
+    const eventOutput = {
+      choices: [{ message: { content: "4", role: "assistant" } }],
+    };
+    const eventMetadata = { user_id: "user-123", session_id: "session-456" };
+
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      input: eventInput,
+      output: eventOutput,
+      metadata: eventMetadata,
+    });
+
+    await createEventsCh([event]);
+
+    const datasetName = uuidv4();
+    const dataset = await prisma.dataset.create({
+      data: {
+        id: uuidv4(),
+        projectId,
+        name: datasetName,
+      },
+    });
+
+    const batchAction = await prisma.batchAction.create({
+      data: {
+        projectId,
+        userId: "test-user",
+        actionType: "observation-add-to-dataset",
+        tableName: BatchTableNames.Events,
+        status: BatchActionStatus.Queued,
+        query: { filter: [], orderBy: null },
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        batchActionId: batchAction.id,
+        projectId,
+        actionId: "observation-add-to-dataset" as const,
+        tableName: BatchTableNames.Events,
+        cutoffCreatedAt: new Date(),
+        query: { filter: [], orderBy: null },
+        config: {
+          datasetId: dataset.id,
+          datasetName: dataset.name,
+          mapping: {
+            input: {
+              mode: "custom" as const,
+              custom: {
+                type: "keyValueMap" as const,
+                keyValueMapConfig: {
+                  entries: [
+                    {
+                      id: "1",
+                      key: "prompt",
+                      sourceField: "input" as const,
+                      value: "$.messages[1].content",
+                    },
+                    {
+                      id: "2",
+                      key: "system",
+                      sourceField: "input" as const,
+                      value: "$.messages[0].content",
+                    },
+                  ],
+                },
+              },
+            },
+            expectedOutput: {
+              mode: "custom" as const,
+              custom: {
+                type: "root" as const,
+                rootConfig: {
+                  sourceField: "output" as const,
+                  jsonPath: "$.choices[0].message.content",
+                },
+              },
+            },
+            metadata: {
+              mode: "custom" as const,
+              custom: {
+                type: "keyValueMap" as const,
+                keyValueMapConfig: {
+                  entries: [
+                    {
+                      id: "3",
+                      key: "user",
+                      sourceField: "metadata" as const,
+                      value: "$.user_id",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const datasetItems = await prisma.datasetItem.findMany({
+      where: { datasetId: dataset.id },
+    });
+
+    expect(datasetItems).toHaveLength(1);
+
+    const item = datasetItems[0];
+    expect(item.sourceObservationId).toBe(event.span_id);
+    expect(item.sourceTraceId).toBe(traceId);
+    expect(item.input).toEqual({
+      prompt: "What is 2+2?",
+      system: "You are helpful.",
+    });
+    // The jsonPath extracts the string "4" from output, but it's stored as a
+    // JSON scalar in Postgres. Prisma deserializes the JSON column as a number.
+    expect(item.expectedOutput).toBe(4);
+    expect(item.metadata).toEqual({ user: "user-123" });
+
+    // Verify batch action status
+    const updatedBatchAction = await prisma.batchAction.findUnique({
+      where: { id: batchAction.id },
+    });
+    expect(updatedBatchAction?.status).toBe(BatchActionStatus.Completed);
+    expect(updatedBatchAction?.processedCount).toBe(1);
   });
 });
