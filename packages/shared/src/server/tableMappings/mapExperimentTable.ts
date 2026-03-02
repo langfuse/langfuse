@@ -12,31 +12,31 @@ export const experimentPreAggCols: UiColumnMappings = [
   {
     uiTableName: "ID",
     uiTableId: "id",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.experiment_id",
   },
   {
     uiTableName: "Name",
     uiTableId: "name",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.experiment_name",
   },
   {
     uiTableName: "Description",
     uiTableId: "description",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.experiment_description",
   },
   {
     uiTableName: "Dataset ID",
     uiTableId: "experimentDatasetId",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.experiment_dataset_id",
   },
   {
     uiTableName: "Created At",
     uiTableId: "createdAt",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.created_at",
   },
 ];
@@ -59,25 +59,25 @@ export const experimentPostAggCols: UiColumnMappings = [
   {
     uiTableName: "Item Count",
     uiTableId: "itemCount",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.item_count",
   },
   {
     uiTableName: "Total Cost ($)",
     uiTableId: "totalCost",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "em.total_cost",
   },
   {
     uiTableName: "Error Count",
     uiTableId: "errorCount",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.error_count",
   },
   {
     uiTableName: "Latency (ms)",
     uiTableId: "latencyAvg",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "em.latency_avg",
   },
   {
@@ -95,7 +95,7 @@ export const experimentPostAggCols: UiColumnMappings = [
   {
     uiTableName: "Metadata",
     uiTableId: "metadata",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: "e.experiment_metadata",
     queryPrefix: "e", // StringObjectFilter uses {prefix}.metadata_names/metadata_values for array access
   },

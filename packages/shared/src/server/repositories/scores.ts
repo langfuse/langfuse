@@ -12,7 +12,11 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList, orderByToClickhouseSql } from "../queries";
+import {
+  FilterList,
+  orderByToClickhouseSql,
+  EventsQueryBuilder,
+} from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -44,7 +48,10 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
-import { eventsTraceMetadata } from "../queries/clickhouse-sql/query-fragments";
+import {
+  eventsTraceMetadata,
+  eventsExperimentTraceIds,
+} from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -404,6 +411,16 @@ export const getScoresForExperimentItems = async (
 > => {
   if (experimentIds.length === 0) return [];
 
+  // Build events subquery using the query builder
+  const eventsSubquery = new EventsQueryBuilder({ projectId })
+    .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
+    .whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
+      experimentIds,
+    })
+    .whereRaw("e.experiment_id != ''")
+    .whereRaw("e.is_deleted = 0")
+    .buildWithParams();
+
   const query = `
     SELECT
       s.id as id,
@@ -430,15 +447,7 @@ export const getScoresForExperimentItems = async (
       s.is_deleted as is_deleted,
       length(mapKeys(s.metadata)) > 0 AS has_metadata,
       e.experiment_id as experiment_id
-    FROM (
-      SELECT DISTINCT project_id, experiment_id, trace_id
-      FROM events_core
-      WHERE project_id = {projectId: String}
-        AND experiment_id IN {experimentIds: Array(String)}
-        AND experiment_id IS NOT NULL
-        AND experiment_id != ''
-        AND is_deleted = 0
-    ) e
+    FROM (${eventsSubquery.query}) e
     JOIN scores s FINAL ON e.trace_id = s.trace_id
       AND e.project_id = s.project_id
     WHERE s.project_id = {projectId: String}
@@ -455,8 +464,7 @@ export const getScoresForExperimentItems = async (
   >({
     query,
     params: {
-      projectId,
-      experimentIds,
+      ...eventsSubquery.params,
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: {
@@ -687,6 +695,20 @@ export const getScoresForObservations = async <
   }));
 };
 
+/**
+ * Event/experiment column mappings for building WHERE filters inside the events CTE.
+ * Maps to actual events_proto columns with the "e" prefix used by EventsQueryBuilder.
+ */
+const scoresEventsFilterMapping = [
+  {
+    uiTableName: "Experiment IDs",
+    uiTableId: "experimentIds",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_id",
+    queryPrefix: "e",
+  },
+];
+
 export const getScoresGroupedByNameSourceType = async ({
   projectId,
   filter,
@@ -705,29 +727,63 @@ export const getScoresGroupedByNameSourceType = async ({
       scoresColumnsTableUiColumnDefinitions,
     ),
   );
-  const scoresFilterRes = scoresFilter.apply();
 
-  // Only join dataset run items and traces if there is a dataset run items filter
-  const performDatasetRunItemsAndTracesJoin = scoresFilter.some(
+  // Separate scores-only filters from event/experiment filters
+  const nonEventFilters = scoresFilter.filter(
+    (f) => !f.clickhouseTable.startsWith("events_"),
+  );
+
+  const scoresFilterRes = nonEventFilters.apply();
+
+  // Only join dataset run items if there is a dataset run items filter
+  const performDatasetRunItemsJoin = scoresFilter.some(
     (f) => f.clickhouseTable === "dataset_run_items_rmt",
   );
 
-  // Only join events_core if there is an experiment filter
-  const performEventsCoreJoin = scoresFilter.some(
-    (f) => f.clickhouseTable === "events_core",
+  // Extract event-level filter entries from the frontend filter state
+  const eventFilterState = filter.filter((filterEntry) =>
+    scoresEventsFilterMapping.some(
+      (col) =>
+        col.uiTableName === filterEntry.column ||
+        col.uiTableId === filterEntry.column,
+    ),
   );
+
+  let eventsCTE = "";
+  let eventsCTEParams: Record<string, unknown> = {};
+  const hasEventsFilters = eventFilterState.length > 0;
+
+  let eventsFilterRes;
+  if (hasEventsFilters) {
+    const eventsBuilder = eventsExperimentTraceIds(projectId);
+
+    // Create filters from the event filter state using the proper column mappings
+    const cteEventFilters = new FilterList(
+      createFilterFromFilterState(eventFilterState, scoresEventsFilterMapping),
+    );
+    eventsFilterRes = cteEventFilters.apply();
+    if (eventsFilterRes.query) {
+      eventsBuilder.where(eventsFilterRes);
+    }
+
+    const { query: cteQuery, params: cteParams } =
+      eventsBuilder.buildWithParams();
+    eventsCTE = `WITH experiment_events AS (${cteQuery})`;
+    Object.assign(eventsCTEParams, cteParams);
+  }
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
 
   const query = `
-    select
+    ${eventsCTE}
+    SELECT
       s.name as name,
       s.source as source,
       s.data_type as data_type
     FROM scores s
-    ${performDatasetRunItemsAndTracesJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
-    ${performEventsCoreJoin ? `JOIN events_core e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
+    ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
+    ${hasEventsFilters ? `ANY JOIN experiment_events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
     WHERE s.project_id = {projectId: String}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
@@ -754,6 +810,8 @@ export const getScoresGroupedByNameSourceType = async ({
         ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
         : {}),
       ...(scoresFilterRes ? scoresFilterRes.params : {}),
+      ...(eventsFilterRes ? eventsFilterRes.params : {}),
+      ...eventsCTEParams,
     },
     tags: {
       feature: "tracing",

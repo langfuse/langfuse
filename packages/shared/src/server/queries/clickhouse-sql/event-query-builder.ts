@@ -388,25 +388,20 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Basic experiment metadata (same across all items)
-  experimentName: "max(experiment_name) AS experiment_name",
+  experimentName: "any(experiment_name) AS experiment_name",
   experimentDescription:
-    "max(experiment_description) AS experiment_description",
+    "any(experiment_description) AS experiment_description",
 
   // Extended experiment metadata (might differ per item)
-  experimentDatasetId: "max(experiment_dataset_id) AS experiment_dataset_id",
-  // promptId: "max(prompt_id) AS prompt_id",
+  experimentDatasetId: "any(experiment_dataset_id) AS experiment_dataset_id",
 
   // Timestamps
   createdAt: "min(created_at) AS created_at",
   updatedAt: "max(updated_at) AS updated_at",
 
   // Aggregated metrics
-  itemCount: "countDistinct(experiment_item_id) AS item_count",
+  itemCount: "uniq(experiment_item_id) AS item_count",
   errorCount: "countIf(level = 'ERROR') AS error_count",
-
-  // // Usage and cost details
-  // usageDetails: "sumMap(usage_details) AS usage_details",
-  // costDetails: "sumMap(cost_details) AS cost_details",
 
   // Prompts - tuple of (name, version) to preserve pairing
   prompts:
@@ -585,7 +580,6 @@ abstract class AbstractQueryBuilder {
 abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   protected ctes: string[] = [];
   protected joins: string[] = [];
-  protected hasRecursiveCTE = false;
 
   /**
    * Add a CTE (Common Table Expression) to the query
@@ -600,17 +594,6 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   }
 
   /**
-   * Add a recursive CTE. Sets the RECURSIVE flag on the WITH clause.
-   */
-  withRecursiveCTE(
-    name: string,
-    queryWithParams: { query: string; params: Record<string, any> },
-  ): this {
-    this.hasRecursiveCTE = true;
-    return this.withCTE(name, queryWithParams);
-  }
-
-  /**
    * Add a LEFT JOIN
    */
   leftJoin(table: string, onClause: string): this {
@@ -622,9 +605,7 @@ abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
    * Helper to build WITH clause section
    */
   protected buildCTESection(): string {
-    if (this.ctes.length === 0) return "";
-    const keyword = this.hasRecursiveCTE ? "WITH RECURSIVE" : "WITH";
-    return `${keyword} ${this.ctes.join(",\n")}`;
+    return this.ctes.length > 0 ? `WITH ${this.ctes.join(",\n")}` : "";
   }
 
   /**
@@ -1359,17 +1340,6 @@ export class EventsExperimentsAggregationQueryBuilder extends BaseEventsQueryBui
    */
   protected buildGroupByClause(): string {
     return "GROUP BY experiment_id, project_id";
-  }
-
-  /**
-   * Build the query with automatic experiment filters
-   */
-  protected buildQuery(): string {
-    // Add default experiment filters
-    this.whereRaw("e.experiment_id IS NOT NULL AND e.experiment_id != ''");
-    this.whereRaw("e.is_deleted = 0");
-
-    return super.buildQuery();
   }
 
   /**
