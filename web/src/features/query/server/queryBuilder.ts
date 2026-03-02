@@ -580,13 +580,13 @@ export class QueryBuilder {
       }
 
       const relation = view.tableRelations[relationTableName];
-      // Conditionally add FINAL - skip for observations if flag is set
-      const shouldUseFinal = !(
-        relation.name === "observations" && skipObservationsFinal
-      );
+      // Conditionally add FINAL - skip for observations if flag is set, and respect per-relation useFinal
+      const shouldUseFinal =
+        (relation.useFinal ?? true) &&
+        !(relation.name === "observations" && skipObservationsFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
-      let joinStatement = `LEFT JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
+      let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
 
       // Create time dimension mapping for the relation table
       const relationTimeDimensionMapping = {
