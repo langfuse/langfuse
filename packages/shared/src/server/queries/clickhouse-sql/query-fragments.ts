@@ -302,5 +302,6 @@ export const eventsExperimentsAggregation = (
     projectId: params.projectId,
   })
     .selectFieldSet("all")
-    .withExperimentIds(params.experimentIds);
+    .withExperimentIds(params.experimentIds)
+    .whereRaw("e.experiment_id IS NOT NULL AND e.experiment_id != ''");
 };

@@ -1335,17 +1335,6 @@ export class EventsExperimentsAggregationQueryBuilder extends BaseEventsQueryBui
   }
 
   /**
-   * Build the query with automatic experiment filters
-   */
-  protected buildQuery(): string {
-    // Add default experiment filters
-    this.whereRaw("e.experiment_id IS NOT NULL AND e.experiment_id != ''");
-    this.whereRaw("e.is_deleted = 0");
-
-    return super.buildQuery();
-  }
-
-  /**
    * Build with schema for use in CTEQueryBuilder.
    * Returns query, params, and list of column names this CTE exposes.
    */
