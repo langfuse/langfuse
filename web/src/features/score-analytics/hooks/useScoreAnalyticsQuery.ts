@@ -314,6 +314,14 @@ export function useScoreAnalyticsQuery(
     // ========================================================================
     const booleanCategories = categories ?? ["False", "True"];
     const booleanScore2Categories = score2Categories ?? booleanCategories;
+    const booleanTimeSeries2 =
+      isBoolean && isSameScore && mode === "two"
+        ? apiData.timeSeriesCategorical1
+        : apiData.timeSeriesCategorical2;
+    const booleanTimeSeries2Matched =
+      isBoolean && isSameScore && mode === "two"
+        ? apiData.timeSeriesCategorical1Matched
+        : apiData.timeSeriesCategorical2Matched;
 
     const distribution1 = isBoolean
       ? buildBooleanDistribution(
@@ -325,10 +333,7 @@ export function useScoreAnalyticsQuery(
         : apiData.distribution1.slice().sort((a, b) => a.binIndex - b.binIndex);
 
     const distribution2 = isBoolean
-      ? buildBooleanDistribution(
-          apiData.timeSeriesCategorical2,
-          booleanScore2Categories,
-        )
+      ? buildBooleanDistribution(booleanTimeSeries2, booleanScore2Categories)
       : categories && mode === "two"
         ? fillDistributionBins(apiData.distribution2, categories)
         : apiData.distribution2.slice().sort((a, b) => a.binIndex - b.binIndex);
@@ -367,7 +372,7 @@ export function useScoreAnalyticsQuery(
     // Use score2Categories for score2Matched (not score1 categories)
     const distribution2Matched = isBoolean
       ? buildBooleanDistribution(
-          apiData.timeSeriesCategorical2Matched,
+          booleanTimeSeries2Matched,
           booleanScore2Categories,
         )
       : score2Categories
@@ -681,12 +686,7 @@ export function useScoreAnalyticsQuery(
         // (e.g., boolean scores always have ["False", "True"])
         // We need this populated so the UI can correctly display score2's categories
         // when viewing the "score2" tab in the distribution card
-        score2Categories:
-          apiData.score2Categories && apiData.score2Categories.length > 0
-            ? apiData.score2Categories
-            : mode === "two" && categories
-              ? categories
-              : undefined,
+        score2Categories,
       },
       timeSeries: {
         numeric: {
