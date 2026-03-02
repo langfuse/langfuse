@@ -1,10 +1,17 @@
-import { describe, expect, it, vi, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { JobExecutionStatus } from "@prisma/client";
+import { LLMCompletionError } from "@langfuse/shared/src/server";
+
+vi.mock("./pauseEvalConfigOnUnrecoverableError", () => ({
+  pauseEvalConfigOnUnrecoverableError: vi.fn(),
+}));
+
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
 import { EvalTargetObject } from "@langfuse/shared";
+import { pauseEvalConfigOnUnrecoverableError } from "./pauseEvalConfigOnUnrecoverableError";
 
 /**
  * Unit tests for executeLLMAsJudgeEvaluation with mocked dependencies.
@@ -87,6 +94,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
       environment: "production",
     },
   ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   // ============================================================================
   // Mock Helpers
@@ -280,6 +291,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow(UnrecoverableError);
+      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
+        jobExecutionId,
+        projectId,
+        statusCode: null,
+        errorMessage:
+          "Invalid model configuration for job test-job-execution-456: No API key configured",
+      });
     });
 
     it("should throw UnrecoverableError if output schema invalid", async () => {
@@ -300,6 +318,27 @@ describe("executeLLMAsJudgeEvaluation", () => {
   });
 
   describe("LLM response errors", () => {
+    it("should pause the config for unrecoverable LLM errors before rethrowing", async () => {
+      const llmError = new LLMCompletionError({
+        message: "Invalid API key",
+        responseStatusCode: 401,
+      });
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: vi.fn().mockRejectedValue(llmError),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
+      ).rejects.toThrow(llmError);
+      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
+        jobExecutionId,
+        projectId,
+        statusCode: 401,
+        errorMessage: "Invalid API key",
+      });
+    });
+
     it("should throw UnrecoverableError for invalid LLM response", async () => {
       const deps = createMockEvalExecutionDeps({
         fetchModelConfig: mockValidFetchModelConfig(),

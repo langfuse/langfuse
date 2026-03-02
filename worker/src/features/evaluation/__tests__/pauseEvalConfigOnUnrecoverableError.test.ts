@@ -147,6 +147,9 @@ describe("pauseEvalConfigOnUnrecoverableError", () => {
     });
     expect(tx.jobExecution.updateMany).toHaveBeenCalledWith({
       where: {
+        id: {
+          not: jobExecutionId,
+        },
         jobConfigurationId,
         projectId,
         status: "PENDING",
@@ -164,6 +167,70 @@ describe("pauseEvalConfigOnUnrecoverableError", () => {
         resolutionUrl:
           "https://langfuse.example/project/proj-1/evals/templates/tpl-1",
         receiverEmail: "owner@example.com",
+      }),
+    );
+  });
+
+  it("uses a descriptive config message when the LLM connection is missing", async () => {
+    (prisma.jobExecution.findFirst as Mock).mockResolvedValue({
+      jobConfigurationId,
+      jobTemplateId: templateId,
+    });
+    (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue({
+      id: jobConfigurationId,
+      status: JobConfigState.ACTIVE,
+      evalTemplate: {
+        id: templateId,
+        name: "Hallucination Check",
+        provider: null,
+        model: null,
+      },
+    });
+
+    let tx = createMockTx();
+    (prisma.$transaction as Mock).mockImplementation(
+      async (
+        fn: (client: ReturnType<typeof createMockTx>) => Promise<unknown>,
+      ) => {
+        tx = createMockTx();
+        return fn(tx);
+      },
+    );
+
+    await pauseEvalConfigOnUnrecoverableError({
+      jobExecutionId,
+      projectId,
+      statusCode: null,
+      errorMessage:
+        'Invalid model configuration for job job-exec-1: API key for provider "openai" not found in project proj-1',
+    });
+
+    expect(tx.llmApiKeys.update).not.toHaveBeenCalled();
+    expect(tx.jobConfiguration.update).toHaveBeenCalledWith({
+      where: { id: jobConfigurationId },
+      data: {
+        status: JobConfigState.INACTIVE,
+        statusMessage:
+          "Evaluator paused: no LLM connection found for the provider used by this evaluator. Add or restore the LLM connection, then reactivate it.",
+      },
+    });
+    expect(tx.jobExecution.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: {
+          not: jobExecutionId,
+        },
+        jobConfigurationId,
+        projectId,
+        status: "PENDING",
+      },
+      data: {
+        status: "CANCELLED",
+        endTime: expect.any(Date),
+      },
+    });
+    expect(sendEvalPausedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pauseReasonCode: "LLM_KEY_MISSING",
       }),
     );
   });

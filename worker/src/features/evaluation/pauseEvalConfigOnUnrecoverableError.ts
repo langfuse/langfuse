@@ -50,11 +50,11 @@ async function getProjectOwnerEmails(projectId: string): Promise<string[]> {
 export type PauseEvalConfigParams = {
   jobExecutionId: string;
   projectId: string;
-  statusCode: number;
+  statusCode: number | null;
   errorMessage: string;
 };
 
-function getPauseReason(statusCode: number, errorMessage: string) {
+function getPauseReason(statusCode: number | null, errorMessage: string) {
   if (statusCode === 401) {
     return {
       code: "LLM_401",
@@ -71,6 +71,27 @@ function getPauseReason(statusCode: number, errorMessage: string) {
       keyMessage: null,
       configMessage:
         "Evaluator paused: model not found (404). Update the evaluator template or the default evaluation model, then reactivate it.",
+    } as const;
+  }
+
+  if (
+    errorMessage.includes('API key for provider "') &&
+    errorMessage.includes('" not found in project')
+  ) {
+    return {
+      code: "LLM_KEY_MISSING",
+      keyMessage: null,
+      configMessage:
+        "Evaluator paused: no LLM connection found for the provider used by this evaluator. Add or restore the LLM connection, then reactivate it.",
+    } as const;
+  }
+
+  if (errorMessage.includes("No default model or custom model configured")) {
+    return {
+      code: "MODEL_CONFIG_MISSING",
+      keyMessage: null,
+      configMessage:
+        "Evaluator paused: no valid evaluation model is configured. Set a model on the evaluator template or configure a default evaluation model, then reactivate it.",
     } as const;
   }
 
@@ -176,6 +197,9 @@ export async function pauseEvalConfigOnUnrecoverableError({
 
     await tx.jobExecution.updateMany({
       where: {
+        id: {
+          not: jobExecutionId,
+        },
         jobConfigurationId: config.id,
         projectId,
         status: JobExecutionStatus.PENDING,

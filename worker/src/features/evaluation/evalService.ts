@@ -72,6 +72,7 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { pauseEvalConfigOnUnrecoverableError } from "./pauseEvalConfigOnUnrecoverableError";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -795,12 +796,17 @@ export async function executeLLMAsJudgeEvaluation({
       });
 
       if (!modelConfig.valid) {
+        const configError = `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`;
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
-        throw new UnrecoverableError(
-          `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
-        );
+        await pauseEvalConfigOnUnrecoverableError({
+          jobExecutionId,
+          projectId,
+          statusCode: null,
+          errorMessage: configError,
+        });
+        throw new UnrecoverableError(configError);
       }
 
       span.setAttribute("eval.model.provider", modelConfig.config.provider);
@@ -853,6 +859,14 @@ export async function executeLLMAsJudgeEvaluation({
                 "http.response.status_code",
                 e.responseStatusCode,
               );
+              if (e.isUnrecoverable()) {
+                await pauseEvalConfigOnUnrecoverableError({
+                  jobExecutionId,
+                  projectId,
+                  statusCode: e.responseStatusCode,
+                  errorMessage: e.message,
+                });
+              }
             }
             throw e;
           }

@@ -9,14 +9,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 
-// Mock pause so we can assert it is called only for unrecoverable LLM errors
-vi.mock(
-  "../../features/evaluation/pauseEvalConfigOnUnrecoverableError",
-  () => ({
-    pauseEvalConfigOnUnrecoverableError: vi.fn(),
-  }),
-);
-
 // Mock prisma
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
@@ -78,7 +70,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
-import { pauseEvalConfigOnUnrecoverableError } from "../../features/evaluation/pauseEvalConfigOnUnrecoverableError";
 
 describe("llmAsJudgeExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
@@ -407,8 +398,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     });
   });
 
-  describe("unrecoverable LLM error (pause invocation)", () => {
-    it("should call pauseEvalConfigOnUnrecoverableError when LLMCompletionError is unrecoverable", async () => {
+  describe("unrecoverable errors", () => {
+    it("should set ERROR status for unrecoverable LLM errors", async () => {
       const llmError = new LLMCompletionError({
         message: "Invalid API key",
         responseStatusCode: 401,
@@ -419,12 +410,6 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
-      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
-        jobExecutionId,
-        projectId,
-        statusCode: 401,
-        errorMessage: "Invalid API key",
-      });
       expect(prisma.jobExecution.update).toHaveBeenCalledWith({
         where: { id: jobExecutionId, projectId },
         data: expect.objectContaining({
@@ -434,7 +419,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       });
     });
 
-    it("should not call pause for retryable LLM error", async () => {
+    it("should set DELAYED status for retryable LLM errors", async () => {
       const rateLimitError = new LLMCompletionError({
         message: "Rate limit exceeded",
         responseStatusCode: 429,
@@ -446,10 +431,18 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
-      expect(pauseEvalConfigOnUnrecoverableError).not.toHaveBeenCalled();
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.DELAYED,
+        }),
+      });
     });
 
-    it("should not call pause for non-LLM error (UnrecoverableError)", async () => {
+    it("should set ERROR status for unrecoverable non-LLM errors", async () => {
       const unrecoverableError = new UnrecoverableError("Config not found");
       (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
       (isUnrecoverableError as Mock).mockReturnValue(true);
@@ -457,7 +450,13 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
-      expect(pauseEvalConfigOnUnrecoverableError).not.toHaveBeenCalled();
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: { id: jobExecutionId, projectId },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          error: "Config not found",
+        }),
+      });
     });
   });
 });
