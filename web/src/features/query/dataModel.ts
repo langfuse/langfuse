@@ -834,7 +834,12 @@ const createScoreTableRelations = (
   version: "v1" | "v2",
 ): Record<
   string,
-  { name: string; joinConditionSql: string; timeDimension: string }
+  {
+    name: string;
+    joinConditionSql: string;
+    timeDimension: string;
+    useFinal?: boolean;
+  }
 > => {
   if (version === "v1") {
     return {
@@ -858,12 +863,14 @@ const createScoreTableRelations = (
         joinConditionSql:
           "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
         timeDimension: "start_time",
+        useFinal: false,
       },
       events_observations: {
         name: "events_core",
         joinConditionSql:
           "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
         timeDimension: "start_time",
+        useFinal: false,
       },
     };
   }
