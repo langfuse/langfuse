@@ -112,6 +112,19 @@ const EVENTS_FIELDS = {
   // Model ID with different alias for exports
   modelId: 'e.model_id as "model_id"',
 
+  // Experiment fields (denormalized on events table)
+  experimentId: 'e.experiment_id as "experiment_id"',
+  experimentName: 'e.experiment_name as "experiment_name"',
+
+  // Experiment item fields
+  experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
+  experimentItemRootSpanId:
+    'e.experiment_item_root_span_id as "experiment_item_root_span_id"',
+  experimentItemExpectedOutput:
+    'e.experiment_item_expected_output as "expected_output"',
+  experimentItemMetadata:
+    "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as item_metadata",
+
   // Calculated fields
   latency:
     "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency",
@@ -289,6 +302,19 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+  ],
+
+  // Experiment items field set
+  experimentItems: [
+    "experimentItemId",
+    "id", // span_id (observation_id)
+    "traceId",
+    "experimentItemRootSpanId",
+    "input",
+    "output",
+    "experimentItemExpectedOutput",
+    "createdAt",
+    "experimentItemMetadata",
   ],
 } as const;
 

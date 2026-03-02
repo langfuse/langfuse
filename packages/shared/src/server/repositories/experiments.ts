@@ -6,7 +6,9 @@ import {
   CTEQueryBuilder,
   type CTEWithSchema,
   DateTimeFilter,
+  EventsQueryBuilder,
   FilterList,
+  StringFilter,
   StringOptionsFilter,
   orderByToClickhouseSql,
 } from "../queries";
@@ -18,6 +20,7 @@ import {
   experimentCols,
   experimentPreAggCols,
 } from "../tableMappings/mapExperimentTable";
+import { experimentItemPreAggCols } from "../tableMappings/mapExperimentItemsTable";
 
 export type ExperimentEventsDataReturnType = {
   experiment_id: string;
@@ -493,8 +496,9 @@ const getExperimentsFromEventsGeneric = async <T>(
  */
 export type ExperimentItemEventsDataReturnType = {
   experiment_item_id: string;
+  id: string; // span_id
   trace_id: string;
-  observation_id: string;
+  experiment_item_root_span_id: string;
   input: string | null;
   output: string | null;
   expected_output: string | null;
@@ -516,28 +520,27 @@ export type ExperimentItemMetricsReturnType = {
 
 /**
  * Get experiment items count for pagination.
+ * Counts only the root spans for each experiment item (where span_id = experiment_item_root_span_id).
  */
 export const getExperimentItemsCountFromEvents = async (props: {
   projectId: string;
   experimentId: string;
   filter: FilterState;
 }) => {
-  const query = `
-    SELECT count(DISTINCT e.experiment_item_id) as count
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-      AND e.experiment_id = {experimentId: String}
-      AND e.experiment_item_id IS NOT NULL
-      AND e.experiment_item_id != ''
-      AND e.is_deleted = 0
-  `.trim();
+  const { query, params } = new EventsQueryBuilder({
+    projectId: props.projectId,
+  })
+    .selectRaw("count(*) as count")
+    .whereRaw("e.experiment_item_id != ''")
+    .whereRaw("e.experiment_id = {experimentId: String}", {
+      experimentId: props.experimentId,
+    })
+    .whereRaw("e.span_id = e.experiment_item_root_span_id")
+    .buildWithParams();
 
   const rows = await queryClickhouse<{ count: string }>({
     query,
-    params: {
-      projectId: props.projectId,
-      experimentId: props.experimentId,
-    },
+    params,
     tags: {
       feature: "experiments",
       type: "experiment-items-count",
@@ -550,6 +553,7 @@ export const getExperimentItemsCountFromEvents = async (props: {
 
 /**
  * Get experiment items for a single experiment.
+ * Returns only the root span for each experiment item (where span_id = experiment_item_root_span_id).
  */
 export const getExperimentItemsFromEvents = async (props: {
   projectId: string;
@@ -559,36 +563,20 @@ export const getExperimentItemsFromEvents = async (props: {
   limit?: number;
   page?: number;
 }) => {
-  const query = `
-    SELECT
-      e.experiment_item_id,
-      e.trace_id,
-      e.experiment_item_root_span_id as observation_id,
-      e.input,
-      e.output,
-      e.experiment_item_expected_output as expected_output,
-      e.created_at,
-      mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as item_metadata
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-      AND e.experiment_id = {experimentId: String}
-      AND e.experiment_item_id IS NOT NULL
-      AND e.experiment_item_id != ''
-      AND e.is_deleted = 0
-    ORDER BY e.created_at DESC
-    LIMIT 1 BY e.experiment_item_id
-    ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-  `.trim();
-
-  const params: Record<string, unknown> = {
-    projectId: props.projectId,
-    experimentId: props.experimentId,
-  };
+  const builder = new EventsQueryBuilder({ projectId: props.projectId })
+    .selectFieldSet("experimentItems")
+    .whereRaw("e.experiment_item_id != ''")
+    .whereRaw("e.experiment_id = {experimentId: String}", {
+      experimentId: props.experimentId,
+    })
+    .whereRaw("e.span_id = e.experiment_item_root_span_id")
+    .orderBy("ORDER BY e.created_at DESC");
 
   if (props.limit !== undefined && props.page !== undefined) {
-    params.limit = props.limit;
-    params.offset = props.limit * props.page;
+    builder.limit(props.limit, props.limit * props.page);
   }
+
+  const { query, params } = builder.buildWithParams();
 
   const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
     query,
@@ -603,7 +591,8 @@ export const getExperimentItemsFromEvents = async (props: {
   return rows.map((row) => ({
     id: row.experiment_item_id,
     traceId: row.trace_id,
-    observationId: row.observation_id,
+    observationId: row.id, // span_id
+    experimentItemRootSpanId: row.experiment_item_root_span_id,
     input: row.input,
     output: row.output,
     expectedOutput: row.expected_output,

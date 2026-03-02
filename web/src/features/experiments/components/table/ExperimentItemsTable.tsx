@@ -135,6 +135,9 @@ export default function ExperimentItemsTable({
           id: item?.id,
           params: {
             traceId: item?.traceId || "",
+            ...(item?.createdAt
+              ? { timestamp: item?.createdAt.toISOString() }
+              : {}),
           },
         })) ?? [],
       );
@@ -171,7 +174,8 @@ export default function ExperimentItemsTable({
       id: "datasetItemId",
       header: "Dataset Item",
       size: 150,
-      isPinnedLeft: true,
+      defaultHidden: true,
+      enableHiding: true,
       cell: ({ row }) => {
         const value: string = row.getValue("datasetItemId");
         return value ? (
@@ -201,6 +205,7 @@ export default function ExperimentItemsTable({
       accessorKey: "traceId",
       id: "traceId",
       header: "Trace",
+      defaultHidden: true,
       size: 100,
       enableHiding: true,
       cell: ({ row }) => {

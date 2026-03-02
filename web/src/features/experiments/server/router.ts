@@ -531,13 +531,15 @@ export const experimentsRouter = createTRPCRouter({
         return [];
       }
 
-      const metrics = await getExperimentItemMetricsFromEvents({
-        projectId: input.projectId,
-        experimentId: input.experimentId,
-        experimentItemIds: input.experimentItemIds,
-        filter: input.filter ?? [],
-      });
+      // const metrics = await getExperimentItemMetricsFromEvents({
+      //   projectId: input.projectId,
+      //   experimentId: input.experimentId,
+      //   experimentItemIds: input.experimentItemIds,
+      //   filter: input.filter ?? [],
+      // });
 
-      return metrics;
+      return [];
+
+      // return metrics;
     }),
 });

@@ -32,7 +32,7 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     internal: "dataset_item_id",
   },
   {
-    name: "Run At",
+    name: "Created At",
     id: "createdAt",
     type: "datetime",
     internal: "created_at",
