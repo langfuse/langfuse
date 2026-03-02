@@ -241,7 +241,8 @@ model LlmApiKeys {
   extraHeaders      String?  @map("extra_headers")
   extraHeaderKeys   String[] @default([]) @map("extra_header_keys")
   config            Json?
-  lastError         Json?    @map("last_error")
+  status            LlmApiKeyStatus @default(OK)
+  statusMessage     String?         @map("status_message")
 
   projectId       String            @map("project_id")
   project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -249,6 +250,11 @@ model LlmApiKeys {
 
   @@unique([projectId, provider])
   @@map("llm_api_keys")
+}
+
+enum LlmApiKeyStatus {
+  OK
+  ERROR
 }
 
 model OrganizationMembership {
@@ -932,10 +938,6 @@ model EvalTemplate {
 
   partner String? // e.g. "ragas", describes the partner that created the template
 
-  status          EvalTemplateStatus @default(OK) @map("status")
-  statusReason    Json?              @map("status_reason") // { code: string, description: string } when status is ERROR
-  statusUpdatedAt DateTime?          @map("status_updated_at")
-
   model            String?
   provider         String?
   modelParams      Json?              @map("model_params")
@@ -947,11 +949,6 @@ model EvalTemplate {
   @@unique([projectId, name, version])
   @@index([projectId, id])
   @@map("eval_templates")
-}
-
-enum EvalTemplateStatus {
-  OK
-  ERROR
 }
 
 // We currently assume in the evalRouter that _all_ job_executions are for EVAL job_configs.
@@ -975,6 +972,7 @@ model JobConfiguration {
 
   jobType        JobType        @map("job_type")
   status         JobConfigState @default(ACTIVE)
+  statusMessage  String?        @map("status_message")
   evalTemplateId String?        @map("eval_template_id")
   evalTemplate   EvalTemplate?  @relation(fields: [evalTemplateId], references: [id], onDelete: SetNull)
 

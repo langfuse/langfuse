@@ -33,7 +33,6 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearNoEvalConfigsCache,
-  getEffectiveEvalTemplateStatus,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -65,6 +64,7 @@ const ConfigWithTemplateSchema = z.object({
   sampling: z.instanceof(Prisma.Decimal),
   delay: z.number(),
   status: z.enum(JobConfigState),
+  statusMessage: z.string().nullable(),
   jobType: z.enum(JobType),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -84,12 +84,6 @@ const ConfigWithTemplateSchema = z.object({
       vars: z.array(z.string()),
       outputSchema: jsonSchema,
       version: z.number(),
-      status: z.enum(["OK", "ERROR"]),
-      statusReason: z
-        .object({ code: z.string(), description: z.string() })
-        .nullable(),
-      statusUpdatedAt: z.date().nullable(),
-      effectiveStatus: z.enum(["OK", "ERROR"]),
     })
     .nullish(),
 });
@@ -216,6 +210,59 @@ export const calculateEvaluatorFinalStatus = (
   return status;
 };
 
+const validateEvalTemplateActivation = async ({
+  prisma,
+  projectId,
+  evalTemplateId,
+}: {
+  prisma: PrismaClient;
+  projectId: string;
+  evalTemplateId: string;
+}) => {
+  const template = await prisma.evalTemplate.findFirst({
+    where: {
+      id: evalTemplateId,
+      OR: [{ projectId }, { projectId: null }],
+    },
+  });
+
+  if (!template) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Evaluator template not found",
+    });
+  }
+
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    projectId,
+    template.provider ?? undefined,
+    template.model ?? undefined,
+    template.modelParams,
+  );
+
+  if (!modelConfig.valid) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `No valid LLM model found for evaluator "${template.name}". ${modelConfig.error}`,
+    });
+  }
+
+  try {
+    await testModelCall({
+      provider: modelConfig.config.provider,
+      model: modelConfig.config.model,
+      apiKey: modelConfig.config.apiKey,
+      modelConfig: modelConfig.config.modelParams,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: `Model configuration not valid for evaluator "${template.name}". ${message}`,
+    });
+  }
+};
+
 export const evalRouter = createTRPCRouter({
   globalJobConfigs: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -318,14 +365,6 @@ export const evalRouter = createTRPCRouter({
               templateName: string;
               templateVersion: number;
               templateProjectId: string;
-              templateStatus: string;
-              templateProvider?: string | null;
-              templateModel?: string | null;
-              templateStatusReason?: {
-                code: string;
-                description: string;
-              } | null;
-              templateStatusUpdatedAt?: Date | null;
             }
           >
         >(
@@ -333,6 +372,7 @@ export const evalRouter = createTRPCRouter({
             Prisma.sql`
             jc.id,
             jc.status,
+            jc.status_message as "statusMessage",
             jc.created_at as "createdAt",
             jc.updated_at as "updatedAt",
             jc.score_name as "scoreName",
@@ -342,12 +382,7 @@ export const evalRouter = createTRPCRouter({
             et.id as "evalTemplateId",
             et.name as "templateName",
             et.version as "templateVersion",
-            et.project_id as "templateProjectId",
-            et.status as "templateStatus",
-            et.provider as "templateProvider",
-            et.model as "templateModel",
-            et.status_reason as "templateStatusReason",
-            et.status_updated_at as "templateStatusUpdatedAt"`,
+            et.project_id as "templateProjectId"`,
             input.projectId,
             filterCondition,
             searchCondition,
@@ -376,10 +411,6 @@ export const evalRouter = createTRPCRouter({
         configIds: configs.map((c) => c.id),
       });
 
-      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
-        input.projectId,
-      );
-
       return {
         configs: configs.map((config) => ({
           ...config,
@@ -389,17 +420,6 @@ export const evalRouter = createTRPCRouter({
                 name: config.templateName,
                 version: config.templateVersion,
                 projectId: config.templateProjectId,
-                status: config.templateStatus,
-                statusReason: config.templateStatusReason ?? null,
-                statusUpdatedAt: config.templateStatusUpdatedAt ?? null,
-                effectiveStatus: getEffectiveEvalTemplateStatus(
-                  {
-                    status: config.templateStatus,
-                    provider: config.templateProvider ?? null,
-                    model: config.templateModel ?? null,
-                  },
-                  defaultModel,
-                ),
               }
             : null,
           jobExecutionsByState: jobExecutionsByState.filter(
@@ -450,10 +470,6 @@ export const evalRouter = createTRPCRouter({
         configIds: [config.id],
       });
 
-      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
-        input.projectId,
-      );
-
       const finalStatus = calculateEvaluatorFinalStatus(
         config.status,
         Array.isArray(config.timeScope) ? config.timeScope : [],
@@ -462,15 +478,7 @@ export const evalRouter = createTRPCRouter({
 
       return {
         ...config,
-        evalTemplate: config.evalTemplate
-          ? {
-              ...config.evalTemplate,
-              effectiveStatus: getEffectiveEvalTemplateStatus(
-                config.evalTemplate,
-                defaultModel,
-              ),
-            }
-          : null,
+        evalTemplate: config.evalTemplate,
         jobExecutionsByState: jobExecutionsByStatus,
         finalStatus,
       };
@@ -501,15 +509,8 @@ export const evalRouter = createTRPCRouter({
         orderBy: [{ version: "desc" }],
       });
 
-      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
-        input.projectId,
-      );
-
       return {
-        templates: templates.map((t) => ({
-          ...t,
-          effectiveStatus: getEffectiveEvalTemplateStatus(t, defaultModel),
-        })),
+        templates,
       };
     }),
 
@@ -546,10 +547,6 @@ export const evalRouter = createTRPCRouter({
             partner?: string;
             provider?: string;
             model?: string;
-            status?: "OK" | "ERROR";
-            statusReason?: { code: string; description: string } | null;
-            statusUpdatedAt?: Date | null;
-            effectiveStatus?: "OK" | "ERROR";
           }>
         >`
         WITH latest_templates AS (
@@ -562,9 +559,6 @@ export const evalRouter = createTRPCRouter({
             et.partner,
             et.version,
             et.created_at,
-            et.status,
-            et.status_reason,
-            et.status_updated_at,
             (
               SELECT COUNT(jc.id)
               FROM job_configurations jc
@@ -593,10 +587,7 @@ export const evalRouter = createTRPCRouter({
           project_id as "projectId",
           version,
           created_at as "latestCreatedAt",
-          COALESCE(usage_count, 0)::int as "usageCount",
-          status as "status",
-          status_reason as "statusReason",
-          status_updated_at as "statusUpdatedAt"
+          COALESCE(usage_count, 0)::int as "usageCount"
         FROM 
           latest_templates
         ORDER BY project_id, partner, name
@@ -614,20 +605,8 @@ export const evalRouter = createTRPCRouter({
         `,
       ]);
 
-      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
-        input.projectId,
-      );
-
-      const templatesWithEffectiveStatus = templates.map((t) => ({
-        ...t,
-        effectiveStatus: getEffectiveEvalTemplateStatus(
-          { status: t.status ?? "OK", provider: t.provider, model: t.model },
-          defaultModel,
-        ),
-      }));
-
       return {
-        templates: templatesWithEffectiveStatus,
+        templates,
         totalCount: Number(count[0]?.count) || 0,
       };
     }),
@@ -655,14 +634,7 @@ export const evalRouter = createTRPCRouter({
 
       if (!template) return null;
 
-      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
-        input.projectId,
-      );
-
-      return {
-        ...template,
-        effectiveStatus: getEffectiveEvalTemplateStatus(template, defaultModel),
-      };
+      return template;
     }),
   allTemplates: protectedProjectProcedure
     .input(
@@ -697,15 +669,8 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
-        input.projectId,
-      );
-
       return {
-        templates: templates.map((t) => ({
-          ...t,
-          effectiveStatus: getEffectiveEvalTemplateStatus(t, defaultModel),
-        })),
+        templates,
         totalCount: count,
       };
     }),
@@ -768,27 +733,7 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
-        input.projectId,
-      );
-
-      const evaluatorsWithEffectiveStatus = evaluators.map((e) => ({
-        ...e,
-        evalTemplate: e.evalTemplate
-          ? {
-              ...e.evalTemplate,
-              effectiveStatus: getEffectiveEvalTemplateStatus(
-                e.evalTemplate,
-                defaultModel,
-              ),
-            }
-          : null,
-      }));
-
-      return filterAndValidateDbEvaluatorList(
-        evaluatorsWithEffectiveStatus,
-        traceException,
-      );
+      return filterAndValidateDbEvaluatorList(evaluators, traceException);
     }),
 
   jobConfigsByTemplateName: protectedProjectProcedure
@@ -990,9 +935,6 @@ export const evalRouter = createTRPCRouter({
             modelParams: input.modelParams ?? undefined,
             vars: input.vars,
             outputSchema: input.outputSchema,
-            status: "OK",
-            statusReason: Prisma.JsonNull,
-            statusUpdatedAt: null,
           },
         });
 
@@ -1126,12 +1068,28 @@ export const evalRouter = createTRPCRouter({
               );
           }) || [];
 
+        if (newStatus === "ACTIVE" && filteredEvaluators.length > 0) {
+          await validateEvalTemplateActivation({
+            prisma: ctx.prisma,
+            projectId,
+            evalTemplateId,
+          });
+        }
+
         await ctx.prisma.jobConfiguration.updateMany({
           where: {
             id: { in: filteredEvaluators.map((e) => e.id) },
           },
-          data: { status: newStatus },
+          data: {
+            status: newStatus,
+            statusMessage: null,
+          },
         });
+
+        if (newStatus === "ACTIVE" && filteredEvaluators.length > 0) {
+          await clearNoEvalConfigsCache(projectId, "traceBased");
+          await clearNoEvalConfigsCache(projectId, "eventBased");
+        }
 
         return {
           success: true,
@@ -1213,12 +1171,32 @@ export const evalRouter = createTRPCRouter({
         action: "update",
       });
 
+      if (config.status === "ACTIVE" && existingJob.status === "INACTIVE") {
+        if (!existingJob.evalTemplateId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Evaluator template not found",
+          });
+        }
+
+        await validateEvalTemplateActivation({
+          prisma: ctx.prisma,
+          projectId,
+          evalTemplateId: existingJob.evalTemplateId,
+        });
+      }
+
+      const updatedConfig = {
+        ...config,
+        ...(config.status ? { statusMessage: null } : {}),
+      };
+
       const updatedJob = await ctx.prisma.jobConfiguration.update({
         where: {
           id: evalConfigId,
           projectId: projectId,
         },
-        data: config,
+        data: updatedConfig,
       });
 
       // Clear the "no job configs" caches if we're activating a job configuration

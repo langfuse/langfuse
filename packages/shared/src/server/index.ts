@@ -16,7 +16,6 @@ export * from "./services/commentFilterService";
 export * from "./datasets/schemaValidation";
 export * from "./datasets/schemaTypes";
 export * from "./evalJobConfigCache";
-export * from "./evalTemplateStatus";
 export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";

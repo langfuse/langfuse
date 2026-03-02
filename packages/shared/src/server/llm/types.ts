@@ -481,10 +481,6 @@ export type LLMFunctionCall = {
   parameters: z.ZodTypeAny; // this has to be a json schema for OpenAI
 };
 
-const LastErrorSchema = z
-  .object({ code: z.string(), description: z.string() })
-  .nullish();
-
 export const LLMApiKeySchema = z
   .object({
     id: z.string(),
@@ -501,7 +497,8 @@ export const LLMApiKeySchema = z
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
     config: z.union([BedrockConfigSchema, VertexAIConfigSchema]).nullish(), // Bedrock and VertexAI have additional config
-    lastError: LastErrorSchema,
+    status: z.enum(["OK", "ERROR"]),
+    statusMessage: z.string().nullable(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict

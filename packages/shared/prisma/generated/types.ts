@@ -10,6 +10,12 @@ export const ApiKeyScope = {
   PROJECT: "PROJECT",
 } as const;
 export type ApiKeyScope = (typeof ApiKeyScope)[keyof typeof ApiKeyScope];
+export const LlmApiKeyStatus = {
+  OK: "OK",
+  ERROR: "ERROR",
+} as const;
+export type LlmApiKeyStatus =
+  (typeof LlmApiKeyStatus)[keyof typeof LlmApiKeyStatus];
 export const Role = {
   OWNER: "OWNER",
   ADMIN: "ADMIN",
@@ -96,12 +102,6 @@ export const AuditLogRecordType = {
 } as const;
 export type AuditLogRecordType =
   (typeof AuditLogRecordType)[keyof typeof AuditLogRecordType];
-export const EvalTemplateStatus = {
-  OK: "OK",
-  ERROR: "ERROR",
-} as const;
-export type EvalTemplateStatus =
-  (typeof EvalTemplateStatus)[keyof typeof EvalTemplateStatus];
 export const JobType = {
   EVAL: "EVAL",
 } as const;
@@ -520,9 +520,6 @@ export type EvalTemplate = {
   version: number;
   prompt: string;
   partner: string | null;
-  status: Generated<EvalTemplateStatus>;
-  status_reason: unknown | null;
-  status_updated_at: Timestamp | null;
   model: string | null;
   provider: string | null;
   model_params: unknown | null;
@@ -536,6 +533,7 @@ export type JobConfiguration = {
   project_id: string;
   job_type: JobType;
   status: Generated<JobConfigState>;
+  status_message: string | null;
   eval_template_id: string | null;
   score_name: string;
   filter: unknown;
@@ -649,7 +647,8 @@ export type LlmApiKeys = {
   extra_headers: string | null;
   extra_header_keys: Generated<string[]>;
   config: unknown | null;
-  last_error: unknown | null;
+  status: Generated<LlmApiKeyStatus>;
+  status_message: string | null;
   project_id: string;
 };
 export type LlmSchema = {

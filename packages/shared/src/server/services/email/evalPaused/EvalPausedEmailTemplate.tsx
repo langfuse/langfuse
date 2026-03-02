@@ -94,8 +94,8 @@ export const EvalPausedEmailTemplate = ({
                     • Check your LLM connections in Project Settings → LLM
                     Connections
                     <br />
-                    • Edit the evaluator template and save to validate the
-                    configuration
+                    • Save the corrected LLM connection after updating the
+                    credentials
                     <br />• Reactivate evaluators that were set to INACTIVE
                   </>
                 ) : pauseReasonCode === "LLM_404" ? (

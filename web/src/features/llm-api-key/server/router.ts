@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -29,6 +28,7 @@ import {
   LLMAdapter,
   logger,
   decryptAndParseExtraHeaders,
+  clearNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -227,7 +227,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      return ctx.prisma.$transaction(async (tx) => {
+      const result = await ctx.prisma.$transaction(async (tx) => {
         // Check if the llm api key is used for the default evaluation model
         // If so, it will be deleted and we must invalidate all eval jobs that rely on it
         const defaultModel = await tx.defaultLlmModel.findFirst({
@@ -253,6 +253,8 @@ export const llmApiKeyRouter = createTRPCRouter({
             },
             data: {
               status: "INACTIVE",
+              statusMessage:
+                "Evaluator paused: the shared default evaluation model connection was removed. Configure a new default model or update the evaluator template, then reactivate it.",
             },
           });
         }
@@ -274,6 +276,11 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         return { success: true };
       });
+
+      await clearNoEvalConfigsCache(input.projectId, "traceBased");
+      await clearNoEvalConfigsCache(input.projectId, "eventBased");
+
+      return result;
     }),
   all: protectedProjectProcedure
     .input(
@@ -311,6 +318,8 @@ export const llmApiKeyRouter = createTRPCRouter({
               withDefaultModels: true,
               extraHeaderKeys: true,
               config: true,
+              status: true,
+              statusMessage: true,
             },
             where: {
               projectId: input.projectId,
@@ -526,7 +535,8 @@ export const llmApiKeyRouter = createTRPCRouter({
             withDefaultModels: input.withDefaultModels,
             customModels: input.customModels,
             config: input.config,
-            lastError: Prisma.JsonNull,
+            status: "OK",
+            statusMessage: null,
           },
         });
 

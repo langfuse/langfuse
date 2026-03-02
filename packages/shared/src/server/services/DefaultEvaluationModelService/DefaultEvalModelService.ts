@@ -1,9 +1,8 @@
 import z from "zod/v4";
-import { Prisma, prisma } from "../../../db";
+import { prisma } from "../../../db";
 import { ForbiddenError, LangfuseNotFoundError } from "../../../errors";
 import { LLMApiKeySchema, ZodModelConfig } from "../../llm/types";
 import { testModelCall } from "../../llm/testModelCall";
-import { clearNoEvalConfigsCache } from "../../evalJobConfigCache";
 
 type ValidConfig = {
   provider: string;
@@ -66,13 +65,8 @@ export class DefaultEvalModelService {
       );
     }
 
-    await prisma.llmApiKeys.update({
-      where: { id: llmApiKey.id },
-      data: { lastError: Prisma.JsonNull },
-    });
-
     // Create or update the default model
-    const defaultModel = await prisma.defaultLlmModel.upsert({
+    return prisma.defaultLlmModel.upsert({
       where: {
         projectId,
       },
@@ -92,33 +86,6 @@ export class DefaultEvalModelService {
         modelParams: modelParams ? modelParams : undefined,
       },
     });
-
-    // Only re-enable project-scoped templates; global templates are never set to ERROR.
-    const errorTemplatesUsingDefault = await prisma.evalTemplate.findMany({
-      where: {
-        projectId,
-        provider: null,
-        model: null,
-        status: "ERROR",
-      },
-      select: { id: true },
-    });
-    const templateIds = errorTemplatesUsingDefault.map((t) => t.id);
-    if (templateIds.length > 0) {
-      const now = new Date();
-      await prisma.evalTemplate.updateMany({
-        where: { id: { in: templateIds } },
-        data: {
-          status: "OK",
-          statusReason: Prisma.JsonNull,
-          statusUpdatedAt: now,
-        },
-      });
-      await clearNoEvalConfigsCache(projectId, "traceBased");
-      await clearNoEvalConfigsCache(projectId, "eventBased");
-    }
-
-    return defaultModel;
   }
 
   /**

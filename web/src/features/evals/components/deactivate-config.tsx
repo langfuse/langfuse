@@ -1,4 +1,5 @@
 import { EvaluatorStatus } from "@/src/features/evals/types";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -8,11 +9,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
 
@@ -28,11 +24,20 @@ export function DeactivateEvalConfig({
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const isActive = evalConfig?.status === EvaluatorStatus.ACTIVE;
-  const templateInError = evalConfig?.evalTemplate?.effectiveStatus === "ERROR";
 
   const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
       void utils.evals.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast(
+        "Could not update evaluator",
+        error.message,
+        "ERROR",
+        evalConfig?.evalTemplate?.id
+          ? `/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`
+          : undefined,
+      );
     },
   });
 
@@ -44,7 +49,7 @@ export function DeactivateEvalConfig({
 
     const prevStatus = evalConfig?.status;
 
-    mutEvaluator.mutateAsync({
+    mutEvaluator.mutate({
       projectId,
       evalConfigId: evalConfig?.id ?? "",
       config: {
@@ -62,8 +67,7 @@ export function DeactivateEvalConfig({
   const isSwitchDisabled =
     !hasAccess ||
     (evalConfig?.timeScope?.length === 1 &&
-      evalConfig.timeScope[0] === "EXISTING") ||
-    (templateInError && !isActive);
+      evalConfig.timeScope[0] === "EXISTING");
 
   const switchEl = (
     <div className="flex items-center">
@@ -77,18 +81,7 @@ export function DeactivateEvalConfig({
 
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
-      <PopoverTrigger asChild>
-        {templateInError && !isActive ? (
-          <Tooltip>
-            <TooltipTrigger asChild>{switchEl}</TooltipTrigger>
-            <TooltipContent>
-              Fix the evaluator template first (it is paused).
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          switchEl
-        )}
-      </PopoverTrigger>
+      <PopoverTrigger asChild>{switchEl}</PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">

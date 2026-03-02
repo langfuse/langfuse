@@ -113,7 +113,7 @@ export const PeekViewEvaluatorConfigDetail = ({
             </TooltipContent>
           </Tooltip>
         )}
-        {evalConfig.evalTemplate?.effectiveStatus === "ERROR" && (
+        {evalConfig.status === "INACTIVE" && evalConfig.statusMessage && (
           <Tooltip>
             <TooltipTrigger>
               <Badge variant="warning" className="w-fit text-xs">
@@ -121,21 +121,15 @@ export const PeekViewEvaluatorConfigDetail = ({
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <p>
-                {
-                  (
-                    evalConfig.evalTemplate.statusReason as {
-                      description?: string;
-                    }
-                  )?.description
-                }
-              </p>
-              <Link
-                href={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
-                className="text-primary hover:underline"
-              >
-                Fix in evaluator template
-              </Link>
+              <p>{evalConfig.statusMessage}</p>
+              {evalConfig.evalTemplate && (
+                <Link
+                  href={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
+                  className="text-primary hover:underline"
+                >
+                  Fix in evaluator template
+                </Link>
+              )}
             </TooltipContent>
           </Tooltip>
         )}

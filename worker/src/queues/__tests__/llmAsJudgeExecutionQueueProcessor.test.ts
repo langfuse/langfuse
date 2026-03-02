@@ -11,9 +11,9 @@ import { UnrecoverableError } from "../../errors/UnrecoverableError";
 
 // Mock pause so we can assert it is called only for unrecoverable LLM errors
 vi.mock(
-  "../../features/evaluation/pauseEvalTemplateOnUnrecoverableError",
+  "../../features/evaluation/pauseEvalConfigOnUnrecoverableError",
   () => ({
-    pauseEvalTemplateOnUnrecoverableError: vi.fn(),
+    pauseEvalConfigOnUnrecoverableError: vi.fn(),
   }),
 );
 
@@ -78,7 +78,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
-import { pauseEvalTemplateOnUnrecoverableError } from "../../features/evaluation/pauseEvalTemplateOnUnrecoverableError";
+import { pauseEvalConfigOnUnrecoverableError } from "../../features/evaluation/pauseEvalConfigOnUnrecoverableError";
 
 describe("llmAsJudgeExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
@@ -408,7 +408,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("unrecoverable LLM error (pause invocation)", () => {
-    it("should call pauseEvalTemplateOnUnrecoverableError when LLMCompletionError is unrecoverable", async () => {
+    it("should call pauseEvalConfigOnUnrecoverableError when LLMCompletionError is unrecoverable", async () => {
       const llmError = new LLMCompletionError({
         message: "Invalid API key",
         responseStatusCode: 401,
@@ -419,7 +419,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
-      expect(pauseEvalTemplateOnUnrecoverableError).toHaveBeenCalledWith({
+      expect(pauseEvalConfigOnUnrecoverableError).toHaveBeenCalledWith({
         jobExecutionId,
         projectId,
         statusCode: 401,
@@ -446,7 +446,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
-      expect(pauseEvalTemplateOnUnrecoverableError).not.toHaveBeenCalled();
+      expect(pauseEvalConfigOnUnrecoverableError).not.toHaveBeenCalled();
     });
 
     it("should not call pause for non-LLM error (UnrecoverableError)", async () => {
@@ -457,7 +457,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
-      expect(pauseEvalTemplateOnUnrecoverableError).not.toHaveBeenCalled();
+      expect(pauseEvalConfigOnUnrecoverableError).not.toHaveBeenCalled();
     });
   });
 });

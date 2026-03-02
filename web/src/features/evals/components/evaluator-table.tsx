@@ -81,11 +81,8 @@ export type EvaluatorDataRow = {
     id: string;
     name: string;
     version: number;
-    status?: string;
-    statusReason?: { code: string; description: string } | null;
-    statusUpdatedAt?: Date | null;
-    effectiveStatus: "OK" | "ERROR";
   };
+  statusMessage?: string | null;
   scoreName: string;
   target: string; // "trace" or "dataset"
   filter: FilterState;
@@ -324,25 +321,26 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />
             </div>
-            {template.effectiveStatus === "ERROR" && (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Badge variant="warning" className="w-fit text-xs">
-                    Paused
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{template.statusReason?.description}</p>
-                  <Link
-                    href={`/project/${projectId}/evals/templates/${template.id}`}
-                    className="text-primary hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Fix in evaluator template
-                  </Link>
-                </TooltipContent>
-              </Tooltip>
-            )}
+            {row.original.status === "INACTIVE" &&
+              row.original.statusMessage && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="warning" className="w-fit text-xs">
+                      Paused
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{row.original.statusMessage}</p>
+                    <Link
+                      href={`/project/${projectId}/evals/templates/${template.id}`}
+                      className="text-primary hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Fix in evaluator template
+                    </Link>
+                  </TooltipContent>
+                </Tooltip>
+              )}
           </div>
         );
       },
@@ -518,12 +516,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             id: jobConfig.evalTemplate.id,
             name: jobConfig.evalTemplate.name,
             version: jobConfig.evalTemplate.version,
-            status: jobConfig.evalTemplate.status,
-            statusReason: jobConfig.evalTemplate.statusReason ?? null,
-            statusUpdatedAt: jobConfig.evalTemplate.statusUpdatedAt ?? null,
-            effectiveStatus: jobConfig.evalTemplate.effectiveStatus,
           }
         : undefined,
+      statusMessage: jobConfig.statusMessage,
       scoreName: jobConfig.scoreName,
       target: jobConfig.targetObject,
       filter: z.array(singleFilter).parse(jobConfig.filter),

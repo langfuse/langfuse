@@ -4,8 +4,11 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { JobConfigState, ZodModelConfig } from "@langfuse/shared";
-import { DefaultEvalModelService } from "@langfuse/shared/src/server";
+import { ZodModelConfig } from "@langfuse/shared";
+import {
+  DefaultEvalModelService,
+  clearNoEvalConfigsCache,
+} from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
   fetchDefaultModel: protectedProjectProcedure
@@ -42,9 +45,6 @@ export const defaultEvalModelRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        statusReason: z
-          .object({ code: z.string(), description: z.string() })
-          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -54,13 +54,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      const statusReason = input.statusReason ?? {
-        code: "DEFAULT_MODEL_REMOVED",
-        description:
-          "The default evaluation model was removed. Set a new default model or configure a model on each evaluator template.",
-      };
-
-      return ctx.prisma.$transaction(async (tx) => {
+      const result = await ctx.prisma.$transaction(async (tx) => {
         const evalTemplates = await tx.evalTemplate.findMany({
           where: {
             OR: [{ projectId: input.projectId }, { projectId: null }],
@@ -69,24 +63,15 @@ export const defaultEvalModelRouter = createTRPCRouter({
           },
         });
 
-        if (evalTemplates.length > 0) {
-          await tx.evalTemplate.updateMany({
-            where: { id: { in: evalTemplates.map((et) => et.id) } },
-            data: {
-              status: "ERROR",
-              statusReason,
-              statusUpdatedAt: new Date(),
-            },
-          });
-        }
-
         await tx.jobConfiguration.updateMany({
           where: {
             evalTemplateId: { in: evalTemplates.map((et) => et.id) },
             projectId: input.projectId,
           },
           data: {
-            status: JobConfigState.INACTIVE,
+            status: "INACTIVE",
+            statusMessage:
+              "Evaluator paused: the shared default evaluation model was removed. Set a new default model or update the evaluator template, then reactivate it.",
           },
         });
 
@@ -98,5 +83,10 @@ export const defaultEvalModelRouter = createTRPCRouter({
 
         return { success: true };
       });
+
+      await clearNoEvalConfigsCache(input.projectId, "traceBased");
+      await clearNoEvalConfigsCache(input.projectId, "eventBased");
+
+      return result;
     }),
 });

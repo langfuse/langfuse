@@ -114,38 +114,23 @@ export const EvaluatorDetail = () => {
     >
       {existingEvaluator && (
         <div className="flex h-full flex-col overflow-hidden">
-          {existingEvaluator.evalTemplate?.effectiveStatus === "ERROR" &&
-            (() => {
-              const templateStatusReason = existingEvaluator.evalTemplate
-                .statusReason as {
-                code: string;
-                description: string;
-              } | null;
-              return (
-                <div className="mx-3 mt-3">
-                  <Callout
-                    id="evaluator-detail-template-error"
-                    variant="warning"
-                  >
-                    <p className="font-medium">Evaluator template paused</p>
-                    <p className="mb-2 mt-1">
-                      {templateStatusReason?.description}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {templateStatusReason?.code === "LLM_401"
-                        ? "Check your LLM connection in Project Settings, then fix the template."
-                        : "Update the model in the evaluator template."}
-                    </p>
+          {existingEvaluator.status === "INACTIVE" &&
+            existingEvaluator.statusMessage && (
+              <div className="mx-3 mt-3">
+                <Callout id="evaluator-detail-config-error" variant="warning">
+                  <p className="font-medium">Evaluator paused</p>
+                  <p className="mb-2 mt-1">{existingEvaluator.statusMessage}</p>
+                  {existingEvaluator.evalTemplate && (
                     <Link
                       href={`/project/${projectId}/evals/templates/${existingEvaluator.evalTemplate.id}`}
                       className="text-sm font-medium text-primary hover:underline"
                     >
                       Go to evaluator template
                     </Link>
-                  </Callout>
-                </div>
-              );
-            })()}
+                  )}
+                </Callout>
+              </div>
+            )}
           <EvalLogTable
             projectId={projectId}
             jobConfigurationId={existingEvaluator.id}

@@ -14,7 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
-import { pauseEvalTemplateOnUnrecoverableError } from "../features/evaluation/pauseEvalTemplateOnUnrecoverableError";
+import { pauseEvalConfigOnUnrecoverableError } from "../features/evaluation/pauseEvalConfigOnUnrecoverableError";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
@@ -211,7 +211,7 @@ export const evalJobExecutorQueueProcessor = async (
     });
 
     if (isLLMCompletionError(e) && e.isUnrecoverable()) {
-      await pauseEvalTemplateOnUnrecoverableError({
+      await pauseEvalConfigOnUnrecoverableError({
         jobExecutionId: job.data.payload.jobExecutionId,
         projectId: job.data.payload.projectId,
         statusCode: e.responseStatusCode,
@@ -305,7 +305,7 @@ export const llmAsJudgeExecutionQueueProcessor = async (
     });
 
     if (isLLMCompletionError(e) && e.isUnrecoverable()) {
-      await pauseEvalTemplateOnUnrecoverableError({
+      await pauseEvalConfigOnUnrecoverableError({
         jobExecutionId: job.data.payload.jobExecutionId,
         projectId: job.data.payload.projectId,
         statusCode: e.responseStatusCode,

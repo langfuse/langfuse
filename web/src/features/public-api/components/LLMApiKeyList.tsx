@@ -24,6 +24,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Badge } from "@/src/components/ui/badge";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 
@@ -104,7 +105,21 @@ export function LlmApiKeyList(props: { projectId: string }) {
                   className="cursor-default hover:bg-primary-foreground"
                   onClick={() => setEditingKeyId(apiKey.id)}
                 >
-                  <TableCell className="font-mono">{apiKey.provider}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">{apiKey.provider}</span>
+                      {apiKey.status === "ERROR" && (
+                        <Badge variant="warning" className="text-xs">
+                          Error
+                        </Badge>
+                      )}
+                    </div>
+                    {apiKey.status === "ERROR" && apiKey.statusMessage && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {apiKey.statusMessage}
+                      </p>
+                    )}
+                  </TableCell>
                   <TableCell className="font-mono">{apiKey.adapter}</TableCell>
                   <TableCell className="max-w-md overflow-auto font-mono">
                     {apiKey.baseURL ?? "default"}
@@ -126,7 +141,6 @@ export function LlmApiKeyList(props: { projectId: string }) {
                           secretKey: apiKey.displaySecretKey,
                           extraHeaders: apiKey.extraHeaderKeys.join(","),
                           config: apiKey.config ?? null,
-                          lastError: apiKey.lastError ?? null,
                         }}
                         projectId={props.projectId}
                         open={editingKeyId === apiKey.id}

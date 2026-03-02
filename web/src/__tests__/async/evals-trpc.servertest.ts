@@ -3,12 +3,8 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  createOrgProjectAndApiKey,
-  LLMAdapter,
-} from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
 import type { Session } from "next-auth";
 
 const __orgIds: string[] = [];
@@ -318,132 +314,20 @@ describe("evals trpc", () => {
     });
   });
 
-  describe("evals effectiveStatus on templates", () => {
-    it("templateById and allTemplates return effectiveStatus ERROR when template uses default and project has no default", async () => {
+  describe("evals config statusMessage", () => {
+    it("configById and allConfigs return the config statusMessage", async () => {
       const { project, caller } = await prepare();
 
-      const templateUsingDefault = await prisma.evalTemplate.create({
+      const template = await prisma.evalTemplate.create({
         data: {
           projectId: project.id,
-          name: "effective-status-test",
-          version: 1,
-          prompt: "Evaluate {{input}}",
-          provider: null,
-          model: null,
-          vars: ["input"],
-          outputSchema: { score: "number", reasoning: "string" },
-          status: "OK",
-        },
-      });
-
-      const byId = await caller.evals.templateById({
-        projectId: project.id,
-        id: templateUsingDefault.id,
-      });
-      expect(byId).not.toBeNull();
-      expect(byId!.effectiveStatus).toBe("ERROR");
-
-      const all = await caller.evals.allTemplates({
-        projectId: project.id,
-      });
-      const found = all.templates.find((t) => t.id === templateUsingDefault.id);
-      expect(found).toBeDefined();
-      expect(found!.effectiveStatus).toBe("ERROR");
-    });
-
-    it("templateById and allTemplates return effectiveStatus OK when template uses default and project has default model", async () => {
-      const { project, caller } = await prepare();
-
-      const llmKey = await prisma.llmApiKeys.create({
-        data: {
-          projectId: project.id,
-          provider: "openai",
-          adapter: LLMAdapter.OpenAI,
-          secretKey: encrypt("sk-test"),
-          displaySecretKey: "...test",
-        },
-      });
-
-      await prisma.defaultLlmModel.create({
-        data: {
-          projectId: project.id,
-          llmApiKeyId: llmKey.id,
-          provider: "openai",
-          adapter: "openai",
-          model: "gpt-4",
-        },
-      });
-
-      const templateUsingDefault = await prisma.evalTemplate.create({
-        data: {
-          projectId: project.id,
-          name: "effective-status-with-default",
-          version: 1,
-          prompt: "Evaluate {{input}}",
-          provider: null,
-          model: null,
-          vars: ["input"],
-          outputSchema: { score: "number", reasoning: "string" },
-          status: "OK",
-        },
-      });
-
-      const byId = await caller.evals.templateById({
-        projectId: project.id,
-        id: templateUsingDefault.id,
-      });
-      expect(byId).not.toBeNull();
-      expect(byId!.effectiveStatus).toBe("OK");
-
-      const all = await caller.evals.allTemplates({
-        projectId: project.id,
-      });
-      const found = all.templates.find((t) => t.id === templateUsingDefault.id);
-      expect(found).toBeDefined();
-      expect(found!.effectiveStatus).toBe("OK");
-    });
-
-    it("template with specific model and status OK has effectiveStatus OK", async () => {
-      const { project, caller } = await prepare();
-
-      const templateSpecific = await prisma.evalTemplate.create({
-        data: {
-          projectId: project.id,
-          name: "specific-model-template",
-          version: 1,
-          prompt: "Evaluate {{input}}",
-          provider: "openai",
-          model: "gpt-4",
-          vars: ["input"],
-          outputSchema: { score: "number", reasoning: "string" },
-          status: "OK",
-        },
-      });
-
-      const byId = await caller.evals.templateById({
-        projectId: project.id,
-        id: templateSpecific.id,
-      });
-      expect(byId).not.toBeNull();
-      expect(byId!.effectiveStatus).toBe("OK");
-    });
-  });
-
-  describe("evals effectiveStatus on configs", () => {
-    it("configById and allConfigs include evalTemplate.effectiveStatus consistent with project default", async () => {
-      const { project, caller } = await prepare();
-
-      const templateUsingDefault = await prisma.evalTemplate.create({
-        data: {
-          projectId: project.id,
-          name: "config-effective-status",
+          name: "paused-config-template",
           version: 1,
           prompt: "Evaluate",
           provider: null,
           model: null,
           vars: [],
           outputSchema: { score: "number" },
-          status: "OK",
         },
       });
 
@@ -457,8 +341,9 @@ describe("evals trpc", () => {
           variableMapping: [],
           sampling: 1,
           delay: 0,
-          status: "ACTIVE",
-          evalTemplateId: templateUsingDefault.id,
+          status: "INACTIVE",
+          statusMessage: "Evaluator paused for testing",
+          evalTemplateId: template.id,
         },
       });
 
@@ -471,15 +356,103 @@ describe("evals trpc", () => {
       });
       const config = allConfigs.configs.find((c) => c.id === jobConfig.id);
       expect(config).toBeDefined();
-      expect(config!.evalTemplate).toBeDefined();
-      expect(config!.evalTemplate!.effectiveStatus).toBe("ERROR");
+      expect(config?.statusMessage).toBe("Evaluator paused for testing");
 
       const configById = await caller.evals.configById({
         projectId: project.id,
         id: jobConfig.id,
       });
       expect(configById).not.toBeNull();
-      expect(configById!.evalTemplate?.effectiveStatus).toBe("ERROR");
+      expect(configById?.statusMessage).toBe("Evaluator paused for testing");
+    });
+  });
+
+  describe("evals activation validation", () => {
+    it("updateEvalJob rejects reactivation when no valid model is configured", async () => {
+      const { project, caller } = await prepare();
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "inactive-template",
+          version: 1,
+          prompt: "Evaluate",
+          provider: null,
+          model: null,
+          vars: [],
+          outputSchema: { score: "number" },
+        },
+      });
+
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          evalTemplateId: template.id,
+        },
+      });
+
+      await expect(
+        caller.evals.updateEvalJob({
+          projectId: project.id,
+          evalConfigId: jobConfig.id,
+          config: {
+            status: "ACTIVE",
+          },
+        }),
+      ).rejects.toThrow(
+        'No valid LLM model found for evaluator "inactive-template"',
+      );
+    });
+
+    it("updateAllDatasetEvalJobStatusByTemplateId rejects reactivation when no valid model is configured", async () => {
+      const { project, caller } = await prepare();
+
+      const template = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "inactive-dataset-template",
+          version: 1,
+          prompt: "Evaluate",
+          provider: null,
+          model: null,
+          vars: [],
+          outputSchema: { score: "number" },
+        },
+      });
+
+      await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.DATASET,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "INACTIVE",
+          evalTemplateId: template.id,
+        },
+      });
+
+      await expect(
+        caller.evals.updateAllDatasetEvalJobStatusByTemplateId({
+          projectId: project.id,
+          evalTemplateId: template.id,
+          datasetId: "dataset-1",
+          newStatus: "ACTIVE",
+        }),
+      ).rejects.toThrow(
+        'No valid LLM model found for evaluator "inactive-dataset-template"',
+      );
     });
   });
 
