@@ -302,30 +302,6 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       },
     },
     {
-      accessorKey: "itemScores",
-      header: "Experiment Item Scores",
-      id: "itemScores",
-      enableHiding: true,
-      defaultHidden: true,
-      cell: () => {
-        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
-      },
-      columns: scoreColumns,
-    },
-    {
-      accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
-      id: "experimentScores",
-      enableHiding: true,
-      defaultHidden: true,
-      cell: () => {
-        return isExperimentScoreColumnLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: experimentScoreColumns,
-    },
-    {
       accessorKey: "latencyAvg",
       id: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
@@ -348,6 +324,30 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
         if (value === undefined) return undefined;
         return <span>${numberFormatter(value, 6)}</span>;
       },
+    },
+    {
+      accessorKey: "itemScores",
+      header: "Experiment Item Scores",
+      id: "itemScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isColumnLoading ? <Skeleton className="h-3 w-1/2" /> : null;
+      },
+      columns: scoreColumns,
+    },
+    {
+      accessorKey: "experimentScores",
+      header: "Experiment-Level Scores",
+      id: "experimentScores",
+      enableHiding: true,
+      defaultHidden: true,
+      cell: () => {
+        return isExperimentScoreColumnLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: experimentScoreColumns,
     },
     {
       accessorKey: "metadata",

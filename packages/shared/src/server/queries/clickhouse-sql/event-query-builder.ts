@@ -377,10 +377,6 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   itemCount: "uniq(experiment_item_id) AS item_count",
   errorCount: "countIf(level = 'ERROR') AS error_count",
 
-  // // Usage and cost details
-  // usageDetails: "sumMap(usage_details) AS usage_details",
-  // costDetails: "sumMap(cost_details) AS cost_details",
-
   // Prompts - tuple of (name, version) to preserve pairing
   prompts:
     "groupUniqArrayIf(tuple(prompt_name, prompt_version), prompt_name != '') AS prompts",

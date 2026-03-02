@@ -695,6 +695,20 @@ export const getScoresForObservations = async <
   }));
 };
 
+/**
+ * Event/experiment column mappings for building WHERE filters inside the events CTE.
+ * Maps to actual events_proto columns with the "e" prefix used by EventsQueryBuilder.
+ */
+const scoresEventsFilterMapping = [
+  {
+    uiTableName: "Experiment IDs",
+    uiTableId: "experimentIds",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_id",
+    queryPrefix: "e",
+  },
+];
+
 export const getScoresGroupedByNameSourceType = async ({
   projectId,
   filter,
@@ -713,26 +727,49 @@ export const getScoresGroupedByNameSourceType = async ({
       scoresColumnsTableUiColumnDefinitions,
     ),
   );
-  const scoresFilterRes = scoresFilter.apply();
+
+  // Separate scores-only filters from event/experiment filters
+  const nonEventFilters = scoresFilter.filter(
+    (f) => !f.clickhouseTable.startsWith("events_"),
+  );
+
+  const scoresFilterRes = nonEventFilters.apply();
 
   // Only join dataset run items if there is a dataset run items filter
   const performDatasetRunItemsJoin = scoresFilter.some(
     (f) => f.clickhouseTable === "dataset_run_items_rmt",
   );
 
-  // Build events CTE if there are experiment filters
-  const hasEventsFilters = scoresFilter.some((f) =>
-    f.clickhouseTable.startsWith("events_"),
+  // Extract event-level filter entries from the frontend filter state
+  const eventFilterState = filter.filter((filterEntry) =>
+    scoresEventsFilterMapping.some(
+      (col) =>
+        col.uiTableName === filterEntry.column ||
+        col.uiTableId === filterEntry.column,
+    ),
   );
 
   let eventsCTE = "";
   let eventsCTEParams: Record<string, unknown> = {};
+  const hasEventsFilters = eventFilterState.length > 0;
 
+  let eventsFilterRes;
   if (hasEventsFilters) {
+    const eventsBuilder = eventsExperimentTraceIds(projectId);
+
+    // Create filters from the event filter state using the proper column mappings
+    const cteEventFilters = new FilterList(
+      createFilterFromFilterState(eventFilterState, scoresEventsFilterMapping),
+    );
+    eventsFilterRes = cteEventFilters.apply();
+    if (eventsFilterRes.query) {
+      eventsBuilder.where(eventsFilterRes);
+    }
+
     const { query: cteQuery, params: cteParams } =
-      eventsExperimentTraceIds(projectId).buildWithParams();
-    eventsCTE = `WITH events AS (${cteQuery})`;
-    eventsCTEParams = cteParams;
+      eventsBuilder.buildWithParams();
+    eventsCTE = `WITH experiment_events AS (${cteQuery})`;
+    Object.assign(eventsCTEParams, cteParams);
   }
 
   // We mainly use queries like this to retrieve filter options.
@@ -746,7 +783,7 @@ export const getScoresGroupedByNameSourceType = async ({
       s.data_type as data_type
     FROM scores s
     ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
-    ${hasEventsFilters ? `JOIN events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
+    ${hasEventsFilters ? `ANY JOIN experiment_events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
     WHERE s.project_id = {projectId: String}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
@@ -773,6 +810,7 @@ export const getScoresGroupedByNameSourceType = async ({
         ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
         : {}),
       ...(scoresFilterRes ? scoresFilterRes.params : {}),
+      ...(eventsFilterRes ? eventsFilterRes.params : {}),
       ...eventsCTEParams,
     },
     tags: {
