@@ -69,7 +69,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useIsObservationEvalsFullyReleased } from "@/src/features/events/hooks/useObservationEvals";
 
 export type EvaluatorDataRow = {
   id: string;
@@ -123,7 +122,9 @@ function LegacyBadgeCell({ status }: { status: string }) {
                   >
                     this guide
                   </Link>{" "}
-                  to upgrade to the new version.
+                  to upgrade to the new version. <br /> <br /> If you do not
+                  upgrade, your evaluator will continue to run, but you will not
+                  benefit from improvements.
                 </p>
               </div>
             </TooltipContent>
@@ -135,7 +136,6 @@ function LegacyBadgeCell({ status }: { status: string }) {
 }
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
-  const isFullyReleased = useIsObservationEvalsFullyReleased();
   const router = useRouter();
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -329,25 +329,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableSorting: true,
       size: 150,
     }),
-    ...(isFullyReleased
-      ? [
-          columnHelper.accessor("isLegacy", {
-            id: "isLegacy",
-            header: "Eval Version",
-            size: 180,
-            enableHiding: true,
-            cell: (row) => {
-              const targetObject = row.row.original.target;
-              const status = row.row.original.status;
-              const isDeprecated = isLegacyEvalTarget(targetObject);
+    columnHelper.accessor("isLegacy", {
+      id: "isLegacy",
+      header: "Eval Version",
+      size: 180,
+      enableHiding: true,
+      cell: (row) => {
+        const targetObject = row.row.original.target;
+        const status = row.row.original.status;
+        const isDeprecated = isLegacyEvalTarget(targetObject);
 
-              if (!isDeprecated) return null;
+        if (!isDeprecated) return null;
 
-              return <LegacyBadgeCell status={status} />;
-            },
-          }),
-        ]
-      : []),
+        return <LegacyBadgeCell status={status} />;
+      },
+    }),
     columnHelper.accessor("target", {
       id: "target",
       header: "Runs on",
@@ -512,19 +508,19 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        {isFullyReleased && hasLegacyEvals && (
+        {hasLegacyEvals && (
           <div className="p-2 pb-0">
             <Callout
               id="eval-remapping-table"
-              variant="info"
+              variant="warning"
               key="dismissed-eval-remapping-callouts"
             >
-              <span>New LLM-as-a-Judge functionality has landed. </span>
+              <span>New functionality has landed. </span>
               <span className="font-semibold">
                 Some of your evaluators (marked &quot;Legacy&quot;) require
                 changes{" "}
               </span>
-              <span>for new features and improvements. </span>
+              <span>to benefit from new features and improvements. </span>
               <Link
                 href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
                 target="_blank"
@@ -534,6 +530,15 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 Learn what is changing and how to upgrade
               </Link>
               <span>.</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="ml-1 inline h-4 w-4 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Your evaluator will continue to work without upgrading, but
+                  you will not benefit from performance improvements.
+                </TooltipContent>
+              </Tooltip>
             </Callout>
           </div>
         )}

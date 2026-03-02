@@ -32,6 +32,7 @@ import {
   DEFAULT_TRACE_ENVIRONMENT,
   setNoEvalConfigsCache,
   DatasetRunItemUpsertEventType,
+  isLLMCompletionError,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -834,21 +835,31 @@ export async function executeLLMAsJudgeEvaluation({
             modelConfig.config.adapter,
           );
 
-          return deps.callLLM({
-            messages,
-            modelConfig: modelConfig.config,
-            structuredOutputSchema: evalScoreSchema,
-            traceSinkParams: {
-              targetProjectId: projectId,
-              traceId: executionTraceId,
-              traceName: `Execute evaluator: ${template.name}`,
-              environment: LangfuseInternalTraceEnvironment.LLMJudge,
-              metadata: {
-                ...executionMetadata,
-                score_id: scoreId,
+          try {
+            return await deps.callLLM({
+              messages,
+              modelConfig: modelConfig.config,
+              structuredOutputSchema: evalScoreSchema,
+              traceSinkParams: {
+                targetProjectId: projectId,
+                traceId: executionTraceId,
+                traceName: `Execute evaluator: ${template.name}`,
+                environment: LangfuseInternalTraceEnvironment.LLMJudge,
+                metadata: {
+                  ...executionMetadata,
+                  score_id: scoreId,
+                },
               },
-            },
-          });
+            });
+          } catch (e) {
+            if (isLLMCompletionError(e)) {
+              llmSpan.setAttribute(
+                "http.response.status_code",
+                e.responseStatusCode,
+              );
+            }
+            throw e;
+          }
         },
       );
 

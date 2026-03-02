@@ -7,7 +7,10 @@ import {
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
-import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import {
+  hashPassword,
+  verifyPassword,
+} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -121,11 +124,17 @@ const staticProviders: Provider[] = [
         },
       });
 
-      if (!dbUser) throw new Error("Invalid credentials");
-      if (dbUser.password === null)
+      if (!dbUser) {
+        // Keep bcrypt work comparable across failed login paths to reduce timing-based user enumeration.
+        await hashPassword(credentials.password);
+        throw new Error("Invalid credentials");
+      }
+
+      if (dbUser.password === null) {
         throw new Error(
           "Please sign in with the identity provider (e.g. Google, GitHub, Azure AD, etc.) that is linked to your account.",
         );
+      }
 
       const isValidPassword = await verifyPassword(
         credentials.password,
@@ -277,6 +286,40 @@ if (
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
       },
       ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
+    }),
+  );
+
+// Langfuse Cloud only: "Sign in with ClickHouse Cloud"
+// Uses Auth0Provider with a custom provider ID so the callback URL becomes
+// /api/auth/callback/clickhouse-cloud. NOT intended for self-hosted Langfuse.
+if (
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID &&
+  env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET &&
+  env.AUTH_CLICKHOUSE_CLOUD_ISSUER &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+)
+  staticProviders.push(
+    Auth0Provider({
+      id: "clickhouse-cloud",
+      name: "ClickHouse Cloud",
+      clientId: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_CLICKHOUSE_CLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_CLICKHOUSE_CLOUD_ISSUER,
+      authorization: {
+        params: {
+          scope: "openid email profile",
+          // audience: "langfuse",
+        },
+      },
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CLICKHOUSE_CLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_CLICKHOUSE_CLOUD_CHECKS
+        ? { checks: env.AUTH_CLICKHOUSE_CLOUD_CHECKS }
+        : {}),
     }),
   );
 
