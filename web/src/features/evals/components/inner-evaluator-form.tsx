@@ -101,7 +101,6 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
-import { useIsObservationEvalsFullyReleased } from "@/src/features/events/hooks/useObservationEvals";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 /**
@@ -278,7 +277,6 @@ export const InnerEvaluatorForm = (props: {
   oldConfigId?: string;
 }) => {
   const [formError, setFormError] = useState<string | null>(null);
-  const isFullyReleased = useIsObservationEvalsFullyReleased();
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
@@ -391,6 +389,18 @@ export const InnerEvaluatorForm = (props: {
     ),
   );
 
+  const watchedTarget = form.watch("target");
+
+  // Clear mapping error if user switches away from trace target
+  useEffect(() => {
+    if (
+      !isTraceTarget(watchedTarget) &&
+      form.formState.errors.mapping?.type === "manual"
+    ) {
+      form.clearErrors("mapping");
+    }
+  }, [watchedTarget, form]);
+
   function onSubmit(values: z.infer<typeof evalConfigFormSchema>) {
     capture(
       props.mode === "edit"
@@ -429,6 +439,22 @@ export const InnerEvaluatorForm = (props: {
       form.setError("filter", {
         type: "manual",
         message: "Please fill out all filter fields",
+      });
+      return;
+    }
+
+    // Block NEW trace-level evals that target observations
+    if (
+      props.mode !== "edit" &&
+      isTraceTarget(values.target) &&
+      values.mapping.some(
+        (m) => m.langfuseObject && m.langfuseObject !== "trace",
+      )
+    ) {
+      form.setError("mapping", {
+        type: "manual",
+        message:
+          "Trace-level evaluators targeting observations are no longer supported. Please use observation-level evaluators or target trace IO instead.",
       });
       return;
     }
@@ -624,13 +650,6 @@ export const InnerEvaluatorForm = (props: {
                           >
                             <CircleDot className="h-3.5 w-3.5" />
                             Observations
-                            <Badge
-                              variant="secondary"
-                              size="sm"
-                              className="border border-border font-normal"
-                            >
-                              Beta
-                            </Badge>
                           </TabsTrigger>
                           {allowLegacy && (
                             <TabsTrigger
@@ -640,15 +659,13 @@ export const InnerEvaluatorForm = (props: {
                             >
                               <ListTree className="h-3.5 w-3.5" />
                               Traces
-                              {isFullyReleased && (
-                                <Badge
-                                  variant="secondary"
-                                  size="sm"
-                                  className="border border-border font-normal"
-                                >
-                                  Legacy
-                                </Badge>
-                              )}
+                              <Badge
+                                variant="secondary"
+                                size="sm"
+                                className="border border-border font-normal"
+                              >
+                                Legacy
+                              </Badge>
                             </TabsTrigger>
                           )}
                           <TabsTrigger
@@ -714,13 +731,6 @@ export const InnerEvaluatorForm = (props: {
                       >
                         <FlaskConical className="h-3.5 w-3.5" />
                         Experiment Runner SDK
-                        <Badge
-                          variant="secondary"
-                          size="sm"
-                          className="border border-border font-normal"
-                        >
-                          Beta
-                        </Badge>
                       </TabsTrigger>
                       <TabsTrigger
                         value="non-otel"
@@ -729,15 +739,13 @@ export const InnerEvaluatorForm = (props: {
                       >
                         <BetweenHorizonalStart className="h-3.5 w-3.5" />
                         Low-level SDK methods
-                        {isFullyReleased && (
-                          <Badge
-                            variant="secondary"
-                            size="sm"
-                            className="border border-border font-normal"
-                          >
-                            Legacy
-                          </Badge>
-                        )}
+                        <Badge
+                          variant="secondary"
+                          size="sm"
+                          className="border border-border font-normal"
+                        >
+                          Legacy
+                        </Badge>
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
