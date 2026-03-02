@@ -291,6 +291,20 @@ interface EventsExperimentsAggregationParams {
 }
 
 /**
+ * Lightweight experiment-to-trace mapping for score queries.
+ * Returns unique trace_ids that belong to experiments, with experiment_id for filtering.
+ * Used as a CTE when scores need to be filtered by experiment.
+ */
+export const eventsExperimentTraceIds = (
+  projectId: string,
+): EventsQueryBuilder =>
+  new EventsQueryBuilder({ projectId })
+    .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
+    .whereRaw("e.experiment_id != ''")
+    .whereRaw("e.is_deleted = 0")
+    .limitBy("e.trace_id");
+
+/**
  * Rebuilds experiments from events table by aggregating events with the same experiment_id.
  * Groups events by experiment_id and project_id, selecting representative fields
  * and aggregating metrics.

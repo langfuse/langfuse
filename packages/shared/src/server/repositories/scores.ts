@@ -48,7 +48,10 @@ import { recordDistribution } from "../instrumentation";
 import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
-import { eventsTraceMetadata } from "../queries/clickhouse-sql/query-fragments";
+import {
+  eventsTraceMetadata,
+  eventsExperimentTraceIds,
+} from "../queries/clickhouse-sql/query-fragments";
 
 export const searchExistingAnnotationScore = async (
   projectId: string,
@@ -712,27 +715,38 @@ export const getScoresGroupedByNameSourceType = async ({
   );
   const scoresFilterRes = scoresFilter.apply();
 
-  // Only join dataset run items and traces if there is a dataset run items filter
-  const performDatasetRunItemsAndTracesJoin = scoresFilter.some(
+  // Only join dataset run items if there is a dataset run items filter
+  const performDatasetRunItemsJoin = scoresFilter.some(
     (f) => f.clickhouseTable === "dataset_run_items_rmt",
   );
 
-  // Only join events_core if there is an experiment filter
-  const performEventsCoreJoin = scoresFilter.some(
-    (f) => f.clickhouseTable === "events_core",
+  // Build events CTE if there are experiment filters
+  const hasEventsFilters = scoresFilter.some((f) =>
+    f.clickhouseTable.startsWith("events_"),
   );
+
+  let eventsCTE = "";
+  let eventsCTEParams: Record<string, unknown> = {};
+
+  if (hasEventsFilters) {
+    const { query: cteQuery, params: cteParams } =
+      eventsExperimentTraceIds(projectId).buildWithParams();
+    eventsCTE = `WITH events AS (${cteQuery})`;
+    eventsCTEParams = cteParams;
+  }
 
   // We mainly use queries like this to retrieve filter options.
   // Therefore, we can skip final as some inaccuracy in count is acceptable.
 
   const query = `
-    select
+    ${eventsCTE}
+    SELECT
       s.name as name,
       s.source as source,
       s.data_type as data_type
     FROM scores s
-    ${performDatasetRunItemsAndTracesJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
-    ${performEventsCoreJoin ? `JOIN events_core e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
+    ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
+    ${hasEventsFilters ? `JOIN events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
     WHERE s.project_id = {projectId: String}
     ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
     ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
@@ -759,6 +773,7 @@ export const getScoresGroupedByNameSourceType = async ({
         ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
         : {}),
       ...(scoresFilterRes ? scoresFilterRes.params : {}),
+      ...eventsCTEParams,
     },
     tags: {
       feature: "tracing",
