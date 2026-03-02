@@ -362,20 +362,19 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Basic experiment metadata (same across all items)
-  experimentName: "max(experiment_name) AS experiment_name",
+  experimentName: "any(experiment_name) AS experiment_name",
   experimentDescription:
-    "max(experiment_description) AS experiment_description",
+    "any(experiment_description) AS experiment_description",
 
   // Extended experiment metadata (might differ per item)
-  experimentDatasetId: "max(experiment_dataset_id) AS experiment_dataset_id",
-  // promptId: "max(prompt_id) AS prompt_id",
+  experimentDatasetId: "any(experiment_dataset_id) AS experiment_dataset_id",
 
   // Timestamps
   createdAt: "min(created_at) AS created_at",
   updatedAt: "max(updated_at) AS updated_at",
 
   // Aggregated metrics
-  itemCount: "countDistinct(experiment_item_id) AS item_count",
+  itemCount: "uniq(experiment_item_id) AS item_count",
   errorCount: "countIf(level = 'ERROR') AS error_count",
 
   // // Usage and cost details
