@@ -2,8 +2,20 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { Job } from "bullmq";
 import { JobExecutionStatus } from "@prisma/client";
 import { llmAsJudgeExecutionQueueProcessor } from "../evalQueue";
-import { QueueName, type TQueueJobTypes } from "@langfuse/shared/src/server";
+import {
+  QueueName,
+  type TQueueJobTypes,
+  LLMCompletionError,
+} from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+
+// Mock pause so we can assert it is called only for unrecoverable LLM errors
+vi.mock(
+  "../../features/evaluation/pauseEvalTemplateOnUnrecoverableError",
+  () => ({
+    pauseEvalTemplateOnUnrecoverableError: vi.fn(),
+  }),
+);
 
 // Mock prisma
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -66,6 +78,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
+import { pauseEvalTemplateOnUnrecoverableError } from "../../features/evaluation/pauseEvalTemplateOnUnrecoverableError";
 
 describe("llmAsJudgeExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
@@ -184,8 +197,10 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
   describe("LLM completion errors (non-retryable)", () => {
     it("should set ERROR status for non-retryable LLM errors", async () => {
-      const llmError = new Error("Invalid API key");
-      (llmError as unknown as { isRetryable: boolean }).isRetryable = false;
+      const llmError = new LLMCompletionError({
+        message: "Invalid API key",
+        responseStatusCode: 500,
+      });
       (processObservationEval as Mock).mockRejectedValue(llmError);
       (isLLMCompletionError as Mock).mockReturnValue(true);
 
@@ -207,8 +222,10 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     });
 
     it("should not rethrow non-retryable LLM errors", async () => {
-      const llmError = new Error("Invalid API key");
-      (llmError as unknown as { isRetryable: boolean }).isRetryable = false;
+      const llmError = new LLMCompletionError({
+        message: "Invalid API key",
+        responseStatusCode: 500,
+      });
       (processObservationEval as Mock).mockRejectedValue(llmError);
       (isLLMCompletionError as Mock).mockReturnValue(true);
 
@@ -387,6 +404,60 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         llmAsJudgeExecutionQueueProcessor(job),
       ).resolves.not.toThrow();
       expect(processObservationEval).toHaveBeenCalled();
+    });
+  });
+
+  describe("unrecoverable LLM error (pause invocation)", () => {
+    it("should call pauseEvalTemplateOnUnrecoverableError when LLMCompletionError is unrecoverable", async () => {
+      const llmError = new LLMCompletionError({
+        message: "Invalid API key",
+        responseStatusCode: 401,
+      });
+      (processObservationEval as Mock).mockRejectedValue(llmError);
+      (isLLMCompletionError as Mock).mockReturnValue(true);
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(pauseEvalTemplateOnUnrecoverableError).toHaveBeenCalledWith({
+        jobExecutionId,
+        projectId,
+        statusCode: 401,
+        errorMessage: "Invalid API key",
+      });
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: { id: jobExecutionId, projectId },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          error: "Invalid API key",
+        }),
+      });
+    });
+
+    it("should not call pause for retryable LLM error", async () => {
+      const rateLimitError = new LLMCompletionError({
+        message: "Rate limit exceeded",
+        responseStatusCode: 429,
+        isRetryable: true,
+      });
+      (processObservationEval as Mock).mockRejectedValue(rateLimitError);
+      (isLLMCompletionError as Mock).mockReturnValue(true);
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(pauseEvalTemplateOnUnrecoverableError).not.toHaveBeenCalled();
+    });
+
+    it("should not call pause for non-LLM error (UnrecoverableError)", async () => {
+      const unrecoverableError = new UnrecoverableError("Config not found");
+      (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
+      (isUnrecoverableError as Mock).mockReturnValue(true);
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(pauseEvalTemplateOnUnrecoverableError).not.toHaveBeenCalled();
     });
   });
 });

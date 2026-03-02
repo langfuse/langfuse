@@ -8,6 +8,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
 
@@ -23,6 +28,7 @@ export function DeactivateEvalConfig({
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const isActive = evalConfig?.status === EvaluatorStatus.ACTIVE;
+  const templateInError = evalConfig?.evalTemplate?.effectiveStatus === "ERROR";
 
   const mutEvaluator = api.evals.updateEvalJob.useMutation({
     onSuccess: () => {
@@ -53,20 +59,35 @@ export function DeactivateEvalConfig({
     setIsOpen(false);
   };
 
+  const isSwitchDisabled =
+    !hasAccess ||
+    (evalConfig?.timeScope?.length === 1 &&
+      evalConfig.timeScope[0] === "EXISTING") ||
+    (templateInError && !isActive);
+
+  const switchEl = (
+    <div className="flex items-center">
+      <Switch
+        disabled={isSwitchDisabled}
+        checked={isActive}
+        className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
+      />
+    </div>
+  );
+
   return (
     <Popover open={isOpen} onOpenChange={() => setIsOpen(!isOpen)}>
       <PopoverTrigger asChild>
-        <div className="flex items-center">
-          <Switch
-            disabled={
-              !hasAccess ||
-              (evalConfig?.timeScope?.length === 1 &&
-                evalConfig.timeScope[0] === "EXISTING")
-            }
-            checked={isActive}
-            className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
-          />
-        </div>
+        {templateInError && !isActive ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{switchEl}</TooltipTrigger>
+            <TooltipContent>
+              Fix the evaluator template first (it is paused).
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          switchEl
+        )}
       </PopoverTrigger>
       <PopoverContent>
         <h2 className="text-md mb-3 font-semibold">Please confirm</h2>

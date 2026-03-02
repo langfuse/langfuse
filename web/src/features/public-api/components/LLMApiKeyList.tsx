@@ -126,6 +126,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
                           secretKey: apiKey.displaySecretKey,
                           extraHeaders: apiKey.extraHeaderKeys.join(","),
                           config: apiKey.config ?? null,
+                          lastError: apiKey.lastError ?? null,
                         }}
                         projectId={props.projectId}
                         open={editingKeyId === apiKey.id}

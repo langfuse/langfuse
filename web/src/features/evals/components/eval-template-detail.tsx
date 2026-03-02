@@ -18,6 +18,8 @@ import Page from "@/src/components/layouts/page";
 import { Switch } from "@/src/components/ui/switch";
 import { Command } from "@/src/components/ui/command";
 import { Badge } from "@/src/components/ui/badge";
+import { Callout } from "@/src/components/ui/callout";
+import Link from "next/link";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import {
   SidePanel,
@@ -25,7 +27,14 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -63,6 +72,11 @@ export const EvalTemplateDetail = () => {
       { shallow: true },
     );
   };
+
+  const statusReason = template.data?.statusReason as
+    | { code: string; description: string }
+    | null
+    | undefined;
 
   return (
     <Page
@@ -115,6 +129,49 @@ export const EvalTemplateDetail = () => {
       ) : (
         <div className="grid flex-1 grid-cols-[1fr,auto] overflow-hidden contain-layout">
           <div className="flex max-h-full min-h-0 flex-col overflow-y-auto px-3 pt-1">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <MaintainerTooltip maintainer={getMaintainer(template.data)} />
+              {template.data.effectiveStatus === "ERROR" && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="warning" className="w-fit text-xs">
+                      Paused
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{statusReason?.description}</p>
+                    <Link
+                      href={`/project/${projectId}/evals/templates/${template.data.id}`}
+                      className="text-primary hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Fix in evaluator template
+                    </Link>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            {template.data.effectiveStatus === "ERROR" && (
+              <div className="mb-3">
+                <Callout id="eval-template-detail-error" variant="warning">
+                  <p className="font-medium">Evaluator paused</p>
+                  <p className="mb-2 mt-1">{statusReason?.description}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {statusReason?.code === "LLM_401"
+                      ? "Fix your LLM connection in Project Settings, then edit and save this template."
+                      : "Use the Edit button to select a valid model, or update the default evaluation model in Project Settings."}
+                  </p>
+                  {statusReason?.code === "LLM_401" && (
+                    <Link
+                      href={`/project/${projectId}/settings/llm-connections`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      Go to Project Settings → LLM Connections
+                    </Link>
+                  )}
+                </Callout>
+              </div>
+            )}
             <EvalTemplateForm
               useDialog={false}
               projectId={projectId}

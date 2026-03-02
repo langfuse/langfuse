@@ -1,5 +1,11 @@
 const LLMCompletionErrorName = "LLMCompletionError";
 
+const UNRECOVERABLE_HTTP_CODES = [401, 404];
+
+const UNRECOVERABLE_MESSAGE_PATTERNS = [
+  "Model use case details have not been submitted for this account",
+];
+
 export class LLMCompletionError extends Error {
   responseStatusCode: number;
   isRetryable: boolean;
@@ -18,6 +24,13 @@ export class LLMCompletionError extends Error {
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this);
     }
+  }
+
+  isUnrecoverable(): boolean {
+    if (UNRECOVERABLE_HTTP_CODES.includes(this.responseStatusCode)) {
+      return true;
+    }
+    return UNRECOVERABLE_MESSAGE_PATTERNS.some((p) => this.message.includes(p));
   }
 }
 

@@ -14,6 +14,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
+import { pauseEvalTemplateOnUnrecoverableError } from "../features/evaluation/pauseEvalTemplateOnUnrecoverableError";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
@@ -209,6 +210,15 @@ export const evalJobExecutorQueueProcessor = async (
       },
     });
 
+    if (isLLMCompletionError(e) && e.isUnrecoverable()) {
+      await pauseEvalTemplateOnUnrecoverableError({
+        jobExecutionId: job.data.payload.jobExecutionId,
+        projectId: job.data.payload.projectId,
+        statusCode: e.responseStatusCode,
+        errorMessage: e.message,
+      });
+    }
+
     if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
 
     traceException(e);
@@ -293,6 +303,15 @@ export const llmAsJudgeExecutionQueueProcessor = async (
         executionTraceId,
       },
     });
+
+    if (isLLMCompletionError(e) && e.isUnrecoverable()) {
+      await pauseEvalTemplateOnUnrecoverableError({
+        jobExecutionId: job.data.payload.jobExecutionId,
+        projectId: job.data.payload.projectId,
+        statusCode: e.responseStatusCode,
+        errorMessage: e.message,
+      });
+    }
 
     if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
 

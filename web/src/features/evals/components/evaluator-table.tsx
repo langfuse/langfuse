@@ -81,6 +81,10 @@ export type EvaluatorDataRow = {
     id: string;
     name: string;
     version: number;
+    status?: string;
+    statusReason?: { code: string; description: string } | null;
+    statusUpdatedAt?: Date | null;
+    effectiveStatus: "OK" | "ERROR";
   };
   scoreName: string;
   target: string; // "trace" or "dataset"
@@ -315,11 +319,30 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         const template = row.original.template;
         if (!template) return "template not found";
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <TableIdOrName value={template.name} />
             <div className="flex justify-center">
               <MaintainerTooltip maintainer={row.original.maintainer} />
             </div>
+            {template.effectiveStatus === "ERROR" && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge variant="warning" className="w-fit text-xs">
+                    Paused
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{template.statusReason?.description}</p>
+                  <Link
+                    href={`/project/${projectId}/evals/templates/${template.id}`}
+                    className="text-primary hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Fix in evaluator template
+                  </Link>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         );
       },
@@ -495,6 +518,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             id: jobConfig.evalTemplate.id,
             name: jobConfig.evalTemplate.name,
             version: jobConfig.evalTemplate.version,
+            status: jobConfig.evalTemplate.status,
+            statusReason: jobConfig.evalTemplate.statusReason ?? null,
+            statusUpdatedAt: jobConfig.evalTemplate.statusUpdatedAt ?? null,
+            effectiveStatus: jobConfig.evalTemplate.effectiveStatus,
           }
         : undefined,
       scoreName: jobConfig.scoreName,

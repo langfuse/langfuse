@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { z } from "zod/v4";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
@@ -525,6 +526,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             withDefaultModels: input.withDefaultModels,
             customModels: input.customModels,
             config: input.config,
+            lastError: Prisma.JsonNull,
           },
         });
 

@@ -33,6 +33,7 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearNoEvalConfigsCache,
+  getEffectiveEvalTemplateStatus,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -83,6 +84,12 @@ const ConfigWithTemplateSchema = z.object({
       vars: z.array(z.string()),
       outputSchema: jsonSchema,
       version: z.number(),
+      status: z.enum(["OK", "ERROR"]),
+      statusReason: z
+        .object({ code: z.string(), description: z.string() })
+        .nullable(),
+      statusUpdatedAt: z.date().nullable(),
+      effectiveStatus: z.enum(["OK", "ERROR"]),
     })
     .nullish(),
 });
@@ -311,6 +318,14 @@ export const evalRouter = createTRPCRouter({
               templateName: string;
               templateVersion: number;
               templateProjectId: string;
+              templateStatus: string;
+              templateProvider?: string | null;
+              templateModel?: string | null;
+              templateStatusReason?: {
+                code: string;
+                description: string;
+              } | null;
+              templateStatusUpdatedAt?: Date | null;
             }
           >
         >(
@@ -327,7 +342,12 @@ export const evalRouter = createTRPCRouter({
             et.id as "evalTemplateId",
             et.name as "templateName",
             et.version as "templateVersion",
-            et.project_id as "templateProjectId"`,
+            et.project_id as "templateProjectId",
+            et.status as "templateStatus",
+            et.provider as "templateProvider",
+            et.model as "templateModel",
+            et.status_reason as "templateStatusReason",
+            et.status_updated_at as "templateStatusUpdatedAt"`,
             input.projectId,
             filterCondition,
             searchCondition,
@@ -356,6 +376,10 @@ export const evalRouter = createTRPCRouter({
         configIds: configs.map((c) => c.id),
       });
 
+      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
+        input.projectId,
+      );
+
       return {
         configs: configs.map((config) => ({
           ...config,
@@ -365,6 +389,17 @@ export const evalRouter = createTRPCRouter({
                 name: config.templateName,
                 version: config.templateVersion,
                 projectId: config.templateProjectId,
+                status: config.templateStatus,
+                statusReason: config.templateStatusReason ?? null,
+                statusUpdatedAt: config.templateStatusUpdatedAt ?? null,
+                effectiveStatus: getEffectiveEvalTemplateStatus(
+                  {
+                    status: config.templateStatus,
+                    provider: config.templateProvider ?? null,
+                    model: config.templateModel ?? null,
+                  },
+                  defaultModel,
+                ),
               }
             : null,
           jobExecutionsByState: jobExecutionsByState.filter(
@@ -415,6 +450,10 @@ export const evalRouter = createTRPCRouter({
         configIds: [config.id],
       });
 
+      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
+        input.projectId,
+      );
+
       const finalStatus = calculateEvaluatorFinalStatus(
         config.status,
         Array.isArray(config.timeScope) ? config.timeScope : [],
@@ -423,6 +462,15 @@ export const evalRouter = createTRPCRouter({
 
       return {
         ...config,
+        evalTemplate: config.evalTemplate
+          ? {
+              ...config.evalTemplate,
+              effectiveStatus: getEffectiveEvalTemplateStatus(
+                config.evalTemplate,
+                defaultModel,
+              ),
+            }
+          : null,
         jobExecutionsByState: jobExecutionsByStatus,
         finalStatus,
       };
@@ -453,8 +501,15 @@ export const evalRouter = createTRPCRouter({
         orderBy: [{ version: "desc" }],
       });
 
+      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
+        input.projectId,
+      );
+
       return {
-        templates: templates,
+        templates: templates.map((t) => ({
+          ...t,
+          effectiveStatus: getEffectiveEvalTemplateStatus(t, defaultModel),
+        })),
       };
     }),
 
@@ -491,6 +546,10 @@ export const evalRouter = createTRPCRouter({
             partner?: string;
             provider?: string;
             model?: string;
+            status?: "OK" | "ERROR";
+            statusReason?: { code: string; description: string } | null;
+            statusUpdatedAt?: Date | null;
+            effectiveStatus?: "OK" | "ERROR";
           }>
         >`
         WITH latest_templates AS (
@@ -503,6 +562,9 @@ export const evalRouter = createTRPCRouter({
             et.partner,
             et.version,
             et.created_at,
+            et.status,
+            et.status_reason,
+            et.status_updated_at,
             (
               SELECT COUNT(jc.id)
               FROM job_configurations jc
@@ -531,7 +593,10 @@ export const evalRouter = createTRPCRouter({
           project_id as "projectId",
           version,
           created_at as "latestCreatedAt",
-          COALESCE(usage_count, 0)::int as "usageCount"
+          COALESCE(usage_count, 0)::int as "usageCount",
+          status as "status",
+          status_reason as "statusReason",
+          status_updated_at as "statusUpdatedAt"
         FROM 
           latest_templates
         ORDER BY project_id, partner, name
@@ -549,8 +614,20 @@ export const evalRouter = createTRPCRouter({
         `,
       ]);
 
+      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
+        input.projectId,
+      );
+
+      const templatesWithEffectiveStatus = templates.map((t) => ({
+        ...t,
+        effectiveStatus: getEffectiveEvalTemplateStatus(
+          { status: t.status ?? "OK", provider: t.provider, model: t.model },
+          defaultModel,
+        ),
+      }));
+
       return {
-        templates,
+        templates: templatesWithEffectiveStatus,
         totalCount: Number(count[0]?.count) || 0,
       };
     }),
@@ -576,7 +653,16 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      return template;
+      if (!template) return null;
+
+      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
+        input.projectId,
+      );
+
+      return {
+        ...template,
+        effectiveStatus: getEffectiveEvalTemplateStatus(template, defaultModel),
+      };
     }),
   allTemplates: protectedProjectProcedure
     .input(
@@ -610,8 +696,16 @@ export const evalRouter = createTRPCRouter({
           ...(input.id ? { id: input.id } : undefined),
         },
       });
+
+      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
+        input.projectId,
+      );
+
       return {
-        templates: templates,
+        templates: templates.map((t) => ({
+          ...t,
+          effectiveStatus: getEffectiveEvalTemplateStatus(t, defaultModel),
+        })),
         totalCount: count,
       };
     }),
@@ -674,7 +768,27 @@ export const evalRouter = createTRPCRouter({
         },
       });
 
-      return filterAndValidateDbEvaluatorList(evaluators, traceException);
+      const defaultModel = await DefaultEvalModelService.fetchDefaultModel(
+        input.projectId,
+      );
+
+      const evaluatorsWithEffectiveStatus = evaluators.map((e) => ({
+        ...e,
+        evalTemplate: e.evalTemplate
+          ? {
+              ...e.evalTemplate,
+              effectiveStatus: getEffectiveEvalTemplateStatus(
+                e.evalTemplate,
+                defaultModel,
+              ),
+            }
+          : null,
+      }));
+
+      return filterAndValidateDbEvaluatorList(
+        evaluatorsWithEffectiveStatus,
+        traceException,
+      );
     }),
 
   jobConfigsByTemplateName: protectedProjectProcedure
@@ -876,6 +990,9 @@ export const evalRouter = createTRPCRouter({
             modelParams: input.modelParams ?? undefined,
             vars: input.vars,
             outputSchema: input.outputSchema,
+            status: "OK",
+            statusReason: Prisma.JsonNull,
+            statusUpdatedAt: null,
           },
         });
 

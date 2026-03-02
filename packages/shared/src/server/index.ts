@@ -5,6 +5,7 @@ export * from "./services/email/passwordReset/sendResetPasswordVerificationReque
 export * from "./services/email/cloudSpendAlert/sendCloudSpendAlertEmail";
 export * from "./services/email/usageThresholdWarning/sendUsageThresholdWarningEmail";
 export * from "./services/email/usageThresholdSuspension/sendUsageThresholdSuspensionEmail";
+export * from "./services/email/evalPaused/sendEvalPausedEmail";
 export * from "./services/email/commentMention/sendCommentMentionEmail";
 export * from "./services/PromptService";
 export * from "./services/PromptService/types";
@@ -15,6 +16,7 @@ export * from "./services/commentFilterService";
 export * from "./datasets/schemaValidation";
 export * from "./datasets/schemaTypes";
 export * from "./evalJobConfigCache";
+export * from "./evalTemplateStatus";
 export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";

@@ -28,6 +28,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
@@ -242,7 +243,10 @@ export const InnerEvalTemplateForm = (props: {
         });
       }
     },
-    onError: (error) => setFormError(error.message),
+    onError: (error) => {
+      showErrorToast("Template save failed", error.message);
+      setFormError(null);
+    },
   });
 
   const evaluatorsByTemplateNameQuery =
@@ -337,13 +341,16 @@ export const InnerEvalTemplateForm = (props: {
         );
       })
       .catch((error) => {
-        if ("message" in error && typeof error.message === "string") {
-          setFormError(error.message as string);
-          return;
-        } else {
-          setFormError(JSON.stringify(error));
-          console.error(error);
-        }
+        const message =
+          error &&
+          typeof error === "object" &&
+          "message" in error &&
+          typeof (error as { message: unknown }).message === "string"
+            ? (error as { message: string }).message
+            : "Template save failed";
+        showErrorToast("Template save failed", message);
+        setFormError(null);
+        console.error(error);
       });
   }
 
@@ -409,8 +416,8 @@ export const InnerEvalTemplateForm = (props: {
                 <AlertCircle className="h-4 w-4" />
                 <p>
                   This evaluator is configured to use{" "}
-                  {modelParams.provider.value}s models but no API key exists.
-                  Add a key or choose another provider.
+                  {modelParams.provider.value}s models but no LLM connection
+                  exists. Add a key or choose another provider.
                 </p>
               </div>
             ) : (

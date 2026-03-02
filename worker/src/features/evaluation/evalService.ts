@@ -958,8 +958,14 @@ export const evaluate = async ({
     return;
   }
 
-  if (job.status === "CANCELLED" || !job.jobInputTraceId) {
-    logger.debug(`Job ${job.id} was cancelled or has no trace input.`);
+  if (
+    job.status === "CANCELLED" ||
+    job.status === "ERROR" ||
+    !job.jobInputTraceId
+  ) {
+    logger.debug(
+      `Job ${job.id} was cancelled, has an error, or has no trace input.`,
+    );
     await prisma.jobExecution.delete({
       where: {
         id: job.id,

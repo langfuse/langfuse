@@ -20,6 +20,8 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-callout";
+import Link from "next/link";
+import { Badge } from "@/src/components/ui/badge";
 
 export const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -88,8 +90,8 @@ export const PeekViewEvaluatorConfigDetail = ({
           />
         )}
 
-      <CardDescription className="flex items-center text-sm">
-        <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>
+      <CardDescription className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-sm font-medium">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
           <TableLink
             path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
@@ -108,6 +110,32 @@ export const PeekViewEvaluatorConfigDetail = ({
             </TooltipTrigger>
             <TooltipContent>
               {evalConfig.evalTemplate.partner ?? "Langfuse"}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {evalConfig.evalTemplate?.effectiveStatus === "ERROR" && (
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge variant="warning" className="w-fit text-xs">
+                Paused
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {
+                  (
+                    evalConfig.evalTemplate.statusReason as {
+                      description?: string;
+                    }
+                  )?.description
+                }
+              </p>
+              <Link
+                href={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
+                className="text-primary hover:underline"
+              >
+                Fix in evaluator template
+              </Link>
             </TooltipContent>
           </Tooltip>
         )}

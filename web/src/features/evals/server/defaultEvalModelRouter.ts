@@ -4,7 +4,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod/v4";
-import { ZodModelConfig } from "@langfuse/shared";
+import { JobConfigState, ZodModelConfig } from "@langfuse/shared";
 import { DefaultEvalModelService } from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
@@ -39,7 +39,14 @@ export const defaultEvalModelRouter = createTRPCRouter({
       return DefaultEvalModelService.upsertDefaultModel(input);
     }),
   deleteDefaultModel: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        statusReason: z
+          .object({ code: z.string(), description: z.string() })
+          .optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -47,7 +54,12 @@ export const defaultEvalModelRouter = createTRPCRouter({
         scope: "evalDefaultModel:CUD",
       });
 
-      // Invalidate all eval jobs that rely on the default model
+      const statusReason = input.statusReason ?? {
+        code: "DEFAULT_MODEL_REMOVED",
+        description:
+          "The default evaluation model was removed. Set a new default model or configure a model on each evaluator template.",
+      };
+
       return ctx.prisma.$transaction(async (tx) => {
         const evalTemplates = await tx.evalTemplate.findMany({
           where: {
@@ -57,19 +69,28 @@ export const defaultEvalModelRouter = createTRPCRouter({
           },
         });
 
+        if (evalTemplates.length > 0) {
+          await tx.evalTemplate.updateMany({
+            where: { id: { in: evalTemplates.map((et) => et.id) } },
+            data: {
+              status: "ERROR",
+              statusReason,
+              statusUpdatedAt: new Date(),
+            },
+          });
+        }
+
         await tx.jobConfiguration.updateMany({
           where: {
             evalTemplateId: { in: evalTemplates.map((et) => et.id) },
             projectId: input.projectId,
           },
           data: {
-            status: "INACTIVE",
+            status: JobConfigState.INACTIVE,
           },
         });
 
-        // Delete the default model within the transaction
         await tx.defaultLlmModel.delete({
-          // unique constraint on projectId
           where: {
             projectId: input.projectId,
           },

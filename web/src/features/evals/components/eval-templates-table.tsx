@@ -33,6 +33,12 @@ import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingl
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -46,6 +52,10 @@ export type EvalsTemplateRow = {
   actions?: string;
   provider?: string;
   model?: string;
+  status?: "OK" | "ERROR";
+  statusReason?: { code: string; description: string } | null;
+  statusUpdatedAt?: Date | null;
+  effectiveStatus?: "OK" | "ERROR";
 };
 
 export default function EvalsTemplateTable({
@@ -161,7 +171,25 @@ export default function EvalsTemplateTable({
       id: "name",
       cell: (row) => {
         const name = row.getValue();
-        return name ? <TableIdOrName value={name} /> : undefined;
+        const effectiveStatus = row.row?.original?.effectiveStatus;
+        const statusReason = row.row?.original?.statusReason;
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            {name ? <TableIdOrName value={name} /> : undefined}
+            {effectiveStatus === "ERROR" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="warning" className="w-fit text-xs">
+                    Paused
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{statusReason?.description}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        );
       },
     }),
     columnHelper.accessor("maintainer", {
@@ -218,7 +246,9 @@ export default function EvalsTemplateTable({
         const id = row.original.id;
         const provider = row.original.provider ?? null;
         const model = row.original.model ?? null;
-        const isInvalid = isTemplateInvalid({ provider, model });
+        const effectiveStatus = row.original.effectiveStatus;
+        const isInvalid =
+          isTemplateInvalid({ provider, model }) || effectiveStatus === "ERROR";
 
         return (
           <div className="flex flex-row gap-2">
@@ -228,9 +258,11 @@ export default function EvalsTemplateTable({
               aria-label="apply"
               disabled={isInvalid}
               title={
-                isInvalid
-                  ? "Evaluator requires project-level evaluation model. Set it up and start running evaluations."
-                  : undefined
+                effectiveStatus === "ERROR"
+                  ? "Evaluator is in error state. Fix the configuration in Edit mode."
+                  : isInvalid
+                    ? "Evaluator requires project-level evaluation model. Set it up and start running evaluations."
+                    : undefined
               }
               hasAccess={hasAccess}
               limitValue={countsQuery.data?.configActiveCount ?? 0}
@@ -311,7 +343,7 @@ export default function EvalsTemplateTable({
   const convertToTableRow = (
     template: RouterOutputs["evals"]["templateNames"]["templates"][number],
   ): EvalsTemplateRow => {
-    return {
+    const row: EvalsTemplateRow = {
       name: template.name,
       maintainer: getMaintainer(template),
       latestCreatedAt: template.latestCreatedAt,
@@ -320,7 +352,12 @@ export default function EvalsTemplateTable({
       usageCount: template.usageCount,
       provider: template.provider,
       model: template.model,
+      status: template.status,
+      statusReason: template.statusReason ?? null,
+      statusUpdatedAt: template.statusUpdatedAt ?? null,
+      effectiveStatus: template.effectiveStatus,
     };
+    return row;
   };
 
   return (
@@ -428,6 +465,9 @@ export default function EvalsTemplateTable({
                     modelParams: cloneTemplate.data.modelParams as any,
                     partner: cloneTemplate.data.partner,
                     projectId,
+                    status: cloneTemplate.data.status ?? "OK",
+                    statusReason: cloneTemplate.data.statusReason ?? null,
+                    statusUpdatedAt: cloneTemplate.data.statusUpdatedAt ?? null,
                   }
                 : undefined
             }

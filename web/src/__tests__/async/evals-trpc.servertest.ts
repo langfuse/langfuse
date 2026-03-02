@@ -3,8 +3,12 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  LLMAdapter,
+} from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import type { Session } from "next-auth";
 
 const __orgIds: string[] = [];
@@ -311,6 +315,171 @@ describe("evals trpc", () => {
       expect(updatedJob?.id).toEqual(evalJobConfig.id);
       expect(updatedJob?.status).toEqual("INACTIVE");
       expect(updatedJob?.timeScope).toEqual(["EXISTING", "NEW"]);
+    });
+  });
+
+  describe("evals effectiveStatus on templates", () => {
+    it("templateById and allTemplates return effectiveStatus ERROR when template uses default and project has no default", async () => {
+      const { project, caller } = await prepare();
+
+      const templateUsingDefault = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "effective-status-test",
+          version: 1,
+          prompt: "Evaluate {{input}}",
+          provider: null,
+          model: null,
+          vars: ["input"],
+          outputSchema: { score: "number", reasoning: "string" },
+          status: "OK",
+        },
+      });
+
+      const byId = await caller.evals.templateById({
+        projectId: project.id,
+        id: templateUsingDefault.id,
+      });
+      expect(byId).not.toBeNull();
+      expect(byId!.effectiveStatus).toBe("ERROR");
+
+      const all = await caller.evals.allTemplates({
+        projectId: project.id,
+      });
+      const found = all.templates.find((t) => t.id === templateUsingDefault.id);
+      expect(found).toBeDefined();
+      expect(found!.effectiveStatus).toBe("ERROR");
+    });
+
+    it("templateById and allTemplates return effectiveStatus OK when template uses default and project has default model", async () => {
+      const { project, caller } = await prepare();
+
+      const llmKey = await prisma.llmApiKeys.create({
+        data: {
+          projectId: project.id,
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: encrypt("sk-test"),
+          displaySecretKey: "...test",
+        },
+      });
+
+      await prisma.defaultLlmModel.create({
+        data: {
+          projectId: project.id,
+          llmApiKeyId: llmKey.id,
+          provider: "openai",
+          adapter: "openai",
+          model: "gpt-4",
+        },
+      });
+
+      const templateUsingDefault = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "effective-status-with-default",
+          version: 1,
+          prompt: "Evaluate {{input}}",
+          provider: null,
+          model: null,
+          vars: ["input"],
+          outputSchema: { score: "number", reasoning: "string" },
+          status: "OK",
+        },
+      });
+
+      const byId = await caller.evals.templateById({
+        projectId: project.id,
+        id: templateUsingDefault.id,
+      });
+      expect(byId).not.toBeNull();
+      expect(byId!.effectiveStatus).toBe("OK");
+
+      const all = await caller.evals.allTemplates({
+        projectId: project.id,
+      });
+      const found = all.templates.find((t) => t.id === templateUsingDefault.id);
+      expect(found).toBeDefined();
+      expect(found!.effectiveStatus).toBe("OK");
+    });
+
+    it("template with specific model and status OK has effectiveStatus OK", async () => {
+      const { project, caller } = await prepare();
+
+      const templateSpecific = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "specific-model-template",
+          version: 1,
+          prompt: "Evaluate {{input}}",
+          provider: "openai",
+          model: "gpt-4",
+          vars: ["input"],
+          outputSchema: { score: "number", reasoning: "string" },
+          status: "OK",
+        },
+      });
+
+      const byId = await caller.evals.templateById({
+        projectId: project.id,
+        id: templateSpecific.id,
+      });
+      expect(byId).not.toBeNull();
+      expect(byId!.effectiveStatus).toBe("OK");
+    });
+  });
+
+  describe("evals effectiveStatus on configs", () => {
+    it("configById and allConfigs include evalTemplate.effectiveStatus consistent with project default", async () => {
+      const { project, caller } = await prepare();
+
+      const templateUsingDefault = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "config-effective-status",
+          version: 1,
+          prompt: "Evaluate",
+          provider: null,
+          model: null,
+          vars: [],
+          outputSchema: { score: "number" },
+          status: "OK",
+        },
+      });
+
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          scoreName: "test-score",
+          filter: [],
+          targetObject: EvalTargetObject.TRACE,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+          evalTemplateId: templateUsingDefault.id,
+        },
+      });
+
+      const allConfigs = await caller.evals.allConfigs({
+        projectId: project.id,
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        limit: 10,
+        page: 0,
+      });
+      const config = allConfigs.configs.find((c) => c.id === jobConfig.id);
+      expect(config).toBeDefined();
+      expect(config!.evalTemplate).toBeDefined();
+      expect(config!.evalTemplate!.effectiveStatus).toBe("ERROR");
+
+      const configById = await caller.evals.configById({
+        projectId: project.id,
+        id: jobConfig.id,
+      });
+      expect(configById).not.toBeNull();
+      expect(configById!.evalTemplate?.effectiveStatus).toBe("ERROR");
     });
   });
 
