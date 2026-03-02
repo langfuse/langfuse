@@ -168,13 +168,19 @@ export const eventsTracesView: ViewDeclarationType = {
       // This is the GROUP BY identity column
     },
     name: {
-      sql: "nullIf(events_traces.trace_name, '')",
+      sql: "COALESCE(nullIf(events_traces.trace_name, ''), if(events_traces.parent_span_id = '', nullIf(events_traces.name, ''), NULL))",
       alias: "name",
       type: "string",
       description:
         "Name assigned to the trace (often the endpoint or operation).",
+      // First try most-recent non-empty trace_name, then fall back to root event's name
       aggregationFunction:
-        "argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> '')",
+        "COALESCE(nullIf(argMaxIf(events_traces.trace_name, events_traces.event_ts, events_traces.trace_name <> ''), ''), argMaxIf(events_traces.name, events_traces.event_ts, events_traces.parent_span_id = '' AND events_traces.name <> ''))",
+      // Pruning columns for WHERE: OR'd together to help ClickHouse skip blocks,
+      // then dimension.sql is AND'd for exact row-level match.
+      filterSql: {
+        where: ["events_traces.trace_name", "events_traces.name"],
+      },
     },
     tags: {
       sql: "events_traces.tags",
@@ -237,7 +243,7 @@ export const eventsTracesView: ViewDeclarationType = {
   },
   measures: {
     count: {
-      sql: "countIf(events_traces.parent_span_id = '')",
+      sql: "uniq(events_traces.trace_id)",
       alias: "count",
       type: "integer",
       description: "Total number of traces.",
@@ -259,17 +265,21 @@ export const eventsTracesView: ViewDeclarationType = {
       unit: "scores",
     },
     uniqueUserIds: {
-      sql: "uniq(events_traces.user_id)",
+      sql: "@@AGG@@(nullIf(events_traces.user_id, ''))",
+      aggs: { agg: "any" },
       alias: "uniqueUserIds",
-      type: "integer",
-      description: "Count of unique userIds.",
+      type: "string",
+      description:
+        "User identifier; apply uniq aggregation to count distinct users.",
       unit: "users",
     },
     uniqueSessionIds: {
-      sql: "uniq(events_traces.session_id)",
+      sql: "@@AGG@@(nullIf(events_traces.session_id, ''))",
+      aggs: { agg: "any" },
       alias: "uniqueSessionIds",
-      type: "integer",
-      description: "Count of unique sessionIds.",
+      type: "string",
+      description:
+        "Session identifier; apply uniq aggregation to count distinct sessions.",
       unit: "sessions",
     },
     latency: {
@@ -682,7 +692,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   },
   // Trace metadata on events table (accessed via events_traces JOIN)
   traceName: {
-    sql: "nullIf(events_traces.trace_name, '')",
+    sql: "COALESCE(nullIf(events_traces.trace_name, ''), nullIf(events_traces.name, ''))",
     alias: "traceName",
     type: "string",
     relationTable: "events_traces",
@@ -824,7 +834,12 @@ const createScoreTableRelations = (
   version: "v1" | "v2",
 ): Record<
   string,
-  { name: string; joinConditionSql: string; timeDimension: string }
+  {
+    name: string;
+    joinConditionSql: string;
+    timeDimension: string;
+    useFinal?: boolean;
+  }
 > => {
   if (version === "v1") {
     return {
@@ -848,12 +863,14 @@ const createScoreTableRelations = (
         joinConditionSql:
           "ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND events_traces.parent_span_id = ''",
         timeDimension: "start_time",
+        useFinal: false,
       },
       events_observations: {
         name: "events_core",
         joinConditionSql:
           "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
         timeDimension: "start_time",
+        useFinal: false,
       },
     };
   }
@@ -1047,7 +1064,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     },
     // Backwards-compatible field definitions (for API parity with v1)
     traceName: {
-      sql: "nullIf(events_observations.trace_name, '')",
+      sql: "COALESCE(nullIf(events_observations.trace_name, ''), if(events_observations.parent_span_id = '', nullIf(events_observations.name, ''), NULL))",
       alias: "traceName",
       type: "string",
       description: "Name of the parent trace (backwards-compatible with v1).",
@@ -1143,6 +1160,24 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Trace identifier; apply uniq aggregation to count distinct traces.",
+    },
+    uniqueUserIds: {
+      sql: "@@AGG@@(nullIf(events_observations.user_id, ''))",
+      aggs: { agg: "any" },
+      alias: "uniqueUserIds",
+      type: "string",
+      description:
+        "User identifier; apply uniq aggregation to count distinct users.",
+      unit: "users",
+    },
+    uniqueSessionIds: {
+      sql: "@@AGG@@(nullIf(events_observations.session_id, ''))",
+      aggs: { agg: "any" },
+      alias: "uniqueSessionIds",
+      type: "string",
+      description:
+        "Session identifier; apply uniq aggregation to count distinct sessions.",
+      unit: "sessions",
     },
     latency: {
       sql: "date_diff('millisecond', @@AGG1@@(events_observations.start_time), @@AGG1@@(events_observations.end_time))",
@@ -1335,4 +1370,33 @@ export function getViewDeclaration(
   }
 
   return versionViews[viewName as keyof typeof versionViews];
+}
+
+/**
+ * Check whether a widget's selected fields require v2 view declarations.
+ * Returns true if any dimension or measure only exists in the v2 declaration
+ * for the given view (e.g. pairExpand dimensions, requiresDimension measures).
+ */
+export function requiresV2(params: {
+  view: string;
+  dimensions: { field: string }[];
+  measures: { measure: string }[];
+}): boolean {
+  const v1View =
+    viewDeclarations.v1[params.view as keyof (typeof viewDeclarations)["v1"]];
+  const v2View =
+    viewDeclarations.v2[params.view as keyof (typeof viewDeclarations)["v2"]];
+  if (!v1View || !v2View) return false;
+
+  const v2OnlyDims = Object.keys(v2View.dimensions).filter(
+    (k) => !(k in v1View.dimensions),
+  );
+  const v2OnlyMeasures = Object.keys(v2View.measures).filter(
+    (k) => !(k in v1View.measures),
+  );
+
+  return (
+    params.dimensions.some((d) => v2OnlyDims.includes(d.field)) ||
+    params.measures.some((m) => v2OnlyMeasures.includes(m.measure))
+  );
 }
