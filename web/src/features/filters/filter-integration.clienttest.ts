@@ -21,6 +21,8 @@ import { sessionFilterConfig } from "./config/sessions-config";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
+  buildImplicitEnvironmentFilter,
+  stripImplicitEnvironmentFilterFromExplicitState,
 } from "./hooks/useSidebarFilterState";
 
 // Helper to simulate complete URL flow
@@ -717,5 +719,141 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
         finalValues: ["tag-1", "tag-2"],
       });
     });
+  });
+});
+
+describe("Implicit Environment Defaults (sidebar only)", () => {
+  const hiddenEnvironments = [
+    "langfuse-prompt-experiment",
+    "langfuse-evaluation",
+    "sdk-experiment",
+  ];
+
+  it("should inject implicit environment none-of filter when no explicit environment filter exists", () => {
+    const implicit = buildImplicitEnvironmentFilter({
+      explicitFilters: [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["trace-a"],
+        },
+      ],
+      managedEnvironmentColumn: "environment",
+      hiddenEnvironments,
+    });
+
+    expect(implicit).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: hiddenEnvironments,
+      },
+    ]);
+  });
+
+  it("should not inject implicit environment filter when explicit environment filter exists", () => {
+    const implicit = buildImplicitEnvironmentFilter({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ],
+      managedEnvironmentColumn: "environment",
+      hiddenEnvironments,
+    });
+
+    expect(implicit).toEqual([]);
+  });
+
+  it("should strip exact implicit env filter before URL persistence", () => {
+    const stripped = stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: hiddenEnvironments,
+        },
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["trace-a"],
+        },
+      ],
+      managedEnvironmentColumn: "environment",
+      hiddenEnvironments,
+      availableEnvironmentValues: [],
+    });
+
+    expect(stripped).toEqual([
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ]);
+  });
+
+  it("should strip default-equivalent explicit any-of environment filter", () => {
+    const availableValues = [
+      "production",
+      "staging",
+      ...hiddenEnvironments,
+    ] as const;
+
+    const stripped = stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production", "staging"],
+        },
+      ],
+      managedEnvironmentColumn: "environment",
+      hiddenEnvironments,
+      availableEnvironmentValues: [...availableValues],
+    });
+
+    expect(stripped).toEqual([]);
+  });
+
+  it("should keep explicit environment filter when user enables hidden environments", () => {
+    const availableValues = [
+      "production",
+      "staging",
+      ...hiddenEnvironments,
+    ] as const;
+
+    const explicit: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production", "langfuse-evaluation"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    const stripped = stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters: explicit,
+      managedEnvironmentColumn: "environment",
+      hiddenEnvironments,
+      availableEnvironmentValues: [...availableValues],
+    });
+
+    expect(stripped).toEqual(explicit);
   });
 });

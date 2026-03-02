@@ -14,7 +14,6 @@ import {
 } from "../lib/filter-query-encoding";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import type { FilterConfig } from "../lib/filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
@@ -309,6 +308,120 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
+type ImplicitDefaultConfig = {
+  hiddenEnvironments?: string[];
+  managedEnvironmentColumn?: string;
+};
+
+type EnvironmentFilter = Extract<
+  FilterState[number],
+  { type: "stringOptions" }
+>;
+
+function areStringSetsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const leftSet = new Set(left);
+  if (leftSet.size !== new Set(right).size) return false;
+  return right.every((value) => leftSet.has(value));
+}
+
+function isEquivalentToImplicitEnvironmentDefault(params: {
+  envFilter: EnvironmentFilter;
+  hiddenEnvironments: string[];
+  availableEnvironmentValues: string[];
+}): boolean {
+  const { envFilter, hiddenEnvironments, availableEnvironmentValues } = params;
+
+  if (hiddenEnvironments.length === 0) return false;
+
+  const exactDefaultMatch =
+    envFilter.operator === "none of" &&
+    areStringSetsEqual(envFilter.value, hiddenEnvironments);
+
+  if (exactDefaultMatch) return true;
+
+  if (availableEnvironmentValues.length === 0) return false;
+
+  const selectedFromFilter = computeSelectedValues(
+    availableEnvironmentValues,
+    envFilter,
+  );
+  const hiddenSet = new Set(hiddenEnvironments);
+  const selectedFromDefault = availableEnvironmentValues.filter(
+    (value) => !hiddenSet.has(value),
+  );
+
+  return areStringSetsEqual(selectedFromFilter, selectedFromDefault);
+}
+
+export function stripImplicitEnvironmentFilterFromExplicitState(params: {
+  explicitFilters: FilterState;
+  managedEnvironmentColumn: string;
+  hiddenEnvironments: string[];
+  availableEnvironmentValues: string[];
+}): FilterState {
+  const {
+    explicitFilters,
+    managedEnvironmentColumn,
+    hiddenEnvironments,
+    availableEnvironmentValues,
+  } = params;
+
+  if (hiddenEnvironments.length === 0) return explicitFilters;
+
+  const managedColumnFilters = explicitFilters.filter(
+    (filter) => filter.column === managedEnvironmentColumn,
+  );
+
+  // Only canonicalize the standard environment checkbox filter shape.
+  if (
+    managedColumnFilters.length !== 1 ||
+    managedColumnFilters[0]?.type !== "stringOptions"
+  ) {
+    return explicitFilters;
+  }
+
+  const envFilter = managedColumnFilters[0] as EnvironmentFilter;
+
+  if (
+    !isEquivalentToImplicitEnvironmentDefault({
+      envFilter,
+      hiddenEnvironments,
+      availableEnvironmentValues,
+    })
+  ) {
+    return explicitFilters;
+  }
+
+  return explicitFilters.filter((filter) => filter !== envFilter);
+}
+
+export function buildImplicitEnvironmentFilter(params: {
+  explicitFilters: FilterState;
+  managedEnvironmentColumn: string;
+  hiddenEnvironments: string[];
+}): FilterState {
+  const { explicitFilters, managedEnvironmentColumn, hiddenEnvironments } =
+    params;
+
+  if (hiddenEnvironments.length === 0) return [];
+
+  const hasExplicitEnvironmentFilter = explicitFilters.some(
+    (filter) => filter.column === managedEnvironmentColumn,
+  );
+
+  if (hasExplicitEnvironmentFilter) return [];
+
+  return [
+    {
+      column: managedEnvironmentColumn,
+      type: "stringOptions" as const,
+      operator: "none of" as const,
+      value: hiddenEnvironments,
+    },
+  ];
+}
+
 /**
  * Pure function that determines the operator and values for checkbox-based
  * filter interactions. Extracted for testability.
@@ -365,7 +478,7 @@ export function useSidebarFilterState(
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  projectId?: string,
+  _projectId?: string,
   loading?: boolean,
   /**
    * If true, prevents filter state from being persisted to/read from URL query params.
@@ -379,6 +492,7 @@ export function useSidebarFilterState(
    * If a user clears all filters, defaults won't reapply until the component remounts (new page visit).
    */
   defaultFilters?: FilterState,
+  implicitDefaultConfig?: ImplicitDefaultConfig,
 ) {
   const peekContext = usePeekTableState();
 
@@ -430,10 +544,49 @@ export function useSidebarFilterState(
     ? peekContext.tableState.filters
     : urlFilterState;
 
-  const filterState: FilterState = useMemo(
+  const managedEnvironmentColumn =
+    implicitDefaultConfig?.managedEnvironmentColumn ?? "environment";
+
+  const hiddenEnvironments = useMemo(
+    () => Array.from(new Set(implicitDefaultConfig?.hiddenEnvironments ?? [])),
+    [implicitDefaultConfig?.hiddenEnvironments],
+  );
+
+  const availableEnvironmentValues = useMemo(() => {
+    const rawOptions = options[managedEnvironmentColumn];
+    if (!Array.isArray(rawOptions)) return [];
+    return rawOptions.map((option) =>
+      typeof option === "string" ? option : option.value,
+    );
+  }, [options, managedEnvironmentColumn]);
+
+  const explicitFilterState: FilterState = useMemo(
     () =>
       reconcileMutuallyExclusiveFilters(rawFilterState, mutualExclusionContext),
     [rawFilterState, mutualExclusionContext],
+  );
+
+  const implicitEnvironmentFilterState: FilterState = useMemo(
+    () =>
+      buildImplicitEnvironmentFilter({
+        explicitFilters: explicitFilterState,
+        managedEnvironmentColumn,
+        hiddenEnvironments,
+      }),
+    [explicitFilterState, managedEnvironmentColumn, hiddenEnvironments],
+  );
+
+  const filterState: FilterState = useMemo(
+    () =>
+      reconcileMutuallyExclusiveFilters(
+        [...explicitFilterState, ...implicitEnvironmentFilterState],
+        mutualExclusionContext,
+      ),
+    [
+      explicitFilterState,
+      implicitEnvironmentFilterState,
+      mutualExclusionContext,
+    ],
   );
 
   // Track if user has manually interacted with filters
@@ -448,11 +601,17 @@ export function useSidebarFilterState(
         newFilters,
         mutualExclusionContext,
       );
+      const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
+        explicitFilters: reconciledFilters,
+        managedEnvironmentColumn,
+        hiddenEnvironments,
+        availableEnvironmentValues,
+      });
 
       if (peekContext) {
         peekContext.setTableState({
           ...peekContext.tableState,
-          filters: reconciledFilters,
+          filters: explicitFilters,
         });
         return;
       }
@@ -462,11 +621,11 @@ export function useSidebarFilterState(
 
       // Mark that user has manually interacted with filters
       // Exception: Don't mark as interacted if this is the initial default filter application
-      if (userHasInteractedRef.current || reconciledFilters.length > 0) {
+      if (userHasInteractedRef.current || explicitFilters.length > 0) {
         userHasInteractedRef.current = true;
       }
 
-      const encoded = encodeFiltersGeneric(reconciledFilters);
+      const encoded = encodeFiltersGeneric(explicitFilters);
       setFiltersQuery(encoded || null);
     },
     [
@@ -474,17 +633,10 @@ export function useSidebarFilterState(
       disableUrlPersistence,
       peekContext,
       mutualExclusionContext,
+      managedEnvironmentColumn,
+      hiddenEnvironments,
+      availableEnvironmentValues,
     ],
-  );
-
-  // track if defaults have been applied before, versioned to support future changes
-  // per project tracking because people want a default experience in a new project
-  const storageKey = projectId
-    ? `${config.tableName}-${projectId}-env-defaults-v1`
-    : `${config.tableName}-env-defaults-v1`;
-  const [defaultsApplied, setDefaultsApplied] = useLocalStorage<boolean>(
-    storageKey,
-    false,
   );
 
   // Apply default filters when no URL filters are present
@@ -493,68 +645,19 @@ export function useSidebarFilterState(
     if (disableUrlPersistence) return;
 
     // If there are already filters in URL, don't apply defaults
-    if (filterState.length > 0) return;
+    if (explicitFilterState.length > 0) return;
 
     // If user has manually interacted with filters (e.g., cleared them), respect their choice
     // This prevents defaults from reapplying when user clears filters in the same session
     if (userHasInteractedRef.current) return;
 
-    let filtersToApply: FilterState = [];
-
-    // Priority 1: Apply custom default filters if provided
     if (defaultFilters && defaultFilters.length > 0) {
-      filtersToApply = defaultFilters;
-    }
-    // Priority 2: Fallback to legacy environment filter (one-time with localStorage)
-    else if (!defaultsApplied) {
-      const environmentFacet = config.facets.find(
-        (f) => f.column === "environment" && f.type === "categorical",
-      );
-
-      if (environmentFacet) {
-        const environmentOptions = options["environment"];
-        if (
-          Array.isArray(environmentOptions) &&
-          environmentOptions.length > 0
-        ) {
-          const environments = environmentOptions.map((opt) =>
-            typeof opt === "string" ? opt : opt.value,
-          );
-
-          const langfuseEnvironments = environments.filter((env) =>
-            env.startsWith("langfuse-"),
-          );
-
-          if (langfuseEnvironments.length > 0) {
-            filtersToApply = [
-              {
-                column: "environment",
-                type: "stringOptions",
-                operator: "none of",
-                value: langfuseEnvironments,
-              },
-            ];
-          }
-        }
-      }
-    }
-
-    // Apply filters if any were determined
-    if (filtersToApply.length > 0) {
-      setFilterState(filtersToApply);
-      // Only mark as applied for legacy environment filter (not for custom defaultFilters)
-      if (!defaultFilters || defaultFilters.length === 0) {
-        setDefaultsApplied(true);
-      }
+      setFilterState(defaultFilters);
     }
   }, [
-    filterState.length,
-    defaultsApplied,
-    config.facets,
-    options,
+    explicitFilterState.length,
     disableUrlPersistence,
     setFilterState,
-    setDefaultsApplied,
     defaultFilters,
   ]);
 
@@ -646,6 +749,22 @@ export function useSidebarFilterState(
           (values.length === availableValues.length &&
             availableValues.every((v) => values.includes(v)))
         ) {
+          const isManagedEnvironmentColumn =
+            column === managedEnvironmentColumn &&
+            hiddenEnvironments.length > 0;
+
+          // Keep explicit override when user intentionally enables all environments.
+          if (isManagedEnvironmentColumn && values.length > 0) {
+            return [
+              ...other,
+              {
+                column,
+                type: "stringOptions" as const,
+                operator: "any of" as const,
+                value: values,
+              },
+            ];
+          }
           return other;
         }
         // Checkbox interaction - smart operator selection
@@ -690,7 +809,7 @@ export function useSidebarFilterState(
         },
       ];
     },
-    [config, options],
+    [config, options, managedEnvironmentColumn, hiddenEnvironments.length],
   );
 
   const updateFilter: UpdateFilter = useCallback(
@@ -1597,12 +1716,13 @@ export function useSidebarFilterState(
 
   return {
     filterState,
+    explicitFilterState,
     setFilterState,
     updateFilter,
     updateFilterOnly,
     updateOperator,
     clearAll,
-    isFiltered: filterState.length > 0,
+    isFiltered: explicitFilterState.length > 0,
     filters,
     expanded: expandedState,
     onExpandedChange,

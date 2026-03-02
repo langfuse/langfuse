@@ -13,6 +13,7 @@ import {
   getEventsColumnName,
   observationEventsFilterConfig,
 } from "../config/filter-config";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
@@ -352,6 +353,10 @@ export default function ObservationsEventsTable({
     projectId,
     isFilterOptionsPending,
     hideControls, // Disable URL persistence for embedded preview tables
+    undefined,
+    {
+      hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

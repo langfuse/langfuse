@@ -74,6 +74,7 @@ import { Button } from "@/src/components/ui/button";
 import TableIdOrName from "@/src/components/table/table-id";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { PeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekView } from "@/src/components/table/peek";
@@ -331,6 +332,10 @@ export default function TracesTable({
     projectId,
     traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
     hideControls, // Disable URL persistence for embedded preview tables
+    undefined,
+    {
+      hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
+    },
   );
 
   const combinedFilterState = queryFilter.filterState.concat(

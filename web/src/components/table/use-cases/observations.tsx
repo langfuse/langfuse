@@ -15,6 +15,7 @@ import {
   observationFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
 } from "@/src/features/filters/config/observations-config";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -437,6 +438,10 @@ export default function ObservationsTable({
     projectId,
     filterOptions.isPending || environmentFilterOptions.isPending,
     hideControls, // Disable URL persistence for embedded preview tables
+    undefined,
+    {
+      hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
