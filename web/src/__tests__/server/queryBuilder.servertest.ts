@@ -2123,8 +2123,8 @@ describe("queryBuilder", () => {
         );
 
         // Verify joins included
-        expect(compiledQuery).toContain("LEFT JOIN traces");
-        expect(compiledQuery).toContain("LEFT JOIN observations");
+        expect(compiledQuery).toContain("INNER JOIN traces");
+        expect(compiledQuery).toContain("INNER JOIN observations");
 
         // Execute query
         const result: { data: Array<any> } = { data: [] };
@@ -3435,7 +3435,7 @@ describe("queryBuilder", () => {
       expect(compiledQuery.match(/GROUP BY/g)?.length).toBe(2); // Two GROUP BY clauses
 
       // Should have the JOIN
-      expect(compiledQuery).toContain("LEFT JOIN scores");
+      expect(compiledQuery).toContain("INNER JOIN scores");
     });
 
     it("should handle complex multi-aggregation measure (tokensPerSecond)", async () => {
@@ -4373,6 +4373,58 @@ describe("query builder measure-aggregation validation", () => {
     expect(result.query).toBeDefined();
   });
 
+  it("should reject sum aggregation for uniqueUserIds on traces view", async () => {
+    const query: QueryType = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "uniqueUserIds", aggregation: "sum" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
+      /not valid for measure/,
+    );
+  });
+
+  it("should accept uniq aggregation for uniqueUserIds on traces view", async () => {
+    const query: QueryType = {
+      view: "traces",
+      dimensions: [],
+      metrics: [{ measure: "uniqueUserIds", aggregation: "uniq" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+    expect(result.query).toBeDefined();
+  });
+
+  it("should accept histogram aggregation for numeric measure", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "latency", aggregation: "histogram" }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+    expect(result.query).toBeDefined();
+  });
+
   describe("events_traces traceName filter", () => {
     const isEventsTableV2Enabled =
       env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
@@ -4597,5 +4649,84 @@ describe("query builder measure-aggregation validation", () => {
         expect(result[0].name).toBe("target-trace");
       },
     );
+  });
+
+  describe("useFinal flag on events_core joins", () => {
+    it("should omit FINAL for events_core joins in v2 scores-numeric view", async () => {
+      const projectId = randomUUID();
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: compiledQuery } = await builder.build(
+        {
+          view: "scores-numeric",
+          dimensions: [{ field: "traceName" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            Date.now() - 7 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          toTimestamp: new Date(Date.now()).toISOString(),
+          orderBy: null,
+        },
+        projectId,
+      );
+
+      // events_core should be joined without FINAL (useFinal: false)
+      expect(compiledQuery).toContain("JOIN events_core");
+      expect(compiledQuery).not.toContain(
+        "JOIN events_core AS events_traces FINAL",
+      );
+      // scores base CTE should still use FINAL
+      expect(compiledQuery).toContain("scores scores_numeric FINAL");
+    });
+
+    it("should omit FINAL for events_observations join in v2 scores-categorical view", async () => {
+      const projectId = randomUUID();
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: compiledQuery } = await builder.build(
+        {
+          view: "scores-categorical",
+          dimensions: [{ field: "observationName" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            Date.now() - 7 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          toTimestamp: new Date(Date.now()).toISOString(),
+          orderBy: null,
+        },
+        projectId,
+      );
+
+      // events_core should be joined without FINAL (useFinal: false)
+      expect(compiledQuery).toContain("JOIN events_core");
+      expect(compiledQuery).not.toContain(
+        "JOIN events_core AS events_observations FINAL",
+      );
+    });
+
+    it("should keep FINAL for non-events_core joins in v1 scores view", async () => {
+      const projectId = randomUUID();
+      const builder = new QueryBuilder(undefined, "v1");
+      const { query: compiledQuery } = await builder.build(
+        {
+          view: "scores-numeric",
+          dimensions: [{ field: "traceName" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            Date.now() - 7 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          toTimestamp: new Date(Date.now()).toISOString(),
+          orderBy: null,
+        },
+        projectId,
+      );
+
+      // v1 traces join should still use FINAL (useFinal defaults to true)
+      expect(compiledQuery).toContain("JOIN traces FINAL");
+    });
   });
 });
