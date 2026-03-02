@@ -4670,7 +4670,7 @@ describe("query builder measure-aggregation validation", () => {
         (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 168;
         const builder = new QueryBuilder(undefined, "v2");
         const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-        expect(sql).toContain("parent_span_id = ''");
+        expect(sql).toContain("IN (SELECT trace_id");
       } finally {
         (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
           originalValue;
@@ -4684,7 +4684,7 @@ describe("query builder measure-aggregation validation", () => {
         (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 24;
         const builder = new QueryBuilder(undefined, "v2");
         const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-        expect(sql).not.toContain("parent_span_id = ''");
+        expect(sql).not.toContain("IN (SELECT trace_id");
       } finally {
         (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
           originalValue;
@@ -4705,7 +4705,7 @@ describe("query builder measure-aggregation validation", () => {
           },
           randomUUID(),
         );
-        expect(sql).toContain("parent_span_id = ''");
+        expect(sql).toContain("IN (SELECT trace_id");
       } finally {
         (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
           originalValue;
