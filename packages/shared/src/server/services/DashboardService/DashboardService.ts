@@ -16,6 +16,7 @@ import {
 } from "./types";
 import { z } from "zod/v4";
 import { singleFilter } from "../../../";
+import { isOceanBase } from "../../../utils/oceanbase";
 
 export class DashboardService {
   /**
@@ -362,19 +363,36 @@ export class DashboardService {
     projectId: string,
   ): Promise<void> {
     // First check if this widget is referenced in any dashboard definitions
-    const referencingDashboards = await prisma.dashboard.findMany({
-      where: {
-        projectId,
-        definition: {
-          path: ["widgets"],
-          array_contains: [{ widgetId }],
+    // 针对string[]数组类型的字段查询方式不一样
+    let referencingDashboards;
+    if (isOceanBase()) {
+      referencingDashboards = await prisma.$queryRaw<
+        Array<{ id: string; name: string }>
+      >`
+      SELECT id, name 
+      FROM dashboards 
+      WHERE project_id = ${projectId}
+        AND JSON_CONTAINS(
+          JSON_EXTRACT(definition, '$.widgets'),
+          JSON_OBJECT('widgetId', ${widgetId})
+        )
+    `;
+    } else {
+      referencingDashboards = await prisma.dashboard.findMany({
+        where: {
+          projectId,
+          definition: {
+            // @ts-ignore
+            path: ["widgets"],
+            array_contains: [{ widgetId }],
+          },
         },
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+    }
 
     if (referencingDashboards.length > 0) {
       const dashboardNames = referencingDashboards

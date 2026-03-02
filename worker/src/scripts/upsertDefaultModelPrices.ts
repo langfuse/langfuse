@@ -57,7 +57,7 @@ const ExistingModelTierSchema = z.object({
   tierId: z.string(),
   tierName: z.string(),
   tierPriority: z.number(),
-  tierIsDefault: z.boolean(),
+  tierIsDefault: z.coerce.boolean(),
 });
 
 /**

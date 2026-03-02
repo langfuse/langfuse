@@ -7,8 +7,9 @@ import {
 import { BlobStorageFileRefRecordReadType } from "../repositories/definitions";
 import { logger } from "../logger";
 import { env } from "../../env";
-import { clickhouseClient } from "../clickhouse/client";
+import { DatabaseAdapterFactory } from "../database";
 import { getS3EventStorageClient } from "../s3";
+import { isOceanBase } from "../../utils/oceanbase";
 
 export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
   projectId: string;
@@ -95,14 +96,20 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
 async function softDeleteInClickhouse(
   blobStorageRefs: BlobStorageFileRefRecordReadType[],
 ) {
-  await clickhouseClient().insert({
-    table: "blob_storage_file_log",
-    values: blobStorageRefs.map((e) => ({
-      ...e,
+  const values = blobStorageRefs.map((e) => {
+    // Strip query-only columns (e.g. rn from ROW_NUMBER() in OceanBase) so insert only uses table columns
+    const { rn, ...row } = e as typeof e & { rn?: number };
+    return {
+      ...row,
       is_deleted: "1",
       event_ts: new Date().getTime(),
       updated_at: new Date().getTime(),
-    })),
-    format: "JSONEachRow",
+    };
+  });
+  const adapter = DatabaseAdapterFactory.getInstance();
+  await adapter.insert({
+    table: "blob_storage_file_log",
+    values,
+    ...(isOceanBase() ? {} : { format: "JSONEachRow" }),
   });
 }

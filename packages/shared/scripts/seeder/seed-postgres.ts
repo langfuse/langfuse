@@ -401,6 +401,7 @@ main()
     await prisma.$disconnect();
     redis?.disconnect();
     logger.info("Disconnected from postgres and redis");
+    process.exit(0);
   })
   .catch(async (e) => {
     logger.error(e);

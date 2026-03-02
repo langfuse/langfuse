@@ -11,8 +11,19 @@ import {
   QueueJobs,
   getCurrentSpan,
   isLLMCompletionError,
+  isOceanBase,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
+import {
+  createEvalJobs as createEvalJobsOb,
+  evaluate as evaluateOb,
+} from "../features/evaluation/evalServiceOb";
+
+const getEvalService = () =>
+  isOceanBase()
+    ? { createEvalJobs: createEvalJobsOb, evaluate: evaluateOb }
+    : { createEvalJobs, evaluate };
+
 import { processObservationEval } from "../features/evaluation/observationEval";
 import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
@@ -24,7 +35,7 @@ export const evalJobTraceCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.TraceUpsert]>,
 ) => {
   try {
-    await createEvalJobs({
+    await getEvalService().createEvalJobs({
       sourceEventType: "trace-upsert",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
@@ -45,7 +56,7 @@ export const evalJobDatasetCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.DatasetRunItemUpsert]>,
 ) => {
   try {
-    await createEvalJobs({
+    await getEvalService().createEvalJobs({
       sourceEventType: "dataset-run-item-upsert",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
@@ -97,7 +108,7 @@ export const evalJobCreatorQueueProcessor = async (
   job: Job<TQueueJobTypes[QueueName.CreateEvalQueue]>,
 ) => {
   try {
-    await createEvalJobs({
+    await getEvalService().createEvalJobs({
       sourceEventType: "ui-create-eval",
       event: job.data.payload,
       jobTimestamp: job.data.timestamp,
@@ -136,7 +147,7 @@ export const evalJobExecutorQueueProcessor = async (
       );
     }
 
-    await evaluate({ event: job.data.payload });
+    await getEvalService().evaluate({ event: job.data.payload });
     return true;
   } catch (e) {
     // ┌─────────────────────────┐

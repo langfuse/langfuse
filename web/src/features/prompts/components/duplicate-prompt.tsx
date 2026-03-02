@@ -99,7 +99,7 @@ const DuplicatePromptForm: React.FC<{
       refetchOnReconnect: false,
       staleTime: Infinity,
     },
-  ).data?.name;
+  ).data?.names;
 
   usePromptNameValidation({
     currentName,

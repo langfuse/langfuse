@@ -3,7 +3,7 @@ import {
   _handleGetScoresCountForPublicApi,
   convertScoreToPublicApi,
   type ScoreQueryType,
-} from "@/src/features/public-api/server/scores";
+} from "@/src/features/public-api/server/publicApiData";
 import {
   AGGREGATABLE_SCORE_TYPES,
   type ScoreSourceType,

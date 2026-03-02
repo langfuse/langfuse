@@ -32,6 +32,7 @@ import {
   DefaultEvalModelService,
   testModelCall,
   clearNoEvalConfigsCache,
+  isOceanBase,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
@@ -276,7 +277,9 @@ export const evalRouter = createTRPCRouter({
 
       const searchCondition =
         input.searchQuery && input.searchQuery.trim() !== ""
-          ? Prisma.sql`AND jc.score_name ILIKE ${`%${input.searchQuery}%`}`
+          ? isOceanBase()
+            ? Prisma.sql`AND jc.score_name LIKE ${`%${input.searchQuery}%`}`
+            : Prisma.sql`AND jc.score_name ILIKE ${`%${input.searchQuery}%`}`
           : Prisma.empty;
 
       const [configs, configsCount] = await Promise.all([
@@ -351,7 +354,9 @@ export const evalRouter = createTRPCRouter({
           ),
           finalStatus: calculateEvaluatorFinalStatus(
             config.status,
-            Array.isArray(config.timeScope) ? config.timeScope : [],
+            Array.isArray(config.timeScope as string[])
+              ? (config.timeScope as string[])
+              : [],
             jobExecutionsByState.filter(
               (je) => je.jobConfigurationId === config.id,
             ),
@@ -396,7 +401,9 @@ export const evalRouter = createTRPCRouter({
 
       const finalStatus = calculateEvaluatorFinalStatus(
         config.status,
-        Array.isArray(config.timeScope) ? config.timeScope : [],
+        Array.isArray(config.timeScope as string[])
+          ? (config.timeScope as string[])
+          : [],
         jobExecutionsByStatus,
       );
 
@@ -455,78 +462,154 @@ export const evalRouter = createTRPCRouter({
 
       const searchCondition =
         input.searchQuery && input.searchQuery.trim() !== ""
-          ? Prisma.sql`AND name ILIKE ${`%${input.searchQuery}%`}`
+          ? isOceanBase()
+            ? Prisma.sql`AND name LIKE ${`%${input.searchQuery}%`}`
+            : Prisma.sql`AND name ILIKE ${`%${input.searchQuery}%`}`
           : Prisma.empty;
 
-      const [templates, count] = await Promise.all([
-        ctx.prisma.$queryRaw<
-          Array<{
-            latestId: string;
-            name: string;
-            projectId: string;
-            version: number;
-            latestCreatedAt: Date;
-            usageCount: number;
-            partner?: string;
-            provider?: string;
-            model?: string;
-          }>
-        >`
-        WITH latest_templates AS (
+      const [templates, count] = isOceanBase()
+        ? await Promise.all([
+            ctx.prisma.$queryRaw<
+              Array<{
+                latestId: string;
+                name: string;
+                projectId: string;
+                version: number;
+                latestCreatedAt: Date;
+                usageCount: number;
+                partner?: string;
+                provider?: string;
+                model?: string;
+              }>
+            >`
+          WITH latest_templates AS (
+            SELECT 
+              et.id,
+              et.name,
+              et.project_id,
+              et.provider,
+              et.model,
+              et.partner,
+              et.version,
+              et.created_at,
+              (
+                SELECT COUNT(jc.id)
+                FROM job_configurations jc
+                WHERE jc.eval_template_id IN (
+                  SELECT id 
+                  FROM eval_templates 
+                  WHERE name = et.name AND 
+                        (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
+                )
+                AND jc.project_id = ${input.projectId}
+              ) as usage_count
+            FROM (
+              SELECT DISTINCT project_id, name, id, provider, model, partner, version, created_at
+              FROM (
+                SELECT *,
+                       ROW_NUMBER() OVER (PARTITION BY project_id, name ORDER BY version DESC) as rn
+                FROM eval_templates
+                WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+                ${searchCondition}
+              ) ranked
+              WHERE rn = 1
+            ) et
+          )
           SELECT 
-            et.id,
-            et.name,
-            et.project_id,
-            et.provider,
-            et.model,
-            et.partner,
-            et.version,
-            et.created_at,
-            (
-              SELECT COUNT(jc.id)
-              FROM job_configurations jc
-              WHERE jc.eval_template_id IN (
-                SELECT id 
-                FROM eval_templates 
-                WHERE name = et.name AND 
-                      (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
-              )
-              AND jc.project_id = ${input.projectId}
-            ) as usage_count
-          FROM (
-            SELECT DISTINCT ON (project_id, name) *
-            FROM eval_templates
-            WHERE (project_id = ${input.projectId} OR project_id IS NULL)
-            ${searchCondition}
-            ORDER BY project_id, name, version DESC
-          ) et
-        )
-        SELECT 
-          id as "latestId",
-          name,
-          provider,
-          model,
-          partner,
-          project_id as "projectId",
-          version,
-          created_at as "latestCreatedAt",
-          COALESCE(usage_count, 0)::int as "usageCount"
-        FROM 
-          latest_templates
-        ORDER BY project_id, partner, name
-        LIMIT ${input.limit}
-        OFFSET ${input.page * input.limit}
-        `,
-        ctx.prisma.$queryRaw<Array<{ count: bigint }>>`
-          SELECT COUNT(*) as count
-          FROM (
-            SELECT DISTINCT project_id, name
-            FROM eval_templates
-            WHERE (project_id = ${input.projectId} OR project_id IS NULL)
-            ${searchCondition}
-          ) t
-        `,
-      ]);
+            id as "latestId",
+            name,
+            provider,
+            model,
+            partner,
+            project_id as "projectId",
+            version,
+            created_at as "latestCreatedAt",
+            COALESCE(usage_count, 0) as "usageCount"
+          FROM 
+            latest_templates
+          ORDER BY project_id, partner, name
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.limit}
+          `,
+            ctx.prisma.$queryRaw<Array<{ count: bigint }>>`
+            SELECT COUNT(*) as count
+            FROM (
+              SELECT DISTINCT project_id, name
+              FROM eval_templates
+              WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+              ${searchCondition}
+            ) t
+          `,
+          ])
+        : await Promise.all([
+            ctx.prisma.$queryRaw<
+              Array<{
+                latestId: string;
+                name: string;
+                projectId: string;
+                version: number;
+                latestCreatedAt: Date;
+                usageCount: number;
+                partner?: string;
+                provider?: string;
+                model?: string;
+              }>
+            >`
+          WITH latest_templates AS (
+            SELECT 
+              et.id,
+              et.name,
+              et.project_id,
+              et.provider,
+              et.model,
+              et.partner,
+              et.version,
+              et.created_at,
+              (
+                SELECT COUNT(jc.id)
+                FROM job_configurations jc
+                WHERE jc.eval_template_id IN (
+                  SELECT id 
+                  FROM eval_templates 
+                  WHERE name = et.name AND 
+                        (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
+                )
+                AND jc.project_id = ${input.projectId}
+              ) as usage_count
+            FROM (
+              SELECT DISTINCT ON (project_id, name) *
+              FROM eval_templates
+              WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+              ${searchCondition}
+              ORDER BY project_id, name, version DESC
+            ) et
+          )
+          SELECT 
+            id as "latestId",
+            name,
+            provider,
+            model,
+            partner,
+            project_id as "projectId",
+            version,
+            created_at as "latestCreatedAt",
+            COALESCE(usage_count, 0)::int as "usageCount"
+          FROM 
+            latest_templates
+          ORDER BY project_id, partner, name
+          LIMIT ${input.limit}
+          OFFSET ${input.page * input.limit}
+          `,
+            ctx.prisma.$queryRaw<Array<{ count: bigint }>>`
+            SELECT COUNT(*) as count
+            FROM (
+              SELECT DISTINCT project_id, name
+              FROM eval_templates
+              WHERE (project_id = ${input.projectId} OR project_id IS NULL)
+              ${searchCondition}
+            ) t
+          `,
+          ]);
 
       return {
         templates,
@@ -1030,9 +1113,9 @@ export const evalRouter = createTRPCRouter({
         // - existing job ran on existing traces
         // - user wants to update the time scope
         // - new time scope does not include EXISTING
-        existingJob.timeScope.includes("EXISTING") &&
+        (existingJob.timeScope as string[]).includes("EXISTING") &&
         config.timeScope &&
-        !config.timeScope.includes("EXISTING")
+        !(config.timeScope as string[]).includes("EXISTING")
       ) {
         logger.error(
           `Job ${evalConfigId} for project ${projectId} ran on existing traces already. This cannot be changed anymore`,
@@ -1045,8 +1128,8 @@ export const evalRouter = createTRPCRouter({
       }
 
       if (
-        existingJob.timeScope.includes("EXISTING") &&
-        !existingJob.timeScope.includes("NEW") &&
+        (existingJob.timeScope as string[]).includes("EXISTING") &&
+        !(existingJob.timeScope as string[]).includes("NEW") &&
         config.status === "INACTIVE"
       ) {
         logger.error(

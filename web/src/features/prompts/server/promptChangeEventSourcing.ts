@@ -32,6 +32,8 @@ export const promptChangeEventSourcing = async (
         ...promptData,
         prompt: jsonSchemaNullable.parse(promptData.prompt),
         config: jsonSchemaNullable.parse(promptData.config),
+        labels: promptData.labels as string[],
+        tags: promptData.tags as string[],
       },
     },
   };

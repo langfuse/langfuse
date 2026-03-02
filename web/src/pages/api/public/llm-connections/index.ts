@@ -54,8 +54,12 @@ export default withMiddlewares({
       });
 
       // Transform and validate through strict schema
-      const transformedConnections = llmConnections.map(
-        transformDbLlmConnectionToAPI,
+      const transformedConnections = llmConnections.map((connection) =>
+        transformDbLlmConnectionToAPI({
+          ...connection,
+          customModels: connection.customModels as string[],
+          extraHeaderKeys: connection.extraHeaderKeys as string[],
+        }),
       );
 
       return {
@@ -150,7 +154,11 @@ export default withMiddlewares({
       });
 
       // Transform and validate through strict schema
-      return transformDbLlmConnectionToAPI(connection);
+      return transformDbLlmConnectionToAPI({
+        ...connection,
+        customModels: connection.customModels as string[],
+        extraHeaderKeys: connection.extraHeaderKeys as string[],
+      });
     },
   }),
 });

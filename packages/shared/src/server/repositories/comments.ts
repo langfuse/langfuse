@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../../db";
 import { Prisma } from "../../db";
 import { filterOperators } from "../../interfaces/filters";
+import { isOceanBase } from "../../utils/oceanbase";
 
 /**
  * Supported object types for comment filtering
@@ -121,7 +122,16 @@ export async function getObjectIdsByCommentContent({
     return rawResults.map((r) => r.object_id);
   }
 
-  // For other operators, use Prisma's query builder with ILIKE
+  const contentFilter = (
+    op: "contains" | "startsWith" | "endsWith",
+    value: string,
+  ): Prisma.StringFilter<"Comment"> => {
+    const base = { [op]: value };
+    return (
+      !isOceanBase() ? { ...base, mode: "insensitive" } : base
+    ) as Prisma.StringFilter<"Comment">;
+  };
+
   let whereCondition: Prisma.CommentWhereInput;
 
   if (operator === "does not contain") {
@@ -129,39 +139,27 @@ export async function getObjectIdsByCommentContent({
       projectId,
       objectType,
       NOT: {
-        content: {
-          contains: searchQuery,
-          mode: "insensitive",
-        },
+        content: contentFilter("contains", searchQuery),
       },
     };
   } else if (operator === "starts with") {
     whereCondition = {
       projectId,
       objectType,
-      content: {
-        startsWith: searchQuery,
-        mode: "insensitive",
-      },
+      content: contentFilter("startsWith", searchQuery),
     };
   } else if (operator === "ends with") {
     whereCondition = {
       projectId,
       objectType,
-      content: {
-        endsWith: searchQuery,
-        mode: "insensitive",
-      },
+      content: contentFilter("endsWith", searchQuery),
     };
   } else {
     // Default to contains (for "=" operator which maps to exact match in string filters)
     whereCondition = {
       projectId,
       objectType,
-      content: {
-        contains: searchQuery,
-        mode: "insensitive",
-      },
+      content: contentFilter("contains", searchQuery),
     };
   }
 

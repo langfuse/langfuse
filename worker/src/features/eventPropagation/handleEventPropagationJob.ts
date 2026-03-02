@@ -1,6 +1,5 @@
 import {
-  queryClickhouse,
-  commandClickhouse,
+  DatabaseAdapterFactory,
   getCurrentSpan,
   logger,
   QueueName,
@@ -79,7 +78,9 @@ export const handleEventPropagationJob = async (
 
     // Query for the next partition after the last processed one
     // Filter for partitions older than 6 minutes and order by partition ASC to get the oldest first
-    const partitions = await queryClickhouse<{ partition: string }>({
+    // (ClickHouse only: system.parts and observations_batch_staging; OB path returns early above)
+    const adapter = DatabaseAdapterFactory.getInstance();
+    const partitions = await adapter.queryWithOptions<{ partition: string }>({
       query: `
         SELECT DISTINCT partition
         FROM system.parts
@@ -119,7 +120,7 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
-    await commandClickhouse({
+    await adapter.commandWithOptions({
       query: `
         with batch_stats as (
           select

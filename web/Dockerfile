@@ -84,7 +84,14 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 # set the CI flag to true to get CI specific logs
 ENV CI true
 
+# When OCEANBASE_ENABLED=true, db:generate uses prisma/oceanbase/schema.prisma (OCEANBASE_URL)
+ARG OCEANBASE_ENABLED=false
+ENV OCEANBASE_ENABLED=$OCEANBASE_ENABLED
+
 RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+
+# Install mysql2 and prisma in an isolated dir for OceanBase (initOb.js + migrations)
+RUN mkdir -p /tmp/ob-deps && cd /tmp/ob-deps && npm init -y && npm install mysql2 prisma@6.17.1
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner
@@ -138,19 +145,26 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/clickhouse ./packages/shared/clickhouse
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/oceanbase ./packages/shared/oceanbase
+COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/scripts/initOb.js ./packages/shared/scripts/initOb.js
+
+# Add mysql2 and its dependencies for OceanBase initOb.js (not in Next.js standalone bundle)
+COPY --from=builder /tmp/ob-deps/node_modules/ ./node_modules/
+RUN chown -R nextjs:nodejs ./node_modules
 
 COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
+COPY --chown=nextjs:nodejs ./web/entrypointOb.sh ./web/entrypointOb.sh
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
-RUN chmod +x ./web/entrypoint.sh
+RUN chmod +x ./web/entrypoint.sh ./web/entrypointOb.sh
 
 USER nextjs
 
 # Default port to 3000
 ENV PORT 3000
 
-# Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
-# Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
-ENTRYPOINT ["dumb-init", "--", "./web/entrypoint.sh"]
+# Docker ENTRYPOINT: select entrypoint based on OCEANBASE_ENABLED at runtime
+# dumb-init is covered by semantic versioning, not the entrypoint scripts themselves
+ENTRYPOINT ["dumb-init", "--", "sh", "-c", "if [ \"$OCEANBASE_ENABLED\" = \"true\" ]; then exec ./web/entrypointOb.sh \"$@\"; else exec ./web/entrypoint.sh \"$@\"; fi", "--"]
 
 # startup command - use dd-trace if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 CMD if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \

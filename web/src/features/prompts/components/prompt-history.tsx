@@ -46,7 +46,7 @@ const PromptHistoryTraceNode = (props: {
   return (
     <CommandItem
       ref={currentPromptRef}
-      value={`# ${prompt.version};${prompt.commitMessage ?? ""};${prompt.labels.join(",")}`}
+      value={`# ${prompt.version};${prompt.commitMessage ?? ""};${(prompt.labels as string[]).join(",")}`}
       style={{
         ["--selected-bg" as string]: "none",
         backgroundColor: "var(--selected-bg)",
@@ -99,7 +99,7 @@ const PromptHistoryTraceNode = (props: {
                   # {prompt.version}
                 </Badge>
               }
-              promptLabels={prompt.labels}
+              promptLabels={prompt.labels as string[]}
               prompt={prompt}
               isOpen={isLabelPopoverOpen}
               setIsOpen={setIsLabelPopoverOpen}

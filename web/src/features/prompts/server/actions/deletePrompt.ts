@@ -62,7 +62,7 @@ export const deletePrompt = async (params: DeletePromptParams) => {
     // block only if no remaining version has this label
     if (dep.child_label) {
       const labelWillExist = remainingVersions.some((v) =>
-        v.labels.includes(dep.child_label),
+        (v.labels as string[]).includes(dep.child_label),
       );
       return !labelWillExist;
     }
@@ -98,10 +98,10 @@ export const deletePrompt = async (params: DeletePromptParams) => {
     await promptService.invalidateCache({ projectId, promptName });
 
     const deletingLatest = promptVersions.some((p) =>
-      p.labels.includes("latest"),
+      (p.labels as string[]).includes("latest"),
     );
     const latestRemainsAfterDeletion = remainingVersions.some((v) =>
-      v.labels.includes("latest"),
+      (v.labels as string[]).includes("latest"),
     );
 
     // reattach "latest" to highest remaining version
@@ -117,7 +117,12 @@ export const deletePrompt = async (params: DeletePromptParams) => {
       await prisma.prompt.update({
         where: { id: highestRemainingVersion.id },
         data: {
-          labels: [...new Set([...highestRemainingVersion.labels, "latest"])],
+          labels: [
+            ...new Set([
+              ...(highestRemainingVersion.labels as string[]),
+              "latest",
+            ]),
+          ],
         },
       });
     }

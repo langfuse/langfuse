@@ -32,7 +32,7 @@ import {
   singleFilter,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { executeQuery } from "@/src/features/query/server/queryExecutorData";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({

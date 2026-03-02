@@ -12,6 +12,8 @@ import {
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
+import { Prisma } from "@langfuse/shared/src/db";
+import { isOceanBase } from "@langfuse/shared/src/server";
 
 const getPromptNameHandler = async (
   req: NextApiRequest,
@@ -54,7 +56,7 @@ const getPromptNameHandler = async (
 
   res.status(200).json({
     ...prompt,
-    isActive: prompt.labels.includes(PRODUCTION_LABEL),
+    isActive: (prompt.labels as string[]).includes(PRODUCTION_LABEL),
   });
 };
 
@@ -75,15 +77,37 @@ const deletePromptNameHandler = async (
 
   const { promptName, version, label } = GetPromptByNameSchema.parse(req.query);
 
-  // Fetch prompts for audit logging
-  const where = {
-    projectId: authCheck.scope.projectId,
-    name: promptName,
-    ...(version ? { version } : {}),
-    ...(label ? { labels: { has: label } } : {}),
-  };
-
-  const prompts = await prisma.prompt.findMany({ where });
+  // Fetch prompts for audit logging (OB: labels are JSON, filter in memory; PG: use labels.has)
+  let prompts;
+  if (label) {
+    if (isOceanBase()) {
+      const all = await prisma.prompt.findMany({
+        where: {
+          projectId: authCheck.scope.projectId,
+          name: promptName,
+          ...(version !== undefined && version !== null ? { version } : {}),
+        },
+      });
+      prompts = all.filter((p) => (p.labels as string[]).includes(label));
+    } else {
+      prompts = await prisma.prompt.findMany({
+        where: {
+          projectId: authCheck.scope.projectId,
+          name: promptName,
+          ...(version !== undefined && version !== null ? { version } : {}),
+          labels: { has: label },
+        } as Prisma.PromptWhereInput,
+      });
+    }
+  } else {
+    prompts = await prisma.prompt.findMany({
+      where: {
+        projectId: authCheck.scope.projectId,
+        name: promptName,
+        ...(version !== undefined && version !== null ? { version } : {}),
+      },
+    });
+  }
 
   // Audit log before deletion
   for (const prompt of prompts) {

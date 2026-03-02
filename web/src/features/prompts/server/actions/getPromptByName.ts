@@ -4,6 +4,7 @@ import {
   type Prompt,
 } from "@langfuse/shared";
 import {
+  isOceanBase,
   PromptService,
   redis,
   recordIncrement,
@@ -39,11 +40,22 @@ export const getPromptByName = async (
     }
 
     const targetLabel = label ?? PRODUCTION_LABEL;
+    if (isOceanBase()) {
+      const prompts = await prisma.prompt.findMany({
+        where: { projectId, name: promptName },
+        orderBy: { version: "desc" },
+      });
+      const match = prompts.find((p) =>
+        (p.labels as string[]).includes(targetLabel),
+      );
+      return match ?? null;
+    }
     return prisma.prompt.findFirst({
       where: {
         projectId,
         name: promptName,
         labels: {
+          // @ts-ignore
           has: targetLabel,
         },
       },

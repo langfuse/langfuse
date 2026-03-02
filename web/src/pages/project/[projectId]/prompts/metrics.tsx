@@ -357,7 +357,7 @@ export default function PromptVersionTable({
       ? combinedData.map((prompt) => {
           return {
             version: prompt.version,
-            labels: prompt.labels,
+            labels: prompt.labels as string[],
             medianLatency: prompt.medianLatency,
             medianInputTokens: prompt.medianInputTokens,
             medianOutputTokens: prompt.medianOutputTokens,

@@ -16,7 +16,7 @@ import {
 import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
-} from "@/src/features/public-api/server/observations";
+} from "@/src/features/public-api/server/publicApiData";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

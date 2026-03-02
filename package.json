@@ -9,6 +9,9 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "infra:ob:dev:up": "docker compose -f ./docker-compose.dev-oceanbase.yml up -d --wait",
+    "infra:ob:dev:down": "docker compose -f ./docker-compose.dev-oceanbase.yml down",
+    "infra:ob:dev:prune": "docker compose -f ./docker-compose.dev-oceanbase.yml down -v",
     "infra:dev:up": "docker compose -f ./docker-compose.dev.yml up -d --wait",
     "infra:dev:down": "docker compose -f ./docker-compose.dev.yml down",
     "infra:dev:prune": "docker compose -f ./docker-compose.dev.yml down -v",
@@ -20,6 +23,8 @@
     "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx-ob": "pnpm i && pnpm run infra:ob:dev:prune && pnpm run infra:ob:dev:up --pull always && pnpm --filter=shared run ob:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
+    "dx-ob-f": "pnpm i && pnpm run infra:ob:dev:prune && pnpm run infra:ob:dev:up --pull always && pnpm --filter=shared run ob:reset -f && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "build": "turbo run build",
     "build:check": "turbo run build:check",
     "typecheck": "turbo run typecheck",

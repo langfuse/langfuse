@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import type { ColumnDefinition } from "../tableDefinitions/types";
 import type { OrderByState } from "../interfaces/orderBy";
 import { logger } from "./logger";
+import { isOceanBase } from "../utils/oceanbase";
 
 /**
  * Convert orderBy to SQL ORDER BY clause
@@ -39,8 +40,24 @@ export function orderByToPrismaSql(
     throw new Error("Invalid order: " + orderBy.order);
   }
 
+  // Convert double quotes to backticks for OceanBase/MySQL
+  let internalColumn = col.internal;
+  let nullsClause = "";
+  if (isOceanBase()) {
+    // Replace double quotes with backticks for OceanBase
+    internalColumn = internalColumn.replace(/"([^"]+)"/g, "`$1`");
+    // OceanBase/MySQL doesn't support NULLS LAST/FIRST, so we skip it
+    // In MySQL/OceanBase, NULL values are sorted first for ASC and last for DESC by default
+  } else {
+    // PostgreSQL supports NULLS LAST/FIRST
+    nullsClause = col.nullable
+      ? orderBy.order === "DESC"
+        ? "NULLS LAST"
+        : "NULLS FIRST"
+      : "";
+  }
   // Both column and order are safe, can use raw SQL
   return Prisma.raw(
-    `ORDER BY ${col.internal} ${order.data} ${col.nullable ? (orderBy.order === "DESC" ? "NULLS LAST" : "NULLS FIRST") : ""}`,
+    `ORDER BY ${internalColumn} ${order.data}${nullsClause ? ` ${nullsClause}` : ""}`,
   );
 }

@@ -166,8 +166,8 @@ export function PromptTable() {
             : {
                 version: prompt.version,
                 createdAt: prompt.createdAt,
-                labels: prompt.labels,
-                tags: prompt.tags,
+                labels: prompt.labels as string[],
+                tags: prompt.tags as string[],
                 numberOfObservations: Number(prompt.observationCount ?? 0),
               }),
         }),
@@ -196,31 +196,24 @@ export function PromptTable() {
       staleTime: Infinity,
     },
   );
+  // filterOptions returns tags and labels as string[] (same for PG and OB)
   const filterOptionTags = promptFilterOptions.data?.tags ?? [];
-  const allTags = filterOptionTags.map((t) => t.value);
+  const allTags = filterOptionTags;
   const totalCount = prompts.data?.totalCount ?? null;
 
   const newFilterOptions = useMemo(
     () => ({
       type: ["text", "chat"],
       labels:
-        promptFilterOptions.data?.labels?.map((l) => {
-          // API type says { value: string }[], but for some items, there is an optional count
-          const item = l as { value: string; count?: number };
-          return {
-            value: item.value,
-            count: item.count !== undefined ? Number(item.count) : undefined,
-          };
-        }) ?? undefined,
+        promptFilterOptions.data?.labels?.map((value) => ({
+          value,
+          count: undefined as number | undefined,
+        })) ?? undefined,
       tags:
-        promptFilterOptions.data?.tags?.map((t) => {
-          // API type says { value: string }[], but for some items, there is an optional count
-          const item = t as { value: string; count?: number };
-          return {
-            value: item.value,
-            count: item.count !== undefined ? Number(item.count) : undefined,
-          };
-        }) ?? undefined,
+        promptFilterOptions.data?.tags?.map((value) => ({
+          value,
+          count: undefined as number | undefined,
+        })) ?? undefined,
       version: [],
     }),
     [promptFilterOptions.data],

@@ -55,7 +55,7 @@ export function useExperimentPromptData({
         acc[prompt.name].push({
           version: prompt.version,
           id: prompt.id,
-          labels: prompt.labels,
+          labels: prompt.labels as string[],
         });
         return acc;
       }, {}),

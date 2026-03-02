@@ -17,7 +17,10 @@ import {
   type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  isOceanBase,
+  sendMembershipInvitationEmail,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
@@ -41,8 +44,13 @@ function buildUserSearchFilter(searchQuery: string | undefined | null) {
   const q = searchQuery;
   const searchConditions: Prisma.Sql[] = [];
 
-  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
-  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+  if (isOceanBase()) {
+    searchConditions.push(Prisma.sql`u.name LIKE ${`%${q}%`}`);
+    searchConditions.push(Prisma.sql`u.email LIKE ${`%${q}%`}`);
+  } else {
+    searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
+    searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+  }
 
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`

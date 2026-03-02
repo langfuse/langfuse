@@ -60,8 +60,8 @@ export function DeactivateEvalConfig({
           <Switch
             disabled={
               !hasAccess ||
-              (evalConfig?.timeScope?.length === 1 &&
-                evalConfig.timeScope[0] === "EXISTING")
+              ((evalConfig?.timeScope as string[])?.length === 1 &&
+                (evalConfig?.timeScope as string[])[0] === "EXISTING")
             }
             checked={isActive}
             className={isActive ? "data-[state=checked]:bg-dark-green" : ""}

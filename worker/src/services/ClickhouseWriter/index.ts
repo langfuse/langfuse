@@ -1,6 +1,4 @@
 import {
-  clickhouseClient,
-  ClickhouseClientType,
   BlobStorageFileLogInsertType,
   getCurrentSpan,
   ObservationRecordInsertType,
@@ -13,6 +11,10 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  IDatabaseAdapter,
+  DatabaseAdapterFactory,
+  isOceanBase,
+  cleanUndefinedValues,
 } from "@langfuse/shared/src/server";
 
 import { env } from "../../env";
@@ -22,7 +24,7 @@ import { backOff } from "exponential-backoff";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
-  private static client: ClickhouseClientType | null = null;
+  private static client: IDatabaseAdapter | null = null;
   batchSize: number;
   writeInterval: number;
   maxAttempts: number;
@@ -56,9 +58,9 @@ export class ClickhouseWriter {
    * Get the singleton instance of ClickhouseWriter.
    * Client parameter is only used for testing.
    */
-  public static getInstance(clickhouseClient?: ClickhouseClientType) {
-    if (clickhouseClient) {
-      ClickhouseWriter.client = clickhouseClient;
+  public static getInstance(client?: IDatabaseAdapter) {
+    if (client) {
+      ClickhouseWriter.client = client;
     }
 
     if (!ClickhouseWriter.instance) {
@@ -465,11 +467,19 @@ export class ClickhouseWriter {
   }): Promise<void> {
     const startTime = Date.now();
 
-    await (ClickhouseWriter.client ?? clickhouseClient())
+    // Clean undefined values from records to prevent database binding errors in OceanBase/MySQL
+    let cleanedRecords = params.records;
+    if (isOceanBase()) {
+      cleanedRecords = cleanedRecords.map((record) =>
+        cleanUndefinedValues(record),
+      );
+    }
+
+    await (ClickhouseWriter.client ?? DatabaseAdapterFactory.getInstance())
       .insert({
         table: params.table,
         format: "JSONEachRow",
-        values: params.records,
+        values: cleanedRecords,
         clickhouse_settings: {
           log_comment: JSON.stringify({
             feature: "ingestion",

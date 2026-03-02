@@ -120,3 +120,29 @@ export * from "./utils/headerUtils";
 export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./analytics-integrations/types";
+export * from "../utils/oceanbase";
+export * from "./database";
+
+import { isOceanBase } from "../utils/oceanbase";
+
+declare const module: { exports: Record<string, unknown> };
+declare function require(id: string): Record<string, unknown>;
+
+if (isOceanBase()) {
+  const newExports: Record<string, unknown> = {
+    ...(module.exports as Record<string, unknown>),
+    ...(require("./repositoriesOb/traces-ui-table-service") as Record<
+      string,
+      unknown
+    >),
+    ...(require("./repositoriesOb/sessions-ui-table-service") as Record<
+      string,
+      unknown
+    >),
+    ...(require("./repositoriesOb/sessions-ui-table-events-service") as Record<
+      string,
+      unknown
+    >),
+  };
+  module.exports = newExports;
+}

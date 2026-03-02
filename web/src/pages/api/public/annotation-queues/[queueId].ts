@@ -28,7 +28,7 @@ export default withMiddlewares({
         id: queue.id,
         name: queue.name,
         description: queue.description,
-        scoreConfigIds: queue.scoreConfigIds,
+        scoreConfigIds: queue.scoreConfigIds as string[],
         createdAt: queue.createdAt,
         updatedAt: queue.updatedAt,
       };

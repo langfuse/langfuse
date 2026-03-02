@@ -1,5 +1,6 @@
 import { PrismaClient } from "../../src/index";
 import { logger } from "../../src/server";
+import { isOceanBase } from "../../src/utils/oceanbase";
 
 // Config
 const ITEM_COUNT = 500;
@@ -185,15 +186,32 @@ export async function seedDatasetVersions(
       const itemIds = items.map((item) => item.id);
       const validFrom = version.timestamp;
 
-      await prismaClient.$executeRaw`
-        UPDATE dataset_items
-        SET valid_to = ${validFrom}
-        WHERE project_id = ${projectId}
-          AND dataset_id = ${dataset.id}
-          AND id = ANY(${itemIds}::text[])
-          AND valid_from < ${validFrom}
-          AND valid_to IS NULL
-      `;
+      if (isOceanBase()) {
+        // MySQL/OceanBase: IN (?, ?, ...) via parameterized query
+        if (itemIds.length > 0) {
+          const placeholders = itemIds.map(() => "?").join(", ");
+          const sql = `UPDATE dataset_items SET valid_to = ? WHERE project_id = ? AND dataset_id = ? AND id IN (${placeholders}) AND valid_from < ? AND valid_to IS NULL`;
+          await prismaClient.$executeRawUnsafe(
+            sql,
+            validFrom,
+            projectId,
+            dataset.id,
+            ...itemIds,
+            validFrom,
+          );
+        }
+      } else {
+        // PostgreSQL: ANY(${itemIds}::text[])
+        await prismaClient.$executeRaw`
+          UPDATE dataset_items
+          SET valid_to = ${validFrom}
+          WHERE project_id = ${projectId}
+            AND dataset_id = ${dataset.id}
+            AND id = ANY(${itemIds}::text[])
+            AND valid_from < ${validFrom}
+            AND valid_to IS NULL
+        `;
+      }
 
       if (totalInserts % 10000 === 0) {
         logger.info(`Inserted ${totalInserts} rows...`);

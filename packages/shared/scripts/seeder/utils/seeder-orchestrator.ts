@@ -9,7 +9,7 @@ import { FrameworkTraceLoader } from "./framework-traces/framework-trace-loader"
 import { EVAL_TRACE_COUNT, SEED_DATASETS } from "./postgres-seed-constants";
 import { MEDIA_TEST_TRACE_IDS } from "../seed-media";
 import {
-  clickhouseClient,
+  DatabaseAdapterFactory,
   createTrace,
   DatasetRunItemRecordInsertType,
   logger,
@@ -355,10 +355,13 @@ export class SeederOrchestrator {
 
   private async executeQuery(query: string): Promise<void> {
     try {
-      await clickhouseClient().command({
+      const adapter = DatabaseAdapterFactory.getInstance();
+      await adapter.commandWithOptions({
         query,
-        clickhouse_settings: {
-          wait_end_of_query: 1,
+        clickhouseConfigs: {
+          clickhouse_settings: {
+            wait_end_of_query: 1,
+          },
         },
       });
     } catch (error) {
@@ -386,14 +389,15 @@ export class SeederOrchestrator {
           ORDER BY count() desc
         `;
 
-        const result = await clickhouseClient().query({
+        const adapter = DatabaseAdapterFactory.getInstance();
+        const result = await adapter.query({
           query,
           format: "TabSeparated",
         });
 
         logger.info(
           `${table.charAt(0).toUpperCase() + table.slice(1)} per Project: \n` +
-            (await result.text()),
+            JSON.stringify(result, null, 2),
         );
       } catch (error) {
         logger.warn(`Could not log statistics for ${table}:`, error);

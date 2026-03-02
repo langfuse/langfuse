@@ -18,9 +18,11 @@ import {
   logger,
   invalidateCachedOrgApiKeys,
   startOfDayUTC,
+  isOceanBase,
 } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type StripeSubscriptionMetadata } from "@/src/ee/features/billing/utils/stripeSubscriptionMetadata";
+import { Prisma } from "@prisma/client";
 
 /**
  * Stripe webhook handler for managing subscription events, billing alerts, and invoice notifications.
@@ -133,14 +135,43 @@ async function getOrgById(orgId: string): Promise<Organization | null> {
 async function getOrgBasedOnCustomerId(
   customerId: string,
 ): Promise<Organization | null> {
-  const org = await prisma.organization.findFirst({
-    where: {
-      cloudConfig: {
-        path: ["stripe", "customerId"],
-        equals: customerId,
+  let org: Organization | null = null;
+  if (isOceanBase()) {
+    const organizationsRaw = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        cloudConfig: unknown;
+        metadata: unknown;
+      }>
+    >(Prisma.sql`
+      SELECT 
+        id,
+        name,
+        created_at as "createdAt",
+        updated_at as "updatedAt",
+        cloud_config as "cloudConfig",
+        metadata
+      FROM organizations
+      WHERE JSON_EXTRACT(cloud_config, '$.stripe.customerId') = ${customerId}
+      LIMIT 1
+    `);
+    if (organizationsRaw.length > 0) {
+      org = parseDbOrg(organizationsRaw[0] as any);
+    }
+  } else {
+    org = await prisma.organization.findFirst({
+      where: {
+        cloudConfig: {
+          // @ts-ignore
+          path: ["stripe", "customerId"],
+          equals: customerId,
+        },
       },
-    },
-  });
+    });
+  }
   return org;
 }
 
@@ -154,14 +185,42 @@ async function getOrgBasedOnCustomerId(
 async function getOrgBasedOnActiveSubscriptionId(
   subscriptionId: string,
 ): Promise<Organization | null> {
-  const orgBasedOnSubscriptionId = await prisma.organization.findFirst({
-    where: {
-      cloudConfig: {
-        path: ["stripe", "activeSubscriptionId"],
-        equals: subscriptionId,
+  let orgBasedOnSubscriptionId: Organization | null = null;
+  if (isOceanBase()) {
+    const organizationsRaw = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        cloudConfig: unknown;
+        metadata: unknown;
+      }>
+    >(Prisma.sql`
+      SELECT 
+        id,
+        name,
+        created_at as "createdAt",
+        updated_at as "updatedAt",
+        cloud_config as "cloudConfig",
+        metadata
+      FROM organizations
+      WHERE JSON_EXTRACT(cloud_config, '$.stripe.activeSubscriptionId') = ${subscriptionId}
+    `);
+    if (organizationsRaw.length > 0) {
+      orgBasedOnSubscriptionId = parseDbOrg(organizationsRaw[0] as any);
+    }
+  } else {
+    orgBasedOnSubscriptionId = await prisma.organization.findFirst({
+      where: {
+        cloudConfig: {
+          // @ts-ignore - Prisma JSON path query type definition issue
+          path: ["stripe", "activeSubscriptionId"],
+          equals: subscriptionId,
+        },
       },
-    },
-  });
+    });
+  }
   return orgBasedOnSubscriptionId;
 }
 

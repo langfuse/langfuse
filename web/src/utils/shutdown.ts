@@ -5,7 +5,7 @@
 // We wait for 110 seconds to allow the app to finish processing requests. There is no native way to do this in Next.js.
 
 import {
-  ClickHouseClientManager,
+  DatabaseAdapterFactory,
   logger,
   redis,
 } from "@langfuse/shared/src/server";
@@ -40,7 +40,7 @@ export const shutdown = async (signal: PrexitSignal) => {
         RateLimitService.shutdown();
 
         // Shutdown clickhouse connections
-        await ClickHouseClientManager.getInstance().closeAllConnections();
+        await DatabaseAdapterFactory.getInstance().closeAllConnections();
 
         logger.info(`Redis status ${redis?.status}`);
         if (!redis) {

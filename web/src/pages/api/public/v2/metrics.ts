@@ -10,7 +10,7 @@ import { InvalidRequestError, NotImplementedError } from "@langfuse/shared";
 import {
   executeQuery,
   validateQuery,
-} from "@/src/features/query/server/queryExecutor";
+} from "@/src/features/query/server/queryExecutorData";
 
 const DEFAULT_ROW_LIMIT = 100;
 

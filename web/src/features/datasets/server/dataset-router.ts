@@ -30,6 +30,7 @@ import {
   getRunItemsByRunIdOrItemId,
 } from "@/src/features/datasets/server/service";
 import {
+  isOceanBase,
   logger,
   addToDeleteDatasetQueue,
   getDatasetRunItemsByDatasetIdCh,
@@ -374,30 +375,63 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       // Get dataset runs metrics
-      const query = DB.selectFrom("datasets")
-        .leftJoin("dataset_runs", (join) =>
-          join
-            .onRef("datasets.id", "=", "dataset_runs.dataset_id")
-            .on("dataset_runs.project_id", "=", input.projectId),
-        )
-        .select(({ eb }) => [
-          "datasets.id",
-          eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
-          eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
-        ])
-        .where("datasets.project_id", "=", input.projectId)
-        .where("datasets.id", "in", input.datasetIds)
-        .groupBy("datasets.id");
+      let runsMetrics: Array<{
+        id: string;
+        countDatasetRuns: number;
+        lastRunAt: Date | null;
+      }>;
 
-      const compiledQuery = query.compile();
+      if (isOceanBase()) {
+        // OceanBase/MySQL: use raw SQL with ? placeholders (DB.selectFrom uses Postgres dialect)
+        const inPlaceholders = input.datasetIds.map(() => "?").join(", ");
+        const sql = `
+          SELECT
+            datasets.id AS id,
+            COUNT(DISTINCT dataset_runs.id) AS countDatasetRuns,
+            MAX(dataset_runs.created_at) AS lastRunAt
+          FROM datasets
+          LEFT JOIN dataset_runs ON datasets.id = dataset_runs.dataset_id AND dataset_runs.project_id = ?
+          WHERE datasets.project_id = ? AND datasets.id IN (${inPlaceholders})
+          GROUP BY datasets.id
+        `;
+        const params = [
+          input.projectId,
+          input.projectId,
+          ...input.datasetIds,
+        ] as (string | number | Date | null)[];
+        runsMetrics = await ctx.prisma.$queryRawUnsafe<
+          Array<{
+            id: string;
+            countDatasetRuns: number;
+            lastRunAt: Date | null;
+          }>
+        >(sql.trim(), ...params);
+      } else {
+        const query = DB.selectFrom("datasets")
+          .leftJoin("dataset_runs", (join) =>
+            join
+              .onRef("datasets.id", "=", "dataset_runs.dataset_id")
+              .on("dataset_runs.project_id", "=", input.projectId),
+          )
+          .select(({ eb }) => [
+            "datasets.id",
+            eb.fn.count("dataset_runs.id").distinct().as("countDatasetRuns"),
+            eb.fn.max("dataset_runs.created_at").as("lastRunAt"),
+          ])
+          .where("datasets.project_id", "=", input.projectId)
+          .where("datasets.id", "in", input.datasetIds)
+          .groupBy("datasets.id");
 
-      const runsMetrics = await ctx.prisma.$queryRawUnsafe<
-        Array<{
-          id: string;
-          countDatasetRuns: number;
-          lastRunAt: Date | null;
-        }>
-      >(compiledQuery.sql, ...compiledQuery.parameters);
+        const compiledQuery = query.compile();
+
+        runsMetrics = await ctx.prisma.$queryRawUnsafe<
+          Array<{
+            id: string;
+            countDatasetRuns: number;
+            lastRunAt: Date | null;
+          }>
+        >(compiledQuery.sql, ...compiledQuery.parameters);
+      }
 
       // Get dataset items count for all datasets
       const itemsCounts = await getDatasetItemsCountGrouped({

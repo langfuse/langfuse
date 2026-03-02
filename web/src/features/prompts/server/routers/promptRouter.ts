@@ -31,6 +31,7 @@ import {
   getObservationsWithPromptName,
   getObservationMetricsForPrompts,
   getAggregatedScoresForPrompts,
+  isOceanBase,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
@@ -49,14 +50,27 @@ const buildPromptSearchFilter = (
   const searchConditions: Prisma.Sql[] = [];
 
   if (types.includes("id")) {
-    searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
-    searchConditions.push(
-      Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
-    );
+    if (isOceanBase()) {
+      searchConditions.push(Prisma.sql`p.name LIKE ${`%${q}%`}`);
+      searchConditions.push(
+        Prisma.sql`JSON_SEARCH(p.tags, 'one', ${`%${q}%`}, NULL, '$[*]') IS NOT NULL`,
+      );
+    } else {
+      searchConditions.push(Prisma.sql`p.name ILIKE ${`%${q}%`}`);
+      searchConditions.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${q}%`})`,
+      );
+    }
   }
 
   if (types.includes("content")) {
-    searchConditions.push(Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`);
+    if (isOceanBase()) {
+      searchConditions.push(
+        Prisma.sql`CAST(p.prompt AS CHAR) LIKE ${`%${q}%`}`,
+      );
+    } else {
+      searchConditions.push(Prisma.sql`p.prompt::text ILIKE ${`%${q}%`}`);
+    }
   }
 
   return searchConditions.length > 0
@@ -136,11 +150,75 @@ export const promptRouter = createTRPCRouter({
         input.searchType,
       );
 
-      const [prompts, promptCount] = await Promise.all([
-        // prompts
-        ctx.prisma.$queryRaw<Array<Prompt & { row_type: "folder" | "prompt" }>>(
-          generatePromptQuery(
-            Prisma.sql`
+      const useObRaw =
+        isOceanBase() &&
+        !input.filter?.length &&
+        !input.searchQuery &&
+        !input.pathPrefix;
+
+      let prompts: Array<Prompt & { row_type: "folder" | "prompt" }>;
+      let promptCount: Array<{ totalCount: bigint }>;
+
+      if (useObRaw) {
+        const listSql = `WITH latest AS (
+          SELECT p.* FROM prompts p
+          WHERE (p.name, p.version) IN (
+            SELECT name, MAX(version) FROM prompts p WHERE p.project_id = ? GROUP BY name
+          ) AND p.project_id = ?
+        ),
+        individual_prompts AS (SELECT p.* FROM latest p WHERE p.name NOT LIKE '%/%'),
+        folder_representatives AS (
+          SELECT p.*, ROW_NUMBER() OVER (PARTITION BY SUBSTRING_INDEX(p.name, '/', 1) ORDER BY p.version DESC) AS rn
+          FROM latest p WHERE p.name LIKE '%/%'
+        ),
+        combined AS (
+          SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, 1 AS sort_priority FROM folder_representatives WHERE rn = 1
+          UNION ALL
+          SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, 2 AS sort_priority FROM individual_prompts
+        )
+        SELECT p.id, p.name, p.version, p.project_id AS projectId, p.prompt, p.type, p.updated_at AS updatedAt, p.created_at AS createdAt, p.labels, p.tags, IF(p.sort_priority = 1, 'folder', 'prompt') AS row_type FROM combined p ORDER BY p.sort_priority LIMIT ? OFFSET ?`;
+        const countSql = `WITH latest AS (
+          SELECT p.* FROM prompts p
+          WHERE (p.name, p.version) IN (
+            SELECT name, MAX(version) FROM prompts p WHERE p.project_id = ? GROUP BY name
+          ) AND p.project_id = ?
+        ),
+        individual_prompts AS (SELECT p.* FROM latest p WHERE p.name NOT LIKE '%/%'),
+        folder_representatives AS (
+          SELECT p.*, ROW_NUMBER() OVER (PARTITION BY SUBSTRING_INDEX(p.name, '/', 1) ORDER BY p.version DESC) AS rn
+          FROM latest p WHERE p.name LIKE '%/%'
+        ),
+        combined AS (
+          SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, 1 AS sort_priority FROM folder_representatives WHERE rn = 1
+          UNION ALL
+          SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, 2 AS sort_priority FROM individual_prompts
+        )
+        SELECT count(*) AS totalCount FROM combined p LIMIT ? OFFSET ?`;
+        [prompts, promptCount] = await Promise.all([
+          ctx.prisma.$queryRawUnsafe<
+            Array<Prompt & { row_type: "folder" | "prompt" }>
+          >(
+            listSql,
+            input.projectId,
+            input.projectId,
+            input.limit,
+            input.page * input.limit,
+          ),
+          ctx.prisma.$queryRawUnsafe<Array<{ totalCount: bigint }>>(
+            countSql,
+            input.projectId,
+            input.projectId,
+            1,
+            0,
+          ),
+        ]);
+      } else {
+        [prompts, promptCount] = await Promise.all([
+          ctx.prisma.$queryRaw<
+            Array<Prompt & { row_type: "folder" | "prompt" }>
+          >(
+            generatePromptQuery(
+              Prisma.sql`
           p.id,
           p.name,
           p.version,
@@ -152,34 +230,34 @@ export const promptRouter = createTRPCRouter({
           p.labels,
           p.tags,
           p.row_type`,
-            input.projectId,
-            filterCondition,
-            orderByCondition,
-            input.limit,
-            input.page,
-            pathFilter, // SQL WHERE clause: filters DB to only prompts in current folder, derived from prefix.
-            searchFilter,
-            input.pathPrefix, // Raw folder path: used for segment splitting & folder detection logic
+              input.projectId,
+              filterCondition,
+              orderByCondition,
+              input.limit,
+              input.page,
+              pathFilter,
+              searchFilter,
+              input.pathPrefix,
+            ),
           ),
-        ),
-        // promptCount
-        ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
-          generatePromptQuery(
-            Prisma.sql`count(*) AS "totalCount"`,
-            input.projectId,
-            filterCondition,
-            Prisma.empty,
-            1, // limit
-            0, // input.page,
-            pathFilter,
-            searchFilter,
-            input.pathPrefix,
+          ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+            generatePromptQuery(
+              Prisma.sql` count(*) AS totalCount`,
+              input.projectId,
+              filterCondition,
+              Prisma.empty,
+              1,
+              0,
+              pathFilter,
+              searchFilter,
+              input.pathPrefix,
+            ),
           ),
-        ),
-      ]);
+        ]);
+      }
 
       return {
-        prompts: prompts,
+        prompts,
         totalCount:
           promptCount.length > 0 ? Number(promptCount[0]?.totalCount) : 0,
       };
@@ -222,22 +300,56 @@ export const promptRouter = createTRPCRouter({
         input.searchType,
       );
 
-      const count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
-        generatePromptQuery(
-          Prisma.sql` count(*) AS "totalCount"`,
-          input.projectId,
-          filterCondition,
-          Prisma.empty,
-          1, // limit
-          0, // page
-          pathFilter,
-          searchFilter,
-          input.pathPrefix,
+      let count: Array<{ totalCount: bigint }>;
+      // OceanBase/MySQL: Prisma.$queryRaw can cause "Named and positional parameters mixed". Use positional-only.
+      if (
+        isOceanBase() &&
+        !input.filter?.length &&
+        !input.searchQuery &&
+        !input.pathPrefix
+      ) {
+        const sql = `WITH latest AS (
+          SELECT p.* FROM prompts p
+          WHERE (p.name, p.version) IN (
+            SELECT name, MAX(version) FROM prompts p WHERE p.project_id = ? GROUP BY name
+          ) AND p.project_id = ?
         ),
-      );
+        individual_prompts AS (SELECT p.* FROM latest p WHERE p.name NOT LIKE '%/%'),
+        folder_representatives AS (
+          SELECT p.*, ROW_NUMBER() OVER (PARTITION BY SUBSTRING_INDEX(p.name, '/', 1) ORDER BY p.version DESC) AS rn
+          FROM latest p WHERE p.name LIKE '%/%'
+        ),
+        combined AS (
+          SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, 1 AS sort_priority FROM folder_representatives WHERE rn = 1
+          UNION ALL
+          SELECT id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by, 2 AS sort_priority FROM individual_prompts
+        )
+        SELECT count(*) AS totalCount FROM combined p LIMIT ? OFFSET ?`;
+        count = await ctx.prisma.$queryRawUnsafe<Array<{ totalCount: bigint }>>(
+          sql,
+          input.projectId,
+          input.projectId,
+          1,
+          0,
+        );
+      } else {
+        count = await ctx.prisma.$queryRaw<Array<{ totalCount: bigint }>>(
+          generatePromptQuery(
+            Prisma.sql` count(*) AS totalCount`,
+            input.projectId,
+            filterCondition,
+            Prisma.empty,
+            1,
+            0,
+            pathFilter,
+            searchFilter,
+            input.pathPrefix,
+          ),
+        );
+      }
 
       return {
-        totalCount: count[0].totalCount,
+        totalCount: Number(count[0]?.totalCount ?? 0),
       };
     }),
   metrics: protectedProjectProcedure
@@ -385,30 +497,52 @@ export const promptRouter = createTRPCRouter({
             name: "asc",
           },
         }),
-        ctx.prisma.$queryRaw<{ value: string }[]>`
-          SELECT tags.tag as value
-          FROM prompts, UNNEST(prompts.tags) AS tags(tag)
-          WHERE prompts.project_id = ${input.projectId}
-          GROUP BY tags.tag
-          ORDER BY tags.tag ASC;
-        `,
-        ctx.prisma.$queryRaw<{ value: string }[]>`
-          SELECT labels.label as value
-          FROM prompts, UNNEST(prompts.labels) AS labels(label)
-          WHERE prompts.project_id = ${input.projectId}
-          GROUP BY labels.label
-          ORDER BY labels.label ASC;
-        `,
+        isOceanBase()
+          ? ctx.prisma.$queryRaw<{ value: string }[]>`
+              SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(tag.value, '$')) as value
+              FROM prompts,
+              JSON_TABLE(prompts.tags, '$[*]' COLUMNS (value JSON PATH '$')) AS tag
+              WHERE prompts.project_id = ${input.projectId}
+              AND prompts.tags IS NOT NULL
+              AND JSON_LENGTH(prompts.tags) > 0
+              GROUP BY value
+              ORDER BY value ASC;
+            `
+          : ctx.prisma.$queryRaw<{ value: string }[]>`
+              SELECT tags.tag as value
+              FROM prompts, UNNEST(prompts.tags) AS tags(tag)
+              WHERE prompts.project_id = ${input.projectId}
+              GROUP BY tags.tag
+              ORDER BY tags.tag ASC;
+            `,
+        isOceanBase()
+          ? ctx.prisma.$queryRaw<{ value: string }[]>`
+              SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(label.value, '$')) as value
+              FROM prompts,
+              JSON_TABLE(prompts.labels, '$[*]' COLUMNS (value JSON PATH '$')) AS label
+              WHERE prompts.project_id = ${input.projectId}
+              AND prompts.labels IS NOT NULL
+              AND JSON_LENGTH(prompts.labels) > 0
+              GROUP BY value
+              ORDER BY value ASC;
+            `
+          : ctx.prisma.$queryRaw<{ value: string }[]>`
+              SELECT labels.label as value
+              FROM prompts, UNNEST(prompts.labels) AS labels(label)
+              WHERE prompts.project_id = ${input.projectId}
+              GROUP BY labels.label
+              ORDER BY labels.label ASC;
+            `,
       ]);
 
       const res = {
-        name: names
+        names: names
           .filter((n) => n.name !== null)
           .map((name) => ({
             value: name.name ?? "undefined",
           })),
-        labels: labels,
-        tags: tags,
+        tags: tags.map((t) => t.value),
+        labels: labels.map((l) => l.value),
       };
       return res;
     }),
@@ -446,10 +580,10 @@ export const promptRouter = createTRPCRouter({
           }[]
         >`
           SELECT
-            p."name" AS "parent_name",
-            p."version" AS "parent_version",
-            pd."child_version" AS "child_version",
-            pd."child_label" AS "child_label"
+            p.name AS parent_name,
+            p.version AS parent_version,
+            pd.child_version AS child_version,
+            pd.child_label AS child_label
           FROM
             prompt_dependencies pd
             INNER JOIN prompts p ON p.id = pd.parent_id
@@ -478,7 +612,9 @@ export const promptRouter = createTRPCRouter({
           await checkHasProtectedLabels({
             prisma: ctx.prisma,
             projectId: input.projectId,
-            labelsToCheck: prompts.flatMap((prompt) => prompt.labels),
+            labelsToCheck: prompts.flatMap((prompt) =>
+              Array.isArray(prompt.labels) ? (prompt.labels as string[]) : [],
+            ),
           });
 
         if (hasProtectedLabels) {
@@ -558,14 +694,15 @@ export const promptRouter = createTRPCRouter({
             projectId,
           },
         });
-        const { name: promptName, version, labels } = promptVersion;
+        const { name: promptName, version } = promptVersion;
+        const labels = promptVersion.labels as string[];
 
         // Check if prompt has a protected label
         const { hasProtectedLabels, protectedLabels } =
           await checkHasProtectedLabels({
             prisma: ctx.prisma,
             projectId: input.projectId,
-            labelsToCheck: promptVersion.labels,
+            labelsToCheck: labels,
           });
 
         if (hasProtectedLabels) {
@@ -587,10 +724,10 @@ export const promptRouter = createTRPCRouter({
             }[]
           >`
             SELECT
-              p."name" AS "parent_name",
-              p."version" AS "parent_version",
-              pd."child_version" AS "child_version",
-              pd."child_label" AS "child_label"
+              p.name AS parent_name,
+              p.version AS parent_version,
+              pd.child_version AS child_version,
+              pd.child_label AS child_label
             FROM
               prompt_dependencies pd
               INNER JOIN prompts p ON p.id = pd.parent_id
@@ -598,10 +735,13 @@ export const promptRouter = createTRPCRouter({
               p.project_id = ${projectId}
               AND pd.project_id = ${projectId}
               AND pd.child_name = ${promptName}
-              AND (
-                (pd."child_version" IS NOT NULL AND pd."child_version" = ${version})
+            AND (
+                (pd.child_version IS NOT NULL AND pd.child_version = ${version})
                 OR
-                (pd."child_label" IS NOT NULL AND pd."child_label" IN (${Prisma.join(labels)}))
+                (pd.child_label IS NOT NULL AND pd.child_label IN (${Prisma.join(
+                  labels.map((l) => Prisma.sql`${l}`),
+                  ", ",
+                )}))
               )
             `;
 
@@ -641,7 +781,7 @@ export const promptRouter = createTRPCRouter({
         ];
 
         // If the deleted prompt was the latest version, update the latest prompt
-        if (promptVersion.labels.includes(LATEST_PROMPT_LABEL)) {
+        if (labels.includes(LATEST_PROMPT_LABEL)) {
           const newLatestPrompt = await ctx.prisma.prompt.findFirst({
             where: {
               projectId,
@@ -722,11 +862,12 @@ export const promptRouter = createTRPCRouter({
         }
 
         const { name: promptName } = toBeLabeledPrompt;
+        const currentLabels = toBeLabeledPrompt.labels as string[];
         const newLabelSet = new Set(input.labels);
         const newLabels = [...newLabelSet];
 
         const removedLabels = [];
-        for (const oldLabel of toBeLabeledPrompt.labels) {
+        for (const oldLabel of currentLabels) {
           if (!newLabelSet.has(oldLabel)) {
             removedLabels.push(oldLabel);
           }
@@ -734,7 +875,7 @@ export const promptRouter = createTRPCRouter({
 
         const addedLabels = [];
         for (const newLabel of newLabels) {
-          if (!toBeLabeledPrompt.labels.includes(newLabel)) {
+          if (!currentLabels.includes(newLabel)) {
             addedLabels.push(newLabel);
           }
         }
@@ -766,10 +907,10 @@ export const promptRouter = createTRPCRouter({
             }[]
           >`
             SELECT
-              p."name" AS "parent_name",
-              p."version" AS "parent_version",
-              pd."child_version" AS "child_version",
-              pd."child_label" AS "child_label"
+              p.name AS parent_name,
+              p.version AS parent_version,
+              pd.child_version AS child_version,
+              pd.child_label AS child_label
             FROM
               prompt_dependencies pd
               INNER JOIN prompts p ON p.id = pd.parent_id
@@ -777,7 +918,7 @@ export const promptRouter = createTRPCRouter({
               p.project_id = ${projectId}
               AND pd.project_id = ${projectId}
               AND pd.child_name = ${promptName}
-              AND pd."child_label" IS NOT NULL AND pd."child_label" IN (${Prisma.join(removedLabels)})
+              AND pd.child_label IS NOT NULL AND pd.child_label IN (${Prisma.join(removedLabels)})
             `;
 
           if (dependents.length > 0) {
@@ -811,15 +952,46 @@ export const promptRouter = createTRPCRouter({
           ctx.prisma,
         );
 
-        const previousLabeledPrompts = await ctx.prisma.prompt.findMany({
-          where: {
-            projectId,
-            name: promptName,
-            labels: { hasSome: newLabels },
-            id: { not: input.promptId },
-          },
-          orderBy: [{ version: "desc" }],
-        });
+        const previousLabeledPromptsRaw = isOceanBase()
+          ? await ctx.prisma.$queryRaw<
+              Array<{
+                id: string;
+                labels: unknown; // JSON type in OceanBase
+                version: number;
+              }>
+            >`
+              SELECT id, labels, version
+              FROM prompts
+              WHERE project_id = ${projectId}
+              AND name = ${promptName}
+              AND id != ${input.promptId}
+              AND (
+                ${Prisma.join(
+                  newLabels.map(
+                    (label) =>
+                      Prisma.sql`JSON_SEARCH(labels, 'one', ${label}, NULL, '$[*]') IS NOT NULL`,
+                  ),
+                  " OR ",
+                )}
+              )
+              ORDER BY version DESC
+            `
+          : await ctx.prisma.prompt.findMany({
+              where: {
+                projectId,
+                name: promptName,
+                // @ts-ignore
+                labels: { hasSome: newLabels },
+                id: { not: input.promptId },
+              },
+              orderBy: [{ version: "desc" }],
+            });
+        // Convert labels to string[] for OceanBase (JSON -> string[])
+        const previousLabeledPrompts = previousLabeledPromptsRaw.map((p) => ({
+          id: p.id,
+          labels: Array.isArray(p.labels) ? (p.labels as string[]) : [],
+          version: p.version,
+        }));
 
         touchedPromptIds.push(...previousLabeledPrompts.map((p) => p.id));
 
@@ -892,12 +1064,24 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const labels = await ctx.prisma.$queryRaw<{ label: string }[]>`
-        SELECT DISTINCT UNNEST(labels) AS label
-        FROM prompts
-        WHERE project_id = ${input.projectId}
-        AND labels IS NOT NULL;
-      `;
+      const labels = isOceanBase()
+        ? await ctx.prisma.$queryRaw<{ label: string }[]>`
+          SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(label.value, '$')) AS label
+          FROM prompts p
+          JOIN JSON_TABLE(
+            p.labels,
+            '$[*]' COLUMNS (value JSON PATH '$')
+          ) AS label ON TRUE
+          WHERE p.project_id = ${input.projectId}
+          AND p.labels IS NOT NULL
+          AND JSON_LENGTH(p.labels) > 0
+        `
+        : await ctx.prisma.$queryRaw<{ label: string }[]>`
+          SELECT DISTINCT UNNEST(labels) AS label
+          FROM prompts
+          WHERE project_id = ${input.projectId}
+          AND labels IS NOT NULL;
+        `;
 
       return labels.map((l) => l.label);
     }),
@@ -940,20 +1124,71 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:read",
       });
 
-      const query = Prisma.sql`
-        SELECT
-          p.name,
-          array_agg(DISTINCT p.version) as "versions",
-          array_agg(DISTINCT l) FILTER (WHERE l IS NOT NULL) AS "labels"
-        FROM
-          prompts p
-          LEFT JOIN LATERAL unnest(labels) AS l ON TRUE
-        WHERE
-          project_id = ${input.projectId}
-          AND type = 'text'
-        GROUP BY
-          p.name
-      `;
+      const query = isOceanBase()
+        ? Prisma.sql`
+            WITH expanded_labels AS (
+              SELECT
+                p.name,
+                p.version,
+                JSON_UNQUOTE(JSON_EXTRACT(label.value, '$')) as label_value
+              FROM
+                prompts p
+                LEFT JOIN JSON_TABLE(
+                  p.labels,
+                  '$[*]' COLUMNS (value JSON PATH '$')
+                ) AS label ON TRUE
+              WHERE
+                p.project_id = ${input.projectId}
+                AND p.type = 'text'
+                AND label.value IS NOT NULL
+            ),
+            distinct_labels AS (
+              SELECT DISTINCT name, label_value
+              FROM expanded_labels
+            ),
+            distinct_versions AS (
+              SELECT DISTINCT name, version
+              FROM prompts
+              WHERE project_id = ${input.projectId}
+              AND type = 'text'
+            )
+            SELECT
+              p.name,
+              (
+                SELECT JSON_ARRAYAGG(dv.version)
+                FROM distinct_versions dv
+                WHERE dv.name = p.name
+              ) as versions,
+              COALESCE(
+                (
+                  SELECT JSON_ARRAYAGG(dl.label_value)
+                  FROM distinct_labels dl
+                  WHERE dl.name = p.name
+                ),
+                JSON_ARRAY()
+              ) AS labels
+            FROM
+              prompts p
+            WHERE
+              p.project_id = ${input.projectId}
+              AND p.type = 'text'
+            GROUP BY
+              p.name
+          `
+        : Prisma.sql`
+            SELECT
+              p.name,
+              array_agg(DISTINCT p.version) as versions,
+              array_agg(DISTINCT l) FILTER (WHERE l IS NOT NULL) AS labels
+            FROM
+              prompts p
+              LEFT JOIN LATERAL unnest(labels) AS l ON TRUE
+            WHERE
+              project_id = ${input.projectId}
+              AND type = 'text'
+            GROUP BY
+              p.name
+          `;
 
       const result = await ctx.prisma.$queryRaw<
         {
@@ -963,7 +1198,16 @@ export const promptRouter = createTRPCRouter({
         }[]
       >(query);
 
-      return result;
+      const formattedResult = result.map((r) => ({
+        name: r.name,
+        versions: Array.isArray(r.versions)
+          ? (r.versions as number[])
+          : (JSON.parse(r.versions as string) as number[]),
+        labels: Array.isArray(r.labels)
+          ? (r.labels as string[])
+          : (JSON.parse(r.labels as string) as string[]),
+      }));
+      return formattedResult;
     }),
 
   updateTags: protectedProjectProcedure
@@ -1387,7 +1631,21 @@ const generatePromptQuery = (
 
   // Common ORDER BY and LIMIT clauses
   const orderAndLimit = Prisma.sql`
-    ${orderCondition.sql ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(orderCondition.sql.replace(/ORDER BY /i, ""))}` : Prisma.empty}
+    ${
+      orderCondition.sql
+        ? Prisma.sql`ORDER BY p.sort_priority, ${Prisma.raw(
+            (() => {
+              let orderByClause = orderCondition.sql.replace(/ORDER BY /i, "");
+              // For OceanBase, remove double quotes from column names
+              // ClickHouse supports double quotes, but OceanBase/MySQL doesn't in ORDER BY
+              if (isOceanBase()) {
+                orderByClause = orderByClause.replace(/p\."([^"]+)"/g, "p.$1");
+              }
+              return orderByClause;
+            })(),
+          )}`
+        : Prisma.empty
+    }
     LIMIT ${limit} OFFSET ${page * limit}`;
 
   if (prefix) {

@@ -1,0 +1,46 @@
+services:
+  redis:
+    image: docker.io/redis:7.2.4
+    container_name: ${REDIS_CONTAINER_NAME:-langfuse-redis}
+    restart: always
+    command: >
+      --requirepass ${REDIS_AUTH:-myredissecret}
+      --maxmemory-policy noeviction
+    ports:
+      - ${HOST_IP:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379
+    networks:
+      - default
+  oceanbase:
+    image: docker.io/oceanbase/oceanbase-ce:4.3.5-lts
+    container_name: oceanbase
+    restart: always
+    environment:
+      - MODE=solo
+      - OB_ROOT_PASSWORD=oceanbase
+      - OB_CLUSTER_NAME=oceanbase
+      - OB_TENANT_NAME=oceanbase
+      - OB_TENANT_ROOT_PASSWORD=oceanbase
+    ports:
+      - 127.0.0.1:2881:2881
+      - 127.0.0.1:8080:8080
+    volumes:
+      - langfuse_oceanbase_data:/root/ob
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "obclient -h 127.0.0.1 -P 2881 -uroot@oceanbase -poceanbase -Doceanbase -e 'SELECT 1' 2>/dev/null || mysql -h 127.0.0.1 -P 2881 -uroot@oceanbase -poceanbase -Doceanbase -e 'SELECT 1' 2>/dev/null || timeout 1 bash -c '</dev/tcp/127.0.0.1/2881' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  langfuse_oceanbase_data:
+    driver: local
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK_NAME:-langfuse-network}
+    driver: bridge

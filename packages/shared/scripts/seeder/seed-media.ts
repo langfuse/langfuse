@@ -133,11 +133,23 @@ async function uploadAndCreateMediaRecord(
     );
 
     // Just create the TraceMedia link
-    await prisma.$queryRaw`
-      INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
-      VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${existingMedia.id}, ${field})
-      ON CONFLICT DO NOTHING;
-    `;
+    if (env.OCEANBASE_ENABLED === "true") {
+      await prisma.$queryRawUnsafe(
+        `INSERT IGNORE INTO trace_media (id, project_id, trace_id, media_id, field)
+         VALUES (?, ?, ?, ?, ?)`,
+        crypto.randomUUID(),
+        projectId,
+        traceId,
+        existingMedia.id,
+        field,
+      );
+    } else {
+      await prisma.$queryRaw`
+        INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
+        VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${existingMedia.id}, ${field})
+        ON CONFLICT DO NOTHING;
+      `;
+    }
     return;
   }
 
@@ -166,46 +178,78 @@ async function uploadAndCreateMediaRecord(
     return;
   }
 
-  // Create Media record
-  await prisma.$queryRaw`
-    INSERT INTO "media" (
-      "id",
-      "project_id",
-      "sha_256_hash",
-      "bucket_path",
-      "bucket_name",
-      "content_type",
-      "content_length",
-      "uploaded_at",
-      "upload_http_status"
-    )
-    VALUES (
-      ${mediaId},
-      ${projectId},
-      ${sha256Hash},
-      ${bucketPath},
-      ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
-      ${mediaFile.contentType},
-      ${BigInt(fileBytes.length)},
-      ${new Date()},
-      ${200}
-    )
-    ON CONFLICT ("project_id", "sha_256_hash")
-    DO UPDATE SET
-      "bucket_name" = ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
-      "bucket_path" = ${bucketPath},
-      "content_type" = ${mediaFile.contentType},
-      "content_length" = ${BigInt(fileBytes.length)},
-      "uploaded_at" = ${new Date()},
-      "upload_http_status" = ${200}
-  `;
+  if (env.OCEANBASE_ENABLED === "true") {
+    await prisma.$queryRawUnsafe(
+      `INSERT INTO media (id, project_id, sha_256_hash, bucket_path, bucket_name, content_type, content_length, uploaded_at, upload_http_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         bucket_name = VALUES(bucket_name),
+         bucket_path = VALUES(bucket_path),
+         content_type = VALUES(content_type),
+         content_length = VALUES(content_length),
+         uploaded_at = VALUES(uploaded_at),
+         upload_http_status = VALUES(upload_http_status)`,
+      mediaId,
+      projectId,
+      sha256Hash,
+      bucketPath,
+      env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      mediaFile.contentType,
+      BigInt(fileBytes.length),
+      new Date(),
+      200,
+    );
 
-  // Create TraceMedia link
-  await prisma.$queryRaw`
-    INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
-    VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
-    ON CONFLICT DO NOTHING;
-  `;
+    await prisma.$queryRawUnsafe(
+      `INSERT IGNORE INTO trace_media (id, project_id, trace_id, media_id, field)
+       VALUES (?, ?, ?, ?, ?)`,
+      crypto.randomUUID(),
+      projectId,
+      traceId,
+      mediaId,
+      field,
+    );
+  } else {
+    await prisma.$queryRaw`
+      INSERT INTO "media" (
+        "id",
+        "project_id",
+        "sha_256_hash",
+        "bucket_path",
+        "bucket_name",
+        "content_type",
+        "content_length",
+        "uploaded_at",
+        "upload_http_status"
+      )
+      VALUES (
+        ${mediaId},
+        ${projectId},
+        ${sha256Hash},
+        ${bucketPath},
+        ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
+        ${mediaFile.contentType},
+        ${BigInt(fileBytes.length)},
+        ${new Date()},
+        ${200}
+      )
+      ON CONFLICT ("project_id", "sha_256_hash")
+      DO UPDATE SET
+        "bucket_name" = ${env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET},
+        "bucket_path" = ${bucketPath},
+        "content_type" = ${mediaFile.contentType},
+        "content_length" = ${BigInt(fileBytes.length)},
+        "uploaded_at" = ${new Date()},
+        "upload_http_status" = ${200}
+    `;
+
+    // Create TraceMedia link
+    await prisma.$queryRaw`
+      INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
+      VALUES (${crypto.randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
+      ON CONFLICT DO NOTHING;
+    `;
+  }
 
   logger.info(
     `[seed-media] Created media record for ${mediaFile.name} -> ${field}`,

@@ -139,7 +139,7 @@ const staticProviders: Provider[] = [
         email: dbUser.email,
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
-        featureFlags: parseFlags(dbUser.featureFlags),
+        featureFlags: parseFlags(dbUser.featureFlags as string[]),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
       };
@@ -730,7 +730,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       },
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
-                    featureFlags: parseFlags(dbUser.featureFlags),
+                    featureFlags: parseFlags(dbUser.featureFlags as string[]),
                   }
                 : null,
           };

@@ -22,7 +22,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
-} from "@/src/features/public-api/server/traces";
+} from "@/src/features/public-api/server/publicApiData";
 import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({

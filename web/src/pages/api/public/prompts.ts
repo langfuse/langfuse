@@ -74,7 +74,7 @@ export default async function handler(
 
       return res.status(200).json({
         ...prompt,
-        isActive: prompt.labels.includes(PRODUCTION_LABEL),
+        isActive: (prompt.labels as string[]).includes(PRODUCTION_LABEL),
       });
     }
 
@@ -94,7 +94,7 @@ export default async function handler(
 
       return res.status(201).json({
         ...prompt,
-        isActive: prompt.labels.includes(PRODUCTION_LABEL),
+        isActive: (prompt.labels as string[]).includes(PRODUCTION_LABEL),
       });
     }
 

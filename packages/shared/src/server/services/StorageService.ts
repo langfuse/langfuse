@@ -20,6 +20,7 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
+import { isOceanBase } from "../../utils/oceanbase";
 
 type UploadFile = {
   fileName: string;
@@ -117,6 +118,10 @@ export class StorageServiceFactory {
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
   }): StorageService {
+    if (isOceanBase()) {
+      const { OceanBaseStorageService } = require("./OceanBaseStorageService");
+      return new OceanBaseStorageService(params);
+    }
     if (
       params.useAzureBlob !== undefined
         ? params.useAzureBlob

@@ -73,10 +73,10 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
           }[]
         >`
           SELECT
-            p."name" AS "parent_name",
-            p."version" AS "parent_version",
-            pd."child_version" AS "child_version",
-            pd."child_label" AS "child_label"
+            p.name AS parent_name,
+            p.version AS parent_version,
+            pd.child_version AS child_version,
+            pd.child_label AS child_label
           FROM
             prompt_dependencies pd
             INNER JOIN prompts p ON p.id = pd.parent_id

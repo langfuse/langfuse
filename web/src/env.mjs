@@ -236,6 +236,8 @@ export const env = createEnv({
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+    // OceanBase Configuration
+    OCEANBASE_ENABLED: z.enum(["true", "false"]).default("false"),
     CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
       .number()
       .default(32_000_000_000), // ~32GB
@@ -639,6 +641,8 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
+    // OceanBase
+    OCEANBASE_ENABLED: process.env.OCEANBASE_ENABLED,
     CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY:
       process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
     // EE ui customization

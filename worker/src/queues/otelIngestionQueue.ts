@@ -1,6 +1,6 @@
 import { Job, Processor } from "bullmq";
 import {
-  clickhouseClient,
+  DatabaseAdapterFactory,
   createIngestionEventSchema,
   getClickhouseEntityType,
   getCurrentSpan,
@@ -237,7 +237,7 @@ export const otelIngestionQueueProcessor: Processor = async (
       redis,
       prisma,
       ClickhouseWriter.getInstance(),
-      clickhouseClient(),
+      DatabaseAdapterFactory.getInstance(),
     );
 
     // Decide whether observations should be processed via new flow (directly to events table)

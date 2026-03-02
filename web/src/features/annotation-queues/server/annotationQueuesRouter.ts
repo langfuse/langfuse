@@ -205,7 +205,7 @@ export const queueRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             id: {
-              in: queue?.scoreConfigIds ?? [],
+              in: (queue?.scoreConfigIds as string[]) ?? [],
             },
           },
         });

@@ -393,7 +393,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           provider,
           secretKey,
           baseURL,
-          customModels,
+          customModels: customModels as string[],
           extraHeaders,
           config,
         });

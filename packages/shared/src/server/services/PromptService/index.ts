@@ -15,6 +15,7 @@ import {
 
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
 import { PRODUCTION_LABEL } from "../../../features/prompts/constants";
+import { isOceanBase } from "../../../utils/oceanbase";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
 
@@ -89,15 +90,30 @@ export class PromptService {
     }
 
     if (label) {
-      const prompt = await this.prisma.prompt.findFirst({
-        where: {
-          projectId,
-          name: promptName,
-          labels: {
-            has: label,
+      let prompt: Prompt | null;
+      if (isOceanBase()) {
+        // MySQL/OceanBase: 使用原生 SQL 查询
+        const results = await this.prisma.$queryRaw<Prompt[]>`
+        SELECT * FROM prompts
+        WHERE project_id = ${projectId}
+          AND name = ${promptName}
+          AND JSON_SEARCH(labels, 'one', ${label}, NULL, '$[*]') IS NOT NULL
+        LIMIT 1
+      `;
+        prompt = results[0] ?? null;
+      } else {
+        // PostgreSQL: 使用 Prisma 的 has 操作符
+        prompt = await this.prisma.prompt.findFirst({
+          where: {
+            projectId,
+            name: promptName,
+            labels: {
+              // @ts-ignore
+              has: label,
+            },
           },
-        },
-      });
+        });
+      }
 
       return this.resolvePrompt(prompt);
     }
@@ -122,7 +138,7 @@ export class PromptService {
       prompt: promptGraph.resolvedPrompt,
       resolutionGraph: promptGraph.graph,
       // Compute isActive based on labels (deprecated field in DB)
-      isActive: prompt.labels.includes(PRODUCTION_LABEL),
+      isActive: (prompt.labels as string[]).includes(PRODUCTION_LABEL),
     };
   }
 
@@ -346,15 +362,42 @@ export class PromptService {
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
           for (const dep of promptDependencies) {
-            const depPrompt = await this.prisma.prompt.findFirst({
-              where: {
-                projectId,
-                name: dep.name,
-                ...(dep.type === "version"
-                  ? { version: dep.version }
-                  : { labels: { has: dep.label } }),
-              },
-            });
+            let depPrompt: Prompt | null;
+            if (dep.type === "version") {
+              // 按版本查询，两种数据库都支持
+              depPrompt = await this.prisma.prompt.findFirst({
+                where: {
+                  projectId,
+                  name: dep.name,
+                  version: dep.version,
+                },
+              });
+            } else {
+              // 按 label 查询，需要区分数据库类型
+              if (isOceanBase()) {
+                // MySQL/OceanBase: 使用原生 SQL 查询
+                const results = await this.prisma.$queryRaw<Prompt[]>`
+        SELECT * FROM prompts
+        WHERE project_id = ${projectId}
+          AND name = ${dep.name}
+          AND JSON_SEARCH(labels, 'one', ${dep.label}, NULL, '$[*]') IS NOT NULL
+        LIMIT 1
+      `;
+                depPrompt = results[0] ?? null;
+              } else {
+                // PostgreSQL: 使用 Prisma 的 has 操作符
+                depPrompt = await this.prisma.prompt.findFirst({
+                  where: {
+                    projectId,
+                    name: dep.name,
+                    labels: {
+                      // @ts-ignore
+                      has: dep.label,
+                    },
+                  },
+                });
+              }
+            }
 
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
@@ -379,7 +422,8 @@ export class PromptService {
             );
 
             const versionPattern = `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|version=${escapeRegex(depPrompt.version)}@@@`;
-            const labelPatterns = depPrompt.labels.map(
+            const labelsArray: string[] = depPrompt.labels as string[];
+            const labelPatterns = labelsArray?.map(
               (label) =>
                 `@@@langfusePrompt:name=${escapeRegex(depPrompt.name)}\\|label=${escapeRegex(label)}@@@`,
             );

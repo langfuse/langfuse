@@ -124,7 +124,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
       refetchOnReconnect: false,
       staleTime: Infinity,
     },
-  ).data?.name;
+  ).data?.names;
 
   function onSubmit(values: NewPromptFormSchemaType) {
     capture(

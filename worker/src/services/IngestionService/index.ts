@@ -8,12 +8,11 @@ import {
   Prompt,
 } from "@langfuse/shared";
 import {
-  ClickhouseClientType,
-  convertDateToClickhouseDateTime,
   convertObservationReadToInsert,
   convertScoreReadToInsert,
   convertTraceReadToInsert,
   convertTraceToStagingObservation,
+  convertDateToDateTime,
   eventTypes,
   IngestionEntityTypes,
   IngestionEventType,
@@ -49,6 +48,9 @@ import {
   convertDefinitionsToMap,
   convertCallsToArrays,
   hasNoEvalConfigsCache,
+  IDatabaseAdapter,
+  isOceanBase,
+  upsertProjectEnvironment,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -226,7 +228,7 @@ export class IngestionService {
     private redis: Redis | Cluster,
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
-    private clickhouseClient: ClickhouseClientType,
+    private client: IDatabaseAdapter,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -584,7 +586,7 @@ export class IngestionService {
     const timestamp =
       minTimestamp === Infinity
         ? undefined
-        : convertDateToClickhouseDateTime(new Date(minTimestamp));
+        : convertDateToDateTime(new Date(minTimestamp));
     const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
       this.getClickhouseRecord({
         projectId,
@@ -651,7 +653,7 @@ export class IngestionService {
 
     if (clickhouseScoreRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
+        store: isOceanBase() ? "oceanbase" : "clickhouse",
         object: "score",
       });
     }
@@ -665,6 +667,11 @@ export class IngestionService {
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+
+    // Upsert project environment for OceanBase
+    if (isOceanBase() && finalScoreRecord.environment) {
+      await upsertProjectEnvironment(projectId, finalScoreRecord.environment);
+    }
   }
 
   private async processTraceEventList(params: {
@@ -712,7 +719,7 @@ export class IngestionService {
     const timestamp =
       minTimestamp === Infinity
         ? undefined
-        : convertDateToClickhouseDateTime(new Date(minTimestamp));
+        : convertDateToDateTime(new Date(minTimestamp));
     const clickhouseTraceRecord = await this.getClickhouseRecord({
       projectId,
       entityId,
@@ -727,7 +734,7 @@ export class IngestionService {
 
     if (clickhouseTraceRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
+        store: isOceanBase() ? "oceanbase" : "clickhouse",
         object: "trace",
       });
     }
@@ -751,18 +758,35 @@ export class IngestionService {
       .find((t) => t.session_id);
     if (traceRecordWithSession) {
       try {
-        await this.prisma.$executeRaw`
-          INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
-          VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
-          ON CONFLICT (id, project_id)
-          DO NOTHING
-        `;
+        if (isOceanBase()) {
+          await this.prisma.$executeRaw`
+            INSERT IGNORE INTO trace_sessions (id, project_id, environment, created_at, updated_at)
+            VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
+          `;
+        } else {
+          await this.prisma.$executeRaw`
+            INSERT INTO trace_sessions (id, project_id, environment, created_at, updated_at)
+            VALUES (${traceRecordWithSession.session_id}, ${projectId}, ${traceRecordWithSession.environment}, NOW(), NOW())
+            ON CONFLICT (id, project_id)
+            DO NOTHING
+          `;
+        }
       } catch (e) {
         logger.error(
           `Failed to upsert session ${traceRecordWithSession.session_id}`,
           e,
         );
         throw e;
+      }
+    }
+
+    // Upsert project environment for OceanBase
+    if (isOceanBase()) {
+      const traceEnvironment = traceRecords.find(
+        (r) => r.environment,
+      )?.environment;
+      if (traceEnvironment) {
+        await upsertProjectEnvironment(projectId, traceEnvironment);
       }
     }
 
@@ -840,7 +864,7 @@ export class IngestionService {
     const startTime =
       minStartTime === Infinity
         ? undefined
-        : convertDateToClickhouseDateTime(new Date(minStartTime));
+        : convertDateToDateTime(new Date(minStartTime));
 
     const [clickhouseObservationRecord, prompt] = await Promise.all([
       this.getClickhouseRecord({
@@ -860,7 +884,7 @@ export class IngestionService {
 
     if (clickhouseObservationRecord) {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
-        store: "clickhouse",
+        store: isOceanBase() ? "oceanbase" : "clickhouse",
         object: "observation",
       });
     }
@@ -956,6 +980,14 @@ export class IngestionService {
       TableName.Observations,
       finalObservationRecord,
     );
+
+    // Upsert project environment for OceanBase (observations have environment too)
+    if (isOceanBase() && finalObservationRecord.environment) {
+      await upsertProjectEnvironment(
+        projectId,
+        finalObservationRecord.environment,
+      );
+    }
 
     // Dual-write to staging table for batch propagation to events table
     // Here, we add some additional logic around the first seen timestamp.
@@ -1497,15 +1529,48 @@ export class IngestionService {
     };
     const { projectId, entityId, table, additionalFilters } = params;
 
+    const tags = {
+      feature: "ingestion",
+      projectId,
+    };
+
     return await instrumentAsync(
       { name: `get-clickhouse-${table}`, spanKind: SpanKind.CLIENT },
       async (span) => {
-        span.setAttribute("ch.query.table", table);
-        span.setAttribute("db.system", "clickhouse");
         span.setAttribute("db.operation.name", "SELECT");
         span.setAttribute("projectId", projectId);
-        const queryResult = await this.clickhouseClient.query({
-          query: `
+
+        let result: Record<string, unknown>[];
+
+        if (isOceanBase()) {
+          span.setAttribute("db.system", "oceanbase");
+          const p = additionalFilters.params;
+          let obWhere = "project_id = ? AND id = ?";
+          const obParams: unknown[] = [projectId, entityId];
+          if (table === TableName.Observations) {
+            obWhere += " AND type = ?";
+            obParams.push(p.type);
+            if (p.startTime != null) {
+              obWhere += " AND start_time >= ?";
+              obParams.push(p.startTime);
+            }
+          } else {
+            if (p.timestamp != null) {
+              obWhere += " AND timestamp >= ?";
+              obParams.push(p.timestamp);
+            }
+          }
+          const obQuery = `SELECT * FROM ${table} WHERE ${obWhere} ORDER BY event_ts DESC LIMIT 1`;
+          result = await this.client.queryWithOptions<Record<string, unknown>>({
+            query: obQuery,
+            params: obParams,
+            tags,
+          });
+        } else {
+          span.setAttribute("ch.query.table", table);
+          span.setAttribute("db.system", "clickhouse");
+          const queryResult = (await this.client.query({
+            query: `
             SELECT *
             FROM ${table}
             WHERE project_id = {projectId: String}
@@ -1514,36 +1579,42 @@ export class IngestionService {
             ORDER BY event_ts DESC
             LIMIT 1 BY id, project_id SETTINGS use_query_cache = false;
           `,
-          format: "JSONEachRow",
-          query_params: { projectId, entityId, ...additionalFilters.params },
-          clickhouse_settings: {
-            log_comment: JSON.stringify({
-              feature: "ingestion",
+            format: "JSONEachRow",
+            query_params: {
               projectId,
-            }),
-          },
-        });
+              entityId,
+              ...additionalFilters.params,
+            },
+            clickhouse_settings: {
+              log_comment: JSON.stringify(tags),
+            },
+          })) as {
+            query_id: string;
+            response_headers: Record<string, string | string[] | undefined>;
+            json(): Promise<Record<string, unknown>[]>;
+          };
 
-        span.setAttribute("ch.queryId", queryResult.query_id);
-        const summaryHeader =
-          queryResult.response_headers["x-clickhouse-summary"];
-        if (summaryHeader) {
-          try {
-            const summary = Array.isArray(summaryHeader)
-              ? JSON.parse(summaryHeader[0])
-              : JSON.parse(summaryHeader);
-            for (const key in summary) {
-              span.setAttribute(`ch.${key}`, summary[key]);
+          span.setAttribute("ch.queryId", queryResult.query_id);
+          const summaryHeader =
+            queryResult.response_headers["x-clickhouse-summary"];
+          if (summaryHeader) {
+            try {
+              const summary = Array.isArray(summaryHeader)
+                ? JSON.parse(summaryHeader[0])
+                : JSON.parse(summaryHeader);
+              for (const key in summary) {
+                span.setAttribute(`ch.${key}`, summary[key]);
+              }
+            } catch (error) {
+              logger.debug(
+                `Failed to parse clickhouse summary header ${summaryHeader}`,
+                error,
+              );
             }
-          } catch (error) {
-            logger.debug(
-              `Failed to parse clickhouse summary header ${summaryHeader}`,
-              error,
-            );
           }
-        }
 
-        const result = await queryResult.json();
+          result = await queryResult.json();
+        }
 
         if (result.length === 0) return null;
 

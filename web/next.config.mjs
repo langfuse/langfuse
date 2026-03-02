@@ -61,6 +61,7 @@ const nextConfig = {
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
     "kysely",
+    "opendal",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
@@ -198,6 +199,15 @@ const nextConfig = {
     // Exclude Datadog packages from webpack bundling to avoid issues
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
+
+    // Exclude opendal and its native modules from webpack bundling
+    // opendal is only used on the server side and contains native .node files
+    // that cannot be bundled by webpack
+    if (isServer) {
+      config.externals.push({
+        opendal: "commonjs opendal",
+      });
+    }
     return config;
   },
 };

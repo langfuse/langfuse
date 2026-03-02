@@ -46,11 +46,11 @@ const defaultMappings = new Map<string, Partial<VariableMapping>>([
 export function createDefaultVariableMappings(
   template: EvalTemplate,
 ): VariableMapping[] {
-  if (!template.vars || template.vars.length === 0) {
+  if (!template.vars || (template.vars as string[]).length === 0) {
     return [];
   }
 
-  return template.vars.map((variable) => {
+  return (template.vars as string[]).map((variable) => {
     // Check if we have a default mapping for this variable name
     const defaultMapping = defaultMappings.get(variable.toLowerCase());
 

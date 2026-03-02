@@ -112,8 +112,16 @@ export function BatchExportsTable(props: { projectId: string }) {
         if (url === "expired") {
           return <span className="text-muted-foreground">Expired</span>;
         }
+        const downloadUrl =
+          url.startsWith("/api/storage/") || url.startsWith("http")
+            ? url
+            : `/api/storage${url.startsWith("/") ? "" : "/"}${url}`;
         return (
-          <ActionButton href={url} icon={<DownloadIcon size={16} />} size="sm">
+          <ActionButton
+            href={downloadUrl}
+            icon={<DownloadIcon size={16} />}
+            size="sm"
+          >
             Download
           </ActionButton>
         );

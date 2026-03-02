@@ -48,7 +48,9 @@ export const convertRecordValuesToString = (
   const result: Record<string, string> = {};
   for (const key in record) {
     const value = record[key];
-    result[key] = typeof value === "string" ? value : JSON.stringify(value);
+    if (value !== undefined) {
+      result[key] = typeof value === "string" ? value : JSON.stringify(value);
+    }
   }
   return result;
 };

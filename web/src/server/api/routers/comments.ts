@@ -12,6 +12,7 @@ import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
 import {
   getTracesIdentifierForSession,
+  isOceanBase,
   logger,
   NotificationQueue,
   QueueJobs,
@@ -215,7 +216,25 @@ export const commentsRouter = createTRPCRouter({
           rangeEnd: number[];
         }>
       >(
-        Prisma.sql`
+        isOceanBase()
+          ? Prisma.sql`
+        SELECT
+          c.id, 
+          c.content, 
+          c.created_at AS "createdAt",
+          u.id AS "authorUserId",
+          u.image AS "authorUserImage", 
+          u.name AS "authorUserName"
+        FROM comments c
+        LEFT JOIN users u ON u.id = c.author_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
+        WHERE 
+          c.project_id = ${input.projectId}
+          AND c.object_id = ${input.objectId}
+          AND c.object_type = ${input.objectType}
+        ORDER BY 
+          c.created_at DESC
+        `
+          : Prisma.sql`
         SELECT
           c.id,
           c.content,

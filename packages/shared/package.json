@@ -29,6 +29,10 @@
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
     },
+    "./src/utils/parseJsonArray": {
+      "import": "./dist/src/utils/parseJsonArray.js",
+      "require": "./dist/src/utils/parseJsonArray.js"
+    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
@@ -51,8 +55,8 @@
     "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate reset --force; fi",
     "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
-    "db:generate": "dotenv -e ../../.env -- npx prisma generate",
-    "db:seed:examples": "dotenv -e ../../.env -- npx prisma db seed -- --environment examples",
+    "db:generate": "dotenv -e ../../.env -- sh -c 'if [ \"$OCEANBASE_ENABLED\" = \"true\" ]; then pnpm run ob:generate; else npx prisma generate; fi'",
+    "db:seed:examples": "dotenv -e ../../.env -- sh -c 'if [ \"$OCEANBASE_ENABLED\" = \"true\" ]; then pnpm run ob:seed:examples; else npx prisma db seed -- --environment examples; fi'",
     "db:seed:load": "dotenv -e ../../.env -- npx prisma db seed -- --environment load",
     "ch:up": "bash clickhouse/scripts/up.sh",
     "ch:down": "bash clickhouse/scripts/down.sh",
@@ -60,7 +64,23 @@
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
     "ch:seed": "dotenv -e ../../.env -- ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' scripts/seeder/seed-clickhouse.ts",
-    "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts"
+    "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts",
+    "ob:init": "node oceanbase/scripts/init.js",
+    "ob:up": "bash oceanbase/scripts/up.sh",
+    "ob:down": "bash oceanbase/scripts/down.sh",
+    "ob:drop": "bash oceanbase/scripts/drop.sh",
+    "ob:dev-tables": "dotenv -e ../../.env -- node oceanbase/scripts/dev-tables.js",
+    "ob:reset": "pnpm run ob:init && pnpm run ob:reset:prisma && pnpm run ob:down && pnpm run ob:up && pnpm run ob:dev-tables",
+    "ob:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev --schema=prisma/oceanbase/schema.prisma",
+    "ob:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push --schema=prisma/oceanbase/schema.prisma",
+    "ob:reset:prisma": "dotenv -e ../../.env npx -- prisma migrate reset --force --schema=prisma/oceanbase/schema.prisma",
+    "ob:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate reset --force --schema=prisma/oceanbase/schema.prisma; fi",
+    "ob:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy --schema=prisma/oceanbase/schema.prisma",
+    "ob:pull": "dotenv -e ../../.env -- npx prisma db pull --schema=prisma/oceanbase/schema.prisma",
+    "ob:seed": "dotenv -e ../../.env -- npx prisma db seed --schema=prisma/oceanbase/schema.prisma",
+    "ob:generate": "dotenv -e ../../.env -- npx prisma generate --schema=prisma/oceanbase/schema.prisma",
+    "ob:seed:examples": "dotenv -e ../../.env -- npx prisma db seed --schema=prisma/oceanbase/schema.prisma -- --environment examples",
+    "ob:seed:load": "dotenv -e ../../.env -- npx prisma db seed --schema=prisma/oceanbase/schema.prisma -- --environment load"
   },
   "prisma": {
     "seed": "ts-node -r tsconfig-paths/register -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} scripts/seeder/seed-postgres.ts"
@@ -87,6 +107,8 @@
     "@slack/oauth": "^3.0.4",
     "@slack/web-api": "^7.10.0",
     "@types/bcryptjs": "^2.4.6",
+    "mysql2": "^3.11.5",
+    "opendal": "^0.49.2",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "bcryptjs": "^2.4.3",

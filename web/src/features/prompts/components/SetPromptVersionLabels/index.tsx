@@ -50,7 +50,7 @@ export function SetPromptVersionLabels({
   const [isAddingLabel, setIsAddingLabel] = useState(false);
   const labelsChanged =
     JSON.stringify([...selectedLabels].sort()) !==
-    JSON.stringify([...prompt.labels].sort());
+    JSON.stringify([...(prompt.labels as string[])].sort());
   const customLabelScrollRef = useRef<HTMLDivElement | null>(null);
 
   const usedLabelsInProject = api.prompts.allLabels.useQuery(
@@ -64,18 +64,21 @@ export function SetPromptVersionLabels({
   useEffect(() => {
     if (isOpen) {
       setLabels([
-        ...new Set([...prompt.labels, ...(usedLabelsInProject.data ?? [])]),
+        ...new Set([
+          ...(prompt.labels as string[]),
+          ...(usedLabelsInProject.data ?? []),
+        ]),
       ]);
-      setSelectedLabels(prompt.labels);
+      setSelectedLabels(prompt.labels as string[]);
     }
   }, [isOpen, prompt.labels, usedLabelsInProject.data]);
 
   const isPromotingToProduction =
-    !prompt.labels.includes(PRODUCTION_LABEL) &&
+    !(prompt.labels as string[]).includes(PRODUCTION_LABEL) &&
     selectedLabels.includes(PRODUCTION_LABEL);
 
   const isDemotingFromProduction =
-    prompt.labels.includes(PRODUCTION_LABEL) &&
+    (prompt.labels as string[]).includes(PRODUCTION_LABEL) &&
     !selectedLabels.includes(PRODUCTION_LABEL);
 
   const mutatePromptVersionLabels = api.prompts.setLabels.useMutation({

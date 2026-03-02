@@ -19,3 +19,25 @@ export * from "./dataset-run-items";
 export * from "./dataset-items-columns";
 export * from "./dataset-items";
 export * from "./comments";
+
+import { isOceanBase } from "../../utils/oceanbase";
+
+declare const module: { exports: Record<string, unknown> };
+declare function require(id: string): Record<string, unknown>;
+
+if (isOceanBase()) {
+  const newExports: Record<string, unknown> = {
+    ...(module.exports as Record<string, unknown>),
+    ...require("../repositoriesOb/scores"),
+    ...require("../repositoriesOb/traces"),
+    ...require("../repositoriesOb/observations"),
+    ...require("../repositoriesOb/events"),
+    ...require("../repositoriesOb/dashboards"),
+    ...require("../repositoriesOb/blobStorageLog"),
+    ...require("../repositoriesOb/environments"),
+    ...require("../repositoriesOb/scores-utils"),
+    ...require("../repositoriesOb/oceanbase"),
+    ...require("../repositoriesOb/dataset-run-items"),
+  };
+  module.exports = newExports;
+}

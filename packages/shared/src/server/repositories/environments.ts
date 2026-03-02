@@ -56,3 +56,10 @@ export const getEnvironmentsForProject = async (
     }),
   );
 };
+
+export const upsertProjectEnvironment = async (
+  projectId: string,
+  environment: string | undefined,
+): Promise<void> => {
+  if (!environment || !projectId) return;
+};

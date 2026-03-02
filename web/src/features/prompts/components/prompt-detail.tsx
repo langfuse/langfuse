@@ -155,7 +155,7 @@ export const PromptDetail = ({
       )
     : currentPromptLabel
       ? promptHistory.data?.promptVersions.find((prompt) =>
-          prompt.labels.includes(currentPromptLabel),
+          (prompt.labels as string[]).includes(currentPromptLabel),
         )
       : promptHistory.data?.promptVersions[0];
 
@@ -207,7 +207,7 @@ export const PromptDetail = ({
     });
   };
 
-  const allTags = (
+  const allTags =
     api.prompts.filterOptions.useQuery(
       {
         projectId: projectId as string,
@@ -224,8 +224,7 @@ export const PromptDetail = ({
         refetchOnReconnect: false,
         staleTime: Infinity,
       },
-    ).data?.tags ?? []
-  ).map((t) => t.value);
+    ).data?.tags ?? [];
 
   const promptIds = useMemo(
     () => promptHistory.data?.promptVersions.map((p) => p.id) ?? [],
@@ -251,7 +250,7 @@ export const PromptDetail = ({
 
   const { pythonCode, jsCode } = useMemo(() => {
     if (!prompt?.id) return { pythonCode: null, jsCode: null };
-    const sortedLabels = [...prompt.labels].sort((a, b) => {
+    const sortedLabels = [...(prompt.labels as string[])].sort((a, b) => {
       if (a === PRODUCTION_LABEL) return -1;
       if (b === PRODUCTION_LABEL) return 1;
       return a.localeCompare(b);
@@ -308,7 +307,7 @@ export const PromptDetail = ({
         },
         actionButtonsLeft: (
           <TagPromptDetailsPopover
-            tags={prompt.tags}
+            tags={prompt.tags as string[]}
             availableTags={allTags}
             projectId={projectId as string}
             promptName={prompt.name}
@@ -395,7 +394,7 @@ export const PromptDetail = ({
                         </span>
                       </div>
                     }
-                    promptLabels={prompt.labels}
+                    promptLabels={prompt.labels as string[]}
                     prompt={prompt}
                     isOpen={isLabelPopoverOpen}
                     setIsOpen={setIsLabelPopoverOpen}

@@ -1,10 +1,9 @@
 import {
   logger,
-  queryClickhouse,
   redis,
-  convertDateToClickhouseDateTime,
-  clickhouseClient,
+  DatabaseAdapterFactory,
   flattenJsonToPathArrays,
+  isOceanBase,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
@@ -149,17 +148,41 @@ export async function getDatasetRunItemsSinceLastRun(
     LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
   `;
 
-  const rows = await queryClickhouse<DatasetRunItem>({
-    query,
-    params: {
-      lastRun: convertDateToClickhouseDateTime(lastRun),
-      upperBound: convertDateToClickhouseDateTime(upperBound),
-    },
-    tags: {
-      feature: "experiment-backfill",
-      operation_name: "getDatasetRunItemsSinceLastRun",
-    },
-  });
+  const adapter = DatabaseAdapterFactory.getInstance();
+  const tags = {
+    feature: "experiment-backfill",
+    operation_name: "getDatasetRunItemsSinceLastRun",
+  };
+
+  const rows = isOceanBase()
+    ? await adapter.queryWithOptions<DatasetRunItem>({
+        query: `
+          SELECT id, project_id, trace_id, observation_id, dataset_run_id, dataset_run_name,
+            dataset_run_description, dataset_run_metadata, dataset_id, dataset_item_version,
+            dataset_item_id, dataset_item_expected_output, dataset_item_metadata, created_at
+          FROM (
+            SELECT dri.*,
+              ROW_NUMBER() OVER (PARTITION BY dri.project_id, dri.trace_id, COALESCE(dri.observation_id,'') ORDER BY dri.created_at DESC) AS rn
+            FROM dataset_run_items_rmt dri
+            WHERE dri.created_at > ? AND dri.created_at <= ? AND (dri.is_deleted = 0 OR dri.is_deleted IS NULL)
+          ) t
+          WHERE rn = 1
+          ORDER BY created_at DESC
+        `,
+        params: [
+          adapter.convertDateToDateTime(lastRun),
+          adapter.convertDateToDateTime(upperBound),
+        ],
+        tags,
+      })
+    : await adapter.queryWithOptions<DatasetRunItem>({
+        query,
+        params: {
+          lastRun: adapter.convertDateToDateTime(lastRun),
+          upperBound: adapter.convertDateToDateTime(upperBound),
+        },
+        tags,
+      });
 
   logger.info(
     `[EXPERIMENT BACKFILL] Found ${rows.length} dataset run items between ${lastRun.toISOString()} and ${upperBound.toISOString()}`,
@@ -233,17 +256,56 @@ export async function getRelevantObservations(
     LIMIT 1 BY o.project_id, o.id
   `;
 
-  return queryClickhouse<SpanRecord>({
+  const adapter = DatabaseAdapterFactory.getInstance();
+  const tags = {
+    feature: "experiment-backfill",
+    operation_name: "getRelevantObservations",
+  };
+
+  if (isOceanBase()) {
+    const placeholdersProject = projectIds.map(() => "?").join(",");
+    const placeholdersTrace = traceIds.map(() => "?").join(",");
+    const minTimeStr = adapter.convertDateToDateTime(minTime);
+    return adapter.queryWithOptions<SpanRecord>({
+      query: `
+        SELECT project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
+          environment, version, release, input, output, level, status_message, completion_start_time,
+          prompt_id, prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
+          provided_usage_details, usage_details, provided_cost_details, cost_details, total_cost,
+          tool_definitions, tool_calls, tool_call_names, usage_pricing_tier_id, usage_pricing_tier_name,
+          metadata, source, tags, bookmarked, public, trace_name, user_id, session_id
+        FROM (
+          SELECT o.project_id, o.trace_id, o.id AS span_id,
+            CASE WHEN o.id = CONCAT('t-', o.trace_id) THEN '' ELSE COALESCE(o.parent_observation_id, CONCAT('t-', o.trace_id)) END AS parent_span_id,
+            o.start_time, o.end_time, o.name, o.type, COALESCE(o.environment, '') AS environment, COALESCE(o.version, '') AS version, '' AS release,
+            COALESCE(o.input, '') AS input, COALESCE(o.output, '') AS output, o.level, COALESCE(o.status_message, '') AS status_message,
+            o.completion_start_time, COALESCE(o.prompt_id, '') AS prompt_id, COALESCE(o.prompt_name, '') AS prompt_name, o.prompt_version AS prompt_version,
+            COALESCE(o.internal_model_id, '') AS model_id, COALESCE(o.provided_model_name, '') AS provided_model_name, COALESCE(o.model_parameters, '{}') AS model_parameters,
+            o.provided_usage_details, o.usage_details, o.provided_cost_details, o.cost_details, COALESCE(o.total_cost, 0) AS total_cost,
+            o.tool_definitions, o.tool_calls, o.tool_call_names, o.usage_pricing_tier_id, o.usage_pricing_tier_name,
+            o.metadata,
+            CASE WHEN JSON_CONTAINS_PATH(o.metadata, 'one', '$.resourceAttributes') THEN 'otel-dual-write-experiments' ELSE 'ingestion-api-dual-write-experiments' END AS source,
+            JSON_ARRAY() AS tags, 0 AS bookmarked, 0 AS public, '' AS trace_name, '' AS user_id, '' AS session_id,
+            ROW_NUMBER() OVER (PARTITION BY o.project_id, o.id ORDER BY o.event_ts DESC) AS rn
+          FROM observations o
+          WHERE o.project_id IN (${placeholdersProject}) AND o.trace_id IN (${placeholdersTrace})
+            AND o.start_time >= DATE_SUB(?, INTERVAL 4 HOUR) AND (o.is_deleted = 0 OR o.is_deleted IS NULL)
+        ) t
+        WHERE rn = 1
+      `,
+      params: [...projectIds, ...traceIds, minTimeStr],
+      tags,
+    });
+  }
+
+  return adapter.queryWithOptions<SpanRecord>({
     query,
     params: {
       projectIds,
       traceIds,
-      minTime: convertDateToClickhouseDateTime(minTime),
+      minTime: adapter.convertDateToDateTime(minTime),
     },
-    tags: {
-      feature: "experiment-backfill",
-      operation_name: "getRelevantObservations",
-    },
+    tags,
   });
 }
 
@@ -307,17 +369,55 @@ export async function getRelevantTraces(
     LIMIT 1 BY t.project_id, t.id
   `;
 
-  return queryClickhouse<SpanRecord>({
+  const adapter = DatabaseAdapterFactory.getInstance();
+  const tags = {
+    feature: "experiment-backfill",
+    operation_name: "getRelevantTraces",
+  };
+
+  if (isOceanBase()) {
+    const placeholdersProject = projectIds.map(() => "?").join(",");
+    const placeholdersTrace = traceIds.map(() => "?").join(",");
+    const minTimeStr = adapter.convertDateToDateTime(minTime);
+    return adapter.queryWithOptions<SpanRecord>({
+      query: `
+        SELECT project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
+          environment, version, release, input, output, level, status_message, completion_start_time,
+          prompt_id, prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
+          provided_usage_details, usage_details, provided_cost_details, cost_details, total_cost,
+          tool_definitions, tool_calls, tool_call_names, usage_pricing_tier_id, usage_pricing_tier_name,
+          metadata, source, tags, bookmarked, public, trace_name, user_id, session_id
+        FROM (
+          SELECT t.project_id, t.id AS trace_id, CONCAT('t-', t.id) AS span_id, '' AS parent_span_id,
+            t.timestamp AS start_time, '' AS end_time, t.name, 'SPAN' AS type,
+            COALESCE(t.environment, '') AS environment, COALESCE(t.version, '') AS version, COALESCE(t.release, '') AS release,
+            COALESCE(t.input, '') AS input, COALESCE(t.output, '') AS output, '' AS level, '' AS status_message, '' AS completion_start_time,
+            '' AS prompt_id, '' AS prompt_name, '' AS prompt_version, '' AS model_id, '' AS provided_model_name, '' AS model_parameters,
+            NULL AS provided_usage_details, NULL AS usage_details, NULL AS provided_cost_details, NULL AS cost_details, 0 AS total_cost,
+            NULL AS tool_definitions, NULL AS tool_calls, NULL AS tool_call_names, t.metadata,
+            CASE WHEN JSON_CONTAINS_PATH(t.metadata, 'one', '$.resourceAttributes') THEN 'otel-dual-write-experiments' ELSE 'ingestion-api-dual-write-experiments' END AS source,
+            t.tags, t.bookmarked, t.public, t.name AS trace_name,
+            COALESCE(t.user_id, '') AS user_id, COALESCE(t.session_id, '') AS session_id,
+            ROW_NUMBER() OVER (PARTITION BY t.project_id, t.id ORDER BY t.event_ts DESC) AS rn
+          FROM traces t
+          WHERE t.project_id IN (${placeholdersProject}) AND t.id IN (${placeholdersTrace})
+            AND t.timestamp >= DATE_SUB(?, INTERVAL 4 HOUR) AND (t.is_deleted = 0 OR t.is_deleted IS NULL)
+        ) t
+        WHERE rn = 1
+      `,
+      params: [...projectIds, ...traceIds, minTimeStr],
+      tags,
+    });
+  }
+
+  return adapter.queryWithOptions<SpanRecord>({
     query,
     params: {
       projectIds,
       traceIds,
-      minTime: convertDateToClickhouseDateTime(minTime),
+      minTime: adapter.convertDateToDateTime(minTime),
     },
-    tags: {
-      feature: "experiment-backfill",
-      operation_name: "getRelevantTraces",
-    },
+    tags,
   });
 }
 
@@ -491,7 +591,7 @@ export async function writeEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
     redis,
     prisma,
     ClickhouseWriter.getInstance(),
-    clickhouseClient(),
+    DatabaseAdapterFactory.getInstance(),
   );
 
   for (const span of spans) {

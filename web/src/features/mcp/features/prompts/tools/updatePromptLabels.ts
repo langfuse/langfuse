@@ -131,8 +131,8 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
           id: updatedPrompt.id,
           name: updatedPrompt.name,
           version: updatedPrompt.version,
-          labels: updatedPrompt.labels,
-          message: `Successfully updated labels for '${updatedPrompt.name}' version ${updatedPrompt.version}. Labels are now: ${updatedPrompt.labels.length > 0 ? updatedPrompt.labels.join(", ") : "(none)"}`,
+          labels: updatedPrompt.labels as string[],
+          message: `Successfully updated labels for '${updatedPrompt.name}' version ${updatedPrompt.version}. Labels are now: ${(updatedPrompt.labels as string[]).length > 0 ? (updatedPrompt.labels as string[]).join(", ") : "(none)"}`,
         };
       },
     );

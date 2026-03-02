@@ -141,12 +141,12 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
           name: createdPrompt.name,
           version: createdPrompt.version,
           type: createdPrompt.type,
-          labels: createdPrompt.labels,
+          labels: createdPrompt.labels as string[],
           tags: createdPrompt.tags,
           config: createdPrompt.config,
           createdAt: createdPrompt.createdAt,
           createdBy: createdPrompt.createdBy,
-          message: `Successfully created chat prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
+          message: `Successfully created chat prompt '${createdPrompt.name}' version ${createdPrompt.version}${(createdPrompt.labels as string[]).length > 0 ? ` with labels: ${(createdPrompt.labels as string[]).join(", ")}` : ""}`,
         };
       },
     );

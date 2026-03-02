@@ -7,7 +7,7 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   generateDailyMetrics,
   getDailyMetricsCount,
-} from "@/src/features/public-api/server/dailyMetrics";
+} from "@/src/features/public-api/server/publicApiData";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({

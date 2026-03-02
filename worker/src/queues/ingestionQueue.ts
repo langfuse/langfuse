@@ -1,6 +1,6 @@
 import { Job, Processor } from "bullmq";
 import {
-  clickhouseClient,
+  DatabaseAdapterFactory,
   getClickhouseEntityType,
   getCurrentSpan,
   getQueue,
@@ -273,7 +273,7 @@ export const ingestionQueueProcessorBuilder = (
         redis,
         prisma,
         clickhouseWriter,
-        clickhouseClient(),
+        DatabaseAdapterFactory.getInstance(),
       ).mergeAndWrite(
         getClickhouseEntityType(events[0].type),
         job.data.payload.authCheck.scope.projectId,

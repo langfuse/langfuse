@@ -4,6 +4,7 @@ import { telemetry } from "@/src/features/telemetry";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
+  isOceanBase,
   logger,
   measureAndReturn,
   queryClickhouse,
@@ -37,57 +38,87 @@ export default async function handler(
 
     try {
       if (failIfNoRecentEvents) {
-        const now = new Date();
-        const traces = await measureAndReturn({
-          operationName: "healthCheckTraces",
-          projectId: "__CROSS_PROJECT__",
-          input: {
-            now: convertDateToClickhouseDateTime(now),
-          },
-          fn: async (input: { now: string }) => {
-            return queryClickhouse<{ id: string }>({
-              query: `
+        if (isOceanBase()) {
+          // OceanBase/MySQL: query primary DB for recent traces and observations
+          const [traces, observations] = await Promise.all([
+            prisma.$queryRaw<Array<{ id: string }>>`
+              SELECT id FROM traces
+              WHERE timestamp <= NOW(3)
+              AND timestamp >= NOW(3) - INTERVAL 3 MINUTE
+              LIMIT 1
+            `,
+            prisma.$queryRaw<Array<{ id: string }>>`
+              SELECT id FROM observations
+              WHERE start_time <= NOW(3)
+              AND start_time >= NOW(3) - INTERVAL 3 MINUTE
+              LIMIT 1
+            `,
+          ]);
+          if (traces.length === 0 || observations.length === 0) {
+            return res.status(503).json({
+              status: `No ${
+                traces.length === 0
+                  ? "traces"
+                  : observations.length === 0
+                    ? "observations"
+                    : "<should not happen>"
+              } within the last 3 minutes`,
+              version: VERSION.replace("v", ""),
+            });
+          }
+        } else {
+          const now = new Date();
+          const traces = await measureAndReturn({
+            operationName: "healthCheckTraces",
+            projectId: "__CROSS_PROJECT__",
+            input: {
+              now: convertDateToClickhouseDateTime(now),
+            },
+            fn: async (input: { now: string }) => {
+              return queryClickhouse<{ id: string }>({
+                query: `
                 SELECT id
                 FROM traces
                 WHERE timestamp <= {now: DateTime64(3)}
                 AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
                 LIMIT 1
               `,
-              params: input,
-              tags: {
-                feature: "health-check",
-                type: "trace",
-              },
-            });
-          },
-        });
-        const observations = await queryClickhouse({
-          query: `
+                params: input,
+                tags: {
+                  feature: "health-check",
+                  type: "trace",
+                },
+              });
+            },
+          });
+          const observations = await queryClickhouse({
+            query: `
             SELECT id
             FROM observations
             WHERE start_time <= {now: DateTime64(3)}
             AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
             LIMIT 1
           `,
-          params: {
-            now: convertDateToClickhouseDateTime(now),
-          },
-          tags: {
-            feature: "health-check",
-            type: "observation",
-          },
-        });
-        if (traces.length === 0 || observations.length === 0) {
-          return res.status(503).json({
-            status: `No ${
-              traces.length === 0
-                ? "traces"
-                : observations.length === 0
-                  ? "observations"
-                  : "<should not happen>"
-            } within the last 3 minutes`,
-            version: VERSION.replace("v", ""),
+            params: {
+              now: convertDateToClickhouseDateTime(now),
+            },
+            tags: {
+              feature: "health-check",
+              type: "observation",
+            },
           });
+          if (traces.length === 0 || observations.length === 0) {
+            return res.status(503).json({
+              status: `No ${
+                traces.length === 0
+                  ? "traces"
+                  : observations.length === 0
+                    ? "observations"
+                    : "<should not happen>"
+              } within the last 3 minutes`,
+              version: VERSION.replace("v", ""),
+            });
+          }
         }
       }
     } catch (e) {

@@ -43,6 +43,10 @@ ARG NEXT_PUBLIC_POSTHOG_HOST
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
+# When OCEANBASE_ENABLED=true, db:generate uses prisma/oceanbase/schema.prisma (OCEANBASE_URL)
+ARG OCEANBASE_ENABLED=false
+ENV OCEANBASE_ENABLED=$OCEANBASE_ENABLED
+
 RUN turbo run build --filter=worker...
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS runner

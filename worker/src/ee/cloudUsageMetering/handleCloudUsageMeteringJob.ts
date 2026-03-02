@@ -8,6 +8,7 @@ import {
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
+  isOceanBase,
   logger,
 } from "@langfuse/shared/src/server";
 import {
@@ -101,35 +102,36 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   );
 
   // find all organizations which have a stripe org id set up
-  const organizations = (
-    await prisma.organization.findMany({
-      where: {
+  // OceanBase/MySQL: Prisma JSON path filter differs; fetch non-null cloudConfig and filter in memory
+  const whereClause = isOceanBase()
+    ? { cloudConfig: { not: Prisma.DbNull } }
+    : {
         cloudConfig: {
           path: ["stripe", "customerId"],
           not: Prisma.DbNull,
         },
+      };
+  const orgsRaw = await prisma.organization.findMany({
+    where: whereClause as Prisma.OrganizationWhereInput,
+    include: {
+      projects: {
+        select: { id: true },
+        where: { deletedAt: null },
       },
-      include: {
-        projects: {
-          select: {
-            id: true,
-          },
-          where: {
-            deletedAt: null,
-          },
-        },
-        cloudSpendAlerts: {
-          select: {
-            id: true,
-          },
-        },
+      cloudSpendAlerts: {
+        select: { id: true },
       },
-    })
-  ).map(({ projects, cloudSpendAlerts, ...org }) => ({
-    ...parseDbOrg(org),
-    projectIds: projects.map((p) => p.id),
-    cloudSpendAlertIds: cloudSpendAlerts.map((a) => a.id),
-  }));
+    },
+  });
+  const organizations = orgsRaw
+    .map(
+      ({ projects, cloudSpendAlerts, ...org }: (typeof orgsRaw)[number]) => ({
+        ...parseDbOrg(org),
+        projectIds: projects.map((p: { id: string }) => p.id),
+        cloudSpendAlertIds: cloudSpendAlerts.map((a: { id: string }) => a.id),
+      }),
+    )
+    .filter((org) => org.cloudConfig?.stripe?.customerId);
   logger.info(
     `[CLOUD USAGE METERING] Job for ${organizations.length} organizations`,
   );

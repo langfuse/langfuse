@@ -3,7 +3,8 @@ import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
 import { z } from "zod/v4";
-import { logger } from "./index";
+import { isOceanBase, logger } from "./index";
+import * as filterToPrismaOb from "./filterToPrismaOb";
 
 const operatorReplacements = {
   "any of": "IN",
@@ -28,6 +29,12 @@ export function tableColumnsToSqlFilterAndPrefix(
   tableColumns: ColumnDefinition[],
   table: TableNames,
 ): Prisma.Sql {
+  if (isOceanBase())
+    return filterToPrismaOb.tableColumnsToSqlFilterAndPrefix(
+      filters,
+      tableColumns,
+      table,
+    );
   const sql = tableColumnsToSqlFilter(filters, tableColumns, table);
   if (sql === Prisma.empty) {
     return Prisma.empty;
@@ -44,6 +51,12 @@ export function tableColumnsToSqlFilter(
   tableColumns: ColumnDefinition[],
   table: TableNames,
 ): Prisma.Sql {
+  if (isOceanBase())
+    return filterToPrismaOb.tableColumnsToSqlFilter(
+      filters,
+      tableColumns,
+      table,
+    );
   const internalFilters = filters.map((filter) => {
     // Get column definition to map column to internal name, e.g. "t.id"
     const col = tableColumns.find(
@@ -179,6 +192,12 @@ export const datetimeFilterToPrismaSql = (
   operator: (typeof dateOperators)[number],
   value: Date,
 ) => {
+  if (isOceanBase())
+    return filterToPrismaOb.datetimeFilterToPrismaSql(
+      safeColumn,
+      operator,
+      value,
+    );
   if (!dateOperators.includes(operator)) {
     throw new Error("Invalid operator: " + operator);
   }
@@ -194,6 +213,8 @@ export const datetimeFilterToPrismaSql = (
 export const datetimeFilterToPrisma = (
   timestampFilter: z.infer<typeof timeFilter>,
 ) => {
+  if (isOceanBase())
+    return filterToPrismaOb.datetimeFilterToPrisma(timestampFilter);
   const prismaTimestampFilter =
     timestampFilter.operator === ">="
       ? { gte: timestampFilter.value }

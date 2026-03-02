@@ -77,7 +77,6 @@ import {
   TooltipContent,
 } from "@/src/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
-
 // Lazy load TracesTable
 const TracesTable = lazy(
   () => import("@/src/components/table/use-cases/traces"),
@@ -211,7 +210,7 @@ export const InnerEvaluatorForm = (props: {
             .parse(props.existingEvaluator.variableMapping)
         : z.array(variableMapping).parse(
             props.evalTemplate
-              ? props.evalTemplate.vars.map((v) => ({
+              ? (props.evalTemplate.vars as string[]).map((v) => ({
                   templateVariable: v,
                   langfuseObject: "trace" as const,
                   selectedColumnId: "input",
@@ -224,9 +223,10 @@ export const InnerEvaluatorForm = (props: {
       delay: props.existingEvaluator?.delay
         ? props.existingEvaluator.delay / 1000
         : 30,
-      timeScope: (props.existingEvaluator?.timeScope ?? ["NEW"]).filter(
-        (option): option is "NEW" | "EXISTING" =>
-          ["NEW", "EXISTING"].includes(option),
+      timeScope: (
+        (props.existingEvaluator?.timeScope as string[]) ?? ["NEW"]
+      ).filter((option): option is "NEW" | "EXISTING" =>
+        ["NEW", "EXISTING"].includes(option),
       ),
     },
   }) as UseFormReturn<EvalFormType>;
@@ -324,7 +324,7 @@ export const InnerEvaluatorForm = (props: {
     if (props.evalTemplate && form.getValues("mapping").length === 0) {
       form.setValue(
         "mapping",
-        props.evalTemplate.vars.map((v) => ({
+        (props.evalTemplate.vars as string[]).map((v) => ({
           templateVariable: v,
           ...inferDefaultMapping(v),
         })),
@@ -370,9 +370,9 @@ export const InnerEvaluatorForm = (props: {
     const validatedFilter = z.array(singleFilter).safeParse(values.filter);
 
     if (
-      props.existingEvaluator?.timeScope.includes("EXISTING") &&
+      (props.existingEvaluator?.timeScope as string[])?.includes("EXISTING") &&
       props.mode === "edit" &&
-      !values.timeScope.includes("EXISTING")
+      !(values.timeScope as string[]).includes("EXISTING")
     ) {
       form.setError("timeScope", {
         type: "manual",

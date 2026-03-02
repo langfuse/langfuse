@@ -73,7 +73,7 @@ export const EvalTemplateForm = (props: {
             ? {
                 name: props.existingEvalTemplate.name,
                 prompt: props.existingEvalTemplate.prompt,
-                vars: props.existingEvalTemplate.vars,
+                vars: props.existingEvalTemplate.vars as string[],
                 outputSchema: props.existingEvalTemplate.outputSchema as {
                   score: string;
                   reasoning: string;

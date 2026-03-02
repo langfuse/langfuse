@@ -11,9 +11,10 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
   processEventBatch,
-  queryClickhouse,
+  DatabaseAdapterFactory,
   QueueJobs,
   redis,
+  isOceanBase,
   TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -36,28 +37,42 @@ async function getExistingRunItemDatasetItemIds(
   runId: string,
   datasetId: string,
 ): Promise<Set<string>> {
-  const query = `
-  SELECT dataset_item_id as id
-  FROM dataset_run_items_rmt
-  WHERE project_id = {projectId: String}
-  AND dataset_id = {datasetId: String}
-  AND dataset_run_id = {runId: String}
-`;
+  const tags = {
+    feature: "dataset-run-item",
+    type: "read",
+    kind: "list",
+    projectId,
+  };
 
-  const rows = await queryClickhouse<{ id: string }>({
-    query,
-    params: {
-      projectId,
-      runId,
-      datasetId,
-    },
-    tags: {
-      feature: "dataset-run-item",
-      type: "read",
-      kind: "list",
-      projectId,
-    },
-  });
+  const adapter = DatabaseAdapterFactory.getInstance();
+
+  const rows = isOceanBase()
+    ? await adapter.queryWithOptions<{ id: string }>({
+        query: `
+          SELECT dataset_item_id as id
+          FROM dataset_run_items_rmt
+          WHERE project_id = ?
+          AND dataset_id = ?
+          AND dataset_run_id = ?
+        `,
+        params: [projectId, datasetId, runId],
+        tags,
+      })
+    : await adapter.queryWithOptions<{ id: string }>({
+        query: `
+          SELECT dataset_item_id as id
+          FROM dataset_run_items_rmt
+          WHERE project_id = {projectId: String}
+          AND dataset_id = {datasetId: String}
+          AND dataset_run_id = {runId: String}
+        `,
+        params: {
+          projectId,
+          datasetId,
+          runId,
+        },
+        tags,
+      });
 
   return new Set(rows.map((row) => row.id));
 }

@@ -950,7 +950,7 @@ export const evaluate = async ({
 
   const extractedVariables = await extractVariablesFromTracingData({
     projectId: event.projectId,
-    variables: template.vars,
+    variables: template.vars as string[],
     traceId: job.jobInputTraceId,
     traceTimestamp: job.jobInputTraceTimestamp ?? undefined,
     datasetItemId: job.jobInputDatasetItemId ?? undefined,

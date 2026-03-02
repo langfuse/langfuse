@@ -65,8 +65,8 @@ const observationCols = [
     type: "stringObject",
     internal: 'o."metadata"',
   },
-  { name: "Input", id: "input", internal: 'o."input"' },
-  { name: "Output", id: "output", internal: 'o."output"' },
+  { name: "Input", id: "input", internal: "t.input" },
+  { name: "Output", id: "output", internal: "t.output" },
 ];
 
 export const availableTraceEvalVariables = [
@@ -128,10 +128,10 @@ export const availableTraceEvalVariables = [
         name: "Metadata",
         id: "metadata",
         type: "stringObject",
-        internal: 't."metadata"',
+        internal: "t.metadata",
       },
-      { name: "Input", id: "input", internal: 't."input"' },
-      { name: "Output", id: "output", internal: 't."output"' },
+      { name: "Input", id: "input", internal: "t.input" },
+      { name: "Output", id: "output", internal: "t.output" },
     ],
   },
 ];
@@ -145,13 +145,13 @@ export const availableDatasetEvalVariables = [
         name: "Metadata",
         id: "metadata",
         type: "stringObject",
-        internal: 'd."metadata"',
+        internal: "d.metadata",
       },
-      { name: "Input", id: "input", internal: 'd."input"' },
+      { name: "Input", id: "input", internal: "d.input" },
       {
         name: "Expected output",
         id: "expected_output",
-        internal: 'd."expected_output"',
+        internal: "d.expected_output",
       },
     ],
   },

@@ -95,7 +95,9 @@ export const createPrompt = async ({
   const finalLabels = [...labels, LATEST_PROMPT_LABEL]; // Newly created prompts are always labeled as 'latest'
 
   // If tags are undefined, use the tags from the latest prompt version
-  const finalTags = [...new Set(tags ?? latestPrompt?.tags ?? [])];
+  const finalTags = [
+    ...new Set(tags ?? (latestPrompt?.tags as string[]) ?? []),
+  ];
   const newPromptId = uuidv4();
 
   const promptService = new PromptService(prisma, redis);
@@ -170,7 +172,7 @@ export const createPrompt = async ({
 
   const haveTagsChanged =
     JSON.stringify([...new Set(finalTags)].sort()) !==
-    JSON.stringify([...new Set(latestPrompt?.tags)].sort());
+    JSON.stringify([...new Set((latestPrompt?.tags as string[]) ?? [])].sort());
   if (haveTagsChanged) {
     // If we're creating a new prompt with tags, we must update those tags on previous prompts since tags are consistent across versions
     const { touchedPromptIds: touchedPromptIdsTags, updates: updatesTags } =
@@ -285,7 +287,7 @@ export const duplicatePrompt = async ({
       name,
       version: isSingleVersion ? 1 : prompt.version,
       labels: isSingleVersion
-        ? [...new Set([LATEST_PROMPT_LABEL, ...prompt.labels])]
+        ? [...new Set([LATEST_PROMPT_LABEL, ...(prompt.labels as string[])])]
         : prompt.labels,
       type: prompt.type,
       prompt: PromptContentSchema.parse(prompt.prompt),
@@ -303,7 +305,11 @@ export const duplicatePrompt = async ({
   // Create all prompts in a single operation
   const result = await prisma.$transaction(async (tx) => {
     const promptResult = await tx.prompt.createMany({
-      data: promptsToCreate,
+      data: promptsToCreate.map((prompt) => ({
+        ...prompt,
+        labels: prompt.labels as string[],
+        tags: prompt.tags as string[],
+      })),
     });
 
     await tx.promptDependency.createMany({
