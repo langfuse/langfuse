@@ -303,5 +303,5 @@ export const eventsExperimentsAggregation = (
   })
     .selectFieldSet("all")
     .withExperimentIds(params.experimentIds)
-    .whereRaw("e.experiment_id IS NOT NULL AND e.experiment_id != ''");
+    .whereRaw("e.experiment_id != ''");
 };

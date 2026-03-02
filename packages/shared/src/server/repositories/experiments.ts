@@ -4,8 +4,9 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   CTEQueryBuilder,
-  type CTEWithSchema,
+  CTEWithSchema,
   DateTimeFilter,
+  EventsAggQueryBuilder,
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
@@ -147,36 +148,32 @@ const buildExperimentTraceMetricsCTE = (params: {
   experimentIds?: string[];
   startTimeFrom?: string | null;
 }): CTEWithSchema => {
-  const query = `
-    SELECT
+  const { projectId, experimentIds, startTimeFrom } = params;
+
+  const builder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "e.project_id, e.experiment_id, e.trace_id",
+    selectExpression: `
       e.project_id,
       e.experiment_id,
       e.trace_id,
       dateDiff('millisecond', min(e.start_time), greatest(max(e.start_time), max(e.end_time))) as latency_ms,
-      sum(e.total_cost) as total_cost
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-      AND e.experiment_id IS NOT NULL
-      AND e.experiment_id != ''
-      AND e.is_deleted = 0
-      ${params.startTimeFrom ? `AND e.start_time >= {startTimeFrom: DateTime64(3)}` : ""}
-      ${params.experimentIds ? `AND e.experiment_id IN ({experimentIds: Array(String)})` : ""}
-    GROUP BY e.project_id, e.experiment_id, e.trace_id
-  `.trim();
-
-  const cteParams: Record<string, string | string[]> = {};
-
-  if (params.startTimeFrom) {
-    cteParams.startTimeFrom = params.startTimeFrom;
-  }
-
-  if (params.experimentIds) {
-    cteParams.experimentIds = params.experimentIds;
-  }
+      sum(e.total_cost) as total_cost`,
+  })
+    .whereRaw("e.experiment_id != ''")
+    .when(Boolean(experimentIds?.length), (b) =>
+      b.whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
+        experimentIds,
+      }),
+    )
+    .when(Boolean(startTimeFrom), (b) =>
+      b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
+        startTimeFrom,
+      }),
+    );
 
   return {
-    query,
-    params: cteParams,
+    ...builder.buildWithParams(),
     schema: [
       "project_id",
       "experiment_id",
