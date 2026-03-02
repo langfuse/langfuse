@@ -34,6 +34,7 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
+    "release:cloud": "bash ./scripts/release-cloud.sh",
     "prepare": "husky"
   },
   "devDependencies": {
