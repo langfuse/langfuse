@@ -133,14 +133,15 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CLIENT_SECRET: z.string().optional(),
     AUTH_AUTHENTIK_ISSUER: z
       .string()
-      .regex(/^https:\/\/.+\/application\/o\/[^/]+$/, {
+      .regex(/^https:\/\/.+\/application\/o\/[^/]+\/?$/, {
         message:
-          "Authentik issuer must be in format https://<domain>/application/o/<slug> without trailing slash",
+          "Authentik issuer must be in format https://<domain>/application/o/<slug> with optional trailing slash",
       })
       .optional(),
     AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_AUTHENTIK_CHECKS: zAuthChecks,
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD: zAuthMethod,
+    AUTH_AUTHENTIK_AUTHORIZATION_URL: z.string().url().optional(),
     AUTH_ONELOGIN_CLIENT_ID: z.string().optional(),
     AUTH_ONELOGIN_CLIENT_SECRET: z.string().optional(),
     AUTH_ONELOGIN_ISSUER: z.string().optional(),
@@ -538,6 +539,8 @@ export const env = createEnv({
     AUTH_AUTHENTIK_CLIENT_AUTH_METHOD:
       process.env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
     AUTH_AUTHENTIK_CHECKS: process.env.AUTH_AUTHENTIK_CHECKS,
+    AUTH_AUTHENTIK_AUTHORIZATION_URL:
+      process.env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
     AUTH_ONELOGIN_CLIENT_ID: process.env.AUTH_ONELOGIN_CLIENT_ID,
     AUTH_ONELOGIN_CLIENT_SECRET: process.env.AUTH_ONELOGIN_CLIENT_SECRET,
     AUTH_ONELOGIN_ISSUER: process.env.AUTH_ONELOGIN_ISSUER,
