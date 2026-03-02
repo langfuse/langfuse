@@ -55,7 +55,7 @@ export const scoresColumnsTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "Experiment IDs",
     uiTableId: "experimentIds",
-    clickhouseTableName: "events_core",
+    clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."experiment_id"',
   },
 ];
