@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
-import { Info } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   isTraceTarget,
@@ -145,9 +145,9 @@ export function EvalVersionCallout({
   return (
     <Alert
       variant="default"
-      className="mt-2 max-w-4xl border-light-blue bg-light-blue"
+      className="mt-2 max-w-4xl border-dark-yellow bg-light-yellow"
     >
-      <Info className="h-4 w-4 text-dark-blue dark:text-dark-blue" />
+      <AlertTriangle className="h-4 w-4 text-dark-yellow" />
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">

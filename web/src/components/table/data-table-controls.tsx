@@ -230,7 +230,6 @@ export function DataTableControls({
                   value={filter.value}
                   onChange={filter.onChange}
                   unit={filter.unit}
-                  step={filter.step}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
                   isDisabled={filter.isDisabled}
@@ -390,7 +389,6 @@ interface NumericFacetProps extends BaseFacetProps {
   value: [number, number];
   onChange: (value: [number, number]) => void;
   unit?: string;
-  step?: number;
 }
 
 interface StringFacetProps extends BaseFacetProps {
@@ -860,7 +858,6 @@ export function NumericFacet({
   value,
   onChange,
   unit,
-  step: stepProp,
   isActive,
   isDisabled,
   disabledReason,
@@ -962,7 +959,7 @@ export function NumericFacet({
                     value={isActive ? localValue[0] : ""}
                     placeholder={String(min)}
                     min={min}
-                    step={stepProp ?? "any"}
+                    step="any"
                     onChange={handleMinInputChange}
                     className="h-8"
                   />
@@ -987,7 +984,7 @@ export function NumericFacet({
                     value={isActive ? localValue[1] : ""}
                     placeholder={String(max)}
                     min={min}
-                    step={stepProp ?? "any"}
+                    step="any"
                     onChange={handleMaxInputChange}
                     className="h-8"
                   />
@@ -1002,7 +999,7 @@ export function NumericFacet({
             <Slider
               min={min}
               max={max}
-              step={stepProp ?? (max - min <= 1000 ? 0.01 : 1)}
+              step={max - min <= 1000 ? 0.01 : 1}
               value={localValue}
               onValueChange={handleSliderChange}
             />
