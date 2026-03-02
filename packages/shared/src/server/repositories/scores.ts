@@ -12,7 +12,11 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import { FilterList, orderByToClickhouseSql } from "../queries";
+import {
+  FilterList,
+  orderByToClickhouseSql,
+  EventsQueryBuilder,
+} from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
@@ -404,6 +408,16 @@ export const getScoresForExperimentItems = async (
 > => {
   if (experimentIds.length === 0) return [];
 
+  // Build events subquery using the query builder
+  const eventsSubquery = new EventsQueryBuilder({ projectId })
+    .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
+    .whereRaw("e.experiment_id IN ({experimentIds: Array(String)})", {
+      experimentIds,
+    })
+    .whereRaw("e.experiment_id != ''")
+    .whereRaw("e.is_deleted = 0")
+    .buildWithParams();
+
   const query = `
     SELECT
       s.id as id,
@@ -430,15 +444,7 @@ export const getScoresForExperimentItems = async (
       s.is_deleted as is_deleted,
       length(mapKeys(s.metadata)) > 0 AS has_metadata,
       e.experiment_id as experiment_id
-    FROM (
-      SELECT DISTINCT project_id, experiment_id, trace_id
-      FROM events_core
-      WHERE project_id = {projectId: String}
-        AND experiment_id IN {experimentIds: Array(String)}
-        AND experiment_id IS NOT NULL
-        AND experiment_id != ''
-        AND is_deleted = 0
-    ) e
+    FROM (${eventsSubquery.query}) e
     JOIN scores s FINAL ON e.trace_id = s.trace_id
       AND e.project_id = s.project_id
     WHERE s.project_id = {projectId: String}
@@ -455,8 +461,7 @@ export const getScoresForExperimentItems = async (
   >({
     query,
     params: {
-      projectId,
-      experimentIds,
+      ...eventsSubquery.params,
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: {
