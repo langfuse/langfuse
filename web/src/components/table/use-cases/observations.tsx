@@ -435,12 +435,13 @@ export default function ObservationsTable({
   const queryFilter = useSidebarFilterState(
     observationFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
-    hideControls, // Disable URL persistence for embedded preview tables
-    undefined,
     {
-      hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
+      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+      // Sidebar-only implicit environment defaults
+      implicitDefaultConfig: {
+        hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
+      },
     },
   );
 

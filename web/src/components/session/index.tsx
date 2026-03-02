@@ -753,8 +753,7 @@ export const SessionEventsPage: React.FC<{
   const queryFilter = useSidebarFilterState(
     sessionEventsFilterConfig,
     filterOptions,
-    projectId,
-    isFilterOptionsPending,
+    { loading: isFilterOptionsPending },
   );
 
   const visibleFilterState = React.useMemo(

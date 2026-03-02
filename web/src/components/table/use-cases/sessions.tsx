@@ -240,8 +240,9 @@ export default function SessionsTable({
   const queryFilter = useSidebarFilterState(
     sessionFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
+    {
+      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

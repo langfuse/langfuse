@@ -21,9 +21,13 @@ import { sessionFilterConfig } from "./config/sessions-config";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
-  buildImplicitEnvironmentFilter,
-  stripImplicitEnvironmentFilterFromExplicitState,
 } from "./hooks/useSidebarFilterState";
+import {
+  buildManagedEnvironmentPolicyConfig,
+  buildImplicitEnvironmentFilter,
+  buildEffectiveEnvironmentFilter,
+  stripImplicitEnvironmentFilterFromExplicitState,
+} from "./lib/managedEnvironmentPolicy";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -728,6 +732,10 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     "langfuse-evaluation",
     "sdk-experiment",
   ];
+  const managedEnvironmentConfig = buildManagedEnvironmentPolicyConfig({
+    managedEnvironmentColumn: "environment",
+    hiddenEnvironments,
+  });
 
   it("should inject implicit environment none-of filter when no explicit environment filter exists", () => {
     const implicit = buildImplicitEnvironmentFilter({
@@ -739,8 +747,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
           value: ["trace-a"],
         },
       ],
-      managedEnvironmentColumn: "environment",
-      hiddenEnvironments,
+      config: managedEnvironmentConfig,
     });
 
     expect(implicit).toEqual([
@@ -763,8 +770,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
           value: ["production"],
         },
       ],
-      managedEnvironmentColumn: "environment",
-      hiddenEnvironments,
+      config: managedEnvironmentConfig,
     });
 
     expect(implicit).toEqual([]);
@@ -786,9 +792,8 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
           value: ["trace-a"],
         },
       ],
-      managedEnvironmentColumn: "environment",
-      hiddenEnvironments,
       availableEnvironmentValues: [],
+      config: managedEnvironmentConfig,
     });
 
     expect(stripped).toEqual([
@@ -817,9 +822,8 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
           value: ["production", "staging"],
         },
       ],
-      managedEnvironmentColumn: "environment",
-      hiddenEnvironments,
       availableEnvironmentValues: [...availableValues],
+      config: managedEnvironmentConfig,
     });
 
     expect(stripped).toEqual([]);
@@ -849,11 +853,104 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
 
     const stripped = stripImplicitEnvironmentFilterFromExplicitState({
       explicitFilters: explicit,
-      managedEnvironmentColumn: "environment",
-      hiddenEnvironments,
       availableEnvironmentValues: [...availableValues],
+      config: managedEnvironmentConfig,
     });
 
     expect(stripped).toEqual(explicit);
+  });
+
+  it("should canonicalize explicit env selection to compact hidden-env delta", () => {
+    const availableValues = [
+      "production",
+      "staging",
+      ...hiddenEnvironments,
+    ] as const;
+
+    const stripped = stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production", "staging", "langfuse-evaluation"],
+        },
+      ],
+      availableEnvironmentValues: [...availableValues],
+      config: managedEnvironmentConfig,
+    });
+
+    expect(stripped).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["langfuse-evaluation"],
+      },
+    ]);
+  });
+
+  it("should expand compact hidden-env delta into effective environment filter", () => {
+    const effective = buildEffectiveEnvironmentFilter({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["langfuse-evaluation"],
+        },
+      ],
+      config: managedEnvironmentConfig,
+    });
+
+    expect(effective).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["langfuse-prompt-experiment", "sdk-experiment"],
+      },
+    ]);
+  });
+
+  it("should return no effective environment filter when all hidden environments are enabled", () => {
+    const effective = buildEffectiveEnvironmentFilter({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: [...hiddenEnvironments],
+        },
+      ],
+      config: managedEnvironmentConfig,
+    });
+
+    expect(effective).toEqual([]);
+  });
+
+  it("should keep explicit all-environment selection in URL state", () => {
+    const availableValues = [
+      "production",
+      "staging",
+      ...hiddenEnvironments,
+    ] as const;
+
+    const explicitAll: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: [...availableValues],
+      },
+    ];
+
+    const stripped = stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters: explicitAll,
+      availableEnvironmentValues: [...availableValues],
+      config: managedEnvironmentConfig,
+    });
+
+    expect(stripped).toEqual(explicitAll);
   });
 });

@@ -13,6 +13,13 @@ import {
   decodeFiltersGeneric,
 } from "../lib/filter-query-encoding";
 import { normalizeFilterColumnNames } from "../lib/filter-transform";
+import {
+  buildEffectiveEnvironmentFilter,
+  buildManagedEnvironmentPolicyConfig,
+  isManagedEnvironmentDeltaFilter,
+  stripImplicitEnvironmentFilterFromExplicitState,
+  type ManagedEnvironmentPolicyInput,
+} from "../lib/managedEnvironmentPolicy";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig } from "../lib/filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -308,119 +315,22 @@ type UpdateFilter = (
   operator?: "any of" | "none of" | "all of",
 ) => void;
 
-type ImplicitDefaultConfig = {
-  hiddenEnvironments?: string[];
-  managedEnvironmentColumn?: string;
+type UseSidebarFilterStateOptions = {
+  loading?: boolean;
+  /**
+   * If true, prevents filter state from being persisted to/read from URL query params.
+   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
+   * the parent page's URL with filters that don't apply to the parent context.
+   */
+  disableUrlPersistence?: boolean;
+  /**
+   * Default filters to apply on initial page load (when no URL filters are present).
+   * These apply every time the component mounts, but respect user's manual filter changes.
+   * If a user clears all filters, defaults won't reapply until the component remounts (new page visit).
+   */
+  defaultFilters?: FilterState;
+  implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
 };
-
-type EnvironmentFilter = Extract<
-  FilterState[number],
-  { type: "stringOptions" }
->;
-
-function areStringSetsEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false;
-  const leftSet = new Set(left);
-  if (leftSet.size !== new Set(right).size) return false;
-  return right.every((value) => leftSet.has(value));
-}
-
-function isEquivalentToImplicitEnvironmentDefault(params: {
-  envFilter: EnvironmentFilter;
-  hiddenEnvironments: string[];
-  availableEnvironmentValues: string[];
-}): boolean {
-  const { envFilter, hiddenEnvironments, availableEnvironmentValues } = params;
-
-  if (hiddenEnvironments.length === 0) return false;
-
-  const exactDefaultMatch =
-    envFilter.operator === "none of" &&
-    areStringSetsEqual(envFilter.value, hiddenEnvironments);
-
-  if (exactDefaultMatch) return true;
-
-  if (availableEnvironmentValues.length === 0) return false;
-
-  const selectedFromFilter = computeSelectedValues(
-    availableEnvironmentValues,
-    envFilter,
-  );
-  const hiddenSet = new Set(hiddenEnvironments);
-  const selectedFromDefault = availableEnvironmentValues.filter(
-    (value) => !hiddenSet.has(value),
-  );
-
-  return areStringSetsEqual(selectedFromFilter, selectedFromDefault);
-}
-
-export function stripImplicitEnvironmentFilterFromExplicitState(params: {
-  explicitFilters: FilterState;
-  managedEnvironmentColumn: string;
-  hiddenEnvironments: string[];
-  availableEnvironmentValues: string[];
-}): FilterState {
-  const {
-    explicitFilters,
-    managedEnvironmentColumn,
-    hiddenEnvironments,
-    availableEnvironmentValues,
-  } = params;
-
-  if (hiddenEnvironments.length === 0) return explicitFilters;
-
-  const managedColumnFilters = explicitFilters.filter(
-    (filter) => filter.column === managedEnvironmentColumn,
-  );
-
-  // Only canonicalize the standard environment checkbox filter shape.
-  if (
-    managedColumnFilters.length !== 1 ||
-    managedColumnFilters[0]?.type !== "stringOptions"
-  ) {
-    return explicitFilters;
-  }
-
-  const envFilter = managedColumnFilters[0] as EnvironmentFilter;
-
-  if (
-    !isEquivalentToImplicitEnvironmentDefault({
-      envFilter,
-      hiddenEnvironments,
-      availableEnvironmentValues,
-    })
-  ) {
-    return explicitFilters;
-  }
-
-  return explicitFilters.filter((filter) => filter !== envFilter);
-}
-
-export function buildImplicitEnvironmentFilter(params: {
-  explicitFilters: FilterState;
-  managedEnvironmentColumn: string;
-  hiddenEnvironments: string[];
-}): FilterState {
-  const { explicitFilters, managedEnvironmentColumn, hiddenEnvironments } =
-    params;
-
-  if (hiddenEnvironments.length === 0) return [];
-
-  const hasExplicitEnvironmentFilter = explicitFilters.some(
-    (filter) => filter.column === managedEnvironmentColumn,
-  );
-
-  if (hasExplicitEnvironmentFilter) return [];
-
-  return [
-    {
-      column: managedEnvironmentColumn,
-      type: "stringOptions" as const,
-      operator: "none of" as const,
-      value: hiddenEnvironments,
-    },
-  ];
-}
 
 /**
  * Pure function that determines the operator and values for checkbox-based
@@ -478,22 +388,14 @@ export function useSidebarFilterState(
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  _projectId?: string,
-  loading?: boolean,
-  /**
-   * If true, prevents filter state from being persisted to/read from URL query params.
-   * Use this for embedded tables (e.g., preview tables in forms) to avoid polluting
-   * the parent page's URL with filters that don't apply to the parent context.
-   */
-  disableUrlPersistence?: boolean,
-  /**
-   * Default filters to apply on initial page load (when no URL filters are present).
-   * These apply every time the component mounts, but respect user's manual filter changes.
-   * If a user clears all filters, defaults won't reapply until the component remounts (new page visit).
-   */
-  defaultFilters?: FilterState,
-  implicitDefaultConfig?: ImplicitDefaultConfig,
+  hookOptions: UseSidebarFilterStateOptions = {},
 ) {
+  const {
+    loading,
+    disableUrlPersistence,
+    defaultFilters,
+    implicitDefaultConfig,
+  } = hookOptions;
   const peekContext = usePeekTableState();
 
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
@@ -544,13 +446,14 @@ export function useSidebarFilterState(
     ? peekContext.tableState.filters
     : urlFilterState;
 
-  const managedEnvironmentColumn =
-    implicitDefaultConfig?.managedEnvironmentColumn ?? "environment";
-
-  const hiddenEnvironments = useMemo(
-    () => Array.from(new Set(implicitDefaultConfig?.hiddenEnvironments ?? [])),
-    [implicitDefaultConfig?.hiddenEnvironments],
+  const managedEnvironmentPolicyConfig = useMemo(
+    () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
+    [implicitDefaultConfig],
   );
+
+  const managedEnvironmentColumn =
+    managedEnvironmentPolicyConfig.managedEnvironmentColumn;
+  const hiddenEnvironments = managedEnvironmentPolicyConfig.hiddenEnvironments;
 
   const availableEnvironmentValues = useMemo(() => {
     const rawOptions = options[managedEnvironmentColumn];
@@ -566,26 +469,35 @@ export function useSidebarFilterState(
     [rawFilterState, mutualExclusionContext],
   );
 
-  const implicitEnvironmentFilterState: FilterState = useMemo(
+  const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
-      buildImplicitEnvironmentFilter({
+      buildEffectiveEnvironmentFilter({
         explicitFilters: explicitFilterState,
-        managedEnvironmentColumn,
-        hiddenEnvironments,
+        config: managedEnvironmentPolicyConfig,
       }),
-    [explicitFilterState, managedEnvironmentColumn, hiddenEnvironments],
+    [explicitFilterState, managedEnvironmentPolicyConfig],
   );
 
   const filterState: FilterState = useMemo(
     () =>
       reconcileMutuallyExclusiveFilters(
-        [...explicitFilterState, ...implicitEnvironmentFilterState],
+        [
+          ...explicitFilterState.filter(
+            (filter) =>
+              !isManagedEnvironmentDeltaFilter(
+                filter,
+                managedEnvironmentPolicyConfig,
+              ),
+          ),
+          ...effectiveEnvironmentFilterState,
+        ],
         mutualExclusionContext,
       ),
     [
       explicitFilterState,
-      implicitEnvironmentFilterState,
+      effectiveEnvironmentFilterState,
       mutualExclusionContext,
+      managedEnvironmentPolicyConfig,
     ],
   );
 
@@ -603,9 +515,8 @@ export function useSidebarFilterState(
       );
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: reconciledFilters,
-        managedEnvironmentColumn,
-        hiddenEnvironments,
         availableEnvironmentValues,
+        config: managedEnvironmentPolicyConfig,
       });
 
       if (peekContext) {
@@ -633,8 +544,7 @@ export function useSidebarFilterState(
       disableUrlPersistence,
       peekContext,
       mutualExclusionContext,
-      managedEnvironmentColumn,
-      hiddenEnvironments,
+      managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
     ],
   );

@@ -162,10 +162,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const queryFilter = useSidebarFilterState(
     evaluatorFilterConfig,
     newFilterOptions,
-    projectId,
-    false,
-    false,
-    [],
+    { loading: false },
   );
 
   const evaluators = api.evals.allConfigs.useQuery({

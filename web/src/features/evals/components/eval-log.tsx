@@ -52,8 +52,7 @@ export default function EvalLogTable({
   const queryFilter = useSidebarFilterState(
     evalLogFilterConfig,
     {}, // No dynamic options needed - status options are in column definition
-    projectId,
-    false,
+    { loading: false },
   );
 
   const logs = api.evals.getLogs.useQuery({

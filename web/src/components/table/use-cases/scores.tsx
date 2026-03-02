@@ -288,9 +288,10 @@ export default function ScoresTable({
   const queryFilter = useSidebarFilterState(
     scoreFilterConfig,
     newFilterOptions,
-    projectId,
-    filterOptions.isPending || environmentFilterOptions.isPending,
-    disableUrlPersistence,
+    {
+      loading: filterOptions.isPending || environmentFilterOptions.isPending,
+      disableUrlPersistence,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates

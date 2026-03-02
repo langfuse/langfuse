@@ -326,17 +326,16 @@ export default function TracesTable({
     };
   }, [environmentFilterOptions.data, traceFilterOptionsResponse.data]);
 
-  const queryFilter = useSidebarFilterState(
-    traceFilterConfig,
-    filterOptions,
-    projectId,
-    traceFilterOptionsResponse.isPending || environmentFilterOptions.isPending,
-    hideControls, // Disable URL persistence for embedded preview tables
-    undefined,
-    {
+  const queryFilter = useSidebarFilterState(traceFilterConfig, filterOptions, {
+    loading:
+      traceFilterOptionsResponse.isPending ||
+      environmentFilterOptions.isPending,
+    disableUrlPersistence: hideControls, // Disable URL persistence for embedded preview tables
+    // Sidebar-only implicit environment defaults
+    implicitDefaultConfig: {
       hiddenEnvironments: [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS],
     },
-  );
+  });
 
   const combinedFilterState = queryFilter.filterState.concat(
     userIdFilter,
