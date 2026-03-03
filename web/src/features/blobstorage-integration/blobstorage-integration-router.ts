@@ -342,6 +342,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           forcePathStyle: forcePathStyle || false,
           useAzureBlob: type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
           useGoogleCloudStorage: false, // Not supported in blob storage integration
+          useOCIObjectStorage: false, // Not supported in blob storage integration
           googleCloudCredentials: undefined,
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
