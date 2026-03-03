@@ -16,7 +16,6 @@ import { normalizeFilterColumnNames } from "../lib/filter-transform";
 import {
   buildEffectiveEnvironmentFilter,
   buildManagedEnvironmentPolicyConfig,
-  isManagedEnvironmentDeltaFilter,
   stripImplicitEnvironmentFilterFromExplicitState,
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
@@ -453,7 +452,6 @@ export function useSidebarFilterState(
 
   const managedEnvironmentColumn =
     managedEnvironmentPolicyConfig.managedEnvironmentColumn;
-  const hiddenEnvironments = managedEnvironmentPolicyConfig.hiddenEnvironments;
 
   const availableEnvironmentValues = useMemo(() => {
     const rawOptions = options[managedEnvironmentColumn];
@@ -483,11 +481,7 @@ export function useSidebarFilterState(
       reconcileMutuallyExclusiveFilters(
         [
           ...explicitFilterState.filter(
-            (filter) =>
-              !isManagedEnvironmentDeltaFilter(
-                filter,
-                managedEnvironmentPolicyConfig,
-              ),
+            (filter) => filter.column !== managedEnvironmentColumn,
           ),
           ...effectiveEnvironmentFilterState,
         ],
@@ -497,7 +491,7 @@ export function useSidebarFilterState(
       explicitFilterState,
       effectiveEnvironmentFilterState,
       mutualExclusionContext,
-      managedEnvironmentPolicyConfig,
+      managedEnvironmentColumn,
     ],
   );
 
@@ -661,7 +655,7 @@ export function useSidebarFilterState(
         ) {
           const isManagedEnvironmentColumn =
             column === managedEnvironmentColumn &&
-            hiddenEnvironments.length > 0;
+            managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0;
 
           // Keep explicit override when user intentionally enables all environments.
           if (isManagedEnvironmentColumn && values.length > 0) {
@@ -719,7 +713,7 @@ export function useSidebarFilterState(
         },
       ];
     },
-    [config, options, managedEnvironmentColumn, hiddenEnvironments.length],
+    [config, options, managedEnvironmentColumn, managedEnvironmentPolicyConfig],
   );
 
   const updateFilter: UpdateFilter = useCallback(

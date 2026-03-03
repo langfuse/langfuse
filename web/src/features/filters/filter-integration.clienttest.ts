@@ -860,7 +860,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     expect(stripped).toEqual(explicit);
   });
 
-  it("should canonicalize explicit env selection to compact hidden-env delta", () => {
+  it("should canonicalize explicit env selection to none-of disabled hidden envs", () => {
     const availableValues = [
       "production",
       "staging",
@@ -884,13 +884,48 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       {
         column: "environment",
         type: "stringOptions",
-        operator: "any of",
-        value: ["langfuse-evaluation"],
+        operator: "none of",
+        value: ["langfuse-prompt-experiment", "sdk-experiment"],
       },
     ]);
   });
 
-  it("should expand compact hidden-env delta into effective environment filter", () => {
+  it("should canonicalize hidden-only any-of selection to none-of complement", () => {
+    const availableValues = [
+      "production",
+      "staging",
+      ...hiddenEnvironments,
+    ] as const;
+
+    const stripped = stripImplicitEnvironmentFilterFromExplicitState({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["langfuse-evaluation"],
+        },
+      ],
+      availableEnvironmentValues: [...availableValues],
+      config: managedEnvironmentConfig,
+    });
+
+    expect(stripped).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [
+          "production",
+          "staging",
+          "langfuse-prompt-experiment",
+          "sdk-experiment",
+        ],
+      },
+    ]);
+  });
+
+  it("should expand legacy compact hidden-env delta into effective environment filter", () => {
     const effective = buildEffectiveEnvironmentFilter({
       explicitFilters: [
         {
