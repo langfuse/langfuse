@@ -234,22 +234,47 @@ if (
   env.AUTH_AUTHENTIK_CLIENT_ID &&
   env.AUTH_AUTHENTIK_CLIENT_SECRET &&
   env.AUTH_AUTHENTIK_ISSUER
-)
-  staticProviders.push(
-    AuthentikProvider({
-      clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
-      clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
-      issuer: env.AUTH_AUTHENTIK_ISSUER,
-      allowDangerousEmailAccountLinking:
-        env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
-      client: {
-        token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
-      },
-      ...(env.AUTH_AUTHENTIK_CHECKS
-        ? { checks: env.AUTH_AUTHENTIK_CHECKS }
-        : {}),
-    }),
-  );
+) {
+  const authentikProvider = AuthentikProvider({
+    clientId: env.AUTH_AUTHENTIK_CLIENT_ID,
+    clientSecret: env.AUTH_AUTHENTIK_CLIENT_SECRET,
+    issuer: env.AUTH_AUTHENTIK_ISSUER,
+    allowDangerousEmailAccountLinking:
+      env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
+    client: {
+      token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+    },
+    ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
+  });
+
+  if (env.AUTH_AUTHENTIK_AUTHORIZATION_URL) {
+    // For reverse proxy setups where authentik's external URL differs from
+    // the internal issuer, well-known discovery can't be used. We disable it
+    // and derive token/userinfo/JWKS endpoints from the issuer, assuming
+    // authentik's standard URL layout: <host>/application/o/<slug>.
+    const authentikIssuer = env.AUTH_AUTHENTIK_ISSUER.replace(/\/$/, "");
+    const authentikBase = authentikIssuer.replace(
+      /\/application\/o\/[^/]+$/,
+      "/application/o/",
+    );
+    const authentikJwksUrl = `${authentikIssuer}/jwks/`;
+
+    authentikProvider.wellKnown = undefined;
+    authentikProvider.authorization = {
+      url: env.AUTH_AUTHENTIK_AUTHORIZATION_URL,
+      params: { scope: "openid email profile" },
+    };
+    authentikProvider.token = {
+      url: `${authentikBase}token/`,
+    };
+    authentikProvider.userinfo = {
+      url: `${authentikBase}userinfo/`,
+    };
+    authentikProvider.jwks_endpoint = authentikJwksUrl;
+  }
+
+  staticProviders.push(authentikProvider);
+}
 
 if (
   env.AUTH_ONELOGIN_CLIENT_ID &&
