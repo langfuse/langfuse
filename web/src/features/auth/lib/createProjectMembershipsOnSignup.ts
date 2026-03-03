@@ -2,6 +2,8 @@ import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 export async function createProjectMembershipsOnSignup(user: {
   id: string;
@@ -80,25 +82,35 @@ export async function createProjectMembershipsOnSignup(user: {
           })
         : [];
 
+    // Project-level role assignments require the rbac-project-roles entitlement.
+    // Without it, users inherit their org role for all projects, so we only need
+    // to ensure org membership exists (handled above and in path 2 below).
+    const hasProjectRolesEntitlement = hasEntitlementBasedOnPlan({
+      plan: getOrganizationPlanServerSide(),
+      entitlement: "rbac-project-roles",
+    });
+
     for (const project of defaultProjects) {
       const existingOrgMembership = orgMembershipMap.get(project.orgId);
       if (existingOrgMembership) {
-        // (1) project's org is in the default org list -> create project membership
-        await prisma.projectMembership.upsert({
-          where: {
-            projectId_userId: {
-              projectId: project.id,
-              userId: user.id,
+        // (1) project's org is in the default org list -> create project membership if entitled
+        if (hasProjectRolesEntitlement) {
+          await prisma.projectMembership.upsert({
+            where: {
+              projectId_userId: {
+                projectId: project.id,
+                userId: user.id,
+              },
             },
-          },
-          update: {}, // No-op: preserve existing role
-          create: {
-            userId: user.id,
-            orgMembershipId: existingOrgMembership.id,
-            projectId: project.id,
-            role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-          },
-        });
+            update: {}, // No-op: preserve existing role
+            create: {
+              userId: user.id,
+              orgMembershipId: existingOrgMembership.id,
+              projectId: project.id,
+              role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
+            },
+          });
+        }
       } else {
         // (2) project's org is NOT in the default org list (legacy behavior) -> create org membership for the project's org first
         const orgMembership = await prisma.organizationMembership.upsert({
@@ -115,21 +127,23 @@ export async function createProjectMembershipsOnSignup(user: {
         // Add to map in case multiple projects belong to the same org
         orgMembershipMap.set(project.orgId, orgMembership);
 
-        await prisma.projectMembership.upsert({
-          where: {
-            projectId_userId: {
-              projectId: project.id,
-              userId: user.id,
+        if (hasProjectRolesEntitlement) {
+          await prisma.projectMembership.upsert({
+            where: {
+              projectId_userId: {
+                projectId: project.id,
+                userId: user.id,
+              },
             },
-          },
-          update: {}, // No-op: preserve existing role
-          create: {
-            userId: user.id,
-            orgMembershipId: orgMembership.id,
-            projectId: project.id,
-            role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
-          },
-        });
+            update: {}, // No-op: preserve existing role
+            create: {
+              userId: user.id,
+              orgMembershipId: orgMembership.id,
+              projectId: project.id,
+              role: env.LANGFUSE_DEFAULT_PROJECT_ROLE ?? "VIEWER",
+            },
+          });
+        }
       }
     }
 

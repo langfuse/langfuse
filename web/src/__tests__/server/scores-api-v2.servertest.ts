@@ -219,11 +219,13 @@ describe("/api/public/v2/scores API Endpoint", () => {
       const correctionScoreId_2 = v4();
       let authentication: string;
       let newProjectId: string;
+      let executionTraceId: string;
 
       beforeEach(async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
         authentication = auth;
         newProjectId = projectId;
+        executionTraceId = v4();
 
         const trace = createTrace({
           id: traceId,
@@ -278,6 +280,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           observation_id: generationId,
           config_id: config.id,
           comment: "comment",
+          execution_trace_id: executionTraceId,
         });
 
         const score2 = createTraceScore({
@@ -432,6 +435,13 @@ describe("/api/public/v2/scores API Endpoint", () => {
             ).toBeTruthy();
           }
         }
+
+        const scoreWithExecutionTraceId = getAllScore.body.data.find(
+          (score) => score.id === scoreId_1,
+        );
+        expect(scoreWithExecutionTraceId?.executionTraceId).toBe(
+          executionTraceId,
+        );
       });
 
       it("get all scores for config", async () => {
@@ -1356,11 +1366,13 @@ describe("/api/public/v2/scores API Endpoint", () => {
       it("should include both when fields=score,trace", async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
         const traceId = v4();
+        const traceSessionId = v4();
         const scoreId = v4();
 
         const trace = createTrace({
           id: traceId,
           project_id: projectId,
+          session_id: traceSessionId,
           user_id: "test-user",
           tags: ["tag1"],
         });
@@ -1393,6 +1405,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
           trace: {
             userId: "test-user",
             tags: ["tag1"],
+            sessionId: traceSessionId,
           },
         });
       });

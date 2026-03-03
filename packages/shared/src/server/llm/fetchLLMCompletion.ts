@@ -1,6 +1,6 @@
 import { type ZodSchema, z } from "zod/v4";
 
-import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { ChatBedrockConverse } from "@langchain/aws";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
@@ -260,7 +260,7 @@ export async function fetchLLMCompletion(
       modelParams.model?.includes("claude-opus-4-6") ||
       modelParams.model?.includes("claude-haiku-4-5");
 
-    const chatOptions: Record<string, any> = {
+    const chatOptions: ChatAnthropicInput = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
       model: modelParams.model,
@@ -268,6 +268,7 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
+        defaultHeaders: extraHeaders,
         timeout: timeoutMs,
         ...(proxyDispatcher && {
           fetchOptions: { dispatcher: proxyDispatcher },
@@ -276,7 +277,6 @@ export async function fetchLLMCompletion(
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
       invocationKwargs: modelParams.providerOptions,
-      timeout: timeoutMs,
     };
 
     chatModel = new ChatAnthropic(chatOptions);
