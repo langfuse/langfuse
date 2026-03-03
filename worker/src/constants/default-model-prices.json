@@ -3293,7 +3293,7 @@
   {
     "id": "13458bc0-1c20-44c2-8753-172f54b67647",
     "modelName": "claude-opus-4-6",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-6(-v1(:0)?)?|claude-opus-4-6)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-6|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-opus-4-6-v1(:0)?|claude-opus-4-6)$",
     "createdAt": "2026-02-09T00:00:00.000Z",
     "updatedAt": "2026-02-09T00:00:00.000Z",
     "tokenizerConfig": null,
