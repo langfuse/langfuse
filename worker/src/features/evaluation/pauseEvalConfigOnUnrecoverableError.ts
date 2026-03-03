@@ -5,7 +5,7 @@ import {
   Role,
 } from "@langfuse/shared";
 import {
-  clearNoEvalConfigsCache,
+  clearAllEvalConfigsCaches,
   sendEvalPausedEmail,
   logger,
 } from "@langfuse/shared/src/server";
@@ -217,16 +217,40 @@ export async function pauseEvalConfigOnUnrecoverableError({
     return;
   }
 
-  await clearNoEvalConfigsCache(projectId, "traceBased");
-  await clearNoEvalConfigsCache(projectId, "eventBased");
+  await clearAllEvalConfigsCaches(projectId);
 
+  // Fire-and-forget: email notification should not block the eval worker
+  void sendPauseNotification({
+    projectId,
+    configId: config.id,
+    templateId: template.id,
+    templateName: template.name,
+    pauseReason,
+  }).catch((e) =>
+    logger.error("[EVAL PAUSE] Failed to send pause notification", e),
+  );
+}
+
+async function sendPauseNotification({
+  projectId,
+  configId,
+  templateId,
+  templateName,
+  pauseReason,
+}: {
+  projectId: string;
+  configId: string;
+  templateId: string;
+  templateName: string;
+  pauseReason: ReturnType<typeof getPauseReason>;
+}): Promise<void> {
   if (
     !env.NEXTAUTH_URL ||
     !env.EMAIL_FROM_ADDRESS ||
     !env.SMTP_CONNECTION_URL
   ) {
     logger.warn(
-      `[EVAL PAUSE] Missing env for email. Config ${config.id} paused but no notification sent.`,
+      `[EVAL PAUSE] Missing env for email. Config ${configId} paused but no notification sent.`,
     );
     return;
   }
@@ -235,12 +259,12 @@ export async function pauseEvalConfigOnUnrecoverableError({
 
   if (ownerEmails.length === 0) {
     logger.warn(
-      `[EVAL PAUSE] No project owner emails found for project ${projectId}. Config ${config.id} paused.`,
+      `[EVAL PAUSE] No project owner emails found for project ${projectId}. Config ${configId} paused.`,
     );
     return;
   }
 
-  const resolutionUrl = `${env.NEXTAUTH_URL}/project/${projectId}/evals/templates/${template.id}`;
+  const resolutionUrl = `${env.NEXTAUTH_URL}/project/${projectId}/evals/templates/${templateId}`;
   await Promise.allSettled(
     ownerEmails.map((email) =>
       sendEvalPausedEmail({
@@ -250,7 +274,7 @@ export async function pauseEvalConfigOnUnrecoverableError({
           NEXTAUTH_URL: env.NEXTAUTH_URL,
           CLOUD_CRM_EMAIL: env.CLOUD_CRM_EMAIL,
         },
-        templateName: template.name,
+        templateName,
         pauseReason: pauseReason.configMessage,
         pauseReasonCode: pauseReason.code,
         resolutionUrl,

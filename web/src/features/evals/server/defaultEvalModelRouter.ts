@@ -7,7 +7,7 @@ import { z } from "zod/v4";
 import { ZodModelConfig } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
-  clearNoEvalConfigsCache,
+  clearAllEvalConfigsCaches,
 } from "@langfuse/shared/src/server";
 
 export const defaultEvalModelRouter = createTRPCRouter({
@@ -84,8 +84,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
         return { success: true };
       });
 
-      await clearNoEvalConfigsCache(input.projectId, "traceBased");
-      await clearNoEvalConfigsCache(input.projectId, "eventBased");
+      await clearAllEvalConfigsCaches(input.projectId);
 
       return result;
     }),

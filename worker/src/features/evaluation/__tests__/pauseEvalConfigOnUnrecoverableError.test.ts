@@ -30,7 +30,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    clearNoEvalConfigsCache: vi.fn(),
+    clearAllEvalConfigsCaches: vi.fn(),
     sendEvalPausedEmail: vi.fn(),
     logger: {
       debug: vi.fn(),
@@ -52,9 +52,11 @@ vi.mock("../../../env", () => ({
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
-  clearNoEvalConfigsCache,
+  clearAllEvalConfigsCaches,
   sendEvalPausedEmail,
 } from "@langfuse/shared/src/server";
+
+const flushPromises = () => new Promise((r) => setTimeout(r, 0));
 
 const projectId = "proj-1";
 const jobExecutionId = "job-exec-1";
@@ -159,7 +161,10 @@ describe("pauseEvalConfigOnUnrecoverableError", () => {
         endTime: expect.any(Date),
       },
     });
-    expect(clearNoEvalConfigsCache).toHaveBeenCalledTimes(2);
+    expect(clearAllEvalConfigsCaches).toHaveBeenCalledWith(projectId);
+
+    // Wait for fire-and-forget notification to settle
+    await flushPromises();
     expect(sendEvalPausedEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         templateName: "Hallucination Check",
@@ -228,6 +233,8 @@ describe("pauseEvalConfigOnUnrecoverableError", () => {
         endTime: expect.any(Date),
       },
     });
+    // Wait for fire-and-forget notification to settle
+    await flushPromises();
     expect(sendEvalPausedEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         pauseReasonCode: "LLM_KEY_MISSING",
@@ -280,7 +287,10 @@ describe("pauseEvalConfigOnUnrecoverableError", () => {
     });
     expect(tx.jobConfiguration.update).not.toHaveBeenCalled();
     expect(tx.jobExecution.updateMany).not.toHaveBeenCalled();
-    expect(clearNoEvalConfigsCache).not.toHaveBeenCalled();
+    expect(clearAllEvalConfigsCaches).not.toHaveBeenCalled();
+
+    // Wait to confirm no fire-and-forget notification was sent
+    await flushPromises();
     expect(sendEvalPausedEmail).not.toHaveBeenCalled();
   });
 });
