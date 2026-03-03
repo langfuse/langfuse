@@ -226,7 +226,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         },
       });
 
-      const result = await ctx.prisma.$transaction(async (tx) => {
+      return ctx.prisma.$transaction(async (tx) => {
         // Check if the llm api key is used for the default evaluation model
         // If so, it will be deleted and we must invalidate all eval jobs that rely on it
         const defaultModel = await tx.defaultLlmModel.findFirst({
@@ -275,8 +275,6 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         return { success: true };
       });
-
-      return result;
     }),
   all: protectedProjectProcedure
     .input(
