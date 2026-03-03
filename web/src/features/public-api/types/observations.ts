@@ -353,9 +353,72 @@ export const GetObservationsV2Query = z.object({
     .pipe(z.array(singleFilter).optional()),
 });
 
+/**
+ * Typed observation schema for v2 API responses.
+ * Core fields are always present; other fields are optional depending on requested field groups.
+ * Uses .passthrough() to allow server enrichment fields not explicitly listed.
+ */
+const APIObservationV2 = z
+  .object({
+    // Core fields (always present)
+    id: z.string(),
+    traceId: z.string().nullable(),
+    startTime: z.coerce.date(),
+    endTime: z.coerce.date().nullable(),
+    projectId: z.string(),
+    parentObservationId: z.string().nullable(),
+    type: z.string(),
+
+    // Basic fields (field group: basic)
+    name: z.string().nullable().optional(),
+    level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
+    statusMessage: z.string().nullable().optional(),
+    version: z.string().nullable().optional(),
+    environment: z.string().nullable().optional(),
+    bookmarked: z.boolean().optional(),
+    public: z.boolean().optional(),
+    userId: z.string().nullable().optional(),
+    sessionId: z.string().nullable().optional(),
+
+    // Time fields (field group: time)
+    completionStartTime: z.coerce.date().nullable().optional(),
+    createdAt: z.coerce.date().optional(),
+    updatedAt: z.coerce.date().optional(),
+
+    // IO fields (field group: io)
+    input: z.any().optional(),
+    output: z.any().optional(),
+
+    // Metadata fields (field group: metadata)
+    metadata: z.any().optional(),
+
+    // Model fields (field group: model)
+    providedModelName: z.string().nullable().optional(),
+    internalModelId: z.string().nullable().optional(),
+    modelParameters: z.any().optional(),
+
+    // Usage fields (field group: usage)
+    usageDetails: z.record(z.string(), z.number().nonnegative()).optional(),
+    costDetails: z.record(z.string(), z.number().nonnegative()).optional(),
+    totalCost: z.number().nullable().optional(),
+
+    // Prompt fields (field group: prompt)
+    promptId: z.string().nullable().optional(),
+    promptName: z.string().nullable().optional(),
+    promptVersion: z.number().int().positive().nullable().optional(),
+
+    // Metrics fields (field group: metrics)
+    latency: z.number().nullable().optional(),
+    timeToFirstToken: z.number().nullable().optional(),
+
+    // Enrichment fields
+    modelId: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 export const GetObservationsV2Response = z
   .object({
-    data: z.array(z.record(z.string(), z.any())), // Field-group-filtered observations
+    data: z.array(APIObservationV2),
     meta: z.object({
       cursor: EncodedObservationsCursorV2String.optional(),
     }),

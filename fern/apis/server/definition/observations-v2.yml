@@ -193,7 +193,7 @@ types:
       Use the `cursor` in `meta` to retrieve the next page of results.
     properties:
       data:
-        type: list<map<string, unknown>>
+        type: list<commons.ObservationV2>
         docs: Array of observation objects. Fields included depend on the `fields` parameter in the request.
       meta: ObservationsV2Meta
 
